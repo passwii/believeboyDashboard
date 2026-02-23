@@ -19,7 +19,6 @@ import {
   SidebarMenuSubItem,
 } from '@/components/ui/sidebar'
 import Link from 'next/link'
-import { cn } from '@/lib/utils'
 
 interface NavItem {
   title: string
@@ -41,7 +40,7 @@ export function NavMain({ items }: NavMainProps) {
 
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>Platform</SidebarGroupLabel>
+      <SidebarGroupLabel>工作面板</SidebarGroupLabel>
       <SidebarMenu>
         {items.map((item) => (
           <Collapsible
@@ -57,11 +56,11 @@ export function NavMain({ items }: NavMainProps) {
                     <SidebarMenuButton tooltip={item.title}>
                       {item.icon}
                       <span>{item.title}</span>
-                      <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                      <ChevronRight className="ml-auto transition-transform duration-300 ease-out group-data-[state=open]/collapsible:rotate-90" />
                     </SidebarMenuButton>
                   </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <SidebarMenuSub>
+                  <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down data-[state=closed]:opacity-0 data-[state=open]:opacity-100">
+                    <SidebarMenuSub className="transition-[transform,opacity] duration-300 ease-out group-data-[state=closed]/collapsible:-translate-y-1 group-data-[state=closed]/collapsible:opacity-0 group-data-[state=open]/collapsible:translate-y-0 group-data-[state=open]/collapsible:opacity-100">
                       {item.items?.map((subItem) => (
                         <SidebarMenuSubItem key={subItem.title}>
                           <SidebarMenuSubButton

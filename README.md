@@ -10,6 +10,7 @@ BelieveBoy Dashboard 复刻并扩展了 shadcn/ui 的 Dashboard 交互模式，�
 
 - `app/` 下使用 Next.js App Router 组织页面与布局
 - 内置 `shadcn/ui` 组件体系（Radix UI + Tailwind 变量主题）
+- 侧边栏信息架构已调整为运营导向（工作面板 + 运营工具 + 次要导航）
 - 支持明暗主题切换（`next-themes`）
 - 提供可交互数据表格（排序、筛选、分页、列显隐、行选择）
 - 提供 Recharts 图表与统计卡片组合视图
@@ -30,12 +31,15 @@ BelieveBoy Dashboard 复刻并扩展了 shadcn/ui 的 Dashboard 交互模式，�
 ## 当前功能
 
 - 仪表盘主布局：侧边栏 + 顶栏 + 主内容区
-- 可折叠 Sidebar（`collapsible="icon"`）
+- 可折叠 Sidebar（`collapsible="icon"`，折叠宽度 `3.5rem`）
+- 侧边栏主导航分组：运营导航 / AI 面板 / 运营文件 / 工作协作
+- 侧边栏运营工具分组：数据分析 / 工具集（`NavTools`）
+- 侧边栏子菜单支持平滑展开/收起动画（`collapsible-down/up`）
 - 顶栏快捷入口（主题切换、搜索触发）
 - 命令面板搜索（`Cmd/Ctrl + K`）
 - 4 个业务指标卡片
 - Visitors/Page Views 趋势图（7/30/90 天切换）
-- 文档列表数据表格（排序、过滤、列控制、行操作）
+- 运营工具与近期文件状态数据表格（排序、过滤、列控制、行操作）
 
 ## 目录结构
 

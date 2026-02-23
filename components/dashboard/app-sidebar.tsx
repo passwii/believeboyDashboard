@@ -2,26 +2,20 @@
 
 import * as React from 'react'
 import {
-  AudioWaveform,
-  BookOpen,
   Bot,
+  ChartColumnBig,
   Command,
-  Frame,
-  GalleryVerticalEnd,
-  Map,
-  PieChart,
-  Settings2,
+  ClipboardList,
+  FolderKanban,
+  Wrench,
+  LayoutDashboard,
   SquareTerminal,
-  FileText,
   HelpCircle,
   Search,
-  Database,
-  FileBarChart,
-  FileEdit,
 } from 'lucide-react'
 
 import { NavMain } from '@/components/dashboard/nav-main'
-import { NavDocuments } from '@/components/dashboard/nav-documents'
+import { NavTools } from '@/components/dashboard/nav-tools'
 import { NavSecondary } from '@/components/dashboard/nav-secondary'
 import { NavUser } from '@/components/dashboard/nav-user'
 import {
@@ -41,86 +35,78 @@ const data = {
   },
   navMain: [
     {
-      title: 'Playground',
+      title: '运营导航',
       url: '#',
-      icon: <SquareTerminal className="h-4 w-4" />,
+      icon: <LayoutDashboard className="h-4 w-4" />,
       isActive: true,
       items: [
         {
-          title: 'History',
+          title: '运营总览',
           url: '#',
         },
         {
-          title: 'Starred',
+          title: '站点导航',
           url: '#',
         },
         {
-          title: 'Settings',
+          title: '店铺导航',
           url: '#',
         },
       ],
     },
     {
-      title: 'Models',
+      title: 'AI 面板',
       url: '#',
       icon: <Bot className="h-4 w-4" />,
       items: [
         {
-          title: 'Genesis',
+          title: 'AI 菜单 1',
           url: '#',
         },
         {
-          title: 'Explorer',
+          title: 'AI 菜单 2',
           url: '#',
         },
         {
-          title: 'Quantum',
-          url: '#',
-        },
-      ],
-    },
-    {
-      title: 'Documentation',
-      url: '#',
-      icon: <BookOpen className="h-4 w-4" />,
-      items: [
-        {
-          title: 'Introduction',
-          url: '#',
-        },
-        {
-          title: 'Get Started',
-          url: '#',
-        },
-        {
-          title: 'Tutorials',
-          url: '#',
-        },
-        {
-          title: 'Changelog',
+          title: 'AI 菜单 3',
           url: '#',
         },
       ],
     },
     {
-      title: 'Settings',
+      title: '运营文件',
       url: '#',
-      icon: <Settings2 className="h-4 w-4" />,
+      icon: <FolderKanban className="h-4 w-4" />,
       items: [
         {
-          title: 'General',
+          title: 'SKU 成本表',
           url: '#',
         },
         {
-          title: 'Team',
+          title: '项目进度表',
           url: '#',
         },
         {
-          title: 'Billing',
+          title: '利润测算表',
+          url: '#',
+        },
+      ],
+    },
+    {
+      title: '工作协作',
+      url: '#',
+      icon: <ClipboardList className="h-4 w-4" />,
+      items: [
+        {
+          title: '工作日历',
           url: '#',
         },
         {
-          title: 'Limits',
+          title: '运营工作台',
+          url: '#',
+        },
+        {
+          title: '运营公告',
           url: '#',
         },
       ],
@@ -128,36 +114,61 @@ const data = {
   ],
   navSecondary: [
     {
-      title: 'Settings',
+      title: '运营总览',
       url: '#',
-      icon: <Settings2 className="h-4 w-4" />,
+      icon: <SquareTerminal className="h-4 w-4" />,
     },
     {
-      title: 'Get Help',
+      title: '帮助中心',
       url: '#',
       icon: <HelpCircle className="h-4 w-4" />,
     },
     {
-      title: 'Search',
+      title: '全局搜索',
       url: '#',
       icon: <Search className="h-4 w-4" />,
     },
   ],
-  documents: [
+  tools: [
     {
-      name: 'Data Library',
-      url: '#',
-      icon: <Database className="h-4 w-4" />,
+      title: '数据分析',
+      icon: <ChartColumnBig className="h-4 w-4" />,
+      items: [
+        {
+          title: '销售日报',
+          url: '#',
+        },
+        {
+          title: '财务月报',
+          url: '#',
+        },
+        {
+          title: '产品分析表',
+          url: '#',
+        },
+      ],
     },
     {
-      name: 'Reports',
-      url: '#',
-      icon: <FileBarChart className="h-4 w-4" />,
-    },
-    {
-      name: 'Word Assistant',
-      url: '#',
-      icon: <FileEdit className="h-4 w-4" />,
+      title: '工具集',
+      icon: <Wrench className="h-4 w-4" />,
+      items: [
+        {
+          title: 'API站点',
+          url: '#',
+        },
+        {
+          title: 'BLF图床',
+          url: '#',
+        },
+        {
+          title: '调研分析',
+          url: '#',
+        },
+        {
+          title: '亚马逊采集',
+          url: '#',
+        },
+      ],
     },
   ],
 }
@@ -166,11 +177,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        <div className="flex items-center gap-2 px-4 py-2">
-          <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+        <div className="flex items-center gap-2 overflow-hidden px-4 py-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:px-2">
+          <div className="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
             <Command className="size-4" />
           </div>
-          <div className="flex flex-col gap-0.5 leading-none">
+          <div className="flex min-w-0 flex-col gap-0.5 leading-none transition-opacity duration-200 group-data-[collapsible=icon]:w-0 group-data-[collapsible=icon]:opacity-0">
             <span className="font-semibold">BelieveBoy</span>
             <span className="text-xs text-muted-foreground">Dashboard v1.0</span>
           </div>
@@ -178,7 +189,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={data.navMain} />
-        <NavDocuments documents={data.documents} />
+        <NavTools tools={data.tools} />
         <NavSecondary items={data.navSecondary} />
       </SidebarContent>
       <SidebarFooter>

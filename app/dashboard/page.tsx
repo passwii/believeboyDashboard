@@ -81,9 +81,9 @@ export default function DashboardPage() {
       
       <Card>
         <CardHeader>
-          <CardTitle>Documents</CardTitle>
+          <CardTitle>运营工具</CardTitle>
           <CardDescription>
-            A list of your recent documents and their status.
+            常用运营工具与近期文件状态。
           </CardDescription>
         </CardHeader>
         <CardContent>
