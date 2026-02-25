@@ -30,6 +30,7 @@ def list_product_costs(
     asin: str | None,
     page: int,
     page_size: int,
+    include_total: bool = False,
 ):
     stmt: Select = select(ProductCost)
 
@@ -40,16 +41,21 @@ def list_product_costs(
     if asin:
         stmt = stmt.where(ProductCost.asin.ilike(f'%{asin}%'))
 
-    total_stmt = select(func.count()).select_from(stmt.subquery())
-    total = db.execute(total_stmt).scalar_one()
-
     rows = db.execute(
         stmt.order_by(ProductCost.id.desc())
         .offset((page - 1) * page_size)
-        .limit(page_size)
+        .limit(page_size + 1)
     ).scalars().all()
 
-    return rows, total
+    has_next = len(rows) > page_size
+    rows = rows[:page_size]
+
+    total = None
+    if include_total:
+        total_stmt = select(func.count()).select_from(stmt.subquery())
+        total = db.execute(total_stmt).scalar_one()
+
+    return rows, total, has_next
 
 
 def _normalize_text(value: str | None, field_name: str) -> str:
@@ -105,6 +111,10 @@ def upsert_product_cost(db: Session, item: ProductCostCreate, source_file: str |
         existing.source_file = normalized['source_file']
         row = existing
     else:
+        if db.bind and db.bind.dialect.name == 'sqlite':
+            # Compatibility fallback for legacy sqlite schema without auto-increment id.
+            next_id = db.execute(select(func.coalesce(func.max(ProductCost.id), 0) + 1)).scalar_one()
+            normalized['id'] = int(next_id)
         row = ProductCost(**normalized)
         db.add(row)
         action = 'inserted'

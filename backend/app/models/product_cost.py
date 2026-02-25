@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import BigInteger, DateTime, Numeric, String, UniqueConstraint, func
+from sqlalchemy import BigInteger, DateTime, Integer, Numeric, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
@@ -9,7 +9,11 @@ class ProductCost(Base):
     __tablename__ = 'product_costs'
     __table_args__ = (UniqueConstraint('project_name', 'sku', 'asin', name='product_costs_project_sku_asin_key'),)
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, 'sqlite'),
+        primary_key=True,
+        autoincrement=True,
+    )
     project_name: Mapped[str] = mapped_column(String, nullable=False, index=True)
     sku: Mapped[str] = mapped_column(String, nullable=False, index=True)
     asin: Mapped[str] = mapped_column(String, nullable=False, index=True)

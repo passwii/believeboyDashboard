@@ -36,7 +36,7 @@ export default function DashboardLayout({
           <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem>
-                <BreadcrumbPage className="font-medium tracking-tight">{pageTitle}</BreadcrumbPage>
+                <BreadcrumbPage className="text-base font-semibold tracking-tight md:text-[17px]">{pageTitle}</BreadcrumbPage>
               </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>

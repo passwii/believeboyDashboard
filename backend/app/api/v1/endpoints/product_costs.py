@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, 
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, protected
+from app.core.config import get_settings
 from app.schemas.product_cost import (
     ProductCostBulkCreate,
     ProductCostBulkUpsertResponse,
@@ -12,7 +13,7 @@ from app.schemas.product_cost import (
     ProductCostsPage,
     ProductCostUpsertResponse,
 )
-from app.services import product_cost_service
+from app.services import product_cost_cache_service, product_cost_service
 
 router = APIRouter(dependencies=[Depends(protected)])
 
@@ -24,9 +25,31 @@ def list_product_costs(
     asin: str | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=200),
+    include_total: bool = Query(default=False),
     db: Session = Depends(get_db_session),
 ) -> ProductCostsPage:
-    rows, total = product_cost_service.list_product_costs(db, project_name, sku, asin, page, page_size)
+    settings = get_settings()
+    cache_key = product_cost_cache_service.build_list_cache_key(
+        project_name=project_name,
+        sku=sku,
+        asin=asin,
+        page=page,
+        page_size=page_size,
+        include_total=include_total,
+    )
+    cached_payload = product_cost_cache_service.get_cached_list_response(settings, cache_key)
+    if cached_payload:
+        return ProductCostsPage(**cached_payload)
+
+    rows, total, has_next = product_cost_service.list_product_costs(
+        db,
+        project_name,
+        sku,
+        asin,
+        page,
+        page_size,
+        include_total,
+    )
     items = [
         ProductCostItem(
             id=row.id,
@@ -39,7 +62,9 @@ def list_product_costs(
         )
         for row in rows
     ]
-    return ProductCostsPage(items=items, page=page, page_size=page_size, total=total)
+    payload = ProductCostsPage(items=items, page=page, page_size=page_size, total=total, has_next=has_next)
+    product_cost_cache_service.set_cached_list_response(settings, cache_key, payload.model_dump())
+    return payload
 
 
 @router.post('/product-costs', response_model=ProductCostUpsertResponse)
@@ -47,8 +72,10 @@ def create_or_update_product_cost(
     payload: ProductCostCreate,
     db: Session = Depends(get_db_session),
 ) -> ProductCostUpsertResponse:
+    settings = get_settings()
     row, action = product_cost_service.upsert_product_cost(db, payload, payload.source_file)
     db.commit()
+    product_cost_cache_service.invalidate_list_cache(settings)
     return ProductCostUpsertResponse(
         item=ProductCostItem(
             id=row.id,
@@ -68,8 +95,10 @@ def bulk_create_or_update_product_costs(
     payload: ProductCostBulkCreate,
     db: Session = Depends(get_db_session),
 ) -> ProductCostBulkUpsertResponse:
+    settings = get_settings()
     _, inserted, updated = product_cost_service.bulk_upsert_product_costs(db, payload.items, payload.source_file)
     db.commit()
+    product_cost_cache_service.invalidate_list_cache(settings)
     return ProductCostBulkUpsertResponse(inserted=inserted, updated=updated, total=inserted + updated)
 
 
@@ -78,6 +107,7 @@ def import_product_costs_from_csv(
     file: UploadFile = File(...),
     db: Session = Depends(get_db_session),
 ) -> ProductCostBulkUpsertResponse:
+    settings = get_settings()
     if not file.filename:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Missing filename')
 
@@ -92,6 +122,7 @@ def import_product_costs_from_csv(
     items = product_cost_service.parse_product_cost_csv(content)
     _, inserted, updated = product_cost_service.bulk_upsert_product_costs(db, items, file.filename)
     db.commit()
+    product_cost_cache_service.invalidate_list_cache(settings)
     return ProductCostBulkUpsertResponse(inserted=inserted, updated=updated, total=inserted + updated)
 
 
@@ -99,7 +130,9 @@ def import_product_costs_from_csv(
 def import_default_blf_basic_info(
     db: Session = Depends(get_db_session),
 ) -> ProductCostBulkUpsertResponse:
+    settings = get_settings()
     items, source_file = product_cost_service.read_product_cost_csv_file()
     _, inserted, updated = product_cost_service.bulk_upsert_product_costs(db, items, source_file)
     db.commit()
+    product_cost_cache_service.invalidate_list_cache(settings)
     return ProductCostBulkUpsertResponse(inserted=inserted, updated=updated, total=inserted + updated)

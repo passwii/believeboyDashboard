@@ -15,7 +15,8 @@ class ProductCostsPage(BaseModel):
     items: list[ProductCostItem]
     page: int
     page_size: int
-    total: int
+    total: int | None = None
+    has_next: bool
 
 
 class ProductCostCreate(BaseModel):

@@ -41,7 +41,12 @@ export function NavAdmin({ adminTools }: NavAdminProps) {
       <SidebarGroupLabel>管理员</SidebarGroupLabel>
       <SidebarMenu>
         {adminTools.map((tool) => (
-          <Collapsible key={tool.title} asChild className="group/collapsible">
+          <Collapsible
+            key={tool.title}
+            asChild
+            defaultOpen={tool.items.some((subItem) => subItem.url === pathname)}
+            className="group/collapsible"
+          >
             <SidebarMenuItem>
               <CollapsibleTrigger asChild>
                 <SidebarMenuButton tooltip={tool.title}>

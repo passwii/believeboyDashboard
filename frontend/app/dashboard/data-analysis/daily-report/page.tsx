@@ -167,14 +167,14 @@ function StatusPill({ status }: { status: UploadState }) {
 
 function UploadProgressRail({ meta, reduceMotion }: { meta: StatusMeta; reduceMotion: boolean }) {
   const toneClasses = {
-    neutral: 'bg-slate-400',
+    neutral: 'bg-foreground/40',
     loading: 'bg-blue-500',
     success: 'bg-emerald-500',
     error: 'bg-rose-500',
   }
 
   const trackClasses = {
-    neutral: 'bg-slate-200',
+    neutral: 'bg-muted',
     loading: 'bg-blue-100',
     success: 'bg-emerald-100',
     error: 'bg-rose-100',
@@ -218,9 +218,9 @@ function UploadRow({
       ? 'border-emerald-200/90 bg-emerald-50/60'
       : state.status === 'error'
         ? 'border-rose-200/90 bg-rose-50/60'
-        : state.status === 'uploading'
+      : state.status === 'uploading'
           ? 'border-blue-200/90 bg-blue-50/70'
-          : 'border-slate-200 bg-white'
+          : 'border-border bg-card'
 
   return (
     <motion.div
@@ -231,9 +231,9 @@ function UploadRow({
     >
       <div className="grid gap-3 xl:grid-cols-[180px_1fr_auto] xl:items-center">
         <div className="space-y-1">
-          <p className="text-sm font-semibold text-slate-800">{fileItem.title}</p>
-          <p className="text-xs leading-relaxed text-slate-500">{fileItem.description}</p>
-          {state.selectedReason ? <p className="text-[11px] text-blue-600">{state.selectedReason}</p> : null}
+          <p className="text-sm font-semibold text-foreground">{fileItem.title}</p>
+          <p className="text-xs leading-relaxed text-muted-foreground">{fileItem.description}</p>
+          {state.selectedReason ? <p className="text-[11px] text-blue-600 dark:text-blue-400">{state.selectedReason}</p> : null}
         </div>
 
         <div className="space-y-2">
@@ -242,9 +242,9 @@ function UploadRow({
             accept={fileItem.accept}
             onChange={(event) => onPickFile(fileItem.key, event.target.files?.[0] ?? null)}
             disabled={state.status === 'uploading'}
-            className="bg-white"
+            className="bg-background"
           />
-          <p className="truncate text-xs text-slate-500">
+          <p className="truncate text-xs text-muted-foreground">
             {state.uploaded?.originalFilename ?? state.selectedFile?.name ?? '尚未选择文件'}
           </p>
         </div>
@@ -726,7 +726,7 @@ export default function DailyReportPage() {
   return (
     <motion.div initial="hidden" animate="show" variants={containerVariants} className="space-y-6">
       <motion.div variants={itemVariants} className="grid gap-6 2xl:grid-cols-2">
-        <Card className="relative overflow-hidden border border-blue-100/80 bg-gradient-to-br from-slate-50 via-white to-blue-50 shadow-lg">
+        <Card className="relative overflow-hidden border border-blue-100/80 bg-gradient-to-br from-slate-50 via-white to-blue-50 shadow-lg dark:border-border dark:from-slate-950 dark:via-slate-900 dark:to-slate-900">
           <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-blue-400/10 blur-3xl" />
           <CardHeader className="relative">
             <CardTitle className="flex items-center gap-2 text-lg">
@@ -737,23 +737,23 @@ export default function DailyReportPage() {
           </CardHeader>
           <CardContent className="relative space-y-4">
             <div className="grid gap-2 sm:grid-cols-3">
-              <div className="rounded-lg border border-slate-200 bg-white/90 p-2.5">
-                <p className="text-[11px] text-slate-500">项目名称</p>
-                <p className="mt-1 text-sm font-semibold text-slate-700">{projectName.trim() ? '已填写' : '未填写'}</p>
+              <div className="rounded-lg border border-border bg-background/80 p-2.5">
+                <p className="text-[11px] text-muted-foreground">项目名称</p>
+                <p className="mt-1 text-sm font-semibold text-foreground">{projectName.trim() ? '已填写' : '未填写'}</p>
               </div>
-              <div className="rounded-lg border border-slate-200 bg-white/90 p-2.5">
-                <p className="text-[11px] text-slate-500">报表日期</p>
-                <p className="mt-1 text-sm font-semibold text-slate-700">{reportDate ? '已选择' : '未选择'}</p>
+              <div className="rounded-lg border border-border bg-background/80 p-2.5">
+                <p className="text-[11px] text-muted-foreground">报表日期</p>
+                <p className="mt-1 text-sm font-semibold text-foreground">{reportDate ? '已选择' : '未选择'}</p>
               </div>
-              <div className="rounded-lg border border-slate-200 bg-white/90 p-2.5">
-                <p className="text-[11px] text-slate-500">文件完成度</p>
-                <p className="mt-1 text-sm font-semibold text-slate-700">{uploadedCount}/3</p>
+              <div className="rounded-lg border border-border bg-background/80 p-2.5">
+                <p className="text-[11px] text-muted-foreground">文件完成度</p>
+                <p className="mt-1 text-sm font-semibold text-foreground">{uploadedCount}/3</p>
               </div>
             </div>
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label htmlFor="project_name" className="text-sm font-medium text-slate-800">
+                <label htmlFor="project_name" className="text-sm font-medium text-foreground">
                   项目名称
                 </label>
                 <Button
@@ -772,7 +772,7 @@ export default function DailyReportPage() {
                   value={projectName}
                   onChange={(event) => setProjectName(event.target.value)}
                   placeholder="输入项目名称"
-                  className="bg-white"
+                  className="bg-background"
                 />
               ) : (
                 <>
@@ -783,7 +783,7 @@ export default function DailyReportPage() {
                     placeholder={projectsLoading ? '项目加载中...' : '输入或选择项目'}
                     disabled={projectsLoading}
                     list="project-options"
-                    className="bg-white"
+                    className="bg-background"
                   />
                   <datalist id="project-options">
                     {projects.map((project) => (
@@ -796,7 +796,7 @@ export default function DailyReportPage() {
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="report_date" className="text-sm font-medium text-slate-800">
+              <label htmlFor="report_date" className="text-sm font-medium text-foreground">
                 报表日期
               </label>
               <div className="flex flex-wrap gap-2">
@@ -805,7 +805,7 @@ export default function DailyReportPage() {
                   type="date"
                   value={reportDate}
                   onChange={(event) => setReportDate(event.target.value)}
-                  className="max-w-xs bg-white"
+                  className="max-w-xs bg-background"
                 />
                 <Button type="button" variant="secondary" onClick={() => setReportDate(yesterdayDateString())}>
                   <CalendarDays className="mr-1 h-4 w-4" />
@@ -837,20 +837,20 @@ export default function DailyReportPage() {
               <Rocket className="h-5 w-5 text-cyan-300" />
               执行控制台
             </CardTitle>
-            <CardDescription className="text-slate-300">完成前置条件后，一次点击生成并自动下载日报文件。</CardDescription>
+            <CardDescription className="text-white/80">完成前置条件后，一次点击生成并自动下载日报文件。</CardDescription>
           </CardHeader>
           <CardContent className="relative space-y-4">
             <div className="grid gap-2 sm:grid-cols-3">
               <div className="rounded-md border border-white/15 bg-white/10 p-3">
-                <p className="text-xs text-slate-300">上传进度</p>
+                <p className="text-xs text-white/80">上传进度</p>
                 <p className="mt-1 text-sm font-semibold">{uploadedCount}/3</p>
               </div>
               <div className="rounded-md border border-white/15 bg-white/10 p-3">
-                <p className="text-xs text-slate-300">可执行状态</p>
+                <p className="text-xs text-white/80">可执行状态</p>
                 <p className="mt-1 text-sm font-semibold">{canGenerate ? '可生成' : '未就绪'}</p>
               </div>
               <div className="rounded-md border border-white/15 bg-white/10 p-3">
-                <p className="text-xs text-slate-300">最近动作</p>
+                <p className="text-xs text-white/80">最近动作</p>
                 <p className="mt-1 truncate text-sm font-semibold">{latestAction}</p>
               </div>
             </div>
@@ -876,7 +876,7 @@ export default function DailyReportPage() {
                   </Badge>
                 </motion.div>
               ) : (
-                <motion.p key="hint" variants={statusVariants} initial="hidden" animate="show" exit="exit" className="text-xs text-slate-400">
+                <motion.p key="hint" variants={statusVariants} initial="hidden" animate="show" exit="exit" className="text-xs text-white/75">
                   生成后将自动下载，文件名会展示在这里。
                 </motion.p>
               )}
@@ -947,8 +947,8 @@ export default function DailyReportPage() {
               className={cn(
                 'relative overflow-hidden rounded-xl border-2 border-dashed p-6 text-center',
                 dragActive
-                  ? 'border-blue-500 bg-gradient-to-br from-blue-50 to-cyan-50 shadow-md'
-                  : 'border-slate-200 bg-gradient-to-br from-slate-50 via-white to-cyan-50'
+                  ? 'border-blue-500/70 bg-gradient-to-br from-blue-500/10 to-cyan-500/10 shadow-md'
+                  : 'border-border bg-gradient-to-br from-muted/40 via-background to-cyan-500/10'
               )}
               onDrop={(event) => void onDrop(event)}
               onDragOver={onDragOver}
@@ -959,7 +959,7 @@ export default function DailyReportPage() {
                 <div className="absolute -bottom-14 right-0 h-36 w-36 rounded-full bg-cyan-300/30 blur-2xl" />
               </div>
 
-              <p className="relative text-sm font-semibold text-slate-700">拖拽文件到这里，系统会自动识别并分发到下方类型</p>
+              <p className="relative text-sm font-semibold text-foreground">拖拽文件到这里，系统会自动识别并分发到下方类型</p>
               <p className="relative mt-1 text-xs text-muted-foreground">
                 规则：订单(txt+amazon-order-id/or*)、库存(txt+snapshot-date/*fba*)、广告(xlsx+ad/广告/推广)
               </p>
@@ -993,14 +993,14 @@ export default function DailyReportPage() {
                     layout
                     whileHover={shouldReduceMotion ? undefined : { y: -2 }}
                     transition={{ duration: shouldReduceMotion ? 0.1 : 0.2, ease: 'easeOut' }}
-                    className="rounded-xl border border-slate-200 bg-slate-50/90 p-3"
+                    className="rounded-xl border border-border bg-muted/40 p-3"
                   >
                     <div className="mb-2 flex items-center justify-between text-sm">
-                      <span className="font-semibold text-slate-700">{fileItem.title}</span>
-                      <span className="text-xs text-slate-500">{meta.text}</span>
+                      <span className="font-semibold text-foreground">{fileItem.title}</span>
+                      <span className="text-xs text-muted-foreground">{meta.text}</span>
                     </div>
                     <UploadProgressRail meta={meta} reduceMotion={!!shouldReduceMotion} />
-                    <p className="mt-2 truncate text-xs text-slate-500">
+                    <p className="mt-2 truncate text-xs text-muted-foreground">
                       {state.uploaded?.originalFilename ?? state.selectedFile?.name ?? '尚未选择文件'}
                     </p>
                   </motion.div>
@@ -1015,7 +1015,7 @@ export default function DailyReportPage() {
                   initial="hidden"
                   animate="show"
                   exit="exit"
-                  className="max-h-44 space-y-1 overflow-auto rounded-md border bg-muted/20 p-3 text-xs text-slate-700"
+                  className="max-h-44 space-y-1 overflow-auto rounded-md border bg-muted/20 p-3 text-xs text-foreground"
                 >
                   {recognitionMessages.map((message) => (
                     <motion.p key={message} variants={logItemVariants} initial="hidden" animate="show" exit="exit">

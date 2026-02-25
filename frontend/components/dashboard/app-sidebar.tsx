@@ -215,8 +215,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <Command className="size-4" />
           </div>
           <div className="flex min-w-0 flex-col gap-0.5 leading-none transition-opacity duration-200 group-data-[collapsible=icon]:w-0 group-data-[collapsible=icon]:opacity-0">
-            <span className="font-semibold">BelieveBoy</span>
-            <span className="text-xs text-muted-foreground">Dashboard v1.0</span>
+            <span className="text-[15px] font-semibold tracking-tight">BelieveBoy</span>
+            <span className="text-[11px] font-medium text-muted-foreground/90">Dashboard v1.0</span>
           </div>
         </div>
       </SidebarHeader>
