@@ -3,10 +3,14 @@ from __future__ import annotations
 import json
 import sqlite3
 import time
+from pathlib import Path
 
 from app.core.config import Settings
 
 CACHE_PREFIX = 'product_costs:list:'
+PROJECTS_CACHE_PREFIX = 'projects:'
+PROJECTS_OPTIONS_CACHE_KEY = f'{PROJECTS_CACHE_PREFIX}options'
+PROJECTS_MANAGE_CACHE_KEY = f'{PROJECTS_CACHE_PREFIX}manage'
 
 
 def _normalize_filter(value: str | None) -> str:
@@ -31,6 +35,102 @@ def build_list_cache_key(
 
 
 def get_cached_list_response(settings: Settings, key: str) -> dict | None:
+    payload = _get_cached_payload(settings, key)
+    if not isinstance(payload, dict):
+        return None
+    return payload
+
+
+def set_cached_list_response(settings: Settings, key: str, payload: dict) -> None:
+    _set_cached_payload(settings, key, payload)
+
+
+def get_cached_projects_options(settings: Settings) -> list[dict[str, str]] | None:
+    payload = _get_cached_payload(settings, PROJECTS_OPTIONS_CACHE_KEY)
+    if not isinstance(payload, list):
+        return None
+    return payload
+
+
+def set_cached_projects_options(settings: Settings, payload: list[dict[str, str]]) -> None:
+    _set_cached_payload(settings, PROJECTS_OPTIONS_CACHE_KEY, payload)
+
+
+def get_cached_projects_manage(settings: Settings) -> list[dict] | None:
+    payload = _get_cached_payload(settings, PROJECTS_MANAGE_CACHE_KEY)
+    if not isinstance(payload, list):
+        return None
+    return payload
+
+
+def set_cached_projects_manage(settings: Settings, payload: list[dict]) -> None:
+    _set_cached_payload(settings, PROJECTS_MANAGE_CACHE_KEY, payload)
+
+
+def invalidate_projects_cache(settings: Settings) -> None:
+    _ensure_cache_table(settings)
+    try:
+        with sqlite3.connect(settings.product_cost_cache_sqlite_path) as conn:
+            conn.execute('delete from query_cache where cache_key like ?', (f'{PROJECTS_CACHE_PREFIX}%',))
+            conn.commit()
+    except sqlite3.Error:
+        return
+
+
+def clear_all_cache(settings: Settings) -> int:
+    _ensure_cache_table(settings)
+    try:
+        with sqlite3.connect(settings.product_cost_cache_sqlite_path) as conn:
+            cursor = conn.execute('delete from query_cache')
+            conn.commit()
+            return max(0, cursor.rowcount)
+    except sqlite3.Error:
+        return 0
+
+
+def get_cache_status(settings: Settings) -> dict[str, int | str | bool | None]:
+    _ensure_cache_table(settings)
+    now_ts = int(time.time())
+    cache_path = Path(settings.product_cost_cache_sqlite_path)
+    status: dict[str, int | str | bool | None] = {
+        'sqlite_path': str(cache_path.resolve()),
+        'exists': cache_path.exists(),
+        'file_size_bytes': cache_path.stat().st_size if cache_path.exists() else 0,
+        'ttl_seconds': max(1, settings.product_cost_list_cache_ttl_seconds),
+        'total_entries': 0,
+        'expired_entries': 0,
+        'active_entries': 0,
+        'latest_updated_at': None,
+        'nearest_expire_at': None,
+    }
+    try:
+        with sqlite3.connect(settings.product_cost_cache_sqlite_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                """
+                select
+                  count(*) as total_entries,
+                  sum(case when expires_at <= ? then 1 else 0 end) as expired_entries,
+                  max(updated_at) as latest_updated_at,
+                  min(case when expires_at > ? then expires_at end) as nearest_expire_at
+                from query_cache
+                """,
+                (now_ts, now_ts),
+            ).fetchone()
+            if row:
+                total_entries = int(row['total_entries'] or 0)
+                expired_entries = int(row['expired_entries'] or 0)
+                status['total_entries'] = total_entries
+                status['expired_entries'] = expired_entries
+                status['active_entries'] = max(0, total_entries - expired_entries)
+                status['latest_updated_at'] = int(row['latest_updated_at']) if row['latest_updated_at'] else None
+                status['nearest_expire_at'] = int(row['nearest_expire_at']) if row['nearest_expire_at'] else None
+    except sqlite3.Error:
+        return status
+    return status
+
+
+def _get_cached_payload(settings: Settings, key: str) -> dict | list | None:
     _ensure_cache_table(settings)
     now_ts = int(time.time())
     try:
@@ -55,7 +155,7 @@ def get_cached_list_response(settings: Settings, key: str) -> dict | None:
         return None
 
 
-def set_cached_list_response(settings: Settings, key: str, payload: dict) -> None:
+def _set_cached_payload(settings: Settings, key: str, payload: dict | list) -> None:
     _ensure_cache_table(settings)
     ttl = max(1, settings.product_cost_list_cache_ttl_seconds)
     now_ts = int(time.time())

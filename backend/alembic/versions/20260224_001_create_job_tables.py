@@ -9,6 +9,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 
 revision: str = '20260224_001'
@@ -18,38 +19,47 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        'jobs',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('job_type', sa.String(length=128), nullable=False),
-        sa.Column('status', sa.Enum('pending', 'running', 'success', 'failed', name='jobstatus'), nullable=False),
-        sa.Column('payload_json', sa.JSON(), nullable=False),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-        sa.PrimaryKeyConstraint('id'),
-    )
-    op.create_index(op.f('ix_jobs_job_type'), 'jobs', ['job_type'], unique=False)
-    op.create_index(op.f('ix_jobs_status'), 'jobs', ['status'], unique=False)
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    jobstatus_enum = postgresql.ENUM('pending', 'running', 'success', 'failed', name='jobstatus', create_type=False)
+    if bind.dialect.name == 'postgresql':
+        # Keep migration idempotent for databases where enum type already exists.
+        postgresql.ENUM('pending', 'running', 'success', 'failed', name='jobstatus').create(bind, checkfirst=True)
 
-    op.create_table(
-        'job_runs',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('job_id', sa.Integer(), nullable=False),
-        sa.Column('started_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-        sa.Column('finished_at', sa.DateTime(timezone=True), nullable=True),
-        sa.Column('log_excerpt', sa.Text(), nullable=True),
-        sa.Column('error_message', sa.Text(), nullable=True),
-        sa.Column('result_path', sa.String(length=1024), nullable=True),
-        sa.ForeignKeyConstraint(['job_id'], ['jobs.id'], ondelete='CASCADE'),
-        sa.PrimaryKeyConstraint('id'),
-    )
-    op.create_index(op.f('ix_job_runs_job_id'), 'job_runs', ['job_id'], unique=False)
+    if not inspector.has_table('jobs'):
+        op.create_table(
+            'jobs',
+            sa.Column('id', sa.Integer(), nullable=False),
+            sa.Column('job_type', sa.String(length=128), nullable=False),
+            sa.Column('status', jobstatus_enum, nullable=False),
+            sa.Column('payload_json', sa.JSON(), nullable=False),
+            sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+            sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+            sa.PrimaryKeyConstraint('id'),
+        )
+    op.execute('create index if not exists ix_jobs_job_type on jobs (job_type)')
+    op.execute('create index if not exists ix_jobs_status on jobs (status)')
+
+    if not inspector.has_table('job_runs'):
+        op.create_table(
+            'job_runs',
+            sa.Column('id', sa.Integer(), nullable=False),
+            sa.Column('job_id', sa.Integer(), nullable=False),
+            sa.Column('started_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+            sa.Column('finished_at', sa.DateTime(timezone=True), nullable=True),
+            sa.Column('log_excerpt', sa.Text(), nullable=True),
+            sa.Column('error_message', sa.Text(), nullable=True),
+            sa.Column('result_path', sa.String(length=1024), nullable=True),
+            sa.ForeignKeyConstraint(['job_id'], ['jobs.id'], ondelete='CASCADE'),
+            sa.PrimaryKeyConstraint('id'),
+        )
+    op.execute('create index if not exists ix_job_runs_job_id on job_runs (job_id)')
 
 
 def downgrade() -> None:
-    op.drop_index(op.f('ix_job_runs_job_id'), table_name='job_runs')
-    op.drop_table('job_runs')
-    op.drop_index(op.f('ix_jobs_status'), table_name='jobs')
-    op.drop_index(op.f('ix_jobs_job_type'), table_name='jobs')
-    op.drop_table('jobs')
+    op.execute('drop index if exists ix_job_runs_job_id')
+    op.execute('drop table if exists job_runs')
+    op.execute('drop index if exists ix_jobs_status')
+    op.execute('drop index if exists ix_jobs_job_type')
+    op.execute('drop table if exists jobs')
     op.execute('drop type if exists jobstatus')

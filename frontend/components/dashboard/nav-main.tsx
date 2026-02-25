@@ -18,7 +18,7 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
 } from '@/components/ui/sidebar'
-import Link from 'next/link'
+import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
 
 interface NavItem {
   title: string
@@ -67,9 +67,9 @@ export function NavMain({ items }: NavMainProps) {
                             asChild
                             isActive={pathname === subItem.url}
                           >
-                            <Link href={subItem.url}>
+                            <RouteLoadingLink href={subItem.url}>
                               <span>{subItem.title}</span>
-                            </Link>
+                            </RouteLoadingLink>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                       ))}
@@ -82,10 +82,10 @@ export function NavMain({ items }: NavMainProps) {
                   tooltip={item.title}
                   isActive={pathname === item.url}
                 >
-                  <Link href={item.url}>
+                  <RouteLoadingLink href={item.url}>
                     {item.icon}
                     <span>{item.title}</span>
-                  </Link>
+                  </RouteLoadingLink>
                 </SidebarMenuButton>
               )}
             </SidebarMenuItem>
