@@ -1,6 +1,6 @@
 'use client'
 
-import Link from 'next/link'
+import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
 
 import {
   SidebarGroup,
@@ -28,10 +28,10 @@ export function NavSecondary({ items }: NavSecondaryProps) {
           {items.map((item) => (
             <SidebarMenuItem key={item.title}>
               <SidebarMenuButton asChild>
-                <Link href={item.url}>
+                <RouteLoadingLink href={item.url}>
                   {item.icon}
                   <span>{item.title}</span>
-                </Link>
+                </RouteLoadingLink>
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}

@@ -1,7 +1,6 @@
 export default function MonthlyReportPage() {
   return (
-    <div className="space-y-2">
-      <h1 className="text-2xl font-semibold">财务月报</h1>
+    <div className="space-y-2 pt-1">
       <p className="text-sm text-muted-foreground">页面开发中，已完成业务与前端需求文档。</p>
     </div>
   )

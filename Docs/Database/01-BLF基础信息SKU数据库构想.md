@@ -141,7 +141,7 @@ SUPABASE_DB_PASSWORD=***db-password***
 ## 查询性能优化（已落地）
 
 - `product_costs` 模糊查询已补充 PostgreSQL trigram 索引（`pg_trgm + GIN`）。
-- SKU 成本列表查询已增加 SQLite 短缓存（默认 TTL 300 秒）。
+- SKU 成本列表查询已增加 SQLite 缓存（默认 TTL 72 小时 / 259200 秒）。
 - 缓存机制文档：`Docs/Database/03-SQLite查询缓存机制.md`
 
 ## RLS 策略（v1 建议）

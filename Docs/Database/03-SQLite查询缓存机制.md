@@ -64,15 +64,34 @@ Key 组成元素：
 ## TTL 配置
 
 - 配置项：`PRODUCT_COST_LIST_CACHE_TTL_SECONDS`
-- 默认值：`300` 秒
-- 建议值：`60` 到 `600` 秒（在实时性和性能间平衡）
+- 默认值：`259200` 秒（72 小时）
+- 建议值：按业务实时性调整；当前系统默认以稳定性优先。
 
 ## 配置示例（backend/.env）
 
 ```bash
-PRODUCT_COST_LIST_CACHE_TTL_SECONDS=300
+PRODUCT_COST_LIST_CACHE_TTL_SECONDS=259200
 PRODUCT_COST_CACHE_SQLITE_PATH=./storage/cache/query_cache.db
 ```
+
+## 系统管理数据管理页（新增）
+
+在前端页面 `/dashboard/system-management/data-management` 可查看数据库与缓存状态，并手动清理缓存。
+
+### 状态接口
+
+- `GET /api/v1/system-management/data-management/status`
+- 返回信息包含：
+  - 服务端时间
+  - 数据库引擎、数据源、连通性、检查时间
+  - 缓存文件路径、是否存在、文件大小、TTL、总记录/有效记录/过期记录
+  - 最近写入时间、最近到期时间
+
+### 清除缓存接口
+
+- `POST /api/v1/system-management/data-management/cache/clear`
+- 行为：清空 `query_cache` 全部记录
+- 返回：清理时间、删除记录数
 
 ## 生效与验证
 

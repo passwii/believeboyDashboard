@@ -17,7 +17,7 @@ class Settings(BaseSettings):
 
     database_url: str = 'sqlite:///./backend.db'
     redis_url: str = 'redis://localhost:6379/0'
-    product_cost_list_cache_ttl_seconds: int = 300
+    product_cost_list_cache_ttl_seconds: int = 72 * 60 * 60
     product_cost_cache_sqlite_path: Path = Path('./storage/cache/query_cache.db')
     api_key: str = Field(default='change-me', min_length=8)
 

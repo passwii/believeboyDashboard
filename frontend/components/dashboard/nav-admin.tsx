@@ -1,8 +1,8 @@
 'use client'
 
 import { ChevronRight } from 'lucide-react'
-import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
 
 import {
   Collapsible,
@@ -63,9 +63,9 @@ export function NavAdmin({ adminTools }: NavAdminProps) {
                         asChild
                         isActive={pathname === subItem.url}
                       >
-                        <Link href={subItem.url}>
+                        <RouteLoadingLink href={subItem.url}>
                           <span>{subItem.title}</span>
-                        </Link>
+                        </RouteLoadingLink>
                       </SidebarMenuSubButton>
                     </SidebarMenuSubItem>
                   ))}

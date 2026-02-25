@@ -19,6 +19,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { useGlobalLoading } from '@/components/global-loading-provider'
 
 type ProductCostItem = {
   id: number
@@ -57,6 +58,7 @@ async function parseError(response: Response): Promise<string> {
 }
 
 export default function SkuCostPage() {
+  const { withGlobalLoading } = useGlobalLoading()
   const [items, setItems] = useState<ProductCostItem[]>([])
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState<number | null>(null)
@@ -81,42 +83,44 @@ export default function SkuCostPage() {
     filters?: { project_name?: string; sku?: string; asin?: string },
     options?: { includeTotal?: boolean }
   ) => {
-    setLoading(true)
-    setError(null)
+    await withGlobalLoading(async () => {
+      setLoading(true)
+      setError(null)
 
-    const search = new URLSearchParams({
-      page: String(targetPage),
-      page_size: String(PAGE_SIZE),
-    })
-    const projectValue = (filters?.project_name ?? projectFilter).trim()
-    const skuValue = (filters?.sku ?? skuFilter).trim()
-    const asinValue = (filters?.asin ?? asinFilter).trim()
-
-    if (projectValue) search.set('project_name', projectValue)
-    if (skuValue) search.set('sku', skuValue)
-    if (asinValue) search.set('asin', asinValue)
-    if (options?.includeTotal) search.set('include_total', 'true')
-
-    try {
-      const response = await fetch(`${API_BASE}/api/v1/product-costs?${search.toString()}`, {
-        headers: authHeaders(),
-        cache: 'no-store',
+      const search = new URLSearchParams({
+        page: String(targetPage),
+        page_size: String(PAGE_SIZE),
       })
-      if (!response.ok) {
-        throw new Error(await parseError(response))
+      const projectValue = (filters?.project_name ?? projectFilter).trim()
+      const skuValue = (filters?.sku ?? skuFilter).trim()
+      const asinValue = (filters?.asin ?? asinFilter).trim()
+
+      if (projectValue) search.set('project_name', projectValue)
+      if (skuValue) search.set('sku', skuValue)
+      if (asinValue) search.set('asin', asinValue)
+      if (options?.includeTotal) search.set('include_total', 'true')
+
+      try {
+        const response = await fetch(`${API_BASE}/api/v1/product-costs?${search.toString()}`, {
+          headers: authHeaders(),
+          cache: 'no-store',
+        })
+        if (!response.ok) {
+          throw new Error(await parseError(response))
+        }
+        const payload = (await response.json()) as ProductCostsPage
+        setItems(payload.items)
+        if (typeof payload.total === 'number') {
+          setTotal(payload.total)
+        }
+        setHasNextPage(payload.has_next)
+        setPage(payload.page)
+      } catch (loadError) {
+        setError(loadError instanceof Error ? loadError.message : '加载失败')
+      } finally {
+        setLoading(false)
       }
-      const payload = (await response.json()) as ProductCostsPage
-      setItems(payload.items)
-      if (typeof payload.total === 'number') {
-        setTotal(payload.total)
-      }
-      setHasNextPage(payload.has_next)
-      setPage(payload.page)
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : '加载失败')
-    } finally {
-      setLoading(false)
-    }
+    })
   }
 
   useEffect(() => {
@@ -241,7 +245,6 @@ export default function SkuCostPage() {
               >
                 数据管理
               </Badge>
-              <h1 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">SKU 成本中心</h1>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">

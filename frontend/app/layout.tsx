@@ -1,7 +1,9 @@
 import type { Metadata } from 'next'
 import { Manrope, Space_Grotesk } from 'next/font/google'
 import './globals.css'
+import { GlobalLoadingProvider } from '@/components/global-loading-provider'
 import { ThemeProvider } from '@/components/theme-provider'
+import { AuthSessionProvider } from '@/components/auth/session-provider'
 
 const manrope = Manrope({
   subsets: ['latin'],
@@ -32,7 +34,9 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          {children}
+          <AuthSessionProvider>
+            <GlobalLoadingProvider>{children}</GlobalLoadingProvider>
+          </AuthSessionProvider>
         </ThemeProvider>
       </body>
     </html>

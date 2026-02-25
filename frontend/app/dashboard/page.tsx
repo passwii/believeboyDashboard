@@ -14,9 +14,6 @@ export default function DashboardPage() {
             <Badge variant="secondary" className="inline-flex h-7 items-center rounded-full px-3 text-[11px] font-medium uppercase tracking-[0.14em]">
               Dashboard Overview
             </Badge>
-            <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">
-              运营总览与关键数据面板
-            </h1>
             <p className="text-sm leading-6 text-muted-foreground md:text-base">
               Welcome back. 这里集中展示关键指标、趋势变化与运营事项，帮助你更快完成每日判断与执行。
             </p>
