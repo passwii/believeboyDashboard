@@ -4,7 +4,10 @@ import CredentialsProvider from 'next-auth/providers/credentials'
 import { getDbPool } from '@/lib/server/db'
 
 export const authOptions: NextAuthOptions = {
-  session: { strategy: 'jwt' },
+  session: { 
+    strategy: 'jwt',
+    maxAge: 72 * 60 * 60, // 72小时过期
+  },
   pages: { signIn: '/login' },
   providers: [
     CredentialsProvider({

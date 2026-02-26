@@ -263,8 +263,8 @@ export default function SystemDataManagementPage() {
 
           <div className="grid gap-6 lg:grid-cols-2">
             {/* 数据库状态卡片 */}
-            <Card className="border-border/70 overflow-hidden">
-              <CardHeader className="bg-gradient-to-r from-emerald-500/5 to-transparent pb-4">
+            <Card className="border-border/70 dark:border-emerald-500/20 overflow-hidden bg-card dark:bg-gradient-to-br dark:from-emerald-950/30 dark:to-card">
+              <CardHeader className="bg-gradient-to-r from-emerald-500/5 to-transparent dark:from-emerald-500/10 dark:to-transparent border-b border-border/50 dark:border-emerald-500/20 pb-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle className="text-base font-semibold">数据库状态</CardTitle>
@@ -280,27 +280,27 @@ export default function SystemDataManagementPage() {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="pt-4">
+              <CardContent className="pt-4 space-y-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1 rounded-lg bg-muted/30 p-3">
-                    <p className="text-xs text-muted-foreground">数据库引擎</p>
-                    <p className="text-sm font-medium">{status?.database.engine || '-'}</p>
+                  <div className="space-y-2 rounded-xl bg-muted/30 dark:bg-emerald-950/40 dark:border dark:border-emerald-500/20 p-4">
+                    <p className="text-xs font-medium text-muted-foreground dark:text-emerald-200/70">数据库引擎</p>
+                    <p className="text-sm font-semibold dark:text-emerald-50">{status?.database.engine || '-'}</p>
                   </div>
-                  <div className="space-y-1 rounded-lg bg-muted/30 p-3">
-                    <p className="text-xs text-muted-foreground">检查时间</p>
-                    <p className="text-sm font-medium">{formatDateTime(status?.database.checked_at ?? null)}</p>
+                  <div className="space-y-2 rounded-xl bg-muted/30 dark:bg-emerald-950/40 dark:border dark:border-emerald-500/20 p-4">
+                    <p className="text-xs font-medium text-muted-foreground dark:text-emerald-200/70">检查时间</p>
+                    <p className="text-sm font-semibold dark:text-emerald-50">{formatDateTime(status?.database.checked_at ?? null)}</p>
                   </div>
                 </div>
-                <div className="mt-4 space-y-1 rounded-lg bg-muted/30 p-3">
-                  <p className="text-xs text-muted-foreground">数据源</p>
-                  <p className="break-all text-sm font-mono text-xs">{status?.database.source || '-'}</p>
+                <div className="space-y-2 rounded-xl bg-muted/30 dark:bg-emerald-950/40 dark:border dark:border-emerald-500/20 p-4">
+                  <p className="text-xs font-medium text-muted-foreground dark:text-emerald-200/70">数据源</p>
+                  <p className="break-all text-sm font-mono font-semibold dark:text-emerald-100">{status?.database.source || '-'}</p>
                 </div>
               </CardContent>
             </Card>
 
             {/* 缓存状态卡片 */}
-            <Card className="border-border/70 overflow-hidden">
-              <CardHeader className="bg-gradient-to-r from-blue-500/5 to-transparent pb-4">
+            <Card className="border-border/70 dark:border-blue-500/20 overflow-hidden bg-card dark:bg-gradient-to-br dark:from-blue-950/30 dark:to-card">
+              <CardHeader className="bg-gradient-to-r from-blue-500/5 to-transparent dark:from-blue-500/10 dark:to-transparent border-b border-border/50 dark:border-blue-500/20 pb-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle className="text-base font-semibold">缓存状态</CardTitle>
@@ -319,53 +319,53 @@ export default function SystemDataManagementPage() {
               <CardContent className="pt-4 space-y-4">
                 {/* 文件信息组 */}
                 <div className="grid grid-cols-3 gap-3">
-                  <div className="space-y-1 rounded-lg bg-muted/30 p-3 text-center">
-                    <p className="text-xs text-muted-foreground">缓存文件</p>
-                    <p className={cn("text-sm font-semibold", status?.cache.exists ? "text-blue-600 dark:text-blue-400" : "text-amber-600")}>
+                  <div className="space-y-2 rounded-xl bg-muted/30 dark:bg-blue-950/40 dark:border dark:border-blue-500/20 p-4 text-center">
+                    <p className="text-xs font-medium text-muted-foreground dark:text-blue-200/70">缓存文件</p>
+                    <p className={cn("text-sm font-semibold", status?.cache.exists ? "text-blue-600 dark:text-blue-400" : "text-amber-600 dark:text-amber-400")}>
                       {status?.cache.exists ? '已就绪' : '未创建'}
                     </p>
                   </div>
-                  <div className="space-y-1 rounded-lg bg-muted/30 p-3 text-center">
-                    <p className="text-xs text-muted-foreground">文件大小</p>
-                    <p className="text-sm font-semibold">{status ? formatBytes(status.cache.file_size_bytes) : '-'}</p>
+                  <div className="space-y-2 rounded-xl bg-muted/30 dark:bg-blue-950/40 dark:border dark:border-blue-500/20 p-4 text-center">
+                    <p className="text-xs font-medium text-muted-foreground dark:text-blue-200/70">文件大小</p>
+                    <p className="text-sm font-semibold dark:text-blue-100">{status ? formatBytes(status.cache.file_size_bytes) : '-'}</p>
                   </div>
-                  <div className="space-y-1 rounded-lg bg-muted/30 p-3 text-center">
-                    <p className="text-xs text-muted-foreground">TTL</p>
-                    <p className="text-sm font-semibold">{status ? `${status.cache.ttl_seconds} 秒` : '-'}</p>
+                  <div className="space-y-2 rounded-xl bg-muted/30 dark:bg-blue-950/40 dark:border dark:border-blue-500/20 p-4 text-center">
+                    <p className="text-xs font-medium text-muted-foreground dark:text-blue-200/70">TTL</p>
+                    <p className="text-sm font-semibold dark:text-blue-100">{status ? `${status.cache.ttl_seconds} 秒` : '-'}</p>
                   </div>
                 </div>
 
                 {/* 缓存路径 */}
-                <div className="space-y-1 rounded-lg bg-muted/30 p-3">
-                  <p className="text-xs text-muted-foreground">缓存路径</p>
-                  <p className="break-all text-xs font-mono">{status?.cache.sqlite_path || '-'}</p>
+                <div className="space-y-2 rounded-xl bg-muted/30 dark:bg-blue-950/40 dark:border dark:border-blue-500/20 p-4">
+                  <p className="text-xs font-medium text-muted-foreground dark:text-blue-200/70">缓存路径</p>
+                  <p className="break-all text-xs font-mono font-semibold dark:text-blue-100">{status?.cache.sqlite_path || '-'}</p>
                 </div>
 
                 {/* 统计数据 */}
                 <div className="grid grid-cols-3 gap-3">
-                  <div className="space-y-1 rounded-lg bg-blue-50/50 dark:bg-blue-950/20 p-3 text-center border border-blue-100 dark:border-blue-900">
-                    <p className="text-xs text-muted-foreground">总记录数</p>
-                    <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{status?.cache.total_entries ?? '-'}</p>
+                  <div className="space-y-2 rounded-xl bg-blue-50/80 dark:bg-blue-950/60 p-4 text-center border border-blue-200 dark:border-blue-500/40 shadow-sm dark:shadow-lg dark:shadow-blue-500/10">
+                    <p className="text-xs font-semibold text-blue-700 dark:text-blue-300">总记录数</p>
+                    <p className="text-lg font-bold text-blue-700 dark:text-blue-300">{status?.cache.total_entries ?? '-'}</p>
                   </div>
-                  <div className="space-y-1 rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20 p-3 text-center border border-emerald-100 dark:border-emerald-900">
-                    <p className="text-xs text-muted-foreground">有效记录</p>
-                    <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{status?.cache.active_entries ?? '-'}</p>
+                  <div className="space-y-2 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/60 p-4 text-center border border-emerald-200 dark:border-emerald-500/40 shadow-sm dark:shadow-lg dark:shadow-emerald-500/10">
+                    <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">有效记录</p>
+                    <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{status?.cache.active_entries ?? '-'}</p>
                   </div>
-                  <div className="space-y-1 rounded-lg bg-amber-50/50 dark:bg-amber-950/20 p-3 text-center border border-amber-100 dark:border-amber-900">
-                    <p className="text-xs text-muted-foreground">过期记录</p>
-                    <p className="text-lg font-bold text-amber-600 dark:text-amber-400">{status?.cache.expired_entries ?? '-'}</p>
+                  <div className="space-y-2 rounded-xl bg-amber-50/80 dark:bg-amber-950/60 p-4 text-center border border-amber-200 dark:border-amber-500/40 shadow-sm dark:shadow-lg dark:shadow-amber-500/10">
+                    <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">过期记录</p>
+                    <p className="text-lg font-bold text-amber-700 dark:text-amber-300">{status?.cache.expired_entries ?? '-'}</p>
                   </div>
                 </div>
 
                 {/* 时间信息 */}
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1 rounded-lg bg-muted/30 p-3">
-                    <p className="text-xs text-muted-foreground">最近写入</p>
-                    <p className="text-sm font-medium">{formatDateTime(status?.cache.latest_updated_at ?? null)}</p>
+                  <div className="space-y-2 rounded-xl bg-muted/30 dark:bg-blue-950/40 dark:border dark:border-blue-500/20 p-4">
+                    <p className="text-xs font-medium text-muted-foreground dark:text-blue-200/70">最近写入</p>
+                    <p className="text-sm font-semibold dark:text-blue-100">{formatDateTime(status?.cache.latest_updated_at ?? null)}</p>
                   </div>
-                  <div className="space-y-1 rounded-lg bg-muted/30 p-3">
-                    <p className="text-xs text-muted-foreground">最近到期</p>
-                    <p className="text-sm font-medium">{formatDateTime(status?.cache.nearest_expire_at ?? null)}</p>
+                  <div className="space-y-2 rounded-xl bg-muted/30 dark:bg-blue-950/40 dark:border dark:border-blue-500/20 p-4">
+                    <p className="text-xs font-medium text-muted-foreground dark:text-blue-200/70">最近到期</p>
+                    <p className="text-sm font-semibold dark:text-blue-100">{formatDateTime(status?.cache.nearest_expire_at ?? null)}</p>
                   </div>
                 </div>
               </CardContent>

@@ -98,7 +98,6 @@ const adminTools = [
     items: [
       { title: '数据管理', url: '/dashboard/system-management/data-management' },
       { title: '账号管理', url: '/dashboard/system-management/account-management' },
-      { title: '角色权限', url: '#' },
     ],
   },
 ]
