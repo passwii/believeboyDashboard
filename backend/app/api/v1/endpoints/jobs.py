@@ -5,7 +5,7 @@ from fastapi.responses import FileResponse
 from redis.exceptions import RedisError
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, protected
+from app.api.deps import get_db_session, get_request_operator, protected
 from app.core.config import Settings, get_settings
 from app.schemas.job import CreateJobRequest, JobDetailResponse, JobResponse, JobRunResponse
 from app.services import job_service
@@ -18,10 +18,11 @@ def create_job(
     data: CreateJobRequest,
     db: Session = Depends(get_db_session),
     settings: Settings = Depends(get_settings),
+    operator: str | None = Depends(get_request_operator),
 ) -> JobResponse:
     payload = {'job_type': data.job_type, 'file_id': data.file_id, 'params': data.params}
     try:
-        job = job_service.enqueue_job(db, settings, payload)
+        job = job_service.enqueue_job(db, settings, payload, operator=operator)
     except RedisError as error:
         raise HTTPException(status_code=503, detail=f'Queue unavailable: {error}') from error
 
@@ -30,6 +31,7 @@ def create_job(
         job_type=job.job_type,
         status=job.status,
         payload_json=job.payload_json,
+        operator=job.operator,
         created_at=job.created_at,
         updated_at=job.updated_at,
     )
@@ -46,6 +48,7 @@ def get_job(job_id: int, db: Session = Depends(get_db_session)) -> JobDetailResp
             id=run.id,
             started_at=run.started_at,
             finished_at=run.finished_at,
+            operator=run.operator,
             log_excerpt=run.log_excerpt,
             error_message=run.error_message,
             result_path=run.result_path,
@@ -58,6 +61,7 @@ def get_job(job_id: int, db: Session = Depends(get_db_session)) -> JobDetailResp
         job_type=job.job_type,
         status=job.status,
         payload_json=job.payload_json,
+        operator=job.operator,
         created_at=job.created_at,
         updated_at=job.updated_at,
         runs=runs,

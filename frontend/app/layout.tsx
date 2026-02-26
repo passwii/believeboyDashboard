@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Manrope, Space_Grotesk } from 'next/font/google'
 import './globals.css'
 import { GlobalLoadingProvider } from '@/components/global-loading-provider'
+import { GlobalLoadingOverlay } from '@/components/global-loading-overlay'
 import { ThemeProvider } from '@/components/theme-provider'
 import { AuthSessionProvider } from '@/components/auth/session-provider'
 
@@ -35,7 +36,10 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <AuthSessionProvider>
-            <GlobalLoadingProvider>{children}</GlobalLoadingProvider>
+            <GlobalLoadingProvider>
+              {children}
+              <GlobalLoadingOverlay />
+            </GlobalLoadingProvider>
           </AuthSessionProvider>
         </ThemeProvider>
       </body>

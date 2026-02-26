@@ -23,10 +23,11 @@ def test_monthly_reports_requires_api_key():
 
 
 def test_monthly_reports_creates_job(monkeypatch):
-    def fake_enqueue_job(db, settings, payload):  # noqa: ARG001
+    def fake_enqueue_job(db, settings, payload, operator=None):  # noqa: ARG001
         assert payload['job_type'] == 'monthly_report'
         assert payload['params']['file_ids']['transaction_report'] == 'a.csv'
         assert payload['params']['file_ids']['monthly_summary_pdf'] == 'b.pdf'
+        assert operator == 'operator@example.com'
         return SimpleNamespace(
             id=123,
             status='pending',
@@ -37,7 +38,7 @@ def test_monthly_reports_creates_job(monkeypatch):
 
     response = client.post(
         '/api/v1/monthly-reports',
-        headers={'X-API-Key': get_settings().api_key},
+        headers={'X-API-Key': get_settings().api_key, 'X-Operator': 'operator@example.com'},
         json={
             'project_name': 'Demo',
             'report_month': '2026-01',

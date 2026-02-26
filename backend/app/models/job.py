@@ -20,6 +20,7 @@ class Job(Base):
     job_type: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     status: Mapped[JobStatus] = mapped_column(Enum(JobStatus), default=JobStatus.pending, nullable=False, index=True)
     payload_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+    operator: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
@@ -35,6 +36,7 @@ class JobRun(Base):
     job_id: Mapped[int] = mapped_column(ForeignKey('jobs.id', ondelete='CASCADE'), nullable=False, index=True)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    operator: Mapped[str | None] = mapped_column(String(255), nullable=True)
     log_excerpt: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     result_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)

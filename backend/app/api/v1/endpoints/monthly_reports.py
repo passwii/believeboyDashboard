@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from redis.exceptions import RedisError
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, protected
+from app.api.deps import get_db_session, get_request_operator, protected
 from app.core.config import Settings, get_settings
 from app.schemas.monthly_report import CreateMonthlyReportRequest, MonthlyReportResponse
 from app.services import job_service
@@ -15,6 +15,7 @@ def create_monthly_report(
     data: CreateMonthlyReportRequest,
     db: Session = Depends(get_db_session),
     settings: Settings = Depends(get_settings),
+    operator: str | None = Depends(get_request_operator),
 ) -> MonthlyReportResponse:
     report_month = data.report_month.strip()
     if len(report_month) != 7 or report_month[4] != '-':
@@ -34,7 +35,7 @@ def create_monthly_report(
     }
 
     try:
-        job = job_service.enqueue_job(db, settings, payload)
+        job = job_service.enqueue_job(db, settings, payload, operator=operator)
     except RedisError as error:
         raise HTTPException(status_code=503, detail=f'Queue unavailable: {error}') from error
 

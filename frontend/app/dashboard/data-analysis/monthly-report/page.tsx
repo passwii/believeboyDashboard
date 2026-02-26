@@ -2,20 +2,29 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import type { DragEvent } from 'react'
-import { AlertCircle, CheckCircle2, Download, FileSearch, Loader2, Sparkles, Upload } from 'lucide-react'
+import { AlertCircle, Download, FileSearch, Loader2, Sparkles, Upload } from 'lucide-react'
+import { useSession } from 'next-auth/react'
 
-import { recognizeDataFile } from '@/lib/file-recognition'
-import { Badge } from '@/components/ui/badge'
+import { recognizeDataFile, type RecognizedFileType } from '@/lib/file-recognition'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 
 type UploadType = 'payment_report' | 'monthly_summary_pdf'
-type UploadStatus = 'idle' | 'uploading' | 'success' | 'error'
+type AssignedType = UploadType | 'skip'
+type UploadStatus = 'empty' | 'ready' | 'uploading' | 'success' | 'error'
 
-type ProjectOption = {
-  name: string
+type ProjectOption = { name: string }
+
+type MappingRow = {
+  id: string
+  file: File
+  detectedType: RecognizedFileType
+  detectedReason: string
+  assignedType: AssignedType
+  matchFailed: boolean
 }
 
 type UploadFileMeta = {
@@ -25,10 +34,10 @@ type UploadFileMeta = {
 
 type UploadStateItem = {
   status: UploadStatus
+  mappedRowId: string | null
   selectedFile: File | null
-  selectedReason: string | null
-  uploaded: UploadFileMeta | null
   error: string | null
+  uploaded: UploadFileMeta | null
 }
 
 type SubmitState = {
@@ -39,38 +48,29 @@ type SubmitState = {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
 const API_KEY = process.env.NEXT_PUBLIC_BACKEND_API_KEY ?? ''
+const REQUIRED_TYPES: UploadType[] = ['payment_report', 'monthly_summary_pdf']
 const TXN_FILE_RE = /^\d{4}[A-Za-z]{3}MonthlyUnifiedTransaction\.csv$/
 const PDF_FILE_RE = /^\d{4}[A-Za-z]{3}MonthlyUnifiedSummary\.pdf$/
 
-const FILE_CONFIG: Array<{
-  key: UploadType
-  title: string
-  description: string
-  accept: string
-}> = [
-  {
-    key: 'payment_report',
-    title: '交易明细 CSV',
-    description: '示例：2026JanMonthlyUnifiedTransaction.csv',
-    accept: '.csv,text/csv',
-  },
-  {
-    key: 'monthly_summary_pdf',
-    title: '月度总结 PDF',
-    description: '示例：2026JanMonthlyUnifiedSummary.pdf',
-    accept: '.pdf,application/pdf',
-  },
-]
-
-function authHeaders(): Record<string, string> {
-  return API_KEY ? { 'X-API-Key': API_KEY } : {}
+const TYPE_LABEL: Record<UploadType, string> = {
+  payment_report: '交易明细 CSV',
+  monthly_summary_pdf: '月度总结 PDF',
 }
 
-function initialUploadState(): Record<UploadType, UploadStateItem> {
-  return {
-    payment_report: { status: 'idle', selectedFile: null, selectedReason: null, uploaded: null, error: null },
-    monthly_summary_pdf: { status: 'idle', selectedFile: null, selectedReason: null, uploaded: null, error: null },
-  }
+function authHeaders(operator?: string): Record<string, string> {
+  const headers: Record<string, string> = {}
+  if (API_KEY) headers['X-API-Key'] = API_KEY
+  if (operator && operator.trim()) headers['X-Operator'] = operator.trim()
+  return headers
+}
+
+function currentMonthString() {
+  const now = new Date()
+  now.setDate(1)
+  now.setMonth(now.getMonth() - 1)
+  const y = now.getFullYear()
+  const m = String(now.getMonth() + 1).padStart(2, '0')
+  return `${y}-${m}`
 }
 
 function extractFilenameFromHeader(contentDisposition: string | null) {
@@ -85,17 +85,59 @@ function isUploadType(value: string): value is UploadType {
   return value === 'payment_report' || value === 'monthly_summary_pdf'
 }
 
+function createEmptyUploadState(): Record<UploadType, UploadStateItem> {
+  return {
+    payment_report: { status: 'empty', mappedRowId: null, selectedFile: null, error: null, uploaded: null },
+    monthly_summary_pdf: { status: 'empty', mappedRowId: null, selectedFile: null, error: null, uploaded: null },
+  }
+}
+
+function getAssignedRow(rows: MappingRow[], type: UploadType): MappingRow | null {
+  for (let i = rows.length - 1; i >= 0; i -= 1) {
+    if (rows[i].assignedType === type) return rows[i]
+  }
+  return null
+}
+
+function validateFile(type: UploadType, file: File): string | null {
+  if (type === 'payment_report') {
+    if (!file.name.toLowerCase().endsWith('.csv')) return '交易文件仅支持 .csv'
+    if (!TXN_FILE_RE.test(file.name)) return 'CSV 文件名应为 2026JanMonthlyUnifiedTransaction.csv'
+    return null
+  }
+
+  if (!file.name.toLowerCase().endsWith('.pdf')) return '总结文件仅支持 .pdf'
+  if (!PDF_FILE_RE.test(file.name)) return 'PDF 文件名应为 2026JanMonthlyUnifiedSummary.pdf'
+  return null
+}
+
+function getUploadMeta(state: UploadStateItem) {
+  if (state.status === 'success') return { text: '已上传', dot: 'bg-emerald-500', bar: 'bg-emerald-500' }
+  if (state.status === 'uploading') return { text: '上传中', dot: 'bg-blue-500', bar: 'bg-blue-500' }
+  if (state.status === 'error') return { text: '上传失败', dot: 'bg-rose-500', bar: 'bg-rose-500' }
+  if (state.status === 'ready') return { text: '待上传', dot: 'bg-sky-500', bar: 'bg-sky-500' }
+  return { text: '未识别', dot: 'bg-slate-400', bar: 'bg-slate-300' }
+}
+
 export default function MonthlyReportPage() {
+  const { data: session } = useSession()
+  const currentOperator = (session?.user?.name || session?.user?.email || session?.user?.id || '').trim()
+
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
   const [projectLoadError, setProjectLoadError] = useState<string | null>(null)
 
   const [projectName, setProjectName] = useState('')
-  const [reportMonth, setReportMonth] = useState('')
-  const [uploadState, setUploadState] = useState<Record<UploadType, UploadStateItem>>(initialUploadState)
-  const [dragActive, setDragActive] = useState(false)
-  const [recognitionMessages, setRecognitionMessages] = useState<string[]>([])
+  const [reportMonth, setReportMonth] = useState(currentMonthString())
   const [formError, setFormError] = useState<string | null>(null)
+
+  const [mappingRows, setMappingRows] = useState<MappingRow[]>([])
+  const [dragActive, setDragActive] = useState(false)
+  const [mappingBusy, setMappingBusy] = useState(false)
+
+  const [uploadState, setUploadState] = useState<Record<UploadType, UploadStateItem>>(createEmptyUploadState)
+  const [uploadBusy, setUploadBusy] = useState(false)
+
   const [submitState, setSubmitState] = useState<SubmitState>({ status: 'idle', message: null, filename: null })
 
   useEffect(() => {
@@ -105,11 +147,9 @@ export default function MonthlyReportPage() {
       try {
         const response = await fetch(`${API_BASE}/api/v1/projects`, {
           cache: 'no-store',
-          headers: authHeaders(),
+          headers: authHeaders(currentOperator),
         })
-        if (!response.ok) {
-          throw new Error(`项目列表加载失败 (${response.status})`)
-        }
+        if (!response.ok) throw new Error(`项目列表加载失败 (${response.status})`)
         const data = (await response.json()) as ProjectOption[]
         setProjects(data)
       } catch (error) {
@@ -119,115 +159,177 @@ export default function MonthlyReportPage() {
       }
     }
     void loadProjects()
-  }, [])
+  }, [currentOperator])
 
-  const allUploaded = useMemo(
-    () => FILE_CONFIG.every((item) => uploadState[item.key].status === 'success' && uploadState[item.key].uploaded),
+  useEffect(() => {
+    setUploadState((prev) => {
+      const next = { ...prev }
+      REQUIRED_TYPES.forEach((type) => {
+        const assigned = getAssignedRow(mappingRows, type)
+        const previous = prev[type]
+
+        if (!assigned) {
+          next[type] = {
+            status: 'empty',
+            mappedRowId: null,
+            selectedFile: null,
+            error: null,
+            uploaded: null,
+          }
+          return
+        }
+
+        if (previous.mappedRowId === assigned.id && (previous.status === 'success' || previous.status === 'uploading')) {
+          next[type] = previous
+          return
+        }
+
+        next[type] = {
+          status: 'ready',
+          mappedRowId: assigned.id,
+          selectedFile: assigned.file,
+          error: null,
+          uploaded: null,
+        }
+      })
+      return next
+    })
+  }, [mappingRows])
+
+  const recognizedCount = useMemo(
+    () => REQUIRED_TYPES.filter((type) => uploadState[type].status !== 'empty').length,
     [uploadState]
   )
-  const canGenerate = projectName.trim() && reportMonth && allUploaded && submitState.status !== 'submitting'
 
-  const validateFile = (key: UploadType, file: File) => {
-    if (key === 'payment_report') {
-      if (!file.name.toLowerCase().endsWith('.csv')) return '交易文件仅支持 .csv'
-      if (!TXN_FILE_RE.test(file.name)) return 'CSV 文件名应为 2026JanMonthlyUnifiedTransaction.csv 格式'
-      return null
-    }
+  const uploadedCount = useMemo(
+    () => REQUIRED_TYPES.filter((type) => uploadState[type].status === 'success').length,
+    [uploadState]
+  )
 
-    if (!file.name.toLowerCase().endsWith('.pdf')) return '总结文件仅支持 .pdf'
-    if (!PDF_FILE_RE.test(file.name)) return 'PDF 文件名应为 2026JanMonthlyUnifiedSummary.pdf 格式'
-    return null
-  }
+  const manualMatchRows = useMemo(
+    () => mappingRows.filter((row) => row.matchFailed && row.assignedType === 'skip'),
+    [mappingRows]
+  )
 
-  const pickFile = (key: UploadType, file: File | null, reason = '手动选择文件') => {
-    setFormError(null)
-    if (!file) return
+  const dropZoneHeight = Math.min(380, 190 + Math.max(2, manualMatchRows.length + REQUIRED_TYPES.length) * 30)
 
-    const validationError = validateFile(key, file)
-    if (validationError) {
-      setUploadState((prev) => ({
-        ...prev,
-        [key]: { ...prev[key], status: 'error', selectedFile: null, uploaded: null, error: validationError },
-      }))
-      return
-    }
+  const canGenerate =
+    projectName.trim().length > 0 &&
+    reportMonth.length > 0 &&
+    REQUIRED_TYPES.every((type) => uploadState[type].status === 'success') &&
+    submitState.status !== 'submitting'
 
-    setUploadState((prev) => ({
-      ...prev,
-      [key]: {
-        ...prev[key],
-        status: 'idle',
-        selectedFile: file,
-        selectedReason: reason,
-        uploaded: null,
-        error: null,
-      },
-    }))
-  }
-
-  const mapDetectedFiles = async (files: File[]) => {
+  const addFiles = async (files: File[]) => {
     if (!files.length) return
-    const messages: string[] = []
-    const assignedTypes = new Set<UploadType>()
-    const recognized = await Promise.all(
+    setFormError(null)
+    setMappingBusy(true)
+
+    const detectedRows = await Promise.all(
       files.map(async (file) => {
         const match = await recognizeDataFile(file)
         return { file, ...match }
       })
     )
 
-    recognized.forEach((item) => {
-      if (!isUploadType(item.type)) {
-        messages.push(`跳过 ${item.file.name}：${item.reason}`)
-        return
-      }
-      if (assignedTypes.has(item.type)) {
-        messages.push(`跳过 ${item.file.name}：同批次重复识别`)
-        return
-      }
-      assignedTypes.add(item.type)
-      pickFile(item.type, item.file, `拖拽识别：${item.reason}`)
-      messages.push(`已识别 ${item.file.name} -> ${item.type}`)
+    setMappingRows((prev) => {
+      const next = [...prev]
+
+      detectedRows.forEach(({ file, type, reason }) => {
+        const row: MappingRow = {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+          file,
+          detectedType: type,
+          detectedReason: reason,
+          assignedType: isUploadType(type) ? type : 'skip',
+          matchFailed: !isUploadType(type),
+        }
+
+        if (isUploadType(row.assignedType)) {
+          for (let i = next.length - 1; i >= 0; i -= 1) {
+            if (next[i].assignedType === row.assignedType) {
+              next[i] = { ...next[i], assignedType: 'skip', matchFailed: false }
+              break
+            }
+          }
+        }
+
+        next.push(row)
+      })
+
+      return next
     })
 
-    setRecognitionMessages(messages)
+    setMappingBusy(false)
   }
 
-  const uploadFile = async (key: UploadType) => {
+  const onDrop = async (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setDragActive(false)
+    await addFiles(Array.from(event.dataTransfer.files ?? []))
+  }
+
+  const changeAssignedType = (rowId: string, value: AssignedType) => {
+    setMappingRows((prev) => {
+      const updated: MappingRow[] = prev.map((row) => {
+        if (row.id !== rowId) return row
+        return { ...row, assignedType: value, matchFailed: false }
+      })
+
+      if (value === 'skip') return updated
+
+      return updated.map((row) => {
+        if (row.id === rowId) return row
+        if (row.assignedType === value) return { ...row, assignedType: 'skip', matchFailed: false }
+        return row
+      })
+    })
+  }
+
+  const uploadType = async (type: UploadType) => {
     if (!projectName.trim()) {
-      setFormError('请先选择项目名称')
+      setFormError('请先填写项目名称，再执行上传。')
       return
     }
 
-    const target = uploadState[key]
+    const target = uploadState[type]
     if (!target.selectedFile) {
       setUploadState((prev) => ({
         ...prev,
-        [key]: { ...prev[key], status: 'error', error: '请先选择文件' },
+        [type]: { ...prev[type], status: 'error', error: '缺少已确认文件，请先匹配。' },
+      }))
+      return
+    }
+
+    const validationError = validateFile(type, target.selectedFile)
+    if (validationError) {
+      setUploadState((prev) => ({
+        ...prev,
+        [type]: { ...prev[type], status: 'error', error: validationError },
       }))
       return
     }
 
     setUploadState((prev) => ({
       ...prev,
-      [key]: { ...prev[key], status: 'uploading', error: null, uploaded: null },
+      [type]: { ...prev[type], status: 'uploading', error: null, uploaded: null },
     }))
 
     const formData = new FormData()
     formData.append('file', target.selectedFile)
     formData.append('project_name', projectName.trim())
-    formData.append('file_type', key)
+    formData.append('file_type', type)
 
     try {
       const response = await fetch(`${API_BASE}/api/v1/uploads`, {
         method: 'POST',
         body: formData,
-        headers: authHeaders(),
+        headers: authHeaders(currentOperator),
       })
       if (!response.ok) {
         const message = await response.text()
         throw new Error(message || '上传失败')
       }
+
       const payload = (await response.json()) as {
         filename?: string
         original_filename?: string
@@ -239,8 +341,8 @@ export default function MonthlyReportPage() {
 
       setUploadState((prev) => ({
         ...prev,
-        [key]: {
-          ...prev[key],
+        [type]: {
+          ...prev[type],
           status: 'success',
           error: null,
           uploaded: { filename: payload.filename, originalFilename: payload.original_filename },
@@ -249,30 +351,27 @@ export default function MonthlyReportPage() {
     } catch (error) {
       setUploadState((prev) => ({
         ...prev,
-        [key]: {
-          ...prev[key],
+        [type]: {
+          ...prev[type],
           status: 'error',
-          uploaded: null,
           error: error instanceof Error ? error.message : '上传失败',
+          uploaded: null,
         },
       }))
     }
   }
 
-  const uploadAll = async () => {
-    for (const item of FILE_CONFIG) {
-      const state = uploadState[item.key]
-      if (state.selectedFile && state.status !== 'success') {
+  const uploadAllConfirmed = async () => {
+    if (uploadBusy) return
+    setUploadBusy(true)
+    for (const type of REQUIRED_TYPES) {
+      const state = uploadState[type]
+      if (state.status === 'ready' || state.status === 'error') {
         // eslint-disable-next-line no-await-in-loop
-        await uploadFile(item.key)
+        await uploadType(type)
       }
     }
-  }
-
-  const onDrop = async (event: DragEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    setDragActive(false)
-    await mapDetectedFiles(Array.from(event.dataTransfer.files ?? []))
+    setUploadBusy(false)
   }
 
   const generateReport = async () => {
@@ -287,13 +386,14 @@ export default function MonthlyReportPage() {
       setFormError('请选择报表月份')
       return
     }
-    if (!allUploaded) {
+    if (!REQUIRED_TYPES.every((type) => uploadState[type].status === 'success')) {
       setFormError('请先完成 CSV + PDF 上传')
       return
     }
 
     const transactionFileId = uploadState.payment_report.uploaded?.filename
     const summaryPdfFileId = uploadState.monthly_summary_pdf.uploaded?.filename
+
     if (!transactionFileId || !summaryPdfFileId) {
       setFormError('上传结果异常，请重新上传文件')
       return
@@ -305,7 +405,7 @@ export default function MonthlyReportPage() {
       const createResponse = await fetch(`${API_BASE}/api/v1/monthly-reports`, {
         method: 'POST',
         headers: {
-          ...authHeaders(),
+          ...authHeaders(currentOperator),
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -315,54 +415,58 @@ export default function MonthlyReportPage() {
           summary_pdf_file_id: summaryPdfFileId,
         }),
       })
+
       if (!createResponse.ok) {
         const message = await createResponse.text()
         throw new Error(message || '创建任务失败')
       }
 
-      const created = (await createResponse.json()) as { job_id: number }
+      const created = (await createResponse.json()) as { job_id: number; status?: 'pending' | 'running' | 'success' | 'failed' }
       const jobId = created.job_id
 
       let attempts = 0
-      const maxAttempts = 120
+      let finished = created.status === 'success'
       let failedMessage: string | null = null
-      let finished = false
 
-      while (attempts < maxAttempts && !finished) {
+      while (attempts < 120 && !finished) {
         attempts += 1
-        // eslint-disable-next-line no-await-in-loop
-        await new Promise((resolve) => setTimeout(resolve, 2000))
         // eslint-disable-next-line no-await-in-loop
         const statusResponse = await fetch(`${API_BASE}/api/v1/jobs/${jobId}`, {
           cache: 'no-store',
-          headers: authHeaders(),
+          headers: authHeaders(currentOperator),
         })
         if (!statusResponse.ok) {
           // eslint-disable-next-line no-await-in-loop
           const message = await statusResponse.text()
           throw new Error(message || '状态查询失败')
         }
+
         // eslint-disable-next-line no-await-in-loop
         const statusPayload = (await statusResponse.json()) as {
           status: 'pending' | 'running' | 'success' | 'failed'
           runs?: Array<{ error_message?: string | null }>
         }
+
         if (statusPayload.status === 'failed') {
           failedMessage = statusPayload.runs?.[statusPayload.runs.length - 1]?.error_message ?? '任务失败'
           finished = true
           break
         }
+
         if (statusPayload.status === 'success') {
           finished = true
           break
         }
+
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((resolve) => setTimeout(resolve, 400))
       }
 
       if (failedMessage) throw new Error(failedMessage)
       if (!finished) throw new Error('任务超时，请稍后重试')
 
       const downloadResponse = await fetch(`${API_BASE}/api/v1/jobs/${jobId}/result`, {
-        headers: authHeaders(),
+        headers: authHeaders(currentOperator),
       })
       if (!downloadResponse.ok) {
         const message = await downloadResponse.text()
@@ -371,7 +475,7 @@ export default function MonthlyReportPage() {
 
       const blob = await downloadResponse.blob()
       const headerName = extractFilenameFromHeader(downloadResponse.headers.get('Content-Disposition'))
-      const fallbackName = `月度财务报表_${projectName.trim()}_美国站_${reportMonth}.xlsx`
+      const fallbackName = `${projectName.trim()}_Monthly_Report_${reportMonth}.xlsx`
       const filename = headerName || fallbackName
 
       const downloadUrl = window.URL.createObjectURL(blob)
@@ -383,11 +487,7 @@ export default function MonthlyReportPage() {
       link.remove()
       window.URL.revokeObjectURL(downloadUrl)
 
-      setSubmitState({
-        status: 'success',
-        message: `生成成功，已下载 ${filename}`,
-        filename,
-      })
+      setSubmitState({ status: 'success', message: `生成成功，已下载 ${filename}`, filename })
     } catch (error) {
       setSubmitState({
         status: 'error',
@@ -398,179 +498,222 @@ export default function MonthlyReportPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <Card className="border border-border">
-        <CardHeader>
-          <CardTitle>财务月报</CardTitle>
-          <CardDescription>选择项目、上传 CSV + PDF，点击生成后由后端处理并自动下载 Excel。</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
+    <div className="mx-auto max-w-6xl space-y-6">
+      <div className="grid gap-6 xl:grid-cols-2">
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-lg">参数配置</CardTitle>
+            <CardDescription>项目名称必填，账期月份默认上个月。</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
             <div className="space-y-2">
-              <label htmlFor="project_name" className="text-sm font-medium">
-                项目名称
-              </label>
-              <Input
-                id="project_name"
+              <label htmlFor="project_name" className="text-sm font-medium">项目名称</label>
+              <Select
                 value={projectName}
-                onChange={(event) => setProjectName(event.target.value)}
-                placeholder={projectsLoading ? '项目加载中...' : '输入或选择项目'}
-                disabled={projectsLoading}
-                list="monthly-project-options"
-              />
-              <datalist id="monthly-project-options">
-                {projects.map((project) => (
-                  <option key={project.name} value={project.name} />
-                ))}
-              </datalist>
+                onValueChange={setProjectName}
+                disabled={projectsLoading || projects.length === 0}
+              >
+                <SelectTrigger
+                  id="project_name"
+                  className="h-10 transition-all duration-200 data-[state=open]:ring-2 data-[state=open]:ring-blue-500/30"
+                >
+                  <SelectValue
+                    placeholder={projectsLoading ? '项目加载中...' : projects.length ? '请选择项目名称' : '暂无可选项目'}
+                  />
+                </SelectTrigger>
+                <SelectContent className="max-h-64 overflow-y-auto">
+                  {projects.map((project) => (
+                    <SelectItem key={project.name} value={project.name}>
+                      {project.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!projectsLoading && projects.length === 0 ? (
+                <p className="text-xs text-muted-foreground">暂无项目，请先到“项目信息”页面新增。</p>
+              ) : null}
               {projectLoadError ? <p className="text-xs text-destructive">{projectLoadError}</p> : null}
             </div>
+
             <div className="space-y-2">
-              <label htmlFor="report_month" className="text-sm font-medium">
-                账期月份
-              </label>
+              <label htmlFor="report_month" className="text-sm font-medium">账期月份</label>
               <Input id="report_month" type="month" value={reportMonth} onChange={(event) => setReportMonth(event.target.value)} />
             </div>
-          </div>
 
-          {formError ? <p className="text-sm text-destructive">{formError}</p> : null}
-        </CardContent>
-      </Card>
+            {formError ? <p className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">{formError}</p> : null}
+          </CardContent>
+        </Card>
 
-      <Card className="border border-border">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileSearch className="h-5 w-5 text-cyan-600" />
-            文件识别与上传
-          </CardTitle>
-          <CardDescription>拖拽后自动分发：CSV 到 `payment_report`，PDF 到 `monthly_summary_pdf`。</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div
-            className={cn(
-              'rounded-lg border-2 border-dashed p-5 text-center',
-              dragActive ? 'border-cyan-500 bg-cyan-50 dark:bg-cyan-950/20' : 'border-border bg-muted/20'
-            )}
-            onDrop={(event) => void onDrop(event)}
-            onDragOver={(event) => {
-              event.preventDefault()
-              setDragActive(true)
-            }}
-            onDragLeave={(event) => {
-              event.preventDefault()
-              setDragActive(false)
-            }}
-          >
-            <p className="text-sm font-medium">拖拽 CSV/PDF 到此自动识别</p>
-            <p className="mt-1 text-xs text-muted-foreground">或手动选择后单独上传。命名需符合示例格式。</p>
-            <div className="mt-3 flex flex-wrap justify-center gap-2">
-              <Button type="button" variant="outline" onClick={() => document.getElementById('monthly-file-picker')?.click()}>
-                选择多个文件识别
-              </Button>
-              <Input
-                id="monthly-file-picker"
-                type="file"
-                multiple
-                accept=".csv,.pdf"
-                className="hidden"
-                onChange={(event) => void mapDetectedFiles(Array.from(event.target.files ?? []))}
-              />
-              <Button type="button" onClick={() => void uploadAll()} disabled={!projectName.trim()}>
-                一键上传已识别文件
-              </Button>
+        <Card className="flex min-h-[320px] flex-col shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-lg">生成与下载</CardTitle>
+            <CardDescription>完成 CSV + PDF 上传后生成财务月报。</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-1 flex-col gap-4">
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="rounded-lg border bg-muted/30 p-3">
+                <p className="text-xs text-muted-foreground">识别覆盖</p>
+                <p className="mt-1 font-semibold">{recognizedCount}/2</p>
+              </div>
+              <div className="rounded-lg border bg-muted/30 p-3">
+                <p className="text-xs text-muted-foreground">上传完成</p>
+                <p className="mt-1 font-semibold">{uploadedCount}/2</p>
+              </div>
             </div>
-          </div>
 
-          {recognitionMessages.length > 0 ? (
-            <div className="space-y-1 rounded-md border bg-muted/20 p-3 text-xs">
-              {recognitionMessages.map((message) => (
-                <p key={message}>{message}</p>
-              ))}
-            </div>
-          ) : null}
+            {submitState.status === 'submitting' ? (
+              <div className="flex items-center gap-2 rounded-md border border-blue-300/40 bg-blue-50 px-3 py-2 text-sm text-blue-700 dark:bg-blue-900/25 dark:text-blue-200">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {submitState.message}
+              </div>
+            ) : null}
 
-          <div className="grid gap-4 md:grid-cols-2">
-            {FILE_CONFIG.map((item) => {
-              const state = uploadState[item.key]
-              return (
-                <div key={item.key} className="rounded-lg border bg-card p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-semibold">{item.title}</p>
-                      <p className="text-xs text-muted-foreground">{item.description}</p>
-                      {state.selectedReason ? <p className="text-xs text-cyan-700 dark:text-cyan-300">{state.selectedReason}</p> : null}
-                    </div>
-                    <Badge variant={state.status === 'error' ? 'destructive' : 'secondary'}>
-                      {state.status === 'success' ? '已上传' : state.status === 'uploading' ? '上传中' : state.status === 'error' ? '失败' : '待处理'}
-                    </Badge>
+            {submitState.status === 'success' ? (
+              <div className="space-y-2 rounded-md border border-emerald-300/60 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-200">
+                {submitState.filename ? (
+                  <div className="flex items-center gap-2">
+                    <Download className="mr-1 h-3.5 w-3.5" />
+                    {submitState.filename}
                   </div>
-                  <div className="mt-3 space-y-2">
-                    <Input
-                      type="file"
-                      accept={item.accept}
-                      onChange={(event) => pickFile(item.key, event.target.files?.[0] ?? null)}
-                      disabled={state.status === 'uploading'}
-                    />
-                    <p className="truncate text-xs text-muted-foreground">
-                      {state.uploaded?.originalFilename ?? state.selectedFile?.name ?? '尚未选择文件'}
-                    </p>
-                    {state.error ? <p className="text-xs text-destructive">{state.error}</p> : null}
-                    <div className="flex gap-2">
-                      <Button type="button" size="sm" onClick={() => void uploadFile(item.key)} disabled={!projectName.trim() || !state.selectedFile || state.status === 'uploading'}>
-                        {state.status === 'uploading' ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Upload className="mr-1 h-4 w-4" />}
-                        上传
-                      </Button>
+                ) : null}
+              </div>
+            ) : null}
+
+            {submitState.status === 'error' ? (
+              <div className="flex items-center gap-2 rounded-md border border-rose-300/60 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-900/20 dark:text-rose-200">
+                <AlertCircle className="h-4 w-4" />
+                {submitState.message}
+              </div>
+            ) : null}
+
+            <Button
+              type="button"
+              className="mt-auto h-11 w-full bg-blue-600 hover:bg-blue-500"
+              onClick={() => void generateReport()}
+              disabled={!canGenerate}
+            >
+              {submitState.status === 'submitting' ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1 h-4 w-4" />}
+              生成财务月报
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-lg">文件识别与上传</CardTitle>
+          <CardDescription>左侧投递文件，右侧两行状态栏实时展示匹配情况，失败时显示手动匹配。</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="grid gap-5 xl:grid-cols-[300px_1fr]">
+            <div
+              className={cn(
+                'flex flex-col rounded-xl border-2 border-dashed p-4 text-center transition-colors',
+                dragActive ? 'border-blue-500 bg-blue-50/60 dark:bg-blue-900/20' : 'border-border bg-muted/30'
+              )}
+              style={{ minHeight: `${dropZoneHeight}px` }}
+              onDrop={(event) => void onDrop(event)}
+              onDragOver={(event) => {
+                event.preventDefault()
+                setDragActive(true)
+              }}
+              onDragLeave={(event) => {
+                event.preventDefault()
+                setDragActive(false)
+              }}
+            >
+              <p className="text-sm font-semibold text-foreground">拖拽文件到这里</p>
+              <p className="mt-1 text-xs text-muted-foreground">支持 csv/pdf 批量识别</p>
+
+              <div className="mt-auto space-y-2 pt-4">
+                <Button type="button" variant="outline" className="w-full" onClick={() => document.getElementById('monthly-file-picker')?.click()}>
+                  <FileSearch className="mr-1 h-4 w-4" />
+                  选择多个文件
+                </Button>
+                <Input
+                  id="monthly-file-picker"
+                  type="file"
+                  multiple
+                  accept=".csv,.pdf"
+                  className="hidden"
+                  onChange={(event) => void addFiles(Array.from(event.target.files ?? []))}
+                />
+                <Button type="button" className="w-full" onClick={() => void uploadAllConfirmed()} disabled={uploadBusy || mappingBusy || !projectName.trim()}>
+                  {uploadBusy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Upload className="mr-1 h-4 w-4" />}
+                  一键上传已匹配文件
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {REQUIRED_TYPES.map((type) => {
+                const state = uploadState[type]
+                const meta = getUploadMeta(state)
+                const matched = state.status !== 'empty'
+                return (
+                  <div key={type} className="flex min-h-[120px] flex-col rounded-lg border bg-card p-3">
+                    <div className="mb-2 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className={cn('h-2.5 w-2.5 rounded-full', meta.dot)} />
+                        <p className="text-sm font-semibold text-foreground">{TYPE_LABEL[type]}</p>
+                      </div>
+                      <span className="text-xs text-muted-foreground">{meta.text}</span>
+                    </div>
+
+                    <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+                      <div className={cn('h-full transition-all duration-200', matched ? meta.bar : 'bg-slate-300 dark:bg-slate-700')} style={{ width: matched ? '100%' : '28%' }} />
+                    </div>
+
+                    <div className="mt-auto flex items-end justify-between gap-3 pt-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-xs text-muted-foreground">{state.selectedFile?.name ?? '等待识别或手动匹配'}</p>
+                        {state.error ? <p className="mt-1 text-xs text-destructive">{state.error}</p> : null}
+                      </div>
                       <Button
                         type="button"
                         size="sm"
                         variant="outline"
-                        onClick={() =>
-                          setUploadState((prev) => ({
-                            ...prev,
-                            [item.key]: { status: 'idle', selectedFile: null, selectedReason: null, uploaded: null, error: null },
-                          }))
-                        }
+                        onClick={() => void uploadType(type)}
+                        disabled={state.status === 'empty' || state.status === 'uploading' || !projectName.trim()}
                       >
-                        重置
+                        {state.status === 'uploading' ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-1 h-3.5 w-3.5" />}
+                        上传
                       </Button>
                     </div>
                   </div>
-                </div>
-              )
-            })}
-          </div>
-        </CardContent>
-      </Card>
+                )
+              })}
 
-      <Card className="border border-border">
-        <CardHeader>
-          <CardTitle>生成与下载</CardTitle>
-          <CardDescription>必须先完成两个文件上传，才可触发生成。</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <Button type="button" className="w-full md:w-auto" onClick={() => void generateReport()} disabled={!canGenerate}>
-            {submitState.status === 'submitting' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-            生成财务月报
-          </Button>
-          {submitState.filename ? (
-            <Badge variant="outline" className="gap-1">
-              <Download className="h-3.5 w-3.5" />
-              {submitState.filename}
-            </Badge>
-          ) : null}
-          {submitState.status === 'success' ? (
-            <p className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400">
-              <CheckCircle2 className="h-4 w-4" />
-              {submitState.message}
-            </p>
-          ) : null}
-          {submitState.status === 'error' ? (
-            <p className="flex items-center gap-2 text-sm text-destructive">
-              <AlertCircle className="h-4 w-4" />
-              {submitState.message}
-            </p>
-          ) : null}
-          {submitState.status === 'submitting' ? <p className="text-sm text-cyan-700 dark:text-cyan-300">{submitState.message}</p> : null}
+              {manualMatchRows.length > 0 ? (
+                <div className="rounded-lg border border-blue-200/70 bg-blue-50/60 p-3 dark:border-blue-800/50 dark:bg-blue-950/20">
+                  <p className="text-sm font-semibold text-blue-800 dark:text-blue-200">手动匹配</p>
+                  <p className="mt-1 text-xs text-blue-700/80 dark:text-blue-200/80">以下文件识别失败，请手动指定类型。</p>
+
+                  <div className="mt-3 space-y-2">
+                    {manualMatchRows.map((row) => (
+                      <div key={row.id} className="grid gap-2 rounded-md border border-blue-200/70 bg-white/90 p-2 dark:border-blue-800/40 dark:bg-slate-900/60 md:grid-cols-[1fr_190px]">
+                        <div>
+                          <p className="truncate text-sm font-medium text-foreground">{row.file.name}</p>
+                          <p className="text-xs text-muted-foreground">{row.detectedReason}</p>
+                        </div>
+                        <Select value={row.assignedType} onValueChange={(value) => changeAssignedType(row.id, value as AssignedType)}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="手动选择类型" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="payment_report">交易明细 CSV</SelectItem>
+                            <SelectItem value="monthly_summary_pdf">月度总结 PDF</SelectItem>
+                            <SelectItem value="skip">跳过</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>

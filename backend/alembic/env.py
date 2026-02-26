@@ -5,7 +5,7 @@ from sqlalchemy import engine_from_config, pool, create_engine
 
 from app.core.config import get_settings
 from app.db.session import Base
-from app.models import Job, JobRun, ProductCost, Project  # noqa: F401
+from app.models import AIConversation, AIMessage, Job, JobRun, ProductCost, Project  # noqa: F401
 
 config = context.config
 settings = get_settings()

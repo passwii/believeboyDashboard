@@ -8,7 +8,6 @@ import { AppSidebar } from '@/components/dashboard/app-sidebar'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { SearchCommand } from '@/components/dashboard/search-command'
 import { Button } from '@/components/ui/button'
-import { GlobalLoadingOverlay } from '@/components/global-loading-overlay'
 import { Search } from 'lucide-react'
 
 export default function DashboardLayout({
@@ -27,6 +26,7 @@ export default function DashboardLayout({
     if (pathname.includes('/system-management/data-management')) return '系统数据管理'
     if (pathname.includes('/system-management/account-management')) return '系统账号管理'
     if (pathname.includes('/operations/site-navigation')) return '跨境平台书签导航'
+    if (pathname.includes('/ai-panel/chat')) return 'AI 聊天面板'
     return 'Dashboard'
   }, [pathname])
 
@@ -55,7 +55,6 @@ export default function DashboardLayout({
         </header>
         <main className="relative flex-1 p-4 md:p-6 lg:p-8">
           {children}
-          <GlobalLoadingOverlay />
         </main>
       </SidebarInset>
       <SearchCommand />

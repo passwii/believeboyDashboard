@@ -28,9 +28,7 @@ const navMain = [
     url: '#',
     icon: <Bot className="h-4 w-4" />,
     items: [
-      { title: 'AI 菜单 1', url: '#' },
-      { title: 'AI 菜单 2', url: '#' },
-      { title: 'AI 菜单 3', url: '#' },
+      { title: 'AI 聊天', url: '/dashboard/ai-panel/chat' },
     ],
   },
   {
