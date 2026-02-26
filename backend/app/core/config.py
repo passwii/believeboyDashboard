@@ -25,13 +25,14 @@ class Settings(BaseSettings):
     result_root: Path = Path('./storage/results')
 
     max_upload_bytes: int = 50 * 1024 * 1024
-    allowed_upload_extensions: set[str] = {'.txt', '.csv', '.xlsx'}
+    allowed_upload_extensions: set[str] = {'.txt', '.csv', '.xlsx', '.pdf'}
     allowed_content_types: set[str] = {
         'text/plain',
         'text/csv',
         'application/csv',
         'application/vnd.ms-excel',
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/pdf',
         'application/octet-stream',
     }
 

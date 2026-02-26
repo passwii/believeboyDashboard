@@ -21,16 +21,12 @@ def build_list_cache_key(
     project_name: str | None,
     sku: str | None,
     asin: str | None,
-    page: int,
-    page_size: int,
-    include_total: bool,
     ) -> str:
     return (
         f'{CACHE_PREFIX}'
         f'project={_normalize_filter(project_name)}|'
         f'sku={_normalize_filter(sku)}|'
-        f'asin={_normalize_filter(asin)}|'
-        f'page={page}|size={page_size}|total={int(include_total)}'
+        f'asin={_normalize_filter(asin)}'
     )
 
 

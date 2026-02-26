@@ -1,14 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { CheckCircle2, Database, XCircle } from 'lucide-react'
+import { CheckCircle2, Database, Loader2, XCircle } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Separator } from '@/components/ui/separator'
-import { useGlobalLoading } from '@/components/global-loading-provider'
 import { cn } from '@/lib/utils'
 
 type DataManagementStatus = {
@@ -126,7 +125,6 @@ function clearCachedData(): void {
 }
 
 export default function SystemDataManagementPage() {
-  const { withGlobalLoading } = useGlobalLoading()
   const [status, setStatus] = useState<DataManagementStatus | null>(null)
   const [loading, setLoading] = useState(false)
   const [clearing, setClearing] = useState(false)
@@ -168,7 +166,7 @@ export default function SystemDataManagementPage() {
   const loadStatus = useCallback(async (forceRefresh = false): Promise<void> => {
     if (forceRefresh) {
       setCacheNotice(null)
-      await withGlobalLoading(() => fetchStatusFromAPI(true))
+      await fetchStatusFromAPI(true)
       return
     }
 
@@ -185,39 +183,41 @@ export default function SystemDataManagementPage() {
     }
 
     setCacheNotice(null)
-  }, [fetchStatusFromAPI, withGlobalLoading])
+  }, [fetchStatusFromAPI])
 
-  // Initial load: only read local cache, never auto-request API.
+  // Initial load: show local cache first, then auto-refresh from server.
   useEffect(() => {
-    void loadStatus(false)
+    const initialize = async () => {
+      await loadStatus(false)
+      await loadStatus(true)
+    }
+    void initialize()
   }, [loadStatus])
 
   const onClearCache = async () => {
-    await withGlobalLoading(async () => {
-      setClearing(true)
-      setError(null)
-      setSuccessMessage(null)
-      setCacheNotice(null)
-      try {
-        const response = await fetch(`${API_BASE}/api/v1/system-management/data-management/cache/clear`, {
-          method: 'POST',
-          headers: authHeaders(),
-        })
-        if (!response.ok) {
-          throw new Error(await parseError(response))
-        }
-        const payload = (await response.json()) as ClearCacheResponse
-        setSuccessMessage(`缓存清理完成：删除 ${payload.removed_entries} 条，时间 ${formatDateTime(payload.cleared_at)}`)
-        setConfirmDialogOpen(false)
-        // Clear local cache and reload
-        clearCachedData()
-        await loadStatus(true) // Force refresh
-      } catch (clearError) {
-        setError(clearError instanceof Error ? clearError.message : '清除缓存失败')
-      } finally {
-        setClearing(false)
+    setClearing(true)
+    setError(null)
+    setSuccessMessage(null)
+    setCacheNotice(null)
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/system-management/data-management/cache/clear`, {
+        method: 'POST',
+        headers: authHeaders(),
+      })
+      if (!response.ok) {
+        throw new Error(await parseError(response))
       }
-    })
+      const payload = (await response.json()) as ClearCacheResponse
+      setSuccessMessage(`缓存清理完成：删除 ${payload.removed_entries} 条，时间 ${formatDateTime(payload.cleared_at)}`)
+      setConfirmDialogOpen(false)
+      // Clear local cache and reload
+      clearCachedData()
+      await loadStatus(true) // Force refresh
+    } catch (clearError) {
+      setError(clearError instanceof Error ? clearError.message : '清除缓存失败')
+    } finally {
+      setClearing(false)
+    }
   }
 
   return (
@@ -263,20 +263,34 @@ export default function SystemDataManagementPage() {
 
           <div className="grid gap-6 lg:grid-cols-2">
             {/* 数据库状态卡片 */}
-            <Card className="border-border/70 dark:border-emerald-500/20 overflow-hidden bg-card dark:bg-gradient-to-br dark:from-emerald-950/30 dark:to-card">
+            <Card
+              className={cn(
+                'border-border/70 dark:border-emerald-500/20 overflow-hidden bg-card dark:bg-gradient-to-br dark:from-emerald-950/30 dark:to-card',
+                loading ? 'ring-1 ring-emerald-400/40' : ''
+              )}
+            >
               <CardHeader className="bg-gradient-to-r from-emerald-500/5 to-transparent dark:from-emerald-500/10 dark:to-transparent border-b border-border/50 dark:border-emerald-500/20 pb-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle className="text-base font-semibold">数据库状态</CardTitle>
                     <CardDescription className="text-xs mt-1">后端主库连通性和数据源信息</CardDescription>
                   </div>
-                  <div className={cn(
-                    "flex h-10 w-10 items-center justify-center rounded-full",
-                    status?.database.healthy 
-                      ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
-                      : "bg-destructive/10 text-destructive"
-                  )}>
-                    {status?.database.healthy ? <CheckCircle2 className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
+                  <div className="flex items-center gap-2">
+                    {loading ? (
+                      <div className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-700 dark:text-emerald-300">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        <span>刷新中</span>
+                      </div>
+                    ) : null}
+                    <div className={cn(
+                      "flex h-10 w-10 items-center justify-center rounded-full transition-transform duration-300",
+                      status?.database.healthy
+                        ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
+                        : "bg-destructive/10 text-destructive",
+                      loading ? 'animate-pulse' : ''
+                    )}>
+                      {status?.database.healthy ? <CheckCircle2 className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
+                    </div>
                   </div>
                 </div>
               </CardHeader>
@@ -373,7 +387,7 @@ export default function SystemDataManagementPage() {
           </div>
 
           <p className="text-xs leading-5 text-muted-foreground">
-            页面默认优先展示本地缓存；点击“刷新状态”后会从服务端拉取最新数据。执行“清除缓存”会清空后端查询缓存，并同步更新当前状态。
+            页面会先展示本地缓存并在进入后自动刷新；执行“清除缓存”会清空后端查询缓存，并同步更新当前状态。
           </p>
         </CardContent>
       </Card>

@@ -17,7 +17,6 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useGlobalLoading } from '@/components/global-loading-provider'
 
 type ProjectItem = {
@@ -265,39 +264,40 @@ export default function StoreInfoPage() {
           ) : null}
 
           <div className="rounded-lg border border-border/70">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[120px]">ID</TableHead>
-                  <TableHead>项目名称</TableHead>
-                  <TableHead>品牌名称</TableHead>
-                  <TableHead>店铺地址</TableHead>
-                  <TableHead className="w-[160px] text-right">操作</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <div className="max-h-[600px] overflow-y-auto relative">
+              <table className="w-full caption-bottom text-sm">
+                <thead className="[&_tr]:border-b-0">
+                  <tr className="border-b border-border/70 shadow-sm">
+                    <th className="sticky top-0 z-20 h-12 w-[120px] bg-background px-4 text-left align-middle font-medium text-muted-foreground">ID</th>
+                    <th className="sticky top-0 z-20 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">项目名称</th>
+                    <th className="sticky top-0 z-20 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">品牌名称</th>
+                    <th className="sticky top-0 z-20 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">店铺地址</th>
+                    <th className="sticky top-0 z-20 h-12 w-[160px] bg-background px-4 text-right align-middle font-medium text-muted-foreground">操作</th>
+                  </tr>
+                </thead>
+                <tbody className="[&_tr:last-child]:border-0">
                 {loading ? (
                   Array.from({ length: 6 }).map((_, index) => (
-                    <TableRow key={`skeleton-${index}`}>
-                      <TableCell colSpan={5}>
+                    <tr key={`skeleton-${index}`} className="border-b transition-colors hover:bg-muted/50">
+                      <td colSpan={5} className="p-4 align-middle">
                         <Skeleton className="h-6 w-full" />
-                      </TableCell>
-                    </TableRow>
+                      </td>
+                    </tr>
                   ))
                 ) : items.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
+                  <tr className="border-b transition-colors hover:bg-muted/50">
+                    <td colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
                       暂无项目数据，请先新增一个项目。
-                    </TableCell>
-                  </TableRow>
+                    </td>
+                  </tr>
                 ) : (
                   items.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell className="text-muted-foreground">{item.id}</TableCell>
-                      <TableCell className="font-medium text-foreground">{item.name}</TableCell>
-                      <TableCell>{item.brand_name || '-'}</TableCell>
-                      <TableCell className="max-w-[360px] truncate">{item.store_address || '-'}</TableCell>
-                      <TableCell className="text-right">
+                    <tr key={item.id} className="border-b transition-colors hover:bg-muted/50">
+                      <td className="p-4 align-middle text-muted-foreground">{item.id}</td>
+                      <td className="p-4 align-middle font-medium text-foreground">{item.name}</td>
+                      <td className="p-4 align-middle">{item.brand_name || '-'}</td>
+                      <td className="max-w-[360px] truncate p-4 align-middle">{item.store_address || '-'}</td>
+                      <td className="p-4 align-middle text-right">
                         <div className="flex justify-end">
                           <Button
                             type="button"
@@ -311,12 +311,13 @@ export default function StoreInfoPage() {
                             <PencilLine className="h-4 w-4" />
                           </Button>
                         </div>
-                      </TableCell>
-                    </TableRow>
+                      </td>
+                    </tr>
                   ))
                 )}
-              </TableBody>
-            </Table>
+              </tbody>
+            </table>
+            </div>
           </div>
         </CardContent>
       </Card>

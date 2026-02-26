@@ -3,6 +3,7 @@ export type RecognizedFileType =
   | 'inventory_report'
   | 'ad_report'
   | 'payment_report'
+  | 'monthly_summary_pdf'
   | 'unknown'
 
 export type RecognitionResult = {
@@ -60,6 +61,13 @@ export async function recognizeDataFile(file: File): Promise<RecognitionResult> 
       return { type: 'payment_report', reason: '首行包含 Includes Amazon Marketplace' }
     }
     return { type: 'unknown', reason: 'csv 文件未命中付款报告识别规则' }
+  }
+
+  if (ext === '.pdf') {
+    if (lowerName.includes('monthly') && lowerName.includes('summary')) {
+      return { type: 'monthly_summary_pdf', reason: 'pdf 文件名命中 monthly + summary' }
+    }
+    return { type: 'unknown', reason: 'pdf 文件未命中月报总结识别规则' }
   }
 
   return { type: 'unknown', reason: `不支持的文件格式: ${ext || '未知'}` }

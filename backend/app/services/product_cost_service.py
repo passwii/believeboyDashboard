@@ -58,6 +58,24 @@ def list_product_costs(
     return rows, total, has_next
 
 
+def list_product_costs_all(
+    db: Session,
+    project_name: str | None,
+    sku: str | None,
+    asin: str | None,
+) -> list[ProductCost]:
+    stmt: Select = select(ProductCost)
+
+    if project_name:
+        stmt = stmt.where(ProductCost.project_name.ilike(f'%{project_name}%'))
+    if sku:
+        stmt = stmt.where(ProductCost.sku.ilike(f'%{sku}%'))
+    if asin:
+        stmt = stmt.where(ProductCost.asin.ilike(f'%{asin}%'))
+
+    return db.execute(stmt.order_by(ProductCost.id.desc())).scalars().all()
+
+
 def _normalize_text(value: str | None, field_name: str) -> str:
     normalized = (value or '').strip()
     if not normalized:

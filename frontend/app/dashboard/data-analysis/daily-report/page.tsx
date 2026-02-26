@@ -137,7 +137,7 @@ function getStatusMeta(state: UploadStateItem): StatusMeta {
 function StatusPill({ status }: { status: UploadState }) {
   if (status === 'success') {
     return (
-      <Badge className="border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-50">
+      <Badge className="border border-emerald-300 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 hover:bg-emerald-50">
         <Check className="mr-1 h-3.5 w-3.5" />
         已上传
       </Badge>
@@ -146,7 +146,7 @@ function StatusPill({ status }: { status: UploadState }) {
 
   if (status === 'error') {
     return (
-      <Badge variant="destructive" className="border border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-50">
+      <Badge variant="destructive" className="border border-rose-300 bg-rose-50 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300 hover:bg-rose-50">
         <X className="mr-1 h-3.5 w-3.5" />
         失败
       </Badge>
@@ -155,7 +155,7 @@ function StatusPill({ status }: { status: UploadState }) {
 
   if (status === 'uploading') {
     return (
-      <Badge className="border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-50">
+      <Badge className="border border-blue-300 bg-blue-50 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 hover:bg-blue-50">
         <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
         上传中
       </Badge>
@@ -215,11 +215,11 @@ function UploadRow({
 }) {
   const toneClasses =
     state.status === 'success'
-      ? 'border-emerald-200/90 bg-emerald-50/60'
+      ? 'border-emerald-200/90 bg-emerald-50/60 dark:bg-emerald-900/40'
       : state.status === 'error'
-        ? 'border-rose-200/90 bg-rose-50/60'
+        ? 'border-rose-200/90 bg-rose-50/60 dark:bg-rose-900/40'
       : state.status === 'uploading'
-          ? 'border-blue-200/90 bg-blue-50/70'
+          ? 'border-blue-200/90 bg-blue-50/70 dark:bg-blue-900/50'
           : 'border-border bg-card'
 
   return (
@@ -233,7 +233,7 @@ function UploadRow({
         <div className="space-y-1">
           <p className="text-sm font-semibold text-foreground">{fileItem.title}</p>
           <p className="text-xs leading-relaxed text-muted-foreground">{fileItem.description}</p>
-          {state.selectedReason ? <p className="text-[11px] text-blue-600 dark:text-blue-400">{state.selectedReason}</p> : null}
+          {state.selectedReason ? <p className="text-[11px] text-blue-600 dark:text-blue-300">{state.selectedReason}</p> : null}
         </div>
 
         <div className="space-y-2">
@@ -841,16 +841,16 @@ export default function DailyReportPage() {
           </CardHeader>
           <CardContent className="relative space-y-4">
             <div className="grid gap-2 sm:grid-cols-3">
-              <div className="rounded-md border border-white/15 bg-white/10 p-3">
-                <p className="text-xs text-white/80">上传进度</p>
+              <div className="rounded-md border border-white/15 bg-white/10 dark:bg-white/5 p-3">
+                <p className="text-xs text-white/80 dark:text-white/70">上传进度</p>
                 <p className="mt-1 text-sm font-semibold">{uploadedCount}/3</p>
               </div>
-              <div className="rounded-md border border-white/15 bg-white/10 p-3">
-                <p className="text-xs text-white/80">可执行状态</p>
+              <div className="rounded-md border border-white/15 bg-white/10 dark:bg-white/5 p-3">
+                <p className="text-xs text-white/80 dark:text-white/70">可执行状态</p>
                 <p className="mt-1 text-sm font-semibold">{canGenerate ? '可生成' : '未就绪'}</p>
               </div>
-              <div className="rounded-md border border-white/15 bg-white/10 p-3">
-                <p className="text-xs text-white/80">最近动作</p>
+              <div className="rounded-md border border-white/15 bg-white/10 dark:bg-white/5 p-3">
+                <p className="text-xs text-white/80 dark:text-white/70">最近动作</p>
                 <p className="mt-1 truncate text-sm font-semibold">{latestAction}</p>
               </div>
             </div>
@@ -948,7 +948,7 @@ export default function DailyReportPage() {
                 'relative overflow-hidden rounded-xl border-2 border-dashed p-6 text-center',
                 dragActive
                   ? 'border-blue-500/70 bg-gradient-to-br from-blue-500/10 to-cyan-500/10 shadow-md'
-                  : 'border-border bg-gradient-to-br from-muted/40 via-background to-cyan-500/10'
+                  : 'border-border bg-gradient-to-br from-muted/60 via-background to-cyan-500/10'
               )}
               onDrop={(event) => void onDrop(event)}
               onDragOver={onDragOver}
@@ -1015,7 +1015,7 @@ export default function DailyReportPage() {
                   initial="hidden"
                   animate="show"
                   exit="exit"
-                  className="max-h-44 space-y-1 overflow-auto rounded-md border bg-muted/20 p-3 text-xs text-foreground"
+                  className="max-h-44 space-y-1 overflow-auto rounded-md border bg-muted/20 dark:bg-muted/30 p-3 text-xs text-foreground"
                 >
                   {recognitionMessages.map((message) => (
                     <motion.p key={message} variants={logItemVariants} initial="hidden" animate="show" exit="exit">

@@ -15,11 +15,9 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { useGlobalLoading } from '@/components/global-loading-provider'
 
 type ProductCostItem = {
   id: number
@@ -41,7 +39,18 @@ type ProductCostsPage = {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
 const API_KEY = process.env.NEXT_PUBLIC_BACKEND_API_KEY ?? ''
-const PAGE_SIZE = 20
+const REMOTE_FETCH_PAGE_SIZE = 200
+const PAGE_SIZE_OPTIONS = [20, 50, 100]
+const DEFAULT_PAGE_SIZE = 20
+const SKU_COST_CACHE_KEY = 'sku-cost-cache:full:v2'
+
+type ProductCostsCache = {
+  items: ProductCostItem[]
+  projectFilter: string
+  skuFilter: string
+  asinFilter: string
+  pageSize: number
+}
 
 function authHeaders() {
   return API_KEY ? { 'X-API-Key': API_KEY } : {}
@@ -58,13 +67,12 @@ async function parseError(response: Response): Promise<string> {
 }
 
 export default function SkuCostPage() {
-  const { withGlobalLoading } = useGlobalLoading()
   const [items, setItems] = useState<ProductCostItem[]>([])
   const [page, setPage] = useState(1)
-  const [total, setTotal] = useState<number | null>(null)
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [hasNextPage, setHasNextPage] = useState(false)
+  const [hydratedFromCache, setHydratedFromCache] = useState(false)
 
   const [projectFilter, setProjectFilter] = useState('')
   const [skuFilter, setSkuFilter] = useState('')
@@ -76,66 +84,152 @@ export default function SkuCostPage() {
 
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
-  const totalPages = useMemo(() => (typeof total === 'number' ? Math.max(1, Math.ceil(total / PAGE_SIZE)) : null), [total])
+  const total = items.length
+  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize])
+  const hasNextPage = page < totalPages
 
-  const loadData = async (
-    targetPage = page,
-    filters?: { project_name?: string; sku?: string; asin?: string },
-    options?: { includeTotal?: boolean }
-  ) => {
-    await withGlobalLoading(async () => {
-      setLoading(true)
-      setError(null)
+  const pagedItems = useMemo(() => {
+    const start = (page - 1) * pageSize
+    const end = start + pageSize
+    return items.slice(start, end)
+  }, [items, page, pageSize])
 
+  const readCache = (): ProductCostsCache | null => {
+    try {
+      const raw = window.localStorage.getItem(SKU_COST_CACHE_KEY)
+      if (!raw) {
+        return null
+      }
+      const parsed = JSON.parse(raw) as ProductCostsCache
+      if (!Array.isArray(parsed.items)) {
+        return null
+      }
+      setItems(parsed.items)
+      setPage(1)
+      setPageSize(
+        typeof parsed.pageSize === 'number' && PAGE_SIZE_OPTIONS.includes(parsed.pageSize)
+          ? parsed.pageSize
+          : DEFAULT_PAGE_SIZE
+      )
+      setProjectFilter(parsed.projectFilter ?? '')
+      setSkuFilter(parsed.skuFilter ?? '')
+      setAsinFilter(parsed.asinFilter ?? '')
+      setHydratedFromCache(true)
+      return parsed
+    } catch {
+      // Ignore broken cache and continue with remote data
+      return null
+    }
+  }
+
+  const writeCache = (cache: ProductCostsCache) => {
+    try {
+      window.localStorage.setItem(SKU_COST_CACHE_KEY, JSON.stringify(cache))
+    } catch {
+      // Ignore quota/cache write errors
+    }
+  }
+
+  const fetchAllData = async (filters?: { project_name?: string; sku?: string; asin?: string }) => {
+    const projectValue = (filters?.project_name ?? projectFilter).trim()
+    const skuValue = (filters?.sku ?? skuFilter).trim()
+    const asinValue = (filters?.asin ?? asinFilter).trim()
+
+    const allItems: ProductCostItem[] = []
+    let currentPage = 1
+
+    while (true) {
       const search = new URLSearchParams({
-        page: String(targetPage),
-        page_size: String(PAGE_SIZE),
+        page: String(currentPage),
+        page_size: String(REMOTE_FETCH_PAGE_SIZE),
       })
-      const projectValue = (filters?.project_name ?? projectFilter).trim()
-      const skuValue = (filters?.sku ?? skuFilter).trim()
-      const asinValue = (filters?.asin ?? asinFilter).trim()
-
       if (projectValue) search.set('project_name', projectValue)
       if (skuValue) search.set('sku', skuValue)
       if (asinValue) search.set('asin', asinValue)
-      if (options?.includeTotal) search.set('include_total', 'true')
 
-      try {
-        const response = await fetch(`${API_BASE}/api/v1/product-costs?${search.toString()}`, {
-          headers: authHeaders(),
-          cache: 'no-store',
-        })
-        if (!response.ok) {
-          throw new Error(await parseError(response))
-        }
-        const payload = (await response.json()) as ProductCostsPage
-        setItems(payload.items)
-        if (typeof payload.total === 'number') {
-          setTotal(payload.total)
-        }
-        setHasNextPage(payload.has_next)
-        setPage(payload.page)
-      } catch (loadError) {
-        setError(loadError instanceof Error ? loadError.message : '加载失败')
-      } finally {
-        setLoading(false)
+      const response = await fetch(`${API_BASE}/api/v1/product-costs?${search.toString()}`, {
+        headers: authHeaders(),
+        cache: 'no-store',
+      })
+      if (!response.ok) {
+        throw new Error(await parseError(response))
       }
-    })
+
+      const payload = (await response.json()) as ProductCostsPage
+      allItems.push(...payload.items)
+
+      if (!payload.has_next) {
+        break
+      }
+      currentPage += 1
+    }
+
+    return {
+      items: allItems,
+      projectValue,
+      skuValue,
+      asinValue,
+    }
+  }
+
+  const loadData = async (
+    filters?: { project_name?: string; sku?: string; asin?: string },
+    options?: { resetPage?: boolean }
+  ) => {
+    setLoading(true)
+    setError(null)
+
+    try {
+      const result = await fetchAllData(filters)
+      const newItems = result.items
+      setItems(newItems)
+      setPage((prev) => {
+        if (options?.resetPage) {
+          return 1
+        }
+        const nextTotalPages = Math.max(1, Math.ceil(newItems.length / pageSize))
+        return Math.min(prev, nextTotalPages)
+      })
+      writeCache({
+        items: newItems,
+        projectFilter: result.projectValue,
+        skuFilter: result.skuValue,
+        asinFilter: result.asinValue,
+        pageSize,
+      })
+      setHydratedFromCache(true)
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : '加载失败')
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
-    void loadData(1, undefined, { includeTotal: true })
+    const cached = readCache()
+    void loadData(
+      {
+        project_name: cached?.projectFilter ?? '',
+        sku: cached?.skuFilter ?? '',
+        asin: cached?.asinFilter ?? '',
+      },
+      { resetPage: true }
+    )
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  useEffect(() => {
+    setPage((prev) => Math.min(prev, totalPages))
+  }, [totalPages])
+
   const onRefresh = async () => {
     setSuccessMessage(null)
-    await loadData(page)
+    await loadData()
   }
 
   const onSearch = async () => {
     setSuccessMessage(null)
-    await loadData(1, undefined, { includeTotal: true })
+    await loadData(undefined, { resetPage: true })
   }
 
   const onResetFilters = async () => {
@@ -143,7 +237,7 @@ export default function SkuCostPage() {
     setSkuFilter('')
     setAsinFilter('')
     setSuccessMessage(null)
-    await loadData(1, { project_name: '', sku: '', asin: '' }, { includeTotal: true })
+    await loadData({ project_name: '', sku: '', asin: '' }, { resetPage: true })
   }
 
   const onSubmitSingle = async () => {
@@ -225,12 +319,28 @@ export default function SkuCostPage() {
       setSuccessMessage(`写入完成：新增 ${payload.inserted} 条，更新 ${payload.updated} 条`)
       setAddText('')
       setAddDialogOpen(false)
-      await loadData(1, undefined, { includeTotal: true })
+      await loadData(undefined, { resetPage: true })
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : '提交失败')
     } finally {
       setAddSubmitting(false)
     }
+  }
+
+  const onPageSizeChange = (value: string) => {
+    const nextPageSize = Number(value)
+    if (!PAGE_SIZE_OPTIONS.includes(nextPageSize)) {
+      return
+    }
+    setPageSize(nextPageSize)
+    setPage(1)
+    writeCache({
+      items,
+      projectFilter,
+      skuFilter,
+      asinFilter,
+      pageSize: nextPageSize,
+    })
   }
 
   return (
@@ -289,7 +399,6 @@ export default function SkuCostPage() {
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
-
             </div>
           </div>
 
@@ -298,9 +407,9 @@ export default function SkuCostPage() {
           <div className="space-y-3">
             <div className="space-y-1">
               <h2 className="text-base font-semibold text-foreground">筛选条件</h2>
-              <p className="text-sm text-muted-foreground">按项目名、SKU、ASIN 查询；默认每页 20 条记录。</p>
+              <p className="text-sm text-muted-foreground">按项目名、SKU、ASIN 查询。</p>
             </div>
-            <div className="grid gap-4 md:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-5">
               <div className="grid gap-2">
                 <label className="text-sm font-medium text-foreground" htmlFor="filter-project">
                   项目名
@@ -323,6 +432,21 @@ export default function SkuCostPage() {
                   ASIN
                 </label>
                 <Input id="filter-asin" placeholder="输入 ASIN" value={asinFilter} onChange={(e) => setAsinFilter(e.target.value)} />
+              </div>
+              <div className="grid gap-2">
+                <label className="text-sm font-medium text-foreground">每页显示</label>
+                <Select value={String(pageSize)} onValueChange={onPageSizeChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="选择条数" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PAGE_SIZE_OPTIONS.map((option) => (
+                      <SelectItem key={option} value={String(option)}>
+                        {option} 条
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="flex items-end gap-2">
                 <Button type="button" variant="outline" onClick={() => void onResetFilters()} className="w-full">
@@ -351,90 +475,88 @@ export default function SkuCostPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="space-y-1">
               <CardTitle className="text-base font-semibold text-foreground">SKU 成本数据</CardTitle>
-              <CardDescription>{typeof total === 'number' ? `共 ${total} 条记录` : '已启用快速分页'}</CardDescription>
+              <CardDescription>共 {total} 条记录</CardDescription>
             </div>
             <Badge variant="outline" className="rounded-md border-border bg-muted text-muted-foreground">
-              {totalPages ? `第 ${page} / ${totalPages} 页` : `第 ${page} 页`}
+              第 {page} / {totalPages} 页
             </Badge>
           </div>
           <Separator />
         </CardHeader>
 
         <CardContent className="space-y-4 pt-0">
-          <ScrollArea className="w-full">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[80px]">ID</TableHead>
-                  <TableHead>项目名</TableHead>
-                  <TableHead>SKU</TableHead>
-                  <TableHead>ASIN</TableHead>
-                  <TableHead className="text-right">头程单价</TableHead>
-                  <TableHead className="text-right">FOB单价</TableHead>
-                  <TableHead>币种</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading
+          <div className="max-h-[560px] overflow-auto rounded-md border border-border/60">
+            <table className="w-full caption-bottom text-sm">
+              <thead className="[&_tr]:border-b">
+                <tr className="border-b bg-background">
+                  <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">ID</th>
+                  <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">项目名</th>
+                  <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">SKU</th>
+                  <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">ASIN</th>
+                  <th className="sticky top-0 z-10 h-12 bg-background px-4 text-right align-middle font-medium text-muted-foreground">头程单价</th>
+                  <th className="sticky top-0 z-10 h-12 bg-background px-4 text-right align-middle font-medium text-muted-foreground">FOB单价</th>
+                  <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">币种</th>
+                </tr>
+              </thead>
+              <tbody className="[&_tr:last-child]:border-0">
+                {loading && !hydratedFromCache
                   ? Array.from({ length: 6 }).map((_, index) => (
-                      <TableRow key={`loading-${index}`}>
-                        <TableCell>
+                      <tr key={`loading-${index}`} className="border-b transition-colors hover:bg-muted/50">
+                        <td className="p-4 align-middle">
                           <Skeleton className="h-4 w-12" />
-                        </TableCell>
-                        <TableCell>
+                        </td>
+                        <td className="p-4 align-middle">
                           <Skeleton className="h-4 w-24" />
-                        </TableCell>
-                        <TableCell>
+                        </td>
+                        <td className="p-4 align-middle">
                           <Skeleton className="h-4 w-28" />
-                        </TableCell>
-                        <TableCell>
+                        </td>
+                        <td className="p-4 align-middle">
                           <Skeleton className="h-4 w-24" />
-                        </TableCell>
-                        <TableCell>
+                        </td>
+                        <td className="p-4 align-middle">
                           <Skeleton className="ml-auto h-4 w-16" />
-                        </TableCell>
-                        <TableCell>
+                        </td>
+                        <td className="p-4 align-middle">
                           <Skeleton className="ml-auto h-4 w-16" />
-                        </TableCell>
-                        <TableCell>
+                        </td>
+                        <td className="p-4 align-middle">
                           <Skeleton className="h-4 w-12" />
-                        </TableCell>
-                      </TableRow>
+                        </td>
+                      </tr>
                     ))
                   : null}
 
-                {!loading
-                  ? items.map((row) => (
-                      <TableRow key={row.id}>
-                        <TableCell>{row.id}</TableCell>
-                        <TableCell className="font-medium text-foreground">{row.project_name}</TableCell>
-                        <TableCell>{row.sku}</TableCell>
-                        <TableCell>{row.asin}</TableCell>
-                        <TableCell className="text-right tabular-nums">{row.first_leg_unit_cost.toFixed(2)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{row.fob_unit_cost.toFixed(2)}</TableCell>
-                        <TableCell>{row.currency}</TableCell>
-                      </TableRow>
-                    ))
-                  : null}
+                {pagedItems.map((row) => (
+                  <tr key={row.id} className="border-b transition-colors hover:bg-muted/50">
+                    <td className="p-4 align-middle">{row.id}</td>
+                    <td className="p-4 align-middle font-medium text-foreground">{row.project_name}</td>
+                    <td className="p-4 align-middle">{row.sku}</td>
+                    <td className="p-4 align-middle">{row.asin}</td>
+                    <td className="p-4 text-right align-middle tabular-nums">{row.first_leg_unit_cost.toFixed(2)}</td>
+                    <td className="p-4 text-right align-middle tabular-nums">{row.fob_unit_cost.toFixed(2)}</td>
+                    <td className="p-4 align-middle">{row.currency}</td>
+                  </tr>
+                ))}
 
-                {!loading && items.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="py-12 text-center text-sm text-muted-foreground">
+                {!loading && pagedItems.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-12 text-center text-sm text-muted-foreground">
                       当前筛选条件下暂无数据，请调整筛选或导入新记录。
-                    </TableCell>
-                  </TableRow>
+                    </td>
+                  </tr>
                 ) : null}
-              </TableBody>
-            </Table>
-          </ScrollArea>
+              </tbody>
+            </table>
+          </div>
 
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-xs text-muted-foreground">分页大小：20 条。数据更新后建议刷新一次。</p>
+            <p className="text-xs text-muted-foreground">分页大小：{pageSize} 条。数据更新后建议刷新一次。</p>
             <div className="flex items-center gap-2">
-              <Button type="button" variant="outline" onClick={() => void loadData(page - 1)} disabled={loading || page <= 1}>
+              <Button type="button" variant="outline" onClick={() => setPage(page - 1)} disabled={loading || page <= 1}>
                 上一页
               </Button>
-              <Button type="button" variant="outline" onClick={() => void loadData(page + 1)} disabled={loading || !hasNextPage}>
+              <Button type="button" variant="outline" onClick={() => setPage(page + 1)} disabled={loading || !hasNextPage}>
                 下一页
               </Button>
             </div>
