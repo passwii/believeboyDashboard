@@ -40,5 +40,9 @@ pnpm-debug.log*
 *.db-shm
 *.db-wal
 
+# Backend storage
+/backend/storage/
+/backend/tmp_upload_check/
+
 # Docs
 /Docs/
