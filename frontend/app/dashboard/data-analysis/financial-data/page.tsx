@@ -667,8 +667,8 @@ export default function FinancialDataPage() {
                   ))}
                 </div>
               ) : data && data.rows.length > 0 ? (
-                <div className="w-full rounded-md border">
-                  <Table className="min-w-[2600px] table-fixed text-xs">
+                <div className="w-full rounded-md border overflow-x-auto">
+                <Table className="min-w-[2600px] table-fixed text-xs">
                     <TableHeader>
                       <TableRow className="bg-muted/30 hover:bg-muted/30">
                         <TableHead

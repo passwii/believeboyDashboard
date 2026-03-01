@@ -24,6 +24,9 @@ type ProjectItem = {
   name: string
   brand_name: string | null
   store_address: string | null
+  project_operator: string | null
+  commission_mode: string | null
+  commission_rate: number | null
   sort_order: number
   source_file: string | null
 }
@@ -60,12 +63,18 @@ export default function StoreInfoPage() {
   const [addName, setAddName] = useState('')
   const [addBrandName, setAddBrandName] = useState('')
   const [addStoreAddress, setAddStoreAddress] = useState('')
+  const [addProjectOperator, setAddProjectOperator] = useState('')
+  const [addCommissionMode, setAddCommissionMode] = useState('')
+  const [addCommissionRate, setAddCommissionRate] = useState('')
 
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<ProjectItem | null>(null)
   const [editName, setEditName] = useState('')
   const [editBrandName, setEditBrandName] = useState('')
   const [editStoreAddress, setEditStoreAddress] = useState('')
+  const [editProjectOperator, setEditProjectOperator] = useState('')
+  const [editCommissionMode, setEditCommissionMode] = useState('')
+  const [editCommissionRate, setEditCommissionRate] = useState('')
 
   const loadProjects = useCallback(async () => {
     await withGlobalLoading(async () => {
@@ -114,6 +123,9 @@ export default function StoreInfoPage() {
           name: normalizedName,
           brand_name: addBrandName.trim() || null,
           store_address: addStoreAddress.trim() || null,
+          project_operator: addProjectOperator.trim() || null,
+          commission_mode: addCommissionMode.trim() || null,
+          commission_rate: addCommissionRate ? parseFloat(addCommissionRate) : null,
         }),
       })
       if (!response.ok) {
@@ -122,6 +134,9 @@ export default function StoreInfoPage() {
       setAddName('')
       setAddBrandName('')
       setAddStoreAddress('')
+      setAddProjectOperator('')
+      setAddCommissionMode('')
+      setAddCommissionRate('')
       setAddDialogOpen(false)
       setSuccessMessage(`已新增项目：${normalizedName}`)
       await loadProjects()
@@ -137,6 +152,9 @@ export default function StoreInfoPage() {
     setEditName(item.name)
     setEditBrandName(item.brand_name ?? '')
     setEditStoreAddress(item.store_address ?? '')
+    setEditProjectOperator(item.project_operator ?? '')
+    setEditCommissionMode(item.commission_mode ?? '')
+    setEditCommissionRate(item.commission_rate?.toString() ?? '')
     setEditDialogOpen(true)
     setError(null)
   }
@@ -166,6 +184,9 @@ export default function StoreInfoPage() {
           name: normalizedName,
           brand_name: editBrandName.trim() || null,
           store_address: editStoreAddress.trim() || null,
+          project_operator: editProjectOperator.trim() || null,
+          commission_mode: editCommissionMode.trim() || null,
+          commission_rate: editCommissionRate ? parseFloat(editCommissionRate) : null,
         }),
       })
       if (!response.ok) {
@@ -175,6 +196,9 @@ export default function StoreInfoPage() {
       setEditingItem(null)
       setEditBrandName('')
       setEditStoreAddress('')
+      setEditProjectOperator('')
+      setEditCommissionMode('')
+      setEditCommissionRate('')
       setSuccessMessage(`已更新项目名称：${normalizedName}`)
       await loadProjects()
     } catch (submitError) {
@@ -232,6 +256,36 @@ export default function StoreInfoPage() {
                       placeholder="例如：BelieveBoy"
                       disabled={submitting}
                     />
+                    <label htmlFor="project-add-operator" className="text-sm font-medium text-foreground">
+                      运营
+                    </label>
+                    <Input
+                      id="project-add-operator"
+                      value={addProjectOperator}
+                      onChange={(e) => setAddProjectOperator(e.target.value)}
+                      placeholder="输入运营人员"
+                      disabled={submitting}
+                    />
+                    <label htmlFor="project-add-commission-mode" className="text-sm font-medium text-foreground">
+                      佣金方式
+                    </label>
+                    <Input
+                      id="project-add-commission-mode"
+                      value={addCommissionMode}
+                      onChange={(e) => setAddCommissionMode(e.target.value)}
+                      placeholder="输入佣金方式"
+                      disabled={submitting}
+                    />
+                    <label htmlFor="project-add-commission-rate" className="text-sm font-medium text-foreground">
+                      佣金点数
+                    </label>
+                    <Input
+                      id="project-add-commission-rate"
+                      value={addCommissionRate}
+                      onChange={(e) => setAddCommissionRate(e.target.value)}
+                      placeholder="输入佣金点数"
+                      disabled={submitting}
+                    />
                     <label htmlFor="project-add-address" className="text-sm font-medium text-foreground">
                       店铺地址
                     </label>
@@ -268,25 +322,28 @@ export default function StoreInfoPage() {
               <table className="w-full caption-bottom text-sm">
                 <thead className="[&_tr]:border-b-0">
                   <tr className="border-b border-border/70 shadow-sm">
-                    <th className="sticky top-0 z-20 h-12 w-[120px] bg-background px-4 text-left align-middle font-medium text-muted-foreground">ID</th>
+                    <th className="sticky top-0 z-20 h-12 w-[80px] bg-background px-4 text-left align-middle font-medium text-muted-foreground">ID</th>
                     <th className="sticky top-0 z-20 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">项目名称</th>
                     <th className="sticky top-0 z-20 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">品牌名称</th>
-                    <th className="sticky top-0 z-20 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">店铺地址</th>
-                    <th className="sticky top-0 z-20 h-12 w-[160px] bg-background px-4 text-right align-middle font-medium text-muted-foreground">操作</th>
+                    <th className="sticky top-0 z-20 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">运营</th>
+                    <th className="sticky top-0 z-20 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">佣金方式</th>
+                    <th className="sticky top-0 z-20 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">佣金点数</th>
+                    <th className="sticky top-0 z-20 h-12 w-[120px] bg-background px-4 text-left align-middle font-medium text-muted-foreground">店铺地址</th>
+                    <th className="sticky top-0 z-20 h-12 w-[100px] bg-background px-4 text-right align-middle font-medium text-muted-foreground">操作</th>
                   </tr>
                 </thead>
                 <tbody className="[&_tr:last-child]:border-0">
                 {loading ? (
                   Array.from({ length: 6 }).map((_, index) => (
                     <tr key={`skeleton-${index}`} className="border-b transition-colors hover:bg-muted/50">
-                      <td colSpan={5} className="p-4 align-middle">
+                      <td colSpan={9} className="p-4 align-middle">
                         <Skeleton className="h-6 w-full" />
                       </td>
                     </tr>
                   ))
                 ) : items.length === 0 ? (
                   <tr className="border-b transition-colors hover:bg-muted/50">
-                    <td colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
+                    <td colSpan={9} className="py-10 text-center text-sm text-muted-foreground">
                       暂无项目数据，请先新增一个项目。
                     </td>
                   </tr>
@@ -296,7 +353,12 @@ export default function StoreInfoPage() {
                       <td className="p-4 align-middle text-muted-foreground">{item.id}</td>
                       <td className="p-4 align-middle font-medium text-foreground">{item.name}</td>
                       <td className="p-4 align-middle">{item.brand_name || '-'}</td>
-                      <td className="max-w-[360px] truncate p-4 align-middle">{item.store_address || '-'}</td>
+                      <td className="p-4 align-middle">{item.project_operator || '-'}</td>
+                      <td className="p-4 align-middle">{item.commission_mode || '-'}</td>
+                      <td className="p-4 align-middle">{item.commission_rate ?? '-'}</td>
+                      <td className="p-4 align-middle max-w-[120px] truncate" title={item.store_address || ''}>
+                        {item.store_address ? `${item.store_address.slice(0, 15)}...` : '-'}
+                      </td>
                       <td className="p-4 align-middle text-right">
                         <div className="flex justify-end">
                           <Button
@@ -326,7 +388,7 @@ export default function StoreInfoPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>编辑项目信息</DialogTitle>
-            <DialogDescription>可修改项目名称、品牌名称与店铺地址，不调整排序。</DialogDescription>
+            <DialogDescription>可修改项目名称、品牌名称、运营、佣金方式、佣金点数与店铺地址，不调整排序。</DialogDescription>
           </DialogHeader>
           <div className="grid gap-2">
             <label htmlFor="project-edit-name" className="text-sm font-medium text-foreground">
@@ -347,6 +409,36 @@ export default function StoreInfoPage() {
               value={editBrandName}
               onChange={(e) => setEditBrandName(e.target.value)}
               placeholder="输入品牌名称"
+              disabled={submitting}
+            />
+            <label htmlFor="project-edit-operator" className="text-sm font-medium text-foreground">
+              运营
+            </label>
+            <Input
+              id="project-edit-operator"
+              value={editProjectOperator}
+              onChange={(e) => setEditProjectOperator(e.target.value)}
+              placeholder="输入运营人员"
+              disabled={submitting}
+            />
+            <label htmlFor="project-edit-commission-mode" className="text-sm font-medium text-foreground">
+              佣金方式
+            </label>
+            <Input
+              id="project-edit-commission-mode"
+              value={editCommissionMode}
+              onChange={(e) => setEditCommissionMode(e.target.value)}
+              placeholder="输入佣金方式"
+              disabled={submitting}
+            />
+            <label htmlFor="project-edit-commission-rate" className="text-sm font-medium text-foreground">
+              佣金点数
+            </label>
+            <Input
+              id="project-edit-commission-rate"
+              value={editCommissionRate}
+              onChange={(e) => setEditCommissionRate(e.target.value)}
+              placeholder="输入佣金点数"
               disabled={submitting}
             />
             <label htmlFor="project-edit-address" className="text-sm font-medium text-foreground">

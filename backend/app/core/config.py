@@ -18,8 +18,8 @@ class Settings(BaseSettings):
     database_url: str = 'sqlite:///./backend.db'
     api_key: str = Field(default='change-me', min_length=8)
 
-    upload_root: Path = Path('./storage/uploads')
-    result_root: Path = Path('./storage/results')
+    upload_root: Path = Path(__file__).resolve().parents[2] / 'storage' / 'uploads'
+    result_root: Path = Path(__file__).resolve().parents[2] / 'storage' / 'results'
 
     max_upload_bytes: int = 50 * 1024 * 1024
     allowed_upload_extensions: set[str] = {'.txt', '.csv', '.xlsx', '.pdf'}

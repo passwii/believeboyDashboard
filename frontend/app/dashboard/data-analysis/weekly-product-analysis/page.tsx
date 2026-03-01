@@ -41,6 +41,23 @@ type WeeklyTrendPoint = {
   ad_spend: number
 }
 
+type AnalysisSourceFileItem = {
+  id: number
+  period_start_date: string | null
+  period_end_date: string | null
+  version: number
+  row_count_total: number
+  created_at: string | null
+}
+
+type AnalysisSourceRowsResponse = {
+  has_next: boolean
+  rows: Array<{
+    source_row_no: number
+    raw_row?: Record<string, unknown> | null
+  }>
+}
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
 const API_KEY = process.env.NEXT_PUBLIC_BACKEND_API_KEY ?? ''
 
@@ -132,6 +149,24 @@ function formatWeekLabel(startDate: string, endDate: string): string {
   return `${startMonth}/${startDay} - ${endMonth}/${endDay}`
 }
 
+function isRateColumn(label: string): boolean {
+  return label.includes('率') || label.includes('占比')
+}
+
+function formatRawCell(column: string, value: unknown): string {
+  if (value === null || value === undefined || value === '') return '-'
+  if (typeof value === 'number') {
+    if (isRateColumn(column)) {
+      return `${(value * 100).toFixed(2)}%`
+    }
+    const abs = Math.abs(value)
+    if (abs >= 1000) return value.toLocaleString('en-US', { maximumFractionDigits: 2 })
+    if (Number.isInteger(value)) return value.toString()
+    return value.toLocaleString('en-US', { maximumFractionDigits: 4 })
+  }
+  return String(value)
+}
+
 interface StatCardProps {
   title: string
   value: string
@@ -217,6 +252,13 @@ export default function WeeklyProductAnalysisPage() {
   const [data, setData] = useState<WeeklyDataRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [sourceError, setSourceError] = useState<string | null>(null)
+  const [detailError, setDetailError] = useState<string | null>(null)
+
+  const [weekSources, setWeekSources] = useState<AnalysisSourceFileItem[]>([])
+  const [selectedSourceId, setSelectedSourceId] = useState('')
+  const [detailRows, setDetailRows] = useState<Array<Record<string, unknown>>>([])
+  const [detailsLoading, setDetailsLoading] = useState(false)
 
   const [visibleLines, setVisibleLines] = useState({
     sales_amount: true,
@@ -292,6 +334,83 @@ export default function WeeklyProductAnalysisPage() {
     }
   }, [projectId, startDate, endDate])
 
+  const loadWeekSources = useCallback(async () => {
+    const parsedProjectId = Number(projectId)
+    if (!parsedProjectId) {
+      setWeekSources([])
+      setSelectedSourceId('')
+      return
+    }
+    setSourceError(null)
+    try {
+      const search = new URLSearchParams({
+        project_id: String(parsedProjectId),
+        report_type: 'ad_report',
+        current_only: 'true',
+      })
+      if (startDate) search.set('period_start_date', startDate)
+      if (endDate) search.set('period_end_date', endDate)
+      const response = await fetch(`${API_BASE}/api/v1/product-analysis/sources?${search.toString()}`, {
+        cache: 'no-store',
+        headers: authHeaders(),
+      })
+      if (!response.ok) {
+        throw new Error(parseErrorBody(await response.text(), response.status))
+      }
+      const payload = (await response.json()) as AnalysisSourceFileItem[]
+      setWeekSources(payload)
+      setSelectedSourceId((prev) => {
+        if (prev && payload.some((item) => String(item.id) === prev)) return prev
+        return payload.length > 0 ? String(payload[0].id) : ''
+      })
+    } catch (loadError) {
+      setWeekSources([])
+      setSelectedSourceId('')
+      setSourceError(loadError instanceof Error ? loadError.message : '周度明细文件加载失败')
+    }
+  }, [projectId, startDate, endDate])
+
+  const loadSourceRows = useCallback(async () => {
+    if (!selectedSourceId) {
+      setDetailRows([])
+      setDetailError(null)
+      return
+    }
+    setDetailsLoading(true)
+    setDetailError(null)
+    try {
+      const sourceId = Number(selectedSourceId)
+      let page = 1
+      let hasNext = true
+      const mergedRows: Array<Record<string, unknown>> = []
+      while (hasNext) {
+        const search = new URLSearchParams({
+          page: String(page),
+          page_size: '1000',
+          include_excluded: 'true',
+        })
+        const response = await fetch(`${API_BASE}/api/v1/product-analysis/sources/${sourceId}/rows?${search.toString()}`, {
+          cache: 'no-store',
+          headers: authHeaders(),
+        })
+        if (!response.ok) {
+          throw new Error(parseErrorBody(await response.text(), response.status))
+        }
+        const payload = (await response.json()) as AnalysisSourceRowsResponse
+        const pageRows = payload.rows.map((row) => row.raw_row ?? {})
+        mergedRows.push(...pageRows)
+        hasNext = payload.has_next
+        page += 1
+      }
+      setDetailRows(mergedRows)
+    } catch (loadError) {
+      setDetailRows([])
+      setDetailError(loadError instanceof Error ? loadError.message : '周度明细数据加载失败')
+    } finally {
+      setDetailsLoading(false)
+    }
+  }, [selectedSourceId])
+
   useEffect(() => {
     void loadProjects()
   }, [loadProjects])
@@ -299,7 +418,12 @@ export default function WeeklyProductAnalysisPage() {
   useEffect(() => {
     if (!projectId || projectsLoading) return
     void loadWeeklyData()
-  }, [projectId, projectsLoading, loadWeeklyData])
+    void loadWeekSources()
+  }, [projectId, projectsLoading, loadWeeklyData, loadWeekSources])
+
+  useEffect(() => {
+    void loadSourceRows()
+  }, [loadSourceRows])
 
   const trendPoints = useMemo(() => {
     if (!data || data.length === 0) return []
@@ -349,6 +473,25 @@ export default function WeeklyProductAnalysisPage() {
       ad: prevAd !== 0 ? ((lastAd - prevAd) / Math.abs(prevAd)) * 100 : 0,
     }
   }, [data])
+
+  const detailColumns = useMemo(() => {
+    const ordered: string[] = []
+    const seen = new Set<string>()
+    detailRows.forEach((row) => {
+      Object.keys(row).forEach((key) => {
+        if (!seen.has(key)) {
+          seen.add(key)
+          ordered.push(key)
+        }
+      })
+    })
+    return ordered
+  }, [detailRows])
+
+  const selectedSource = useMemo(
+    () => weekSources.find((item) => String(item.id) === selectedSourceId) ?? null,
+    [weekSources, selectedSourceId]
+  )
 
   return (
     <div className="w-full space-y-6">
@@ -579,7 +722,7 @@ export default function WeeklyProductAnalysisPage() {
 
           <Card className="dashboard-surface animate-enter">
             <CardHeader className="relative z-10 pb-2">
-              <CardTitle className="text-base">按周产品明细</CardTitle>
+              <CardTitle className="text-base">按周汇总</CardTitle>
               <CardDescription className="text-sm text-muted-foreground">
                 按周展示销售额、销量和广告花费
               </CardDescription>
@@ -646,6 +789,85 @@ export default function WeeklyProductAnalysisPage() {
               ) : (
                 <div className="rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
                   当前筛选条件暂无产品分析数据
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="dashboard-surface animate-enter">
+            <CardHeader className="relative z-10 flex flex-col gap-3 border-b border-border/70 pb-4 sm:flex-row sm:items-end sm:justify-between">
+              <div className="space-y-1">
+                <CardTitle className="text-base">周度产品分析明细（原始列）</CardTitle>
+                <CardDescription className="text-sm text-muted-foreground">
+                  还原 Excel 产品分析表字段，可按周切换查看。
+                </CardDescription>
+              </div>
+              <div className="w-full max-w-[320px] space-y-1.5">
+                <label className="text-xs text-muted-foreground">选择周次</label>
+                <Select value={selectedSourceId} onValueChange={setSelectedSourceId} disabled={weekSources.length === 0}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="请选择周次" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {weekSources.map((source) => (
+                      <SelectItem key={source.id} value={String(source.id)}>
+                        {source.period_start_date && source.period_end_date
+                          ? `${formatDateRange(source.period_start_date, source.period_end_date)} · v${source.version}`
+                          : `文件 #${source.id}`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3 pt-4">
+              {sourceError ? <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{sourceError}</div> : null}
+              {detailError ? <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{detailError}</div> : null}
+              {selectedSource ? (
+                <div className="text-xs text-muted-foreground">
+                  当前周次：{selectedSource.period_start_date} 至 {selectedSource.period_end_date}，共 {selectedSource.row_count_total} 行
+                </div>
+              ) : null}
+              {detailsLoading ? (
+                <div className="space-y-3">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <Skeleton key={i} className="h-10 w-full" />
+                  ))}
+                </div>
+              ) : detailRows.length > 0 && detailColumns.length > 0 ? (
+                <div className="w-full overflow-auto rounded-md border">
+                  <Table className="min-w-[960px] text-xs">
+                    <TableHeader>
+                      <TableRow className="bg-muted/30 hover:bg-muted/30">
+                        <TableHead className="sticky left-0 z-20 min-w-[80px] border-r bg-muted/40 px-2 py-2 text-center">
+                          行号
+                        </TableHead>
+                        {detailColumns.map((column) => (
+                          <TableHead key={column} className="min-w-[120px] border-r px-2 py-2 text-center whitespace-nowrap">
+                            {column}
+                          </TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {detailRows.map((row, rowIndex) => (
+                        <TableRow key={`detail-${rowIndex}`}>
+                          <TableCell className="sticky left-0 z-10 border-r bg-background px-2 py-1.5 text-center font-medium">
+                            {rowIndex + 1}
+                          </TableCell>
+                          {detailColumns.map((column) => (
+                            <TableCell key={`${rowIndex}-${column}`} className="border-r px-2 py-1.5 text-right tabular-nums">
+                              {formatRawCell(column, row[column])}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <div className="rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
+                  当前周次暂无可展示的产品分析明细
                 </div>
               )}
             </CardContent>

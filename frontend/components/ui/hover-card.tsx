@@ -3,7 +3,7 @@
 import * as React from "react"
 import { cn } from "@/lib/utils"
 
-interface HoverCardProps extends React.HTMLAttributes<HTMLDivElement> {
+interface HoverCardProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'content'> {
   /** 触发显示的子元素 */
   trigger: React.ReactNode
   /** 悬停时显示的内容 */
