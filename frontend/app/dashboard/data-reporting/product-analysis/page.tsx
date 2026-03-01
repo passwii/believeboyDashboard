@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import type { DragEvent } from 'react'
-import { AlertCircle, CalendarRange, Download, FileSearch, Loader2, Sparkles, Upload } from 'lucide-react'
+import { AlertCircle, CalendarRange, DatabaseZap, Download, FileSearch, Loader2, Sparkles, Upload } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 import { Button } from '@/components/ui/button'
@@ -33,6 +33,19 @@ type SubmitState = {
   status: 'idle' | 'submitting' | 'success' | 'error'
   message: string | null
   filename: string | null
+}
+
+type JobProgress = {
+  stage: string
+  progress: number
+  message: string
+}
+
+type PersistenceStatus = 'idle' | 'running' | 'success' | 'failed'
+
+type SyncState = {
+  status: PersistenceStatus
+  message: string | null
 }
 
 type ProjectOption = {
@@ -72,19 +85,28 @@ function authHeaders(operator?: string): Record<string, string> {
   return headers
 }
 
+function resolveApiUrl(path: string) {
+  const base = API_BASE.endsWith('/') ? API_BASE.slice(0, -1) : API_BASE
+  if (/^https?:\/\//i.test(path)) return path
+  if (!path.startsWith('/')) return `${base}/${path}`
+  return `${base}${path}`
+}
+
 const FILE_CONFIG: FileConfig[] = [
-  { key: 'business_report', title: '商业报告', accept: '.csv,text/csv', required: true },
+  { key: 'business_report', title: '业务报告', accept: '.csv,text/csv', required: true },
   { key: 'payment_report', title: '付款报告', accept: '.csv,text/csv', required: true },
   { key: 'ad_report', title: '广告报告', accept: '.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', required: true },
   { key: 'inventory_report', title: '库存报告（可选）', accept: '.txt,text/plain', required: false },
 ]
 
 const TYPE_LABEL: Record<UploadType, string> = {
-  business_report: '商业报告',
+  business_report: '业务报告',
   payment_report: '付款报告',
   ad_report: '广告报告',
   inventory_report: '库存报告',
 }
+
+const PROGRESS_STEP_LABELS = ['初始化', '读取源数据', '计算指标', '生成报表', '完成']
 
 function extractFilenameFromHeader(contentDisposition: string | null) {
   if (!contentDisposition) return null
@@ -165,9 +187,9 @@ async function recognizeProductFile(file: File): Promise<ProductRecognitionResul
       firstLine.includes('ordered product sales') ||
       firstLine.includes('sessions - total')
     ) {
-      return { type: 'business_report', reason: 'csv 命中商业报告内容/文件名特征' }
+      return { type: 'business_report', reason: 'csv 命中业务报告内容/文件名特征' }
     }
-    return { type: 'unknown', reason: 'csv 未命中付款或商业报告规则' }
+    return { type: 'unknown', reason: 'csv 未命中付款或业务报告规则' }
   }
 
   return { type: 'unknown', reason: `不支持的文件格式: ${ext || '未知'}` }
@@ -204,6 +226,63 @@ function validateTypeFile(type: UploadType, file: File) {
   return fileName.endsWith('.csv')
 }
 
+function normalizeProgress(value: number) {
+  if (!Number.isFinite(value)) return 0
+  return Math.max(0, Math.min(100, Math.round(value)))
+}
+
+function parseProgressLog(logExcerpt?: string | null): JobProgress | null {
+  if (!logExcerpt || !logExcerpt.trim()) return null
+  try {
+    const parsed = JSON.parse(logExcerpt) as {
+      stage?: unknown
+      progress?: unknown
+      message?: unknown
+    }
+    if (typeof parsed.stage !== 'string' || typeof parsed.message !== 'string') return null
+    const numericProgress = typeof parsed.progress === 'number' ? parsed.progress : 0
+    return {
+      stage: parsed.stage,
+      progress: normalizeProgress(numericProgress),
+      message: parsed.message,
+    }
+  } catch {
+    return {
+      stage: 'processing',
+      progress: 0,
+      message: logExcerpt.trim(),
+    }
+  }
+}
+
+function fallbackProgressByStatus(status: 'pending' | 'running' | 'success' | 'failed'): JobProgress {
+  if (status === 'pending') return { stage: 'started', progress: 2, message: '处理中：任务排队中' }
+  if (status === 'running') return { stage: 'processing', progress: 10, message: '处理中：任务执行中' }
+  if (status === 'success') return { stage: 'completed', progress: 100, message: '处理完成：报表已生成，可下载' }
+  return { stage: 'failed', progress: 100, message: '处理失败' }
+}
+
+function resolveProgressStepIndex(stage?: string | null): number {
+  if (!stage) return 0
+  if (stage === 'completed') return 4
+  if (stage === 'reading_data') return 1
+  if (stage === 'calculating_metrics') return 2
+  if (stage === 'generating_report' || stage === 'saving_workbook') return 3
+  return 0
+}
+
+function normalizePersistenceStatus(value: unknown): PersistenceStatus {
+  if (value === 'running' || value === 'success' || value === 'failed') return value
+  return 'idle'
+}
+
+function getSyncMeta(state: SyncState) {
+  if (state.status === 'success') return { text: '已同步', className: 'text-emerald-600' }
+  if (state.status === 'running') return { text: '同步中', className: 'text-blue-600' }
+  if (state.status === 'failed') return { text: '同步失败', className: 'text-rose-600' }
+  return { text: '待同步', className: 'text-slate-500' }
+}
+
 export default function ProductAnalysisPage() {
   const { data: session } = useSession()
   const currentOperator = (session?.user?.name || session?.user?.email || session?.user?.id || '').trim()
@@ -226,6 +305,8 @@ export default function ProductAnalysisPage() {
   const [uploadBusy, setUploadBusy] = useState(false)
 
   const [submitState, setSubmitState] = useState<SubmitState>({ status: 'idle', message: null, filename: null })
+  const [jobProgress, setJobProgress] = useState<JobProgress | null>(null)
+  const [syncState, setSyncState] = useState<SyncState>({ status: 'idle', message: null })
 
   const requiredKeys = useMemo(() => FILE_CONFIG.filter((item) => item.required).map((item) => item.key), [])
 
@@ -310,6 +391,53 @@ export default function ProductAnalysisPage() {
     requiredKeys.every((key) => uploadState[key].status === 'success') &&
     submitState.status !== 'submitting'
 
+  const currentProgressStep = useMemo(() => resolveProgressStepIndex(jobProgress?.stage), [jobProgress?.stage])
+  const hasProgressState = submitState.status !== 'idle' || jobProgress !== null
+
+  const generationMeta = useMemo(() => {
+    if (submitState.status === 'success') return { label: '已完成', tone: 'text-emerald-600' }
+    if (submitState.status === 'submitting') return { label: '进行中', tone: 'text-blue-600' }
+    if (submitState.status === 'error') return { label: '异常', tone: 'text-rose-600' }
+    return { label: '未开始', tone: 'text-slate-500' }
+  }, [submitState.status])
+
+  const syncMeta = useMemo(() => getSyncMeta(syncState), [syncState])
+
+  const updateSyncState = (status: unknown, message?: string | null) => {
+    setSyncState({
+      status: normalizePersistenceStatus(status),
+      message: message?.trim() || null,
+    })
+  }
+
+  const pollPersistenceStatus = async (statusEndpoint: string) => {
+    let attempts = 0
+    while (attempts < 90) {
+      attempts += 1
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        const response = await fetch(resolveApiUrl(statusEndpoint), {
+          cache: 'no-store',
+          headers: authHeaders(currentOperator),
+        })
+        if (!response.ok) break
+
+        // eslint-disable-next-line no-await-in-loop
+        const payload = (await response.json()) as {
+          persistence_status?: PersistenceStatus
+          persistence_message?: string | null
+        }
+        updateSyncState(payload.persistence_status, payload.persistence_message)
+        if (payload.persistence_status === 'success' || payload.persistence_status === 'failed') break
+      } catch {
+        break
+      }
+
+      // eslint-disable-next-line no-await-in-loop
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+    }
+  }
+
   const addFiles = async (files: File[]) => {
     if (!files.length) return
 
@@ -357,7 +485,7 @@ export default function ProductAnalysisPage() {
             id: fallbackId,
             file: fallbackRow.file,
             detectedType: 'unknown',
-            detectedReason: 'csv 兜底分配为商业报告',
+            detectedReason: 'csv 兜底分配为业务报告',
             assignedType: 'business_report',
             matchFailed: false,
           })
@@ -496,6 +624,8 @@ export default function ProductAnalysisPage() {
   const generateReport = async () => {
     setFormError(null)
     setSubmitState({ status: 'idle', message: null, filename: null })
+    setJobProgress(null)
+    setSyncState({ status: 'idle', message: null })
 
     if (!projectName.trim()) {
       setFormError('项目名称不能为空')
@@ -510,7 +640,7 @@ export default function ProductAnalysisPage() {
       return
     }
     if (!requiredKeys.every((key) => uploadState[key].status === 'success')) {
-      setFormError('请先完成 3 份必需文件上传（商业/付款/广告）')
+            setFormError('请先完成 3 份必需文件上传（业务/付款/广告）')
       return
     }
 
@@ -525,6 +655,7 @@ export default function ProductAnalysisPage() {
     }
 
     setSubmitState({ status: 'submitting', message: '系统处理中，请稍候...', filename: null })
+    setJobProgress({ stage: 'started', progress: 1, message: '系统处理中，请稍候...' })
 
     try {
       const createJobResponse = await fetch(`${API_BASE}/api/v1/product-analysis-reports`, {
@@ -549,17 +680,27 @@ export default function ProductAnalysisPage() {
         throw new Error(message || '生成失败，请重试')
       }
 
-      const created = (await createJobResponse.json()) as { job_id: number; status?: 'pending' | 'running' | 'success' | 'failed' }
+      const created = (await createJobResponse.json()) as {
+        job_id: number
+        status_endpoint?: string
+        result_endpoint?: string
+        status?: 'pending' | 'running' | 'success' | 'failed'
+      }
       const jobId = created.job_id
+      const statusEndpoint = created.status_endpoint?.trim() || `/api/v1/product-analysis-reports/tasks/${jobId}`
+      const resultEndpoint = created.result_endpoint?.trim() || `/api/v1/product-analysis-reports/tasks/${jobId}/result`
 
       let attempts = 0
       let failedMessage: string | null = null
       let finished = created.status === 'success'
+      let lastStatus: 'pending' | 'running' | 'success' | 'failed' | null = created.status ?? null
+      let lastStatusChangeTime = Date.now()
+      const MIN_STATUS_DISPLAY_MS = 1000 // 每个状态最少显示1秒
 
       while (attempts < 120 && !finished) {
         attempts += 1
         // eslint-disable-next-line no-await-in-loop
-        const statusResponse = await fetch(`${API_BASE}/api/v1/jobs/${jobId}`, {
+        const statusResponse = await fetch(resolveApiUrl(statusEndpoint), {
           cache: 'no-store',
           headers: authHeaders(currentOperator),
         })
@@ -573,11 +714,36 @@ export default function ProductAnalysisPage() {
         // eslint-disable-next-line no-await-in-loop
         const statusPayload = (await statusResponse.json()) as {
           status: 'pending' | 'running' | 'success' | 'failed'
+          message?: string | null
+          error_message?: string | null
+          persistence_status?: PersistenceStatus
+          persistence_message?: string | null
           runs?: Array<{ error_message?: string | null }>
         }
 
+        // 如果状态发生变化，确保上一个状态至少显示1秒
+        if (statusPayload.status !== lastStatus) {
+          const timeSinceLastChange = Date.now() - lastStatusChangeTime
+          const remainingDelay = MIN_STATUS_DISPLAY_MS - timeSinceLastChange
+          if (remainingDelay > 0) {
+            // eslint-disable-next-line no-await-in-loop
+            await new Promise((resolve) => setTimeout(resolve, remainingDelay))
+          }
+          lastStatus = statusPayload.status
+          lastStatusChangeTime = Date.now()
+        }
+
+        updateSyncState(statusPayload.persistence_status, statusPayload.persistence_message)
+        const currentProgress = fallbackProgressByStatus(statusPayload.status)
+        setJobProgress(currentProgress)
+        if (statusPayload.message?.trim()) {
+          setSubmitState({ status: 'submitting', message: statusPayload.message.trim(), filename: null })
+          setJobProgress({ ...currentProgress, message: statusPayload.message.trim() })
+        }
+
         if (statusPayload.status === 'failed') {
-          failedMessage = statusPayload.runs?.[statusPayload.runs.length - 1]?.error_message ?? '任务执行失败'
+          failedMessage =
+            statusPayload.error_message ?? statusPayload.runs?.[statusPayload.runs.length - 1]?.error_message ?? '任务执行失败'
           finished = true
           break
         }
@@ -594,7 +760,7 @@ export default function ProductAnalysisPage() {
       if (failedMessage) throw new Error(failedMessage)
       if (!finished) throw new Error('任务执行超时，请稍后重试')
 
-      const response = await fetch(`${API_BASE}/api/v1/jobs/${jobId}/result`, {
+      const response = await fetch(resolveApiUrl(resultEndpoint), {
         headers: authHeaders(currentOperator),
       })
 
@@ -619,8 +785,11 @@ export default function ProductAnalysisPage() {
       link.remove()
       window.URL.revokeObjectURL(downloadUrl)
 
+      setJobProgress({ stage: 'completed', progress: 100, message: '处理完成：报表已生成，可下载' })
       setSubmitState({ status: 'success', message: `生成成功，已下载 ${filename}`, filename })
+      void pollPersistenceStatus(statusEndpoint)
     } catch (error) {
+      setJobProgress((prev) => prev ?? { stage: 'failed', progress: 100, message: '处理失败' })
       setSubmitState({
         status: 'error',
         message: `生成失败：${error instanceof Error ? error.message : '未知错误'}`,
@@ -630,136 +799,104 @@ export default function ProductAnalysisPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <div className="grid gap-6 xl:grid-cols-2">
+    <div className="grid w-full gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="space-y-6">
         <Card className="shadow-sm">
           <CardHeader>
-            <CardTitle className="text-lg">参数配置</CardTitle>
+            <CardTitle className="text-lg">控制台</CardTitle>
             <CardDescription>项目名称必填，日期支持快捷填充上周区间。</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <label htmlFor="project_name" className="text-sm font-medium">项目名称</label>
-              <Select
-                value={projectName}
-                onValueChange={setProjectName}
-                disabled={projectsLoading || projects.length === 0}
-              >
-                <SelectTrigger
-                  id="project_name"
-                  className="h-10 transition-all duration-200 data-[state=open]:ring-2 data-[state=open]:ring-blue-500/30"
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-2">
+                <label htmlFor="project_name" className="text-sm font-medium">项目名称</label>
+                <Select
+                  value={projectName}
+                  onValueChange={setProjectName}
+                  disabled={projectsLoading || projects.length === 0}
                 >
-                  <SelectValue
-                    placeholder={projectsLoading ? '项目加载中...' : projects.length ? '请选择项目名称' : '暂无可选项目'}
+                  <SelectTrigger
+                    id="project_name"
+                    className="h-10 transition-all duration-200 data-[state=open]:ring-2 data-[state=open]:ring-blue-500/30"
+                  >
+                    <SelectValue
+                      placeholder={projectsLoading ? '项目加载中...' : projects.length ? '请选择项目名称' : '暂无可选项目'}
+                    />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-64 overflow-y-auto">
+                    {projects.map((project) => (
+                      <SelectItem key={project.name} value={project.name}>
+                        {project.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {!projectsLoading && projects.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">暂无项目，请先到“项目信息”页面新增。</p>
+                ) : null}
+                {projectLoadError ? <p className="text-xs text-destructive">{projectLoadError}</p> : null}
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="report_start_date" className="text-sm font-medium">日期范围</label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Input
+                    id="report_start_date"
+                    type="date"
+                    value={startDate}
+                    onChange={(event) => setStartDate(event.target.value)}
+                    className="w-[140px]"
                   />
-                </SelectTrigger>
-                <SelectContent className="max-h-64 overflow-y-auto">
-                  {projects.map((project) => (
-                    <SelectItem key={project.name} value={project.name}>
-                      {project.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {!projectsLoading && projects.length === 0 ? (
-                <p className="text-xs text-muted-foreground">暂无项目，请先到“项目信息”页面新增。</p>
-              ) : null}
-              {projectLoadError ? <p className="text-xs text-destructive">{projectLoadError}</p> : null}
+                  <span className="text-sm text-muted-foreground">至</span>
+                  <Input
+                    id="report_end_date"
+                    type="date"
+                    value={endDate}
+                    onChange={(event) => setEndDate(event.target.value)}
+                    className="w-[140px]"
+                  />
+                  <Button type="button" variant="secondary" onClick={applyLastWeek}>
+                    <CalendarRange className="mr-1 h-4 w-4" />
+                    上周
+                  </Button>
+                </div>
+                {startDate && endDate && startDate > endDate ? (
+                  <p className="text-xs text-destructive">开始日期不能晚于结束日期</p>
+                ) : null}
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <label htmlFor="report_start_date" className="text-sm font-medium">日期范围</label>
-              <div className="flex flex-wrap items-center gap-2">
-                <Input
-                  id="report_start_date"
-                  type="date"
-                  value={startDate}
-                  onChange={(event) => setStartDate(event.target.value)}
-                  className="w-[180px]"
-                />
-                <span className="text-sm text-muted-foreground">至</span>
-                <Input
-                  id="report_end_date"
-                  type="date"
-                  value={endDate}
-                  onChange={(event) => setEndDate(event.target.value)}
-                  className="w-[180px]"
-                />
-                <Button type="button" variant="secondary" onClick={applyLastWeek}>
-                  <CalendarRange className="mr-1 h-4 w-4" />
-                  上周
-                </Button>
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-lg border bg-muted/30 px-3 py-2">
+                <p className="text-xs text-muted-foreground">识别</p>
+                <p className="mt-1 text-sm font-semibold">{requiredReadyCount}/3</p>
               </div>
-              {startDate && endDate && startDate > endDate ? (
-                <p className="text-xs text-destructive">开始日期不能晚于结束日期</p>
-              ) : null}
+              <div className="rounded-lg border bg-muted/30 px-3 py-2">
+                <p className="text-xs text-muted-foreground">上传</p>
+                <p className="mt-1 text-sm font-semibold">{requiredUploadedCount}/3</p>
+              </div>
+              <div className="rounded-lg border bg-muted/30 px-3 py-2">
+                <p className="text-xs text-muted-foreground">表格生成</p>
+                <p className={cn('mt-1 text-sm font-semibold', generationMeta.tone)}>{generationMeta.label}</p>
+              </div>
+              <div className="rounded-lg border bg-muted/30 px-3 py-2">
+                <p className="text-xs text-muted-foreground">数据同步</p>
+                <p className={cn('mt-1 text-sm font-semibold', syncMeta.className)}>{syncMeta.text}</p>
+              </div>
             </div>
+
+            {syncState.message ? <p className="text-xs text-muted-foreground">{syncState.message}</p> : null}
 
             {formError ? <p className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">{formError}</p> : null}
           </CardContent>
         </Card>
 
-        <Card className="flex min-h-[320px] flex-col shadow-sm">
+        <Card className="shadow-sm">
           <CardHeader>
-            <CardTitle className="text-lg">生成与下载</CardTitle>
-            <CardDescription>完成 3 份必需文件上传后生成产品分析表。</CardDescription>
+            <CardTitle className="text-lg">文件识别与上传</CardTitle>
+            <CardDescription>左侧投递文件，右侧四行状态栏显示匹配结果；匹配失败时显示手动匹配。</CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-1 flex-col gap-4">
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div className="rounded-lg border bg-muted/30 p-3">
-                <p className="text-xs text-muted-foreground">必需识别覆盖</p>
-                <p className="mt-1 font-semibold">{requiredReadyCount}/3</p>
-              </div>
-              <div className="rounded-lg border bg-muted/30 p-3">
-                <p className="text-xs text-muted-foreground">必需上传完成</p>
-                <p className="mt-1 font-semibold">{requiredUploadedCount}/3</p>
-              </div>
-            </div>
-
-            {submitState.status === 'submitting' ? (
-              <div className="flex items-center gap-2 rounded-md border border-blue-300/40 bg-blue-50 px-3 py-2 text-sm text-blue-700 dark:bg-blue-900/25 dark:text-blue-200">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                {submitState.message}
-              </div>
-            ) : null}
-
-            {submitState.status === 'success' ? (
-              <div className="space-y-2 rounded-md border border-emerald-300/60 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-200">
-                {submitState.filename ? (
-                  <div className="flex items-center gap-2">
-                    <Download className="mr-1 h-3.5 w-3.5" />
-                    {submitState.filename}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-
-            {submitState.status === 'error' ? (
-              <div className="flex items-center gap-2 rounded-md border border-rose-300/60 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-900/20 dark:text-rose-200">
-                <AlertCircle className="h-4 w-4" />
-                {submitState.message}
-              </div>
-            ) : null}
-
-            <Button
-              type="button"
-              className="mt-auto h-11 w-full bg-blue-600 hover:bg-blue-500"
-              onClick={() => void generateReport()}
-              disabled={!canGenerate}
-            >
-              {submitState.status === 'submitting' ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1 h-4 w-4" />}
-              生成产品分析表
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-lg">文件识别与上传</CardTitle>
-          <CardDescription>左侧投递文件，右侧四行状态栏显示匹配结果；匹配失败时显示手动匹配。</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5">
+          <CardContent className="space-y-5">
           <div className="grid gap-5 xl:grid-cols-[300px_1fr]">
             <div
               className={cn(
@@ -856,7 +993,7 @@ export default function ProductAnalysisPage() {
                             <SelectValue placeholder="手动选择类型" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="business_report">商业报告</SelectItem>
+                                                <SelectItem value="business_report">业务报告</SelectItem>
                             <SelectItem value="payment_report">付款报告</SelectItem>
                             <SelectItem value="ad_report">广告报告</SelectItem>
                             <SelectItem value="inventory_report">库存报告</SelectItem>
@@ -870,6 +1007,102 @@ export default function ProductAnalysisPage() {
               ) : null}
 
             </div>
+          </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="h-fit shadow-sm xl:sticky xl:top-6">
+        <CardHeader>
+          <CardTitle className="text-lg">处理状态</CardTitle>
+          <CardDescription>默认展示全部步骤，执行时高亮当前进度。</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-3 rounded-lg border bg-slate-50/70 p-3 dark:bg-slate-950/30">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                {submitState.status === 'submitting' ? <Loader2 className="h-4 w-4 animate-spin text-blue-500" /> : <DatabaseZap className="h-4 w-4 text-slate-500" />}
+                <span>{submitState.message || '等待生成任务'}</span>
+              </div>
+              <span className="text-xs font-semibold text-muted-foreground">{normalizeProgress(jobProgress?.progress ?? 0)}%</span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+              <div
+                className="h-full bg-blue-500 transition-all duration-300"
+                style={{ width: `${normalizeProgress(jobProgress?.progress ?? 0)}%` }}
+              />
+            </div>
+            <div className="space-y-2 text-sm">
+              {PROGRESS_STEP_LABELS.map((label, index) => {
+                const done = hasProgressState && (currentProgressStep > index || (currentProgressStep === 4 && index === 4))
+                const active = hasProgressState && currentProgressStep === index && !done
+                const isLastStep = index === 4
+                return (
+                  <div key={label} className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        'h-2.5 w-2.5 rounded-full transition-colors',
+                        done ? 'bg-emerald-500' : active ? 'bg-blue-500' : 'bg-slate-300 dark:bg-slate-700'
+                      )}
+                    />
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={cn(
+                          'transition-colors',
+                          done
+                            ? 'text-emerald-700 dark:text-emerald-200'
+                            : active
+                              ? 'font-medium text-blue-700 dark:text-blue-200'
+                              : 'text-muted-foreground'
+                        )}
+                      >
+                        {label}
+                      </span>
+                      {isLastStep && done && submitState.filename && (
+                        <span className="text-emerald-600 dark:text-emerald-300 font-medium">
+                          ：{submitState.filename}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {submitState.status === 'error' ? (
+            <div className="flex items-center gap-2 rounded-md border border-rose-300/60 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-900/20 dark:text-rose-200">
+              <AlertCircle className="h-4 w-4" />
+              {submitState.message}
+            </div>
+          ) : null}
+
+
+
+          <div className="space-y-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={() => {
+                const link = document.createElement('a')
+                link.click()
+              }}
+              disabled={submitState.status !== 'success'}
+            >
+              <Download className="mr-1 h-4 w-4" />
+              下载报表
+            </Button>
+
+            <Button
+              type="button"
+              className="h-11 w-full bg-blue-600 hover:bg-blue-500"
+              onClick={() => void generateReport()}
+              disabled={!canGenerate}
+            >
+              {submitState.status === 'submitting' ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1 h-4 w-4" />}
+              生成产品分析表
+            </Button>
           </div>
         </CardContent>
       </Card>

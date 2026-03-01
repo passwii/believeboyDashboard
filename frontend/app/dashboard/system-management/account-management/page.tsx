@@ -27,6 +27,16 @@ function fmtTime(value: string) {
   return date.toLocaleString('zh-CN', { hour12: false })
 }
 
+function isYaweiAccount(item: Pick<UserItem, 'name' | 'email'>) {
+  const name = item.name.trim().toLowerCase()
+  const email = item.email.trim().toLowerCase()
+  return name === 'yawei' || email.startsWith('yawei@')
+}
+
+function getAccountDisplayName(item: Pick<UserItem, 'name' | 'email'>) {
+  return isYaweiAccount(item) ? 'Yawei' : item.name
+}
+
 export default function AccountManagementPage() {
   const [items, setItems] = useState<UserItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -70,6 +80,13 @@ export default function AccountManagementPage() {
   }, [load])
 
   const updateOne = async (id: string, patch: Partial<Pick<UserItem, 'isAdmin' | 'isActive'>>) => {
+    const target = items.find((item) => item.id === id)
+    if (target && isYaweiAccount(target) && (patch.isAdmin === false || patch.isActive === false)) {
+      setError('Yawei 账号不允许取消管理员或停用')
+      setSuccess(null)
+      return
+    }
+
     setBusyId(id)
     setError(null)
     setSuccess(null)
@@ -211,54 +228,57 @@ export default function AccountManagementPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  items.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>{item.name}</TableCell>
-                      <TableCell>{item.email}</TableCell>
-                      <TableCell>
-                        {item.isAdmin ? (
-                          <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-300">
-                            <Shield className="h-3.5 w-3.5" />
-                            管理员
-                          </span>
-                        ) : (
-                          '普通用户'
-                        )}
-                      </TableCell>
-                      <TableCell>{item.isActive ? '启用' : '停用'}</TableCell>
-                      <TableCell>{fmtTime(item.updatedAt)}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={busyId === item.id}
-                            onClick={() => void updateOne(item.id, { isAdmin: !item.isAdmin })}
-                          >
-                            {item.isAdmin ? '取消管理员' : '设为管理员'}
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={busyId === item.id}
-                            onClick={() => void updateOne(item.id, { isActive: !item.isActive })}
-                          >
-                            {item.isActive ? '停用' : '启用'}
-                          </Button>
-                          <Button
-                            size="sm"
-                            disabled={busyId === item.id}
-                            onClick={() => {
-                              setResetUser(item)
-                              setResetOpen(true)
-                            }}
-                          >
-                            重置密码
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                  items.map((item) => {
+                    const isProtected = isYaweiAccount(item)
+                    return (
+                      <TableRow key={item.id}>
+                        <TableCell>{getAccountDisplayName(item)}</TableCell>
+                        <TableCell>{item.email}</TableCell>
+                        <TableCell>
+                          {item.isAdmin ? (
+                            <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-300">
+                              <Shield className="h-3.5 w-3.5" />
+                              管理员
+                            </span>
+                          ) : (
+                            '普通用户'
+                          )}
+                        </TableCell>
+                        <TableCell>{item.isActive ? '启用' : '停用'}</TableCell>
+                        <TableCell>{fmtTime(item.updatedAt)}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={busyId === item.id || (isProtected && item.isAdmin)}
+                              onClick={() => void updateOne(item.id, { isAdmin: !item.isAdmin })}
+                            >
+                              {item.isAdmin ? '取消管理员' : '设为管理员'}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={busyId === item.id || (isProtected && item.isActive)}
+                              onClick={() => void updateOne(item.id, { isActive: !item.isActive })}
+                            >
+                              {item.isActive ? '停用' : '启用'}
+                            </Button>
+                            <Button
+                              size="sm"
+                              disabled={busyId === item.id}
+                              onClick={() => {
+                                setResetUser(item)
+                                setResetOpen(true)
+                              }}
+                            >
+                              重置密码
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })
                 )}
               </TableBody>
             </Table>

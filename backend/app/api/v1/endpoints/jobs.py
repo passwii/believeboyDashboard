@@ -2,7 +2,6 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
-from redis.exceptions import RedisError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, get_request_operator, protected
@@ -21,10 +20,7 @@ def create_job(
     operator: str | None = Depends(get_request_operator),
 ) -> JobResponse:
     payload = {'job_type': data.job_type, 'file_id': data.file_id, 'params': data.params}
-    try:
-        job = job_service.enqueue_job(db, settings, payload, operator=operator)
-    except RedisError as error:
-        raise HTTPException(status_code=503, detail=f'Queue unavailable: {error}') from error
+    job = job_service.enqueue_job(db, settings, payload, operator=operator)
 
     return JobResponse(
         id=job.id,
@@ -43,6 +39,7 @@ def get_job(job_id: int, db: Session = Depends(get_db_session)) -> JobDetailResp
     if not job:
         raise HTTPException(status_code=404, detail='Job not found')
 
+    sorted_runs = sorted(job.runs, key=lambda item: item.id)
     runs = [
         JobRunResponse(
             id=run.id,
@@ -53,7 +50,7 @@ def get_job(job_id: int, db: Session = Depends(get_db_session)) -> JobDetailResp
             error_message=run.error_message,
             result_path=run.result_path,
         )
-        for run in job.runs
+        for run in sorted_runs
     ]
 
     return JobDetailResponse(

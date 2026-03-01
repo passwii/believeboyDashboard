@@ -1,6 +1,6 @@
 [Unit]
-Description=Believeboy RQ worker service
-After=network.target redis.service
+Description=Believeboy background worker placeholder service
+After=network.target
 
 [Service]
 User=www-data

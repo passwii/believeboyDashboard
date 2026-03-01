@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 from collections import defaultdict
+from collections.abc import Callable
 from datetime import datetime
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
@@ -11,6 +12,8 @@ from openpyxl.styles import Alignment, Border, Font, NamedStyle, Side
 from openpyxl.utils import get_column_letter
 
 TWO_DP = Decimal("0.01")
+FOUR_DP = Decimal("0.0001")
+ProgressCallback = Callable[[str, int, str], None]
 
 
 def _safe_project_name(project_name: str) -> str:
@@ -47,6 +50,12 @@ def _safe_div_percent(numerator: Decimal, denominator: Decimal) -> str:
 
 def _num(value: Decimal) -> float:
     return float(_round2(value))
+
+
+def _safe_div_percent_decimal(numerator: Decimal, denominator: Decimal) -> Decimal:
+    if denominator == 0:
+        return Decimal("0")
+    return ((abs(numerator) / denominator) * Decimal("100")).quantize(FOUR_DP, rounding=ROUND_HALF_UP)
 
 
 def _read_transactions(input_path: str) -> list[dict[str, object]]:
@@ -275,13 +284,26 @@ def _apply_styles(workbook: Workbook) -> None:
 
 
 def run(input_path: str, output_dir: str, params: dict) -> dict:
+    callback: ProgressCallback | None = params.get("_progress_callback")
+
+    def report(stage: str, progress: int, message: str) -> None:
+        if not callable(callback):
+            return
+        try:
+            callback(stage, progress, message)
+        except Exception:
+            # Progress reporting should never break core report generation.
+            return
+
     output_root = Path(output_dir)
     output_root.mkdir(parents=True, exist_ok=True)
 
     project_name = _safe_project_name(str(params.get("project_name", "unknown")))
     report_month = str(params.get("report_month", datetime.utcnow().strftime("%Y-%m")))
 
+    report("reading_transactions", 15, "处理中：正在读取交易数据")
     all_rows = _read_transactions(input_path)
+    report("classifying_transactions", 28, "处理中：正在分类交易数据")
     c = _classify_rows(all_rows)
 
     order = c["order"]
@@ -460,9 +482,12 @@ def run(input_path: str, output_dir: str, params: dict) -> dict:
 
     amazon_pay_back = _round2(pt4_income_total + pt4_expense_total)
     amz_card = _sum_field(debt, "total")
+    advertising_percentage = _safe_div_percent_decimal(cost_of_advertising, income_total)
+    report("computing_summary", 42, "合成数据：已完成核心指标计算")
 
     wb = Workbook()
 
+    report("building_overview", 58, "合成数据：正在生成报表总览")
     ws_overview = wb.active
     ws_overview.title = "总览草稿"
     ws_overview.append([
@@ -503,6 +528,7 @@ def run(input_path: str, output_dir: str, params: dict) -> dict:
     ])
 
     ws_accounting = wb.create_sheet(title="报表核算")
+    report("building_accounting", 68, "合成数据：正在生成报表核算")
     ws_accounting.append([
         "Income",
         "收入",
@@ -596,18 +622,81 @@ def run(input_path: str, output_dir: str, params: dict) -> dict:
         ("广告费", advertising),
         ("广告退款", service_refund_for_advertiser),
     ]
+    report("writing_detail_sheets", 80, "合成数据：正在写入明细表")
     for sheet_name, rows in sheets_to_write:
         ws = wb.create_sheet(title=sheet_name)
         _rows_to_sheet(ws, rows)
 
+    report("styling_workbook", 90, "处理中：正在处理表格样式")
     _apply_styles(wb)
 
     filename = f"{project_name}_Monthly_Report_{report_month}.xlsx"
     result_path = output_root / filename
+    report("saving_workbook", 94, "处理中：正在保存报表文件")
     wb.save(result_path)
+
+    pt3_payload = {
+        "income_product_sales_non_fba": product_sales_non_fba,
+        "income_product_sale_refunds_non_fba": product_sale_refunds_non_fba,
+        "income_fba_product_sales": fba_product_sales,
+        "income_fba_product_sale_refunds": fba_product_sale_refunds,
+        "income_fba_inventory_credit": fba_inventory_credit,
+        "income_fba_liquidation_proceeds": fba_liquidation_proceeds,
+        "income_shipping_credits": shipping_credits,
+        "income_shipping_credit_refunds": shipping_credit_refunds,
+        "income_gift_wrap_credits": gift_wrap_credits,
+        "income_gift_wrap_credits_refunds": gift_wrap_credits_refunds,
+        "income_promotional_rebates": promotional_rebates,
+        "income_promotional_rebate_refunds": promotional_rebate_refunds,
+        "income_a_to_z_guarantee_claims": a_to_z_guarantee_claims,
+        "income_chargebacks": chargebacks,
+        "income_safe_t_reimbursement": safe_t_reimbursement,
+        "income_total": income_total,
+        "expense_seller_fulfilled_selling_fees": seller_fulfilled_selling_fees,
+        "expense_fba_selling_fees": fba_selling_fees,
+        "expense_selling_fee_refunds": selling_fee_refunds,
+        "expense_fba_transaction_fees": fba_transaction_fees_total,
+        "expense_fba_transaction_fee_refunds": fba_transaction_fee_refunds,
+        "expense_other_transaction_fees": other_transaction_fees,
+        "expense_other_transaction_fee_refunds": other_transaction_fee_refunds,
+        "expense_fba_inventory_and_inbound_services_fees": fba_inventory_and_inbound_services_fees,
+        "expense_shipping_label_purchases": shipping_label_purchases,
+        "expense_shipping_label_refunds": shipping_label_refunds,
+        "expense_carrier_shipping_label_adjustments": carrier_shipping_label_adjustments,
+        "expense_service_fees": service_fees,
+        "expense_refund_administration_fees": refund_administration_fees,
+        "expense_adjustments": adjustments,
+        "expense_cost_of_advertising": cost_of_advertising,
+        "expense_refund_for_advertiser": refund_for_advertiser,
+        "expense_liquidations_fees": liquidations_fees,
+        "expense_receivables": receivables,
+        "expense_deductions": deductions,
+        "expense_amazon_shipping_charge_adjustments": amazon_shipping_charge_adjustments,
+        "expense_total": expense_total,
+        "amazon_pay_back": amazon_pay_back,
+        "advertising_percentage": advertising_percentage,
+    }
+    pt4_payload = {
+        "income_sales": pt4_income_sales,
+        "income_refund": pt4_income_refund,
+        "income_adjustment": pt4_income_adjustment,
+        "income_other": pt4_income_chargeback,
+        "income_total": pt4_income_total,
+        "expense_selling_fee": pt4_expense_selling_fee,
+        "expense_fba_fee": pt4_expense_fba_fee,
+        "expense_inventory_fee": pt4_expense_inventory_fee,
+        "expense_service_fee": pt4_service_fee,
+        "expense_advertising": pt4_expense_advertising,
+        "expense_other_fees": pt4_expense_other_fees,
+        "expense_total": pt4_expense_total,
+        "amazon_pay_back": amazon_pay_back,
+    }
 
     return {
         "result_path": str(result_path.resolve()),
         "filename": filename,
         "message": "Monthly report generated from transaction CSV (monthly summary PDF ignored)",
+        "transactions": all_rows,
+        "pt3": pt3_payload,
+        "pt4": pt4_payload,
     }

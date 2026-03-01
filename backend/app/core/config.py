@@ -16,10 +16,6 @@ class Settings(BaseSettings):
     app_port: int = 8000
 
     database_url: str = 'sqlite:///./backend.db'
-    redis_url: str = 'redis://localhost:6379/0'
-    allow_sync_job_fallback: bool = True
-    product_cost_list_cache_ttl_seconds: int = 72 * 60 * 60
-    product_cost_cache_sqlite_path: Path = Path('./storage/cache/query_cache.db')
     api_key: str = Field(default='change-me', min_length=8)
 
     upload_root: Path = Path('./storage/uploads')
@@ -43,5 +39,4 @@ def get_settings() -> Settings:
     settings = Settings()
     settings.upload_root.mkdir(parents=True, exist_ok=True)
     settings.result_root.mkdir(parents=True, exist_ok=True)
-    settings.product_cost_cache_sqlite_path.parent.mkdir(parents=True, exist_ok=True)
     return settings

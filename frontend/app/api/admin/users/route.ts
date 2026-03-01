@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
 
 import { requireAdminSession } from '@/lib/auth/server'
-import { getDbPool } from '@/lib/server/db'
+import { backendFetchJson, getBackendApiKey } from '@/lib/server/backend-api'
 
-type UserRow = {
+type UserItem = {
   id: string
   name: string
   email: string
@@ -13,45 +13,50 @@ type UserRow = {
   updated_at: string
 }
 
+function toFrontendUser(item: UserItem) {
+  return {
+    id: item.id,
+    name: item.name,
+    email: item.email,
+    isAdmin: item.is_admin,
+    isActive: item.is_active,
+    createdAt: item.created_at,
+    updatedAt: item.updated_at,
+  }
+}
+
 export async function GET() {
   const session = await requireAdminSession()
   if (!session) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 
-  const pool = getDbPool()
-  const result = await pool.query<UserRow>(
-    `
-    select
-      id::text as id,
-      name,
-      email,
-      is_admin,
-      is_active,
-      created_at,
-      updated_at
-    from public.user_accounts
-    order by created_at desc
-    `
-  )
+  const apiKey = getBackendApiKey()
+  if (!apiKey) {
+    return NextResponse.json({ message: '缺少后端 API Key 配置' }, { status: 500 })
+  }
 
-  return NextResponse.json({
-    items: result.rows.map((row: UserRow) => ({
-      id: row.id,
-      name: row.name,
-      email: row.email,
-      isAdmin: row.is_admin,
-      isActive: row.is_active,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    })),
-  })
+  try {
+    const data = await backendFetchJson<{ items: UserItem[] }>('/api/v1/system-management/users', {
+      method: 'GET',
+      headers: { 'X-API-Key': apiKey },
+      cache: 'no-store',
+    })
+    return NextResponse.json({ items: data.items.map(toFrontendUser) })
+  } catch (err) {
+    return NextResponse.json({ message: err instanceof Error ? err.message : '加载失败' }, { status: 500 })
+  }
 }
 
 export async function POST(request: Request) {
   const session = await requireAdminSession()
   if (!session) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
+  }
+
+  const apiKey = getBackendApiKey()
+  if (!apiKey) {
+    return NextResponse.json({ message: '缺少后端 API Key 配置' }, { status: 500 })
   }
 
   const body = (await request.json()) as {
@@ -61,57 +66,25 @@ export async function POST(request: Request) {
     isAdmin?: boolean
   }
 
-  const name = body.name?.trim() ?? ''
-  const email = body.email?.trim().toLowerCase() ?? ''
-  const password = body.password ?? ''
-  const isAdmin = Boolean(body.isAdmin)
-
-  if (!name || !email || !password) {
-    return NextResponse.json({ message: '缺少必要字段' }, { status: 400 })
-  }
-
-  if (password.length < 8) {
-    return NextResponse.json({ message: '密码长度至少 8 位' }, { status: 400 })
-  }
-
-  const pool = getDbPool()
-
   try {
-    const result = await pool.query<UserRow>(
-      `
-      insert into public.user_accounts (name, email, password_hash, is_admin, is_active)
-      values ($1, $2, crypt($3, gen_salt('bf', 12)), $4, true)
-      returning
-        id::text as id,
-        name,
-        email,
-        is_admin,
-        is_active,
-        created_at,
-        updated_at
-      `,
-      [name, email, password, isAdmin]
-    )
-
-    const row = result.rows[0]
-    return NextResponse.json(
-      {
-        item: {
-          id: row.id,
-          name: row.name,
-          email: row.email,
-          isAdmin: row.is_admin,
-          isActive: row.is_active,
-          createdAt: row.created_at,
-          updatedAt: row.updated_at,
-        },
+    const data = await backendFetchJson<{ item: UserItem }>('/api/v1/system-management/users', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': apiKey,
       },
-      { status: 201 }
-    )
-  } catch (error) {
-    if ((error as { code?: string })?.code === '23505') {
-      return NextResponse.json({ message: '邮箱已存在' }, { status: 409 })
-    }
-    return NextResponse.json({ message: '创建用户失败' }, { status: 500 })
+      body: JSON.stringify({
+        name: body.name,
+        email: body.email,
+        password: body.password,
+        is_admin: Boolean(body.isAdmin),
+      }),
+      cache: 'no-store',
+    })
+    return NextResponse.json({ item: toFrontendUser(data.item) }, { status: 201 })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '创建失败'
+    const status = message.includes('已存在') ? 409 : 500
+    return NextResponse.json({ message }, { status })
   }
 }

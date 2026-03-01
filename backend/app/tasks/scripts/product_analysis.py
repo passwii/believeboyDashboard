@@ -404,6 +404,27 @@ def _append_summary_row(df_overview: pd.DataFrame, report_date: str) -> pd.DataF
     return pd.concat([df_overview, pd.DataFrame([summary])], ignore_index=True)
 
 
+def _to_python_scalar(value: Any) -> Any:
+    if isinstance(value, np.generic):
+        return value.item()
+    return value
+
+
+def _build_pt1_payload(df_overview: pd.DataFrame) -> dict[str, Any]:
+    if df_overview.empty:
+        return {'row_count': 0, 'summary': {}, 'details': []}
+    summary = {str(k): _to_python_scalar(v) for k, v in df_overview.iloc[-1].to_dict().items()}
+    details = [
+        {str(k): _to_python_scalar(v) for k, v in row.items()}
+        for row in df_overview.iloc[:-1].to_dict(orient='records')
+    ]
+    return {
+        'row_count': len(details),
+        'summary': summary,
+        'details': details,
+    }
+
+
 def _load_template_or_create() -> Workbook:
     backend_root = Path(__file__).resolve().parents[3]
     template = backend_root / 'storage' / 'model-file' / 'product_analysis_template.xlsx'
@@ -579,4 +600,5 @@ def run(input_path: str, output_dir: str, params: dict) -> dict:
         'result_path': str(result_path.resolve()),
         'filename': filename,
         'message': 'Product analysis report generated',
+        'pt1': _build_pt1_payload(df_overview),
     }

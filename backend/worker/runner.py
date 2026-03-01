@@ -1,15 +1,10 @@
-from redis import Redis
-from rq import Connection, Worker
-
-from app.core.config import get_settings
+import time
 
 
 def main() -> None:
-    settings = get_settings()
-    redis = Redis.from_url(settings.redis_url)
-    with Connection(redis):
-        worker = Worker(['default'])
-        worker.work(with_scheduler=False)
+    print('Worker runner is disabled in no-Redis mode. Jobs run in-process from API.')
+    while True:
+        time.sleep(3600)
 
 
 if __name__ == '__main__':

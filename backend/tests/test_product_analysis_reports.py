@@ -25,16 +25,24 @@ def test_product_analysis_reports_requires_api_key():
 
 
 def test_product_analysis_reports_creates_job(monkeypatch):
-    def fake_enqueue_job(db, settings, payload):  # noqa: ARG001
-        assert payload['job_type'] == 'product_analysis'
-        assert payload['file_id'] == 'biz.csv'
-        assert payload['params']['file_ids']['business_report'] == 'biz.csv'
-        assert payload['params']['file_ids']['payment_report'] == 'pay.csv'
-        assert payload['params']['file_ids']['ad_report'] == 'ad.xlsx'
-        assert payload['params']['file_ids']['inventory_report'] == 'inv.txt'
+    def fake_build_path(settings, project_name, file_type, file_id):  # noqa: ARG001
+        return f'/tmp/{project_name}-{file_type}-{file_id}'
+
+    monkeypatch.setattr('app.api.v1.endpoints.product_analysis_reports.upload_service.build_upload_file_path', fake_build_path)
+
+    def fake_create_task(settings, *, report_type, input_path, params):  # noqa: ARG001
+        assert report_type == 'product_analysis'
+        assert input_path.endswith('business_report-biz.csv')
+        assert params['file_ids']['business_report'] == 'biz.csv'
+        assert params['file_ids']['payment_report'] == 'pay.csv'
+        assert params['file_ids']['ad_report'] == 'ad.xlsx'
+        assert params['file_ids']['inventory_report'] == 'inv.txt'
         return SimpleNamespace(id=789, status='pending', created_at=datetime.now(UTC))
 
-    monkeypatch.setattr('app.api.v1.endpoints.product_analysis_reports.job_service.enqueue_job', fake_enqueue_job)
+    monkeypatch.setattr(
+        'app.api.v1.endpoints.product_analysis_reports.analysis_report_runtime_service.create_task',
+        fake_create_task,
+    )
 
     response = client.post(
         '/api/v1/product-analysis-reports',
@@ -53,6 +61,8 @@ def test_product_analysis_reports_creates_job(monkeypatch):
     assert response.status_code == 200
     payload = response.json()
     assert payload['job_id'] == 789
+    assert payload['status_endpoint'] == '/api/v1/product-analysis-reports/tasks/789'
+    assert payload['result_endpoint'] == '/api/v1/product-analysis-reports/tasks/789/result'
     assert payload['status'] == 'pending'
 
 
@@ -70,3 +80,43 @@ def test_product_analysis_reports_rejects_invalid_date_range():
         },
     )
     assert response.status_code == 400
+
+
+def test_product_analysis_task_status(monkeypatch):
+    now = datetime.now(UTC)
+    monkeypatch.setattr(
+        'app.api.v1.endpoints.product_analysis_reports.analysis_report_runtime_service.get_task',
+        lambda task_id: SimpleNamespace(
+            id=task_id,
+            report_type='product_analysis',
+            status='running',
+            stage='processing',
+            progress=22,
+            message='处理中',
+            error_message=None,
+            persistence_status='running',
+            persistence_message='syncing',
+            created_at=now,
+            updated_at=now,
+        ),
+    )
+    response = client.get('/api/v1/product-analysis-reports/tasks/9', headers={'X-API-Key': get_settings().api_key})
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload['task_id'] == 9
+    assert payload['status'] == 'running'
+    assert payload['persistence_status'] == 'running'
+
+
+def test_product_analysis_task_result(monkeypatch):
+    monkeypatch.setattr(
+        'app.api.v1.endpoints.product_analysis_reports.analysis_report_runtime_service.get_task',
+        lambda task_id: SimpleNamespace(
+            id=task_id,
+            report_type='product_analysis',
+            status=SimpleNamespace(value='success'),
+            result_path=__file__,
+        ),
+    )
+    response = client.get('/api/v1/product-analysis-reports/tasks/9/result', headers={'X-API-Key': get_settings().api_key})
+    assert response.status_code == 200

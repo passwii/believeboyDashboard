@@ -15,5 +15,18 @@ class CreateDailyReportRequest(BaseModel):
 
 class DailyReportResponse(BaseModel):
     job_id: int
+    status_endpoint: str | None = None
+    result_endpoint: str | None = None
     status: JobStatus
     created_at: datetime | None
+
+
+class DailyReportTaskStatusResponse(BaseModel):
+    task_id: int
+    status: JobStatus
+    stage: str
+    progress: int
+    message: str | None
+    error_message: str | None
+    created_at: datetime
+    updated_at: datetime

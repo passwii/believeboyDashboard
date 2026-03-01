@@ -1,16 +1,20 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import { CheckCircle2, Database, Loader2, XCircle } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { AlertTriangle, CheckCircle2, Database, Loader2, RefreshCw, Save, Server } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Separator } from '@/components/ui/separator'
+import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 
-type DataManagementStatus = {
+type DataLifecycleStatus = 'active' | 'maintenance' | 'read_only' | 'paused'
+type TableHealthStatus = 'healthy' | 'empty' | 'stale' | 'error'
+
+type DataManagementOverview = {
   server_time: string
   database: {
     engine: string
@@ -18,35 +22,39 @@ type DataManagementStatus = {
     healthy: boolean
     checked_at: string
   }
-  cache: {
-    sqlite_path: string
-    exists: boolean
-    file_size_bytes: number
-    ttl_seconds: number
-    total_entries: number
-    expired_entries: number
-    active_entries: number
-    latest_updated_at: string | null
-    nearest_expire_at: string | null
+  cache_enabled: boolean
+  summary: {
+    total_tables: number
+    total_rows: number
+    stale_tables: number
+    data_status: DataLifecycleStatus
   }
-}
-
-type ClearCacheResponse = {
-  cleared_at: string
-  removed_entries: number
+  data_status_note: string | null
+  data_status_updated_at: string | null
+  data_status_updated_by: string | null
+  tables: Array<{
+    table_name: string
+    row_count: number | null
+    last_updated_at: string | null
+    status: TableHealthStatus
+    note: string | null
+  }>
+  recent_statuses: Array<{
+    source: string
+    level: string
+    message: string
+    occurred_at: string
+  }>
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
 const API_KEY = process.env.NEXT_PUBLIC_BACKEND_API_KEY ?? ''
 
-// Local storage key for caching data
-const CACHE_KEY = 'system-data-management-status'
-const CACHE_TIMESTAMP_KEY = 'system-data-management-timestamp'
-// Cache validity duration: 5 minutes
-const CACHE_DURATION_MS = 5 * 60 * 1000
-
 function authHeaders(): Record<string, string> {
-  return API_KEY ? { 'X-API-Key': API_KEY } : {}
+  const headers: Record<string, string> = {}
+  if (API_KEY) headers['X-API-Key'] = API_KEY
+  headers['X-Operator'] = 'dashboard-admin'
+  return headers
 }
 
 function formatDateTime(value: string | null): string {
@@ -56,360 +64,282 @@ function formatDateTime(value: string | null): string {
   return date.toLocaleString('zh-CN', { hour12: false })
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  const kb = bytes / 1024
-  if (kb < 1024) return `${kb.toFixed(1)} KB`
-  return `${(kb / 1024).toFixed(2)} MB`
+function formatNumber(value: number): string {
+  return new Intl.NumberFormat('zh-CN').format(value)
 }
 
 async function parseError(response: Response): Promise<string> {
   try {
-    const payload = (await response.json()) as { detail?: string }
-    return payload.detail || `请求失败 (${response.status})`
+    const payload = (await response.json()) as { detail?: string; message?: string }
+    return payload.detail || payload.message || `请求失败 (${response.status})`
   } catch {
     const text = await response.text()
     return text || `请求失败 (${response.status})`
   }
 }
 
-// Helper functions for local storage cache
-function getCachedData(): { data: DataManagementStatus | null; isFresh: boolean } {
-  if (typeof window === 'undefined') {
-    return { data: null, isFresh: false }
-  }
-
-  try {
-    const cachedTimestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY)
-    const cachedData = localStorage.getItem(CACHE_KEY)
-
-    if (!cachedTimestamp || !cachedData) {
-      return { data: null, isFresh: false }
-    }
-
-    const timestamp = parseInt(cachedTimestamp, 10)
-    const now = Date.now()
-    const isFresh = now - timestamp < CACHE_DURATION_MS
-    const parsedData = JSON.parse(cachedData) as DataManagementStatus
-
-    return { data: parsedData, isFresh }
-  } catch {
-    return { data: null, isFresh: false }
-  }
+function statusLabel(status: DataLifecycleStatus): string {
+  if (status === 'active') return '正常运行'
+  if (status === 'maintenance') return '维护中'
+  if (status === 'read_only') return '只读模式'
+  return '暂停更新'
 }
 
-function setCachedData(data: DataManagementStatus): void {
-  if (typeof window === 'undefined') {
-    return
-  }
-
-  try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify(data))
-    localStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString())
-  } catch {
-    // Ignore storage errors
-  }
-}
-
-function clearCachedData(): void {
-  if (typeof window === 'undefined') {
-    return
-  }
-
-  try {
-    localStorage.removeItem(CACHE_KEY)
-    localStorage.removeItem(CACHE_TIMESTAMP_KEY)
-  } catch {
-    // Ignore storage errors
-  }
+function tableStatusTone(status: TableHealthStatus): string {
+  if (status === 'healthy') return 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+  if (status === 'empty') return 'bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-500/30'
+  if (status === 'stale') return 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30'
+  return 'bg-destructive/10 text-destructive border-destructive/30'
 }
 
 export default function SystemDataManagementPage() {
-  const [status, setStatus] = useState<DataManagementStatus | null>(null)
+  const [overview, setOverview] = useState<DataManagementOverview | null>(null)
   const [loading, setLoading] = useState(false)
-  const [clearing, setClearing] = useState(false)
-  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [successMessage, setSuccessMessage] = useState<string | null>(null)
-  const [cacheNotice, setCacheNotice] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
 
-  // Core function to fetch data from API
-  const fetchStatusFromAPI = useCallback(async (showLoading = true): Promise<DataManagementStatus | null> => {
-    if (showLoading) {
-      setLoading(true)
-    }
+  const [selectedStatus, setSelectedStatus] = useState<DataLifecycleStatus>('active')
+  const [statusNote, setStatusNote] = useState('')
+
+  const loadOverview = useCallback(async (): Promise<void> => {
+    setLoading(true)
     setError(null)
 
     try {
-      const response = await fetch(`${API_BASE}/api/v1/system-management/data-management/status`, {
+      const response = await fetch(`${API_BASE}/api/v1/system-management/data-management/overview`, {
         headers: authHeaders(),
         cache: 'no-store',
       })
       if (!response.ok) {
         throw new Error(await parseError(response))
       }
-      const payload = (await response.json()) as DataManagementStatus
-      setStatus(payload)
-      setCachedData(payload)
-      return payload
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : '状态加载失败')
-      return null
+      const payload = (await response.json()) as DataManagementOverview
+      setOverview(payload)
+      setSelectedStatus(payload.summary.data_status)
+      setStatusNote(payload.data_status_note || '')
+    } catch (loadErr) {
+      setError(loadErr instanceof Error ? loadErr.message : '状态加载失败')
     } finally {
-      if (showLoading) {
-        setLoading(false)
-      }
+      setLoading(false)
     }
   }, [])
 
-  // Main load function that checks cache first
-  const loadStatus = useCallback(async (forceRefresh = false): Promise<void> => {
-    if (forceRefresh) {
-      setCacheNotice(null)
-      await fetchStatusFromAPI(true)
-      return
-    }
-
-    const { data: cachedData, isFresh } = getCachedData()
-
-    if (cachedData) {
-      setStatus(cachedData)
-      if (!isFresh) {
-        setCacheNotice('当前展示的是历史缓存数据，请点击“刷新状态”获取最新信息。')
-      } else {
-        setCacheNotice(null)
-      }
-      return
-    }
-
-    setCacheNotice(null)
-  }, [fetchStatusFromAPI])
-
-  // Initial load: show local cache first, then auto-refresh from server.
   useEffect(() => {
-    const initialize = async () => {
-      await loadStatus(false)
-      await loadStatus(true)
-    }
-    void initialize()
-  }, [loadStatus])
+    void loadOverview()
+  }, [loadOverview])
 
-  const onClearCache = async () => {
-    setClearing(true)
+  const onSaveStatus = useCallback(async () => {
+    setSaving(true)
     setError(null)
-    setSuccessMessage(null)
-    setCacheNotice(null)
+    setSuccess(null)
+
     try {
-      const response = await fetch(`${API_BASE}/api/v1/system-management/data-management/cache/clear`, {
-        method: 'POST',
-        headers: authHeaders(),
+      const response = await fetch(`${API_BASE}/api/v1/system-management/data-management/data-status`, {
+        method: 'PATCH',
+        headers: {
+          ...authHeaders(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: selectedStatus,
+          note: statusNote.trim() || null,
+        }),
       })
       if (!response.ok) {
         throw new Error(await parseError(response))
       }
-      const payload = (await response.json()) as ClearCacheResponse
-      setSuccessMessage(`缓存清理完成：删除 ${payload.removed_entries} 条，时间 ${formatDateTime(payload.cleared_at)}`)
-      setConfirmDialogOpen(false)
-      // Clear local cache and reload
-      clearCachedData()
-      await loadStatus(true) // Force refresh
-    } catch (clearError) {
-      setError(clearError instanceof Error ? clearError.message : '清除缓存失败')
+      setSuccess('数据状态更新成功')
+      await loadOverview()
+    } catch (saveErr) {
+      setError(saveErr instanceof Error ? saveErr.message : '状态更新失败')
     } finally {
-      setClearing(false)
+      setSaving(false)
     }
-  }
+  }, [loadOverview, selectedStatus, statusNote])
+
+  const summaryCards = useMemo(() => {
+    if (!overview) return []
+    return [
+      {
+        key: 'db',
+        title: '数据库连接',
+        value: overview.database.healthy ? '正常' : '异常',
+        hint: `引擎 ${overview.database.engine}`,
+        icon: <Database className="h-4 w-4" />,
+        tone: overview.database.healthy ? 'text-emerald-600' : 'text-destructive',
+      },
+      {
+        key: 'tables',
+        title: '表数量',
+        value: formatNumber(overview.summary.total_tables),
+        hint: `异常/陈旧 ${overview.summary.stale_tables}`,
+        icon: <Server className="h-4 w-4" />,
+        tone: overview.summary.stale_tables > 0 ? 'text-amber-600' : 'text-foreground',
+      },
+      {
+        key: 'rows',
+        title: '总数据量',
+        value: formatNumber(overview.summary.total_rows),
+        hint: '统计所有业务表',
+        icon: <Database className="h-4 w-4" />,
+        tone: 'text-foreground',
+      },
+      {
+        key: 'status',
+        title: '数据状态',
+        value: statusLabel(overview.summary.data_status),
+        hint: `更新时间 ${formatDateTime(overview.data_status_updated_at)}`,
+        icon: <CheckCircle2 className="h-4 w-4" />,
+        tone: 'text-cyan-700 dark:text-cyan-300',
+      },
+    ]
+  }, [overview])
 
   return (
-    <div className="mx-auto max-w-[1400px] space-y-6">
-      <Card className="overflow-hidden border-border/80 shadow-[0_20px_40px_-22px_rgba(15,23,42,0.22)]">
-        <CardContent className="space-y-8 p-5 sm:p-7 md:p-8">
-          <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
-            <div className="max-w-2xl space-y-2.5">
-              <Badge variant="outline" className="w-fit rounded-md border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300">
-                系统管理
-              </Badge>
-              <p className="text-sm leading-6 text-muted-foreground">查看数据库与缓存运行状态，并支持一键清除缓存。</p>
+    <div className="w-full space-y-6">
+      <Card className="overflow-hidden border-border/80 shadow-[0_20px_45px_-24px_rgba(15,23,42,0.26)]">
+        <CardHeader className="space-y-3 bg-gradient-to-r from-cyan-500/10 via-sky-500/10 to-transparent">
+          <Badge variant="outline" className="w-fit rounded-md border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300">
+            系统管理
+          </Badge>
+          <CardTitle>数据库状态</CardTitle>
+          <CardDescription>支持修改数据状态，并实时查看数据库状态、表状态、数据状态与最近系统状态。</CardDescription>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" onClick={() => void loadOverview()} disabled={loading || saving}>
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              {loading ? '刷新中...' : '刷新状态'}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6 p-5 sm:p-7">
+          {error ? <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">{error}</div> : null}
+          {success ? (
+            <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-4 py-2.5 text-sm text-emerald-700 dark:text-emerald-300">
+              {success}
             </div>
-            <div className="flex flex-wrap items-center gap-2 self-start rounded-lg border border-border/70 bg-muted/30 p-1.5">
-              <Button type="button" variant="outline" onClick={() => void loadStatus(true)} disabled={loading || clearing}>
-                {loading ? '刷新中...' : '刷新状态'}
-              </Button>
-              <Button type="button" onClick={() => setConfirmDialogOpen(true)} disabled={loading || clearing}>
-                {clearing ? '清理中...' : '清除缓存'}
-              </Button>
-            </div>
+          ) : null}
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {summaryCards.map((card) => (
+              <div key={card.key} className="rounded-xl border border-border/70 bg-card/70 p-4">
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <p className="text-xs">{card.title}</p>
+                  {card.icon}
+                </div>
+                <p className={cn('mt-2 text-xl font-semibold', card.tone)}>{card.value}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{card.hint}</p>
+              </div>
+            ))}
           </div>
 
-          <Separator />
+          <Card className="border-border/70 bg-muted/20">
+            <CardHeader>
+              <CardTitle className="text-base">修改数据状态</CardTitle>
+              <CardDescription>用于控制当前业务数据是否开放写入、维护或暂停。</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-3 md:grid-cols-[220px_1fr_auto]">
+              <Select value={selectedStatus} onValueChange={(value: DataLifecycleStatus) => setSelectedStatus(value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="选择状态" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">正常运行</SelectItem>
+                  <SelectItem value="maintenance">维护中</SelectItem>
+                  <SelectItem value="read_only">只读模式</SelectItem>
+                  <SelectItem value="paused">暂停更新</SelectItem>
+                </SelectContent>
+              </Select>
+              <Input placeholder="变更备注（可选）" value={statusNote} onChange={(event) => setStatusNote(event.target.value)} maxLength={500} />
+              <Button onClick={() => void onSaveStatus()} disabled={saving || loading}>
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                {saving ? '保存中...' : '保存状态'}
+              </Button>
+            </CardContent>
+          </Card>
 
-          {error ? <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">{error}</div> : null}
-          {successMessage ? (
-            <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-sm text-emerald-700 dark:text-emerald-300">
-              {successMessage}
-            </div>
-          ) : null}
-          {cacheNotice ? (
-            <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-700 dark:text-amber-300">
-              {cacheNotice}
-            </div>
-          ) : null}
-
-          {!status && !loading ? (
-            <div className="rounded-md border border-border/60 bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
-              暂无本地缓存数据。请点击“刷新状态”加载最新内容。
-            </div>
-          ) : null}
-
-          <div className="grid gap-6 lg:grid-cols-2">
-            {/* 数据库状态卡片 */}
-            <Card
-              className={cn(
-                'border-border/70 dark:border-emerald-500/20 overflow-hidden bg-card dark:bg-gradient-to-br dark:from-emerald-950/30 dark:to-card',
-                loading ? 'ring-1 ring-emerald-400/40' : ''
-              )}
-            >
-              <CardHeader className="bg-gradient-to-r from-emerald-500/5 to-transparent dark:from-emerald-500/10 dark:to-transparent border-b border-border/50 dark:border-emerald-500/20 pb-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-base font-semibold">数据库状态</CardTitle>
-                    <CardDescription className="text-xs mt-1">后端主库连通性和数据源信息</CardDescription>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {loading ? (
-                      <div className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-700 dark:text-emerald-300">
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        <span>刷新中</span>
-                      </div>
-                    ) : null}
-                    <div className={cn(
-                      "flex h-10 w-10 items-center justify-center rounded-full transition-transform duration-300",
-                      status?.database.healthy
-                        ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
-                        : "bg-destructive/10 text-destructive",
-                      loading ? 'animate-pulse' : ''
-                    )}>
-                      {status?.database.healthy ? <CheckCircle2 className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
-                    </div>
-                  </div>
-                </div>
+          <div className="grid gap-6 xl:grid-cols-[1.35fr_1fr]">
+            <Card className="border-border/70">
+              <CardHeader>
+                <CardTitle className="text-base">数据表状态</CardTitle>
+                <CardDescription>检查各表数据规模、最近更新时间和健康状态。</CardDescription>
               </CardHeader>
-              <CardContent className="pt-4 space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2 rounded-xl bg-muted/30 dark:bg-emerald-950/40 dark:border dark:border-emerald-500/20 p-4">
-                    <p className="text-xs font-medium text-muted-foreground dark:text-emerald-200/70">数据库引擎</p>
-                    <p className="text-sm font-semibold dark:text-emerald-50">{status?.database.engine || '-'}</p>
-                  </div>
-                  <div className="space-y-2 rounded-xl bg-muted/30 dark:bg-emerald-950/40 dark:border dark:border-emerald-500/20 p-4">
-                    <p className="text-xs font-medium text-muted-foreground dark:text-emerald-200/70">检查时间</p>
-                    <p className="text-sm font-semibold dark:text-emerald-50">{formatDateTime(status?.database.checked_at ?? null)}</p>
-                  </div>
-                </div>
-                <div className="space-y-2 rounded-xl bg-muted/30 dark:bg-emerald-950/40 dark:border dark:border-emerald-500/20 p-4">
-                  <p className="text-xs font-medium text-muted-foreground dark:text-emerald-200/70">数据源</p>
-                  <p className="break-all text-sm font-mono font-semibold dark:text-emerald-100">{status?.database.source || '-'}</p>
+              <CardContent>
+                <div className="rounded-lg border border-border/70">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>表名</TableHead>
+                        <TableHead>行数</TableHead>
+                        <TableHead>最后更新</TableHead>
+                        <TableHead>状态</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {!overview || overview.tables.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center text-muted-foreground">
+                            {loading ? '加载中...' : '暂无表状态数据'}
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        overview.tables.map((item) => (
+                          <TableRow key={item.table_name}>
+                            <TableCell className="font-medium">{item.table_name}</TableCell>
+                            <TableCell>{item.row_count == null ? '-' : formatNumber(item.row_count)}</TableCell>
+                            <TableCell>{formatDateTime(item.last_updated_at)}</TableCell>
+                            <TableCell>
+                              <span className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-xs', tableStatusTone(item.status))}>
+                                {item.status}
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
                 </div>
               </CardContent>
             </Card>
 
-            {/* 缓存状态卡片 */}
-            <Card className="border-border/70 dark:border-blue-500/20 overflow-hidden bg-card dark:bg-gradient-to-br dark:from-blue-950/30 dark:to-card">
-              <CardHeader className="bg-gradient-to-r from-blue-500/5 to-transparent dark:from-blue-500/10 dark:to-transparent border-b border-border/50 dark:border-blue-500/20 pb-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-base font-semibold">缓存状态</CardTitle>
-                    <CardDescription className="text-xs mt-1">SQLite 查询缓存与 TTL 信息</CardDescription>
-                  </div>
-                  <div className={cn(
-                    "flex h-10 w-10 items-center justify-center rounded-full",
-                    status?.cache.exists 
-                      ? "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
-                      : "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400"
-                  )}>
-                    <Database className="h-5 w-5" />
-                  </div>
-                </div>
+            <Card className="border-border/70">
+              <CardHeader>
+                <CardTitle className="text-base">最近系统状态</CardTitle>
+                <CardDescription>展示数据状态和最近任务执行反馈。</CardDescription>
               </CardHeader>
-              <CardContent className="pt-4 space-y-4">
-                {/* 文件信息组 */}
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="space-y-2 rounded-xl bg-muted/30 dark:bg-blue-950/40 dark:border dark:border-blue-500/20 p-4 text-center">
-                    <p className="text-xs font-medium text-muted-foreground dark:text-blue-200/70">缓存文件</p>
-                    <p className={cn("text-sm font-semibold", status?.cache.exists ? "text-blue-600 dark:text-blue-400" : "text-amber-600 dark:text-amber-400")}>
-                      {status?.cache.exists ? '已就绪' : '未创建'}
-                    </p>
-                  </div>
-                  <div className="space-y-2 rounded-xl bg-muted/30 dark:bg-blue-950/40 dark:border dark:border-blue-500/20 p-4 text-center">
-                    <p className="text-xs font-medium text-muted-foreground dark:text-blue-200/70">文件大小</p>
-                    <p className="text-sm font-semibold dark:text-blue-100">{status ? formatBytes(status.cache.file_size_bytes) : '-'}</p>
-                  </div>
-                  <div className="space-y-2 rounded-xl bg-muted/30 dark:bg-blue-950/40 dark:border dark:border-blue-500/20 p-4 text-center">
-                    <p className="text-xs font-medium text-muted-foreground dark:text-blue-200/70">TTL</p>
-                    <p className="text-sm font-semibold dark:text-blue-100">{status ? `${status.cache.ttl_seconds} 秒` : '-'}</p>
-                  </div>
-                </div>
-
-                {/* 缓存路径 */}
-                <div className="space-y-2 rounded-xl bg-muted/30 dark:bg-blue-950/40 dark:border dark:border-blue-500/20 p-4">
-                  <p className="text-xs font-medium text-muted-foreground dark:text-blue-200/70">缓存路径</p>
-                  <p className="break-all text-xs font-mono font-semibold dark:text-blue-100">{status?.cache.sqlite_path || '-'}</p>
-                </div>
-
-                {/* 统计数据 */}
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="space-y-2 rounded-xl bg-blue-50/80 dark:bg-blue-950/60 p-4 text-center border border-blue-200 dark:border-blue-500/40 shadow-sm dark:shadow-lg dark:shadow-blue-500/10">
-                    <p className="text-xs font-semibold text-blue-700 dark:text-blue-300">总记录数</p>
-                    <p className="text-lg font-bold text-blue-700 dark:text-blue-300">{status?.cache.total_entries ?? '-'}</p>
-                  </div>
-                  <div className="space-y-2 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/60 p-4 text-center border border-emerald-200 dark:border-emerald-500/40 shadow-sm dark:shadow-lg dark:shadow-emerald-500/10">
-                    <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">有效记录</p>
-                    <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{status?.cache.active_entries ?? '-'}</p>
-                  </div>
-                  <div className="space-y-2 rounded-xl bg-amber-50/80 dark:bg-amber-950/60 p-4 text-center border border-amber-200 dark:border-amber-500/40 shadow-sm dark:shadow-lg dark:shadow-amber-500/10">
-                    <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">过期记录</p>
-                    <p className="text-lg font-bold text-amber-700 dark:text-amber-300">{status?.cache.expired_entries ?? '-'}</p>
-                  </div>
-                </div>
-
-                {/* 时间信息 */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2 rounded-xl bg-muted/30 dark:bg-blue-950/40 dark:border dark:border-blue-500/20 p-4">
-                    <p className="text-xs font-medium text-muted-foreground dark:text-blue-200/70">最近写入</p>
-                    <p className="text-sm font-semibold dark:text-blue-100">{formatDateTime(status?.cache.latest_updated_at ?? null)}</p>
-                  </div>
-                  <div className="space-y-2 rounded-xl bg-muted/30 dark:bg-blue-950/40 dark:border dark:border-blue-500/20 p-4">
-                    <p className="text-xs font-medium text-muted-foreground dark:text-blue-200/70">最近到期</p>
-                    <p className="text-sm font-semibold dark:text-blue-100">{formatDateTime(status?.cache.nearest_expire_at ?? null)}</p>
-                  </div>
-                </div>
+              <CardContent className="space-y-3">
+                {!overview || overview.recent_statuses.length === 0 ? (
+                  <div className="rounded-md border border-border/70 p-3 text-sm text-muted-foreground">暂无系统状态记录</div>
+                ) : (
+                  overview.recent_statuses.map((item, index) => (
+                    <div key={`${item.source}-${index}`} className="rounded-lg border border-border/70 bg-card/60 p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 text-sm font-medium">
+                          {item.level === 'failed' || item.level === 'error' ? (
+                            <AlertTriangle className="h-4 w-4 text-destructive" />
+                          ) : (
+                            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                          )}
+                          <span>{item.source}</span>
+                        </div>
+                        <Badge variant="outline" className="text-[11px]">
+                          {item.level}
+                        </Badge>
+                      </div>
+                      <p className="mt-2 text-sm text-muted-foreground">{item.message}</p>
+                      <p className="mt-2 text-xs text-muted-foreground">{formatDateTime(item.occurred_at)}</p>
+                    </div>
+                  ))
+                )}
               </CardContent>
             </Card>
           </div>
 
           <p className="text-xs leading-5 text-muted-foreground">
-            页面会先展示本地缓存并在进入后自动刷新；执行“清除缓存”会清空后端查询缓存，并同步更新当前状态。
+            数据源：{overview?.database.source || '-'}，检查时间：{formatDateTime(overview?.database.checked_at || null)}。
           </p>
         </CardContent>
       </Card>
-
-      <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>确认清除缓存</DialogTitle>
-            <DialogDescription>
-              该操作会删除缓存数据库中的全部查询缓存记录。操作不可撤销，但不会影响主数据库数据。
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setConfirmDialogOpen(false)} disabled={clearing}>
-              取消
-            </Button>
-            <Button type="button" onClick={() => void onClearCache()} disabled={clearing}>
-              {clearing ? '清理中...' : '确认清除'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

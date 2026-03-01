@@ -16,11 +16,9 @@ cp .env.example .env
 ./run_api.sh
 ```
 
-## Run Worker
+Jobs are executed in background one-off Python processes (no Redis required in current mode).
 
-```bash
-./run_worker.sh
-```
+Redis recovery plan: see [`REDIS_PLAN.md`](./REDIS_PLAN.md).
 
 ## Migrations
 
@@ -42,7 +40,7 @@ cd backend
 python scripts/import_blf_basic_info.py --file=/absolute/path/to/BLF_Basic_Info.csv
 ```
 
-## Create Projects Table (Supabase)
+## Create Projects Table (PostgreSQL)
 
 ```bash
 cd backend
@@ -77,14 +75,14 @@ cd backend
 python scripts/init_and_import_projects.py --file=/absolute/path/to/projects.csv
 ```
 
-## Create User Accounts Table (Supabase)
+## Create User Accounts Table (PostgreSQL)
 
 ```bash
 cd backend
 python scripts/create_user_accounts_table.py
 ```
 
-## Seed Admin User (Supabase)
+## Seed Admin User (PostgreSQL)
 
 ```bash
 cd backend

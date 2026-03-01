@@ -10,7 +10,7 @@ from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
 from app.models import ProductCost
-from app.schemas.product_cost import ProductCostCreate
+from app.schemas.product_cost import ProductCostCreate, ProductCostUpdate
 
 DECIMAL_ZERO = Decimal('0')
 COST_DECIMAL_QUANT = Decimal('0.01')
@@ -140,6 +140,50 @@ def upsert_product_cost(db: Session, item: ProductCostCreate, source_file: str |
     db.flush()
     db.refresh(row)
     return row, action
+
+
+def update_product_cost_by_id(
+    db: Session, product_cost_id: int, payload: ProductCostUpdate, source_file: str | None = None
+) -> ProductCost:
+    row = db.execute(select(ProductCost).where(ProductCost.id == product_cost_id)).scalars().first()
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='SKU 成本记录不存在')
+
+    sku = _normalize_text(payload.sku, 'sku')
+    asin = _normalize_text(payload.asin, 'asin')
+    first_leg_unit_cost = _normalize_cost(payload.first_leg_unit_cost, 'first_leg_unit_cost')
+    fob_unit_cost = _normalize_cost(payload.fob_unit_cost, 'fob_unit_cost')
+    currency = _normalize_text(payload.currency or 'USD', 'currency')
+    normalized_source_file = (source_file or payload.source_file or '').strip() or None
+
+    duplicate = (
+        db.execute(
+            select(ProductCost).where(
+                ProductCost.project_name == row.project_name,
+                ProductCost.sku == sku,
+                ProductCost.asin == asin,
+                ProductCost.id != product_cost_id,
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if duplicate:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail='更新后与现有记录重复（project_name + sku + asin）',
+        )
+
+    row.sku = sku
+    row.asin = asin
+    row.first_leg_unit_cost = first_leg_unit_cost
+    row.fob_unit_cost = fob_unit_cost
+    row.currency = currency
+    row.source_file = normalized_source_file
+
+    db.flush()
+    db.refresh(row)
+    return row
 
 
 def bulk_upsert_product_costs(

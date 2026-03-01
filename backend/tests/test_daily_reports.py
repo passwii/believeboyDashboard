@@ -24,20 +24,24 @@ def test_daily_reports_requires_api_key():
 
 
 def test_daily_reports_creates_job(monkeypatch):
-    def fake_enqueue_job(db, settings, payload, operator=None):  # noqa: ARG001
-        assert payload['job_type'] == 'daily_report'
-        assert payload['file_id'] == 'sales.txt'
-        assert payload['params']['file_ids']['sales_report'] == 'sales.txt'
-        assert payload['params']['file_ids']['ad_report'] == 'ad.xlsx'
-        assert payload['params']['file_ids']['inventory_report'] == 'inventory.txt'
-        assert operator == 'operator@example.com'
+    def fake_build_path(settings, project_name, file_type, file_id):  # noqa: ARG001
+        return f'/tmp/{project_name}-{file_type}-{file_id}'
+
+    monkeypatch.setattr('app.api.v1.endpoints.daily_reports.upload_service.build_upload_file_path', fake_build_path)
+
+    def fake_create_task(settings, *, report_type, input_path, params):  # noqa: ARG001
+        assert report_type == 'daily_report'
+        assert input_path.endswith('sales_report-sales.txt')
+        assert params['file_ids']['sales_report'] == 'sales.txt'
+        assert params['file_ids']['ad_report'] == 'ad.xlsx'
+        assert params['file_ids']['inventory_report'] == 'inventory.txt'
         return SimpleNamespace(
             id=456,
             status='pending',
             created_at=datetime.now(UTC),
         )
 
-    monkeypatch.setattr('app.api.v1.endpoints.daily_reports.job_service.enqueue_job', fake_enqueue_job)
+    monkeypatch.setattr('app.api.v1.endpoints.daily_reports.analysis_report_runtime_service.create_task', fake_create_task)
 
     response = client.post(
         '/api/v1/daily-reports',
@@ -53,4 +57,45 @@ def test_daily_reports_creates_job(monkeypatch):
     assert response.status_code == 200
     payload = response.json()
     assert payload['job_id'] == 456
+    assert payload['status_endpoint'] == '/api/v1/daily-reports/tasks/456'
+    assert payload['result_endpoint'] == '/api/v1/daily-reports/tasks/456/result'
     assert payload['status'] == 'pending'
+
+
+def test_daily_report_task_status(monkeypatch):
+    now = datetime.now(UTC)
+    monkeypatch.setattr(
+        'app.api.v1.endpoints.daily_reports.analysis_report_runtime_service.get_task',
+        lambda task_id: SimpleNamespace(
+            id=task_id,
+            report_type='daily_report',
+            status='running',
+            stage='processing',
+            progress=30,
+            message='处理中',
+            error_message=None,
+            created_at=now,
+            updated_at=now,
+        ),
+    )
+
+    response = client.get('/api/v1/daily-reports/tasks/456', headers={'X-API-Key': get_settings().api_key})
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload['task_id'] == 456
+    assert payload['status'] == 'running'
+
+
+def test_daily_report_task_result(monkeypatch):
+    monkeypatch.setattr(
+        'app.api.v1.endpoints.daily_reports.analysis_report_runtime_service.get_task',
+        lambda task_id: SimpleNamespace(
+            id=task_id,
+            report_type='daily_report',
+            status=SimpleNamespace(value='success'),
+            result_path=__file__,
+        ),
+    )
+
+    response = client.get('/api/v1/daily-reports/tasks/456/result', headers={'X-API-Key': get_settings().api_key})
+    assert response.status_code == 200

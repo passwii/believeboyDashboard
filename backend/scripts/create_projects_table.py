@@ -18,12 +18,27 @@ create table if not exists public.projects (
   project_name text not null,
   brand_name text,
   store_address text,
+  project_operator text,
+  commission_basis text,
+  commission_rate numeric(7,4),
   sort_order integer not null check (sort_order >= 0),
   source_file text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint projects_project_name_key unique (project_name)
 );
+
+alter table public.projects add column if not exists project_operator text;
+alter table public.projects add column if not exists commission_basis text;
+alter table public.projects add column if not exists commission_rate numeric(7,4);
+alter table public.projects drop constraint if exists projects_commission_basis_check;
+alter table public.projects
+  add constraint projects_commission_basis_check
+  check (commission_basis is null or commission_basis in ('sales_amount', 'cash_received', 'profit_margin'));
+alter table public.projects drop constraint if exists projects_commission_rate_check;
+alter table public.projects
+  add constraint projects_commission_rate_check
+  check (commission_rate is null or (commission_rate >= 0 and commission_rate <= 1));
 
 create index if not exists idx_projects_sort_order on public.projects (sort_order);
 

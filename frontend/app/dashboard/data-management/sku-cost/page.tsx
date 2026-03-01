@@ -37,22 +37,18 @@ type ProductCostsPage = {
   has_next: boolean
 }
 
+type ProjectOption = {
+  id?: number | null
+  name: string
+}
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
 const API_KEY = process.env.NEXT_PUBLIC_BACKEND_API_KEY ?? ''
 const REMOTE_FETCH_PAGE_SIZE = 200
 const PAGE_SIZE_OPTIONS = [20, 50, 100]
 const DEFAULT_PAGE_SIZE = 20
-const SKU_COST_CACHE_KEY = 'sku-cost-cache:full:v2'
 
-type ProductCostsCache = {
-  items: ProductCostItem[]
-  projectFilter: string
-  skuFilter: string
-  asinFilter: string
-  pageSize: number
-}
-
-function authHeaders() {
+function authHeaders(): Record<string, string> {
   return API_KEY ? { 'X-API-Key': API_KEY } : {}
 }
 
@@ -72,7 +68,10 @@ export default function SkuCostPage() {
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [hydratedFromCache, setHydratedFromCache] = useState(false)
+
+  const [projects, setProjects] = useState<ProjectOption[]>([])
+  const [projectsLoading, setProjectsLoading] = useState(true)
+  const [projectLoadError, setProjectLoadError] = useState<string | null>(null)
 
   const [projectFilter, setProjectFilter] = useState('')
   const [skuFilter, setSkuFilter] = useState('')
@@ -81,6 +80,13 @@ export default function SkuCostPage() {
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [addText, setAddText] = useState('')
   const [addSubmitting, setAddSubmitting] = useState(false)
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [editSubmitting, setEditSubmitting] = useState(false)
+  const [editSku, setEditSku] = useState('')
+  const [editAsin, setEditAsin] = useState('')
+  const [editFirstLegCost, setEditFirstLegCost] = useState('')
+  const [editFobCost, setEditFobCost] = useState('')
+  const [editCurrency, setEditCurrency] = useState('USD')
 
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
@@ -93,42 +99,6 @@ export default function SkuCostPage() {
     const end = start + pageSize
     return items.slice(start, end)
   }, [items, page, pageSize])
-
-  const readCache = (): ProductCostsCache | null => {
-    try {
-      const raw = window.localStorage.getItem(SKU_COST_CACHE_KEY)
-      if (!raw) {
-        return null
-      }
-      const parsed = JSON.parse(raw) as ProductCostsCache
-      if (!Array.isArray(parsed.items)) {
-        return null
-      }
-      setItems(parsed.items)
-      setPage(1)
-      setPageSize(
-        typeof parsed.pageSize === 'number' && PAGE_SIZE_OPTIONS.includes(parsed.pageSize)
-          ? parsed.pageSize
-          : DEFAULT_PAGE_SIZE
-      )
-      setProjectFilter(parsed.projectFilter ?? '')
-      setSkuFilter(parsed.skuFilter ?? '')
-      setAsinFilter(parsed.asinFilter ?? '')
-      setHydratedFromCache(true)
-      return parsed
-    } catch {
-      // Ignore broken cache and continue with remote data
-      return null
-    }
-  }
-
-  const writeCache = (cache: ProductCostsCache) => {
-    try {
-      window.localStorage.setItem(SKU_COST_CACHE_KEY, JSON.stringify(cache))
-    } catch {
-      // Ignore quota/cache write errors
-    }
-  }
 
   const fetchAllData = async (filters?: { project_name?: string; sku?: string; asin?: string }) => {
     const projectValue = (filters?.project_name ?? projectFilter).trim()
@@ -181,7 +151,7 @@ export default function SkuCostPage() {
 
     try {
       const result = await fetchAllData(filters)
-      const newItems = result.items
+      const newItems = [...result.items].sort((a, b) => a.id - b.id)
       setItems(newItems)
       setPage((prev) => {
         if (options?.resetPage) {
@@ -190,14 +160,6 @@ export default function SkuCostPage() {
         const nextTotalPages = Math.max(1, Math.ceil(newItems.length / pageSize))
         return Math.min(prev, nextTotalPages)
       })
-      writeCache({
-        items: newItems,
-        projectFilter: result.projectValue,
-        skuFilter: result.skuValue,
-        asinFilter: result.asinValue,
-        pageSize,
-      })
-      setHydratedFromCache(true)
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : '加载失败')
     } finally {
@@ -206,16 +168,26 @@ export default function SkuCostPage() {
   }
 
   useEffect(() => {
-    const cached = readCache()
-    void loadData(
-      {
-        project_name: cached?.projectFilter ?? '',
-        sku: cached?.skuFilter ?? '',
-        asin: cached?.asinFilter ?? '',
-      },
-      { resetPage: true }
-    )
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const loadProjects = async () => {
+      setProjectsLoading(true)
+      setProjectLoadError(null)
+      try {
+        const response = await fetch(`${API_BASE}/api/v1/projects`, {
+          cache: 'no-store',
+          headers: authHeaders(),
+        })
+        if (!response.ok) {
+          throw new Error(await parseError(response))
+        }
+        const data = (await response.json()) as ProjectOption[]
+        setProjects(data)
+      } catch (loadError) {
+        setProjectLoadError(loadError instanceof Error ? loadError.message : '项目列表加载失败')
+      } finally {
+        setProjectsLoading(false)
+      }
+    }
+    void loadProjects()
   }, [])
 
   useEffect(() => {
@@ -224,11 +196,21 @@ export default function SkuCostPage() {
 
   const onRefresh = async () => {
     setSuccessMessage(null)
+    if (!projectFilter.trim()) {
+      setItems([])
+      setError('请先在筛选区域选择项目名')
+      return
+    }
     await loadData()
   }
 
   const onSearch = async () => {
     setSuccessMessage(null)
+    if (!projectFilter.trim()) {
+      setItems([])
+      setError('请先在筛选区域选择项目名')
+      return
+    }
     await loadData(undefined, { resetPage: true })
   }
 
@@ -236,8 +218,24 @@ export default function SkuCostPage() {
     setProjectFilter('')
     setSkuFilter('')
     setAsinFilter('')
+    setItems([])
+    setPage(1)
+    setError(null)
     setSuccessMessage(null)
-    await loadData({ project_name: '', sku: '', asin: '' }, { resetPage: true })
+  }
+
+  const onProjectFilterChange = async (value: string) => {
+    setProjectFilter(value)
+    setError(null)
+    setSuccessMessage(null)
+    await loadData(
+      {
+        project_name: value,
+        sku: skuFilter,
+        asin: asinFilter,
+      },
+      { resetPage: true }
+    )
   }
 
   const onSubmitSingle = async () => {
@@ -319,7 +317,12 @@ export default function SkuCostPage() {
       setSuccessMessage(`写入完成：新增 ${payload.inserted} 条，更新 ${payload.updated} 条`)
       setAddText('')
       setAddDialogOpen(false)
-      await loadData(undefined, { resetPage: true })
+      if (projectFilter.trim()) {
+        await loadData(undefined, { resetPage: true })
+      } else {
+        setItems([])
+        setPage(1)
+      }
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : '提交失败')
     } finally {
@@ -334,17 +337,78 @@ export default function SkuCostPage() {
     }
     setPageSize(nextPageSize)
     setPage(1)
-    writeCache({
-      items,
-      projectFilter,
-      skuFilter,
-      asinFilter,
-      pageSize: nextPageSize,
-    })
+  }
+
+  const startEditRow = (row: ProductCostItem) => {
+    setEditingId(row.id)
+    setEditSku(row.sku)
+    setEditAsin(row.asin)
+    setEditFirstLegCost(String(row.first_leg_unit_cost))
+    setEditFobCost(String(row.fob_unit_cost))
+    setEditCurrency(row.currency || 'USD')
+    setError(null)
+    setSuccessMessage(null)
+  }
+
+  const cancelEditRow = () => {
+    setEditingId(null)
+    setEditSubmitting(false)
+  }
+
+  const onSaveEditRow = async (rowId: number) => {
+    const sku = editSku.trim()
+    const asin = editAsin.trim()
+    const currency = editCurrency.trim() || 'USD'
+    const firstLeg = Number(editFirstLegCost)
+    const fob = Number(editFobCost)
+
+    if (!sku || !asin) {
+      setError('SKU 和 ASIN 不能为空')
+      return
+    }
+    if (Number.isNaN(firstLeg) || Number.isNaN(fob) || firstLeg < 0 || fob < 0) {
+      setError('头程单价和 FOB 单价必须为大于等于 0 的数字')
+      return
+    }
+
+    setEditSubmitting(true)
+    setError(null)
+    setSuccessMessage(null)
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/product-costs/${rowId}`, {
+        method: 'PATCH',
+        headers: {
+          ...authHeaders(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sku,
+          asin,
+          first_leg_unit_cost: firstLeg,
+          fob_unit_cost: fob,
+          currency,
+          source_file: 'manual_inline_edit',
+        }),
+      })
+      if (!response.ok) {
+        throw new Error(await parseError(response))
+      }
+      const updated = (await response.json()) as ProductCostItem
+      const nextItems = items
+        .map((item) => (item.id === updated.id ? updated : item))
+        .sort((a, b) => a.id - b.id)
+      setItems(nextItems)
+      setEditingId(null)
+      setSuccessMessage('该行已更新')
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : '保存失败')
+    } finally {
+      setEditSubmitting(false)
+    }
   }
 
   return (
-    <div className="mx-auto max-w-[1400px] space-y-6">
+    <div className="w-full space-y-6">
       <Card className="overflow-hidden border-border/80 shadow-[0_20px_40px_-22px_rgba(15,23,42,0.22)]">
         <CardContent className="space-y-6 p-6 md:p-8">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -414,12 +478,26 @@ export default function SkuCostPage() {
                 <label className="text-sm font-medium text-foreground" htmlFor="filter-project">
                   项目名
                 </label>
-                <Input
-                  id="filter-project"
-                  placeholder="例如：宝勒1店"
+                <Select
                   value={projectFilter}
-                  onChange={(e) => setProjectFilter(e.target.value)}
-                />
+                  onValueChange={(value) => void onProjectFilterChange(value)}
+                  disabled={projectsLoading || projects.length === 0}
+                >
+                  <SelectTrigger id="filter-project">
+                    <SelectValue placeholder={projectsLoading ? '项目加载中...' : projects.length ? '请选择项目名' : '暂无可选项目'} />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-64 overflow-y-auto">
+                    {projects.map((project) => (
+                      <SelectItem key={project.name} value={project.name}>
+                        {project.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {!projectsLoading && projects.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">暂无项目，请先到“项目信息”页面新增。</p>
+                ) : null}
+                {projectLoadError ? <p className="text-xs text-destructive">{projectLoadError}</p> : null}
               </div>
               <div className="grid gap-2">
                 <label className="text-sm font-medium text-foreground" htmlFor="filter-sku">
@@ -475,7 +553,7 @@ export default function SkuCostPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="space-y-1">
               <CardTitle className="text-base font-semibold text-foreground">SKU 成本数据</CardTitle>
-              <CardDescription>共 {total} 条记录</CardDescription>
+              <CardDescription>{projectFilter ? `共 ${total} 条记录` : '请选择项目名后查看数据'}</CardDescription>
             </div>
             <Badge variant="outline" className="rounded-md border-border bg-muted text-muted-foreground">
               第 {page} / {totalPages} 页
@@ -489,17 +567,18 @@ export default function SkuCostPage() {
             <table className="w-full caption-bottom text-sm">
               <thead className="[&_tr]:border-b">
                 <tr className="border-b bg-background">
-                  <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">ID</th>
+                  <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">序号</th>
                   <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">项目名</th>
                   <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">SKU</th>
                   <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">ASIN</th>
                   <th className="sticky top-0 z-10 h-12 bg-background px-4 text-right align-middle font-medium text-muted-foreground">头程单价</th>
                   <th className="sticky top-0 z-10 h-12 bg-background px-4 text-right align-middle font-medium text-muted-foreground">FOB单价</th>
                   <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">币种</th>
+                  <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">操作</th>
                 </tr>
               </thead>
               <tbody className="[&_tr:last-child]:border-0">
-                {loading && !hydratedFromCache
+                {loading && items.length === 0
                   ? Array.from({ length: 6 }).map((_, index) => (
                       <tr key={`loading-${index}`} className="border-b transition-colors hover:bg-muted/50">
                         <td className="p-4 align-middle">
@@ -523,26 +602,94 @@ export default function SkuCostPage() {
                         <td className="p-4 align-middle">
                           <Skeleton className="h-4 w-12" />
                         </td>
+                        <td className="p-4 align-middle">
+                          <Skeleton className="h-4 w-24" />
+                        </td>
                       </tr>
                     ))
                   : null}
 
-                {pagedItems.map((row) => (
+                {pagedItems.map((row, index) => (
                   <tr key={row.id} className="border-b transition-colors hover:bg-muted/50">
-                    <td className="p-4 align-middle">{row.id}</td>
+                    <td className="p-4 align-middle">{(page - 1) * pageSize + index + 1}</td>
                     <td className="p-4 align-middle font-medium text-foreground">{row.project_name}</td>
-                    <td className="p-4 align-middle">{row.sku}</td>
-                    <td className="p-4 align-middle">{row.asin}</td>
-                    <td className="p-4 text-right align-middle tabular-nums">{row.first_leg_unit_cost.toFixed(2)}</td>
-                    <td className="p-4 text-right align-middle tabular-nums">{row.fob_unit_cost.toFixed(2)}</td>
-                    <td className="p-4 align-middle">{row.currency}</td>
+                    <td className="p-4 align-middle">
+                      {editingId === row.id ? (
+                        <Input value={editSku} onChange={(e) => setEditSku(e.target.value)} className="h-8 min-w-28" />
+                      ) : (
+                        row.sku
+                      )}
+                    </td>
+                    <td className="p-4 align-middle">
+                      {editingId === row.id ? (
+                        <Input value={editAsin} onChange={(e) => setEditAsin(e.target.value)} className="h-8 min-w-28" />
+                      ) : (
+                        row.asin
+                      )}
+                    </td>
+                    <td className="p-4 text-right align-middle tabular-nums">
+                      {editingId === row.id ? (
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={editFirstLegCost}
+                          onChange={(e) => setEditFirstLegCost(e.target.value)}
+                          className="ml-auto h-8 w-24"
+                        />
+                      ) : (
+                        row.first_leg_unit_cost.toFixed(2)
+                      )}
+                    </td>
+                    <td className="p-4 text-right align-middle tabular-nums">
+                      {editingId === row.id ? (
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={editFobCost}
+                          onChange={(e) => setEditFobCost(e.target.value)}
+                          className="ml-auto h-8 w-24"
+                        />
+                      ) : (
+                        row.fob_unit_cost.toFixed(2)
+                      )}
+                    </td>
+                    <td className="p-4 align-middle">
+                      {editingId === row.id ? (
+                        <Input value={editCurrency} onChange={(e) => setEditCurrency(e.target.value)} className="h-8 w-20" />
+                      ) : (
+                        row.currency
+                      )}
+                    </td>
+                    <td className="p-4 align-middle">
+                      {editingId === row.id ? (
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={() => void onSaveEditRow(row.id)}
+                            disabled={editSubmitting}
+                          >
+                            {editSubmitting ? '保存中...' : '保存'}
+                          </Button>
+                          <Button type="button" size="sm" variant="outline" onClick={cancelEditRow} disabled={editSubmitting}>
+                            取消
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button type="button" size="sm" variant="outline" onClick={() => startEditRow(row)} disabled={editSubmitting}>
+                          编辑
+                        </Button>
+                      )}
+                    </td>
                   </tr>
                 ))}
 
                 {!loading && pagedItems.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-sm text-muted-foreground">
-                      当前筛选条件下暂无数据，请调整筛选或导入新记录。
+                    <td colSpan={8} className="py-12 text-center text-sm text-muted-foreground">
+                      {projectFilter ? '当前筛选条件下暂无数据，请调整筛选或导入新记录。' : '请先在筛选条件中选择项目名，再读取并展示数据。'}
                     </td>
                   </tr>
                 ) : null}

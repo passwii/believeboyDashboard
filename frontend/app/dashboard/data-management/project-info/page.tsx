@@ -185,7 +185,7 @@ export default function StoreInfoPage() {
   }
 
   return (
-    <div className="mx-auto max-w-[1400px] space-y-6">
+    <div className="w-full space-y-6">
       <Card className="overflow-hidden border-border/80 shadow-[0_20px_40px_-22px_rgba(15,23,42,0.22)]">
         <CardContent className="space-y-6 p-6 md:p-8">
           <div className="flex flex-wrap items-start justify-between gap-4">

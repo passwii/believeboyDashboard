@@ -2,7 +2,16 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import type { DragEvent } from 'react'
-import { AlertCircle, Download, FileSearch, Loader2, Sparkles, Upload } from 'lucide-react'
+import {
+  AlertCircle,
+  CalendarDays,
+  Download,
+  FileSearch,
+  Loader2,
+  Sparkles,
+  Upload,
+  X,
+} from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 import { recognizeDataFile, type RecognizedFileType } from '@/lib/file-recognition'
@@ -12,11 +21,13 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 
-type UploadType = 'payment_report' | 'monthly_summary_pdf'
+type UploadType = 'sales_report' | 'ad_report' | 'inventory_report'
 type AssignedType = UploadType | 'skip'
 type UploadStatus = 'empty' | 'ready' | 'uploading' | 'success' | 'error'
 
-type ProjectOption = { name: string }
+type ProjectOption = {
+  name: string
+}
 
 type MappingRow = {
   id: string
@@ -28,6 +39,7 @@ type MappingRow = {
 }
 
 type UploadFileMeta = {
+  filePath: string
   filename: string
   originalFilename: string
 }
@@ -48,13 +60,12 @@ type SubmitState = {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
 const API_KEY = process.env.NEXT_PUBLIC_BACKEND_API_KEY ?? ''
-const REQUIRED_TYPES: UploadType[] = ['payment_report', 'monthly_summary_pdf']
-const TXN_FILE_RE = /^\d{4}[A-Za-z]{3}MonthlyUnifiedTransaction\.csv$/
-const PDF_FILE_RE = /^\d{4}[A-Za-z]{3}MonthlyUnifiedSummary\.pdf$/
+const REQUIRED_TYPES: UploadType[] = ['sales_report', 'ad_report', 'inventory_report']
 
 const TYPE_LABEL: Record<UploadType, string> = {
-  payment_report: '交易明细 CSV',
-  monthly_summary_pdf: '月度总结 PDF',
+  sales_report: '销售报表',
+  ad_report: '广告报表',
+  inventory_report: '库存报告',
 }
 
 function authHeaders(operator?: string): Record<string, string> {
@@ -64,13 +75,20 @@ function authHeaders(operator?: string): Record<string, string> {
   return headers
 }
 
-function currentMonthString() {
-  const now = new Date()
-  now.setDate(1)
-  now.setMonth(now.getMonth() - 1)
-  const y = now.getFullYear()
-  const m = String(now.getMonth() + 1).padStart(2, '0')
-  return `${y}-${m}`
+function resolveApiUrl(path: string) {
+  const base = API_BASE.endsWith('/') ? API_BASE.slice(0, -1) : API_BASE
+  if (/^https?:\/\//i.test(path)) return path
+  if (!path.startsWith('/')) return `${base}/${path}`
+  return `${base}${path}`
+}
+
+function yesterdayDateString() {
+  const date = new Date()
+  date.setDate(date.getDate() - 1)
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
 }
 
 function extractFilenameFromHeader(contentDisposition: string | null) {
@@ -81,33 +99,22 @@ function extractFilenameFromHeader(contentDisposition: string | null) {
   return basicMatch?.[1] ?? null
 }
 
-function isUploadType(value: string): value is UploadType {
-  return value === 'payment_report' || value === 'monthly_summary_pdf'
-}
-
 function createEmptyUploadState(): Record<UploadType, UploadStateItem> {
   return {
-    payment_report: { status: 'empty', mappedRowId: null, selectedFile: null, error: null, uploaded: null },
-    monthly_summary_pdf: { status: 'empty', mappedRowId: null, selectedFile: null, error: null, uploaded: null },
+    sales_report: { status: 'empty', mappedRowId: null, selectedFile: null, error: null, uploaded: null },
+    ad_report: { status: 'empty', mappedRowId: null, selectedFile: null, error: null, uploaded: null },
+    inventory_report: { status: 'empty', mappedRowId: null, selectedFile: null, error: null, uploaded: null },
   }
+}
+
+function isUploadType(value: string): value is UploadType {
+  return value === 'sales_report' || value === 'ad_report' || value === 'inventory_report'
 }
 
 function getAssignedRow(rows: MappingRow[], type: UploadType): MappingRow | null {
   for (let i = rows.length - 1; i >= 0; i -= 1) {
     if (rows[i].assignedType === type) return rows[i]
   }
-  return null
-}
-
-function validateFile(type: UploadType, file: File): string | null {
-  if (type === 'payment_report') {
-    if (!file.name.toLowerCase().endsWith('.csv')) return '交易文件仅支持 .csv'
-    if (!TXN_FILE_RE.test(file.name)) return 'CSV 文件名应为 2026JanMonthlyUnifiedTransaction.csv'
-    return null
-  }
-
-  if (!file.name.toLowerCase().endsWith('.pdf')) return '总结文件仅支持 .pdf'
-  if (!PDF_FILE_RE.test(file.name)) return 'PDF 文件名应为 2026JanMonthlyUnifiedSummary.pdf'
   return null
 }
 
@@ -119,7 +126,7 @@ function getUploadMeta(state: UploadStateItem) {
   return { text: '未识别', dot: 'bg-slate-400', bar: 'bg-slate-300' }
 }
 
-export default function MonthlyReportPage() {
+export default function DailyReportPage() {
   const { data: session } = useSession()
   const currentOperator = (session?.user?.name || session?.user?.email || session?.user?.id || '').trim()
 
@@ -128,12 +135,12 @@ export default function MonthlyReportPage() {
   const [projectLoadError, setProjectLoadError] = useState<string | null>(null)
 
   const [projectName, setProjectName] = useState('')
-  const [reportMonth, setReportMonth] = useState(currentMonthString())
+  const [reportDate, setReportDate] = useState(yesterdayDateString())
   const [formError, setFormError] = useState<string | null>(null)
 
   const [mappingRows, setMappingRows] = useState<MappingRow[]>([])
-  const [dragActive, setDragActive] = useState(false)
   const [mappingBusy, setMappingBusy] = useState(false)
+  const [dragActive, setDragActive] = useState(false)
 
   const [uploadState, setUploadState] = useState<Record<UploadType, UploadStateItem>>(createEmptyUploadState)
   const [uploadBusy, setUploadBusy] = useState(false)
@@ -211,16 +218,17 @@ export default function MonthlyReportPage() {
     [mappingRows]
   )
 
-  const dropZoneHeight = Math.min(380, 190 + Math.max(2, manualMatchRows.length + REQUIRED_TYPES.length) * 30)
+  const dropZoneHeight = Math.min(420, 190 + Math.max(3, manualMatchRows.length + REQUIRED_TYPES.length) * 26)
 
   const canGenerate =
     projectName.trim().length > 0 &&
-    reportMonth.length > 0 &&
+    reportDate.length > 0 &&
     REQUIRED_TYPES.every((type) => uploadState[type].status === 'success') &&
     submitState.status !== 'submitting'
 
   const addFiles = async (files: File[]) => {
     if (!files.length) return
+
     setFormError(null)
     setMappingBusy(true)
 
@@ -300,15 +308,6 @@ export default function MonthlyReportPage() {
       return
     }
 
-    const validationError = validateFile(type, target.selectedFile)
-    if (validationError) {
-      setUploadState((prev) => ({
-        ...prev,
-        [type]: { ...prev[type], status: 'error', error: validationError },
-      }))
-      return
-    }
-
     setUploadState((prev) => ({
       ...prev,
       [type]: { ...prev[type], status: 'uploading', error: null, uploaded: null },
@@ -327,16 +326,17 @@ export default function MonthlyReportPage() {
       })
       if (!response.ok) {
         const message = await response.text()
-        throw new Error(message || '上传失败')
+        throw new Error(message || '文件上传失败，请重试。')
       }
 
       const payload = (await response.json()) as {
+        file_path?: string
         filename?: string
         original_filename?: string
       }
 
-      if (!payload.filename || !payload.original_filename) {
-        throw new Error('上传成功但返回字段不完整')
+      if (!payload.file_path || !payload.filename || !payload.original_filename) {
+        throw new Error('上传成功但响应缺少必要字段。')
       }
 
       setUploadState((prev) => ({
@@ -345,7 +345,11 @@ export default function MonthlyReportPage() {
           ...prev[type],
           status: 'success',
           error: null,
-          uploaded: { filename: payload.filename, originalFilename: payload.original_filename },
+          uploaded: {
+            filePath: payload.file_path,
+            filename: payload.filename,
+            originalFilename: payload.original_filename,
+          },
         },
       }))
     } catch (error) {
@@ -354,7 +358,7 @@ export default function MonthlyReportPage() {
         [type]: {
           ...prev[type],
           status: 'error',
-          error: error instanceof Error ? error.message : '上传失败',
+          error: error instanceof Error ? error.message : '文件上传失败，请重试。',
           uploaded: null,
         },
       }))
@@ -379,30 +383,31 @@ export default function MonthlyReportPage() {
     setSubmitState({ status: 'idle', message: null, filename: null })
 
     if (!projectName.trim()) {
-      setFormError('项目名称不能为空')
+      setFormError('项目名称不能为空。')
       return
     }
-    if (!reportMonth) {
-      setFormError('请选择报表月份')
+    if (!reportDate) {
+      setFormError('报表日期不能为空。')
       return
     }
     if (!REQUIRED_TYPES.every((type) => uploadState[type].status === 'success')) {
-      setFormError('请先完成 CSV + PDF 上传')
+      setFormError('请先完成销售/广告/库存三份文件上传。')
       return
     }
 
-    const transactionFileId = uploadState.payment_report.uploaded?.filename
-    const summaryPdfFileId = uploadState.monthly_summary_pdf.uploaded?.filename
+    const salesReportFileId = uploadState.sales_report.uploaded?.filename
+    const adReportFileId = uploadState.ad_report.uploaded?.filename
+    const inventoryReportFileId = uploadState.inventory_report.uploaded?.filename
 
-    if (!transactionFileId || !summaryPdfFileId) {
-      setFormError('上传结果异常，请重新上传文件')
+    if (!salesReportFileId || !adReportFileId || !inventoryReportFileId) {
+      setFormError('上传结果异常，请重新上传文件。')
       return
     }
 
-    setSubmitState({ status: 'submitting', message: '后端处理中，请稍候...', filename: null })
+    setSubmitState({ status: 'submitting', message: '系统处理中，请稍候...', filename: null })
 
     try {
-      const createResponse = await fetch(`${API_BASE}/api/v1/monthly-reports`, {
+      const createJobResponse = await fetch(`${API_BASE}/api/v1/daily-reports`, {
         method: 'POST',
         headers: {
           ...authHeaders(currentOperator),
@@ -410,19 +415,27 @@ export default function MonthlyReportPage() {
         },
         body: JSON.stringify({
           project_name: projectName.trim(),
-          report_month: reportMonth,
-          transaction_file_id: transactionFileId,
-          summary_pdf_file_id: summaryPdfFileId,
+          report_date: reportDate,
+          sales_report_file_id: salesReportFileId,
+          ad_report_file_id: adReportFileId,
+          inventory_report_file_id: inventoryReportFileId,
         }),
       })
 
-      if (!createResponse.ok) {
-        const message = await createResponse.text()
-        throw new Error(message || '创建任务失败')
+      if (!createJobResponse.ok) {
+        const message = await createJobResponse.text()
+        throw new Error(message || '生成失败，请重试。')
       }
 
-      const created = (await createResponse.json()) as { job_id: number; status?: 'pending' | 'running' | 'success' | 'failed' }
+      const created = (await createJobResponse.json()) as {
+        job_id: number
+        status_endpoint?: string
+        result_endpoint?: string
+        status?: 'pending' | 'running' | 'success' | 'failed'
+      }
       const jobId = created.job_id
+      const statusEndpoint = created.status_endpoint?.trim() || `/api/v1/daily-reports/tasks/${jobId}`
+      const resultEndpoint = created.result_endpoint?.trim() || `/api/v1/daily-reports/tasks/${jobId}/result`
 
       let attempts = 0
       let finished = created.status === 'success'
@@ -431,24 +444,31 @@ export default function MonthlyReportPage() {
       while (attempts < 120 && !finished) {
         attempts += 1
         // eslint-disable-next-line no-await-in-loop
-        const statusResponse = await fetch(`${API_BASE}/api/v1/jobs/${jobId}`, {
+        const statusResponse = await fetch(resolveApiUrl(statusEndpoint), {
           cache: 'no-store',
           headers: authHeaders(currentOperator),
         })
+
         if (!statusResponse.ok) {
           // eslint-disable-next-line no-await-in-loop
           const message = await statusResponse.text()
-          throw new Error(message || '状态查询失败')
+          throw new Error(message || '任务状态查询失败。')
         }
 
         // eslint-disable-next-line no-await-in-loop
         const statusPayload = (await statusResponse.json()) as {
           status: 'pending' | 'running' | 'success' | 'failed'
+          message?: string | null
+          error_message?: string | null
           runs?: Array<{ error_message?: string | null }>
+        }
+        if (statusPayload.message?.trim()) {
+          setSubmitState({ status: 'submitting', message: statusPayload.message.trim(), filename: null })
         }
 
         if (statusPayload.status === 'failed') {
-          failedMessage = statusPayload.runs?.[statusPayload.runs.length - 1]?.error_message ?? '任务失败'
+          failedMessage =
+            statusPayload.error_message ?? statusPayload.runs?.[statusPayload.runs.length - 1]?.error_message ?? '任务执行失败。'
           finished = true
           break
         }
@@ -463,19 +483,20 @@ export default function MonthlyReportPage() {
       }
 
       if (failedMessage) throw new Error(failedMessage)
-      if (!finished) throw new Error('任务超时，请稍后重试')
+      if (!finished) throw new Error('任务执行超时，请稍后重试。')
 
-      const downloadResponse = await fetch(`${API_BASE}/api/v1/jobs/${jobId}/result`, {
+      const response = await fetch(resolveApiUrl(resultEndpoint), {
         headers: authHeaders(currentOperator),
       })
-      if (!downloadResponse.ok) {
-        const message = await downloadResponse.text()
-        throw new Error(message || '下载失败')
+
+      if (!response.ok) {
+        const message = await response.text()
+        throw new Error(message || '结果下载失败。')
       }
 
-      const blob = await downloadResponse.blob()
-      const headerName = extractFilenameFromHeader(downloadResponse.headers.get('Content-Disposition'))
-      const fallbackName = `${projectName.trim()}_Monthly_Report_${reportMonth}.xlsx`
+      const blob = await response.blob()
+      const headerName = extractFilenameFromHeader(response.headers.get('Content-Disposition'))
+      const fallbackName = `${projectName.trim()}_Daily_Report_${reportDate}.xlsx`
       const filename = headerName || fallbackName
 
       const downloadUrl = window.URL.createObjectURL(blob)
@@ -498,16 +519,16 @@ export default function MonthlyReportPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="w-full space-y-6">
       <div className="grid gap-6 xl:grid-cols-2">
         <Card className="shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg">参数配置</CardTitle>
-            <CardDescription>项目名称必填，账期月份默认上个月。</CardDescription>
+            <CardDescription>项目名称必填，日期默认昨天。</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <label htmlFor="project_name" className="text-sm font-medium">项目名称</label>
+              <label htmlFor="project_name" className="text-sm font-medium text-foreground">项目名称</label>
               <Select
                 value={projectName}
                 onValueChange={setProjectName}
@@ -536,8 +557,20 @@ export default function MonthlyReportPage() {
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="report_month" className="text-sm font-medium">账期月份</label>
-              <Input id="report_month" type="month" value={reportMonth} onChange={(event) => setReportMonth(event.target.value)} />
+              <label htmlFor="report_date" className="text-sm font-medium text-foreground">报表日期</label>
+              <div className="flex flex-wrap gap-2">
+                <Input
+                  id="report_date"
+                  type="date"
+                  value={reportDate}
+                  onChange={(event) => setReportDate(event.target.value)}
+                  className="max-w-xs"
+                />
+                <Button type="button" variant="secondary" onClick={() => setReportDate(yesterdayDateString())}>
+                  <CalendarDays className="mr-1 h-4 w-4" />
+                  昨天
+                </Button>
+              </div>
             </div>
 
             {formError ? <p className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">{formError}</p> : null}
@@ -547,17 +580,17 @@ export default function MonthlyReportPage() {
         <Card className="flex min-h-[320px] flex-col shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg">生成与下载</CardTitle>
-            <CardDescription>完成 CSV + PDF 上传后生成财务月报。</CardDescription>
+            <CardDescription>上传三份文件后生成日报并自动下载。</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-1 flex-col gap-4">
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div className="rounded-lg border bg-muted/30 p-3">
                 <p className="text-xs text-muted-foreground">识别覆盖</p>
-                <p className="mt-1 font-semibold">{recognizedCount}/2</p>
+                <p className="mt-1 font-semibold">{recognizedCount}/3</p>
               </div>
               <div className="rounded-lg border bg-muted/30 p-3">
                 <p className="text-xs text-muted-foreground">上传完成</p>
-                <p className="mt-1 font-semibold">{uploadedCount}/2</p>
+                <p className="mt-1 font-semibold">{uploadedCount}/3</p>
               </div>
             </div>
 
@@ -593,7 +626,7 @@ export default function MonthlyReportPage() {
               disabled={!canGenerate}
             >
               {submitState.status === 'submitting' ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1 h-4 w-4" />}
-              生成财务月报
+              生成日报
             </Button>
           </CardContent>
         </Card>
@@ -602,7 +635,7 @@ export default function MonthlyReportPage() {
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle className="text-lg">文件识别与上传</CardTitle>
-          <CardDescription>左侧投递文件，右侧两行状态栏实时展示匹配情况，失败时显示手动匹配。</CardDescription>
+          <CardDescription>左侧投递文件，右侧实时展示三份文件识别状态；匹配失败时出现手动匹配。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="grid gap-5 xl:grid-cols-[300px_1fr]">
@@ -623,22 +656,27 @@ export default function MonthlyReportPage() {
               }}
             >
               <p className="text-sm font-semibold text-foreground">拖拽文件到这里</p>
-              <p className="mt-1 text-xs text-muted-foreground">支持 csv/pdf 批量识别</p>
+              <p className="mt-1 text-xs text-muted-foreground">支持 txt/xlsx 批量识别</p>
 
               <div className="mt-auto space-y-2 pt-4">
-                <Button type="button" variant="outline" className="w-full" onClick={() => document.getElementById('monthly-file-picker')?.click()}>
+                <Button type="button" variant="outline" className="w-full" onClick={() => document.getElementById('daily-report-batch-picker')?.click()}>
                   <FileSearch className="mr-1 h-4 w-4" />
                   选择多个文件
                 </Button>
                 <Input
-                  id="monthly-file-picker"
+                  id="daily-report-batch-picker"
                   type="file"
                   multiple
-                  accept=".csv,.pdf"
+                  accept=".txt,.xlsx"
                   className="hidden"
                   onChange={(event) => void addFiles(Array.from(event.target.files ?? []))}
                 />
-                <Button type="button" className="w-full" onClick={() => void uploadAllConfirmed()} disabled={uploadBusy || mappingBusy || !projectName.trim()}>
+                <Button
+                  type="button"
+                  className="w-full"
+                  onClick={() => void uploadAllConfirmed()}
+                  disabled={uploadBusy || mappingBusy || !projectName.trim()}
+                >
                   {uploadBusy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Upload className="mr-1 h-4 w-4" />}
                   一键上传已匹配文件
                 </Button>
@@ -701,8 +739,9 @@ export default function MonthlyReportPage() {
                             <SelectValue placeholder="手动选择类型" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="payment_report">交易明细 CSV</SelectItem>
-                            <SelectItem value="monthly_summary_pdf">月度总结 PDF</SelectItem>
+                            <SelectItem value="sales_report">销售报表</SelectItem>
+                            <SelectItem value="ad_report">广告报表</SelectItem>
+                            <SelectItem value="inventory_report">库存报告</SelectItem>
                             <SelectItem value="skip">跳过</SelectItem>
                           </SelectContent>
                         </Select>

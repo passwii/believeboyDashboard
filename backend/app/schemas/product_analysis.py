@@ -17,5 +17,20 @@ class CreateProductAnalysisReportRequest(BaseModel):
 
 class ProductAnalysisReportResponse(BaseModel):
     job_id: int
+    status_endpoint: str | None = None
+    result_endpoint: str | None = None
     status: JobStatus
     created_at: datetime | None
+
+
+class ProductAnalysisTaskStatusResponse(BaseModel):
+    task_id: int
+    status: JobStatus
+    stage: str
+    progress: int
+    message: str | None
+    error_message: str | None
+    persistence_status: str
+    persistence_message: str | None
+    created_at: datetime
+    updated_at: datetime

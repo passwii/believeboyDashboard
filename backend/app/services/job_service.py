@@ -1,34 +1,28 @@
 from datetime import datetime, UTC
 from pathlib import Path
+import logging
+import threading
 
-from redis import Redis
-from redis.exceptions import RedisError
-from rq import Queue
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
 from app.models import Job, JobRun, JobStatus
 
+logger = logging.getLogger(__name__)
+
 
 def enqueue_job(db: Session, settings: Settings, payload: dict, operator: str | None = None) -> Job:
+    _ = settings
     job = Job(job_type=payload['job_type'], status=JobStatus.pending, payload_json=payload, operator=operator)
     db.add(job)
     db.commit()
-    db.refresh(job)
+    job_id = job.id
 
-    try:
-        redis = Redis.from_url(settings.redis_url)
-        queue = Queue(name='default', connection=redis)
-        queue.enqueue('worker.tasks.run_job', job.id)
-    except RedisError:
-        if not settings.allow_sync_job_fallback:
-            raise
-        from worker.tasks import run_job
+    from worker.tasks import run_job
 
-        run_job(job.id)
-        db.refresh(job)
-
+    thread = threading.Thread(target=run_job, args=(job_id,), daemon=True, name=f'job-runner-{job_id}')
+    thread.start()
     return job
 
 
@@ -55,7 +49,8 @@ def mark_job_success(db: Session, job: Job, run: JobRun, result_path: str, log_e
     job.status = JobStatus.success
     run.finished_at = datetime.now(UTC)
     run.result_path = result_path
-    run.log_excerpt = log_excerpt
+    if log_excerpt is not None:
+        run.log_excerpt = log_excerpt
     db.commit()
 
 
@@ -66,8 +61,12 @@ def mark_job_failed(db: Session, job: Job, run: JobRun, error_message: str) -> N
     db.commit()
 
 
+def update_run_log_excerpt(db: Session, run: JobRun, log_excerpt: str) -> None:
+    run.log_excerpt = log_excerpt
+    db.commit()
+
+
 def resolve_upload_path(settings: Settings, file_id: str) -> Path:
-    candidates = list(settings.upload_root.rglob(file_id))
-    if not candidates:
-        raise FileNotFoundError(f'file_id not found: {file_id}')
-    return candidates[0]
+    for candidate in settings.upload_root.rglob(file_id):
+        return candidate
+    raise FileNotFoundError(f'file_id not found: {file_id}')

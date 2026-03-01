@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { Bot, ChartColumnBig, ClipboardList, Command, Database, FolderKanban, HelpCircle, LayoutDashboard, Search, ShieldUser, SquareTerminal, Wrench } from 'lucide-react'
+import { Bot, Calculator, ChartColumnBig, ClipboardList, Command, Database, FolderKanban, HelpCircle, LayoutDashboard, Search, ShieldUser, SquareTerminal, Wrench } from 'lucide-react'
 import { signOut, useSession } from 'next-auth/react'
 
 import { NavAdmin } from '@/components/dashboard/nav-admin'
@@ -20,7 +20,7 @@ const navMain = [
     items: [
       { title: '运营总览', url: '/dashboard' },
       { title: '站点导航', url: '/dashboard/operations/site-navigation' },
-      { title: '店铺导航', url: '#' },
+      { title: '店铺导航', url: '/dashboard/operations/store-navigation' },
     ],
   },
   {
@@ -61,12 +61,20 @@ const navSecondary = [
 
 const tools = [
   {
+    title: '报表核算',
+    icon: <Calculator className="h-4 w-4" />,
+    items: [
+      { title: '销售日报', url: '/dashboard/data-reporting/daily-report' },
+      { title: '财务月报', url: '/dashboard/data-reporting/monthly-report' },
+      { title: '产品分析', url: '/dashboard/data-reporting/product-analysis' },
+    ],
+  },
+  {
     title: '数据分析',
     icon: <ChartColumnBig className="h-4 w-4" />,
     items: [
-      { title: '销售日报', url: '/dashboard/data-analysis/daily-report' },
-      { title: '财务月报', url: '/dashboard/data-analysis/monthly-report' },
-      { title: '产品分析', url: '/dashboard/data-analysis/product-analysis' },
+      { title: '月度财务分析', url: '/dashboard/data-analysis/financial-data' },
+      { title: '按周产品分析', url: '/dashboard/data-analysis/weekly-product-analysis' },
     ],
   },
   {
@@ -85,6 +93,9 @@ const tools = [
     items: [
       { title: 'SKU成本', url: '/dashboard/data-management/sku-cost' },
       { title: '项目信息', url: '/dashboard/data-management/project-info' },
+      { title: '业务报告', url: '/dashboard/data-management/business-report' },
+      { title: '广告分析', url: '/dashboard/data-management/ad-analysis' },
+      { title: '库存销售分析', url: '/dashboard/data-management/inventory-sales-analysis' },
     ],
   },
 ]
@@ -94,7 +105,7 @@ const adminTools = [
     title: '系统管理',
     icon: <ShieldUser className="h-4 w-4" />,
     items: [
-      { title: '数据管理', url: '/dashboard/system-management/data-management' },
+      { title: '数据库状态', url: '/dashboard/system-management/data-management' },
       { title: '账号管理', url: '/dashboard/system-management/account-management' },
     ],
   },
@@ -107,7 +118,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const displayUser = {
     name: user?.name || 'User',
     email: user?.email || 'unknown',
-    avatar: '/avatars/shadcn.jpg',
+    avatar: user?.image || '/avatars/default.svg',
     isAdmin: Boolean(user?.isAdmin),
   }
 

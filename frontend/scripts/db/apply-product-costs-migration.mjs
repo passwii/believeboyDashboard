@@ -6,11 +6,11 @@ import pg from "pg"
 const { Client } = pg
 
 function buildConnectionStringFromParts() {
-  const host = process.env.SUPABASE_DB_HOST
-  const port = process.env.SUPABASE_DB_PORT ?? "5432"
-  const database = process.env.SUPABASE_DB_NAME ?? "postgres"
-  const user = process.env.SUPABASE_DB_USER ?? "postgres"
-  const password = process.env.SUPABASE_DB_PASSWORD
+  const host = process.env.PGHOST || process.env.SUPABASE_DB_HOST
+  const port = process.env.PGPORT || process.env.SUPABASE_DB_PORT || "5432"
+  const database = process.env.PGDATABASE || process.env.SUPABASE_DB_NAME || "postgres"
+  const user = process.env.PGUSER || process.env.SUPABASE_DB_USER || "postgres"
+  const password = process.env.PGPASSWORD || process.env.SUPABASE_DB_PASSWORD
 
   if (!host || !password) {
     return null
@@ -20,7 +20,7 @@ function buildConnectionStringFromParts() {
 }
 
 function getConnectionString() {
-  return process.env.SUPABASE_DB_URL || process.env.DATABASE_URL || buildConnectionStringFromParts()
+  return process.env.DATABASE_URL || process.env.PG_DATABASE_URL || process.env.SUPABASE_DB_URL || buildConnectionStringFromParts()
 }
 
 async function main() {
@@ -35,13 +35,16 @@ async function main() {
   const connectionString = getConnectionString()
   if (!connectionString) {
     throw new Error(
-      "Missing DB connection. Set SUPABASE_DB_URL / DATABASE_URL or SUPABASE_DB_HOST + SUPABASE_DB_PASSWORD."
+      "Missing DB connection. Set DATABASE_URL (or PGHOST/PGPORT/PGDATABASE/PGUSER/PGPASSWORD)."
     )
   }
 
+  const lower = connectionString.toLowerCase()
+  const useSsl = lower.includes("supabase.co") || lower.includes("sslmode=require")
+
   const client = new Client({
     connectionString,
-    ssl: { rejectUnauthorized: false },
+    ssl: useSsl ? { rejectUnauthorized: false } : undefined,
   })
 
   await client.connect()

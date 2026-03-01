@@ -18,7 +18,7 @@
 |------|------|
 | 前端 | Next.js 14 + TypeScript + Tailwind CSS |
 | UI | shadcn/ui + Radix UI |
-| 后端 | FastAPI (Python) + Supabase (PostgreSQL) |
+| 后端 | FastAPI (Python) + PostgreSQL |
 | 认证 | NextAuth.js |
 | 图表 | Recharts |
 | 表格 | TanStack Table |
@@ -32,7 +32,7 @@ believeboyDashboard/
 │   └── components/   # React 组件
 ├── backend/          # FastAPI 后端
 │   ├── app/         # API 逻辑
-│   ├── worker/      # 异步任务
+│   ├── worker/      # 预留任务模块（当前不依赖 Redis）
 │   └── scripts/     # 数据导入脚本
 └── Docs/            # 项目文档
 ```
@@ -57,9 +57,6 @@ pip install -r requirements.txt
 
 # 启动 API
 ./run_api.sh
-
-# 启动 Worker（后台任务）
-./run_worker.sh
 ```
 
 ### 数据库迁移
@@ -88,7 +85,7 @@ alembic upgrade head
 
 - 前端 → Vercel
 - 后端 → VPS (Systemd)
-- 数据库 → Supabase
+- 数据库 → 本机 PostgreSQL
 
 详细部署文档见 `Docs/04-部署指南.md`
 

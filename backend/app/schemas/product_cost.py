@@ -29,6 +29,15 @@ class ProductCostCreate(BaseModel):
     source_file: str | None = None
 
 
+class ProductCostUpdate(BaseModel):
+    sku: str = Field(min_length=1)
+    asin: str = Field(min_length=1)
+    first_leg_unit_cost: float = 0
+    fob_unit_cost: float = 0
+    currency: str = 'USD'
+    source_file: str | None = None
+
+
 class ProductCostBulkCreate(BaseModel):
     items: list[ProductCostCreate] = Field(min_length=1, max_length=10000)
     source_file: str | None = None

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+from decimal import Decimal, InvalidOperation
 from io import StringIO
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from app.models import ProductCost, Project
 
 DEFAULT_PROJECTS_CSV_PATH = Path(__file__).resolve().parents[3] / 'Docs' / 'ModelFiles' / 'projects.csv'
 PROJECT_NAME_HEADER = '项目名称'
+ALLOWED_COMMISSION_BASIS = {'sales_amount', 'cash_received', 'profit_margin'}
 
 
 def _normalize_optional_text(value: str | None) -> str | None:
@@ -20,6 +22,30 @@ def _normalize_optional_text(value: str | None) -> str | None:
         return None
     normalized = value.strip()
     return normalized or None
+
+
+def _normalize_commission_basis(value: str | None) -> str | None:
+    normalized = _normalize_optional_text(value)
+    if normalized is None:
+        return None
+    if normalized not in ALLOWED_COMMISSION_BASIS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail='commission_basis must be one of sales_amount, cash_received, profit_margin',
+        )
+    return normalized
+
+
+def _normalize_commission_rate(value: float | Decimal | None) -> Decimal | None:
+    if value is None:
+        return None
+    try:
+        rate = Decimal(str(value))
+    except (InvalidOperation, ValueError):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='commission_rate must be numeric')
+    if rate < 0 or rate > 1:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='commission_rate must be between 0 and 1')
+    return rate
 
 
 def read_projects_csv_file(csv_path: Path | None = None) -> tuple[list[str], str, int, int]:
@@ -111,10 +137,10 @@ def list_project_items(db: Session) -> list[Project]:
     return db.execute(stmt).scalars().all()
 
 
-def list_project_options(db: Session) -> list[dict[str, str]]:
+def list_project_options(db: Session) -> list[dict[str, str | int | None]]:
     rows = list_project_items(db)
     if rows:
-        return [{'name': row.project_name} for row in rows]
+        return [{'id': row.id, 'name': row.project_name} for row in rows]
 
     # Backward-compatible fallback: if projects table is empty, use product_costs distinct project names.
     fallback_stmt = select(ProductCost.project_name).distinct().order_by(ProductCost.project_name.asc())
@@ -122,7 +148,7 @@ def list_project_options(db: Session) -> list[dict[str, str]]:
         names = [row[0] for row in db.execute(fallback_stmt).all()]
     except SQLAlchemyError:
         return []
-    return [{'name': name} for name in names]
+    return [{'id': None, 'name': name} for name in names]
 
 
 def create_single_project(
@@ -130,6 +156,9 @@ def create_single_project(
     name: str,
     brand_name: str | None = None,
     store_address: str | None = None,
+    project_operator: str | None = None,
+    commission_basis: str | None = None,
+    commission_rate: float | Decimal | None = None,
     source_file: str | None = None,
 ) -> Project:
     project_name = name.strip()
@@ -145,6 +174,9 @@ def create_single_project(
         project_name=project_name,
         brand_name=_normalize_optional_text(brand_name),
         store_address=_normalize_optional_text(store_address),
+        project_operator=_normalize_optional_text(project_operator),
+        commission_basis=_normalize_commission_basis(commission_basis),
+        commission_rate=_normalize_commission_rate(commission_rate),
         sort_order=int(max_sort_order) + 1,
         source_file=(source_file or '').strip() or 'manual_single_add',
     )
@@ -160,6 +192,9 @@ def update_project(
     name: str,
     brand_name: str | None = None,
     store_address: str | None = None,
+    project_operator: str | None = None,
+    commission_basis: str | None = None,
+    commission_rate: float | Decimal | None = None,
 ) -> Project:
     project_name = name.strip()
     if not project_name:
@@ -176,6 +211,9 @@ def update_project(
     row.project_name = project_name
     row.brand_name = _normalize_optional_text(brand_name)
     row.store_address = _normalize_optional_text(store_address)
+    row.project_operator = _normalize_optional_text(project_operator)
+    row.commission_basis = _normalize_commission_basis(commission_basis)
+    row.commission_rate = _normalize_commission_rate(commission_rate)
     db.flush()
     db.refresh(row)
     return row

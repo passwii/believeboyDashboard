@@ -83,3 +83,19 @@ def save_upload_file(file: UploadFile, settings: Settings, project_name: str, fi
         'original_filename': file.filename,
         'size': size,
     }
+
+
+def build_upload_file_path(settings: Settings, project_name: str, file_type: str, file_id: str) -> Path:
+    if not file_id:
+        raise FileNotFoundError('file_id not found: ')
+
+    project_slug = _safe_project_folder_name(project_name)
+    type_slug = slugify(file_type)[:50] or 'file'
+    return settings.upload_root / project_slug / type_slug / file_id
+
+
+def resolve_upload_file_path(settings: Settings, project_name: str, file_type: str, file_id: str) -> Path:
+    path = build_upload_file_path(settings, project_name, file_type, file_id)
+    if path.exists():
+        return path
+    raise FileNotFoundError(f'file_id not found: {file_id}')

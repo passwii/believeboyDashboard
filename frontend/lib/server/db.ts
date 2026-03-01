@@ -1,11 +1,11 @@
 import { Pool } from 'pg'
 
 function buildConnectionStringFromParts(): string | null {
-  const host = process.env.SUPABASE_DB_HOST
-  const port = process.env.SUPABASE_DB_PORT ?? '5432'
-  const database = process.env.SUPABASE_DB_NAME ?? 'postgres'
-  const user = process.env.SUPABASE_DB_USER ?? 'postgres'
-  const password = process.env.SUPABASE_DB_PASSWORD
+  const host = process.env.PGHOST || process.env.SUPABASE_DB_HOST
+  const port = process.env.PGPORT || process.env.SUPABASE_DB_PORT || '5432'
+  const database = process.env.PGDATABASE || process.env.SUPABASE_DB_NAME || 'postgres'
+  const user = process.env.PGUSER || process.env.SUPABASE_DB_USER || 'postgres'
+  const password = process.env.PGPASSWORD || process.env.SUPABASE_DB_PASSWORD
 
   if (!host || !password) {
     return null
@@ -15,10 +15,14 @@ function buildConnectionStringFromParts(): string | null {
 }
 
 function getDatabaseUrl(): string {
-  const url = process.env.SUPABASE_DB_URL || process.env.DATABASE_URL || buildConnectionStringFromParts()
+  const url =
+    process.env.DATABASE_URL ||
+    process.env.PG_DATABASE_URL ||
+    process.env.SUPABASE_DB_URL ||
+    buildConnectionStringFromParts()
   if (!url) {
     throw new Error(
-      'Missing DB connection. Set SUPABASE_DB_URL / DATABASE_URL or SUPABASE_DB_HOST + SUPABASE_DB_PASSWORD.'
+      'Missing DB connection. Set DATABASE_URL (or PGHOST/PGPORT/PGDATABASE/PGUSER/PGPASSWORD).'
     )
   }
   return url
@@ -32,7 +36,8 @@ declare global {
 export function getDbPool(): Pool {
   if (!global.__believeboy_pg_pool) {
     const connectionString = getDatabaseUrl()
-    const useSsl = connectionString.includes('supabase.co') || connectionString.includes('sslmode=require')
+    const lower = connectionString.toLowerCase()
+    const useSsl = lower.includes('supabase.co') || lower.includes('sslmode=require')
 
     global.__believeboy_pg_pool = new Pool({
       connectionString,
