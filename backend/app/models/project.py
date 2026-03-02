@@ -31,6 +31,7 @@ class Project(Base):
     brand_name: Mapped[str | None] = mapped_column(String, nullable=True)
     store_address: Mapped[str | None] = mapped_column(String, nullable=True)
     project_operator: Mapped[str | None] = mapped_column(String, nullable=True)
+    assistant_operator: Mapped[str | None] = mapped_column(String, nullable=True)
     commission_basis: Mapped[str | None] = mapped_column(String, nullable=True)
     commission_rate: Mapped[Decimal | None] = mapped_column(Numeric(7, 4), nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, index=True)

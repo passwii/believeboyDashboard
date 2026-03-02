@@ -81,7 +81,7 @@ const API_KEY = process.env.NEXT_PUBLIC_BACKEND_API_KEY ?? ''
 function authHeaders(operator?: string): Record<string, string> {
   const headers: Record<string, string> = {}
   if (API_KEY) headers['X-API-Key'] = API_KEY
-  if (operator && operator.trim()) headers['X-Operator'] = operator.trim()
+  if (operator && operator.trim()) headers['X-Operator'] = encodeURIComponent(operator.trim())
   return headers
 }
 

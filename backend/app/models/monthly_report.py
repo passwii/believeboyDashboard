@@ -273,6 +273,7 @@ class MonthlyReportPT4Calculation(Base):
     expense_total: Mapped[Decimal] = _money_column()
 
     amazon_pay_back: Mapped[Decimal] = _money_column()
+    credit_card_deduction_usd: Mapped[Decimal] = _money_column()
     calculation_version: Mapped[int] = mapped_column(Integer, nullable=False, server_default='1')
     computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

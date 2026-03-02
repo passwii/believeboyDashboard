@@ -1,8 +1,8 @@
 "use client"
 
-
-
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
+import Image from "next/image"
+import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -40,7 +40,7 @@ import {
 } from "@/components/ui/pagination"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Pencil, Trash2, Plus, Search, X, RotateCcw } from "lucide-react"
+import { Pencil, Trash2, Plus, RotateCcw, ImagePlus, Loader2 } from "lucide-react"
 
 // 预定义货币选项
 const CURRENCY_OPTIONS = [
@@ -80,8 +80,19 @@ interface ExchangeRate {
   month: number
   rate: number
   description: string | null
+  noteImages: NoteImage[]
   createdAt: string
   updatedAt: string
+}
+
+interface NoteImage {
+  id: string
+  url: string
+  thumbnailUrl?: string
+  filename: string
+  contentType: string
+  size: number
+  uploadedAt: string
 }
 
 interface Filters {
@@ -91,6 +102,8 @@ interface Filters {
 }
 
 export default function ExchangeRatePage() {
+  const { data: session } = useSession()
+  const isAdmin = Boolean(session?.user?.isAdmin)
   const [rates, setRates] = useState<ExchangeRate[]>([])
   const [loading, setLoading] = useState(true)
   const [pagination, setPagination] = useState({
@@ -110,6 +123,8 @@ export default function ExchangeRatePage() {
   const [editingRate, setEditingRate] = useState<ExchangeRate | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deletingRate, setDeletingRate] = useState<ExchangeRate | null>(null)
+  const [previewImage, setPreviewImage] = useState<NoteImage | null>(null)
+  const [uploadingImage, setUploadingImage] = useState(false)
 
   // 表单状态
   const [formData, setFormData] = useState({
@@ -119,10 +134,11 @@ export default function ExchangeRatePage() {
     month: new Date().getMonth() + 1,
     rate: "",
     description: "",
+    noteImages: [] as NoteImage[],
   })
 
   // 获取汇率列表
-  const fetchRates = async () => {
+  const fetchRates = useCallback(async () => {
     setLoading(true)
     try {
       const queryParams = new URLSearchParams({
@@ -148,12 +164,12 @@ export default function ExchangeRatePage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [filters, pagination.page, pagination.pageSize])
 
   // 初始加载
   useEffect(() => {
     fetchRates()
-  }, [pagination.page, filters])
+  }, [fetchRates])
 
   // 处理筛选变化
   const handleFilterChange = (key: keyof Filters, value: string) => {
@@ -177,6 +193,7 @@ export default function ExchangeRatePage() {
       month: new Date().getMonth() + 1,
       rate: "",
       description: "",
+      noteImages: [],
     })
     setDialogOpen(true)
   }
@@ -191,6 +208,7 @@ export default function ExchangeRatePage() {
       month: rate.month,
       rate: rate.rate.toString(),
       description: rate.description || "",
+      noteImages: rate.noteImages || [],
     })
     setDialogOpen(true)
   }
@@ -268,6 +286,51 @@ export default function ExchangeRatePage() {
     }))
   }
 
+  const handleImageUpload = async (file: File | null) => {
+    if (!file) return
+    setUploadingImage(true)
+    try {
+      const payload = new FormData()
+      payload.append("file", file)
+
+      const response = await fetch("/api/exchange-rates/upload-image", {
+        method: "POST",
+        body: payload,
+      })
+      if (!response.ok) {
+        throw new Error("上传图片失败")
+      }
+
+      const result = await response.json()
+      const image = result?.data as NoteImage
+      if (!image?.id || !image?.url) {
+        throw new Error("图片信息异常")
+      }
+
+      setFormData((prev) => ({
+        ...prev,
+        noteImages: [...prev.noteImages, image],
+      }))
+    } catch (error) {
+      console.error("Error uploading image:", error)
+    } finally {
+      setUploadingImage(false)
+    }
+  }
+
+  const handleRemoveImage = (imageId: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      noteImages: prev.noteImages.filter((image) => image.id !== imageId),
+    }))
+  }
+
+  const formatFileSize = (size: number) => {
+    if (size < 1024) return `${size}B`
+    if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)}KB`
+    return `${(size / (1024 * 1024)).toFixed(1)}MB`
+  }
+
   // 生成分页按钮
   const renderPagination = () => {
     const { page, totalPages } = pagination
@@ -340,10 +403,12 @@ export default function ExchangeRatePage() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>汇率信息管理</CardTitle>
-            <Button onClick={handleAdd}>
-              <Plus className="mr-2 h-4 w-4" />
-              新增汇率
-            </Button>
+            {isAdmin ? (
+              <Button onClick={handleAdd}>
+                <Plus className="mr-2 h-4 w-4" />
+                新增汇率
+              </Button>
+            ) : null}
           </div>
         </CardHeader>
         <CardContent>
@@ -435,20 +500,20 @@ export default function ExchangeRatePage() {
                   <TableHead className="text-right">汇率值</TableHead>
                   <TableHead>备注</TableHead>
                   <TableHead>更新时间</TableHead>
-                  <TableHead className="text-right">操作</TableHead>
+                  {isAdmin ? <TableHead className="text-right">操作</TableHead> : null}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="h-24 text-center">
+                    <TableCell colSpan={isAdmin ? 8 : 7} className="h-24 text-center">
                       加载中...
                     </TableCell>
                   </TableRow>
                 ) : rates.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
-                      暂无汇率数据，点击右上角按钮新增
+                    <TableCell colSpan={isAdmin ? 8 : 7} className="h-24 text-center text-muted-foreground">
+                      {isAdmin ? "暂无汇率数据，点击右上角按钮新增" : "暂无汇率数据"}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -463,31 +528,61 @@ export default function ExchangeRatePage() {
                       <TableCell className="text-right font-mono text-sm">
                         {Number(rate.rate).toFixed(6)}
                       </TableCell>
-                      <TableCell className="max-w-[200px] truncate">
-                        {rate.description || "-"}
+                      <TableCell className="max-w-[280px]">
+                        <div className="space-y-2">
+                          <p className="truncate text-sm">{rate.description || "-"}</p>
+                          {rate.noteImages?.length > 0 && (
+                            <div className="flex flex-wrap gap-2">
+                              {rate.noteImages.slice(0, 4).map((image) => (
+                                <button
+                                  key={image.id}
+                                  type="button"
+                                  className="relative h-10 w-10 overflow-hidden rounded border"
+                                  onClick={() => setPreviewImage(image)}
+                                  title={image.filename}
+                                >
+                                  <Image
+                                    src={image.thumbnailUrl || image.url}
+                                    alt={image.filename}
+                                    fill
+                                    className="object-cover"
+                                    unoptimized
+                                  />
+                                </button>
+                              ))}
+                              {rate.noteImages.length > 4 && (
+                                <div className="flex h-10 w-10 items-center justify-center rounded border text-xs text-muted-foreground">
+                                  +{rate.noteImages.length - 4}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         {new Date(rate.updatedAt).toLocaleString("zh-CN")}
                       </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleEdit(rate)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => handleDeleteClick(rate)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
+                      {isAdmin ? (
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleEdit(rate)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => handleDeleteClick(rate)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      ) : null}
                     </TableRow>
                   ))
                 )}
@@ -645,6 +740,70 @@ export default function ExchangeRatePage() {
                 placeholder="可选：添加相关备注信息"
               />
             </div>
+
+            <div className="space-y-3">
+              <Label htmlFor="note-image-upload">备注图片</Label>
+              <div className="flex items-center gap-3">
+                <label
+                  htmlFor="note-image-upload"
+                  className="inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted"
+                >
+                  {uploadingImage ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <ImagePlus className="h-4 w-4" />
+                  )}
+                  上传图片
+                </label>
+                <input
+                  id="note-image-upload"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] ?? null
+                    void handleImageUpload(file)
+                    e.currentTarget.value = ""
+                  }}
+                  disabled={uploadingImage}
+                />
+                <p className="text-xs text-muted-foreground">支持 PNG/JPG/WEBP/GIF，最大 10MB</p>
+              </div>
+              {formData.noteImages.length > 0 && (
+                <div className="flex flex-wrap gap-3 rounded-md border bg-muted/30 p-3">
+                  {formData.noteImages.map((image) => (
+                    <div key={image.id} className="space-y-1">
+                      <button
+                        type="button"
+                        className="relative block h-20 w-20 overflow-hidden rounded border"
+                        onClick={() => setPreviewImage(image)}
+                      >
+                        <Image
+                          src={image.thumbnailUrl || image.url}
+                          alt={image.filename}
+                          fill
+                          className="object-cover"
+                          unoptimized
+                        />
+                      </button>
+                      <div className="w-20 truncate text-[10px] text-muted-foreground" title={image.filename}>
+                        {image.filename}
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-muted-foreground">{formatFileSize(image.size)}</span>
+                        <button
+                          type="button"
+                          className="text-[10px] text-destructive"
+                          onClick={() => handleRemoveImage(image.id)}
+                        >
+                          删除
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
@@ -689,6 +848,26 @@ export default function ExchangeRatePage() {
               确认删除
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>图片预览</DialogTitle>
+            <DialogDescription>{previewImage?.filename}</DialogDescription>
+          </DialogHeader>
+          {previewImage && (
+            <div className="relative aspect-video w-full overflow-hidden rounded-md border bg-muted/20">
+              <Image
+                src={previewImage.url}
+                alt={previewImage.filename}
+                fill
+                className="object-contain"
+                unoptimized
+              />
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

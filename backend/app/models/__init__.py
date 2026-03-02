@@ -18,6 +18,7 @@ from app.models.product_analysis_source import (
 from app.models.project import Project
 from app.models.product_cost import ProductCost
 from app.models.ai_chat import AIConversation, AIMessage
+from app.models.commission_record import CommissionRecord
 
 __all__ = [
     'ProductCost',
@@ -27,6 +28,7 @@ __all__ = [
     'JobStatus',
     'AIConversation',
     'AIMessage',
+    'CommissionRecord',
     'MonthlyReport',
     'MonthlyReportTransaction',
     'MonthlyReportPT3Calculation',

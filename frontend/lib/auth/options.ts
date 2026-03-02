@@ -28,6 +28,7 @@ export const authOptions: NextAuthOptions = {
             id: string
             name: string
             email: string
+            operator_name_zh: string | null
             is_admin: boolean
             is_active: boolean
           }>('/api/v1/auth/login', {
@@ -42,6 +43,7 @@ export const authOptions: NextAuthOptions = {
             name: account.name,
             email: account.email,
             isAdmin: account.is_admin,
+            operatorNameZh: account.operator_name_zh,
           }
         } catch {
           return null
@@ -54,6 +56,7 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.uid = user.id
         token.isAdmin = Boolean(user.isAdmin)
+        token.operatorNameZh = typeof user.operatorNameZh === 'string' ? user.operatorNameZh : null
       }
       return token
     },
@@ -61,6 +64,7 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         session.user.id = String(token.uid ?? '')
         session.user.isAdmin = Boolean(token.isAdmin)
+        session.user.operatorNameZh = typeof token.operatorNameZh === 'string' ? token.operatorNameZh : null
       }
       return session
     },

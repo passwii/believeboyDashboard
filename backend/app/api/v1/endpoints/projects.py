@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, protected
+from app.api.deps import get_db_session, get_request_operator, protected
 from app.schemas.project import ProjectCreate, ProjectItem, ProjectOption, ProjectUpdate
 from app.services import project_service
 
@@ -14,9 +14,31 @@ def list_projects(db: Session = Depends(get_db_session)) -> list[ProjectOption]:
     return [ProjectOption(**item) for item in payload]
 
 
+@router.get('/projects/operator-options')
+def list_project_operator_options(db: Session = Depends(get_db_session)) -> list[str]:
+    return project_service.list_project_operator_options(db)
+
+
 @router.get('/projects/manage')
-def list_projects_manage(db: Session = Depends(get_db_session)) -> list[ProjectItem]:
+def list_projects_manage(
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
+) -> list[ProjectItem]:
     rows = project_service.list_project_items(db)
+
+    normalized_operator = (operator or '').strip()
+    if not is_admin:
+        if normalized_operator:
+            rows = [
+                row
+                for row in rows
+                if (row.project_operator or '').strip() == normalized_operator
+                or (row.assistant_operator or '').strip() == normalized_operator
+            ]
+        else:
+            rows = []
+
     return [
         ProjectItem(
             id=row.id,
@@ -24,6 +46,7 @@ def list_projects_manage(db: Session = Depends(get_db_session)) -> list[ProjectI
             brand_name=row.brand_name,
             store_address=row.store_address,
             project_operator=row.project_operator,
+            assistant_operator=row.assistant_operator,
             commission_basis=row.commission_basis,
             commission_rate=float(row.commission_rate) if row.commission_rate is not None else None,
             sort_order=row.sort_order,
@@ -41,6 +64,7 @@ def create_project(payload: ProjectCreate, db: Session = Depends(get_db_session)
         payload.brand_name,
         payload.store_address,
         payload.project_operator,
+        payload.assistant_operator,
         payload.commission_basis,
         payload.commission_rate,
     )
@@ -51,6 +75,7 @@ def create_project(payload: ProjectCreate, db: Session = Depends(get_db_session)
         brand_name=row.brand_name,
         store_address=row.store_address,
         project_operator=row.project_operator,
+        assistant_operator=row.assistant_operator,
         commission_basis=row.commission_basis,
         commission_rate=float(row.commission_rate) if row.commission_rate is not None else None,
         sort_order=row.sort_order,
@@ -67,6 +92,7 @@ def update_project(project_id: int, payload: ProjectUpdate, db: Session = Depend
         payload.brand_name,
         payload.store_address,
         payload.project_operator,
+        payload.assistant_operator,
         payload.commission_basis,
         payload.commission_rate,
     )
@@ -77,6 +103,7 @@ def update_project(project_id: int, payload: ProjectUpdate, db: Session = Depend
         brand_name=row.brand_name,
         store_address=row.store_address,
         project_operator=row.project_operator,
+        assistant_operator=row.assistant_operator,
         commission_basis=row.commission_basis,
         commission_rate=float(row.commission_rate) if row.commission_rate is not None else None,
         sort_order=row.sort_order,

@@ -1,4 +1,5 @@
 import pytest
+from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
@@ -46,3 +47,15 @@ def test_bulk_upsert_projects_keeps_existing_sort_order():
         assert first.sort_order == 5
         assert first.source_file == 'projects.csv'
         assert second.sort_order == 6
+
+
+def test_normalize_commission_rate_accepts_points():
+    normalized = project_service._normalize_commission_rate(5)
+    assert normalized is not None
+    assert float(normalized) == 0.05
+
+
+def test_normalize_commission_rate_rejects_out_of_range():
+    with pytest.raises(HTTPException) as exc_info:
+        project_service._normalize_commission_rate(101)
+    assert exc_info.value.status_code == 422

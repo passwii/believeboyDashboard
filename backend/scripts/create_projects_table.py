@@ -19,6 +19,7 @@ create table if not exists public.projects (
   brand_name text,
   store_address text,
   project_operator text,
+  assistant_operator text,
   commission_basis text,
   commission_rate numeric(7,4),
   sort_order integer not null check (sort_order >= 0),
@@ -29,6 +30,7 @@ create table if not exists public.projects (
 );
 
 alter table public.projects add column if not exists project_operator text;
+alter table public.projects add column if not exists assistant_operator text;
 alter table public.projects add column if not exists commission_basis text;
 alter table public.projects add column if not exists commission_rate numeric(7,4);
 alter table public.projects drop constraint if exists projects_commission_basis_check;

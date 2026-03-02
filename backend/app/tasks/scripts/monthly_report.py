@@ -690,6 +690,7 @@ def run(input_path: str, output_dir: str, params: dict) -> dict:
         "expense_other_fees": pt4_expense_other_fees,
         "expense_total": pt4_expense_total,
         "amazon_pay_back": amazon_pay_back,
+        "credit_card_deduction_usd": amz_card,
     }
 
     return {

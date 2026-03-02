@@ -32,14 +32,30 @@ type ProjectItem = {
   brand_name: string | null
   store_address: string | null
   project_operator: string | null
-  commission_mode: string | null
+  assistant_operator: string | null
+  commission_basis: string | null
   commission_rate: number | null
   sort_order: number
   source_file: string | null
 }
 
+type CommissionBasisOption = {
+  label: string
+  value: string
+}
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
 const API_KEY = process.env.NEXT_PUBLIC_BACKEND_API_KEY ?? ''
+const COMMISSION_BASIS_OPTIONS: CommissionBasisOption[] = [
+  { label: '销售额', value: 'sales_amount' },
+  { label: '平台回款', value: 'cash_received' },
+  { label: '利润率', value: 'profit_margin' },
+]
+const COMMISSION_BASIS_LABEL: Record<string, string> = {
+  sales_amount: '销售额',
+  cash_received: '平台回款',
+  profit_margin: '利润率',
+}
 
 function authHeaders(): Record<string, string> {
   if (!API_KEY) {
@@ -50,12 +66,41 @@ function authHeaders(): Record<string, string> {
 
 async function parseError(response: Response): Promise<string> {
   try {
-    const payload = (await response.json()) as { detail?: string }
-    return payload.detail || `请求失败 (${response.status})`
+    const payload = (await response.json()) as { detail?: unknown }
+    if (typeof payload.detail === 'string' && payload.detail.trim()) {
+      return payload.detail
+    }
+    if (Array.isArray(payload.detail)) {
+      const messages = payload.detail
+        .map((item) => {
+          if (typeof item === 'string') {
+            return item
+          }
+          if (item && typeof item === 'object' && 'msg' in item && typeof item.msg === 'string') {
+            return item.msg
+          }
+          return JSON.stringify(item)
+        })
+        .filter(Boolean)
+      if (messages.length > 0) {
+        return messages.join('; ')
+      }
+    }
+    if (payload.detail && typeof payload.detail === 'object') {
+      return JSON.stringify(payload.detail)
+    }
+    return `请求失败 (${response.status})`
   } catch {
     const text = await response.text()
     return text || `请求失败 (${response.status})`
   }
+}
+
+function toCommissionPoints(rate: number | null): number | null {
+  if (rate === null) {
+    return null
+  }
+  return Number((rate * 100).toFixed(4))
 }
 
 export default function StoreInfoPage() {
@@ -65,12 +110,14 @@ export default function StoreInfoPage() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [operatorOptions, setOperatorOptions] = useState<string[]>([])
 
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [addName, setAddName] = useState('')
   const [addBrandName, setAddBrandName] = useState('')
   const [addStoreAddress, setAddStoreAddress] = useState('')
   const [addProjectOperator, setAddProjectOperator] = useState('')
+  const [addAssistantOperator, setAddAssistantOperator] = useState('')
   const [addCommissionMode, setAddCommissionMode] = useState('')
   const [addCommissionRate, setAddCommissionRate] = useState('')
 
@@ -80,8 +127,25 @@ export default function StoreInfoPage() {
   const [editBrandName, setEditBrandName] = useState('')
   const [editStoreAddress, setEditStoreAddress] = useState('')
   const [editProjectOperator, setEditProjectOperator] = useState('')
+  const [editAssistantOperator, setEditAssistantOperator] = useState('')
   const [editCommissionMode, setEditCommissionMode] = useState('')
   const [editCommissionRate, setEditCommissionRate] = useState('')
+
+  const loadOperatorOptions = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/projects/operator-options`, {
+        headers: authHeaders(),
+        cache: 'no-store',
+      })
+      if (!response.ok) {
+        throw new Error(await parseError(response))
+      }
+      const payload = (await response.json()) as string[]
+      setOperatorOptions(payload)
+    } catch {
+      setOperatorOptions([])
+    }
+  }, [])
 
   const loadProjects = useCallback(async () => {
     await withGlobalLoading(async () => {
@@ -109,6 +173,10 @@ export default function StoreInfoPage() {
     void loadProjects()
   }, [loadProjects])
 
+  useEffect(() => {
+    void loadOperatorOptions()
+  }, [loadOperatorOptions])
+
   const onAddSingle = async () => {
     const normalizedName = addName.trim()
     if (!normalizedName) {
@@ -131,7 +199,8 @@ export default function StoreInfoPage() {
           brand_name: addBrandName.trim() || null,
           store_address: addStoreAddress.trim() || null,
           project_operator: addProjectOperator.trim() || null,
-          commission_mode: addCommissionMode.trim() || null,
+          assistant_operator: addAssistantOperator.trim() || null,
+          commission_basis: addCommissionMode.trim() || null,
           commission_rate: addCommissionRate ? parseFloat(addCommissionRate) : null,
         }),
       })
@@ -142,6 +211,7 @@ export default function StoreInfoPage() {
       setAddBrandName('')
       setAddStoreAddress('')
       setAddProjectOperator('')
+      setAddAssistantOperator('')
       setAddCommissionMode('')
       setAddCommissionRate('')
       setAddDialogOpen(false)
@@ -160,8 +230,10 @@ export default function StoreInfoPage() {
     setEditBrandName(item.brand_name ?? '')
     setEditStoreAddress(item.store_address ?? '')
     setEditProjectOperator(item.project_operator ?? '')
-    setEditCommissionMode(item.commission_mode ?? '')
-    setEditCommissionRate(item.commission_rate?.toString() ?? '')
+    setEditAssistantOperator(item.assistant_operator ?? '')
+    setEditCommissionMode(item.commission_basis ?? '')
+    const points = toCommissionPoints(item.commission_rate)
+    setEditCommissionRate(points?.toString() ?? '')
     setEditDialogOpen(true)
     setError(null)
   }
@@ -192,7 +264,8 @@ export default function StoreInfoPage() {
           brand_name: editBrandName.trim() || null,
           store_address: editStoreAddress.trim() || null,
           project_operator: editProjectOperator.trim() || null,
-          commission_mode: editCommissionMode.trim() || null,
+          assistant_operator: editAssistantOperator.trim() || null,
+          commission_basis: editCommissionMode.trim() || null,
           commission_rate: editCommissionRate ? parseFloat(editCommissionRate) : null,
         }),
       })
@@ -204,6 +277,7 @@ export default function StoreInfoPage() {
       setEditBrandName('')
       setEditStoreAddress('')
       setEditProjectOperator('')
+      setEditAssistantOperator('')
       setEditCommissionMode('')
       setEditCommissionRate('')
       setSuccessMessage(`已更新项目名称：${normalizedName}`)
@@ -266,16 +340,65 @@ export default function StoreInfoPage() {
                     <label htmlFor="project-add-operator" className="text-sm font-medium text-foreground">
                       运营
                     </label>
-                    <Select value={addProjectOperator} onValueChange={setAddProjectOperator} disabled={submitting}>
-                      <SelectTrigger id="project-add-operator">
-                        <SelectValue placeholder="选择运营" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="纪亚伟">纪亚伟</SelectItem>
-                        <SelectItem value="张旭胜">张旭胜</SelectItem>
-                        <SelectItem value="尤帅">尤帅</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="flex items-center gap-2">
+                      <Select value={addProjectOperator} onValueChange={setAddProjectOperator} disabled={submitting}>
+                        <SelectTrigger id="project-add-operator" className="flex-1">
+                          <SelectValue placeholder="选择运营" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {operatorOptions.length > 0 ? (
+                            operatorOptions.map((name) => (
+                              <SelectItem key={`operator-add-${name}`} value={name}>
+                                {name}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem value="__empty_operator_add__" disabled>
+                              暂无可选运营
+                            </SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setAddProjectOperator('')}
+                        disabled={submitting || !addProjectOperator}
+                      >
+                        清空
+                      </Button>
+                    </div>
+                    <label htmlFor="project-add-assistant-operator" className="text-sm font-medium text-foreground">
+                      助理运营
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <Select value={addAssistantOperator} onValueChange={setAddAssistantOperator} disabled={submitting}>
+                        <SelectTrigger id="project-add-assistant-operator" className="flex-1">
+                          <SelectValue placeholder="选择助理运营" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {operatorOptions.length > 0 ? (
+                            operatorOptions.map((name) => (
+                              <SelectItem key={`assistant-operator-add-${name}`} value={name}>
+                                {name}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem value="__empty_assistant_add__" disabled>
+                              暂无可选助理运营
+                            </SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setAddAssistantOperator('')}
+                        disabled={submitting || !addAssistantOperator}
+                      >
+                        清空
+                      </Button>
+                    </div>
                     <label htmlFor="project-add-commission-mode" className="text-sm font-medium text-foreground">
                       佣金方式
                     </label>
@@ -284,9 +407,11 @@ export default function StoreInfoPage() {
                         <SelectValue placeholder="选择佣金方式" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="销售额">销售额</SelectItem>
-                        <SelectItem value="平台回款">平台回款</SelectItem>
-                        <SelectItem value="利润率">利润率</SelectItem>
+                        {COMMISSION_BASIS_OPTIONS.map((option) => (
+                          <SelectItem key={`commission-basis-add-${option.value}`} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     <label htmlFor="project-add-commission-rate" className="text-sm font-medium text-foreground">
@@ -294,9 +419,13 @@ export default function StoreInfoPage() {
                     </label>
                     <Input
                       id="project-add-commission-rate"
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.01"
                       value={addCommissionRate}
                       onChange={(e) => setAddCommissionRate(e.target.value)}
-                      placeholder="输入佣金点数"
+                      placeholder="例如：5（表示 5%）"
                       disabled={submitting}
                     />
                     <label htmlFor="project-add-address" className="text-sm font-medium text-foreground">
@@ -339,6 +468,7 @@ export default function StoreInfoPage() {
                     <th className="sticky top-0 z-20 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">项目名称</th>
                     <th className="sticky top-0 z-20 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">品牌名称</th>
                     <th className="sticky top-0 z-20 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">运营</th>
+                    <th className="sticky top-0 z-20 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">助理运营</th>
                     <th className="sticky top-0 z-20 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">佣金方式</th>
                     <th className="sticky top-0 z-20 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">佣金点数</th>
                     <th className="sticky top-0 z-20 h-12 w-[120px] bg-background px-4 text-left align-middle font-medium text-muted-foreground">店铺地址</th>
@@ -349,14 +479,14 @@ export default function StoreInfoPage() {
                 {loading ? (
                   Array.from({ length: 6 }).map((_, index) => (
                     <tr key={`skeleton-${index}`} className="border-b transition-colors hover:bg-muted/50">
-                      <td colSpan={9} className="p-4 align-middle">
+                      <td colSpan={10} className="p-4 align-middle">
                         <Skeleton className="h-6 w-full" />
                       </td>
                     </tr>
                   ))
                 ) : items.length === 0 ? (
                   <tr className="border-b transition-colors hover:bg-muted/50">
-                    <td colSpan={9} className="py-10 text-center text-sm text-muted-foreground">
+                    <td colSpan={10} className="py-10 text-center text-sm text-muted-foreground">
                       暂无项目数据，请先新增一个项目。
                     </td>
                   </tr>
@@ -367,8 +497,9 @@ export default function StoreInfoPage() {
                       <td className="p-4 align-middle font-medium text-foreground">{item.name}</td>
                       <td className="p-4 align-middle">{item.brand_name || '-'}</td>
                       <td className="p-4 align-middle">{item.project_operator || '-'}</td>
-                      <td className="p-4 align-middle">{item.commission_mode || '-'}</td>
-                      <td className="p-4 align-middle">{item.commission_rate ?? '-'}</td>
+                      <td className="p-4 align-middle">{item.assistant_operator || '-'}</td>
+                      <td className="p-4 align-middle">{item.commission_basis ? COMMISSION_BASIS_LABEL[item.commission_basis] ?? item.commission_basis : '-'}</td>
+                      <td className="p-4 align-middle">{toCommissionPoints(item.commission_rate) ?? '-'}</td>
                       <td className="p-4 align-middle max-w-[120px] truncate" title={item.store_address || ''}>
                         {item.store_address ? `${item.store_address.slice(0, 15)}...` : '-'}
                       </td>
@@ -401,7 +532,7 @@ export default function StoreInfoPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>编辑项目信息</DialogTitle>
-            <DialogDescription>可修改项目名称、品牌名称、运营、佣金方式、佣金点数与店铺地址，不调整排序。</DialogDescription>
+            <DialogDescription>可修改项目名称、品牌名称、运营、助理运营、佣金方式、佣金点数与店铺地址，不调整排序。</DialogDescription>
           </DialogHeader>
           <div className="grid gap-2">
             <label htmlFor="project-edit-name" className="text-sm font-medium text-foreground">
@@ -427,16 +558,65 @@ export default function StoreInfoPage() {
             <label htmlFor="project-edit-operator" className="text-sm font-medium text-foreground">
               运营
             </label>
-            <Select value={editProjectOperator} onValueChange={setEditProjectOperator} disabled={submitting}>
-              <SelectTrigger id="project-edit-operator">
-                <SelectValue placeholder="选择运营" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="纪亚伟">纪亚伟</SelectItem>
-                <SelectItem value="张旭胜">张旭胜</SelectItem>
-                <SelectItem value="尤帅">尤帅</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-2">
+              <Select value={editProjectOperator} onValueChange={setEditProjectOperator} disabled={submitting}>
+                <SelectTrigger id="project-edit-operator" className="flex-1">
+                  <SelectValue placeholder="选择运营" />
+                </SelectTrigger>
+                <SelectContent>
+                  {operatorOptions.length > 0 ? (
+                    operatorOptions.map((name) => (
+                      <SelectItem key={`operator-edit-${name}`} value={name}>
+                        {name}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="__empty_operator_edit__" disabled>
+                      暂无可选运营
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditProjectOperator('')}
+                disabled={submitting || !editProjectOperator}
+              >
+                清空
+              </Button>
+            </div>
+            <label htmlFor="project-edit-assistant-operator" className="text-sm font-medium text-foreground">
+              助理运营
+            </label>
+            <div className="flex items-center gap-2">
+              <Select value={editAssistantOperator} onValueChange={setEditAssistantOperator} disabled={submitting}>
+                <SelectTrigger id="project-edit-assistant-operator" className="flex-1">
+                  <SelectValue placeholder="选择助理运营" />
+                </SelectTrigger>
+                <SelectContent>
+                  {operatorOptions.length > 0 ? (
+                    operatorOptions.map((name) => (
+                      <SelectItem key={`assistant-operator-edit-${name}`} value={name}>
+                        {name}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="__empty_assistant_edit__" disabled>
+                      暂无可选助理运营
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditAssistantOperator('')}
+                disabled={submitting || !editAssistantOperator}
+              >
+                清空
+              </Button>
+            </div>
             <label htmlFor="project-edit-commission-mode" className="text-sm font-medium text-foreground">
               佣金方式
             </label>
@@ -445,9 +625,11 @@ export default function StoreInfoPage() {
                 <SelectValue placeholder="选择佣金方式" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="销售额">销售额</SelectItem>
-                <SelectItem value="平台回款">平台回款</SelectItem>
-                <SelectItem value="利润率">利润率</SelectItem>
+                {COMMISSION_BASIS_OPTIONS.map((option) => (
+                  <SelectItem key={`commission-basis-edit-${option.value}`} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <label htmlFor="project-edit-commission-rate" className="text-sm font-medium text-foreground">
@@ -455,9 +637,13 @@ export default function StoreInfoPage() {
             </label>
             <Input
               id="project-edit-commission-rate"
+              type="number"
+              min="0"
+              max="100"
+              step="0.01"
               value={editCommissionRate}
               onChange={(e) => setEditCommissionRate(e.target.value)}
-              placeholder="输入佣金点数"
+              placeholder="例如：5（表示 5%）"
               disabled={submitting}
             />
             <label htmlFor="project-edit-address" className="text-sm font-medium text-foreground">

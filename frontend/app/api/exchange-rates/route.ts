@@ -3,8 +3,8 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 import { NextRequest, NextResponse } from "next/server"
-import { requireAdminSession } from "@/lib/auth/server"
-import { exchangeRateDb, ExchangeRateFilters } from "@/lib/db"
+import { requireAdminSession, requireUserSession } from "@/lib/auth/server"
+import { exchangeRateDb, ExchangeRateFilters, ExchangeRateNoteImage } from "@/lib/db"
 
 function toClientModel(rate: any) {
   const [yearText, monthText] = String(rate.year_month ?? "").split("-")
@@ -19,15 +19,32 @@ function toClientModel(rate: any) {
     year_month: rate.year_month,
     rate: Number(rate.rate),
     description: rate.description ?? null,
+    noteImages: Array.isArray(rate.note_images) ? rate.note_images : [],
     createdAt: rate.created_at,
     updatedAt: rate.updated_at,
   }
 }
 
+function normalizeNoteImages(value: unknown): ExchangeRateNoteImage[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .filter((item) => item && typeof item === "object")
+    .map((item: any) => ({
+      id: String(item.id || ""),
+      url: String(item.url || ""),
+      thumbnailUrl: item.thumbnailUrl ? String(item.thumbnailUrl) : undefined,
+      filename: String(item.filename || ""),
+      contentType: String(item.contentType || ""),
+      size: Number(item.size || 0),
+      uploadedAt: String(item.uploadedAt || ""),
+    }))
+    .filter((item) => item.id && item.url && item.filename)
+}
+
 // GET: Fetch all exchange rates with optional filtering
 export async function GET(request: NextRequest) {
   try {
-    const session = await requireAdminSession()
+    const session = await requireUserSession()
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
@@ -76,7 +93,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { currency, currencyName, year, month, year_month, rate, description } = body
+    const { currency, currencyName, year, month, year_month, rate, description, noteImages } = body
     const parsedRate = Number(rate)
 
     // Validation
@@ -111,6 +128,7 @@ export async function POST(request: NextRequest) {
       year_month: normalizedYearMonth,
       rate: parsedRate,
       description: description || null,
+      note_images: normalizeNoteImages(noteImages),
     })
     return NextResponse.json({ success: true, data: toClientModel(newExchangeRate) }, { status: 201 })
   } catch (error) {

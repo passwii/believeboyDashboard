@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 import { TrendingUp, TrendingDown, Wallet, ArrowUpRight, ArrowDownRight, Eye, EyeOff } from 'lucide-react'
+import { useSession } from 'next-auth/react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -16,6 +17,8 @@ import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, Table
 type ProjectOption = {
   id: number | null
   name: string
+  commission_basis?: string | null
+  commission_rate?: number | null
 }
 
 type FinancialSeriesRow = {
@@ -33,7 +36,18 @@ type FinancialSeriesRow = {
   income_total: number
   expense_total: number
   amazon_pay_back: number
+  credit_card_deduction_usd: number
   has_source_report: boolean
+}
+
+type ExchangeRateListResponse = {
+  data?: Array<{
+    year_month: string
+    rate: number
+  }>
+  pagination?: {
+    totalPages: number
+  }
 }
 
 type FinancialTrendPoint = {
@@ -164,17 +178,12 @@ function formatRatio(value: number): string {
   return `${(Math.abs(value) * 100).toFixed(1)}%`
 }
 
-const PLACEHOLDER_VALUE = 7
-const PAYABLE_TOTAL_PLACEHOLDER = PLACEHOLDER_VALUE * 3
+function formatRate(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return '-'
+  return value.toFixed(4)
+}
 
-const STICKY_COLUMN_WIDTHS = [120, 130, 130, 120, 120] as const
-const STICKY_LEFT = [
-  0,
-  STICKY_COLUMN_WIDTHS[0],
-  STICKY_COLUMN_WIDTHS[0] + STICKY_COLUMN_WIDTHS[1],
-  STICKY_COLUMN_WIDTHS[0] + STICKY_COLUMN_WIDTHS[1] + STICKY_COLUMN_WIDTHS[2],
-  STICKY_COLUMN_WIDTHS[0] + STICKY_COLUMN_WIDTHS[1] + STICKY_COLUMN_WIDTHS[2] + STICKY_COLUMN_WIDTHS[3],
-] as const
+const MONTH_STICKY_WIDTH = 128
 
 // 简化的数字格式化，用于大数值显示
 function formatCompactCurrency(value: number): string {
@@ -261,6 +270,9 @@ function StatCard({ title, value, rawValue, icon, color, trend, trendLabel }: St
 }
 
 export default function FinancialDataPage() {
+  const { data: session, status: sessionStatus } = useSession()
+  const isAdmin = Boolean(session?.user?.isAdmin)
+
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
   const [projectLoadError, setProjectLoadError] = useState<string | null>(null)
@@ -272,6 +284,7 @@ export default function FinancialDataPage() {
   const [data, setData] = useState<FinancialSeriesResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [exchangeRateByMonth, setExchangeRateByMonth] = useState<Record<string, number>>({})
 
   // 图表线条可见性状态
   const [visibleLines, setVisibleLines] = useState({
@@ -286,9 +299,20 @@ export default function FinancialDataPage() {
     setProjectsLoading(true)
     setProjectLoadError(null)
     try {
-      const response = await fetch(`${API_BASE}/api/v1/projects`, {
+      const headers: Record<string, string> = {
+        ...authHeaders(),
+      }
+      if (isAdmin) {
+        headers['X-Is-Admin'] = 'true'
+      }
+      const operatorName = session?.user?.operatorNameZh?.trim()
+      if (operatorName) {
+        headers['X-Operator'] = encodeURIComponent(operatorName)
+      }
+
+      const response = await fetch(`${API_BASE}/api/v1/projects/manage`, {
         cache: 'no-store',
-        headers: authHeaders(),
+        headers,
       })
       if (!response.ok) {
         throw new Error(parseErrorBody(await response.text(), response.status))
@@ -303,7 +327,44 @@ export default function FinancialDataPage() {
     } finally {
       setProjectsLoading(false)
     }
-  }, [projectId])
+  }, [projectId, isAdmin, session?.user?.operatorNameZh])
+
+  const loadExchangeRates = useCallback(async (months: string[]) => {
+    const uniqueMonths = Array.from(new Set(months.filter(Boolean)))
+    if (uniqueMonths.length === 0) {
+      setExchangeRateByMonth({})
+      return
+    }
+
+    let page = 1
+    let totalPages = 1
+    const fetchedMap: Record<string, number> = {}
+
+    while (page <= totalPages) {
+      const response = await fetch(`/api/exchange-rates?currency=USD&page=${page}&pageSize=200`, {
+        cache: 'no-store',
+      })
+      if (!response.ok) {
+        throw new Error(parseErrorBody(await response.text(), response.status))
+      }
+      const payload = (await response.json()) as ExchangeRateListResponse
+      const rows = Array.isArray(payload.data) ? payload.data : []
+      rows.forEach((row) => {
+        if (row.year_month) {
+          fetchedMap[row.year_month] = Number(row.rate) || 0
+        }
+      })
+      totalPages = Number(payload.pagination?.totalPages || 1)
+      page += 1
+    }
+
+    const monthMap: Record<string, number> = {}
+    uniqueMonths.forEach((month) => {
+      monthMap[month] = fetchedMap[month] ?? 0
+    })
+    setExchangeRateByMonth(monthMap)
+    setError(null)
+  }, [])
 
   const loadFinancialSeries = useCallback(async () => {
     const parsedProjectId = Number(projectId)
@@ -350,13 +411,26 @@ export default function FinancialDataPage() {
   }, [projectId, startMonth, endMonth])
 
   useEffect(() => {
+    if (sessionStatus === 'loading') return
     void loadProjects()
-  }, [loadProjects])
+  }, [loadProjects, sessionStatus])
 
   useEffect(() => {
     if (!projectId || projectsLoading) return
     void loadFinancialSeries()
   }, [projectId, projectsLoading, loadFinancialSeries])
+
+  useEffect(() => {
+    const months = (data?.rows ?? []).map((row) => row.report_month)
+    if (months.length === 0) {
+      setExchangeRateByMonth({})
+      return
+    }
+    void loadExchangeRates(months).catch((loadError) => {
+      setExchangeRateByMonth({})
+      setError(loadError instanceof Error ? loadError.message : '汇率数据加载失败')
+    })
+  }, [data, loadExchangeRates])
 
   const trendPoints = useMemo(() => {
     if (!data) return []
@@ -385,24 +459,47 @@ export default function FinancialDataPage() {
     }
   }, [data])
 
+  const selectedProject = useMemo(
+    () => projects.find((project) => String(project.id) === projectId) ?? null,
+    [projects, projectId]
+  )
+  const commissionRate = selectedProject?.commission_rate ?? 0
+  const skipCommission = selectedProject?.commission_basis === 'cash_received'
+
   const totals = useMemo(() => {
     const rows = data?.rows ?? []
     return rows.reduce(
-      (acc, row) => ({
-        income_sales: acc.income_sales + row.income_sales,
-        income_refund: acc.income_refund + row.income_refund,
-        income_adjustment: acc.income_adjustment + row.income_adjustment,
-        income_other: acc.income_other + row.income_other,
-        expense_selling_fee: acc.expense_selling_fee + row.expense_selling_fee,
-        expense_fba_fee: acc.expense_fba_fee + row.expense_fba_fee,
-        expense_inventory_fee: acc.expense_inventory_fee + row.expense_inventory_fee,
-        expense_service_fee: acc.expense_service_fee + row.expense_service_fee,
-        expense_advertising: acc.expense_advertising + row.expense_advertising,
-        expense_other_fees: acc.expense_other_fees + row.expense_other_fees,
-        income_total: acc.income_total + row.income_total,
-        expense_total: acc.expense_total + row.expense_total,
-        amazon_pay_back: acc.amazon_pay_back + row.amazon_pay_back,
-      }),
+      (acc, row) => {
+        const exchangeRate = exchangeRateByMonth[row.report_month] ?? 0
+        const creditCardUsd = row.credit_card_deduction_usd
+        const evaluationFeeRmb = 0
+        const prepaymentOtherRmb = 0
+        const operationCommissionRmb = skipCommission ? 0 : row.income_sales * commissionRate * exchangeRate
+        const payableTotalRmb = evaluationFeeRmb + prepaymentOtherRmb + operationCommissionRmb
+
+        return {
+          income_sales: acc.income_sales + row.income_sales,
+          income_refund: acc.income_refund + row.income_refund,
+          income_adjustment: acc.income_adjustment + row.income_adjustment,
+          income_other: acc.income_other + row.income_other,
+          expense_selling_fee: acc.expense_selling_fee + row.expense_selling_fee,
+          expense_fba_fee: acc.expense_fba_fee + row.expense_fba_fee,
+          expense_inventory_fee: acc.expense_inventory_fee + row.expense_inventory_fee,
+          expense_service_fee: acc.expense_service_fee + row.expense_service_fee,
+          expense_advertising: acc.expense_advertising + row.expense_advertising,
+          expense_other_fees: acc.expense_other_fees + row.expense_other_fees,
+          income_total: acc.income_total + row.income_total,
+          expense_total: acc.expense_total + row.expense_total,
+          amazon_pay_back: acc.amazon_pay_back + row.amazon_pay_back,
+          credit_card_deduction_usd: acc.credit_card_deduction_usd + creditCardUsd,
+          evaluation_fee_rmb: acc.evaluation_fee_rmb + evaluationFeeRmb,
+          prepayment_other_rmb: acc.prepayment_other_rmb + prepaymentOtherRmb,
+          operation_commission_rmb: acc.operation_commission_rmb + operationCommissionRmb,
+          payable_total_rmb: acc.payable_total_rmb + payableTotalRmb,
+          exchange_rate_sum: acc.exchange_rate_sum + (exchangeRate > 0 ? exchangeRate : 0),
+          exchange_rate_count: acc.exchange_rate_count + (exchangeRate > 0 ? 1 : 0),
+        }
+      },
       {
         income_sales: 0,
         income_refund: 0,
@@ -417,12 +514,19 @@ export default function FinancialDataPage() {
         income_total: 0,
         expense_total: 0,
         amazon_pay_back: 0,
+        credit_card_deduction_usd: 0,
+        evaluation_fee_rmb: 0,
+        prepayment_other_rmb: 0,
+        operation_commission_rmb: 0,
+        payable_total_rmb: 0,
+        exchange_rate_sum: 0,
+        exchange_rate_count: 0,
       }
     )
-  }, [data])
+  }, [data, exchangeRateByMonth, commissionRate, skipCommission])
 
   return (
-    <div className="w-full space-y-6 overflow-x-hidden">
+    <div className="min-w-0 w-full space-y-6 overflow-x-hidden">
       <Card className="overflow-hidden border-border/80 shadow-[0_20px_40px_-22px_rgba(15,23,42,0.22)]">
         <CardContent className="space-y-6 p-6 md:p-8">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -435,7 +539,7 @@ export default function FinancialDataPage() {
             <div className="flex flex-wrap items-end gap-2">
               <div className="min-w-[180px] space-y-1.5">
                 <label className="text-xs text-muted-foreground">店铺</label>
-                <Select value={projectId} onValueChange={setProjectId} disabled={projectsLoading || projects.length === 0}>
+                <Select value={projectId} onValueChange={setProjectId} disabled={projectsLoading}>
                   <SelectTrigger className="h-9">
                     <SelectValue placeholder={projectsLoading ? '店铺加载中...' : '请选择店铺'} />
                   </SelectTrigger>
@@ -659,7 +763,7 @@ export default function FinancialDataPage() {
                 {data ? `${data.project_name} · ${formatMonth(data.start_month)} 至 ${formatMonth(data.end_month)}` : '按月展示收入/支出结构与返款'}
               </CardDescription>
             </CardHeader>
-            <CardContent className="relative z-10">
+            <CardContent className="relative z-10 min-w-0">
               {loading ? (
                 <div className="space-y-3">
                   {Array.from({ length: 5 }).map((_, i) => (
@@ -667,28 +771,20 @@ export default function FinancialDataPage() {
                   ))}
                 </div>
               ) : data && data.rows.length > 0 ? (
-                <div className="w-full rounded-md border overflow-x-auto">
-                <Table className="min-w-[2600px] table-fixed text-xs">
+                <div className="w-full max-w-full overflow-x-auto rounded-md border">
+                <Table className={`w-max ${isAdmin ? 'min-w-[2200px]' : 'min-w-[1800px]'} table-fixed text-xs`}>
                     <TableHeader>
                       <TableRow className="bg-muted/30 hover:bg-muted/30">
                         <TableHead
                           rowSpan={2}
                           className="sticky z-40 border-r border-border bg-muted px-2 py-2 text-center"
-                          style={{ left: STICKY_LEFT[0], minWidth: STICKY_COLUMN_WIDTHS[0] }}
+                          style={{ left: 0, minWidth: MONTH_STICKY_WIDTH }}
                         >
                           年/月度
                         </TableHead>
                         <TableHead
                           colSpan={4}
-                          className="sticky z-30 border-r border-border bg-emerald-100 px-2 py-2 text-center text-foreground dark:bg-emerald-900"
-                          style={{
-                            left: STICKY_LEFT[1],
-                            minWidth:
-                              STICKY_COLUMN_WIDTHS[1] +
-                              STICKY_COLUMN_WIDTHS[2] +
-                              STICKY_COLUMN_WIDTHS[3] +
-                              STICKY_COLUMN_WIDTHS[4],
-                          }}
+                          className="border-r bg-emerald-100 px-2 py-2 text-center text-foreground dark:bg-emerald-900"
                         >
                           平台-收入 Income
                         </TableHead>
@@ -696,12 +792,16 @@ export default function FinancialDataPage() {
                         <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">收入合计</TableHead>
                         <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">支出合计</TableHead>
                         <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">亚马逊回款</TableHead>
-                        <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">信用卡扣款</TableHead>
-                        <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">测评费用</TableHead>
-                        <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">垫付其他</TableHead>
-                        <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">运营佣金</TableHead>
-                        <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">应付总计</TableHead>
-                        <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">汇率</TableHead>
+                        <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">信用卡扣款美金</TableHead>
+                        {isAdmin ? (
+                          <>
+                            <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">测评费用RMB</TableHead>
+                            <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">垫付其他RMB</TableHead>
+                            <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">运营佣金RMB</TableHead>
+                            <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">应付总计RMB</TableHead>
+                            <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">汇率</TableHead>
+                          </>
+                        ) : null}
                         <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">平台占比</TableHead>
                         <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">配送占比</TableHead>
                         <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">仓储占比</TableHead>
@@ -711,28 +811,16 @@ export default function FinancialDataPage() {
                         <TableHead rowSpan={2} className="px-2 py-2 text-center">回款率</TableHead>
                       </TableRow>
                       <TableRow className="bg-muted/20 hover:bg-muted/20">
-                        <TableHead
-                          className="sticky z-30 border-r border-border bg-emerald-100 px-2 py-1.5 text-center dark:bg-emerald-900"
-                          style={{ left: STICKY_LEFT[1], minWidth: STICKY_COLUMN_WIDTHS[1] }}
-                        >
+                        <TableHead className="border-r bg-emerald-100 px-2 py-1.5 text-center dark:bg-emerald-900">
                           销售额
                         </TableHead>
-                        <TableHead
-                          className="sticky z-30 border-r border-border bg-emerald-100 px-2 py-1.5 text-center dark:bg-emerald-900"
-                          style={{ left: STICKY_LEFT[2], minWidth: STICKY_COLUMN_WIDTHS[2] }}
-                        >
+                        <TableHead className="border-r bg-emerald-100 px-2 py-1.5 text-center dark:bg-emerald-900">
                           退款
                         </TableHead>
-                        <TableHead
-                          className="sticky z-30 border-r border-border bg-emerald-100 px-2 py-1.5 text-center dark:bg-emerald-900"
-                          style={{ left: STICKY_LEFT[3], minWidth: STICKY_COLUMN_WIDTHS[3] }}
-                        >
+                        <TableHead className="border-r bg-emerald-100 px-2 py-1.5 text-center dark:bg-emerald-900">
                           赔偿
                         </TableHead>
-                        <TableHead
-                          className="sticky z-30 border-r border-border bg-emerald-100 px-2 py-1.5 text-center dark:bg-emerald-900"
-                          style={{ left: STICKY_LEFT[4], minWidth: STICKY_COLUMN_WIDTHS[4] }}
-                        >
+                        <TableHead className="border-r bg-emerald-100 px-2 py-1.5 text-center dark:bg-emerald-900">
                           其他收入
                         </TableHead>
                         <TableHead className="border-r bg-amber-500/10 px-2 py-1.5 text-center">平台费</TableHead>
@@ -745,6 +833,12 @@ export default function FinancialDataPage() {
                     </TableHeader>
                     <TableBody>
                       {data.rows.map((row) => {
+                        const exchangeRate = exchangeRateByMonth[row.report_month] ?? 0
+                        const creditCardUsd = row.credit_card_deduction_usd
+                        const evaluationFeeRmb = 0
+                        const prepaymentOtherRmb = 0
+                        const operationCommissionRmb = skipCommission ? 0 : row.income_sales * commissionRate * exchangeRate
+                        const payableTotalRmb = evaluationFeeRmb + prepaymentOtherRmb + operationCommissionRmb
                         const rowBg = !row.has_source_report ? 'bg-muted' : 'bg-background'
                         const platformRatio = toPositiveRatio(row.expense_selling_fee, row.income_total)
                         const deliveryRatio = toPositiveRatio(row.expense_fba_fee, row.income_total)
@@ -758,7 +852,7 @@ export default function FinancialDataPage() {
                         <TableRow key={row.report_month} className={!row.has_source_report ? 'bg-muted/20' : undefined}>
                           <TableCell
                             className={`sticky z-20 border-r border-border px-2 py-1.5 font-medium ${rowBg}`}
-                            style={{ left: STICKY_LEFT[0], minWidth: STICKY_COLUMN_WIDTHS[0] }}
+                            style={{ left: 0, minWidth: MONTH_STICKY_WIDTH }}
                           >
                             <div className="flex items-center justify-between gap-1">
                               <span className="whitespace-nowrap">{formatMonth(row.report_month)}</span>
@@ -772,28 +866,16 @@ export default function FinancialDataPage() {
                               ) : null}
                             </div>
                           </TableCell>
-                          <TableCell
-                            className={`sticky z-20 border-r border-border px-2 py-1.5 text-right tabular-nums ${rowBg}`}
-                            style={{ left: STICKY_LEFT[1], minWidth: STICKY_COLUMN_WIDTHS[1] }}
-                          >
+                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
                             {formatCurrency(row.income_sales)}
                           </TableCell>
-                          <TableCell
-                            className={`sticky z-20 border-r border-border px-2 py-1.5 text-right tabular-nums ${rowBg}`}
-                            style={{ left: STICKY_LEFT[2], minWidth: STICKY_COLUMN_WIDTHS[2] }}
-                          >
+                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
                             {formatCurrency(row.income_refund)}
                           </TableCell>
-                          <TableCell
-                            className={`sticky z-20 border-r border-border px-2 py-1.5 text-right tabular-nums ${rowBg}`}
-                            style={{ left: STICKY_LEFT[3], minWidth: STICKY_COLUMN_WIDTHS[3] }}
-                          >
+                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
                             {formatCurrency(row.income_adjustment)}
                           </TableCell>
-                          <TableCell
-                            className={`sticky z-20 border-r border-border px-2 py-1.5 text-right tabular-nums shadow-[6px_0_8px_-8px_rgba(15,23,42,0.45)] ${rowBg}`}
-                            style={{ left: STICKY_LEFT[4], minWidth: STICKY_COLUMN_WIDTHS[4] }}
-                          >
+                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
                             {formatCurrency(row.income_other)}
                           </TableCell>
                           <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">{formatCurrency(row.expense_selling_fee)}</TableCell>
@@ -805,12 +887,16 @@ export default function FinancialDataPage() {
                           <TableCell className="border-r px-2 py-1.5 text-right font-semibold tabular-nums">{formatCurrency(row.income_total)}</TableCell>
                           <TableCell className="border-r px-2 py-1.5 text-right font-semibold tabular-nums">{formatCurrency(row.expense_total)}</TableCell>
                           <TableCell className="border-r px-2 py-1.5 text-right font-semibold tabular-nums">{formatCurrency(row.amazon_pay_back)}</TableCell>
-                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">{formatRmb(PLACEHOLDER_VALUE)}</TableCell>
-                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">{formatRmb(PLACEHOLDER_VALUE)}</TableCell>
-                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">{formatRmb(PLACEHOLDER_VALUE)}</TableCell>
-                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">{formatRmb(PLACEHOLDER_VALUE)}</TableCell>
-                          <TableCell className="border-r px-2 py-1.5 text-right font-semibold tabular-nums">{formatRmb(PAYABLE_TOTAL_PLACEHOLDER)}</TableCell>
-                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">{PLACEHOLDER_VALUE.toFixed(0)}</TableCell>
+                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">{formatCurrency(creditCardUsd)}</TableCell>
+                          {isAdmin ? (
+                            <>
+                              <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">{formatRmb(evaluationFeeRmb)}</TableCell>
+                              <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">{formatRmb(prepaymentOtherRmb)}</TableCell>
+                              <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">{formatRmb(operationCommissionRmb)}</TableCell>
+                              <TableCell className="border-r px-2 py-1.5 text-right font-semibold tabular-nums">{formatRmb(payableTotalRmb)}</TableCell>
+                              <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">{formatRate(exchangeRate)}</TableCell>
+                            </>
+                          ) : null}
                           <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">{formatRatio(platformRatio)}</TableCell>
                           <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">{formatRatio(deliveryRatio)}</TableCell>
                           <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">{formatRatio(storageRatio)}</TableCell>
@@ -825,32 +911,20 @@ export default function FinancialDataPage() {
                       <TableRow className="bg-muted/40 font-semibold hover:bg-muted/40">
                         <TableCell
                           className="sticky z-20 border-r border-border bg-muted/40 px-2 py-2"
-                          style={{ left: STICKY_LEFT[0], minWidth: STICKY_COLUMN_WIDTHS[0] }}
+                          style={{ left: 0, minWidth: MONTH_STICKY_WIDTH }}
                         >
                           合计
                         </TableCell>
-                        <TableCell
-                          className="sticky z-20 border-r border-border bg-muted/40 px-2 py-2 text-right tabular-nums"
-                          style={{ left: STICKY_LEFT[1], minWidth: STICKY_COLUMN_WIDTHS[1] }}
-                        >
+                        <TableCell className="border-r px-2 py-2 text-right tabular-nums">
                           {formatCurrency(totals.income_sales)}
                         </TableCell>
-                        <TableCell
-                          className="sticky z-20 border-r border-border bg-muted/40 px-2 py-2 text-right tabular-nums"
-                          style={{ left: STICKY_LEFT[2], minWidth: STICKY_COLUMN_WIDTHS[2] }}
-                        >
+                        <TableCell className="border-r px-2 py-2 text-right tabular-nums">
                           {formatCurrency(totals.income_refund)}
                         </TableCell>
-                        <TableCell
-                          className="sticky z-20 border-r border-border bg-muted/40 px-2 py-2 text-right tabular-nums"
-                          style={{ left: STICKY_LEFT[3], minWidth: STICKY_COLUMN_WIDTHS[3] }}
-                        >
+                        <TableCell className="border-r px-2 py-2 text-right tabular-nums">
                           {formatCurrency(totals.income_adjustment)}
                         </TableCell>
-                        <TableCell
-                          className="sticky z-20 border-r border-border bg-muted px-2 py-2 text-right tabular-nums shadow-[6px_0_8px_-8px_rgba(15,23,42,0.45)]"
-                          style={{ left: STICKY_LEFT[4], minWidth: STICKY_COLUMN_WIDTHS[4] }}
-                        >
+                        <TableCell className="border-r px-2 py-2 text-right tabular-nums">
                           {formatCurrency(totals.income_other)}
                         </TableCell>
                         <TableCell className="border-r px-2 py-2 text-right tabular-nums">{formatCurrency(totals.expense_selling_fee)}</TableCell>
@@ -862,12 +936,16 @@ export default function FinancialDataPage() {
                         <TableCell className="border-r px-2 py-2 text-right tabular-nums">{formatCurrency(totals.income_total)}</TableCell>
                         <TableCell className="border-r px-2 py-2 text-right tabular-nums">{formatCurrency(totals.expense_total)}</TableCell>
                         <TableCell className="border-r px-2 py-2 text-right tabular-nums">{formatCurrency(totals.amazon_pay_back)}</TableCell>
-                        <TableCell className="border-r px-2 py-2 text-right tabular-nums">{formatRmb(data.rows.length * PLACEHOLDER_VALUE)}</TableCell>
-                        <TableCell className="border-r px-2 py-2 text-right tabular-nums">{formatRmb(data.rows.length * PLACEHOLDER_VALUE)}</TableCell>
-                        <TableCell className="border-r px-2 py-2 text-right tabular-nums">{formatRmb(data.rows.length * PLACEHOLDER_VALUE)}</TableCell>
-                        <TableCell className="border-r px-2 py-2 text-right tabular-nums">{formatRmb(data.rows.length * PLACEHOLDER_VALUE)}</TableCell>
-                        <TableCell className="border-r px-2 py-2 text-right tabular-nums">{formatRmb(data.rows.length * PAYABLE_TOTAL_PLACEHOLDER)}</TableCell>
-                        <TableCell className="border-r px-2 py-2 text-right tabular-nums">{PLACEHOLDER_VALUE.toFixed(0)}</TableCell>
+                        <TableCell className="border-r px-2 py-2 text-right tabular-nums">{formatCurrency(totals.credit_card_deduction_usd)}</TableCell>
+                        {isAdmin ? (
+                          <>
+                            <TableCell className="border-r px-2 py-2 text-right tabular-nums">{formatRmb(totals.evaluation_fee_rmb)}</TableCell>
+                            <TableCell className="border-r px-2 py-2 text-right tabular-nums">{formatRmb(totals.prepayment_other_rmb)}</TableCell>
+                            <TableCell className="border-r px-2 py-2 text-right tabular-nums">{formatRmb(totals.operation_commission_rmb)}</TableCell>
+                            <TableCell className="border-r px-2 py-2 text-right tabular-nums">{formatRmb(totals.payable_total_rmb)}</TableCell>
+                            <TableCell className="border-r px-2 py-2 text-right tabular-nums">{formatRate(totals.exchange_rate_count > 0 ? totals.exchange_rate_sum / totals.exchange_rate_count : 0)}</TableCell>
+                          </>
+                        ) : null}
                         <TableCell className="border-r px-2 py-2 text-right tabular-nums">{formatRatio(toPositiveRatio(totals.expense_selling_fee, totals.income_total))}</TableCell>
                         <TableCell className="border-r px-2 py-2 text-right tabular-nums">{formatRatio(toPositiveRatio(totals.expense_fba_fee, totals.income_total))}</TableCell>
                         <TableCell className="border-r px-2 py-2 text-right tabular-nums">{formatRatio(toPositiveRatio(totals.expense_inventory_fee, totals.income_total))}</TableCell>

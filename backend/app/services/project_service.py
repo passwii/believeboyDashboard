@@ -6,7 +6,7 @@ from io import StringIO
 from pathlib import Path
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -43,8 +43,16 @@ def _normalize_commission_rate(value: float | Decimal | None) -> Decimal | None:
         rate = Decimal(str(value))
     except (InvalidOperation, ValueError):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='commission_rate must be numeric')
-    if rate < 0 or rate > 1:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='commission_rate must be between 0 and 1')
+    if rate < 0 or rate > 100:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail='commission_rate must be between 0 and 100 (points) or 0 and 1 (ratio)',
+        )
+    # Backward-compatible input:
+    # - 0~1: ratio (e.g. 0.05 == 5%)
+    # - 1~100: points/percent value (e.g. 5 == 5%)
+    if rate > 1:
+        rate = rate / Decimal('100')
     return rate
 
 
@@ -151,12 +159,28 @@ def list_project_options(db: Session) -> list[dict[str, str | int | None]]:
     return [{'id': None, 'name': name} for name in names]
 
 
+def list_project_operator_options(db: Session) -> list[str]:
+    rows = db.execute(
+        text(
+            '''
+            select distinct
+              coalesce(nullif(trim(operator_name_zh), ''), nullif(trim(full_name), '')) as operator_name
+            from public.user_accounts
+            where coalesce(nullif(trim(operator_name_zh), ''), nullif(trim(full_name), '')) is not null
+            order by operator_name asc
+            '''
+        )
+    ).all()
+    return [str(row[0]) for row in rows if row and row[0] is not None]
+
+
 def create_single_project(
     db: Session,
     name: str,
     brand_name: str | None = None,
     store_address: str | None = None,
     project_operator: str | None = None,
+    assistant_operator: str | None = None,
     commission_basis: str | None = None,
     commission_rate: float | Decimal | None = None,
     source_file: str | None = None,
@@ -175,6 +199,7 @@ def create_single_project(
         brand_name=_normalize_optional_text(brand_name),
         store_address=_normalize_optional_text(store_address),
         project_operator=_normalize_optional_text(project_operator),
+        assistant_operator=_normalize_optional_text(assistant_operator),
         commission_basis=_normalize_commission_basis(commission_basis),
         commission_rate=_normalize_commission_rate(commission_rate),
         sort_order=int(max_sort_order) + 1,
@@ -193,6 +218,7 @@ def update_project(
     brand_name: str | None = None,
     store_address: str | None = None,
     project_operator: str | None = None,
+    assistant_operator: str | None = None,
     commission_basis: str | None = None,
     commission_rate: float | Decimal | None = None,
 ) -> Project:
@@ -212,6 +238,7 @@ def update_project(
     row.brand_name = _normalize_optional_text(brand_name)
     row.store_address = _normalize_optional_text(store_address)
     row.project_operator = _normalize_optional_text(project_operator)
+    row.assistant_operator = _normalize_optional_text(assistant_operator)
     row.commission_basis = _normalize_commission_basis(commission_basis)
     row.commission_rate = _normalize_commission_rate(commission_rate)
     db.flush()

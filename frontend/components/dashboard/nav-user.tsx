@@ -1,8 +1,9 @@
 'use client'
 
-import { BadgeCheck, ChevronsUpDown, LogOut } from 'lucide-react'
+import { ChevronsUpDown, KeyRound, LogOut } from 'lucide-react'
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -73,9 +74,11 @@ export function NavUser({ user, onLogout }: NavUserProps) {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem>
-                <BadgeCheck />
-                账号信息
+              <DropdownMenuItem asChild>
+                <RouteLoadingLink href="/dashboard/change-password">
+                  <KeyRound />
+                  修改密码
+                </RouteLoadingLink>
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />

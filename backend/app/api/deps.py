@@ -1,3 +1,5 @@
+from urllib.parse import unquote
+
 from fastapi import Depends
 from fastapi import Header
 from sqlalchemy.orm import Session
@@ -20,7 +22,7 @@ def protected(_: None = Depends(require_api_key)) -> None:
 def get_request_operator(x_operator: str | None = Header(default=None, alias='X-Operator')) -> str | None:
     if x_operator is None:
         return None
-    value = x_operator.strip()
+    value = unquote(x_operator).strip()
     if not value:
         return None
     return value[:255]

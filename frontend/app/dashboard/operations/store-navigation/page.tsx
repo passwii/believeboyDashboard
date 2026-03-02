@@ -1,6 +1,7 @@
 'use client'
 
 import { ArrowUpRight, Building2, ExternalLink, Loader2, Store } from 'lucide-react'
+import { useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
@@ -95,17 +96,37 @@ function StoreGrid({ items }: StoreGridProps) {
 }
 
 export default function StoreNavigationPage() {
+  const { data: session, status } = useSession()
   const [stores, setStores] = useState<StoreItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (status === 'loading') return
+
     async function fetchStores() {
       try {
+        setLoading(true)
+        setError(null)
+
+        const currentOperator = (
+          session?.user?.operatorNameZh ||
+          session?.user?.name ||
+          session?.user?.email ||
+          session?.user?.id ||
+          ''
+        ).trim()
+        const isAdmin = Boolean(session?.user?.isAdmin)
+
         const headers: Record<string, string> = {}
         if (API_KEY) {
           headers['X-API-Key'] = API_KEY
         }
+        if (currentOperator) {
+          headers['X-Operator'] = encodeURIComponent(currentOperator)
+        }
+        headers['X-Is-Admin'] = String(isAdmin)
+
         const response = await fetch(`${API_BASE}/api/v1/projects/manage`, {
           headers,
           cache: 'no-store',
@@ -123,7 +144,7 @@ export default function StoreNavigationPage() {
     }
 
     fetchStores()
-  }, [])
+  }, [session?.user?.email, session?.user?.id, session?.user?.isAdmin, session?.user?.name, session?.user?.operatorNameZh, status])
 
   const stats = [
     { label: '店铺总数', value: `${stores.length}`, icon: Store },

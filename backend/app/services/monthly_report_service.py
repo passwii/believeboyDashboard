@@ -7,7 +7,7 @@ from threading import Lock
 from typing import Any
 
 from fastapi import HTTPException, status
-from sqlalchemy import delete, insert, select, update as sa_update
+from sqlalchemy import delete, func, insert, select, update as sa_update
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -306,9 +306,21 @@ def get_financial_series(
     if end_month:
         parse_report_month(end_month)
 
+    debt_sum_subquery = (
+        select(
+            MonthlyReportTransaction.report_id.label('report_id'),
+            func.coalesce(func.sum(MonthlyReportTransaction.total), 0).label('credit_card_deduction_usd'),
+        )
+        .where(func.lower(func.trim(MonthlyReportTransaction.transaction_type)) == 'debt')
+        .group_by(MonthlyReportTransaction.report_id)
+        .subquery()
+    )
+
     query_rows = db.execute(
         select(MonthlyReport, MonthlyReportPT4Calculation)
+        .add_columns(debt_sum_subquery.c.credit_card_deduction_usd)
         .outerjoin(MonthlyReportPT4Calculation, MonthlyReportPT4Calculation.report_id == MonthlyReport.id)
+        .outerjoin(debt_sum_subquery, debt_sum_subquery.c.report_id == MonthlyReport.id)
         .where(
             MonthlyReport.project_id == project_id,
             MonthlyReport.is_current.is_(True),
@@ -317,8 +329,15 @@ def get_financial_series(
     ).all()
 
     month_to_row: dict[str, dict[str, Any]] = {}
-    for report, pt4 in query_rows:
-        month_to_row[report.report_month] = _build_financial_row(report.report_month, pt4)
+    for row in query_rows:
+        report = row[0]
+        pt4 = row[1] if len(row) > 1 else None
+        credit_card_deduction_usd = row[2] if len(row) > 2 else None
+        month_to_row[report.report_month] = _build_financial_row(
+            report.report_month,
+            pt4,
+            credit_card_deduction_usd=credit_card_deduction_usd,
+        )
 
     start_date, end_date = _resolve_financial_range(
         month_values=list(month_to_row.keys()),
@@ -550,9 +569,16 @@ def _resolve_financial_range(
     return parsed_start, parsed_end
 
 
-def _build_financial_row(report_month: str, pt4: MonthlyReportPT4Calculation | None) -> dict[str, Any]:
+def _build_financial_row(
+    report_month: str,
+    pt4: MonthlyReportPT4Calculation | None,
+    *,
+    credit_card_deduction_usd: Decimal | float | int | None = None,
+) -> dict[str, Any]:
     if pt4 is None:
-        return _empty_financial_row(report_month)
+        return _empty_financial_row(report_month, credit_card_deduction_usd=credit_card_deduction_usd)
+    stored_credit_card = getattr(pt4, 'credit_card_deduction_usd', None)
+    resolved_credit_card = stored_credit_card if stored_credit_card is not None else credit_card_deduction_usd
     return {
         'report_month': report_month,
         'income_sales': _to_float(pt4.income_sales),
@@ -568,11 +594,16 @@ def _build_financial_row(report_month: str, pt4: MonthlyReportPT4Calculation | N
         'income_total': _to_float(pt4.income_total),
         'expense_total': _to_float(pt4.expense_total),
         'amazon_pay_back': _to_float(pt4.amazon_pay_back),
+        'credit_card_deduction_usd': _to_float(resolved_credit_card),
         'has_source_report': True,
     }
 
 
-def _empty_financial_row(report_month: str) -> dict[str, Any]:
+def _empty_financial_row(
+    report_month: str,
+    *,
+    credit_card_deduction_usd: Decimal | float | int | None = None,
+) -> dict[str, Any]:
     return {
         'report_month': report_month,
         'income_sales': 0.0,
@@ -588,6 +619,7 @@ def _empty_financial_row(report_month: str) -> dict[str, Any]:
         'income_total': 0.0,
         'expense_total': 0.0,
         'amazon_pay_back': 0.0,
+        'credit_card_deduction_usd': _to_float(credit_card_deduction_usd),
         'has_source_report': False,
     }
 

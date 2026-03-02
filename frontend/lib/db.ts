@@ -7,8 +7,19 @@ export interface ExchangeRate {
   year_month: string
   rate: number
   description?: string | null
+  note_images?: ExchangeRateNoteImage[] | null
   created_at?: string
   updated_at?: string
+}
+
+export interface ExchangeRateNoteImage {
+  id: string
+  url: string
+  thumbnailUrl?: string
+  filename: string
+  contentType: string
+  size: number
+  uploadedAt: string
 }
 
 export interface ExchangeRateFilters {
@@ -67,12 +78,14 @@ async function ensureInitialized() {
           year_month TEXT NOT NULL,
           rate NUMERIC(18, 8) NOT NULL,
           description TEXT,
+          note_images JSONB,
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
       `)
       await pool.query(`ALTER TABLE exchange_rates ADD COLUMN IF NOT EXISTS currency_name TEXT`)
       await pool.query(`ALTER TABLE exchange_rates ADD COLUMN IF NOT EXISTS description TEXT`)
+      await pool.query(`ALTER TABLE exchange_rates ADD COLUMN IF NOT EXISTS note_images JSONB`)
       await pool.query(`ALTER TABLE exchange_rates ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`)
       await pool.query(`ALTER TABLE exchange_rates ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`)
       await pool.query(`
@@ -93,6 +106,17 @@ async function ensureInitialized() {
 }
 
 function rowToExchangeRate(row: any): ExchangeRate {
+  let noteImages: ExchangeRateNoteImage[] | null = null
+  if (Array.isArray(row.note_images)) {
+    noteImages = row.note_images
+  } else if (typeof row.note_images === "string" && row.note_images.trim()) {
+    try {
+      const parsed = JSON.parse(row.note_images)
+      noteImages = Array.isArray(parsed) ? parsed : null
+    } catch {
+      noteImages = null
+    }
+  }
   return {
     id: Number(row.id),
     currency: row.currency,
@@ -100,6 +124,7 @@ function rowToExchangeRate(row: any): ExchangeRate {
     year_month: row.year_month,
     rate: Number(row.rate),
     description: row.description,
+    note_images: noteImages,
     created_at: row.created_at ? new Date(row.created_at).toISOString() : undefined,
     updated_at: row.updated_at ? new Date(row.updated_at).toISOString() : undefined,
   }
@@ -137,7 +162,7 @@ export const exchangeRateDb = {
     const total = countResult.rows[0]?.total ?? 0
 
     let listQuery = `
-      SELECT id, currency, currency_name, year_month, rate, description, created_at, updated_at
+      SELECT id, currency, currency_name, year_month, rate, description, note_images, created_at, updated_at
       FROM exchange_rates
       ${whereSql}
       ORDER BY year_month DESC, currency ASC
@@ -166,7 +191,7 @@ export const exchangeRateDb = {
 
     const pool = getDbPool()
     const result = await pool.query(
-      `SELECT id, currency, currency_name, year_month, rate, description, created_at, updated_at
+      `SELECT id, currency, currency_name, year_month, rate, description, note_images, created_at, updated_at
        FROM exchange_rates
        WHERE id = $1`,
       [id]
@@ -179,7 +204,7 @@ export const exchangeRateDb = {
 
     const pool = getDbPool()
     const result = await pool.query(
-      `SELECT id, currency, currency_name, year_month, rate, description, created_at, updated_at
+      `SELECT id, currency, currency_name, year_month, rate, description, note_images, created_at, updated_at
        FROM exchange_rates
        WHERE currency = $1 AND year_month = $2`,
       [currency, normalizeYearMonth(year_month)]
@@ -195,6 +220,7 @@ export const exchangeRateDb = {
     month?: string | number
     rate: number
     description?: string | null
+    note_images?: ExchangeRateNoteImage[] | null
   }): Promise<ExchangeRate> {
     await ensureInitialized()
 
@@ -205,11 +231,18 @@ export const exchangeRateDb = {
     const pool = getDbPool()
     const result = await pool.query(
       `
-        INSERT INTO exchange_rates (currency, currency_name, year_month, rate, description, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
-        RETURNING id, currency, currency_name, year_month, rate, description, created_at, updated_at
+        INSERT INTO exchange_rates (currency, currency_name, year_month, rate, description, note_images, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6::jsonb, NOW(), NOW())
+        RETURNING id, currency, currency_name, year_month, rate, description, note_images, created_at, updated_at
       `,
-      [data.currency, data.currency_name ?? null, yearMonth, data.rate, data.description ?? null]
+      [
+        data.currency,
+        data.currency_name ?? null,
+        yearMonth,
+        data.rate,
+        data.description ?? null,
+        JSON.stringify(data.note_images ?? []),
+      ]
     )
 
     return rowToExchangeRate(result.rows[0])
@@ -225,6 +258,7 @@ export const exchangeRateDb = {
       month: string | number
       rate: number
       description: string | null
+      note_images: ExchangeRateNoteImage[] | null
     }>
   ): Promise<ExchangeRate | null> {
     const current = await this.getById(id)
@@ -247,9 +281,10 @@ export const exchangeRateDb = {
           year_month = $3,
           rate = $4,
           description = $5,
+          note_images = $6::jsonb,
           updated_at = NOW()
-        WHERE id = $6
-        RETURNING id, currency, currency_name, year_month, rate, description, created_at, updated_at
+        WHERE id = $7
+        RETURNING id, currency, currency_name, year_month, rate, description, note_images, created_at, updated_at
       `,
       [
         data.currency ?? current.currency,
@@ -257,6 +292,7 @@ export const exchangeRateDb = {
         yearMonth,
         data.rate ?? current.rate,
         data.description !== undefined ? data.description : current.description ?? null,
+        JSON.stringify(data.note_images !== undefined ? data.note_images ?? [] : current.note_images ?? []),
         id,
       ]
     )

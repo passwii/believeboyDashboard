@@ -27,8 +27,10 @@ export default function DashboardLayout({
     if (pathname.includes('/data-management/business-report')) return '业务报告'
     if (pathname.includes('/data-management/ad-analysis')) return '广告分析'
     if (pathname.includes('/data-management/inventory-sales-analysis')) return '库存销售分析'
+    if (pathname.includes('/change-password')) return '修改密码'
     if (pathname.includes('/system-management/data-management')) return '数据库状态'
     if (pathname.includes('/system-management/account-management')) return '系统账号管理'
+    if (pathname.includes('/system-management/commission-management')) return '提成管理'
     if (pathname.includes('/operations/site-navigation')) return '跨境平台书签导航'
     if (pathname.includes('/ai-panel/chat')) return 'AI 聊天面板'
     return 'Dashboard'
@@ -37,7 +39,7 @@ export default function DashboardLayout({
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset>
+      <SidebarInset className="min-w-0 overflow-x-hidden">
         <header className="sticky top-0 z-20 border-b border-border/80 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/70">
           <div className="flex h-[4.5rem] items-center gap-2 px-4 md:h-20 md:px-6">
             <SidebarTrigger className="-ml-1" />
@@ -57,7 +59,7 @@ export default function DashboardLayout({
             </div>
           </div>
         </header>
-        <main className="relative flex-1 p-4 md:p-6 lg:p-8">
+        <main className="relative min-w-0 flex-1 overflow-x-hidden p-4 md:p-6 lg:p-8">
           {children}
         </main>
       </SidebarInset>

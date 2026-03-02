@@ -3,13 +3,13 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 import { NextRequest, NextResponse } from "next/server"
-import { requireAdminSession } from "@/lib/auth/server"
+import { requireUserSession } from "@/lib/auth/server"
 import { exchangeRateDb } from "@/lib/db"
 
 // 获取筛选选项（货币列表、年份列表等）
 export async function GET(request: NextRequest) {
   try {
-    const session = await requireAdminSession()
+    const session = await requireUserSession()
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
