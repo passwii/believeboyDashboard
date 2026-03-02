@@ -7,6 +7,8 @@ type UserItem = {
   id: string
   name: string
   email: string
+  full_name?: string | null
+  operator_name_zh?: string | null
   is_admin: boolean
   is_active: boolean
   created_at: string
@@ -18,6 +20,8 @@ function toFrontendUser(item: UserItem) {
     id: item.id,
     name: item.name,
     email: item.email,
+    fullName: item.full_name ?? null,
+    operatorNameZh: item.operator_name_zh ?? null,
     isAdmin: item.is_admin,
     isActive: item.is_active,
     createdAt: item.created_at,
@@ -38,6 +42,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
   const body = (await request.json()) as {
     name?: string
+    fullName?: string
     isAdmin?: boolean
     isActive?: boolean
     password?: string
@@ -60,6 +65,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       },
       body: JSON.stringify({
         name: body.name,
+        full_name: body.fullName,
         is_admin: body.isAdmin,
         is_active: body.isActive,
         password: body.password,

@@ -69,18 +69,18 @@ const tools = [
       { title: '产品分析', url: '/dashboard/data-reporting/product-analysis' },
     ],
   },
-{
-title: '数据分析',
-icon: <ChartColumnBig className="h-4 w-4" />,
-items: [
-{ title: '月度财务分析', url: '/dashboard/data-analysis/financial-data' },
-{ title: '按周产品分析', url: '/dashboard/data-analysis/weekly-product-analysis' },
-{ title: '业务报告', url: '/dashboard/data-management/business-report' },
-{ title: '广告分析', url: '/dashboard/data-management/ad-analysis' },
-{ title: '库存销售分析', url: '/dashboard/data-management/inventory-sales-analysis' },
+  {
+    title: '数据分析',
+    icon: <ChartColumnBig className="h-4 w-4" />,
+    items: [
+      { title: '月度财务分析', url: '/dashboard/data-analysis/financial-data' },
+      { title: '按周产品分析', url: '/dashboard/data-analysis/weekly-product-analysis' },
+      { title: '业务报告', url: '/dashboard/data-management/business-report' },
+      { title: '广告分析', url: '/dashboard/data-management/ad-analysis' },
+      { title: '库存销售分析', url: '/dashboard/data-management/inventory-sales-analysis' },
     ],
   },
-{
+  {
     title: '工具集',
     icon: <Wrench className="h-4 w-4" />,
     items: [
@@ -94,7 +94,8 @@ items: [
     title: '数据管理',
     icon: <Database className="h-4 w-4" />,
     items: [
-      { title: 'SKU成本', url: '/dashboard/data-management/sku-cost' },
+{ title: 'SKU成本', url: '/dashboard/data-management/sku-cost' },
+      { title: '汇率信息', url: '/dashboard/data-management/exchange-rate' },
     ],
   },
 ]
@@ -104,7 +105,7 @@ const adminTools = [
     title: '系统管理',
     icon: <ShieldUser className="h-4 w-4" />,
     items: [
-{ title: '数据库状态', url: '/dashboard/system-management/data-management' },
+      { title: '数据库状态', url: '/dashboard/system-management/data-management' },
       { title: '账号管理', url: '/dashboard/system-management/account-management' },
       { title: '项目信息', url: '/dashboard/data-management/project-info' },
     ],

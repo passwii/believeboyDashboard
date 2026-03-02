@@ -16,6 +16,13 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useGlobalLoading } from '@/components/global-loading-provider'
 
@@ -259,23 +266,29 @@ export default function StoreInfoPage() {
                     <label htmlFor="project-add-operator" className="text-sm font-medium text-foreground">
                       运营
                     </label>
-                    <Input
-                      id="project-add-operator"
-                      value={addProjectOperator}
-                      onChange={(e) => setAddProjectOperator(e.target.value)}
-                      placeholder="输入运营人员"
-                      disabled={submitting}
-                    />
+                    <Select value={addProjectOperator} onValueChange={setAddProjectOperator} disabled={submitting}>
+                      <SelectTrigger id="project-add-operator">
+                        <SelectValue placeholder="选择运营" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="纪亚伟">纪亚伟</SelectItem>
+                        <SelectItem value="张旭胜">张旭胜</SelectItem>
+                        <SelectItem value="尤帅">尤帅</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <label htmlFor="project-add-commission-mode" className="text-sm font-medium text-foreground">
                       佣金方式
                     </label>
-                    <Input
-                      id="project-add-commission-mode"
-                      value={addCommissionMode}
-                      onChange={(e) => setAddCommissionMode(e.target.value)}
-                      placeholder="输入佣金方式"
-                      disabled={submitting}
-                    />
+                    <Select value={addCommissionMode} onValueChange={setAddCommissionMode} disabled={submitting}>
+                      <SelectTrigger id="project-add-commission-mode">
+                        <SelectValue placeholder="选择佣金方式" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="销售额">销售额</SelectItem>
+                        <SelectItem value="平台回款">平台回款</SelectItem>
+                        <SelectItem value="利润率">利润率</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <label htmlFor="project-add-commission-rate" className="text-sm font-medium text-foreground">
                       佣金点数
                     </label>
@@ -414,23 +427,29 @@ export default function StoreInfoPage() {
             <label htmlFor="project-edit-operator" className="text-sm font-medium text-foreground">
               运营
             </label>
-            <Input
-              id="project-edit-operator"
-              value={editProjectOperator}
-              onChange={(e) => setEditProjectOperator(e.target.value)}
-              placeholder="输入运营人员"
-              disabled={submitting}
-            />
+            <Select value={editProjectOperator} onValueChange={setEditProjectOperator} disabled={submitting}>
+              <SelectTrigger id="project-edit-operator">
+                <SelectValue placeholder="选择运营" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="纪亚伟">纪亚伟</SelectItem>
+                <SelectItem value="张旭胜">张旭胜</SelectItem>
+                <SelectItem value="尤帅">尤帅</SelectItem>
+              </SelectContent>
+            </Select>
             <label htmlFor="project-edit-commission-mode" className="text-sm font-medium text-foreground">
               佣金方式
             </label>
-            <Input
-              id="project-edit-commission-mode"
-              value={editCommissionMode}
-              onChange={(e) => setEditCommissionMode(e.target.value)}
-              placeholder="输入佣金方式"
-              disabled={submitting}
-            />
+            <Select value={editCommissionMode} onValueChange={setEditCommissionMode} disabled={submitting}>
+              <SelectTrigger id="project-edit-commission-mode">
+                <SelectValue placeholder="选择佣金方式" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="销售额">销售额</SelectItem>
+                <SelectItem value="平台回款">平台回款</SelectItem>
+                <SelectItem value="利润率">利润率</SelectItem>
+              </SelectContent>
+            </Select>
             <label htmlFor="project-edit-commission-rate" className="text-sm font-medium text-foreground">
               佣金点数
             </label>

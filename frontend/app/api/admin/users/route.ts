@@ -7,6 +7,8 @@ type UserItem = {
   id: string
   name: string
   email: string
+  full_name?: string | null
+  operator_name_zh?: string | null
   is_admin: boolean
   is_active: boolean
   created_at: string
@@ -18,6 +20,8 @@ function toFrontendUser(item: UserItem) {
     id: item.id,
     name: item.name,
     email: item.email,
+    fullName: item.full_name ?? null,
+    operatorNameZh: item.operator_name_zh ?? null,
     isAdmin: item.is_admin,
     isActive: item.is_active,
     createdAt: item.created_at,
@@ -62,6 +66,7 @@ export async function POST(request: Request) {
   const body = (await request.json()) as {
     name?: string
     email?: string
+    fullName?: string
     password?: string
     isAdmin?: boolean
   }
@@ -76,6 +81,7 @@ export async function POST(request: Request) {
       body: JSON.stringify({
         name: body.name,
         email: body.email,
+        full_name: body.fullName,
         password: body.password,
         is_admin: Boolean(body.isAdmin),
       }),

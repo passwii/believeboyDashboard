@@ -20,6 +20,7 @@ create table if not exists public.user_accounts (
   name text not null check (length(trim(name)) > 0),
   email text not null check (position('@' in email) > 1),
   password_hash text not null check (length(password_hash) >= 20),
+  full_name text,
   operator_name_zh text,
   is_admin boolean not null default false,
   is_active boolean not null default true,
@@ -28,6 +29,7 @@ create table if not exists public.user_accounts (
 );
 
 alter table public.user_accounts add column if not exists operator_name_zh text;
+alter table public.user_accounts add column if not exists full_name text;
 
 create unique index if not exists ux_user_accounts_email_ci
 on public.user_accounts ((lower(email)));

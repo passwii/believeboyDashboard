@@ -15,6 +15,8 @@ type UserItem = {
   id: string
   name: string
   email: string
+  fullName: string | null
+  operatorNameZh?: string | null
   isAdmin: boolean
   isActive: boolean
   createdAt: string
@@ -46,6 +48,7 @@ export default function AccountManagementPage() {
 
   const [createOpen, setCreateOpen] = useState(false)
   const [createName, setCreateName] = useState('')
+  const [createFullName, setCreateFullName] = useState('')
   const [createEmail, setCreateEmail] = useState('')
   const [createPassword, setCreatePassword] = useState('')
   const [createIsAdmin, setCreateIsAdmin] = useState(false)
@@ -120,6 +123,7 @@ export default function AccountManagementPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: createName,
+          fullName: createFullName,
           email: createEmail,
           password: createPassword,
           isAdmin: createIsAdmin,
@@ -132,6 +136,7 @@ export default function AccountManagementPage() {
       setItems((prev) => [data.item!, ...prev])
       setCreateOpen(false)
       setCreateName('')
+      setCreateFullName('')
       setCreateEmail('')
       setCreatePassword('')
       setCreateIsAdmin(false)
@@ -207,6 +212,7 @@ export default function AccountManagementPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>名称</TableHead>
+                  <TableHead>姓名</TableHead>
                   <TableHead>邮箱</TableHead>
                   <TableHead>角色</TableHead>
                   <TableHead>状态</TableHead>
@@ -217,13 +223,13 @@ export default function AccountManagementPage() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center text-muted-foreground">
                       加载中...
                     </TableCell>
                   </TableRow>
                 ) : items.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center text-muted-foreground">
                       暂无账号
                     </TableCell>
                   </TableRow>
@@ -233,6 +239,7 @@ export default function AccountManagementPage() {
                     return (
                       <TableRow key={item.id}>
                         <TableCell>{getAccountDisplayName(item)}</TableCell>
+                        <TableCell>{item.fullName || item.operatorNameZh || '-'}</TableCell>
                         <TableCell>{item.email}</TableCell>
                         <TableCell>
                           {item.isAdmin ? (
@@ -296,6 +303,15 @@ export default function AccountManagementPage() {
             <div className="space-y-2">
               <Label htmlFor="create-name">名称</Label>
               <Input id="create-name" value={createName} onChange={(e) => setCreateName(e.target.value)} required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="create-full-name">姓名</Label>
+              <Input
+                id="create-full-name"
+                value={createFullName}
+                onChange={(e) => setCreateFullName(e.target.value)}
+                placeholder="可选，后续可手动维护"
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="create-email">邮箱</Label>

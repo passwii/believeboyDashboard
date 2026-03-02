@@ -12,6 +12,7 @@ class UserItem(BaseModel):
     id: str
     name: str
     email: str
+    full_name: str | None = None
     operator_name_zh: str | None = None
     is_admin: bool
     is_active: bool
@@ -26,6 +27,7 @@ class UsersResponse(BaseModel):
 class CreateUserRequest(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     email: str = Field(min_length=3, max_length=255)
+    full_name: str | None = Field(default=None, max_length=255)
     operator_name_zh: str | None = Field(default=None, max_length=255)
     password: str = Field(min_length=8, max_length=128)
     is_admin: bool = False
@@ -37,6 +39,7 @@ class CreateUserResponse(BaseModel):
 
 class UpdateUserRequest(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=255)
+    full_name: str | None = Field(default=None, max_length=255)
     operator_name_zh: str | None = Field(default=None, max_length=255)
     is_admin: bool | None = None
     is_active: bool | None = None
@@ -69,6 +72,7 @@ def _to_item(row: dict) -> UserItem:
         id=str(row['id']),
         name='Yawei' if is_yawei else str(row['name']),
         email=str(row['email']),
+        full_name=(str(row['full_name']) if row['full_name'] is not None else None),
         operator_name_zh=(str(row['operator_name_zh']) if row['operator_name_zh'] is not None else None),
         is_admin=True if is_yawei else bool(row['is_admin']),
         is_active=True if is_yawei else bool(row['is_active']),
@@ -86,6 +90,7 @@ def list_users(db: Session = Depends(get_db_session)) -> UsersResponse:
               id::text as id,
               name,
               email,
+              full_name,
               operator_name_zh,
               is_admin,
               is_active,
@@ -106,12 +111,13 @@ def create_user(payload: CreateUserRequest, db: Session = Depends(get_db_session
         row = db.execute(
             text(
                 '''
-                insert into public.user_accounts (name, email, operator_name_zh, password_hash, is_admin, is_active)
-                values (:name, :email, :operator_name_zh, crypt(:password, gen_salt('bf', 12)), :is_admin, true)
+                insert into public.user_accounts (name, email, full_name, operator_name_zh, password_hash, is_admin, is_active)
+                values (:name, :email, :full_name, :operator_name_zh, crypt(:password, gen_salt('bf', 12)), :is_admin, true)
                 returning
                   id::text as id,
                   name,
                   email,
+                  full_name,
                   operator_name_zh,
                   is_admin,
                   is_active,
@@ -122,6 +128,7 @@ def create_user(payload: CreateUserRequest, db: Session = Depends(get_db_session
             {
                 'name': payload.name.strip(),
                 'email': payload.email.strip().lower(),
+                'full_name': payload.full_name.strip() if payload.full_name else None,
                 'operator_name_zh': payload.operator_name_zh.strip() if payload.operator_name_zh else None,
                 'password': payload.password,
                 'is_admin': bool(payload.is_admin),
@@ -145,6 +152,7 @@ def create_user(payload: CreateUserRequest, db: Session = Depends(get_db_session
 def update_user(user_id: str, payload: UpdateUserRequest, db: Session = Depends(get_db_session)) -> UpdateUserResponse:
     _ensure_pgcrypto(db)
     name = payload.name.strip() if isinstance(payload.name, str) else None
+    full_name = payload.full_name.strip() if isinstance(payload.full_name, str) else None
     operator_name_zh = payload.operator_name_zh.strip() if isinstance(payload.operator_name_zh, str) else None
     is_admin = payload.is_admin if isinstance(payload.is_admin, bool) else None
     is_active = payload.is_active if isinstance(payload.is_active, bool) else None
@@ -167,6 +175,7 @@ def update_user(user_id: str, payload: UpdateUserRequest, db: Session = Depends(
                 when lower(email) like 'yawei@%' or lower(name) = 'yawei' then true
                 else coalesce(:is_active, is_active)
               end,
+              full_name = coalesce(:full_name, full_name),
               operator_name_zh = coalesce(:operator_name_zh, operator_name_zh),
               password_hash = case
                 when :password is null then password_hash
@@ -178,6 +187,7 @@ def update_user(user_id: str, payload: UpdateUserRequest, db: Session = Depends(
               id::text as id,
               name,
               email,
+              full_name,
               operator_name_zh,
               is_admin,
               is_active,
@@ -188,6 +198,7 @@ def update_user(user_id: str, payload: UpdateUserRequest, db: Session = Depends(
         {
             'user_id': user_id,
             'name': name,
+            'full_name': full_name,
             'operator_name_zh': operator_name_zh,
             'is_admin': is_admin,
             'is_active': is_active,
