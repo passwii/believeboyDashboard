@@ -107,6 +107,7 @@ const adminTools = [
     items: [
       { title: '数据库状态', url: '/dashboard/system-management/data-management' },
       { title: '账号管理', url: '/dashboard/system-management/account-management' },
+      { title: '佣金管理', url: '/dashboard/system-management/commission-overview' },
       { title: '提成管理', url: '/dashboard/system-management/commission-management' },
       { title: '项目信息', url: '/dashboard/data-management/project-info' },
     ],

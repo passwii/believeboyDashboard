@@ -11,17 +11,30 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, get_request_operator, protected
 from app.core.config import get_settings
+from app.models.commission_project_month import CommissionProjectMonth
 from app.models.commission_record import CommissionRecord
+from app.models.commission_ratio_override import CommissionRatioOverride
+from app.models.project_role_assignment import ProjectRoleAssignment
 from app.schemas.system_management import (
     CommissionIncomeCategory,
     CommissionPaymentStatus,
+    CommissionProjectMonthItem,
+    CommissionProjectMonthsResponse,
+    CommissionProjectPaymentStatus,
+    CommissionRatioOverrideItem,
+    CommissionRatioOverridesResponse,
+    CommissionRatioSource,
     CommissionRecordItem,
     CommissionRecordsResponse,
+    UpdateCommissionProjectPaymentRequest,
+    UpdateCommissionProjectPaymentResponse,
     DataLifecycleStatus,
     DataManagementOverviewResponse,
     DataManagementStatusResponse,
     DataSummary,
     DatabaseStatus,
+    ProjectRoleAssignmentItem,
+    ProjectRoleAssignmentsResponse,
     RecentSystemStatusItem,
     TableHealthStatus,
     TableStatusItem,
@@ -29,7 +42,9 @@ from app.schemas.system_management import (
     UpdateCommissionPaymentStatusResponse,
     UpdateDataStatusRequest,
     UpdateDataStatusResponse,
+    UpsertCommissionRatioOverridesRequest,
     UpsertCommissionRecordsRequest,
+    UpsertProjectRoleAssignmentsRequest,
 )
 
 router = APIRouter(prefix='/system-management', dependencies=[Depends(protected)])
@@ -96,6 +111,7 @@ def _serialize_commission_record(row: CommissionRecord) -> CommissionRecordItem:
         report_month=row.report_month,
         project_id=row.project_id,
         project_name=row.project_name,
+        project_month_id=row.project_month_id,
         person_name=row.person_name,
         income_category=CommissionIncomeCategory(row.income_category),
         income_total_usd=float(row.income_total_usd),
@@ -104,10 +120,65 @@ def _serialize_commission_record(row: CommissionRecord) -> CommissionRecordItem:
         commission_amount_usd=float(row.commission_amount_usd),
         usd_to_rmb_rate=float(row.usd_to_rmb_rate),
         commission_amount_rmb=float(row.commission_amount_rmb),
+        ratio_source=CommissionRatioSource(row.ratio_source),
+        manual_ratio=float(row.manual_ratio) if row.manual_ratio is not None else None,
         payment_status=CommissionPaymentStatus(row.payment_status),
         payment_confirmed_at=_to_iso(row.payment_confirmed_at),
         payment_confirmed_by=row.payment_confirmed_by,
+        is_locked=bool(row.is_locked),
+        locked_at=_to_iso(row.locked_at),
+        locked_by=row.locked_by,
+        is_active=bool(row.is_active),
+        deactivated_at=_to_iso(row.deactivated_at),
         computed_at=_to_iso(row.computed_at) or '',
+        updated_at=_to_iso(row.updated_at) or '',
+    )
+
+
+def _serialize_project_month(row: CommissionProjectMonth) -> CommissionProjectMonthItem:
+    return CommissionProjectMonthItem(
+        id=row.id,
+        report_month=row.report_month,
+        project_id=row.project_id,
+        project_name=row.project_name,
+        income_total_usd=float(row.income_total_usd),
+        factory_commission_rate=float(row.factory_commission_rate),
+        usd_to_rmb_rate=float(row.usd_to_rmb_rate),
+        factory_commission_usd=float(row.factory_commission_usd),
+        factory_commission_rmb=float(row.factory_commission_rmb),
+        payment_status=CommissionProjectPaymentStatus(row.payment_status),
+        received_rmb=float(row.received_rmb),
+        payment_confirmed_at=_to_iso(row.payment_confirmed_at),
+        payment_confirmed_by=row.payment_confirmed_by,
+        note=row.note,
+        computed_at=_to_iso(row.computed_at) or '',
+        updated_at=_to_iso(row.updated_at) or '',
+    )
+
+
+def _serialize_ratio_override(row: CommissionRatioOverride) -> CommissionRatioOverrideItem:
+    return CommissionRatioOverrideItem(
+        id=row.id,
+        report_month=row.report_month,
+        project_id=row.project_id,
+        project_name=row.project_name,
+        person_name=row.person_name,
+        income_category=CommissionIncomeCategory(row.income_category),
+        override_ratio=float(row.override_ratio),
+        reason=row.reason,
+        updated_by=row.updated_by,
+        updated_at=_to_iso(row.updated_at) or '',
+    )
+
+
+def _serialize_role_assignment(row: ProjectRoleAssignment) -> ProjectRoleAssignmentItem:
+    return ProjectRoleAssignmentItem(
+        id=row.id,
+        project_id=row.project_id,
+        role_type=CommissionIncomeCategory(row.role_type),
+        person_name=row.person_name,
+        effective_from_month=row.effective_from_month,
+        effective_to_month=row.effective_to_month,
         updated_at=_to_iso(row.updated_at) or '',
     )
 
@@ -374,6 +445,58 @@ def upsert_commission_records(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     now = _now().replace(microsecond=0)
+    project_items: dict[int, dict[str, str | float | int]] = {}
+    for item in payload.items:
+        if item.project_id not in project_items:
+            project_items[item.project_id] = {
+                'project_name': item.project_name.strip(),
+                'income_total_usd': item.income_total_usd,
+                'factory_commission_rate': item.factory_commission_rate,
+                'usd_to_rmb_rate': item.usd_to_rmb_rate,
+            }
+            continue
+        project_items[item.project_id].update(
+            {
+                'project_name': item.project_name.strip(),
+                'income_total_usd': item.income_total_usd,
+                'factory_commission_rate': item.factory_commission_rate,
+                'usd_to_rmb_rate': item.usd_to_rmb_rate,
+            }
+        )
+
+    existing_project_months = db.execute(
+        select(CommissionProjectMonth).where(CommissionProjectMonth.report_month == report_month)
+    ).scalars().all()
+    project_month_map = {row.project_id: row for row in existing_project_months}
+
+    for project_id, values in project_items.items():
+        project_month_row = project_month_map.get(project_id)
+        if project_month_row is None:
+            project_month_row = CommissionProjectMonth(
+                report_month=report_month,
+                project_id=project_id,
+                project_name=str(values['project_name']).strip(),
+                payment_status=CommissionProjectPaymentStatus.unpaid.value,
+            )
+            db.add(project_month_row)
+            project_month_map[project_id] = project_month_row
+
+        income_total_usd = _to_decimal(values['income_total_usd'], '0.01')
+        factory_commission_rate = _to_decimal(values['factory_commission_rate'], '0.000001')
+        usd_to_rmb_rate = _to_decimal(values['usd_to_rmb_rate'], '0.00000001')
+        factory_commission_usd = _to_decimal(income_total_usd * factory_commission_rate, '0.01')
+        factory_commission_rmb = _to_decimal(factory_commission_usd * usd_to_rmb_rate, '0.01')
+
+        project_month_row.project_name = str(values['project_name']).strip()
+        project_month_row.income_total_usd = income_total_usd
+        project_month_row.factory_commission_rate = factory_commission_rate
+        project_month_row.usd_to_rmb_rate = usd_to_rmb_rate
+        project_month_row.factory_commission_usd = factory_commission_usd
+        project_month_row.factory_commission_rmb = factory_commission_rmb
+        project_month_row.computed_at = now
+
+    db.flush()
+
     existing_rows = db.execute(
         select(CommissionRecord).where(CommissionRecord.report_month == report_month)
     ).scalars().all()
@@ -389,20 +512,33 @@ def upsert_commission_records(
             continue
         incoming_keys.add(key)
 
+        project_month_row = project_month_map.get(item.project_id)
         row = existing_map.get(key)
         if row is None:
             row = CommissionRecord(
                 report_month=report_month,
                 project_id=item.project_id,
                 project_name=item.project_name.strip(),
+                project_month_id=project_month_row.id if project_month_row else None,
                 person_name=item.person_name.strip(),
                 income_category=item.income_category.value,
                 payment_status=CommissionPaymentStatus.unpaid.value,
+                is_active=True,
             )
             db.add(row)
             existing_map[key] = row
 
         row.project_name = item.project_name.strip()
+        row.project_month_id = project_month_row.id if project_month_row else None
+        row.is_active = True
+        row.deactivated_at = None
+        if row.is_locked:
+            continue
+
+        ratio_source = item.ratio_source
+        manual_ratio_value: float | None = item.manual_ratio
+        if manual_ratio_value is not None:
+            ratio_source = CommissionRatioSource.manual
         try:
             row.income_total_usd = _to_decimal(item.income_total_usd, '0.01')
             row.factory_commission_rate = _to_decimal(item.factory_commission_rate, '0.000001')
@@ -410,19 +546,22 @@ def upsert_commission_records(
             row.commission_amount_usd = _to_decimal(item.commission_amount_usd, '0.01')
             row.usd_to_rmb_rate = _to_decimal(item.usd_to_rmb_rate, '0.00000001')
             row.commission_amount_rmb = _to_decimal(item.commission_amount_rmb, '0.01')
+            row.ratio_source = ratio_source.value
+            row.manual_ratio = _to_decimal(manual_ratio_value, '0.000001') if manual_ratio_value is not None else None
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         row.computed_at = now
 
-    stale_rows = [row for old_key, row in existing_map.items() if old_key not in incoming_keys]
+    stale_rows = [row for old_key, row in existing_map.items() if old_key not in incoming_keys and row.is_active]
     for stale in stale_rows:
-        db.delete(stale)
+        stale.is_active = False
+        stale.deactivated_at = now
 
     db.commit()
 
     rows = db.execute(
         select(CommissionRecord)
-        .where(CommissionRecord.report_month == report_month)
+        .where(CommissionRecord.report_month == report_month, CommissionRecord.is_active.is_(True))
         .order_by(
             CommissionRecord.person_name.asc(),
             CommissionRecord.project_name.asc(),
@@ -439,6 +578,7 @@ def upsert_commission_records(
 def list_commission_records(
     report_month: str,
     person_name: str | None = None,
+    include_inactive: bool = False,
     db: Session = Depends(get_db_session),
 ) -> CommissionRecordsResponse:
     try:
@@ -447,6 +587,8 @@ def list_commission_records(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     stmt = select(CommissionRecord).where(CommissionRecord.report_month == month)
+    if include_inactive is False:
+        stmt = stmt.where(CommissionRecord.is_active.is_(True))
     normalized_person = (person_name or '').strip()
     if normalized_person:
         stmt = stmt.where(CommissionRecord.person_name == normalized_person)
@@ -479,10 +621,230 @@ def update_commission_payment_status(
     if payload.payment_status == CommissionPaymentStatus.paid:
         row.payment_confirmed_at = now
         row.payment_confirmed_by = (operator or '').strip() or None
+        row.is_locked = True
+        row.locked_at = now
+        row.locked_by = (operator or '').strip() or None
     else:
         row.payment_confirmed_at = None
         row.payment_confirmed_by = None
+        row.is_locked = False
+        row.locked_at = None
+        row.locked_by = None
     row.updated_at = now
     db.commit()
     db.refresh(row)
     return UpdateCommissionPaymentStatusResponse(item=_serialize_commission_record(row))
+
+
+@router.get('/commission-management/project-months', response_model=CommissionProjectMonthsResponse)
+def list_commission_project_months(
+    report_month: str,
+    db: Session = Depends(get_db_session),
+) -> CommissionProjectMonthsResponse:
+    try:
+        month = _parse_report_month(report_month)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    rows = db.execute(
+        select(CommissionProjectMonth)
+        .where(CommissionProjectMonth.report_month == month)
+        .order_by(CommissionProjectMonth.project_name.asc())
+    ).scalars().all()
+    return CommissionProjectMonthsResponse(report_month=month, items=[_serialize_project_month(row) for row in rows])
+
+
+@router.patch(
+    '/commission-management/project-months/{project_month_id}/payment',
+    response_model=UpdateCommissionProjectPaymentResponse,
+)
+def update_commission_project_payment(
+    project_month_id: int,
+    payload: UpdateCommissionProjectPaymentRequest,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+) -> UpdateCommissionProjectPaymentResponse:
+    row = db.execute(select(CommissionProjectMonth).where(CommissionProjectMonth.id == project_month_id)).scalars().first()
+    if row is None:
+        raise HTTPException(status_code=404, detail='project month record not found')
+
+    now = _now().replace(microsecond=0)
+    row.payment_status = payload.payment_status.value
+    row.received_rmb = _to_decimal(payload.received_rmb, '0.01')
+    row.note = (payload.note or '').strip() or None
+
+    if payload.payment_status == CommissionProjectPaymentStatus.unpaid:
+        row.payment_confirmed_at = None
+        row.payment_confirmed_by = None
+    else:
+        row.payment_confirmed_at = now
+        row.payment_confirmed_by = (operator or '').strip() or None
+    row.updated_at = now
+
+    if payload.payment_status == CommissionProjectPaymentStatus.paid:
+        paid_rows = db.execute(
+            select(CommissionRecord).where(
+                CommissionRecord.project_month_id == project_month_id,
+                CommissionRecord.is_active.is_(True),
+            )
+        ).scalars().all()
+        for commission_row in paid_rows:
+            commission_row.payment_status = CommissionPaymentStatus.paid.value
+            commission_row.payment_confirmed_at = now
+            commission_row.payment_confirmed_by = row.payment_confirmed_by
+            commission_row.is_locked = True
+            commission_row.locked_at = now
+            commission_row.locked_by = row.payment_confirmed_by
+
+    db.commit()
+    db.refresh(row)
+    return UpdateCommissionProjectPaymentResponse(item=_serialize_project_month(row))
+
+
+@router.post('/commission-management/ratio-overrides/upsert', response_model=CommissionRatioOverridesResponse)
+def upsert_commission_ratio_overrides(
+    payload: UpsertCommissionRatioOverridesRequest,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+) -> CommissionRatioOverridesResponse:
+    try:
+        report_month = _parse_report_month(payload.report_month)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    existing_rows = db.execute(
+        select(CommissionRatioOverride).where(CommissionRatioOverride.report_month == report_month)
+    ).scalars().all()
+    existing_map = {(row.project_id, row.person_name, row.income_category): row for row in existing_rows}
+
+    incoming_keys: set[tuple[int, str, str]] = set()
+    for item in payload.items:
+        key = (item.project_id, item.person_name.strip(), item.income_category.value)
+        if not key[1]:
+            continue
+        incoming_keys.add(key)
+        row = existing_map.get(key)
+        if row is None:
+            row = CommissionRatioOverride(
+                report_month=report_month,
+                project_id=item.project_id,
+                project_name=item.project_name.strip(),
+                person_name=item.person_name.strip(),
+                income_category=item.income_category.value,
+                override_ratio=_to_decimal(item.override_ratio, '0.000001'),
+            )
+            db.add(row)
+            existing_map[key] = row
+        else:
+            row.project_name = item.project_name.strip()
+            row.override_ratio = _to_decimal(item.override_ratio, '0.000001')
+        row.reason = (item.reason or '').strip() or None
+        row.updated_by = (operator or '').strip() or None
+
+    stale_rows = [row for key, row in existing_map.items() if key not in incoming_keys]
+    for stale in stale_rows:
+        db.delete(stale)
+
+    db.commit()
+    rows = db.execute(
+        select(CommissionRatioOverride)
+        .where(CommissionRatioOverride.report_month == report_month)
+        .order_by(
+            CommissionRatioOverride.person_name.asc(),
+            CommissionRatioOverride.project_name.asc(),
+            CommissionRatioOverride.income_category.asc(),
+        )
+    ).scalars().all()
+    return CommissionRatioOverridesResponse(
+        report_month=report_month,
+        items=[_serialize_ratio_override(row) for row in rows],
+    )
+
+
+@router.get('/commission-management/ratio-overrides', response_model=CommissionRatioOverridesResponse)
+def list_commission_ratio_overrides(
+    report_month: str,
+    db: Session = Depends(get_db_session),
+) -> CommissionRatioOverridesResponse:
+    try:
+        month = _parse_report_month(report_month)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    rows = db.execute(
+        select(CommissionRatioOverride)
+        .where(CommissionRatioOverride.report_month == month)
+        .order_by(
+            CommissionRatioOverride.person_name.asc(),
+            CommissionRatioOverride.project_name.asc(),
+            CommissionRatioOverride.income_category.asc(),
+        )
+    ).scalars().all()
+    return CommissionRatioOverridesResponse(report_month=month, items=[_serialize_ratio_override(row) for row in rows])
+
+
+@router.get('/commission-management/role-assignments', response_model=ProjectRoleAssignmentsResponse)
+def list_project_role_assignments(
+    report_month: str | None = None,
+    project_id: int | None = None,
+    db: Session = Depends(get_db_session),
+) -> ProjectRoleAssignmentsResponse:
+    stmt = select(ProjectRoleAssignment)
+    if project_id is not None and project_id > 0:
+        stmt = stmt.where(ProjectRoleAssignment.project_id == project_id)
+    if report_month:
+        month = _parse_report_month(report_month)
+        stmt = stmt.where(
+            ProjectRoleAssignment.effective_from_month <= month,
+            (ProjectRoleAssignment.effective_to_month.is_(None) | (ProjectRoleAssignment.effective_to_month >= month)),
+        )
+    stmt = stmt.order_by(
+        ProjectRoleAssignment.project_id.asc(),
+        ProjectRoleAssignment.role_type.asc(),
+        ProjectRoleAssignment.effective_from_month.asc(),
+        ProjectRoleAssignment.person_name.asc(),
+    )
+    rows = db.execute(stmt).scalars().all()
+    return ProjectRoleAssignmentsResponse(items=[_serialize_role_assignment(row) for row in rows])
+
+
+@router.post('/commission-management/role-assignments/upsert', response_model=ProjectRoleAssignmentsResponse)
+def upsert_project_role_assignments(
+    payload: UpsertProjectRoleAssignmentsRequest,
+    db: Session = Depends(get_db_session),
+) -> ProjectRoleAssignmentsResponse:
+    for item in payload.items:
+        from_month = _parse_report_month(item.effective_from_month)
+        to_month = _parse_report_month(item.effective_to_month) if item.effective_to_month else None
+        if to_month is not None and to_month < from_month:
+            raise HTTPException(status_code=422, detail='effective_to_month must be greater than or equal to effective_from_month')
+
+        row = None
+        if item.id is not None:
+            row = db.execute(select(ProjectRoleAssignment).where(ProjectRoleAssignment.id == item.id)).scalars().first()
+        if row is None:
+            row = ProjectRoleAssignment(
+                project_id=item.project_id,
+                role_type=item.role_type.value,
+                person_name=item.person_name.strip(),
+                effective_from_month=from_month,
+                effective_to_month=to_month,
+            )
+            db.add(row)
+        else:
+            row.project_id = item.project_id
+            row.role_type = item.role_type.value
+            row.person_name = item.person_name.strip()
+            row.effective_from_month = from_month
+            row.effective_to_month = to_month
+
+    db.commit()
+    rows = db.execute(
+        select(ProjectRoleAssignment).order_by(
+            ProjectRoleAssignment.project_id.asc(),
+            ProjectRoleAssignment.role_type.asc(),
+            ProjectRoleAssignment.effective_from_month.asc(),
+            ProjectRoleAssignment.person_name.asc(),
+        )
+    ).scalars().all()
+    return ProjectRoleAssignmentsResponse(items=[_serialize_role_assignment(row) for row in rows])

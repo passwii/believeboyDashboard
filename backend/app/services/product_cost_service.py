@@ -28,6 +28,7 @@ def list_product_costs(
     project_name: str | None,
     sku: str | None,
     asin: str | None,
+    is_active: bool | None,
     page: int,
     page_size: int,
     include_total: bool = False,
@@ -40,6 +41,8 @@ def list_product_costs(
         stmt = stmt.where(ProductCost.sku.ilike(f'%{sku}%'))
     if asin:
         stmt = stmt.where(ProductCost.asin.ilike(f'%{asin}%'))
+    if isinstance(is_active, bool):
+        stmt = stmt.where(ProductCost.is_active.is_(is_active))
 
     rows = db.execute(
         stmt.order_by(ProductCost.id.desc())
@@ -63,6 +66,7 @@ def list_product_costs_all(
     project_name: str | None,
     sku: str | None,
     asin: str | None,
+    is_active: bool | None = None,
 ) -> list[ProductCost]:
     stmt: Select = select(ProductCost)
 
@@ -72,6 +76,8 @@ def list_product_costs_all(
         stmt = stmt.where(ProductCost.sku.ilike(f'%{sku}%'))
     if asin:
         stmt = stmt.where(ProductCost.asin.ilike(f'%{asin}%'))
+    if isinstance(is_active, bool):
+        stmt = stmt.where(ProductCost.is_active.is_(is_active))
 
     return db.execute(stmt.order_by(ProductCost.id.desc())).scalars().all()
 
@@ -95,7 +101,7 @@ def _normalize_cost(value: float | str | Decimal | None, field_name: str) -> Dec
     return dec
 
 
-def _normalize_item(item: ProductCostCreate, source_file: str | None = None) -> dict[str, str | Decimal]:
+def _normalize_item(item: ProductCostCreate, source_file: str | None = None) -> dict[str, str | Decimal | bool]:
     return {
         'project_name': _normalize_text(item.project_name, 'project_name'),
         'sku': _normalize_text(item.sku, 'sku'),
@@ -103,6 +109,7 @@ def _normalize_item(item: ProductCostCreate, source_file: str | None = None) -> 
         'first_leg_unit_cost': _normalize_cost(item.first_leg_unit_cost, 'first_leg_unit_cost'),
         'fob_unit_cost': _normalize_cost(item.fob_unit_cost, 'fob_unit_cost'),
         'currency': _normalize_text(item.currency or 'USD', 'currency'),
+        'is_active': bool(item.is_active),
         'source_file': (source_file or item.source_file or '').strip() or None,
     }
 
@@ -126,6 +133,7 @@ def upsert_product_cost(db: Session, item: ProductCostCreate, source_file: str |
         existing.first_leg_unit_cost = normalized['first_leg_unit_cost']
         existing.fob_unit_cost = normalized['fob_unit_cost']
         existing.currency = normalized['currency']
+        existing.is_active = bool(normalized['is_active'])
         existing.source_file = normalized['source_file']
         row = existing
     else:
@@ -179,6 +187,7 @@ def update_product_cost_by_id(
     row.first_leg_unit_cost = first_leg_unit_cost
     row.fob_unit_cost = fob_unit_cost
     row.currency = currency
+    row.is_active = bool(payload.is_active)
     row.source_file = normalized_source_file
 
     db.flush()

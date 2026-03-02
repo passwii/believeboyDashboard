@@ -263,7 +263,20 @@ const SignInCard = () => {
         return;
       }
 
-      router.push(result.url || callbackUrl);
+      const fallbackPath = callbackUrl.startsWith("/") ? callbackUrl : "/dashboard";
+      let nextPath = fallbackPath;
+      if (result.url) {
+        try {
+          const target = new URL(result.url, window.location.origin);
+          // Prevent wrong NEXTAUTH_URL (e.g. localhost in production) from forcing cross-origin redirects.
+          if (target.origin === window.location.origin) {
+            nextPath = `${target.pathname}${target.search}${target.hash}`;
+          }
+        } catch {
+          nextPath = fallbackPath;
+        }
+      }
+      router.push(nextPath);
       router.refresh();
     } catch {
       setSubmitting(false);

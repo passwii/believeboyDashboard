@@ -30,6 +30,7 @@ export default function DashboardLayout({
     if (pathname.includes('/change-password')) return '修改密码'
     if (pathname.includes('/system-management/data-management')) return '数据库状态'
     if (pathname.includes('/system-management/account-management')) return '系统账号管理'
+    if (pathname.includes('/system-management/commission-overview')) return '佣金管理'
     if (pathname.includes('/system-management/commission-management')) return '提成管理'
     if (pathname.includes('/operations/site-navigation')) return '跨境平台书签导航'
     if (pathname.includes('/ai-panel/chat')) return 'AI 聊天面板'

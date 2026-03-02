@@ -154,13 +154,16 @@ def _read_payment_report(path: Path) -> pd.DataFrame:
 def _load_project_costs_df(project_name: str) -> pd.DataFrame:
     db = SessionLocal()
     try:
-        stmt = select(ProductCost).where(ProductCost.project_name == project_name)
+        stmt = select(ProductCost).where(
+            ProductCost.project_name == project_name,
+            ProductCost.is_active.is_(True),
+        )
         rows = db.execute(stmt).scalars().all()
     finally:
         db.close()
 
     if not rows:
-        raise ValueError(f'No product_costs found for project_name={project_name}')
+        raise ValueError(f'No active product_costs found for project_name={project_name}')
 
     data = [
         {

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { PencilLine, PlusCircle } from 'lucide-react'
+import { useSession } from 'next-auth/react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -105,6 +106,7 @@ function toCommissionPoints(rate: number | null): number | null {
 
 export default function StoreInfoPage() {
   const { withGlobalLoading } = useGlobalLoading()
+  const { data: session, status } = useSession()
   const [items, setItems] = useState<ProjectItem[]>([])
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -148,12 +150,24 @@ export default function StoreInfoPage() {
   }, [])
 
   const loadProjects = useCallback(async () => {
+    if (status === 'loading') {
+      return
+    }
     await withGlobalLoading(async () => {
       setLoading(true)
       setError(null)
       try {
+        const headers: Record<string, string> = { ...authHeaders() }
+        if (session?.user?.isAdmin) {
+          headers['X-Is-Admin'] = 'true'
+        }
+        const operatorName = session?.user?.operatorNameZh?.trim()
+        if (operatorName) {
+          headers['X-Operator'] = encodeURIComponent(operatorName)
+        }
+
         const response = await fetch(`${API_BASE}/api/v1/projects/manage`, {
-          headers: authHeaders(),
+          headers,
           cache: 'no-store',
         })
         if (!response.ok) {
@@ -167,7 +181,7 @@ export default function StoreInfoPage() {
         setLoading(false)
       }
     })
-  }, [withGlobalLoading])
+  }, [session?.user?.isAdmin, session?.user?.operatorNameZh, status, withGlobalLoading])
 
   useEffect(() => {
     void loadProjects()

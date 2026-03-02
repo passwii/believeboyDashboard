@@ -246,6 +246,41 @@ def test_source_rows_scope_filter_and_inventory_status(tmp_path: Path):
         assert len(inventory_db_rows) == 1
 
 
+def test_load_project_product_mapping_ignores_inactive_sku():
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        db.add(Project(project_name='Demo', sort_order=1, source_file='seed.csv'))
+        db.add(
+            ProductCost(
+                project_name='Demo',
+                sku='SKU_ACTIVE',
+                asin='ASIN_ACTIVE',
+                first_leg_unit_cost=1,
+                fob_unit_cost=1,
+                currency='USD',
+                is_active=True,
+            )
+        )
+        db.add(
+            ProductCost(
+                project_name='Demo',
+                sku='SKU_INACTIVE',
+                asin='ASIN_INACTIVE',
+                first_leg_unit_cost=1,
+                fob_unit_cost=1,
+                currency='USD',
+                is_active=False,
+            )
+        )
+        db.commit()
+
+        known_skus, known_asins = product_analysis_source_service._load_project_product_mapping(db, 'Demo')
+        assert known_skus == {'SKU_ACTIVE'}
+        assert known_asins == {'ASIN_ACTIVE'}
+
+
 def test_persist_daily_report_sources_sales_status_rule(tmp_path: Path):
     engine = create_engine('sqlite:///:memory:', future=True)
     Base.metadata.create_all(bind=engine)
@@ -303,6 +338,37 @@ def test_persist_product_analysis_pt1_calculation_versioning():
 
     with Session(engine) as db:
         db.add(Project(project_name='Demo', sort_order=1, source_file='seed.csv'))
+        db.add_all(
+            [
+                ProductCost(
+                    project_name='Demo',
+                    sku='SKU1',
+                    asin='ASIN1',
+                    first_leg_unit_cost=1,
+                    fob_unit_cost=1,
+                    currency='USD',
+                    is_active=True,
+                ),
+                ProductCost(
+                    project_name='Demo',
+                    sku='SKU2',
+                    asin='ASIN2',
+                    first_leg_unit_cost=1,
+                    fob_unit_cost=1,
+                    currency='USD',
+                    is_active=True,
+                ),
+                ProductCost(
+                    project_name='Demo',
+                    sku='SKU3',
+                    asin='ASIN3',
+                    first_leg_unit_cost=1,
+                    fob_unit_cost=1,
+                    currency='USD',
+                    is_active=True,
+                ),
+            ]
+        )
         db.commit()
 
         first = product_analysis_source_service.persist_product_analysis_pt1_calculation(

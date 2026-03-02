@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Loader2, RefreshCw } from 'lucide-react'
+import { useSession } from 'next-auth/react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { buildBackendHeaders } from '@/lib/backend-auth'
 
 type ProjectItem = {
   id: number
@@ -34,6 +36,7 @@ type ExchangeRatesResponse = {
 
 type IncomeCategory = 'operator' | 'assistant'
 type PaymentStatus = 'paid' | 'unpaid'
+type RatioSource = 'rule' | 'manual'
 
 type CommissionRecord = {
   id: number
@@ -48,6 +51,8 @@ type CommissionRecord = {
   commission_amount_usd: number
   usd_to_rmb_rate: number
   commission_amount_rmb: number
+  ratio_source?: RatioSource
+  manual_ratio?: number | null
   payment_status: PaymentStatus
 }
 
@@ -62,6 +67,8 @@ type UpsertPayloadItem = {
   commission_amount_usd: number
   usd_to_rmb_rate: number
   commission_amount_rmb: number
+  ratio_source?: RatioSource
+  manual_ratio?: number | null
 }
 
 type CommissionRecordsResponse = {
@@ -69,8 +76,37 @@ type CommissionRecordsResponse = {
   items: CommissionRecord[]
 }
 
+type RoleAssignmentItem = {
+  id: number
+  project_id: number
+  role_type: IncomeCategory
+  person_name: string
+  effective_from_month: string
+  effective_to_month: string | null
+  updated_at: string
+}
+
+type RoleAssignmentsResponse = {
+  items: RoleAssignmentItem[]
+}
+
+type RatioOverrideItem = {
+  id: number
+  report_month: string
+  project_id: number
+  project_name: string
+  person_name: string
+  income_category: IncomeCategory
+  override_ratio: number
+  reason?: string | null
+}
+
+type RatioOverridesResponse = {
+  report_month: string
+  items: RatioOverrideItem[]
+}
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
-const API_KEY = process.env.NEXT_PUBLIC_BACKEND_API_KEY ?? ''
 const ASSISTANT_FIXED_RATIO = 0.02
 
 const OPERATOR_RULES = [
@@ -80,12 +116,6 @@ const OPERATOR_RULES = [
   { ratio: 0.18, label: '150,001–450,000' },
   { ratio: 0.2, label: '450,001–1,000,000' },
 ] as const
-
-function authHeaders(contentType = false): Record<string, string> {
-  const headers: Record<string, string> = API_KEY ? { 'X-API-Key': API_KEY } : {}
-  if (contentType) headers['Content-Type'] = 'application/json'
-  return headers
-}
 
 function lastMonthString(): string {
   const now = new Date()
@@ -153,6 +183,7 @@ function toCategoryLabel(value: IncomeCategory): string {
 }
 
 export default function CommissionManagementPage() {
+  const { data: session, status } = useSession()
   const [month, setMonth] = useState(lastMonthString())
   const [personFilter, setPersonFilter] = useState('all')
   const [loading, setLoading] = useState(true)
@@ -161,6 +192,10 @@ export default function CommissionManagementPage() {
   const [currentExchangeRate, setCurrentExchangeRate] = useState(0)
 
   const rebuildAndLoad = useCallback(async () => {
+    if (status === 'loading') {
+      return
+    }
+
     setLoading(true)
     setError(null)
     try {
@@ -176,12 +211,50 @@ export default function CommissionManagementPage() {
 
       const projectsResp = await fetch(`${API_BASE}/api/v1/projects/manage`, {
         cache: 'no-store',
-        headers: authHeaders(),
+        headers: buildBackendHeaders(session),
       })
       if (!projectsResp.ok) {
         throw new Error(parseErrorBody(await projectsResp.text(), projectsResp.status))
       }
       const projects = (await projectsResp.json()) as ProjectItem[]
+      const [roleAssignmentsResp, ratioOverridesResp] = await Promise.all([
+        fetch(`${API_BASE}/api/v1/system-management/commission-management/role-assignments?report_month=${month}`, {
+          cache: 'no-store',
+          headers: buildBackendHeaders(session),
+        }),
+        fetch(`${API_BASE}/api/v1/system-management/commission-management/ratio-overrides?report_month=${month}`, {
+          cache: 'no-store',
+          headers: buildBackendHeaders(session),
+        }),
+      ])
+      if (!roleAssignmentsResp.ok) {
+        throw new Error(parseErrorBody(await roleAssignmentsResp.text(), roleAssignmentsResp.status))
+      }
+      if (!ratioOverridesResp.ok) {
+        throw new Error(parseErrorBody(await ratioOverridesResp.text(), ratioOverridesResp.status))
+      }
+      const roleAssignmentsPayload = (await roleAssignmentsResp.json()) as RoleAssignmentsResponse
+      const ratioOverridesPayload = (await ratioOverridesResp.json()) as RatioOverridesResponse
+      const roleAssignments = Array.isArray(roleAssignmentsPayload.items) ? roleAssignmentsPayload.items : []
+      const ratioOverrides = Array.isArray(ratioOverridesPayload.items) ? ratioOverridesPayload.items : []
+
+      const roleMap = new Map<string, string[]>()
+      for (const assignment of roleAssignments) {
+        const person = assignment.person_name.trim()
+        if (!person) continue
+        const key = `${assignment.project_id}::${assignment.role_type}`
+        const list = roleMap.get(key) ?? []
+        if (!list.includes(person)) list.push(person)
+        roleMap.set(key, list)
+      }
+
+      const ratioOverrideMap = new Map<string, number>()
+      for (const override of ratioOverrides) {
+        ratioOverrideMap.set(
+          `${override.project_id}::${override.person_name.trim()}::${override.income_category}`,
+          Number(override.override_ratio)
+        )
+      }
 
       const monthQuery = new URLSearchParams({
         start_month: month,
@@ -194,7 +267,7 @@ export default function CommissionManagementPage() {
           const search = `project_id=${project.id}&${monthQuery}`
           const response = await fetch(`${API_BASE}/api/v1/monthly-reports/financial-series?${search}`, {
             cache: 'no-store',
-            headers: authHeaders(),
+            headers: buildBackendHeaders(session),
           })
           if (!response.ok) {
             throw new Error(parseErrorBody(await response.text(), response.status))
@@ -204,37 +277,51 @@ export default function CommissionManagementPage() {
           const monthRow = payload.rows.find((item) => item.report_month === month)
           const incomeTotalUsd = Number(monthRow?.income_total ?? 0)
           const factoryCommissionRate = Number(project.commission_rate ?? 0)
-          const operatorRatio = getOperatorRatioByIncome(incomeTotalUsd)
+          const defaultOperatorRatio = getOperatorRatioByIncome(incomeTotalUsd)
+          const operatorPeople = roleMap.get(`${project.id}::operator`) ?? (project.project_operator ? [project.project_operator] : [])
+          const assistantPeople = roleMap.get(`${project.id}::assistant`) ?? (project.assistant_operator ? [project.assistant_operator] : [])
 
           const items: UpsertPayloadItem[] = []
-          if (project.project_operator) {
-            const commissionAmountUsd = incomeTotalUsd * factoryCommissionRate * operatorRatio
+          for (const personName of operatorPeople) {
+            const normalizedPerson = personName.trim()
+            if (!normalizedPerson) continue
+            const overrideRatio = ratioOverrideMap.get(`${project.id}::${normalizedPerson}::operator`)
+            const ratio = overrideRatio ?? defaultOperatorRatio
+            const commissionAmountUsd = incomeTotalUsd * factoryCommissionRate * ratio
             items.push({
               project_id: project.id,
               project_name: project.name,
-              person_name: project.project_operator,
+              person_name: normalizedPerson,
               income_category: 'operator',
               income_total_usd: incomeTotalUsd,
               factory_commission_rate: factoryCommissionRate,
-              public_commission_ratio: operatorRatio,
+              public_commission_ratio: ratio,
               commission_amount_usd: commissionAmountUsd,
               usd_to_rmb_rate: exchangeRate,
               commission_amount_rmb: commissionAmountUsd * exchangeRate,
+              ratio_source: overrideRatio !== undefined ? 'manual' : 'rule',
+              manual_ratio: overrideRatio ?? null,
             })
           }
-          if (project.assistant_operator) {
-            const commissionAmountUsd = incomeTotalUsd * factoryCommissionRate * ASSISTANT_FIXED_RATIO
+          for (const personName of assistantPeople) {
+            const normalizedPerson = personName.trim()
+            if (!normalizedPerson) continue
+            const overrideRatio = ratioOverrideMap.get(`${project.id}::${normalizedPerson}::assistant`)
+            const ratio = overrideRatio ?? ASSISTANT_FIXED_RATIO
+            const commissionAmountUsd = incomeTotalUsd * factoryCommissionRate * ratio
             items.push({
               project_id: project.id,
               project_name: project.name,
-              person_name: project.assistant_operator,
+              person_name: normalizedPerson,
               income_category: 'assistant',
               income_total_usd: incomeTotalUsd,
               factory_commission_rate: factoryCommissionRate,
-              public_commission_ratio: ASSISTANT_FIXED_RATIO,
+              public_commission_ratio: ratio,
               commission_amount_usd: commissionAmountUsd,
               usd_to_rmb_rate: exchangeRate,
               commission_amount_rmb: commissionAmountUsd * exchangeRate,
+              ratio_source: overrideRatio !== undefined ? 'manual' : 'rule',
+              manual_ratio: overrideRatio ?? null,
             })
           }
           return items
@@ -243,7 +330,7 @@ export default function CommissionManagementPage() {
 
       const upsertResp = await fetch(`${API_BASE}/api/v1/system-management/commission-management/records/upsert`, {
         method: 'POST',
-        headers: authHeaders(true),
+        headers: buildBackendHeaders(session, { contentType: 'application/json' }),
         body: JSON.stringify({
           report_month: month,
           items: calculated.flat(),
@@ -260,7 +347,7 @@ export default function CommissionManagementPage() {
     } finally {
       setLoading(false)
     }
-  }, [month])
+  }, [month, session, status])
 
   useEffect(() => {
     void rebuildAndLoad()
@@ -279,6 +366,12 @@ export default function CommissionManagementPage() {
     return filteredRows.reduce((sum, row) => sum + row.commission_amount_rmb, 0)
   }, [filteredRows])
 
+  const totalFactoryCommissionRmb = useMemo(() => {
+    return filteredRows.reduce((sum, row) => (
+      sum + row.income_total_usd * row.factory_commission_rate * row.usd_to_rmb_rate
+    ), 0)
+  }, [filteredRows])
+
   const confirmedCommissionRmb = useMemo(() => {
     return filteredRows
       .filter((row) => row.payment_status === 'paid')
@@ -288,7 +381,7 @@ export default function CommissionManagementPage() {
   const updatePaymentStatus = async (recordId: number, paymentStatus: PaymentStatus) => {
     const response = await fetch(`${API_BASE}/api/v1/system-management/commission-management/records/${recordId}/payment-status`, {
       method: 'PATCH',
-      headers: authHeaders(true),
+      headers: buildBackendHeaders(session, { contentType: 'application/json' }),
       body: JSON.stringify({ payment_status: paymentStatus }),
     })
     if (!response.ok) {
@@ -343,7 +436,7 @@ export default function CommissionManagementPage() {
 
             <div className="flex items-center gap-2">
               <div className="text-sm text-muted-foreground">
-                汇率(USD→RMB)：{currentExchangeRate > 0 ? currentExchangeRate.toFixed(4) : '-'}，提成合计：{formatRmb(totalCommissionRmb)}，已确认提成：{formatRmb(confirmedCommissionRmb)}
+                汇率(USD→RMB)：{currentExchangeRate > 0 ? currentExchangeRate.toFixed(4) : '-'}，工厂佣金合计：{formatRmb(totalFactoryCommissionRmb)}，提成合计：{formatRmb(totalCommissionRmb)}，已确认提成：{formatRmb(confirmedCommissionRmb)}
               </div>
               <Button variant="outline" onClick={() => void rebuildAndLoad()} disabled={loading}>
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
@@ -365,6 +458,7 @@ export default function CommissionManagementPage() {
                   <TableHead>收入分类</TableHead>
                   <TableHead className="text-right">收入合计(USD)</TableHead>
                   <TableHead className="text-right">工厂佣金比例</TableHead>
+                  <TableHead className="text-right">工厂佣金(RMB)</TableHead>
                   <TableHead className="text-right">提成比例</TableHead>
                   <TableHead className="text-right">提成核算(RMB)</TableHead>
                   <TableHead>回款确认</TableHead>
@@ -373,13 +467,13 @@ export default function CommissionManagementPage() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center text-muted-foreground">
                       加载中...
                     </TableCell>
                   </TableRow>
                 ) : filteredRows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center text-muted-foreground">
                       当前筛选条件无数据
                     </TableCell>
                   </TableRow>
@@ -394,6 +488,9 @@ export default function CommissionManagementPage() {
                       <TableCell>{toCategoryLabel(row.income_category)}</TableCell>
                       <TableCell className="text-right tabular-nums">{formatUsd(row.income_total_usd)}</TableCell>
                       <TableCell className="text-right tabular-nums">{formatPercent(row.factory_commission_rate)}</TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatRmb(row.income_total_usd * row.factory_commission_rate * row.usd_to_rmb_rate)}
+                      </TableCell>
                       <TableCell className="text-right tabular-nums">{formatPercent(row.public_commission_ratio)}</TableCell>
                       <TableCell className="text-right font-medium tabular-nums">{formatRmb(row.commission_amount_rmb)}</TableCell>
                       <TableCell>

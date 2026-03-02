@@ -23,6 +23,7 @@ def list_product_costs(
     project_name: str | None = Query(default=None),
     sku: str | None = Query(default=None),
     asin: str | None = Query(default=None),
+    is_active: bool | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=200),
     include_total: bool = Query(default=False),
@@ -33,6 +34,7 @@ def list_product_costs(
         project_name,
         sku,
         asin,
+        is_active,
         page,
         page_size,
         include_total=include_total,
@@ -47,6 +49,7 @@ def list_product_costs(
                 first_leg_unit_cost=float(row.first_leg_unit_cost),
                 fob_unit_cost=float(row.fob_unit_cost),
                 currency=row.currency,
+                is_active=bool(row.is_active),
             )
             for row in rows
         ],
@@ -73,6 +76,7 @@ def create_or_update_product_cost(
             first_leg_unit_cost=float(row.first_leg_unit_cost),
             fob_unit_cost=float(row.fob_unit_cost),
             currency=row.currency,
+            is_active=bool(row.is_active),
         ),
         action=action,
     )
@@ -104,6 +108,7 @@ def update_product_cost(
         first_leg_unit_cost=float(row.first_leg_unit_cost),
         fob_unit_cost=float(row.fob_unit_cost),
         currency=row.currency,
+        is_active=bool(row.is_active),
     )
 
 

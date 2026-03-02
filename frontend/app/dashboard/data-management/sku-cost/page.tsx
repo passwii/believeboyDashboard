@@ -27,6 +27,7 @@ type ProductCostItem = {
   first_leg_unit_cost: number
   fob_unit_cost: number
   currency: string
+  is_active: boolean
 }
 
 type ProductCostsPage = {
@@ -76,6 +77,7 @@ export default function SkuCostPage() {
   const [projectFilter, setProjectFilter] = useState('')
   const [skuFilter, setSkuFilter] = useState('')
   const [asinFilter, setAsinFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
 
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [addText, setAddText] = useState('')
@@ -87,6 +89,7 @@ export default function SkuCostPage() {
   const [editFirstLegCost, setEditFirstLegCost] = useState('')
   const [editFobCost, setEditFobCost] = useState('')
   const [editCurrency, setEditCurrency] = useState('USD')
+  const [editIsActive, setEditIsActive] = useState(true)
 
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
@@ -100,10 +103,11 @@ export default function SkuCostPage() {
     return items.slice(start, end)
   }, [items, page, pageSize])
 
-  const fetchAllData = async (filters?: { project_name?: string; sku?: string; asin?: string }) => {
+  const fetchAllData = async (filters?: { project_name?: string; sku?: string; asin?: string; status?: 'all' | 'active' | 'inactive' }) => {
     const projectValue = (filters?.project_name ?? projectFilter).trim()
     const skuValue = (filters?.sku ?? skuFilter).trim()
     const asinValue = (filters?.asin ?? asinFilter).trim()
+    const statusValue = filters?.status ?? statusFilter
 
     const allItems: ProductCostItem[] = []
     let currentPage = 1
@@ -116,6 +120,8 @@ export default function SkuCostPage() {
       if (projectValue) search.set('project_name', projectValue)
       if (skuValue) search.set('sku', skuValue)
       if (asinValue) search.set('asin', asinValue)
+      if (statusValue === 'active') search.set('is_active', 'true')
+      if (statusValue === 'inactive') search.set('is_active', 'false')
 
       const response = await fetch(`${API_BASE}/api/v1/product-costs?${search.toString()}`, {
         headers: authHeaders(),
@@ -139,11 +145,12 @@ export default function SkuCostPage() {
       projectValue,
       skuValue,
       asinValue,
+      statusValue,
     }
   }
 
   const loadData = async (
-    filters?: { project_name?: string; sku?: string; asin?: string },
+    filters?: { project_name?: string; sku?: string; asin?: string; status?: 'all' | 'active' | 'inactive' },
     options?: { resetPage?: boolean }
   ) => {
     setLoading(true)
@@ -218,6 +225,7 @@ export default function SkuCostPage() {
     setProjectFilter('')
     setSkuFilter('')
     setAsinFilter('')
+    setStatusFilter('all')
     setItems([])
     setPage(1)
     setError(null)
@@ -233,6 +241,7 @@ export default function SkuCostPage() {
         project_name: value,
         sku: skuFilter,
         asin: asinFilter,
+        status: statusFilter,
       },
       { resetPage: true }
     )
@@ -346,6 +355,7 @@ export default function SkuCostPage() {
     setEditFirstLegCost(String(row.first_leg_unit_cost))
     setEditFobCost(String(row.fob_unit_cost))
     setEditCurrency(row.currency || 'USD')
+    setEditIsActive(Boolean(row.is_active))
     setError(null)
     setSuccessMessage(null)
   }
@@ -359,6 +369,7 @@ export default function SkuCostPage() {
     const sku = editSku.trim()
     const asin = editAsin.trim()
     const currency = editCurrency.trim() || 'USD'
+    const isActive = Boolean(editIsActive)
     const firstLeg = Number(editFirstLegCost)
     const fob = Number(editFobCost)
 
@@ -387,6 +398,7 @@ export default function SkuCostPage() {
           first_leg_unit_cost: firstLeg,
           fob_unit_cost: fob,
           currency,
+          is_active: isActive,
           source_file: 'manual_inline_edit',
         }),
       })
@@ -473,7 +485,7 @@ export default function SkuCostPage() {
               <h2 className="text-base font-semibold text-foreground">筛选条件</h2>
               <p className="text-sm text-muted-foreground">按项目名、SKU、ASIN 查询。</p>
             </div>
-            <div className="grid gap-4 md:grid-cols-5">
+            <div className="grid gap-4 md:grid-cols-6">
               <div className="grid gap-2">
                 <label className="text-sm font-medium text-foreground" htmlFor="filter-project">
                   项目名
@@ -510,6 +522,19 @@ export default function SkuCostPage() {
                   ASIN
                 </label>
                 <Input id="filter-asin" placeholder="输入 ASIN" value={asinFilter} onChange={(e) => setAsinFilter(e.target.value)} />
+              </div>
+              <div className="grid gap-2">
+                <label className="text-sm font-medium text-foreground">状态</label>
+                <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as 'all' | 'active' | 'inactive')}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="全部状态" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全部</SelectItem>
+                    <SelectItem value="active">活跃</SelectItem>
+                    <SelectItem value="inactive">不活跃</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="grid gap-2">
                 <label className="text-sm font-medium text-foreground">每页显示</label>
@@ -574,6 +599,7 @@ export default function SkuCostPage() {
                   <th className="sticky top-0 z-10 h-12 bg-background px-4 text-right align-middle font-medium text-muted-foreground">头程单价</th>
                   <th className="sticky top-0 z-10 h-12 bg-background px-4 text-right align-middle font-medium text-muted-foreground">FOB单价</th>
                   <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">币种</th>
+                  <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">状态</th>
                   <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">操作</th>
                 </tr>
               </thead>
@@ -581,6 +607,9 @@ export default function SkuCostPage() {
                 {loading && items.length === 0
                   ? Array.from({ length: 6 }).map((_, index) => (
                       <tr key={`loading-${index}`} className="border-b transition-colors hover:bg-muted/50">
+                        <td className="p-4 align-middle">
+                          <Skeleton className="h-4 w-12" />
+                        </td>
                         <td className="p-4 align-middle">
                           <Skeleton className="h-4 w-12" />
                         </td>
@@ -664,6 +693,27 @@ export default function SkuCostPage() {
                     </td>
                     <td className="p-4 align-middle">
                       {editingId === row.id ? (
+                        <Select value={editIsActive ? 'active' : 'inactive'} onValueChange={(value) => setEditIsActive(value === 'active')}>
+                          <SelectTrigger className="h-8 w-24">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="active">活跃</SelectItem>
+                            <SelectItem value="inactive">不活跃</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : row.is_active ? (
+                        <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+                          活跃
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="border-slate-400/40 bg-slate-500/10 text-slate-600 dark:text-slate-300">
+                          不活跃
+                        </Badge>
+                      )}
+                    </td>
+                    <td className="p-4 align-middle">
+                      {editingId === row.id ? (
                         <div className="flex items-center gap-2">
                           <Button
                             type="button"
@@ -688,7 +738,7 @@ export default function SkuCostPage() {
 
                 {!loading && pagedItems.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-12 text-center text-sm text-muted-foreground">
+                    <td colSpan={9} className="py-12 text-center text-sm text-muted-foreground">
                       {projectFilter ? '当前筛选条件下暂无数据，请调整筛选或导入新记录。' : '请先在筛选条件中选择项目名，再读取并展示数据。'}
                     </td>
                   </tr>

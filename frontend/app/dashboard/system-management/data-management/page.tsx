@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, CheckCircle2, Database, Loader2, RefreshCw, Save, Server } from 'lucide-react'
+import { useSession } from 'next-auth/react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -9,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { buildBackendHeaders } from '@/lib/backend-auth'
 import { cn } from '@/lib/utils'
 
 type DataLifecycleStatus = 'active' | 'maintenance' | 'read_only' | 'paused'
@@ -48,14 +50,6 @@ type DataManagementOverview = {
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
-const API_KEY = process.env.NEXT_PUBLIC_BACKEND_API_KEY ?? ''
-
-function authHeaders(): Record<string, string> {
-  const headers: Record<string, string> = {}
-  if (API_KEY) headers['X-API-Key'] = API_KEY
-  headers['X-Operator'] = 'dashboard-admin'
-  return headers
-}
 
 function formatDateTime(value: string | null): string {
   if (!value) return '-'
@@ -93,6 +87,7 @@ function tableStatusTone(status: TableHealthStatus): string {
 }
 
 export default function SystemDataManagementPage() {
+  const { data: session, status } = useSession()
   const [overview, setOverview] = useState<DataManagementOverview | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -103,12 +98,14 @@ export default function SystemDataManagementPage() {
   const [statusNote, setStatusNote] = useState('')
 
   const loadOverview = useCallback(async (): Promise<void> => {
+    if (status === 'loading') return
+
     setLoading(true)
     setError(null)
 
     try {
       const response = await fetch(`${API_BASE}/api/v1/system-management/data-management/overview`, {
-        headers: authHeaders(),
+        headers: buildBackendHeaders(session),
         cache: 'no-store',
       })
       if (!response.ok) {
@@ -123,11 +120,13 @@ export default function SystemDataManagementPage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [session, status])
 
   useEffect(() => {
-    void loadOverview()
-  }, [loadOverview])
+    if (status !== 'loading') {
+      void loadOverview()
+    }
+  }, [loadOverview, status])
 
   const onSaveStatus = useCallback(async () => {
     setSaving(true)
@@ -137,10 +136,7 @@ export default function SystemDataManagementPage() {
     try {
       const response = await fetch(`${API_BASE}/api/v1/system-management/data-management/data-status`, {
         method: 'PATCH',
-        headers: {
-          ...authHeaders(),
-          'Content-Type': 'application/json',
-        },
+        headers: buildBackendHeaders(session, { contentType: 'application/json' }),
         body: JSON.stringify({
           status: selectedStatus,
           note: statusNote.trim() || null,
@@ -156,7 +152,7 @@ export default function SystemDataManagementPage() {
     } finally {
       setSaving(false)
     }
-  }, [loadOverview, selectedStatus, statusNote])
+  }, [loadOverview, selectedStatus, session, statusNote])
 
   const summaryCards = useMemo(() => {
     if (!overview) return []

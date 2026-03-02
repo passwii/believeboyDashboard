@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 from slugify import slugify
-from sqlalchemy import Select, func, insert, select, update as sa_update
+from sqlalchemy import Select, func, insert, or_, select, update as sa_update
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -158,6 +158,20 @@ def list_weekly_product_analysis_from_details(
     current_only: bool = True,
 ) -> list[dict[str, Any]]:
     ensure_tables(db)
+    project = db.get(Project, project_id)
+    if project is None:
+        return []
+    known_skus, known_asins = _load_project_product_mapping(db, project.project_name)
+    known_skus_ci = {value.lower() for value in known_skus}
+    known_asins_ci = {value.lower() for value in known_asins}
+    scope_filters = []
+    if known_skus_ci:
+        scope_filters.append(func.lower(func.coalesce(AnalysisPTSKUDetail.sku, '')).in_(known_skus_ci))
+    if known_asins_ci:
+        scope_filters.append(func.lower(func.coalesce(AnalysisPTSKUDetail.asin, '')).in_(known_asins_ci))
+    if not scope_filters:
+        return []
+
     stmt = (
         select(
             AnalysisPT1Calculation.id.label('pt1_id'),
@@ -175,6 +189,7 @@ def list_weekly_product_analysis_from_details(
         .select_from(AnalysisPT1Calculation)
         .join(AnalysisPTSKUDetail, AnalysisPTSKUDetail.pt1_calculation_id == AnalysisPT1Calculation.id)
         .where(AnalysisPT1Calculation.project_id == project_id)
+        .where(or_(*scope_filters))
         .group_by(
             AnalysisPT1Calculation.id,
             AnalysisPT1Calculation.project_id,
@@ -919,7 +934,12 @@ def _is_counted_sales_status(status: str, purchase_date_pt: date, as_of_date_pt:
 
 
 def _load_project_product_mapping(db: Session, project_name: str) -> tuple[set[str], set[str]]:
-    rows = db.execute(select(ProductCost.sku, ProductCost.asin).where(ProductCost.project_name == project_name)).all()
+    rows = db.execute(
+        select(ProductCost.sku, ProductCost.asin).where(
+            ProductCost.project_name == project_name,
+            ProductCost.is_active.is_(True),
+        )
+    ).all()
     known_skus = {_normalize_identity(value) for value, _ in rows if _normalize_identity(value)}
     known_asins = {_normalize_identity(value) for _, value in rows if _normalize_identity(value)}
     return known_skus, known_asins

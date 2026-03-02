@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import BigInteger, DateTime, Integer, Numeric, String, UniqueConstraint, func
+from sqlalchemy import BigInteger, Boolean, DateTime, Integer, Numeric, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
@@ -20,6 +20,7 @@ class ProductCost(Base):
     first_leg_unit_cost: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     fob_unit_cost: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     currency: Mapped[str] = mapped_column(String, nullable=False, default='USD')
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default='true', index=True)
     source_file: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

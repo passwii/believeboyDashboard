@@ -16,7 +16,7 @@ type UploadType = 'payment_report' | 'monthly_summary_pdf'
 type AssignedType = UploadType | 'skip'
 type UploadStatus = 'empty' | 'ready' | 'uploading' | 'success' | 'error'
 
-type ProjectOption = { id: number; name: string }
+type ProjectOption = { id?: number | null; name: string }
 
 type MappingRow = {
   id: string
@@ -77,9 +77,10 @@ const TYPE_LABEL: Record<UploadType, string> = {
 }
 const PROGRESS_STEP_LABELS = ['处理中', '合成数据（报表总览）', '合成数据（报表核算/明细）', '处理表格样式', '完成']
 
-function authHeaders(operator?: string): Record<string, string> {
+function authHeaders(operator?: string, isAdmin = false): Record<string, string> {
   const headers: Record<string, string> = {}
   if (API_KEY) headers['X-API-Key'] = API_KEY
+  if (isAdmin) headers['X-Is-Admin'] = 'true'
   if (operator && operator.trim()) headers['X-Operator'] = encodeURIComponent(operator.trim())
   return headers
 }
@@ -198,7 +199,8 @@ function normalizePersistenceStatus(value: unknown): PersistenceSyncState['statu
 
 export default function MonthlyReportPage() {
   const { data: session } = useSession()
-  const currentOperator = (session?.user?.name || session?.user?.email || session?.user?.id || '').trim()
+  const isAdmin = Boolean(session?.user?.isAdmin)
+  const currentOperator = (session?.user?.operatorNameZh || session?.user?.name || session?.user?.email || session?.user?.id || '').trim()
 
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
@@ -232,13 +234,13 @@ export default function MonthlyReportPage() {
       try {
         const response = await fetch(`${API_BASE}/api/v1/projects/manage`, {
           cache: 'no-store',
-          headers: authHeaders(currentOperator),
+          headers: authHeaders(currentOperator, isAdmin),
         })
         if (!response.ok) throw new Error(`项目列表加载失败 (${response.status})`)
-        const raw = (await response.json()) as Array<{ id?: number; name?: string }>
+        const raw = (await response.json()) as Array<{ id?: number | null; name?: string }>
         const data = raw
-          .filter((item) => typeof item.id === 'number' && item.id > 0 && typeof item.name === 'string')
-          .map((item) => ({ id: item.id as number, name: item.name as string }))
+          .filter((item) => typeof item.name === 'string' && item.name.trim().length > 0)
+          .map((item) => ({ id: typeof item.id === 'number' && item.id > 0 ? item.id : null, name: item.name as string }))
         setProjects(data)
       } catch (error) {
         setProjectLoadError(error instanceof Error ? error.message : '项目列表加载失败')
@@ -247,7 +249,7 @@ export default function MonthlyReportPage() {
       }
     }
     void loadProjects()
-  }, [currentOperator])
+  }, [currentOperator, isAdmin])
 
   useEffect(() => {
     setUploadState((prev) => {

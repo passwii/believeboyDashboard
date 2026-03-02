@@ -19,6 +19,9 @@ from app.models.project import Project
 from app.models.product_cost import ProductCost
 from app.models.ai_chat import AIConversation, AIMessage
 from app.models.commission_record import CommissionRecord
+from app.models.commission_project_month import CommissionProjectMonth
+from app.models.commission_ratio_override import CommissionRatioOverride
+from app.models.project_role_assignment import ProjectRoleAssignment
 
 __all__ = [
     'ProductCost',
@@ -29,6 +32,9 @@ __all__ = [
     'AIConversation',
     'AIMessage',
     'CommissionRecord',
+    'CommissionProjectMonth',
+    'CommissionRatioOverride',
+    'ProjectRoleAssignment',
     'MonthlyReport',
     'MonthlyReportTransaction',
     'MonthlyReportPT3Calculation',

@@ -5,6 +5,7 @@ from datetime import date
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, protected
@@ -358,14 +359,26 @@ def list_product_analysis_pt1_details(
     if pt1 is None:
         raise HTTPException(status_code=404, detail='PT1 calculation not found')
 
-    rows = (
-        db.query(AnalysisPTSKUDetail)
-        .where(AnalysisPTSKUDetail.pt1_calculation_id == pt1_id)
-        .order_by(AnalysisPTSKUDetail.source_row_no.asc())
-        .offset((page - 1) * page_size)
-        .limit(page_size + 1)
-        .all()
-    )
+    known_skus, known_asins = product_analysis_source_service._load_project_product_mapping(db, pt1.project_name)
+    known_skus_ci = {value.lower() for value in known_skus}
+    known_asins_ci = {value.lower() for value in known_asins}
+    scope_filters = []
+    if known_skus_ci:
+        scope_filters.append(func.lower(func.coalesce(AnalysisPTSKUDetail.sku, '')).in_(known_skus_ci))
+    if known_asins_ci:
+        scope_filters.append(func.lower(func.coalesce(AnalysisPTSKUDetail.asin, '')).in_(known_asins_ci))
+    if not scope_filters:
+        rows = []
+    else:
+        rows = (
+            db.query(AnalysisPTSKUDetail)
+            .where(AnalysisPTSKUDetail.pt1_calculation_id == pt1_id)
+            .where(or_(*scope_filters))
+            .order_by(AnalysisPTSKUDetail.source_row_no.asc())
+            .offset((page - 1) * page_size)
+            .limit(page_size + 1)
+            .all()
+        )
 
     has_next = len(rows) > page_size
     page_rows = rows[:page_size]

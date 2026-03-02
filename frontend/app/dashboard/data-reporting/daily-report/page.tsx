@@ -68,9 +68,10 @@ const TYPE_LABEL: Record<UploadType, string> = {
   inventory_report: '库存报告',
 }
 
-function authHeaders(operator?: string): Record<string, string> {
+function authHeaders(operator?: string, isAdmin = false): Record<string, string> {
   const headers: Record<string, string> = {}
   if (API_KEY) headers['X-API-Key'] = API_KEY
+  if (isAdmin) headers['X-Is-Admin'] = 'true'
   if (operator && operator.trim()) headers['X-Operator'] = encodeURIComponent(operator.trim())
   return headers
 }
@@ -128,7 +129,8 @@ function getUploadMeta(state: UploadStateItem) {
 
 export default function DailyReportPage() {
   const { data: session } = useSession()
-  const currentOperator = (session?.user?.name || session?.user?.email || session?.user?.id || '').trim()
+  const isAdmin = Boolean(session?.user?.isAdmin)
+  const currentOperator = (session?.user?.operatorNameZh || session?.user?.name || session?.user?.email || session?.user?.id || '').trim()
 
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
@@ -152,9 +154,9 @@ export default function DailyReportPage() {
       setProjectsLoading(true)
       setProjectLoadError(null)
       try {
-        const response = await fetch(`${API_BASE}/api/v1/projects`, {
+        const response = await fetch(`${API_BASE}/api/v1/projects/manage`, {
           cache: 'no-store',
-          headers: authHeaders(currentOperator),
+          headers: authHeaders(currentOperator, isAdmin),
         })
         if (!response.ok) throw new Error(`项目列表加载失败 (${response.status})`)
         const data = (await response.json()) as ProjectOption[]
@@ -166,7 +168,7 @@ export default function DailyReportPage() {
       }
     }
     void loadProjects()
-  }, [currentOperator])
+  }, [currentOperator, isAdmin])
 
   useEffect(() => {
     setUploadState((prev) => {
@@ -322,7 +324,7 @@ export default function DailyReportPage() {
       const response = await fetch(`${API_BASE}/api/v1/uploads`, {
         method: 'POST',
         body: formData,
-        headers: authHeaders(currentOperator),
+        headers: authHeaders(currentOperator, isAdmin),
       })
       if (!response.ok) {
         const message = await response.text()
@@ -410,7 +412,7 @@ export default function DailyReportPage() {
       const createJobResponse = await fetch(`${API_BASE}/api/v1/daily-reports`, {
         method: 'POST',
         headers: {
-          ...authHeaders(currentOperator),
+          ...authHeaders(currentOperator, isAdmin),
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -446,7 +448,7 @@ export default function DailyReportPage() {
         // eslint-disable-next-line no-await-in-loop
         const statusResponse = await fetch(resolveApiUrl(statusEndpoint), {
           cache: 'no-store',
-          headers: authHeaders(currentOperator),
+          headers: authHeaders(currentOperator, isAdmin),
         })
 
         if (!statusResponse.ok) {
@@ -486,7 +488,7 @@ export default function DailyReportPage() {
       if (!finished) throw new Error('任务执行超时，请稍后重试。')
 
       const response = await fetch(resolveApiUrl(resultEndpoint), {
-        headers: authHeaders(currentOperator),
+        headers: authHeaders(currentOperator, isAdmin),
       })
 
       if (!response.ok) {
