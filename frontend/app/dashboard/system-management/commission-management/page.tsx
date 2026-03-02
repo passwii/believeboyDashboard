@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Loader2, RefreshCw } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader2, RefreshCw } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 import { Badge } from '@/components/ui/badge'
@@ -10,18 +10,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { buildBackendHeaders } from '@/lib/backend-auth'
+import { resolveOperationCommissionUsd } from '@/lib/commission'
 
 type ProjectItem = {
   id: number
   name: string
   project_operator: string | null
   assistant_operator: string | null
+  commission_basis: string | null
   commission_rate: number | null
 }
 
 type FinancialSeriesRow = {
   report_month: string
   income_total: number
+  amazon_pay_back: number
 }
 
 type FinancialSeriesResponse = {
@@ -123,6 +126,16 @@ function lastMonthString(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 }
 
+function shiftMonth(value: string, offset: number): string {
+  const matched = value.match(/^(\d{4})-(\d{2})$/)
+  if (!matched) return value
+
+  const year = Number(matched[1])
+  const monthIndex = Number(matched[2]) - 1
+  const date = new Date(year, monthIndex + offset, 1)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+}
+
 function parseErrorBody(text: string, status: number): string {
   if (!text) return `请求失败 (${status})`
   try {
@@ -190,6 +203,7 @@ export default function CommissionManagementPage() {
   const [error, setError] = useState<string | null>(null)
   const [rows, setRows] = useState<CommissionRecord[]>([])
   const [currentExchangeRate, setCurrentExchangeRate] = useState(0)
+  const [projectPayableCommissionRmb, setProjectPayableCommissionRmb] = useState<Record<number, number | null>>({})
 
   const rebuildAndLoad = useCallback(async () => {
     if (status === 'loading') {
@@ -262,7 +276,7 @@ export default function CommissionManagementPage() {
         fill_missing: 'true',
       }).toString()
 
-      const calculated = await Promise.all(
+      const calculatedByProject = await Promise.all(
         projects.map(async (project) => {
           const search = `project_id=${project.id}&${monthQuery}`
           const response = await fetch(`${API_BASE}/api/v1/monthly-reports/financial-series?${search}`, {
@@ -276,6 +290,7 @@ export default function CommissionManagementPage() {
           const payload = (await response.json()) as FinancialSeriesResponse
           const monthRow = payload.rows.find((item) => item.report_month === month)
           const incomeTotalUsd = Number(monthRow?.income_total ?? 0)
+          const amazonPaybackUsd = Number(monthRow?.amazon_pay_back ?? 0)
           const factoryCommissionRate = Number(project.commission_rate ?? 0)
           const defaultOperatorRatio = getOperatorRatioByIncome(incomeTotalUsd)
           const operatorPeople = roleMap.get(`${project.id}::operator`) ?? (project.project_operator ? [project.project_operator] : [])
@@ -324,16 +339,37 @@ export default function CommissionManagementPage() {
               manual_ratio: overrideRatio ?? null,
             })
           }
-          return items
+          return {
+            project,
+            incomeTotalUsd,
+            amazonPaybackUsd,
+            items,
+          }
         })
       )
+
+      const payableMap: Record<number, number | null> = {}
+      for (const { project, incomeTotalUsd, amazonPaybackUsd } of calculatedByProject) {
+        if (!project.commission_basis) {
+          payableMap[project.id] = null
+          continue
+        }
+        const operationCommission = resolveOperationCommissionUsd({
+          commissionBasis: project.commission_basis,
+          configuredCommissionRate: Number(project.commission_rate ?? 0),
+          incomeTotalUsd,
+          amazonPaybackUsd,
+        })
+        payableMap[project.id] = operationCommission.commissionUsd * exchangeRate
+      }
+      setProjectPayableCommissionRmb(payableMap)
 
       const upsertResp = await fetch(`${API_BASE}/api/v1/system-management/commission-management/records/upsert`, {
         method: 'POST',
         headers: buildBackendHeaders(session, { contentType: 'application/json' }),
         body: JSON.stringify({
           report_month: month,
-          items: calculated.flat(),
+          items: calculatedByProject.flatMap((item) => item.items),
         }),
       })
       if (!upsertResp.ok) {
@@ -344,6 +380,7 @@ export default function CommissionManagementPage() {
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : '提成数据加载失败')
       setRows([])
+      setProjectPayableCommissionRmb({})
     } finally {
       setLoading(false)
     }
@@ -367,10 +404,11 @@ export default function CommissionManagementPage() {
   }, [filteredRows])
 
   const totalFactoryCommissionRmb = useMemo(() => {
-    return filteredRows.reduce((sum, row) => (
-      sum + row.income_total_usd * row.factory_commission_rate * row.usd_to_rmb_rate
-    ), 0)
-  }, [filteredRows])
+    return filteredRows.reduce((sum, row) => {
+      const payableRmb = projectPayableCommissionRmb[row.project_id]
+      return sum + (payableRmb ?? 0)
+    }, 0)
+  }, [filteredRows, projectPayableCommissionRmb])
 
   const confirmedCommissionRmb = useMemo(() => {
     return filteredRows
@@ -424,13 +462,33 @@ export default function CommissionManagementPage() {
               </div>
               <div className="space-y-1.5">
                 <label htmlFor="commission_month" className="text-xs text-muted-foreground">年度月份</label>
-                <input
-                  id="commission_month"
-                  type="month"
-                  value={month}
-                  onChange={(event) => setMonth(event.target.value)}
-                  className="h-10 w-[180px] rounded-md border border-input bg-background px-3 text-sm"
-                />
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setMonth((prev) => shiftMonth(prev, -1))}
+                    aria-label="上一个月份"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <input
+                    id="commission_month"
+                    type="month"
+                    value={month}
+                    onChange={(event) => setMonth(event.target.value)}
+                    className="h-10 w-[180px] rounded-md border border-input bg-background px-3 text-sm"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setMonth((prev) => shiftMonth(prev, 1))}
+                    aria-label="下一个月份"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -457,7 +515,6 @@ export default function CommissionManagementPage() {
                   <TableHead>项目名称</TableHead>
                   <TableHead>收入分类</TableHead>
                   <TableHead className="text-right">收入合计(USD)</TableHead>
-                  <TableHead className="text-right">工厂佣金比例</TableHead>
                   <TableHead className="text-right">工厂佣金(RMB)</TableHead>
                   <TableHead className="text-right">提成比例</TableHead>
                   <TableHead className="text-right">提成核算(RMB)</TableHead>
@@ -467,13 +524,13 @@ export default function CommissionManagementPage() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center text-muted-foreground">
                       加载中...
                     </TableCell>
                   </TableRow>
                 ) : filteredRows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center text-muted-foreground">
                       当前筛选条件无数据
                     </TableCell>
                   </TableRow>
@@ -487,9 +544,10 @@ export default function CommissionManagementPage() {
                       <TableCell>{row.project_name}</TableCell>
                       <TableCell>{toCategoryLabel(row.income_category)}</TableCell>
                       <TableCell className="text-right tabular-nums">{formatUsd(row.income_total_usd)}</TableCell>
-                      <TableCell className="text-right tabular-nums">{formatPercent(row.factory_commission_rate)}</TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {formatRmb(row.income_total_usd * row.factory_commission_rate * row.usd_to_rmb_rate)}
+                        {projectPayableCommissionRmb[row.project_id] == null
+                          ? '-'
+                          : formatRmb(projectPayableCommissionRmb[row.project_id] ?? 0)}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">{formatPercent(row.public_commission_ratio)}</TableCell>
                       <TableCell className="text-right font-medium tabular-nums">{formatRmb(row.commission_amount_rmb)}</TableCell>

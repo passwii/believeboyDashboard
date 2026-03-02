@@ -132,6 +132,8 @@ export default function StoreInfoPage() {
   const [editAssistantOperator, setEditAssistantOperator] = useState('')
   const [editCommissionMode, setEditCommissionMode] = useState('')
   const [editCommissionRate, setEditCommissionRate] = useState('')
+  const isAddCashReceivedCommission = addCommissionMode === 'cash_received'
+  const isEditCashReceivedCommission = editCommissionMode === 'cash_received'
 
   const loadOperatorOptions = useCallback(async () => {
     try {
@@ -215,7 +217,7 @@ export default function StoreInfoPage() {
           project_operator: addProjectOperator.trim() || null,
           assistant_operator: addAssistantOperator.trim() || null,
           commission_basis: addCommissionMode.trim() || null,
-          commission_rate: addCommissionRate ? parseFloat(addCommissionRate) : null,
+          commission_rate: isAddCashReceivedCommission ? null : (addCommissionRate ? parseFloat(addCommissionRate) : null),
         }),
       })
       if (!response.ok) {
@@ -280,7 +282,7 @@ export default function StoreInfoPage() {
           project_operator: editProjectOperator.trim() || null,
           assistant_operator: editAssistantOperator.trim() || null,
           commission_basis: editCommissionMode.trim() || null,
-          commission_rate: editCommissionRate ? parseFloat(editCommissionRate) : null,
+          commission_rate: isEditCashReceivedCommission ? null : (editCommissionRate ? parseFloat(editCommissionRate) : null),
         }),
       })
       if (!response.ok) {
@@ -439,9 +441,12 @@ export default function StoreInfoPage() {
                       step="0.01"
                       value={addCommissionRate}
                       onChange={(e) => setAddCommissionRate(e.target.value)}
-                      placeholder="例如：5（表示 5%）"
-                      disabled={submitting}
+                      placeholder={isAddCashReceivedCommission ? '平台回款按回款率阶梯自动计算' : '例如：5（表示 5%）'}
+                      disabled={submitting || isAddCashReceivedCommission}
                     />
+                    {isAddCashReceivedCommission ? (
+                      <p className="text-xs text-muted-foreground">回款率阶梯：40%-50%→7%，50%-60%→10%，60%-70%→13%，70%以上→15%</p>
+                    ) : null}
                     <label htmlFor="project-add-address" className="text-sm font-medium text-foreground">
                       店铺地址
                     </label>
@@ -513,7 +518,7 @@ export default function StoreInfoPage() {
                       <td className="p-4 align-middle">{item.project_operator || '-'}</td>
                       <td className="p-4 align-middle">{item.assistant_operator || '-'}</td>
                       <td className="p-4 align-middle">{item.commission_basis ? COMMISSION_BASIS_LABEL[item.commission_basis] ?? item.commission_basis : '-'}</td>
-                      <td className="p-4 align-middle">{toCommissionPoints(item.commission_rate) ?? '-'}</td>
+                      <td className="p-4 align-middle">{item.commission_basis === 'cash_received' ? '阶梯(7/10/13/15%)' : (toCommissionPoints(item.commission_rate) ?? '-')}</td>
                       <td className="p-4 align-middle max-w-[120px] truncate" title={item.store_address || ''}>
                         {item.store_address ? `${item.store_address.slice(0, 15)}...` : '-'}
                       </td>
@@ -657,9 +662,12 @@ export default function StoreInfoPage() {
               step="0.01"
               value={editCommissionRate}
               onChange={(e) => setEditCommissionRate(e.target.value)}
-              placeholder="例如：5（表示 5%）"
-              disabled={submitting}
+              placeholder={isEditCashReceivedCommission ? '平台回款按回款率阶梯自动计算' : '例如：5（表示 5%）'}
+              disabled={submitting || isEditCashReceivedCommission}
             />
+            {isEditCashReceivedCommission ? (
+              <p className="text-xs text-muted-foreground">回款率阶梯：40%-50%→7%，50%-60%→10%，60%-70%→13%，70%以上→15%</p>
+            ) : null}
             <label htmlFor="project-edit-address" className="text-sm font-medium text-foreground">
               店铺地址
             </label>

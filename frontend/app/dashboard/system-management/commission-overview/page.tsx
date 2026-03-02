@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Loader2, RefreshCw } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader2, RefreshCw } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 import { Badge } from '@/components/ui/badge'
@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { buildBackendHeaders } from '@/lib/backend-auth'
+import { resolveOperationCommissionUsd } from '@/lib/commission'
 
 type PaymentStatus = 'paid' | 'partial' | 'unpaid'
 
@@ -37,12 +38,44 @@ type CommissionProjectMonthsResponse = {
   items: CommissionProjectMonth[]
 }
 
+type ProjectItem = {
+  id: number
+  commission_basis: string | null
+  commission_rate: number | null
+}
+
+type FinancialSeriesRow = {
+  report_month: string
+  income_total: number
+  amazon_pay_back: number
+}
+
+type FinancialSeriesResponse = {
+  rows: FinancialSeriesRow[]
+}
+
+type DerivedCommission = {
+  rate: number | null
+  usd: number | null
+  rmb: number | null
+}
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
 
 function lastMonthString(): string {
   const now = new Date()
   now.setMonth(now.getMonth() - 1)
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}
+
+function shiftMonth(value: string, offset: number): string {
+  const matched = value.match(/^(\d{4})-(\d{2})$/)
+  if (!matched) return value
+
+  const year = Number(matched[1])
+  const monthIndex = Number(matched[2]) - 1
+  const date = new Date(year, monthIndex + offset, 1)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
 }
 
 function parseErrorBody(text: string, status: number): string {
@@ -105,6 +138,7 @@ export default function CommissionOverviewPage() {
   const [updatingId, setUpdatingId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [rows, setRows] = useState<CommissionProjectMonth[]>([])
+  const [derivedByRowId, setDerivedByRowId] = useState<Record<number, DerivedCommission>>({})
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -118,10 +152,70 @@ export default function CommissionOverviewPage() {
         throw new Error(parseErrorBody(await response.text(), response.status))
       }
       const payload = (await response.json()) as CommissionProjectMonthsResponse
-      setRows(Array.isArray(payload.items) ? payload.items : [])
+      const nextRows = Array.isArray(payload.items) ? payload.items : []
+      setRows(nextRows)
+
+      const projectsResp = await fetch(`${API_BASE}/api/v1/projects/manage`, {
+        cache: 'no-store',
+        headers: buildBackendHeaders(session),
+      })
+      if (!projectsResp.ok) {
+        throw new Error(parseErrorBody(await projectsResp.text(), projectsResp.status))
+      }
+      const projects = (await projectsResp.json()) as ProjectItem[]
+      const projectMap = new Map<number, ProjectItem>(projects.map((project) => [project.id, project]))
+
+      const uniqueProjectIds = Array.from(new Set(nextRows.map((item) => item.project_id)))
+      const monthQuery = new URLSearchParams({
+        start_month: month,
+        end_month: month,
+        fill_missing: 'true',
+      }).toString()
+      const financialByProject = new Map<number, FinancialSeriesRow | null>()
+      await Promise.all(
+        uniqueProjectIds.map(async (projectId) => {
+          const financialResp = await fetch(
+            `${API_BASE}/api/v1/monthly-reports/financial-series?project_id=${projectId}&${monthQuery}`,
+            {
+              cache: 'no-store',
+              headers: buildBackendHeaders(session),
+            }
+          )
+          if (!financialResp.ok) {
+            throw new Error(parseErrorBody(await financialResp.text(), financialResp.status))
+          }
+          const financialPayload = (await financialResp.json()) as FinancialSeriesResponse
+          const monthRow = financialPayload.rows.find((item) => item.report_month === month) ?? null
+          financialByProject.set(projectId, monthRow)
+        })
+      )
+
+      const nextDerivedByRowId: Record<number, DerivedCommission> = {}
+      for (const row of nextRows) {
+        const project = projectMap.get(row.project_id)
+        if (!project?.commission_basis) {
+          nextDerivedByRowId[row.id] = { rate: null, usd: null, rmb: null }
+          continue
+        }
+        const monthRow = financialByProject.get(row.project_id)
+        const operationCommission = resolveOperationCommissionUsd({
+          commissionBasis: project.commission_basis,
+          configuredCommissionRate: Number(project.commission_rate ?? 0),
+          incomeTotalUsd: Number(monthRow?.income_total ?? row.income_total_usd),
+          amazonPaybackUsd: Number(monthRow?.amazon_pay_back ?? 0),
+        })
+        const commissionUsd = operationCommission.commissionUsd
+        nextDerivedByRowId[row.id] = {
+          rate: operationCommission.commissionRate,
+          usd: commissionUsd,
+          rmb: commissionUsd * row.usd_to_rmb_rate,
+        }
+      }
+      setDerivedByRowId(nextDerivedByRowId)
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : '佣金数据加载失败')
       setRows([])
+      setDerivedByRowId({})
     } finally {
       setLoading(false)
     }
@@ -131,14 +225,17 @@ export default function CommissionOverviewPage() {
     void loadData()
   }, [loadData])
 
-  const totalFactoryCommissionRmb = useMemo(() => rows.reduce((sum, row) => sum + row.factory_commission_rmb, 0), [rows])
+  const totalFactoryCommissionRmb = useMemo(() => {
+    return rows.reduce((sum, row) => sum + (derivedByRowId[row.id]?.rmb ?? 0), 0)
+  }, [rows, derivedByRowId])
   const totalReceivedRmb = useMemo(() => rows.reduce((sum, row) => sum + row.received_rmb, 0), [rows])
 
   const updatePaymentStatus = async (row: CommissionProjectMonth, status: PaymentStatus) => {
     setUpdatingId(row.id)
     setError(null)
     try {
-      const receivedRmb = status === 'paid' ? row.factory_commission_rmb : status === 'unpaid' ? 0 : row.received_rmb
+      const currentCommissionRmb = derivedByRowId[row.id]?.rmb ?? 0
+      const receivedRmb = status === 'paid' ? currentCommissionRmb : status === 'unpaid' ? 0 : row.received_rmb
       const response = await fetch(`${API_BASE}/api/v1/system-management/commission-management/project-months/${row.id}/payment`, {
         method: 'PATCH',
         headers: buildBackendHeaders(session, { contentType: 'application/json' }),
@@ -169,20 +266,40 @@ export default function CommissionOverviewPage() {
           <Badge variant="outline" className="w-fit rounded-md border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300">
             系统管理
           </Badge>
-          <CardTitle>佣金管理</CardTitle>
+          <CardTitle>佣金总览</CardTitle>
           <CardDescription>按项目和月份统计工厂佣金与回款状态，支持财务回款确认。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div className="space-y-1.5">
               <label htmlFor="commission_overview_month" className="text-xs text-muted-foreground">年度月份</label>
-              <input
-                id="commission_overview_month"
-                type="month"
-                value={month}
-                onChange={(event) => setMonth(event.target.value)}
-                className="h-10 w-[180px] rounded-md border border-input bg-background px-3 text-sm"
-              />
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setMonth((prev) => shiftMonth(prev, -1))}
+                  aria-label="上一个月份"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <input
+                  id="commission_overview_month"
+                  type="month"
+                  value={month}
+                  onChange={(event) => setMonth(event.target.value)}
+                  className="h-10 w-[180px] rounded-md border border-input bg-background px-3 text-sm"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setMonth((prev) => shiftMonth(prev, 1))}
+                  aria-label="下一个月份"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
 
             <div className="flex items-center gap-2">
@@ -228,10 +345,16 @@ export default function CommissionOverviewPage() {
                     <TableRow key={row.id}>
                       <TableCell>{row.project_name}</TableCell>
                       <TableCell className="text-right tabular-nums">{formatUsd(row.income_total_usd)}</TableCell>
-                      <TableCell className="text-right tabular-nums">{formatPercent(row.factory_commission_rate)}</TableCell>
-                      <TableCell className="text-right tabular-nums">{formatUsd(row.factory_commission_usd)}</TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {derivedByRowId[row.id]?.rate == null ? '-' : formatPercent(derivedByRowId[row.id].rate ?? 0)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {derivedByRowId[row.id]?.usd == null ? '-' : formatUsd(derivedByRowId[row.id].usd ?? 0)}
+                      </TableCell>
                       <TableCell className="text-right tabular-nums">{row.usd_to_rmb_rate.toFixed(4)}</TableCell>
-                      <TableCell className="text-right font-medium tabular-nums">{formatRmb(row.factory_commission_rmb)}</TableCell>
+                      <TableCell className="text-right font-medium tabular-nums">
+                        {derivedByRowId[row.id]?.rmb == null ? '-' : formatRmb(derivedByRowId[row.id].rmb ?? 0)}
+                      </TableCell>
                       <TableCell className="text-right tabular-nums">{formatRmb(row.received_rmb)}</TableCell>
                       <TableCell>
                         <Select

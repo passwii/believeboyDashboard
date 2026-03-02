@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { resolveOperationCommissionUsd } from '@/lib/commission'
 
 type ProjectOption = {
   id: number | null
@@ -86,17 +87,13 @@ function oneYearAgoMonthString(): string {
 }
 
 const chartConfig = {
-  income_total: {
-    label: '收入合计',
+  income_sales: {
+    label: '销售额',
     color: 'hsl(var(--chart-2))',
   },
-  expense_total: {
-    label: '支出合计',
+  income_refund: {
+    label: '退款',
     color: 'hsl(var(--destructive))',
-  },
-  amazon_pay_back: {
-    label: '亚马逊返款',
-    color: 'hsl(var(--primary))',
   },
 } satisfies ChartConfig
 
@@ -174,8 +171,17 @@ function toPositiveRatio(numerator: number, denominator: number): number {
   return Math.abs(numerator) / base
 }
 
+function toSignedRatio(numerator: number, denominator: number): number {
+  if (denominator === 0) return 0
+  return numerator / denominator
+}
+
 function formatRatio(value: number): string {
   return `${(Math.abs(value) * 100).toFixed(1)}%`
+}
+
+function formatSignedRatio(value: number): string {
+  return `${(value * 100).toFixed(1)}%`
 }
 
 function formatRate(value: number): string {
@@ -288,9 +294,8 @@ export default function FinancialDataPage() {
 
   // 图表线条可见性状态
   const [visibleLines, setVisibleLines] = useState({
-    income_total: true,
-    expense_total: true,
-    amazon_pay_back: true,
+    income_sales: true,
+    income_refund: true,
   })
 
   const latestRequestIdRef = useRef(0)
@@ -434,11 +439,13 @@ export default function FinancialDataPage() {
 
   const trendPoints = useMemo(() => {
     if (!data) return []
-    return data.trend.points.map((point) => ({
-      ...point,
-      month_label: formatMonth(point.report_month),
-      // 支出合计转换为正数显示，让图表更美观
-      expense_total: Math.abs(point.expense_total),
+    return data.rows.map((row) => ({
+      report_month: row.report_month,
+      month_label: formatMonth(row.report_month),
+      income_sales: row.income_sales,
+      // 退款统一按正值展示金额规模，避免与销售额方向相反影响可读性
+      income_refund: Math.abs(row.income_refund),
+      has_source_report: row.has_source_report,
     }))
   }, [data])
 
@@ -464,7 +471,8 @@ export default function FinancialDataPage() {
     [projects, projectId]
   )
   const commissionRate = selectedProject?.commission_rate ?? 0
-  const skipCommission = selectedProject?.commission_basis === 'cash_received'
+  const commissionBasis = selectedProject?.commission_basis ?? null
+  const disableCommission = !commissionBasis
 
   const totals = useMemo(() => {
     const rows = data?.rows ?? []
@@ -474,7 +482,13 @@ export default function FinancialDataPage() {
         const creditCardUsd = row.credit_card_deduction_usd
         const evaluationFeeRmb = 0
         const prepaymentOtherRmb = 0
-        const operationCommissionRmb = skipCommission ? 0 : row.income_sales * commissionRate * exchangeRate
+        const operationCommission = resolveOperationCommissionUsd({
+          commissionBasis,
+          configuredCommissionRate: commissionRate,
+          incomeTotalUsd: row.income_total,
+          amazonPaybackUsd: row.amazon_pay_back,
+        })
+        const operationCommissionRmb = operationCommission.commissionUsd * exchangeRate
         const payableTotalRmb = evaluationFeeRmb + prepaymentOtherRmb + operationCommissionRmb
 
         return {
@@ -523,7 +537,7 @@ export default function FinancialDataPage() {
         exchange_rate_count: 0,
       }
     )
-  }, [data, exchangeRateByMonth, commissionRate, skipCommission])
+  }, [data, exchangeRateByMonth, commissionRate, commissionBasis])
 
   return (
     <div className="min-w-0 w-full space-y-6 overflow-x-hidden">
@@ -606,49 +620,36 @@ export default function FinancialDataPage() {
               <div className="grid flex-1 gap-1 text-center sm:text-left">
                 <CardTitle className="text-lg">月度趋势</CardTitle>
                 <CardDescription className="text-sm text-muted-foreground">
-                  收入合计、支出合计、亚马逊返款
+                  销售额、退款
                 </CardDescription>
               </div>
               {/* 可点击的图例按钮 */}
               <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
                 <button
                   type="button"
-                  onClick={() => setVisibleLines(prev => ({ ...prev, income_total: !prev.income_total }))}
+                  onClick={() => setVisibleLines(prev => ({ ...prev, income_sales: !prev.income_sales }))}
                   className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${
-                    visibleLines.income_total
+                    visibleLines.income_sales
                       ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
                       : 'border-muted bg-muted/30 text-muted-foreground line-through'
                   }`}
                 >
-                  {visibleLines.income_total ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                  {visibleLines.income_sales ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
                   <span className="h-2 w-2 rounded-full" style={{ backgroundColor: 'hsl(var(--chart-2))' }} />
-                  收入合计
+                  销售额
                 </button>
                 <button
                   type="button"
-                  onClick={() => setVisibleLines(prev => ({ ...prev, expense_total: !prev.expense_total }))}
+                  onClick={() => setVisibleLines(prev => ({ ...prev, income_refund: !prev.income_refund }))}
                   className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${
-                    visibleLines.expense_total
+                    visibleLines.income_refund
                       ? 'border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300'
                       : 'border-muted bg-muted/30 text-muted-foreground line-through'
                   }`}
                 >
-                  {visibleLines.expense_total ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                  {visibleLines.income_refund ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
                   <span className="h-2 w-2 rounded-full" style={{ backgroundColor: 'hsl(var(--destructive))' }} />
-                  支出合计
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setVisibleLines(prev => ({ ...prev, amazon_pay_back: !prev.amazon_pay_back }))}
-                  className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${
-                    visibleLines.amazon_pay_back
-                      ? 'border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300'
-                      : 'border-muted bg-muted/30 text-muted-foreground line-through'
-                  }`}
-                >
-                  {visibleLines.amazon_pay_back ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: 'hsl(var(--primary))' }} />
-                  亚马逊返款
+                  退款
                 </button>
               </div>
             </CardHeader>
@@ -659,17 +660,13 @@ export default function FinancialDataPage() {
                 <ChartContainer config={chartConfig} className="aspect-auto h-[320px] w-full">
                   <AreaChart data={trendPoints} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                     <defs>
-                      <linearGradient id="fillIncome" x1="0" y1="0" x2="0" y2="1">
+                      <linearGradient id="fillSales" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="hsl(var(--chart-2))" stopOpacity={0.7} />
                         <stop offset="95%" stopColor="hsl(var(--chart-2))" stopOpacity={0.05} />
                       </linearGradient>
-                      <linearGradient id="fillExpense" x1="0" y1="0" x2="0" y2="1">
+                      <linearGradient id="fillRefund" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="hsl(var(--destructive))" stopOpacity={0.7} />
                         <stop offset="95%" stopColor="hsl(var(--destructive))" stopOpacity={0.05} />
-                      </linearGradient>
-                      <linearGradient id="fillAmazon" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.7} />
-                        <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0.05} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid vertical={false} stroke="hsl(var(--border))" strokeOpacity={0.5} />
@@ -697,9 +694,8 @@ export default function FinancialDataPage() {
                           formatter={(value, name) => {
                             // 将英文 dataKey 映射为中文
                             const nameMap: Record<string, string> = {
-                              income_total: '收入合计',
-                              expense_total: '支出合计',
-                              amazon_pay_back: '亚马逊返款',
+                              income_sales: '销售额',
+                              income_refund: '退款',
                             }
                             const displayName = nameMap[String(name)] || String(name)
                             return (
@@ -713,34 +709,23 @@ export default function FinancialDataPage() {
                         />
                       }
                     />
-                    {visibleLines.expense_total && (
+                    {visibleLines.income_refund && (
                       <Area
                         type="monotone"
-                        dataKey="expense_total"
+                        dataKey="income_refund"
                         stroke="hsl(var(--destructive))"
-                        fill="url(#fillExpense)"
+                        fill="url(#fillRefund)"
                         strokeWidth={2}
                         dot={false}
                         activeDot={{ r: 4, strokeWidth: 0 }}
                       />
                     )}
-                    {visibleLines.amazon_pay_back && (
+                    {visibleLines.income_sales && (
                       <Area
                         type="monotone"
-                        dataKey="amazon_pay_back"
-                        stroke="hsl(var(--primary))"
-                        fill="url(#fillAmazon)"
-                        strokeWidth={2}
-                        dot={false}
-                        activeDot={{ r: 4, strokeWidth: 0 }}
-                      />
-                    )}
-                    {visibleLines.income_total && (
-                      <Area
-                        type="monotone"
-                        dataKey="income_total"
+                        dataKey="income_sales"
                         stroke="hsl(var(--chart-2))"
-                        fill="url(#fillIncome)"
+                        fill="url(#fillSales)"
                         strokeWidth={2}
                         dot={false}
                         activeDot={{ r: 4, strokeWidth: 0 }}
@@ -792,7 +777,7 @@ export default function FinancialDataPage() {
                         <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">收入合计</TableHead>
                         <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">支出合计</TableHead>
                         <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">亚马逊回款</TableHead>
-                        <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">信用卡扣款美金</TableHead>
+                        <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">信用卡扣款</TableHead>
                         {isAdmin ? (
                           <>
                             <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">测评费用RMB</TableHead>
@@ -837,7 +822,13 @@ export default function FinancialDataPage() {
                         const creditCardUsd = row.credit_card_deduction_usd
                         const evaluationFeeRmb = 0
                         const prepaymentOtherRmb = 0
-                        const operationCommissionRmb = skipCommission ? 0 : row.income_sales * commissionRate * exchangeRate
+                        const operationCommission = resolveOperationCommissionUsd({
+                          commissionBasis,
+                          configuredCommissionRate: commissionRate,
+                          incomeTotalUsd: row.income_total,
+                          amazonPaybackUsd: row.amazon_pay_back,
+                        })
+                        const operationCommissionRmb = operationCommission.commissionUsd * exchangeRate
                         const payableTotalRmb = evaluationFeeRmb + prepaymentOtherRmb + operationCommissionRmb
                         const rowBg = !row.has_source_report ? 'bg-muted' : 'bg-background'
                         const platformRatio = toPositiveRatio(row.expense_selling_fee, row.income_total)
@@ -846,7 +837,7 @@ export default function FinancialDataPage() {
                         const serviceRatio = toPositiveRatio(row.expense_service_fee, row.income_total)
                         const adRatio = toPositiveRatio(row.expense_advertising, row.income_total)
                         const refundRatio = toPositiveRatio(row.income_refund, row.income_sales)
-                        const paybackRatio = toPositiveRatio(row.amazon_pay_back, row.income_total)
+                        const paybackRatio = toSignedRatio(row.amazon_pay_back, row.income_total)
 
                         return (
                         <TableRow key={row.report_month} className={!row.has_source_report ? 'bg-muted/20' : undefined}>
@@ -892,8 +883,8 @@ export default function FinancialDataPage() {
                             <>
                               <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">{formatRmb(evaluationFeeRmb)}</TableCell>
                               <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">{formatRmb(prepaymentOtherRmb)}</TableCell>
-                              <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">{formatRmb(operationCommissionRmb)}</TableCell>
-                              <TableCell className="border-r px-2 py-1.5 text-right font-semibold tabular-nums">{formatRmb(payableTotalRmb)}</TableCell>
+                              <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">{disableCommission ? '-' : formatRmb(operationCommissionRmb)}</TableCell>
+                              <TableCell className="border-r px-2 py-1.5 text-right font-semibold tabular-nums">{disableCommission ? '-' : formatRmb(payableTotalRmb)}</TableCell>
                               <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">{formatRate(exchangeRate)}</TableCell>
                             </>
                           ) : null}
@@ -903,7 +894,7 @@ export default function FinancialDataPage() {
                           <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">{formatRatio(serviceRatio)}</TableCell>
                           <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">{formatRatio(adRatio)}</TableCell>
                           <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">{formatRatio(refundRatio)}</TableCell>
-                          <TableCell className="px-2 py-1.5 text-right tabular-nums">{formatRatio(paybackRatio)}</TableCell>
+                          <TableCell className="px-2 py-1.5 text-right tabular-nums">{formatSignedRatio(paybackRatio)}</TableCell>
                         </TableRow>
                       )})}
                     </TableBody>
@@ -941,8 +932,8 @@ export default function FinancialDataPage() {
                           <>
                             <TableCell className="border-r px-2 py-2 text-right tabular-nums">{formatRmb(totals.evaluation_fee_rmb)}</TableCell>
                             <TableCell className="border-r px-2 py-2 text-right tabular-nums">{formatRmb(totals.prepayment_other_rmb)}</TableCell>
-                            <TableCell className="border-r px-2 py-2 text-right tabular-nums">{formatRmb(totals.operation_commission_rmb)}</TableCell>
-                            <TableCell className="border-r px-2 py-2 text-right tabular-nums">{formatRmb(totals.payable_total_rmb)}</TableCell>
+                            <TableCell className="border-r px-2 py-2 text-right tabular-nums">{disableCommission ? '-' : formatRmb(totals.operation_commission_rmb)}</TableCell>
+                            <TableCell className="border-r px-2 py-2 text-right tabular-nums">{disableCommission ? '-' : formatRmb(totals.payable_total_rmb)}</TableCell>
                             <TableCell className="border-r px-2 py-2 text-right tabular-nums">{formatRate(totals.exchange_rate_count > 0 ? totals.exchange_rate_sum / totals.exchange_rate_count : 0)}</TableCell>
                           </>
                         ) : null}
@@ -952,7 +943,7 @@ export default function FinancialDataPage() {
                         <TableCell className="border-r px-2 py-2 text-right tabular-nums">{formatRatio(toPositiveRatio(totals.expense_service_fee, totals.income_total))}</TableCell>
                         <TableCell className="border-r px-2 py-2 text-right tabular-nums">{formatRatio(toPositiveRatio(totals.expense_advertising, totals.income_total))}</TableCell>
                         <TableCell className="border-r px-2 py-2 text-right tabular-nums">{formatRatio(toPositiveRatio(totals.income_refund, totals.income_sales))}</TableCell>
-                        <TableCell className="px-2 py-2 text-right tabular-nums">{formatRatio(toPositiveRatio(totals.amazon_pay_back, totals.income_total))}</TableCell>
+                        <TableCell className="px-2 py-2 text-right tabular-nums">{formatSignedRatio(toSignedRatio(totals.amazon_pay_back, totals.income_total))}</TableCell>
                       </TableRow>
                     </TableFooter>
                   </Table>
