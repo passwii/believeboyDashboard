@@ -48,11 +48,15 @@ def create_monthly_report(
         'payment_report',
         data.transaction_file_id,
     )
-    summary_pdf_path = upload_service.build_upload_file_path(
-        settings,
-        project_name,
-        'monthly_summary_pdf',
-        data.summary_pdf_file_id,
+    summary_pdf_path = (
+        upload_service.build_upload_file_path(
+            settings,
+            project_name,
+            'monthly_summary_pdf',
+            data.summary_pdf_file_id,
+        )
+        if data.summary_pdf_file_id
+        else None
     )
     after_resolve_paths = perf_counter()
 
@@ -65,7 +69,7 @@ def create_monthly_report(
         summary_pdf_file_id=data.summary_pdf_file_id,
         resolved_file_paths={
             'transaction_report': str(transaction_path),
-            'monthly_summary_pdf': str(summary_pdf_path),
+            **({'monthly_summary_pdf': str(summary_pdf_path)} if summary_pdf_path else {}),
         },
     )
     after_enqueue_job = perf_counter()

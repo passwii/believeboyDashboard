@@ -70,6 +70,46 @@ def test_monthly_reports_creates_job(monkeypatch):
     assert payload['status'] == 'pending'
 
 
+def test_monthly_reports_creates_job_without_pdf(monkeypatch):
+    monkeypatch.setattr(
+        'app.api.v1.endpoints.monthly_reports.upload_service.build_upload_file_path',
+        lambda settings, project_name, file_type, file_id: Path(__file__).resolve(),  # noqa: ARG005
+    )
+
+    def fake_create_task(
+        settings, *, project_id, project_name, report_month, transaction_file_id, summary_pdf_file_id, resolved_file_paths  # noqa: ARG001
+    ):
+        assert project_id == 11
+        assert project_name == 'Demo'
+        assert report_month == '2026-01'
+        assert transaction_file_id == 'a.csv'
+        assert summary_pdf_file_id is None
+        assert resolved_file_paths['transaction_report']
+        assert 'monthly_summary_pdf' not in resolved_file_paths
+        return SimpleNamespace(
+            id=124,
+            status=JobStatus.pending,
+            created_at=datetime.now(UTC),
+        )
+
+    monkeypatch.setattr('app.api.v1.endpoints.monthly_reports.monthly_report_runtime_service.create_task', fake_create_task)
+
+    response = client.post(
+        '/api/v1/monthly-reports',
+        headers={'X-API-Key': get_settings().api_key, 'X-Operator': 'operator@example.com'},
+        json={
+            'project_id': 11,
+            'project_name': 'Demo',
+            'report_month': '2026-01',
+            'transaction_file_id': 'a.csv',
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload['job_id'] == 124
+    assert payload['status'] == 'pending'
+
+
 def test_monthly_reports_list(monkeypatch):
     monkeypatch.setattr(
         'app.api.v1.endpoints.monthly_reports.monthly_report_service.list_reports',

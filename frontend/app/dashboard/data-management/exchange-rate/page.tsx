@@ -530,7 +530,9 @@ export default function ExchangeRatePage() {
                       </TableCell>
                       <TableCell className="max-w-[280px]">
                         <div className="space-y-2">
-                          <p className="truncate text-sm">{rate.description || "-"}</p>
+                          <p className="truncate text-sm">
+                            {rate.description || (rate.noteImages?.length > 0 ? "" : "-")}
+                          </p>
                           {rate.noteImages?.length > 0 && (
                             <div className="flex flex-wrap gap-2">
                               {rate.noteImages.slice(0, 4).map((image) => (

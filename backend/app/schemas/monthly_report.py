@@ -12,7 +12,7 @@ class CreateMonthlyReportRequest(BaseModel):
     project_name: str | None = Field(default=None, min_length=1, max_length=128)
     report_month: str = Field(min_length=7, max_length=7)
     transaction_file_id: str = Field(min_length=1)
-    summary_pdf_file_id: str = Field(min_length=1)
+    summary_pdf_file_id: str | None = Field(default=None, min_length=1)
 
     @model_validator(mode='after')
     def validate_project_selector(self) -> 'CreateMonthlyReportRequest':

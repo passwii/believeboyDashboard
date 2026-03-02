@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { DragEvent } from 'react'
-import { AlertCircle, DatabaseZap, Download, FileSearch, Loader2, Sparkles, Upload } from 'lucide-react'
+import { AlertCircle, ChevronLeft, ChevronRight, DatabaseZap, Download, FileSearch, Loader2, Sparkles, Upload } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
-import { recognizeDataFile, type RecognizedFileType } from '@/lib/file-recognition'
+import type { RecognizedFileType } from '@/lib/file-recognition'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -65,11 +65,10 @@ type PersistenceSyncState = {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
 const API_KEY = process.env.NEXT_PUBLIC_BACKEND_API_KEY ?? ''
-const REQUIRED_TYPES: UploadType[] = ['payment_report', 'monthly_summary_pdf']
+const UPLOAD_TYPES: UploadType[] = ['payment_report', 'monthly_summary_pdf']
+const REQUIRED_TYPES: UploadType[] = ['payment_report']
 const JOB_POLL_INTERVAL_MS = 1000
 const JOB_POLL_MAX_WAIT_MS = 5 * 60 * 1000
-const TXN_FILE_RE = /^\d{4}[A-Za-z]{3}MonthlyUnifiedTransaction\.csv$/
-const PDF_FILE_RE = /^\d{4}[A-Za-z]{3}MonthlyUnifiedSummary\.pdf$/
 
 const TYPE_LABEL: Record<UploadType, string> = {
   payment_report: '交易明细 CSV',
@@ -101,6 +100,16 @@ function currentMonthString() {
   return `${y}-${m}`
 }
 
+function shiftMonth(value: string, delta: number) {
+  const [yearStr, monthStr] = value.split('-')
+  const year = Number(yearStr)
+  const month = Number(monthStr)
+  if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) return value
+  const next = new Date(year, month - 1, 1)
+  next.setMonth(next.getMonth() + delta)
+  return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`
+}
+
 function extractFilenameFromHeader(contentDisposition: string | null) {
   if (!contentDisposition) return null
   const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i)
@@ -127,15 +136,20 @@ function getAssignedRow(rows: MappingRow[], type: UploadType): MappingRow | null
   return null
 }
 
+function recognizeMonthlyFileByExtension(file: File): { type: RecognizedFileType; reason: string } {
+  const lowerName = file.name.toLowerCase()
+  if (lowerName.endsWith('.csv')) return { type: 'payment_report', reason: '按后缀识别为 csv' }
+  if (lowerName.endsWith('.pdf')) return { type: 'monthly_summary_pdf', reason: '按后缀识别为 pdf' }
+  return { type: 'unknown', reason: '仅支持 .csv 或 .pdf' }
+}
+
 function validateFile(type: UploadType, file: File): string | null {
   if (type === 'payment_report') {
     if (!file.name.toLowerCase().endsWith('.csv')) return '交易文件仅支持 .csv'
-    if (!TXN_FILE_RE.test(file.name)) return 'CSV 文件名应为 2026JanMonthlyUnifiedTransaction.csv'
     return null
   }
 
   if (!file.name.toLowerCase().endsWith('.pdf')) return '总结文件仅支持 .pdf'
-  if (!PDF_FILE_RE.test(file.name)) return 'PDF 文件名应为 2026JanMonthlyUnifiedSummary.pdf'
   return null
 }
 
@@ -227,6 +241,10 @@ export default function MonthlyReportPage() {
   })
   const latestTaskIdRef = useRef<number | null>(null)
 
+  const handleShiftReportMonth = (delta: number) => {
+    setReportMonth((prev) => shiftMonth(prev, delta))
+  }
+
   useEffect(() => {
     const loadProjects = async () => {
       setProjectsLoading(true)
@@ -254,7 +272,7 @@ export default function MonthlyReportPage() {
   useEffect(() => {
     setUploadState((prev) => {
       const next = { ...prev }
-      REQUIRED_TYPES.forEach((type) => {
+      UPLOAD_TYPES.forEach((type) => {
         const assigned = getAssignedRow(mappingRows, type)
         const previous = prev[type]
 
@@ -287,12 +305,12 @@ export default function MonthlyReportPage() {
   }, [mappingRows])
 
   const recognizedCount = useMemo(
-    () => REQUIRED_TYPES.filter((type) => uploadState[type].status !== 'empty').length,
+    () => UPLOAD_TYPES.filter((type) => uploadState[type].status !== 'empty').length,
     [uploadState]
   )
 
   const uploadedCount = useMemo(
-    () => REQUIRED_TYPES.filter((type) => uploadState[type].status === 'success').length,
+    () => UPLOAD_TYPES.filter((type) => uploadState[type].status === 'success').length,
     [uploadState]
   )
 
@@ -301,7 +319,7 @@ export default function MonthlyReportPage() {
     [mappingRows]
   )
 
-  const dropZoneHeight = Math.min(380, 190 + Math.max(2, manualMatchRows.length + REQUIRED_TYPES.length) * 30)
+  const dropZoneHeight = Math.min(380, 190 + Math.max(2, manualMatchRows.length + UPLOAD_TYPES.length) * 30)
 
   const canGenerate =
     projectName.trim().length > 0 &&
@@ -330,12 +348,7 @@ export default function MonthlyReportPage() {
     setFormError(null)
     setMappingBusy(true)
 
-    const detectedRows = await Promise.all(
-      files.map(async (file) => {
-        const match = await recognizeDataFile(file)
-        return { file, ...match }
-      })
-    )
+    const detectedRows = files.map((file) => ({ file, ...recognizeMonthlyFileByExtension(file) }))
 
     setMappingRows((prev) => {
       const next = [...prev]
@@ -470,7 +483,7 @@ export default function MonthlyReportPage() {
   const uploadAllConfirmed = async () => {
     if (uploadBusy) return
     setUploadBusy(true)
-    for (const type of REQUIRED_TYPES) {
+    for (const type of UPLOAD_TYPES) {
       const state = uploadState[type]
       if (state.status === 'ready' || state.status === 'error') {
         // eslint-disable-next-line no-await-in-loop
@@ -496,7 +509,7 @@ export default function MonthlyReportPage() {
       return
     }
     if (!REQUIRED_TYPES.every((type) => uploadState[type].status === 'success')) {
-      setFormError('请先完成 CSV + PDF 上传')
+      setFormError('请先完成交易 CSV 上传')
       return
     }
 
@@ -505,7 +518,7 @@ export default function MonthlyReportPage() {
     const selectedProject = projects.find((project) => project.name === projectName)
     const projectId = selectedProject?.id ?? null
 
-    if (!transactionFileId || !summaryPdfFileId) {
+    if (!transactionFileId) {
       setFormError('上传结果异常，请重新上传文件')
       return
     }
@@ -525,7 +538,7 @@ export default function MonthlyReportPage() {
           project_name: projectName.trim(),
           report_month: reportMonth,
           transaction_file_id: transactionFileId,
-          summary_pdf_file_id: summaryPdfFileId,
+          summary_pdf_file_id: summaryPdfFileId || undefined,
         }),
       })
 
@@ -743,18 +756,45 @@ export default function MonthlyReportPage() {
 
               <div className="space-y-2">
                 <label htmlFor="report_month" className="text-sm font-medium">账期月份</label>
-                <Input id="report_month" type="month" value={reportMonth} onChange={(event) => setReportMonth(event.target.value)} />
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => handleShiftReportMonth(-1)}
+                    aria-label="切换到上一个月"
+                    title="上一个月"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Input
+                    id="report_month"
+                    type="month"
+                    value={reportMonth}
+                    onChange={(event) => setReportMonth(event.target.value)}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => handleShiftReportMonth(1)}
+                    aria-label="切换到下一个月"
+                    title="下一个月"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </div>
 
             <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
               <div className="rounded-lg border bg-muted/30 px-3 py-2">
                 <p className="text-xs text-muted-foreground">识别</p>
-                <p className="mt-1 text-sm font-semibold">{recognizedCount}/2</p>
+                <p className="mt-1 text-sm font-semibold">{recognizedCount}/{UPLOAD_TYPES.length}</p>
               </div>
               <div className="rounded-lg border bg-muted/30 px-3 py-2">
                 <p className="text-xs text-muted-foreground">上传</p>
-                <p className="mt-1 text-sm font-semibold">{uploadedCount}/2</p>
+                <p className="mt-1 text-sm font-semibold">{uploadedCount}/{UPLOAD_TYPES.length}</p>
               </div>
               <div className="rounded-lg border bg-muted/30 px-3 py-2">
                 <p className="text-xs text-muted-foreground">表格生成</p>
@@ -817,7 +857,7 @@ export default function MonthlyReportPage() {
             </div>
 
             <div className="space-y-4">
-              {REQUIRED_TYPES.map((type) => {
+              {UPLOAD_TYPES.map((type) => {
                 const state = uploadState[type]
                 const meta = getUploadMeta(state)
                 const matched = state.status !== 'empty'
