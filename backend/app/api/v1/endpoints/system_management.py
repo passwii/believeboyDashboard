@@ -20,12 +20,17 @@ from app.schemas.system_management import (
     CommissionPaymentStatus,
     CommissionProjectMonthItem,
     CommissionProjectMonthsResponse,
+    CommissionProjectMonthlySummaryMonthItem,
+    CommissionProjectYearlySummaryItem,
+    CommissionProjectYearlySummaryResponse,
     CommissionProjectPaymentStatus,
     CommissionRatioOverrideItem,
     CommissionRatioOverridesResponse,
     CommissionRatioSource,
     CommissionRecordItem,
     CommissionRecordsResponse,
+    CommissionYearlyMonthlySummaryItem,
+    CommissionYearlyMonthlySummaryResponse,
     UpdateCommissionProjectPaymentRequest,
     UpdateCommissionProjectPaymentResponse,
     DataLifecycleStatus,
@@ -52,6 +57,7 @@ router = APIRouter(prefix='/system-management', dependencies=[Depends(protected)
 DATA_STATE_TABLE = 'system_management_data_state'
 STALE_WINDOW_HOURS = 72
 REPORT_MONTH_RE = re.compile(r'^\d{4}-(0[1-9]|1[0-2])$')
+YEAR_RE = re.compile(r'^\d{4}$')
 
 
 def _resolve_database_source(database_url: str) -> tuple[str, str | None]:
@@ -94,6 +100,13 @@ def _parse_report_month(value: str) -> str:
     normalized = value.strip()
     if not REPORT_MONTH_RE.match(normalized):
         raise ValueError('report_month must be in YYYY-MM format')
+    return normalized
+
+
+def _parse_year(value: str) -> str:
+    normalized = value.strip()
+    if not YEAR_RE.match(normalized):
+        raise ValueError('year must be in YYYY format')
     return normalized
 
 
@@ -654,6 +667,135 @@ def list_commission_project_months(
     return CommissionProjectMonthsResponse(report_month=month, items=[_serialize_project_month(row) for row in rows])
 
 
+@router.get('/commission-management/summary/monthly', response_model=CommissionYearlyMonthlySummaryResponse)
+def list_commission_yearly_monthly_summary(
+    year: str,
+    db: Session = Depends(get_db_session),
+) -> CommissionYearlyMonthlySummaryResponse:
+    try:
+        normalized_year = _parse_year(year)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    month_start = f'{normalized_year}-01'
+    month_end = f'{normalized_year}-12'
+    rows = db.execute(
+        select(
+            CommissionProjectMonth.report_month,
+            func.sum(CommissionProjectMonth.income_total_usd).label('income_total_usd'),
+            func.sum(CommissionProjectMonth.factory_commission_usd).label('factory_commission_usd'),
+            func.sum(CommissionProjectMonth.factory_commission_rmb).label('factory_commission_rmb'),
+            func.sum(CommissionProjectMonth.received_rmb).label('received_rmb'),
+        )
+        .where(
+            CommissionProjectMonth.report_month >= month_start,
+            CommissionProjectMonth.report_month <= month_end,
+        )
+        .group_by(CommissionProjectMonth.report_month)
+        .order_by(CommissionProjectMonth.report_month.asc())
+    ).all()
+
+    monthly_map: dict[str, tuple[float, float, float, float]] = {}
+    for report_month, income_total_usd, factory_commission_usd, factory_commission_rmb, received_rmb in rows:
+        monthly_map[str(report_month)] = (
+            float(income_total_usd or 0),
+            float(factory_commission_usd or 0),
+            float(factory_commission_rmb or 0),
+            float(received_rmb or 0),
+        )
+
+    items: list[CommissionYearlyMonthlySummaryItem] = []
+    for month in range(1, 13):
+        report_month = f'{normalized_year}-{month:02d}'
+        income_total_usd, factory_commission_usd, factory_commission_rmb, received_rmb = monthly_map.get(
+            report_month,
+            (0.0, 0.0, 0.0, 0.0),
+        )
+        receive_rate = 0.0
+        if factory_commission_rmb > 0:
+            receive_rate = received_rmb / factory_commission_rmb
+        items.append(
+            CommissionYearlyMonthlySummaryItem(
+                report_month=report_month,
+                income_total_usd=income_total_usd,
+                factory_commission_usd=factory_commission_usd,
+                factory_commission_rmb=factory_commission_rmb,
+                received_rmb=received_rmb,
+                receive_rate=receive_rate,
+            )
+        )
+
+    return CommissionYearlyMonthlySummaryResponse(year=normalized_year, items=items)
+
+
+@router.get('/commission-management/summary/project', response_model=CommissionProjectYearlySummaryResponse)
+def list_commission_project_yearly_summary(
+    year: str,
+    db: Session = Depends(get_db_session),
+) -> CommissionProjectYearlySummaryResponse:
+    try:
+        normalized_year = _parse_year(year)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    month_start = f'{normalized_year}-01'
+    month_end = f'{normalized_year}-12'
+    rows = db.execute(
+        select(
+            CommissionProjectMonth.project_id,
+            CommissionProjectMonth.project_name,
+            CommissionProjectMonth.report_month,
+            CommissionProjectMonth.income_total_usd,
+            CommissionProjectMonth.factory_commission_rmb,
+            CommissionProjectMonth.received_rmb,
+        )
+        .where(
+            CommissionProjectMonth.report_month >= month_start,
+            CommissionProjectMonth.report_month <= month_end,
+        )
+        .order_by(CommissionProjectMonth.project_name.asc(), CommissionProjectMonth.report_month.asc())
+    ).all()
+
+    project_map: dict[int, CommissionProjectYearlySummaryItem] = {}
+    for project_id, project_name, report_month, income_total_usd, factory_commission_rmb, received_rmb in rows:
+        normalized_project_id = int(project_id)
+        item = project_map.get(normalized_project_id)
+        if item is None:
+            item = CommissionProjectYearlySummaryItem(
+                project_id=normalized_project_id,
+                project_name=str(project_name),
+                months={},
+                total_income_usd=0,
+                total_commission_rmb=0,
+                total_received_rmb=0,
+                receive_rate=0,
+            )
+            project_map[normalized_project_id] = item
+
+        income_value = float(income_total_usd or 0)
+        commission_value = float(factory_commission_rmb or 0)
+        received_value = float(received_rmb or 0)
+        month_receive_rate = (received_value / commission_value) if commission_value > 0 else 0
+
+        item.months[str(report_month)] = CommissionProjectMonthlySummaryMonthItem(
+            report_month=str(report_month),
+            income_total_usd=income_value,
+            factory_commission_rmb=commission_value,
+            received_rmb=received_value,
+            receive_rate=month_receive_rate,
+        )
+        item.total_income_usd += income_value
+        item.total_commission_rmb += commission_value
+        item.total_received_rmb += received_value
+
+    items = list(project_map.values())
+    for item in items:
+        item.receive_rate = (item.total_received_rmb / item.total_commission_rmb) if item.total_commission_rmb > 0 else 0
+
+    items.sort(key=lambda item: item.project_name)
+    return CommissionProjectYearlySummaryResponse(year=normalized_year, items=items)
+
+
 @router.patch(
     '/commission-management/project-months/{project_month_id}/payment',
     response_model=UpdateCommissionProjectPaymentResponse,
@@ -695,6 +837,20 @@ def update_commission_project_payment(
             commission_row.is_locked = True
             commission_row.locked_at = now
             commission_row.locked_by = row.payment_confirmed_by
+    else:
+        unpaid_rows = db.execute(
+            select(CommissionRecord).where(
+                CommissionRecord.project_month_id == project_month_id,
+                CommissionRecord.is_active.is_(True),
+            )
+        ).scalars().all()
+        for commission_row in unpaid_rows:
+            commission_row.payment_status = CommissionPaymentStatus.unpaid.value
+            commission_row.payment_confirmed_at = None
+            commission_row.payment_confirmed_by = None
+            commission_row.is_locked = False
+            commission_row.locked_at = None
+            commission_row.locked_by = None
 
     db.commit()
     db.refresh(row)

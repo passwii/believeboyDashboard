@@ -24,14 +24,14 @@ export default function DashboardLayout({
     if (pathname.includes('/data-analysis/financial-data')) return '财务数据'
     if (pathname.includes('/data-management/sku-cost')) return 'SKU 成本中心'
     if (pathname.includes('/data-management/project-info')) return '项目信息'
-    if (pathname.includes('/data-management/business-report')) return '业务报告'
-    if (pathname.includes('/data-management/ad-analysis')) return '广告分析'
-    if (pathname.includes('/data-management/inventory-sales-analysis')) return '库存销售分析'
+    if (pathname.includes('/data-analysis/business-report')) return '业务报告'
+    if (pathname.includes('/data-analysis/ad-analysis')) return '广告分析'
+    if (pathname.includes('/data-analysis/inventory-sales-analysis')) return '库存销售分析'
     if (pathname.includes('/change-password')) return '修改密码'
     if (pathname.includes('/system-management/data-management')) return '数据库状态'
     if (pathname.includes('/system-management/account-management')) return '系统账号管理'
     if (pathname.includes('/system-management/commission-overview')) return '佣金管理'
-    if (pathname.includes('/system-management/commission-management')) return '提成管理'
+    if (pathname.includes('/system-management/commission-management')) return '佣金管理'
     if (pathname.includes('/operations/site-navigation')) return '跨境平台书签导航'
     if (pathname.includes('/ai-panel/chat')) return 'AI 聊天面板'
     return 'Dashboard'
@@ -60,7 +60,7 @@ export default function DashboardLayout({
             </div>
           </div>
         </header>
-        <main className="relative min-w-0 flex-1 overflow-x-hidden p-4 md:p-6 lg:p-8">
+        <main className="dashboard-full-width relative min-w-0 flex-1 overflow-x-hidden p-4 md:p-6 lg:p-8">
           {children}
         </main>
       </SidebarInset>

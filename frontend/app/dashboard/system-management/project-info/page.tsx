@@ -479,7 +479,7 @@ export default function StoreInfoPage() {
           ) : null}
 
           <div className="rounded-lg border border-border/70">
-            <div className="max-h-[600px] overflow-y-auto relative">
+            <div className="max-h-[calc(100vh-320px)] overflow-y-auto relative">
               <table className="w-full caption-bottom text-sm">
                 <thead className="[&_tr]:border-b-0">
                   <tr className="border-b border-border/70 shadow-sm">

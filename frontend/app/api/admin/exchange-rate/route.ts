@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdminSession, requireUserSession } from '@/lib/auth/server';
 import { exchangeRateDb, ExchangeRateFilters } from '@/lib/db';
 
 // GET: Fetch all exchange rates with optional filtering
 export async function GET(request: NextRequest) {
   try {
+    const session = await requireUserSession()
+    if (!session) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    }
+
     const { searchParams } = new URL(request.url);
     const currency = searchParams.get('currency') || undefined;
     const year_month = searchParams.get('year_month') || undefined;
@@ -26,6 +32,11 @@ export async function GET(request: NextRequest) {
 // POST: Create a new exchange rate
 export async function POST(request: NextRequest) {
   try {
+    const session = await requireAdminSession()
+    if (!session) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    }
+
     const body = await request.json();
     const { currency, year_month, rate } = body;
 

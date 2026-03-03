@@ -177,7 +177,7 @@ export default function AccountManagementPage() {
   }
 
   return (
-    <div className="mx-auto max-w-[1320px] space-y-6">
+    <div className="w-full space-y-6">
       <Card className="border-border/80 shadow-[0_20px_40px_-22px_rgba(15,23,42,0.22)]">
         <CardHeader className="space-y-3">
           <Badge variant="outline" className="w-fit rounded-md border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300">
