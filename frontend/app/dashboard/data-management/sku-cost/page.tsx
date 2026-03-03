@@ -27,6 +27,7 @@ type ProductCostItem = {
   first_leg_unit_cost: number
   fob_unit_cost: number
   currency: string
+  sort_order: number
   is_active: boolean
 }
 
@@ -51,6 +52,13 @@ const DEFAULT_PAGE_SIZE = 20
 
 function authHeaders(): Record<string, string> {
   return API_KEY ? { 'X-API-Key': API_KEY } : {}
+}
+
+function sortProductCosts(rows: ProductCostItem[]): ProductCostItem[] {
+  return [...rows].sort((a, b) => {
+    if (a.sort_order !== b.sort_order) return a.sort_order - b.sort_order
+    return a.id - b.id
+  })
 }
 
 async function parseError(response: Response): Promise<string> {
@@ -89,7 +97,9 @@ export default function SkuCostPage() {
   const [editFirstLegCost, setEditFirstLegCost] = useState('')
   const [editFobCost, setEditFobCost] = useState('')
   const [editCurrency, setEditCurrency] = useState('USD')
+  const [editSortOrder, setEditSortOrder] = useState('')
   const [editIsActive, setEditIsActive] = useState(true)
+  const [moveSubmittingId, setMoveSubmittingId] = useState<number | null>(null)
 
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
@@ -158,7 +168,7 @@ export default function SkuCostPage() {
 
     try {
       const result = await fetchAllData(filters)
-      const newItems = [...result.items].sort((a, b) => a.id - b.id)
+      const newItems = sortProductCosts(result.items)
       setItems(newItems)
       setPage((prev) => {
         if (options?.resetPage) {
@@ -355,6 +365,7 @@ export default function SkuCostPage() {
     setEditFirstLegCost(String(row.first_leg_unit_cost))
     setEditFobCost(String(row.fob_unit_cost))
     setEditCurrency(row.currency || 'USD')
+    setEditSortOrder(String(row.sort_order))
     setEditIsActive(Boolean(row.is_active))
     setError(null)
     setSuccessMessage(null)
@@ -372,6 +383,7 @@ export default function SkuCostPage() {
     const isActive = Boolean(editIsActive)
     const firstLeg = Number(editFirstLegCost)
     const fob = Number(editFobCost)
+    const sortOrder = Number(editSortOrder)
 
     if (!sku || !asin) {
       setError('SKU 和 ASIN 不能为空')
@@ -379,6 +391,10 @@ export default function SkuCostPage() {
     }
     if (Number.isNaN(firstLeg) || Number.isNaN(fob) || firstLeg < 0 || fob < 0) {
       setError('头程单价和 FOB 单价必须为大于等于 0 的数字')
+      return
+    }
+    if (!Number.isInteger(sortOrder) || sortOrder < 1) {
+      setError('SKU序号必须是大于等于 1 的整数')
       return
     }
 
@@ -398,6 +414,7 @@ export default function SkuCostPage() {
           first_leg_unit_cost: firstLeg,
           fob_unit_cost: fob,
           currency,
+          sort_order: sortOrder,
           is_active: isActive,
           source_file: 'manual_inline_edit',
         }),
@@ -406,9 +423,7 @@ export default function SkuCostPage() {
         throw new Error(await parseError(response))
       }
       const updated = (await response.json()) as ProductCostItem
-      const nextItems = items
-        .map((item) => (item.id === updated.id ? updated : item))
-        .sort((a, b) => a.id - b.id)
+      const nextItems = sortProductCosts(items.map((item) => (item.id === updated.id ? updated : item)))
       setItems(nextItems)
       setEditingId(null)
       setSuccessMessage('该行已更新')
@@ -416,6 +431,31 @@ export default function SkuCostPage() {
       setError(saveError instanceof Error ? saveError.message : '保存失败')
     } finally {
       setEditSubmitting(false)
+    }
+  }
+
+  const onMoveRow = async (rowId: number, direction: 'up' | 'down') => {
+    setMoveSubmittingId(rowId)
+    setError(null)
+    setSuccessMessage(null)
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/product-costs/${rowId}/move`, {
+        method: 'POST',
+        headers: {
+          ...authHeaders(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ direction }),
+      })
+      if (!response.ok) {
+        throw new Error(await parseError(response))
+      }
+      await loadData()
+      setSuccessMessage(direction === 'up' ? '该行已上移' : '该行已下移')
+    } catch (moveError) {
+      setError(moveError instanceof Error ? moveError.message : '调整排序失败')
+    } finally {
+      setMoveSubmittingId(null)
     }
   }
 
@@ -592,7 +632,7 @@ export default function SkuCostPage() {
             <table className="w-full caption-bottom text-sm">
               <thead className="[&_tr]:border-b">
                 <tr className="border-b bg-background">
-                  <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">序号</th>
+                  <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">SKU序号</th>
                   <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">项目名</th>
                   <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">SKU</th>
                   <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">ASIN</th>
@@ -638,9 +678,22 @@ export default function SkuCostPage() {
                     ))
                   : null}
 
-                {pagedItems.map((row, index) => (
+                {pagedItems.map((row) => (
                   <tr key={row.id} className="border-b transition-colors hover:bg-muted/50">
-                    <td className="p-4 align-middle">{(page - 1) * pageSize + index + 1}</td>
+                    <td className="p-4 align-middle">
+                      {editingId === row.id ? (
+                        <Input
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={editSortOrder}
+                          onChange={(e) => setEditSortOrder(e.target.value)}
+                          className="h-8 w-24"
+                        />
+                      ) : (
+                        row.sort_order
+                      )}
+                    </td>
                     <td className="p-4 align-middle font-medium text-foreground">{row.project_name}</td>
                     <td className="p-4 align-middle">
                       {editingId === row.id ? (
@@ -728,9 +781,29 @@ export default function SkuCostPage() {
                           </Button>
                         </div>
                       ) : (
-                        <Button type="button" size="sm" variant="outline" onClick={() => startEditRow(row)} disabled={editSubmitting}>
-                          编辑
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => void onMoveRow(row.id, 'up')}
+                            disabled={editSubmitting || moveSubmittingId === row.id}
+                          >
+                            上移
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => void onMoveRow(row.id, 'down')}
+                            disabled={editSubmitting || moveSubmittingId === row.id}
+                          >
+                            下移
+                          </Button>
+                          <Button type="button" size="sm" variant="outline" onClick={() => startEditRow(row)} disabled={editSubmitting}>
+                            编辑
+                          </Button>
+                        </div>
                       )}
                     </td>
                   </tr>

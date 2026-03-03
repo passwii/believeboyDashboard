@@ -181,6 +181,21 @@ async function main() {
       const batch = normalizedRows.slice(i, i + DEFAULT_BATCH_SIZE)
       await upsertBatch(client, batch, sourceFileName)
     }
+    await client.query(`
+      with ranked as (
+        select
+          id,
+          row_number() over (
+            partition by project_name
+            order by id asc
+          ) as rn
+        from public.product_costs
+      )
+      update public.product_costs as pc
+      set sort_order = ranked.rn
+      from ranked
+      where pc.id = ranked.id
+    `)
     await client.query("commit")
     console.log(`Imported ${normalizedRows.length} rows from ${csvPath}`)
   } catch (error) {

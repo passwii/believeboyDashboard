@@ -34,6 +34,8 @@ export default function DashboardLayout({
     if (pathname.includes('/system-management/commission-management')) return '佣金管理'
     if (pathname.includes('/operations/site-navigation')) return '跨境平台书签导航'
     if (pathname.includes('/ai-panel/chat')) return 'AI 聊天面板'
+    if (pathname.includes('/tools/research-analysis')) return '调研分析'
+    if (pathname.includes('/changelog')) return '更新日志'
     return 'Dashboard'
   }, [pathname])
 

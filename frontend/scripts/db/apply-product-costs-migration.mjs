@@ -26,11 +26,11 @@ function getConnectionString() {
 async function main() {
   const __filename = fileURLToPath(import.meta.url)
   const __dirname = path.dirname(__filename)
-  const migrationPath = path.resolve(
-    __dirname,
-    "../../supabase/migrations/20260224_001_create_product_costs.sql"
-  )
-  const sql = await fs.readFile(migrationPath, "utf8")
+  const migrationPaths = [
+    path.resolve(__dirname, "../../supabase/migrations/20260224_001_create_product_costs.sql"),
+    path.resolve(__dirname, "../../supabase/migrations/20260302_002_add_product_costs_is_active.sql"),
+    path.resolve(__dirname, "../../supabase/migrations/20260303_003_add_product_costs_sort_order.sql"),
+  ]
 
   const connectionString = getConnectionString()
   if (!connectionString) {
@@ -50,9 +50,12 @@ async function main() {
   await client.connect()
   try {
     await client.query("begin")
-    await client.query(sql)
+    for (const migrationPath of migrationPaths) {
+      const sql = await fs.readFile(migrationPath, "utf8")
+      await client.query(sql)
+      console.log("Migration applied:", migrationPath)
+    }
     await client.query("commit")
-    console.log("Migration applied:", migrationPath)
   } catch (error) {
     await client.query("rollback")
     throw error

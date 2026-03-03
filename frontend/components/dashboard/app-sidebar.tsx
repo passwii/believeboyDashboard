@@ -55,7 +55,7 @@ const navMain = [
 
 const navSecondary = [
   { title: '运营总览', url: '#', icon: <SquareTerminal className="h-4 w-4" /> },
-  { title: '帮助中心', url: '#', icon: <HelpCircle className="h-4 w-4" /> },
+  { title: '更新日志', url: '/dashboard/changelog', icon: <HelpCircle className="h-4 w-4" /> },
   { title: '全局搜索', url: '#', icon: <Search className="h-4 w-4" /> },
 ]
 
@@ -84,9 +84,9 @@ const tools = [
     title: '工具集',
     icon: <Wrench className="h-4 w-4" />,
     items: [
+      { title: '调研分析', url: '/dashboard/tools/research-analysis' },
       { title: 'API站点', url: '#' },
       { title: 'BLF图床', url: '#' },
-      { title: '调研分析', url: '#' },
       { title: '亚马逊采集', url: '#' },
     ],
   },

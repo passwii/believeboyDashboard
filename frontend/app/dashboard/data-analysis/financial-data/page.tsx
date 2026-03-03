@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { getClientCache, setClientCache } from '@/lib/client-cache'
 import { resolveOperationCommissionUsd } from '@/lib/commission'
 
 type ProjectOption = {
@@ -77,6 +78,26 @@ type FinancialSeriesResponse = {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
 const API_KEY = process.env.NEXT_PUBLIC_BACKEND_API_KEY ?? ''
+const PROJECTS_CACHE_TTL_MS = 10 * 60 * 1000
+const FINANCIAL_SERIES_CACHE_TTL_MS = 3 * 60 * 1000
+const EXCHANGE_RATE_CACHE_TTL_MS = 30 * 60 * 1000
+const EXCHANGE_RATE_CACHE_KEY = 'financial:exchange-rate:USD'
+
+function projectsCacheKey(isAdmin: boolean, operatorName: string): string {
+  return `financial:projects:${isAdmin ? 'admin' : 'member'}:${operatorName || 'none'}`
+}
+
+function financialSeriesCacheKey(projectId: number, startMonth: string, endMonth: string): string {
+  return `financial:series:${projectId}:${startMonth || 'none'}:${endMonth || 'none'}`
+}
+
+function buildMonthRateMap(months: string[], sourceMap: Record<string, number>): Record<string, number> {
+  const map: Record<string, number> = {}
+  months.forEach((month) => {
+    map[month] = sourceMap[month] ?? 0
+  })
+  return map
+}
 
 function oneYearAgoMonthString(): string {
   const now = new Date()
@@ -278,6 +299,7 @@ function StatCard({ title, value, rawValue, icon, color, trend, trendLabel }: St
 export default function FinancialDataPage() {
   const { data: session, status: sessionStatus } = useSession()
   const isAdmin = Boolean(session?.user?.isAdmin)
+  const operatorName = session?.user?.operatorNameZh?.trim() ?? ''
 
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
@@ -301,7 +323,18 @@ export default function FinancialDataPage() {
   const latestRequestIdRef = useRef(0)
 
   const loadProjects = useCallback(async () => {
-    setProjectsLoading(true)
+    const cacheKey = projectsCacheKey(isAdmin, operatorName)
+    const cached = getClientCache<ProjectOption[]>(cacheKey, PROJECTS_CACHE_TTL_MS)
+    const hasCachedProjects = Array.isArray(cached) && cached.length > 0
+    if (hasCachedProjects) {
+      setProjects(cached)
+      if (!projectId) {
+        setProjectId(String(cached[0].id))
+      }
+      setProjectsLoading(false)
+    } else {
+      setProjectsLoading(true)
+    }
     setProjectLoadError(null)
     try {
       const headers: Record<string, string> = {
@@ -310,7 +343,6 @@ export default function FinancialDataPage() {
       if (isAdmin) {
         headers['X-Is-Admin'] = 'true'
       }
-      const operatorName = session?.user?.operatorNameZh?.trim()
       if (operatorName) {
         headers['X-Operator'] = encodeURIComponent(operatorName)
       }
@@ -324,21 +356,34 @@ export default function FinancialDataPage() {
       }
       const payload = (await response.json()) as ProjectOption[]
       setProjects(payload)
+      setClientCache(cacheKey, payload)
       if (payload.length > 0 && !projectId) {
         setProjectId(String(payload[0].id))
       }
     } catch (loadError) {
-      setProjectLoadError(loadError instanceof Error ? loadError.message : '项目列表加载失败')
+      if (!hasCachedProjects) {
+        setProjectLoadError(loadError instanceof Error ? loadError.message : '项目列表加载失败')
+      }
     } finally {
       setProjectsLoading(false)
     }
-  }, [projectId, isAdmin, session?.user?.operatorNameZh])
+  }, [isAdmin, operatorName, projectId])
 
   const loadExchangeRates = useCallback(async (months: string[]) => {
     const uniqueMonths = Array.from(new Set(months.filter(Boolean)))
     if (uniqueMonths.length === 0) {
       setExchangeRateByMonth({})
       return
+    }
+
+    const cached = getClientCache<Record<string, number>>(EXCHANGE_RATE_CACHE_KEY, EXCHANGE_RATE_CACHE_TTL_MS)
+    const hasCompleteCachedMonths = Boolean(cached) && uniqueMonths.every((month) => month in (cached as Record<string, number>))
+    if (cached) {
+      setExchangeRateByMonth(buildMonthRateMap(uniqueMonths, cached))
+      setError(null)
+      if (hasCompleteCachedMonths) {
+        return
+      }
     }
 
     let page = 1
@@ -363,15 +408,12 @@ export default function FinancialDataPage() {
       page += 1
     }
 
-    const monthMap: Record<string, number> = {}
-    uniqueMonths.forEach((month) => {
-      monthMap[month] = fetchedMap[month] ?? 0
-    })
-    setExchangeRateByMonth(monthMap)
+    setClientCache(EXCHANGE_RATE_CACHE_KEY, fetchedMap)
+    setExchangeRateByMonth(buildMonthRateMap(uniqueMonths, fetchedMap))
     setError(null)
   }, [])
 
-  const loadFinancialSeries = useCallback(async () => {
+  const loadFinancialSeries = useCallback(async (options?: { force?: boolean }) => {
     const parsedProjectId = Number(projectId)
     if (!parsedProjectId) {
       setError('请先选择店铺')
@@ -379,11 +421,24 @@ export default function FinancialDataPage() {
       return
     }
 
+    const useCache = !options?.force
+    const cacheKey = financialSeriesCacheKey(parsedProjectId, startMonth, endMonth)
+    const cachedPayload = useCache
+      ? getClientCache<FinancialSeriesResponse>(cacheKey, FINANCIAL_SERIES_CACHE_TTL_MS)
+      : null
+    const hasCachedPayload = Boolean(cachedPayload)
+    if (cachedPayload) {
+      setData(cachedPayload)
+      setError(null)
+    }
+
     const requestId = latestRequestIdRef.current + 1
     latestRequestIdRef.current = requestId
 
-    setLoading(true)
-    setError(null)
+    setLoading(!hasCachedPayload)
+    if (!hasCachedPayload) {
+      setError(null)
+    }
 
     try {
       const search = new URLSearchParams({
@@ -404,10 +459,13 @@ export default function FinancialDataPage() {
       const payload = (await response.json()) as FinancialSeriesResponse
       if (latestRequestIdRef.current !== requestId) return
       setData(payload)
+      setClientCache(cacheKey, payload)
     } catch (loadError) {
       if (latestRequestIdRef.current !== requestId) return
-      setData(null)
-      setError(loadError instanceof Error ? loadError.message : '财务数据加载失败')
+      if (!hasCachedPayload) {
+        setData(null)
+        setError(loadError instanceof Error ? loadError.message : '财务数据加载失败')
+      }
     } finally {
       if (latestRequestIdRef.current === requestId) {
         setLoading(false)
@@ -432,7 +490,6 @@ export default function FinancialDataPage() {
       return
     }
     void loadExchangeRates(months).catch((loadError) => {
-      setExchangeRateByMonth({})
       setError(loadError instanceof Error ? loadError.message : '汇率数据加载失败')
     })
   }, [data, loadExchangeRates])
@@ -538,6 +595,7 @@ export default function FinancialDataPage() {
       }
     )
   }, [data, exchangeRateByMonth, commissionRate, commissionBasis])
+  const showSkeleton = loading && !data
 
   return (
     <div className="min-w-0 w-full space-y-6 overflow-x-hidden">
@@ -574,7 +632,7 @@ export default function FinancialDataPage() {
                 <label htmlFor="financial_end_month" className="text-xs text-muted-foreground">结束月份</label>
                 <Input id="financial_end_month" type="month" value={endMonth} onChange={(e) => setEndMonth(e.target.value)} className="h-9 w-[170px]" />
               </div>
-              <Button type="button" variant="outline" className="h-9" onClick={() => void loadFinancialSeries()} disabled={loading || !projectId}>
+              <Button type="button" variant="outline" className="h-9" onClick={() => void loadFinancialSeries({ force: true })} disabled={loading || !projectId}>
                 {loading ? '刷新中...' : '刷新数据'}
               </Button>
             </div>
@@ -654,7 +712,7 @@ export default function FinancialDataPage() {
               </div>
             </CardHeader>
             <CardContent className="relative z-10 px-2 pt-4 sm:px-6 sm:pt-6">
-              {loading ? (
+              {showSkeleton ? (
                 <Skeleton className="h-[320px] w-full" />
               ) : trendPoints.length > 0 ? (
                 <ChartContainer config={chartConfig} className="aspect-auto h-[320px] w-full">
@@ -749,7 +807,7 @@ export default function FinancialDataPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="relative z-10 min-w-0">
-              {loading ? (
+              {showSkeleton ? (
                 <div className="space-y-3">
                   {Array.from({ length: 5 }).map((_, i) => (
                     <Skeleton key={i} className="h-10 w-full" />
@@ -899,9 +957,9 @@ export default function FinancialDataPage() {
                       )})}
                     </TableBody>
                     <TableFooter>
-                      <TableRow className="bg-muted/40 font-semibold hover:bg-muted/40">
+                      <TableRow className="bg-muted font-semibold hover:bg-muted">
                         <TableCell
-                          className="sticky z-20 border-r border-border bg-muted/40 px-2 py-2"
+                          className="sticky z-30 border-r border-border bg-muted px-2 py-2"
                           style={{ left: 0, minWidth: MONTH_STICKY_WIDTH }}
                         >
                           合计
