@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -9,6 +11,7 @@ class ProductCostItem(BaseModel):
     first_leg_unit_cost: float
     fob_unit_cost: float
     currency: str
+    sort_order: int
     is_active: bool
 
 
@@ -27,6 +30,7 @@ class ProductCostCreate(BaseModel):
     first_leg_unit_cost: float = 0
     fob_unit_cost: float = 0
     currency: str = 'USD'
+    sort_order: int | None = Field(default=None, ge=1)
     is_active: bool = True
     source_file: str | None = None
 
@@ -37,8 +41,13 @@ class ProductCostUpdate(BaseModel):
     first_leg_unit_cost: float = 0
     fob_unit_cost: float = 0
     currency: str = 'USD'
+    sort_order: int | None = Field(default=None, ge=1)
     is_active: bool = True
     source_file: str | None = None
+
+
+class ProductCostSortMove(BaseModel):
+    direction: Literal['up', 'down']
 
 
 class ProductCostBulkCreate(BaseModel):

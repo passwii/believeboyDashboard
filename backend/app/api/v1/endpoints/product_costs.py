@@ -9,6 +9,7 @@ from app.schemas.product_cost import (
     ProductCostBulkUpsertResponse,
     ProductCostCreate,
     ProductCostItem,
+    ProductCostSortMove,
     ProductCostsPage,
     ProductCostUpdate,
     ProductCostUpsertResponse,
@@ -49,6 +50,7 @@ def list_product_costs(
                 first_leg_unit_cost=float(row.first_leg_unit_cost),
                 fob_unit_cost=float(row.fob_unit_cost),
                 currency=row.currency,
+                sort_order=int(row.sort_order),
                 is_active=bool(row.is_active),
             )
             for row in rows
@@ -76,6 +78,7 @@ def create_or_update_product_cost(
             first_leg_unit_cost=float(row.first_leg_unit_cost),
             fob_unit_cost=float(row.fob_unit_cost),
             currency=row.currency,
+            sort_order=int(row.sort_order),
             is_active=bool(row.is_active),
         ),
         action=action,
@@ -108,6 +111,28 @@ def update_product_cost(
         first_leg_unit_cost=float(row.first_leg_unit_cost),
         fob_unit_cost=float(row.fob_unit_cost),
         currency=row.currency,
+        sort_order=int(row.sort_order),
+        is_active=bool(row.is_active),
+    )
+
+
+@router.post('/product-costs/{product_cost_id}/move', response_model=ProductCostItem)
+def move_product_cost(
+    product_cost_id: int,
+    payload: ProductCostSortMove,
+    db: Session = Depends(get_db_session),
+) -> ProductCostItem:
+    row = product_cost_service.move_product_cost_sort_order(db, product_cost_id, payload.direction)
+    db.commit()
+    return ProductCostItem(
+        id=row.id,
+        project_name=row.project_name,
+        sku=row.sku,
+        asin=row.asin,
+        first_leg_unit_cost=float(row.first_leg_unit_cost),
+        fob_unit_cost=float(row.fob_unit_cost),
+        currency=row.currency,
+        sort_order=int(row.sort_order),
         is_active=bool(row.is_active),
     )
 

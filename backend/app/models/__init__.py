@@ -15,6 +15,11 @@ from app.models.product_analysis_source import (
     AnalysisSourceFile,
     InventorySnapshotRow,
 )
+from app.models.category_research import (
+    CategoryResearchDataset,
+    CategoryResearchProductDetail,
+    CategoryResearchSalesTrend,
+)
 from app.models.project import Project
 from app.models.product_cost import ProductCost
 from app.models.ai_chat import AIConversation, AIMessage
@@ -47,4 +52,7 @@ __all__ = [
     'AnalysisSalesOrderRow',
     'AnalysisAdRow',
     'InventorySnapshotRow',
+    'CategoryResearchDataset',
+    'CategoryResearchProductDetail',
+    'CategoryResearchSalesTrend',
 ]

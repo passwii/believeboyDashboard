@@ -13,6 +13,7 @@ from app.api.v1.endpoints.auth import router as auth_router
 from app.api.v1.endpoints.system_management import router as system_management_router
 from app.api.v1.endpoints.uploads import router as uploads_router
 from app.api.v1.endpoints.users import router as users_router
+from app.api.v1.endpoints.category_research import router as category_research_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router)
@@ -26,5 +27,6 @@ api_router.include_router(daily_reports_router)
 api_router.include_router(monthly_reports_router)
 api_router.include_router(product_analysis_reports_router)
 api_router.include_router(product_analysis_router)
+api_router.include_router(category_research_router)
 api_router.include_router(system_management_router)
 api_router.include_router(users_router)

@@ -5,11 +5,11 @@ from datetime import date
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, or_
+from sqlalchemy import exists, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, protected
-from app.models import AnalysisPT1Calculation, AnalysisPTSKUDetail
+from app.models import AnalysisPT1Calculation, AnalysisPTSKUDetail, ProductCost
 from app.schemas.product_analysis_source import (
     AnalysisSourceFileItem,
     AnalysisSourceRowsResponse,
@@ -359,26 +359,41 @@ def list_product_analysis_pt1_details(
     if pt1 is None:
         raise HTTPException(status_code=404, detail='PT1 calculation not found')
 
-    known_skus, known_asins = product_analysis_source_service._load_project_product_mapping(db, pt1.project_name)
-    known_skus_ci = {value.lower() for value in known_skus}
-    known_asins_ci = {value.lower() for value in known_asins}
-    scope_filters = []
-    if known_skus_ci:
-        scope_filters.append(func.lower(func.coalesce(AnalysisPTSKUDetail.sku, '')).in_(known_skus_ci))
-    if known_asins_ci:
-        scope_filters.append(func.lower(func.coalesce(AnalysisPTSKUDetail.asin, '')).in_(known_asins_ci))
-    if not scope_filters:
-        rows = []
-    else:
-        rows = (
-            db.query(AnalysisPTSKUDetail)
-            .where(AnalysisPTSKUDetail.pt1_calculation_id == pt1_id)
-            .where(or_(*scope_filters))
-            .order_by(AnalysisPTSKUDetail.source_row_no.asc())
-            .offset((page - 1) * page_size)
-            .limit(page_size + 1)
-            .all()
+    detail_sku = func.lower(func.coalesce(AnalysisPTSKUDetail.sku, ''))
+    detail_asin = func.lower(func.coalesce(AnalysisPTSKUDetail.asin, ''))
+    product_match = or_(
+        func.lower(func.coalesce(ProductCost.sku, '')) == detail_sku,
+        func.lower(func.coalesce(ProductCost.asin, '')) == detail_asin,
+    )
+
+    sort_order_expr = (
+        select(func.min(ProductCost.sort_order))
+        .where(
+            ProductCost.project_name == pt1.project_name,
+            ProductCost.is_active.is_(True),
+            product_match,
         )
+        .correlate(AnalysisPTSKUDetail)
+        .scalar_subquery()
+    )
+    exists_expr = exists(
+        select(1).where(
+            ProductCost.project_name == pt1.project_name,
+            ProductCost.is_active.is_(True),
+            product_match,
+        )
+    )
+
+    sort_order_label = sort_order_expr.label('sku_sort_order')
+    rows = (
+        db.query(AnalysisPTSKUDetail, sort_order_label)
+        .where(AnalysisPTSKUDetail.pt1_calculation_id == pt1_id)
+        .where(exists_expr)
+        .order_by(func.coalesce(sort_order_label, 2147483647).asc(), AnalysisPTSKUDetail.source_row_no.asc(), AnalysisPTSKUDetail.id.asc())
+        .offset((page - 1) * page_size)
+        .limit(page_size + 1)
+        .all()
+    )
 
     has_next = len(rows) > page_size
     page_rows = rows[:page_size]
@@ -395,13 +410,14 @@ def list_product_analysis_pt1_details(
         'has_next': has_next,
         'rows': [
             {
-                'id': row.id,
-                'source_row_no': row.source_row_no,
-                'sku': row.sku,
-                'asin': row.asin,
-                'raw_row': row.raw_row,
+                'id': detail_row.id,
+                'source_row_no': detail_row.source_row_no,
+                'sku': detail_row.sku,
+                'asin': detail_row.asin,
+                'sku_sort_order': int(sort_order) if sort_order is not None else None,
+                'raw_row': detail_row.raw_row,
             }
-            for row in page_rows
+            for detail_row, sort_order in page_rows
         ],
     }
 

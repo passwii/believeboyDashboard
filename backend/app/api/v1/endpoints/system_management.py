@@ -662,7 +662,7 @@ def list_commission_project_months(
     rows = db.execute(
         select(CommissionProjectMonth)
         .where(CommissionProjectMonth.report_month == month)
-        .order_by(CommissionProjectMonth.project_name.asc())
+        .order_by(CommissionProjectMonth.project_id.asc())
     ).scalars().all()
     return CommissionProjectMonthsResponse(report_month=month, items=[_serialize_project_month(row) for row in rows])
 
@@ -753,7 +753,7 @@ def list_commission_project_yearly_summary(
             CommissionProjectMonth.report_month >= month_start,
             CommissionProjectMonth.report_month <= month_end,
         )
-        .order_by(CommissionProjectMonth.project_name.asc(), CommissionProjectMonth.report_month.asc())
+        .order_by(CommissionProjectMonth.project_id.asc(), CommissionProjectMonth.report_month.asc())
     ).all()
 
     project_map: dict[int, CommissionProjectYearlySummaryItem] = {}
@@ -792,7 +792,7 @@ def list_commission_project_yearly_summary(
     for item in items:
         item.receive_rate = (item.total_received_rmb / item.total_commission_rmb) if item.total_commission_rmb > 0 else 0
 
-    items.sort(key=lambda item: item.project_name)
+    items.sort(key=lambda item: item.project_id)
     return CommissionProjectYearlySummaryResponse(year=normalized_year, items=items)
 
 
