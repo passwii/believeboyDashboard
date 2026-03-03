@@ -1,9 +1,11 @@
+from datetime import date
 from pathlib import Path
 
 from openpyxl import Workbook
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
+from app.api.v1.endpoints.product_analysis import list_product_analysis_pt1_details
 from app.db.session import Base
 from app.models import (
     AnalysisAdRow,
@@ -537,3 +539,75 @@ def test_persist_product_analysis_pt1_calculation_versioning():
         assert weekly_rows[0]['total_units'] == 12
         assert weekly_rows[0]['total_sales'] == 265.0
         assert weekly_rows[0]['total_ad_spend'] == 38.0
+
+
+def test_pt1_details_sorted_by_product_cost_sort_order():
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        db.add(Project(project_name='Demo', sort_order=1, source_file='seed.csv'))
+        db.add(
+            ProductCost(
+                project_name='Demo',
+                sku='SKU_B',
+                asin='ASIN_B',
+                first_leg_unit_cost=1,
+                fob_unit_cost=1,
+                currency='USD',
+                sort_order=1,
+                is_active=True,
+            )
+        )
+        db.add(
+            ProductCost(
+                project_name='Demo',
+                sku='SKU_A',
+                asin='ASIN_A',
+                first_leg_unit_cost=1,
+                fob_unit_cost=1,
+                currency='USD',
+                sort_order=2,
+                is_active=True,
+            )
+        )
+        db.flush()
+
+        pt1 = AnalysisPT1Calculation(
+            project_id=1,
+            project_name='Demo',
+            report_start_date=date(2026, 2, 1),
+            report_end_date=date(2026, 2, 7),
+            version=1,
+            is_current=True,
+            row_count=2,
+            summary_row={},
+            calculation_version=1,
+        )
+        db.add(pt1)
+        db.flush()
+
+        db.add(
+            AnalysisPTSKUDetail(
+                pt1_calculation_id=pt1.id,
+                source_row_no=1,
+                sku='SKU_A',
+                asin='ASIN_A',
+                raw_row={'SKU': 'SKU_A'},
+            )
+        )
+        db.add(
+            AnalysisPTSKUDetail(
+                pt1_calculation_id=pt1.id,
+                source_row_no=2,
+                sku='SKU_B',
+                asin='ASIN_B',
+                raw_row={'SKU': 'SKU_B'},
+            )
+        )
+        db.commit()
+
+        payload = list_product_analysis_pt1_details(pt1.id, page=1, page_size=100, db=db)
+        assert payload['has_next'] is False
+        assert [item['sku'] for item in payload['rows']] == ['SKU_B', 'SKU_A']
+        assert [item['sku_sort_order'] for item in payload['rows']] == [1, 2]

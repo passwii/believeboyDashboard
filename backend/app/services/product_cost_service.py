@@ -6,7 +6,7 @@ from io import StringIO
 from pathlib import Path
 
 from fastapi import HTTPException, status
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models import ProductCost
@@ -45,9 +45,7 @@ def list_product_costs(
         stmt = stmt.where(ProductCost.is_active.is_(is_active))
 
     rows = db.execute(
-        stmt.order_by(ProductCost.id.desc())
-        .offset((page - 1) * page_size)
-        .limit(page_size + 1)
+        stmt.order_by(ProductCost.sort_order.asc(), ProductCost.id.asc()).offset((page - 1) * page_size).limit(page_size + 1)
     ).scalars().all()
 
     has_next = len(rows) > page_size
@@ -79,7 +77,7 @@ def list_product_costs_all(
     if isinstance(is_active, bool):
         stmt = stmt.where(ProductCost.is_active.is_(is_active))
 
-    return db.execute(stmt.order_by(ProductCost.id.desc())).scalars().all()
+    return db.execute(stmt.order_by(ProductCost.sort_order.asc(), ProductCost.id.asc())).scalars().all()
 
 
 def _normalize_text(value: str | None, field_name: str) -> str:
@@ -101,7 +99,47 @@ def _normalize_cost(value: float | str | Decimal | None, field_name: str) -> Dec
     return dec
 
 
-def _normalize_item(item: ProductCostCreate, source_file: str | None = None) -> dict[str, str | Decimal | bool]:
+def _normalize_sort_order(value: int | str | None) -> int | None:
+    if value is None or value == '':
+        return None
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='sort_order must be integer') from None
+    if parsed < 1:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='sort_order must be >= 1')
+    return parsed
+
+
+def _next_sort_order_for_project(db: Session, project_name: str) -> int:
+    value = db.execute(
+        select(func.coalesce(func.max(ProductCost.sort_order), 0)).where(ProductCost.project_name == project_name)
+    ).scalar_one()
+    return int(value or 0) + 1
+
+
+def _resolve_insert_sort_order(
+    db: Session,
+    *,
+    project_name: str,
+    requested_sort_order: int | None,
+    next_sort_order_cache: dict[str, int] | None,
+) -> int:
+    if requested_sort_order is not None:
+        return requested_sort_order
+
+    if next_sort_order_cache is not None and project_name in next_sort_order_cache:
+        resolved = next_sort_order_cache[project_name]
+        next_sort_order_cache[project_name] = resolved + 1
+        return resolved
+
+    next_order = _next_sort_order_for_project(db, project_name)
+    if next_sort_order_cache is not None:
+        next_sort_order_cache[project_name] = next_order + 1
+    return next_order
+
+
+def _normalize_item(item: ProductCostCreate, source_file: str | None = None) -> dict[str, str | Decimal | bool | int | None]:
     return {
         'project_name': _normalize_text(item.project_name, 'project_name'),
         'sku': _normalize_text(item.sku, 'sku'),
@@ -109,12 +147,19 @@ def _normalize_item(item: ProductCostCreate, source_file: str | None = None) -> 
         'first_leg_unit_cost': _normalize_cost(item.first_leg_unit_cost, 'first_leg_unit_cost'),
         'fob_unit_cost': _normalize_cost(item.fob_unit_cost, 'fob_unit_cost'),
         'currency': _normalize_text(item.currency or 'USD', 'currency'),
+        'sort_order': _normalize_sort_order(item.sort_order),
         'is_active': bool(item.is_active),
         'source_file': (source_file or item.source_file or '').strip() or None,
     }
 
 
-def upsert_product_cost(db: Session, item: ProductCostCreate, source_file: str | None = None) -> tuple[ProductCost, str]:
+def upsert_product_cost(
+    db: Session,
+    item: ProductCostCreate,
+    source_file: str | None = None,
+    *,
+    next_sort_order_cache: dict[str, int] | None = None,
+) -> tuple[ProductCost, str]:
     normalized = _normalize_item(item, source_file)
     existing = (
         db.execute(
@@ -133,10 +178,18 @@ def upsert_product_cost(db: Session, item: ProductCostCreate, source_file: str |
         existing.first_leg_unit_cost = normalized['first_leg_unit_cost']
         existing.fob_unit_cost = normalized['fob_unit_cost']
         existing.currency = normalized['currency']
+        if normalized['sort_order'] is not None:
+            existing.sort_order = int(normalized['sort_order'])
         existing.is_active = bool(normalized['is_active'])
         existing.source_file = normalized['source_file']
         row = existing
     else:
+        normalized['sort_order'] = _resolve_insert_sort_order(
+            db,
+            project_name=str(normalized['project_name']),
+            requested_sort_order=normalized['sort_order'] if isinstance(normalized['sort_order'], int) else None,
+            next_sort_order_cache=next_sort_order_cache,
+        )
         if db.bind and db.bind.dialect.name == 'sqlite':
             # Compatibility fallback for legacy sqlite schema without auto-increment id.
             next_id = db.execute(select(func.coalesce(func.max(ProductCost.id), 0) + 1)).scalar_one()
@@ -162,6 +215,7 @@ def update_product_cost_by_id(
     first_leg_unit_cost = _normalize_cost(payload.first_leg_unit_cost, 'first_leg_unit_cost')
     fob_unit_cost = _normalize_cost(payload.fob_unit_cost, 'fob_unit_cost')
     currency = _normalize_text(payload.currency or 'USD', 'currency')
+    sort_order = _normalize_sort_order(payload.sort_order)
     normalized_source_file = (source_file or payload.source_file or '').strip() or None
 
     duplicate = (
@@ -187,6 +241,8 @@ def update_product_cost_by_id(
     row.first_leg_unit_cost = first_leg_unit_cost
     row.fob_unit_cost = fob_unit_cost
     row.currency = currency
+    if sort_order is not None:
+        row.sort_order = sort_order
     row.is_active = bool(payload.is_active)
     row.source_file = normalized_source_file
 
@@ -201,14 +257,73 @@ def bulk_upsert_product_costs(
     inserted = 0
     updated = 0
     rows: list[ProductCost] = []
+    next_sort_order_cache: dict[str, int] = {}
     for item in items:
-        row, action = upsert_product_cost(db, item, source_file)
+        row, action = upsert_product_cost(db, item, source_file, next_sort_order_cache=next_sort_order_cache)
         rows.append(row)
         if action == 'inserted':
             inserted += 1
         else:
             updated += 1
     return rows, inserted, updated
+
+
+def move_product_cost_sort_order(db: Session, product_cost_id: int, direction: str) -> ProductCost:
+    normalized_direction = direction.strip().lower()
+    if normalized_direction not in {'up', 'down'}:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='direction must be up or down')
+
+    row = db.execute(select(ProductCost).where(ProductCost.id == product_cost_id)).scalars().first()
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='SKU 成本记录不存在')
+
+    if normalized_direction == 'up':
+        target = (
+            db.execute(
+                select(ProductCost)
+                .where(
+                    ProductCost.project_name == row.project_name,
+                    ProductCost.id != row.id,
+                    or_(
+                        ProductCost.sort_order < row.sort_order,
+                        and_(ProductCost.sort_order == row.sort_order, ProductCost.id < row.id),
+                    ),
+                )
+                .order_by(ProductCost.sort_order.desc(), ProductCost.id.desc())
+                .limit(1)
+            )
+            .scalars()
+            .first()
+        )
+    else:
+        target = (
+            db.execute(
+                select(ProductCost)
+                .where(
+                    ProductCost.project_name == row.project_name,
+                    ProductCost.id != row.id,
+                    or_(
+                        ProductCost.sort_order > row.sort_order,
+                        and_(ProductCost.sort_order == row.sort_order, ProductCost.id > row.id),
+                    ),
+                )
+                .order_by(ProductCost.sort_order.asc(), ProductCost.id.asc())
+                .limit(1)
+            )
+            .scalars()
+            .first()
+        )
+
+    if target is None:
+        db.refresh(row)
+        return row
+
+    row_sort_order = int(row.sort_order)
+    row.sort_order = int(target.sort_order)
+    target.sort_order = row_sort_order
+    db.flush()
+    db.refresh(row)
+    return row
 
 
 def read_product_cost_csv_file(csv_path: Path | None = None) -> tuple[list[ProductCostCreate], str]:

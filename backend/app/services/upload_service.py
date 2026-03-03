@@ -14,6 +14,7 @@ TYPE_ALLOWED_EXTENSIONS: dict[str, set[str]] = {
     'ad_report': {'.xlsx'},
     'payment_report': {'.csv'},
     'monthly_summary_pdf': {'.pdf'},
+    'category_research_xlsx': {'.xlsx'},
 }
 
 
