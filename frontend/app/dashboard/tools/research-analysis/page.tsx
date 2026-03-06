@@ -1878,7 +1878,7 @@ export default function CategoryResearchPage() {
           </div>
         ) : overview ? (
           <Tabs value={tab} onValueChange={(value) => setTab(value as ViewTab)} className="space-y-6">
-            <TabsList className="grid h-11 w-full max-w-[920px] grid-cols-3 md:grid-cols-6">
+            <TabsList className="grid h-11 w-full grid-cols-3 md:grid-cols-6">
               <TabsTrigger value="overview">总览</TabsTrigger>
               <TabsTrigger value="market">市场</TabsTrigger>
               <TabsTrigger value="brand">品牌</TabsTrigger>
