@@ -100,6 +100,7 @@ def get_category_research_dataset(
         kpis=payload['kpis'],
         brand_sales_share=payload['brand_sales_share'],
         listing_age_distribution=payload['listing_age_distribution'],
+        launch_month_distribution=payload['launch_month_distribution'],
         fulfillment_distribution=payload['fulfillment_distribution'],
         fixed_price_bands=payload['fixed_price_bands'],
         quantile_price_bands=payload['quantile_price_bands'],

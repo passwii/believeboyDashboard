@@ -165,6 +165,10 @@ def test_category_research_endpoints_happy_path(tmp_path: Path):
     assert overview['advanced_metrics']['price_band_standard'] == 'custom'
     assert overview['advanced_metrics']['price_band_breaks'] == [80.0, 120.0]
     assert [item['label'] for item in overview['fixed_price_bands']] == ['$0-79', '$80-119', '$120+']
+    assert overview['launch_month_distribution'] == [
+        {'label': '2024-01', 'count': 1, 'monthly_sales': 800},
+        {'label': '2025-12', 'count': 1, 'monthly_sales': 250},
+    ]
 
     products_resp = client.get(
         f'/api/v1/category-research/datasets/{dataset_id}/products',

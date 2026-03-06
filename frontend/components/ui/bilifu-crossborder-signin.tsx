@@ -7,6 +7,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { useGlobalLoading } from "@/components/global-loading-provider";
 
+const SIGNIN_LOADING_WATCHDOG_MS = 30000;
+
 const cn = (...classes: string[]) => {
   return classes.filter(Boolean).join(" ");
 };
@@ -219,23 +221,31 @@ const SignInCard = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const loadingPendingRef = useRef(false);
+  const loadingWatchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = useMemo(() => searchParams.get("callbackUrl") || "/dashboard", [searchParams]);
   const { startGlobalLoading, endGlobalLoading } = useGlobalLoading();
 
+  const finishNavigationLoading = useCallback(() => {
+    if (!loadingPendingRef.current) return;
+    loadingPendingRef.current = false;
+    if (loadingWatchdogRef.current) {
+      clearTimeout(loadingWatchdogRef.current);
+      loadingWatchdogRef.current = null;
+    }
+    endGlobalLoading();
+  }, [endGlobalLoading]);
+
   const beginNavigationLoading = useCallback(() => {
     if (loadingPendingRef.current) return;
     loadingPendingRef.current = true;
     startGlobalLoading();
-  }, [startGlobalLoading]);
-
-  const finishNavigationLoading = useCallback(() => {
-    if (!loadingPendingRef.current) return;
-    loadingPendingRef.current = false;
-    endGlobalLoading();
-  }, [endGlobalLoading]);
+    loadingWatchdogRef.current = setTimeout(() => {
+      finishNavigationLoading();
+    }, SIGNIN_LOADING_WATCHDOG_MS);
+  }, [finishNavigationLoading, startGlobalLoading]);
 
   useEffect(() => {
     return () => {

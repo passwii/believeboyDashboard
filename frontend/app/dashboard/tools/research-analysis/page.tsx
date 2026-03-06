@@ -95,6 +95,7 @@ type CategoryResearchOverview = {
   }
   brand_sales_share: Array<{ brand: string; monthly_sales: number; share: number }>
   listing_age_distribution: Array<{ label: string; count: number }>
+  launch_month_distribution: Array<{ label: string; count: number; monthly_sales: number }>
   fulfillment_distribution: Array<{ label: string; count: number }>
   fixed_price_bands: Array<{ label: string; count: number }>
   quantile_price_bands: Array<{ label: string; min_price: number; max_price: number; count: number }>
@@ -282,35 +283,6 @@ type CategoryResearchOverview = {
       band_distribution: Array<{ label: string; count: number; share: number }>
     }>
   }
-}
-
-type CategoryResearchProductRow = {
-  id: number
-  source_row_no: number
-  asin: string | null
-  parent_asin: string | null
-  product_name: string | null
-  brand: string | null
-  seller: string | null
-  price_usd: number | null
-  monthly_sales: number
-  monthly_revenue_usd: number | null
-  rating: number | null
-  review_count: number
-  launch_date?: string | null
-  listing_age_days: number | null
-  fba_fee_usd: number | null
-  fulfillment_method: string | null
-  is_amazon: boolean
-  is_new_90d: boolean
-}
-
-type ProductsPayload = {
-  dataset_id: number
-  page: number
-  page_size: number
-  has_next: boolean
-  rows: CategoryResearchProductRow[]
 }
 
 type CategoryResearchMarketTrendPayload = {
@@ -613,6 +585,18 @@ function compactPercentLabel(value: number) {
   return `${value.toFixed(0)}%`
 }
 
+function appendPriceBandParams(params: URLSearchParams, standard: string, breaksText: string) {
+  params.set('price_band_standard', standard)
+  const normalizedBreaks = breaksText
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .join(',')
+  if (normalizedBreaks) {
+    params.set('price_band_breaks', normalizedBreaks)
+  }
+}
+
 function reviewSegmentTierLabel(index: number, total: number) {
   if (total <= 0) return `S${index + 1}`
   if (index === 0) return `冷启动段 S1`
@@ -768,8 +752,7 @@ function buildOverviewChartModels(overview: CategoryResearchOverview | null, dat
 
 function buildMarketChartModels(
   overview: CategoryResearchOverview | null,
-  marketTrendPoints: Array<{ year_month: string; monthly_sales: number }>,
-  products: CategoryResearchProductRow[]
+  marketTrendPoints: Array<{ year_month: string; monthly_sales: number }>
 ) {
   if (!overview) {
     return {
@@ -794,37 +777,7 @@ function buildMarketChartModels(
   const peakIndex = marketTrendPoints.findIndex((item) => item.year_month === peak.year_month)
   const peakPrev = peakIndex > 0 ? marketTrendPoints[peakIndex - 1] : null
   const peakPrevYear = peakIndex >= 12 ? marketTrendPoints[peakIndex - 12] : null
-  const launchMonthMap = new Map<string, { count: number; monthly_sales: number }>()
-  const ageBuckets = [
-    { label: '0-90天', min: 0, max: 90 },
-    { label: '91-180天', min: 91, max: 180 },
-    { label: '181-365天', min: 181, max: 365 },
-    { label: '1年+', min: 366, max: 730 },
-    { label: '2年+', min: 731, max: 1095 },
-    { label: '3年+', min: 1096, max: Number.POSITIVE_INFINITY },
-  ]
-  const ageBucketCounter = new Map(ageBuckets.map((item) => [item.label, 0]))
-
-  products.forEach((row) => {
-    const age = row.listing_age_days
-    if (Number.isFinite(age)) {
-      const matched = ageBuckets.find((item) => Number(age) >= item.min && Number(age) <= item.max)
-      if (matched) ageBucketCounter.set(matched.label, (ageBucketCounter.get(matched.label) ?? 0) + 1)
-    }
-
-    if (!row.launch_date) return
-    const normalized = String(row.launch_date).slice(0, 7)
-    if (!/^\d{4}-\d{2}$/.test(normalized)) return
-    const current = launchMonthMap.get(normalized) ?? { count: 0, monthly_sales: 0 }
-    current.count += 1
-    current.monthly_sales += row.monthly_sales ?? 0
-    launchMonthMap.set(normalized, current)
-  })
-
-  const orderedLaunchRows = Array.from(launchMonthMap.entries())
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .slice(-18)
-    .map(([label, value]) => ({ label, count: value.count, monthly_sales: value.monthly_sales }))
+  const orderedLaunchRows = (overview.launch_month_distribution ?? []).slice()
   const totalLaunchSales = orderedLaunchRows.reduce((sum, item) => sum + item.monthly_sales, 0)
   const recent12 = marketTrendPoints.slice(-12)
   const prior12 = marketTrendPoints.slice(-24, -12)
@@ -863,7 +816,7 @@ function buildMarketChartModels(
         tone: (peakPrevYear && peak.monthly_sales >= peakPrevYear.monthly_sales ? 'positive' : 'negative') as MetricItem['tone'],
       },
     ],
-    listingAgeData: ageBuckets.map((item) => ({ label: item.label, count: ageBucketCounter.get(item.label) ?? 0 })),
+    listingAgeData: overview.listing_age_distribution.map((item) => ({ label: item.label, count: item.count })),
     listingYearMonthData: orderedLaunchRows,
     launchSegmentRows: orderedLaunchRows
       .slice()
@@ -1391,13 +1344,13 @@ export default function CategoryResearchPage() {
   const [datasets, setDatasets] = useState<CategoryResearchDataset[]>([])
   const [datasetLoading, setDatasetLoading] = useState(false)
   const [selectedDatasetId, setSelectedDatasetId] = useState<number | null>(null)
+  const [priceBandStandard, setPriceBandStandard] = useState('refined')
+  const [priceBandBreaksText, setPriceBandBreaksText] = useState('')
 
   const [overview, setOverview] = useState<CategoryResearchOverview | null>(null)
   const [overviewLoading, setOverviewLoading] = useState(false)
   const [marketTrendPoints, setMarketTrendPoints] = useState<Array<{ year_month: string; monthly_sales: number }>>([])
   const [marketTrendLoading, setMarketTrendLoading] = useState(false)
-  const [productSample, setProductSample] = useState<CategoryResearchProductRow[]>([])
-  const [productSampleLoading, setProductSampleLoading] = useState(false)
 
   const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>('research')
   const [analysisKeyword, setAnalysisKeyword] = useState('')
@@ -1483,7 +1436,9 @@ export default function CategoryResearchPage() {
   const loadOverview = useCallback(async (datasetId: number) => {
     setOverviewLoading(true)
     try {
-      const response = await fetch(resolveApiUrl(`/api/v1/category-research/datasets/${datasetId}`), {
+      const params = new URLSearchParams()
+      appendPriceBandParams(params, priceBandStandard, priceBandBreaksText)
+      const response = await fetch(resolveApiUrl(`/api/v1/category-research/datasets/${datasetId}?${params.toString()}`), {
         cache: 'no-store',
         headers: authHeaders(currentOperator, isAdmin),
       })
@@ -1501,33 +1456,7 @@ export default function CategoryResearchPage() {
     } finally {
       setOverviewLoading(false)
     }
-  }, [currentOperator, isAdmin])
-
-  const loadProducts = useCallback(async (datasetId: number) => {
-    setProductSampleLoading(true)
-    try {
-      const response = await fetch(
-        resolveApiUrl(`/api/v1/category-research/datasets/${datasetId}/products?page=1&page_size=500`),
-        {
-          cache: 'no-store',
-          headers: authHeaders(currentOperator, isAdmin),
-        }
-      )
-      if (!response.ok) {
-        const text = await response.text()
-        throw new Error(parseErrorBody(text, response.status))
-      }
-      const payload = (await response.json()) as ProductsPayload
-      setProductSample(payload.rows ?? [])
-      return true
-    } catch (error) {
-      setProductSample([])
-      setFormError(error instanceof Error ? error.message : '产品样本加载失败')
-      return false
-    } finally {
-      setProductSampleLoading(false)
-    }
-  }, [currentOperator, isAdmin])
+  }, [currentOperator, isAdmin, priceBandBreaksText, priceBandStandard])
 
   const loadMarketTrend = useCallback(async (datasetId: number) => {
     setMarketTrendLoading(true)
@@ -1569,13 +1498,11 @@ export default function CategoryResearchPage() {
     if (!selectedDatasetId) {
       setOverview(null)
       setMarketTrendPoints([])
-      setProductSample([])
       return
     }
     void loadOverview(selectedDatasetId)
     void loadMarketTrend(selectedDatasetId)
-    void loadProducts(selectedDatasetId)
-  }, [selectedDatasetId, loadMarketTrend, loadOverview, loadProducts])
+  }, [selectedDatasetId, loadMarketTrend, loadOverview])
 
   const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     setUploadFile(event.target.files?.[0] ?? null)
@@ -1631,7 +1558,6 @@ export default function CategoryResearchPage() {
       await loadKeywordOptions()
       await loadOverview(payload.dataset_id)
       await loadMarketTrend(payload.dataset_id)
-      await loadProducts(payload.dataset_id)
     } catch (error) {
       setFormError(error instanceof Error ? error.message : '导入失败')
     } finally {
@@ -1661,7 +1587,6 @@ export default function CategoryResearchPage() {
         loadDatasets(analysisKeyword || keywordEn),
         loadOverview(payload.dataset_id),
         loadMarketTrend(payload.dataset_id),
-        loadProducts(payload.dataset_id),
       ])
       if (refreshResults.some((item) => item === false)) {
         throw new Error('重算完成，但页面数据刷新失败，请手动刷新后重试')
@@ -1703,7 +1628,6 @@ export default function CategoryResearchPage() {
       if (selectedDatasetId) {
         refreshTasks.push(loadOverview(selectedDatasetId))
         refreshTasks.push(loadMarketTrend(selectedDatasetId))
-        refreshTasks.push(loadProducts(selectedDatasetId))
       }
       const refreshResults = await Promise.all(refreshTasks)
       if (refreshResults.some((item) => item === false)) {
@@ -1719,7 +1643,7 @@ export default function CategoryResearchPage() {
   }
 
   const overviewModels = useMemo(() => buildOverviewChartModels(overview, datasets), [datasets, overview])
-  const marketModels = useMemo(() => buildMarketChartModels(overview, marketTrendPoints, productSample), [overview, marketTrendPoints, productSample])
+  const marketModels = useMemo(() => buildMarketChartModels(overview, marketTrendPoints), [overview, marketTrendPoints])
   const brandModels = useMemo(() => buildBrandChartModels(overview), [overview])
   const sellerModels = useMemo(() => buildSellerChartModels(overview), [overview])
   const reviewModels = useMemo(() => buildReviewChartModels(overview), [overview])
@@ -1902,6 +1826,32 @@ export default function CategoryResearchPage() {
               </Button>
             </div>
 
+            <div className="grid gap-4 md:grid-cols-[220px_minmax(0,1fr)]">
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">价格带预设</p>
+                <Select value={priceBandStandard} onValueChange={setPriceBandStandard}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="选择价格带预设" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="refined">自动精细</SelectItem>
+                    <SelectItem value="default">标准预设</SelectItem>
+                    <SelectItem value="value">Value 预设</SelectItem>
+                    <SelectItem value="premium">Premium 预设</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">自定义断点（可选）</p>
+                <Input
+                  placeholder="例如: 80,120,180；填写后会覆盖预设价格带"
+                  value={priceBandBreaksText}
+                  onChange={(event) => setPriceBandBreaksText(event.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">overview 与价格相关明细请求统一透传同一组价格带参数，避免图表和明细表口径漂移。</p>
+              </div>
+            </div>
+
             {formError ? <p className="text-sm text-rose-600">{formError}</p> : null}
             {formSuccess ? <p className="text-sm text-emerald-600">{formSuccess}</p> : null}
 
@@ -1912,7 +1862,9 @@ export default function CategoryResearchPage() {
                     {item}
                   </Badge>
                 ))}
-                {productSampleLoading ? <Badge variant="outline">产品样本加载中...</Badge> : null}
+                <Badge variant="outline">
+                  {priceBandBreaksText.trim() ? `价格带: 自定义 ${priceBandBreaksText}` : `价格带: ${priceBandStandard}`}
+                </Badge>
               </div>
             ) : null}
           </CardContent>

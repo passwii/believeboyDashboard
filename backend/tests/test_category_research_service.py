@@ -232,6 +232,10 @@ def test_get_dataset_overview_contains_advanced_metrics(tmp_path: Path):
         assert advanced['price_correlation_score'] >= 0
         assert isinstance(advanced['dimension_price_band_analysis'], list)
         assert isinstance(advanced['brand_price_band_analysis'], list)
+        assert overview['launch_month_distribution'] == [
+            {'label': '2024-01', 'count': 1, 'monthly_sales': 800},
+            {'label': '2025-12', 'count': 1, 'monthly_sales': 250},
+        ]
 
         rebuilt = category_research_service.recompute_dataset_from_history(db, dataset.id)
         warnings = rebuilt.quality_warnings if isinstance(rebuilt.quality_warnings, dict) else {}
@@ -370,6 +374,26 @@ def test_custom_price_band_breaks_apply_to_overview_and_filters(tmp_path: Path):
             price_band_breaks='80,120',
         )
         assert rows
+        assert [item.asin for item in rows] == ['B000TEST01']
+
+
+def test_review_segment_distribution_keeps_zero_floor_and_open_ended_tail():
+    review_counts = [0, 1, 5, 10, 20, 40, 80, 160, 320, 640]
+    rows = [
+        category_research_service.CategoryResearchProductDetail(
+            source_row_no=index,
+            review_count=review_count,
+            monthly_sales=review_count + 10,
+        )
+        for index, review_count in enumerate(review_counts, start=1)
+    ]
+
+    payload = category_research_service._build_review_research(rows)
+
+    assert payload['review_segment_distribution'][0]['label'].startswith('0-')
+    assert payload['review_segment_distribution'][-1]['label'].endswith('+')
+    assert sum(item['count'] for item in payload['review_segment_distribution']) == len(rows)
+    assert sum(item['monthly_sales'] for item in payload['review_segment_distribution']) == sum(review_count + 10 for review_count in review_counts)
 
 
 def test_manual_dimension_upsert_overrides_extracted_value(tmp_path: Path):

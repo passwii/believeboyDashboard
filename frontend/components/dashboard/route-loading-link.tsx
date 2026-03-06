@@ -5,6 +5,8 @@ import { usePathname } from 'next/navigation'
 import { type MouseEvent, useCallback, useEffect, useRef } from 'react'
 import { useGlobalLoading } from '@/components/global-loading-provider'
 
+const NAVIGATION_LOADING_WATCHDOG_MS = 30000
+
 type RouteLoadingLinkProps = LinkProps &
   Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, 'href'>
 
@@ -43,7 +45,7 @@ export function RouteLoadingLink({
     startGlobalLoading()
     watchdogTimerRef.current = setTimeout(() => {
       finishNavigationLoading()
-    }, 8000)
+    }, NAVIGATION_LOADING_WATCHDOG_MS)
   }, [finishNavigationLoading, startGlobalLoading])
 
   useEffect(() => {

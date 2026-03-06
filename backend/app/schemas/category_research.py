@@ -70,6 +70,12 @@ class CategoryResearchBucketItem(BaseModel):
     count: int
 
 
+class CategoryResearchBucketSalesItem(BaseModel):
+    label: str
+    count: int
+    monthly_sales: int
+
+
 class CategoryResearchBrandShareItem(BaseModel):
     brand: str
     monthly_sales: int
@@ -359,6 +365,7 @@ class CategoryResearchOverviewResponse(BaseModel):
     kpis: CategoryResearchOverviewKpis
     brand_sales_share: list[CategoryResearchBrandShareItem]
     listing_age_distribution: list[CategoryResearchBucketItem]
+    launch_month_distribution: list[CategoryResearchBucketSalesItem]
     fulfillment_distribution: list[CategoryResearchBucketItem]
     fixed_price_bands: list[CategoryResearchBucketItem]
     quantile_price_bands: list[CategoryResearchQuantileBandItem]

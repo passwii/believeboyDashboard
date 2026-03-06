@@ -228,12 +228,15 @@ const chartConfig = {
   },
 } satisfies ChartConfig
 
-function oneYearAgoDateString(): string {
+function eightWeeksAgoMondayDateString(): string {
   const now = new Date()
-  now.setFullYear(now.getFullYear() - 1)
-  const y = now.getFullYear()
-  const m = String(now.getMonth() + 1).padStart(2, '0')
-  const d = String(now.getDate()).padStart(2, '0')
+  const dayOfWeek = now.getDay()
+  const daysSinceMonday = (dayOfWeek + 6) % 7
+  const monday = new Date(now)
+  monday.setDate(now.getDate() - daysSinceMonday - 56)
+  const y = monday.getFullYear()
+  const m = String(monday.getMonth() + 1).padStart(2, '0')
+  const d = String(monday.getDate()).padStart(2, '0')
   return `${y}-${m}-${d}`
 }
 
@@ -491,7 +494,7 @@ export default function WeeklyProductAnalysisPage() {
 
   const [projectId, setProjectId] = useState('')
   const [country, setCountry] = useState<CountryOption>('US')
-  const [startDate, setStartDate] = useState(oneYearAgoDateString())
+  const [startDate, setStartDate] = useState(eightWeeksAgoMondayDateString())
   const [endDate, setEndDate] = useState(lastSundayDateString())
 
   const [data, setData] = useState<WeeklyDataRow[]>([])

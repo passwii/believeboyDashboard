@@ -366,6 +366,7 @@ def get_dataset_overview(
         else:
             listing_age_distribution_counter['365天+'] += 1
 
+    launch_month_distribution = _build_launch_month_distribution(rows)
     fulfillment_counter: Counter[str] = Counter()
     for item in rows:
         key = (item.fulfillment_method or '未知').strip() or '未知'
@@ -459,6 +460,7 @@ def get_dataset_overview(
             {'label': label, 'count': int(count)}
             for label, count in listing_age_distribution_counter.items()
         ],
+        'launch_month_distribution': launch_month_distribution,
         'fulfillment_distribution': [
             {'label': label, 'count': int(count)}
             for label, count in fulfillment_counter.items()
@@ -1668,6 +1670,30 @@ def _aggregate_market_monthly_sales(trend_rows: list[CategoryResearchSalesTrend]
             continue
         monthly_totals[key] = monthly_totals.get(key, 0) + int(item.monthly_sales or 0)
     return monthly_totals
+
+
+def _build_launch_month_distribution(rows: list[CategoryResearchProductDetail]) -> list[dict[str, Any]]:
+    bucket: dict[str, dict[str, int]] = {}
+    for item in rows:
+        if item.launch_date is None:
+            continue
+        label = item.launch_date.strftime('%Y-%m')
+        current = bucket.get(label)
+        if current is None:
+            current = {'count': 0, 'monthly_sales': 0}
+            bucket[label] = current
+        current['count'] += 1
+        current['monthly_sales'] += int(item.monthly_sales or 0)
+
+    ordered = sorted(bucket.items(), key=lambda item: item[0])
+    return [
+        {
+            'label': label,
+            'count': int(values['count']),
+            'monthly_sales': int(values['monthly_sales']),
+        }
+        for label, values in ordered[-18:]
+    ]
 
 
 def _nice_price_step(raw_step: float) -> float:
