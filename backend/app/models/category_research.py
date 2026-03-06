@@ -42,6 +42,7 @@ class CategoryResearchDataset(Base):
             "ingestion_status in ('pending', 'running', 'success', 'failed')",
             name='ck_category_research_ingestion_status',
         ),
+        Index('idx_category_research_data_date', 'data_date'),
         Index('idx_category_research_marketplace_keyword_current', 'marketplace', 'category_keyword_en', 'is_current'),
         Index('idx_category_research_created_at', 'created_at'),
     )
@@ -70,6 +71,7 @@ class CategoryResearchDataset(Base):
     ingestion_status: Mapped[str] = mapped_column(String(16), nullable=False, server_default='pending')
     ingestion_error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    data_date: Mapped[date] = mapped_column(Date(), nullable=False, server_default=func.current_date())
     row_count_products: Mapped[int] = mapped_column(Integer, nullable=False, server_default='0')
     row_count_trends: Mapped[int] = mapped_column(Integer, nullable=False, server_default='0')
     quality_warnings: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
@@ -133,10 +135,18 @@ class CategoryResearchProductDetail(Base):
 
     fba_fee_usd: Mapped[Decimal | None] = _money_column()
     fulfillment_method: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    bbx_seller_attribute: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    variant_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    has_main_image_video: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    is_climate_pledge_friendly: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    has_brand_store: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    seller_country_region: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
     is_amazon: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default='false')
     is_new_90d: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default='false')
 
+    extracted_dimensions: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    manual_dimensions: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     raw_row: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 

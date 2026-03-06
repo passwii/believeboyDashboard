@@ -52,6 +52,8 @@ type ProjectOption = {
   name: string
 }
 
+type CountryOption = 'US' | 'DE' | 'UK'
+
 type FileConfig = {
   key: UploadType
   title: string
@@ -108,6 +110,11 @@ const TYPE_LABEL: Record<UploadType, string> = {
 }
 
 const PROGRESS_STEP_LABELS = ['初始化', '读取源数据', '计算指标', '生成报表', '完成']
+const COUNTRY_OPTIONS: Array<{ value: CountryOption; label: string }> = [
+  { value: 'US', label: '美国站 (US)' },
+  { value: 'DE', label: '德国站 (DE)' },
+  { value: 'UK', label: '英国站 (UK)' },
+]
 
 function extractFilenameFromHeader(contentDisposition: string | null) {
   if (!contentDisposition) return null
@@ -295,6 +302,7 @@ export default function ProductAnalysisPage() {
   const [projectLoadError, setProjectLoadError] = useState<string | null>(null)
 
   const [projectName, setProjectName] = useState('')
+  const [country, setCountry] = useState<CountryOption>('US')
   const [startDate, setStartDate] = useState(initialDateRange.start)
   const [endDate, setEndDate] = useState(initialDateRange.end)
   const [formError, setFormError] = useState<string | null>(null)
@@ -668,6 +676,7 @@ export default function ProductAnalysisPage() {
         },
         body: JSON.stringify({
           project_name: projectName.trim(),
+          country,
           report_start_date: startDate,
           report_end_date: endDate,
           business_report_file_id: businessReportFileId,
@@ -806,10 +815,10 @@ export default function ProductAnalysisPage() {
         <Card className="shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg">控制台</CardTitle>
-            <CardDescription>项目名称必填，日期支持快捷填充上周区间。</CardDescription>
+            <CardDescription>项目名称与国家站点必填，日期支持快捷填充上周区间。</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-3 md:grid-cols-3">
               <div className="space-y-2">
                 <label htmlFor="project_name" className="text-sm font-medium">项目名称</label>
                 <Select
@@ -837,6 +846,22 @@ export default function ProductAnalysisPage() {
                   <p className="text-xs text-muted-foreground">暂无项目，请先到“项目信息”页面新增。</p>
                 ) : null}
                 {projectLoadError ? <p className="text-xs text-destructive">{projectLoadError}</p> : null}
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="country" className="text-sm font-medium">国家站点</label>
+                <Select value={country} onValueChange={(value) => setCountry(value as CountryOption)}>
+                  <SelectTrigger id="country" className="h-10">
+                    <SelectValue placeholder="请选择国家站点" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COUNTRY_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">

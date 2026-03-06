@@ -116,6 +116,22 @@ WEEKLY_SUMMARY_MONEY_COLUMNS = {
     '平均售价',
 }
 
+COUNTRY_ALIASES = {
+    'US': 'US',
+    'USA': 'US',
+    '美国': 'US',
+    '美国站': 'US',
+    'DE': 'DE',
+    'GERMANY': 'DE',
+    '德国': 'DE',
+    '德国站': 'DE',
+    'UK': 'UK',
+    'GB': 'UK',
+    'UNITED KINGDOM': 'UK',
+    '英国': 'UK',
+    '英国站': 'UK',
+}
+
 
 def _to_float(value: Any) -> float:
     if value is None:
@@ -135,6 +151,16 @@ def _safe_div(numerator: float, denominator: float) -> float:
     if denominator == 0:
         return 0.0
     return numerator / denominator
+
+
+def _normalize_country(value: str | None) -> str:
+    normalized = (value or '').strip().upper()
+    if not normalized:
+        return 'US'
+    mapped = COUNTRY_ALIASES.get(normalized, normalized)
+    if mapped not in {'US', 'DE', 'UK'}:
+        raise HTTPException(status_code=422, detail='country must be one of: US, DE, UK')
+    return mapped
 
 
 def _build_report_label(start: date, end: date) -> str:
@@ -351,6 +377,7 @@ def list_product_analysis_pt1(
 @router.get('/product-analysis/pt1/{pt1_id:int}/details')
 def list_product_analysis_pt1_details(
     pt1_id: int,
+    country: str = Query(default='US'),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=500, ge=1, le=1000),
     db: Session = Depends(get_db_session),
@@ -359,6 +386,7 @@ def list_product_analysis_pt1_details(
     if pt1 is None:
         raise HTTPException(status_code=404, detail='PT1 calculation not found')
 
+    normalized_country = _normalize_country(country)
     detail_sku = func.lower(func.coalesce(AnalysisPTSKUDetail.sku, ''))
     detail_asin = func.lower(func.coalesce(AnalysisPTSKUDetail.asin, ''))
     product_match = or_(
@@ -371,6 +399,7 @@ def list_product_analysis_pt1_details(
         .where(
             ProductCost.project_name == pt1.project_name,
             ProductCost.is_active.is_(True),
+            ProductCost.country == normalized_country,
             product_match,
         )
         .correlate(AnalysisPTSKUDetail)
@@ -380,6 +409,7 @@ def list_product_analysis_pt1_details(
         select(1).where(
             ProductCost.project_name == pt1.project_name,
             ProductCost.is_active.is_(True),
+            ProductCost.country == normalized_country,
             product_match,
         )
     )
@@ -425,14 +455,17 @@ def list_product_analysis_pt1_details(
 @router.get('/product-analysis/weekly')
 def list_product_analysis_weekly(
     project_id: int = Query(gt=0),
+    country: str = Query(default='US'),
     start_date: date | None = Query(default=None),
     end_date: date | None = Query(default=None),
     current_only: bool = Query(default=True),
     db: Session = Depends(get_db_session),
 ):
+    normalized_country = _normalize_country(country)
     rows = product_analysis_source_service.list_weekly_product_analysis_from_details(
         db,
         project_id=project_id,
+        country=normalized_country,
         start_date=start_date,
         end_date=end_date,
         current_only=current_only,

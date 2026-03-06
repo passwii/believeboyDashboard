@@ -286,3 +286,29 @@ class UpsertProjectRoleAssignmentsRequest(BaseModel):
 
 class ProjectRoleAssignmentsResponse(BaseModel):
     items: list[ProjectRoleAssignmentItem] = Field(default_factory=list)
+
+
+class OperationAuditLogItem(BaseModel):
+    id: int
+    created_at: str
+    operator: str | None = None
+    action: str
+    target_type: str
+    target_id: str | None = None
+    result: str
+    trace_id: str | None = None
+    request_method: str | None = None
+    request_path: str | None = None
+    ip_address: str | None = None
+    user_agent: str | None = None
+    before_json: dict | list | None = None
+    after_json: dict | list | None = None
+    error_message: str | None = None
+
+
+class OperationAuditLogsResponse(BaseModel):
+    items: list[OperationAuditLogItem] = Field(default_factory=list)
+    total: int
+    page: int
+    page_size: int
+    has_next: bool

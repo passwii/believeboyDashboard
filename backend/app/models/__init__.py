@@ -27,6 +27,7 @@ from app.models.commission_record import CommissionRecord
 from app.models.commission_project_month import CommissionProjectMonth
 from app.models.commission_ratio_override import CommissionRatioOverride
 from app.models.project_role_assignment import ProjectRoleAssignment
+from app.models.operation_audit_log import OperationAuditLog
 
 __all__ = [
     'ProductCost',
@@ -40,6 +41,7 @@ __all__ = [
     'CommissionProjectMonth',
     'CommissionRatioOverride',
     'ProjectRoleAssignment',
+    'OperationAuditLog',
     'MonthlyReport',
     'MonthlyReportTransaction',
     'MonthlyReportPT3Calculation',

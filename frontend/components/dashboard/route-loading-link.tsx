@@ -6,9 +6,7 @@ import { type MouseEvent, useCallback, useEffect, useRef } from 'react'
 import { useGlobalLoading } from '@/components/global-loading-provider'
 
 type RouteLoadingLinkProps = LinkProps &
-  Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, 'href'> & {
-    minVisibleMs?: number
-  }
+  Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, 'href'>
 
 function canHandleNavigationClick(event: MouseEvent<HTMLAnchorElement>, target?: string) {
   if (event.defaultPrevented) return false
@@ -22,13 +20,11 @@ export function RouteLoadingLink({
   href,
   onClick,
   target,
-  minVisibleMs = 240,
   ...props
 }: RouteLoadingLinkProps) {
   const pathname = usePathname()
   const { startGlobalLoading, endGlobalLoading } = useGlobalLoading()
   const pendingRef = useRef(false)
-  const startAtRef = useRef(0)
   const watchdogTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const finishNavigationLoading = useCallback(() => {
@@ -44,7 +40,6 @@ export function RouteLoadingLink({
   const beginNavigationLoading = useCallback(() => {
     if (pendingRef.current) return
     pendingRef.current = true
-    startAtRef.current = Date.now()
     startGlobalLoading()
     watchdogTimerRef.current = setTimeout(() => {
       finishNavigationLoading()
@@ -52,14 +47,8 @@ export function RouteLoadingLink({
   }, [finishNavigationLoading, startGlobalLoading])
 
   useEffect(() => {
-    if (!pendingRef.current) return
-    const elapsed = Date.now() - startAtRef.current
-    const remaining = Math.max(0, minVisibleMs - elapsed)
-    const timer = setTimeout(() => {
-      finishNavigationLoading()
-    }, remaining)
-    return () => clearTimeout(timer)
-  }, [finishNavigationLoading, minVisibleMs, pathname])
+    finishNavigationLoading()
+  }, [finishNavigationLoading, pathname])
 
   useEffect(() => {
     return () => {

@@ -15,6 +15,23 @@ from sqlalchemy import select
 from app.db.session import SessionLocal
 from app.models import ProductCost
 
+
+COUNTRY_ALIASES = {
+    'US': 'US',
+    'USA': 'US',
+    '美国': 'US',
+    '美国站': 'US',
+    'DE': 'DE',
+    'GERMANY': 'DE',
+    '德国': 'DE',
+    '德国站': 'DE',
+    'UK': 'UK',
+    'GB': 'UK',
+    'UNITED KINGDOM': 'UK',
+    '英国': 'UK',
+    '英国站': 'UK',
+}
+
 PERCENT_COLUMNS = {
     '总转化',
     '广告点击率',
@@ -151,19 +168,30 @@ def _read_payment_report(path: Path) -> pd.DataFrame:
     return df
 
 
-def _load_project_costs_df(project_name: str) -> pd.DataFrame:
+def _normalize_country(value: str | None) -> str:
+    normalized = (value or '').strip().upper()
+    if not normalized:
+        return 'US'
+    mapped = COUNTRY_ALIASES.get(normalized, normalized)
+    if mapped not in {'US', 'DE', 'UK'}:
+        raise ValueError('country must be one of: US, DE, UK')
+    return mapped
+
+
+def _load_project_costs_df(project_name: str, country: str) -> pd.DataFrame:
     db = SessionLocal()
     try:
         stmt = select(ProductCost).where(
             ProductCost.project_name == project_name,
             ProductCost.is_active.is_(True),
+            ProductCost.country == country,
         )
         rows = db.execute(stmt).scalars().all()
     finally:
         db.close()
 
     if not rows:
-        raise ValueError(f'No active product_costs found for project_name={project_name}')
+        raise ValueError(f'No active product_costs found for project_name={project_name}, country={country}')
 
     data = [
         {
@@ -562,6 +590,7 @@ def run(input_path: str, output_dir: str, params: dict) -> dict:
     project_name = _safe_project_name(str(params.get('project_name', 'unknown')))
     report_start_date = str(params.get('report_start_date', '')).strip()
     report_end_date = str(params.get('report_end_date', '')).strip()
+    country = _normalize_country(str(params.get('country', 'US')))
 
     if not report_start_date or not report_end_date:
         raise ValueError('Missing report_start_date/report_end_date')
@@ -575,7 +604,7 @@ def run(input_path: str, output_dir: str, params: dict) -> dict:
 
     business_path, payment_path, ad_path, inventory_path = _resolve_report_paths(input_path, params)
 
-    df_cost = _load_project_costs_df(project_name)
+    df_cost = _load_project_costs_df(project_name, country)
     df_business = _read_business_report(business_path)
     df_ad = _read_ad_report(ad_path)
     df_payment_raw = _read_payment_report(payment_path)
@@ -604,4 +633,5 @@ def run(input_path: str, output_dir: str, params: dict) -> dict:
         'filename': filename,
         'message': 'Product analysis report generated',
         'pt1': _build_pt1_payload(df_overview),
+        'country': country,
     }

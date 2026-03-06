@@ -3,8 +3,8 @@ from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
 import re
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import MetaData, Table, func, inspect, select, text
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from sqlalchemy import MetaData, Table, func, inspect, or_, select, text
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -14,6 +14,7 @@ from app.core.config import get_settings
 from app.models.commission_project_month import CommissionProjectMonth
 from app.models.commission_record import CommissionRecord
 from app.models.commission_ratio_override import CommissionRatioOverride
+from app.models.operation_audit_log import OperationAuditLog
 from app.models.project_role_assignment import ProjectRoleAssignment
 from app.schemas.system_management import (
     CommissionIncomeCategory,
@@ -27,6 +28,8 @@ from app.schemas.system_management import (
     CommissionRatioOverrideItem,
     CommissionRatioOverridesResponse,
     CommissionRatioSource,
+    OperationAuditLogItem,
+    OperationAuditLogsResponse,
     CommissionRecordItem,
     CommissionRecordsResponse,
     CommissionYearlyMonthlySummaryItem,
@@ -51,6 +54,7 @@ from app.schemas.system_management import (
     UpsertCommissionRecordsRequest,
     UpsertProjectRoleAssignmentsRequest,
 )
+from app.services.audit_log_service import append_operation_audit_log
 
 router = APIRouter(prefix='/system-management', dependencies=[Depends(protected)])
 
@@ -193,6 +197,26 @@ def _serialize_role_assignment(row: ProjectRoleAssignment) -> ProjectRoleAssignm
         effective_from_month=row.effective_from_month,
         effective_to_month=row.effective_to_month,
         updated_at=_to_iso(row.updated_at) or '',
+    )
+
+
+def _serialize_operation_audit_log(row: OperationAuditLog) -> OperationAuditLogItem:
+    return OperationAuditLogItem(
+        id=row.id,
+        created_at=_to_iso(row.created_at) or '',
+        operator=row.operator,
+        action=row.action,
+        target_type=row.target_type,
+        target_id=row.target_id,
+        result=row.result,
+        trace_id=row.trace_id,
+        request_method=row.request_method,
+        request_path=row.request_path,
+        ip_address=row.ip_address,
+        user_agent=row.user_agent,
+        before_json=row.before_json,
+        after_json=row.after_json,
+        error_message=row.error_message,
     )
 
 
@@ -346,6 +370,72 @@ def _collect_recent_statuses(db: Session, data_status: DataLifecycleStatus, chec
     return items
 
 
+@router.get('/audit-logs', response_model=OperationAuditLogsResponse)
+def list_operation_audit_logs(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    operator: str | None = Query(default=None),
+    action: str | None = Query(default=None),
+    target_type: str | None = Query(default=None),
+    result: str | None = Query(default=None),
+    keyword: str | None = Query(default=None),
+    db: Session = Depends(get_db_session),
+) -> OperationAuditLogsResponse:
+    stmt = select(OperationAuditLog)
+    total_stmt = select(func.count(OperationAuditLog.id))
+
+    normalized_operator = (operator or '').strip()
+    if normalized_operator:
+        condition = OperationAuditLog.operator.ilike(f'%{normalized_operator}%')
+        stmt = stmt.where(condition)
+        total_stmt = total_stmt.where(condition)
+
+    normalized_action = (action or '').strip()
+    if normalized_action:
+        condition = OperationAuditLog.action.ilike(f'%{normalized_action}%')
+        stmt = stmt.where(condition)
+        total_stmt = total_stmt.where(condition)
+
+    normalized_target_type = (target_type or '').strip()
+    if normalized_target_type:
+        condition = OperationAuditLog.target_type.ilike(f'%{normalized_target_type}%')
+        stmt = stmt.where(condition)
+        total_stmt = total_stmt.where(condition)
+
+    normalized_result = (result or '').strip().lower()
+    if normalized_result in {'success', 'failure'}:
+        condition = OperationAuditLog.result == normalized_result
+        stmt = stmt.where(condition)
+        total_stmt = total_stmt.where(condition)
+
+    normalized_keyword = (keyword or '').strip()
+    if normalized_keyword:
+        like_value = f'%{normalized_keyword}%'
+        condition = or_(
+            OperationAuditLog.request_path.ilike(like_value),
+            OperationAuditLog.target_id.ilike(like_value),
+            OperationAuditLog.trace_id.ilike(like_value),
+            OperationAuditLog.error_message.ilike(like_value),
+        )
+        stmt = stmt.where(condition)
+        total_stmt = total_stmt.where(condition)
+
+    total = int(db.execute(total_stmt).scalar() or 0)
+    offset = (page - 1) * page_size
+    rows = db.execute(
+        stmt.order_by(OperationAuditLog.created_at.desc(), OperationAuditLog.id.desc()).offset(offset).limit(page_size)
+    ).scalars().all()
+    has_next = offset + len(rows) < total
+
+    return OperationAuditLogsResponse(
+        items=[_serialize_operation_audit_log(row) for row in rows],
+        total=total,
+        page=page,
+        page_size=page_size,
+        has_next=has_next,
+    )
+
+
 @router.get('/data-management/status', response_model=DataManagementStatusResponse)
 def get_data_management_status(db: Session = Depends(get_db_session)) -> DataManagementStatusResponse:
     settings = get_settings()
@@ -399,11 +489,13 @@ def get_data_management_overview(db: Session = Depends(get_db_session)) -> DataM
 @router.patch('/data-management/data-status', response_model=UpdateDataStatusResponse)
 def update_data_status(
     payload: UpdateDataStatusRequest,
+    request: Request,
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> UpdateDataStatusResponse:
     _ensure_data_state_table(db)
     now = _now().replace(microsecond=0)
+    before_status, before_note, before_updated_by, before_updated_at = _load_data_state(db)
 
     existing = db.execute(text(f'select id from {DATA_STATE_TABLE} where id = 1')).first()
     if existing:
@@ -437,6 +529,26 @@ def update_data_status(
                 'updated_at': now,
             },
         )
+    append_operation_audit_log(
+        db,
+        action='system.data_status.update',
+        target_type='system_management_data_state',
+        target_id='1',
+        operator=operator,
+        before={
+            'status': before_status.value,
+            'note': before_note,
+            'updated_by': before_updated_by,
+            'updated_at': before_updated_at,
+        },
+        after={
+            'status': payload.status.value,
+            'note': payload.note,
+            'updated_by': operator,
+            'updated_at': now.isoformat(timespec='seconds'),
+        },
+        request=request,
+    )
     db.commit()
 
     return UpdateDataStatusResponse(
@@ -450,7 +562,9 @@ def update_data_status(
 @router.post('/commission-management/records/upsert', response_model=CommissionRecordsResponse)
 def upsert_commission_records(
     payload: UpsertCommissionRecordsRequest,
+    request: Request,
     db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
 ) -> CommissionRecordsResponse:
     try:
         report_month = _parse_report_month(payload.report_month)
@@ -570,6 +684,20 @@ def upsert_commission_records(
         stale.is_active = False
         stale.deactivated_at = now
 
+    append_operation_audit_log(
+        db,
+        action='commission.records.upsert',
+        target_type='commission_record',
+        target_id=report_month,
+        operator=operator,
+        after={
+            'report_month': report_month,
+            'incoming_items': len(payload.items),
+            'project_count': len(project_items),
+            'stale_rows_deactivated': len(stale_rows),
+        },
+        request=request,
+    )
     db.commit()
 
     rows = db.execute(
@@ -622,6 +750,7 @@ def list_commission_records(
 def update_commission_payment_status(
     record_id: int,
     payload: UpdateCommissionPaymentStatusRequest,
+    request: Request,
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> UpdateCommissionPaymentStatusResponse:
@@ -629,6 +758,7 @@ def update_commission_payment_status(
     if row is None:
         raise HTTPException(status_code=404, detail='record not found')
 
+    before = _serialize_commission_record(row).model_dump()
     now = _now().replace(microsecond=0)
     row.payment_status = payload.payment_status.value
     if payload.payment_status == CommissionPaymentStatus.paid:
@@ -644,6 +774,17 @@ def update_commission_payment_status(
         row.locked_at = None
         row.locked_by = None
     row.updated_at = now
+    after = _serialize_commission_record(row).model_dump()
+    append_operation_audit_log(
+        db,
+        action='commission.record.payment_status.update',
+        target_type='commission_record',
+        target_id=record_id,
+        operator=operator,
+        before=before,
+        after=after,
+        request=request,
+    )
     db.commit()
     db.refresh(row)
     return UpdateCommissionPaymentStatusResponse(item=_serialize_commission_record(row))
@@ -803,6 +944,7 @@ def list_commission_project_yearly_summary(
 def update_commission_project_payment(
     project_month_id: int,
     payload: UpdateCommissionProjectPaymentRequest,
+    request: Request,
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> UpdateCommissionProjectPaymentResponse:
@@ -810,6 +952,7 @@ def update_commission_project_payment(
     if row is None:
         raise HTTPException(status_code=404, detail='project month record not found')
 
+    before = _serialize_project_month(row).model_dump()
     now = _now().replace(microsecond=0)
     row.payment_status = payload.payment_status.value
     row.received_rmb = _to_decimal(payload.received_rmb, '0.01')
@@ -852,6 +995,17 @@ def update_commission_project_payment(
             commission_row.locked_at = None
             commission_row.locked_by = None
 
+    after = _serialize_project_month(row).model_dump()
+    append_operation_audit_log(
+        db,
+        action='commission.project_month.payment.update',
+        target_type='commission_project_month',
+        target_id=project_month_id,
+        operator=operator,
+        before=before,
+        after=after,
+        request=request,
+    )
     db.commit()
     db.refresh(row)
     return UpdateCommissionProjectPaymentResponse(item=_serialize_project_month(row))
@@ -860,6 +1014,7 @@ def update_commission_project_payment(
 @router.post('/commission-management/ratio-overrides/upsert', response_model=CommissionRatioOverridesResponse)
 def upsert_commission_ratio_overrides(
     payload: UpsertCommissionRatioOverridesRequest,
+    request: Request,
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> CommissionRatioOverridesResponse:
@@ -901,6 +1056,19 @@ def upsert_commission_ratio_overrides(
     for stale in stale_rows:
         db.delete(stale)
 
+    append_operation_audit_log(
+        db,
+        action='commission.ratio_overrides.upsert',
+        target_type='commission_ratio_override',
+        target_id=report_month,
+        operator=operator,
+        after={
+            'report_month': report_month,
+            'incoming_items': len(payload.items),
+            'deleted_items': len(stale_rows),
+        },
+        request=request,
+    )
     db.commit()
     rows = db.execute(
         select(CommissionRatioOverride)
@@ -967,7 +1135,9 @@ def list_project_role_assignments(
 @router.post('/commission-management/role-assignments/upsert', response_model=ProjectRoleAssignmentsResponse)
 def upsert_project_role_assignments(
     payload: UpsertProjectRoleAssignmentsRequest,
+    request: Request,
     db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
 ) -> ProjectRoleAssignmentsResponse:
     for item in payload.items:
         from_month = _parse_report_month(item.effective_from_month)
@@ -994,6 +1164,14 @@ def upsert_project_role_assignments(
             row.effective_from_month = from_month
             row.effective_to_month = to_month
 
+    append_operation_audit_log(
+        db,
+        action='commission.role_assignments.upsert',
+        target_type='project_role_assignment',
+        operator=operator,
+        after={'incoming_items': len(payload.items)},
+        request=request,
+    )
     db.commit()
     rows = db.execute(
         select(ProjectRoleAssignment).order_by(

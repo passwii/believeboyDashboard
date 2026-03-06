@@ -1,12 +1,14 @@
 'use client'
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
-import { Bot, MessageCirclePlus, SendHorizontal, User } from 'lucide-react'
+import { Bot, MessageCirclePlus, SendHorizontal, Settings2, User } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 
 type ConversationItem = {
@@ -29,28 +31,34 @@ type MessageCreateResponse = {
   assistant_message: MessageItem
 }
 
-type LLMConfigForm = {
-  baseUrl: string
-  apiKey: string
+type PromptOption = {
+  id: string
+  label: string
+  description: string
+}
+
+type ChatConfigResponse = {
+  providerConfigured: boolean
+  models: string[]
+  defaultModel: string
+  timeoutSeconds: number
+  overviewOptions: PromptOption[]
+  detailOptions: PromptOption[]
+  message?: string
+}
+
+type ChatSettings = {
   model: string
-  timeoutSeconds: string
-  systemPrompt: string
+  overviewPromptId: string
+  detailPromptId: string
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
-const API_KEY = process.env.NEXT_PUBLIC_BACKEND_API_KEY ?? ''
-const LLM_CONFIG_STORAGE_KEY = 'believeboy-ai-llm-config-v1'
+const CHAT_SETTINGS_STORAGE_KEY = 'believeboy-ai-chat-settings-v2'
 
-const defaultLlmConfig: LLMConfigForm = {
-  baseUrl: 'https://api.openai.com/v1',
-  apiKey: '',
-  model: 'gpt-4o-mini',
-  timeoutSeconds: '90',
-  systemPrompt: '你是 BelieveBoy Dashboard 的运营数据助手，请给出清晰、可执行的建议。',
-}
-
-function authHeaders(): Record<string, string> {
-  return API_KEY ? { 'X-API-Key': API_KEY } : {}
+const defaultChatSettings: ChatSettings = {
+  model: '',
+  overviewPromptId: 'overview-standard',
+  detailPromptId: 'detail-standard',
 }
 
 async function parseError(response: Response): Promise<string> {
@@ -67,7 +75,9 @@ export default function AIChatPage() {
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null)
   const [messages, setMessages] = useState<MessageItem[]>([])
   const [prompt, setPrompt] = useState('')
-  const [llmConfig, setLlmConfig] = useState<LLMConfigForm>(defaultLlmConfig)
+  const [chatConfig, setChatConfig] = useState<ChatConfigResponse | null>(null)
+  const [chatSettings, setChatSettings] = useState<ChatSettings>(defaultChatSettings)
+  const [loadingConfig, setLoadingConfig] = useState(false)
   const [loadingConversations, setLoadingConversations] = useState(false)
   const [loadingMessages, setLoadingMessages] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -78,16 +88,47 @@ export default function AIChatPage() {
     [activeConversationId, conversations]
   )
 
-  const isLlmConfigValid = useMemo(() => {
-    return Boolean(llmConfig.baseUrl.trim() && llmConfig.apiKey.trim() && llmConfig.model.trim())
-  }, [llmConfig.apiKey, llmConfig.baseUrl, llmConfig.model])
+  const loadConfig = useCallback(async () => {
+    setLoadingConfig(true)
+    setError(null)
+    try {
+      const response = await fetch('/api/ai-chat/config', {
+        method: 'GET',
+        cache: 'no-store',
+      })
+      const payload = (await response.json()) as ChatConfigResponse
+      if (!response.ok) {
+        throw new Error(payload.message || `加载配置失败 (${response.status})`)
+      }
+
+      setChatConfig(payload)
+      setChatSettings((prev) => ({
+        model: payload.models.includes(prev.model) ? prev.model : payload.defaultModel || payload.models[0] || '',
+        overviewPromptId:
+          payload.overviewOptions.some((item) => item.id === prev.overviewPromptId)
+            ? prev.overviewPromptId
+            : defaultChatSettings.overviewPromptId,
+        detailPromptId:
+          payload.detailOptions.some((item) => item.id === prev.detailPromptId)
+            ? prev.detailPromptId
+            : defaultChatSettings.detailPromptId,
+      }))
+      if (payload.message) {
+        setError(payload.message)
+      }
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : '加载配置失败')
+    } finally {
+      setLoadingConfig(false)
+    }
+  }, [])
 
   const loadConversations = useCallback(async () => {
     setLoadingConversations(true)
     setError(null)
     try {
-      const response = await fetch(`${API_BASE}/api/v1/ai/conversations`, {
-        headers: authHeaders(),
+      const response = await fetch('/api/ai-chat/conversations', {
+        method: 'GET',
         cache: 'no-store',
       })
       if (!response.ok) {
@@ -109,8 +150,8 @@ export default function AIChatPage() {
     setLoadingMessages(true)
     setError(null)
     try {
-      const response = await fetch(`${API_BASE}/api/v1/ai/conversations/${conversationId}/messages`, {
-        headers: authHeaders(),
+      const response = await fetch(`/api/ai-chat/conversations/${conversationId}/messages`, {
+        method: 'GET',
         cache: 'no-store',
       })
       if (!response.ok) {
@@ -128,10 +169,9 @@ export default function AIChatPage() {
   const createConversation = useCallback(async () => {
     setError(null)
     try {
-      const response = await fetch(`${API_BASE}/api/v1/ai/conversations`, {
+      const response = await fetch('/api/ai-chat/conversations', {
         method: 'POST',
         headers: {
-          ...authHeaders(),
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ title: `会话 ${new Date().toLocaleString()}` }),
@@ -154,33 +194,29 @@ export default function AIChatPage() {
     if (!content || !activeConversationId || submitting) {
       return
     }
-    if (!isLlmConfigValid) {
-      setError('请先填写 LLM Base URL / API Key / Model')
+    if (!chatConfig?.providerConfigured) {
+      setError('AI Provider 未配置，请先在 .env.local 中设置')
+      return
+    }
+    if (!chatSettings.model) {
+      setError('请选择模型')
       return
     }
 
     setSubmitting(true)
     setError(null)
 
-    const parsedTimeout = Number.parseInt(llmConfig.timeoutSeconds, 10)
-    const timeoutSeconds = Number.isFinite(parsedTimeout) ? Math.max(10, Math.min(300, parsedTimeout)) : 90
-
     try {
-      const response = await fetch(`${API_BASE}/api/v1/ai/conversations/${activeConversationId}/messages`, {
+      const response = await fetch(`/api/ai-chat/conversations/${activeConversationId}/messages`, {
         method: 'POST',
         headers: {
-          ...authHeaders(),
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           content,
-          llm_config: {
-            base_url: llmConfig.baseUrl.trim(),
-            api_key: llmConfig.apiKey.trim(),
-            model: llmConfig.model.trim(),
-            timeout_seconds: timeoutSeconds,
-            system_prompt: llmConfig.systemPrompt,
-          },
+          model: chatSettings.model,
+          overviewPromptId: chatSettings.overviewPromptId,
+          detailPromptId: chatSettings.detailPromptId,
         }),
       })
       if (!response.ok) {
@@ -196,16 +232,16 @@ export default function AIChatPage() {
     } finally {
       setSubmitting(false)
     }
-  }, [activeConversationId, isLlmConfigValid, llmConfig, loadConversations, prompt, submitting])
+  }, [activeConversationId, chatConfig?.providerConfigured, chatSettings, loadConversations, prompt, submitting])
 
   useEffect(() => {
     try {
-      const raw = window.localStorage.getItem(LLM_CONFIG_STORAGE_KEY)
+      const raw = window.localStorage.getItem(CHAT_SETTINGS_STORAGE_KEY)
       if (!raw) {
         return
       }
-      const parsed = JSON.parse(raw) as Partial<LLMConfigForm>
-      setLlmConfig((prev) => ({
+      const parsed = JSON.parse(raw) as Partial<ChatSettings>
+      setChatSettings((prev) => ({
         ...prev,
         ...parsed,
       }))
@@ -215,12 +251,13 @@ export default function AIChatPage() {
   }, [])
 
   useEffect(() => {
-    window.localStorage.setItem(LLM_CONFIG_STORAGE_KEY, JSON.stringify(llmConfig))
-  }, [llmConfig])
+    window.localStorage.setItem(CHAT_SETTINGS_STORAGE_KEY, JSON.stringify(chatSettings))
+  }, [chatSettings])
 
   useEffect(() => {
+    void loadConfig()
     void loadConversations()
-  }, [loadConversations])
+  }, [loadConfig, loadConversations])
 
   useEffect(() => {
     if (activeConversationId) {
@@ -269,40 +306,95 @@ export default function AIChatPage() {
           <CardTitle className="text-base">{activeConversation?.title || '请选择或新建会话'}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="grid gap-2 rounded-lg border bg-muted/20 p-3 lg:grid-cols-2">
-            <Input
-              value={llmConfig.baseUrl}
-              onChange={(event) => setLlmConfig((prev) => ({ ...prev, baseUrl: event.target.value }))}
-              placeholder="OpenAI兼容 Base URL"
-            />
-            <Input
-              type="password"
-              value={llmConfig.apiKey}
-              onChange={(event) => setLlmConfig((prev) => ({ ...prev, apiKey: event.target.value }))}
-              placeholder="LLM API Key"
-            />
-            <Input
-              value={llmConfig.model}
-              onChange={(event) => setLlmConfig((prev) => ({ ...prev, model: event.target.value }))}
-              placeholder="模型名称 (例如 gpt-4o-mini)"
-              list="llm-model-options"
-            />
-            <Input
-              value={llmConfig.timeoutSeconds}
-              onChange={(event) => setLlmConfig((prev) => ({ ...prev, timeoutSeconds: event.target.value }))}
-              placeholder="超时秒数(10-300)"
-            />
-            <Input
-              className="lg:col-span-2"
-              value={llmConfig.systemPrompt}
-              onChange={(event) => setLlmConfig((prev) => ({ ...prev, systemPrompt: event.target.value }))}
-              placeholder="系统提示词（可选）"
-            />
-            <datalist id="llm-model-options">
-              <option value="gpt-4o-mini" />
-              <option value="gpt-4.1-mini" />
-              <option value="gpt-4.1" />
-            </datalist>
+          <div className="rounded-xl border bg-muted/20 p-4">
+            <div className="mb-4 flex items-center gap-2">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <Settings2 className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">聊天配置</p>
+                <p className="text-xs text-muted-foreground">
+                  运营只需要选择模型和两段系统提示词，不再手动填写 endpoint 或 key。
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-3 lg:grid-cols-3">
+              <div className="space-y-2">
+                <Label>模型</Label>
+                <Select
+                  value={chatSettings.model}
+                  onValueChange={(value) => setChatSettings((prev) => ({ ...prev, model: value }))}
+                  disabled={loadingConfig || !chatConfig?.models.length}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={loadingConfig ? '加载模型中...' : '选择模型'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(chatConfig?.models || []).map((model) => (
+                      <SelectItem key={model} value={model}>
+                        {model}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>总结总览</Label>
+                <Select
+                  value={chatSettings.overviewPromptId}
+                  onValueChange={(value) => setChatSettings((prev) => ({ ...prev, overviewPromptId: value }))}
+                  disabled={loadingConfig}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="选择总结总览模板" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">不使用</SelectItem>
+                    {(chatConfig?.overviewOptions || []).map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {chatConfig?.overviewOptions.find((item) => item.id === chatSettings.overviewPromptId)?.description ||
+                    '不追加总结总览段落'}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>明细</Label>
+                <Select
+                  value={chatSettings.detailPromptId}
+                  onValueChange={(value) => setChatSettings((prev) => ({ ...prev, detailPromptId: value }))}
+                  disabled={loadingConfig}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="选择明细模板" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">不使用</SelectItem>
+                    {(chatConfig?.detailOptions || []).map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {chatConfig?.detailOptions.find((item) => item.id === chatSettings.detailPromptId)?.description ||
+                    '不追加明细段落'}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+              <span>Provider 配置：{chatConfig?.providerConfigured ? '已就绪' : '未配置'}</span>
+              <span>超时：{chatConfig?.timeoutSeconds ?? '--'} 秒</span>
+            </div>
           </div>
 
           <ScrollArea className="h-[390px] rounded-lg border bg-muted/20 p-3">
@@ -335,7 +427,7 @@ export default function AIChatPage() {
               placeholder="输入你的问题，例如：帮我分析本周广告成本波动"
               disabled={!activeConversationId || submitting}
             />
-            <Button type="submit" disabled={!activeConversationId || submitting || !prompt.trim() || !isLlmConfigValid}>
+            <Button type="submit" disabled={!activeConversationId || submitting || !prompt.trim() || !chatSettings.model}>
               <SendHorizontal className="mr-1.5 h-4 w-4" />
               发送
             </Button>

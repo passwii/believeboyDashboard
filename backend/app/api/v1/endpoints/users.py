@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, protected
+from app.api.deps import get_db_session, get_request_operator, protected
+from app.services.audit_log_service import append_operation_audit_log
 
 router = APIRouter(prefix='/system-management/users', tags=['users'], dependencies=[Depends(protected)])
 
@@ -81,6 +82,18 @@ def _to_item(row: dict) -> UserItem:
     )
 
 
+def _serialize_user_item(item: UserItem) -> dict[str, object | None]:
+    return {
+        'id': item.id,
+        'name': item.name,
+        'email': item.email,
+        'full_name': item.full_name,
+        'operator_name_zh': item.operator_name_zh,
+        'is_admin': item.is_admin,
+        'is_active': item.is_active,
+    }
+
+
 @router.get('', response_model=UsersResponse)
 def list_users(db: Session = Depends(get_db_session)) -> UsersResponse:
     rows = db.execute(
@@ -105,7 +118,12 @@ def list_users(db: Session = Depends(get_db_session)) -> UsersResponse:
 
 
 @router.post('', response_model=CreateUserResponse, status_code=status.HTTP_201_CREATED)
-def create_user(payload: CreateUserRequest, db: Session = Depends(get_db_session)) -> CreateUserResponse:
+def create_user(
+    payload: CreateUserRequest,
+    request: Request,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+) -> CreateUserResponse:
     _ensure_pgcrypto(db)
     try:
         row = db.execute(
@@ -134,7 +152,6 @@ def create_user(payload: CreateUserRequest, db: Session = Depends(get_db_session
                 'is_admin': bool(payload.is_admin),
             },
         ).mappings().first()
-        db.commit()
     except Exception as exc:
         db.rollback()
         if getattr(exc, 'orig', None) is not None and 'duplicate key value' in str(exc.orig).lower():
@@ -145,12 +162,49 @@ def create_user(payload: CreateUserRequest, db: Session = Depends(get_db_session
 
     if row is None:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail='创建用户失败')
-    return CreateUserResponse(item=_to_item(row))
+    item = _to_item(row)
+    append_operation_audit_log(
+        db,
+        action='users.create',
+        target_type='user_account',
+        target_id=item.id,
+        operator=operator,
+        after=_serialize_user_item(item),
+        request=request,
+    )
+    db.commit()
+    return CreateUserResponse(item=item)
 
 
 @router.patch('/{user_id}', response_model=UpdateUserResponse)
-def update_user(user_id: str, payload: UpdateUserRequest, db: Session = Depends(get_db_session)) -> UpdateUserResponse:
+def update_user(
+    user_id: str,
+    payload: UpdateUserRequest,
+    request: Request,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+) -> UpdateUserResponse:
     _ensure_pgcrypto(db)
+    before_row = db.execute(
+        text(
+            '''
+            select
+              id::text as id,
+              name,
+              email,
+              full_name,
+              operator_name_zh,
+              is_admin,
+              is_active,
+              created_at,
+              updated_at
+            from public.user_accounts
+            where id::text = :user_id
+            '''
+        ),
+        {'user_id': user_id},
+    ).mappings().first()
+
     name = payload.name.strip() if isinstance(payload.name, str) else None
     full_name = payload.full_name.strip() if isinstance(payload.full_name, str) else None
     operator_name_zh = payload.operator_name_zh.strip() if isinstance(payload.operator_name_zh, str) else None
@@ -205,8 +259,19 @@ def update_user(user_id: str, payload: UpdateUserRequest, db: Session = Depends(
             'password': password,
         },
     ).mappings().first()
-    db.commit()
 
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='用户不存在')
-    return UpdateUserResponse(item=_to_item(row))
+    item = _to_item(row)
+    append_operation_audit_log(
+        db,
+        action='users.update',
+        target_type='user_account',
+        target_id=user_id,
+        operator=operator,
+        before=_serialize_user_item(_to_item(before_row)) if before_row is not None else None,
+        after=_serialize_user_item(item),
+        request=request,
+    )
+    db.commit()
+    return UpdateUserResponse(item=item)

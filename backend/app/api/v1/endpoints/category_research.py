@@ -6,11 +6,17 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_db_session, get_request_operator, protected
 from app.core.config import Settings, get_settings
 from app.schemas.category_research import (
+    CategoryResearchManualDimensionUpsertRequest,
+    CategoryResearchManualDimensionUpsertResponse,
+    CategoryResearchBatchRecomputeResponse,
     CategoryResearchDatasetItem,
     CategoryResearchImportResponse,
+    CategoryResearchMarketTrendPoint,
+    CategoryResearchMarketTrendResponse,
     CategoryResearchOverviewResponse,
     CategoryResearchProductRow,
     CategoryResearchProductsResponse,
+    CategoryResearchRecomputeResponse,
     CategoryResearchTrendPoint,
     CategoryResearchTrendResponse,
 )
@@ -73,10 +79,17 @@ def list_category_research_datasets(
 @router.get('/category-research/datasets/{dataset_id:int}', response_model=CategoryResearchOverviewResponse)
 def get_category_research_dataset(
     dataset_id: int,
+    price_band_standard: str | None = Query(default='default'),
+    price_band_breaks: str | None = Query(default=None),
     db: Session = Depends(get_db_session),
 ) -> CategoryResearchOverviewResponse:
     try:
-        payload = category_research_service.get_dataset_overview(db, dataset_id)
+        payload = category_research_service.get_dataset_overview(
+            db,
+            dataset_id,
+            price_band_standard=price_band_standard,
+            price_band_breaks=price_band_breaks,
+        )
     except ValueError as exc:
         if str(exc) == 'Dataset not found':
             raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -95,6 +108,51 @@ def get_category_research_dataset(
         fba_fee_distribution=payload['fba_fee_distribution'],
         price_sales_points=payload['price_sales_points'],
         available_asins=payload['available_asins'],
+        advanced_metrics=payload['advanced_metrics'],
+    )
+
+
+@router.post('/category-research/datasets/{dataset_id:int}/recompute', response_model=CategoryResearchRecomputeResponse)
+def recompute_category_research_dataset(
+    dataset_id: int,
+    db: Session = Depends(get_db_session),
+) -> CategoryResearchRecomputeResponse:
+    try:
+        dataset = category_research_service.recompute_dataset_from_history(db, dataset_id)
+    except ValueError as exc:
+        if str(exc) == 'Dataset not found':
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return CategoryResearchRecomputeResponse(
+        dataset_id=dataset.id,
+        row_count_products=dataset.row_count_products,
+        row_count_trends=dataset.row_count_trends,
+        quality_warnings=dataset.quality_warnings if isinstance(dataset.quality_warnings, dict) else {},
+    )
+
+
+@router.post('/category-research/datasets/recompute', response_model=CategoryResearchBatchRecomputeResponse)
+def recompute_category_research_datasets(
+    marketplace: str | None = Query(default=None),
+    category_keyword_en: str | None = Query(default=None),
+    include_history: bool = Query(default=True),
+    db: Session = Depends(get_db_session),
+) -> CategoryResearchBatchRecomputeResponse:
+    try:
+        payload = category_research_service.recompute_datasets_from_history(
+            db,
+            marketplace=marketplace,
+            category_keyword_en=category_keyword_en,
+            include_history=include_history,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return CategoryResearchBatchRecomputeResponse(
+        matched=payload['matched'],
+        recomputed=payload['recomputed'],
+        dataset_ids=payload['dataset_ids'],
     )
 
 
@@ -106,6 +164,8 @@ def list_category_research_products(
     brand: str | None = Query(default=None),
     fulfillment_method: str | None = Query(default=None),
     price_band: str | None = Query(default=None),
+    price_band_standard: str | None = Query(default='default'),
+    price_band_breaks: str | None = Query(default=None),
     db: Session = Depends(get_db_session),
 ) -> CategoryResearchProductsResponse:
     try:
@@ -117,6 +177,8 @@ def list_category_research_products(
             brand=brand,
             fulfillment_method=fulfillment_method,
             price_band=price_band,
+            price_band_standard=price_band_standard,
+            price_band_breaks=price_band_breaks,
         )
     except ValueError as exc:
         if str(exc) == 'Dataset not found':
@@ -129,6 +191,32 @@ def list_category_research_products(
         page_size=page_size,
         has_next=has_next,
         rows=[_to_product_row(item) for item in rows],
+    )
+
+
+@router.post(
+    '/category-research/datasets/{dataset_id:int}/dimensions/manual-upsert',
+    response_model=CategoryResearchManualDimensionUpsertResponse,
+)
+def upsert_category_research_manual_dimensions(
+    dataset_id: int,
+    payload: CategoryResearchManualDimensionUpsertRequest,
+    db: Session = Depends(get_db_session),
+) -> CategoryResearchManualDimensionUpsertResponse:
+    try:
+        result = category_research_service.upsert_manual_dimensions(
+            db,
+            dataset_id=dataset_id,
+            items=[item.model_dump() for item in payload.items],
+        )
+    except ValueError as exc:
+        if str(exc) == 'Dataset not found':
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return CategoryResearchManualDimensionUpsertResponse(
+        dataset_id=int(result['dataset_id']),
+        updated_count=int(result['updated_count']),
     )
 
 
@@ -153,7 +241,32 @@ def get_category_research_asin_trend(
     )
 
 
+@router.get('/category-research/datasets/{dataset_id:int}/market-trend', response_model=CategoryResearchMarketTrendResponse)
+def get_category_research_market_trend(
+    dataset_id: int,
+    months: int = Query(default=24, ge=1, le=60),
+    db: Session = Depends(get_db_session),
+) -> CategoryResearchMarketTrendResponse:
+    try:
+        points = category_research_service.get_dataset_market_trend_points(
+            db,
+            dataset_id=dataset_id,
+            months=months,
+        )
+    except ValueError as exc:
+        if str(exc) == 'Dataset not found':
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return CategoryResearchMarketTrendResponse(
+        dataset_id=dataset_id,
+        months=months,
+        points=[CategoryResearchMarketTrendPoint(**item) for item in points],
+    )
+
+
 def _to_dataset_item(row) -> CategoryResearchDatasetItem:
+    data_date = row.data_date
     return CategoryResearchDatasetItem(
         id=row.id,
         marketplace=row.marketplace,
@@ -170,6 +283,10 @@ def _to_dataset_item(row) -> CategoryResearchDatasetItem:
         file_sha256=row.file_sha256,
         ingestion_status=row.ingestion_status,
         ingestion_error=row.ingestion_error,
+        data_date=data_date,
+        data_year=data_date.year if data_date else None,
+        data_month=data_date.month if data_date else None,
+        data_day=data_date.day if data_date else None,
         row_count_products=row.row_count_products,
         row_count_trends=row.row_count_trends,
         quality_warnings=row.quality_warnings if isinstance(row.quality_warnings, dict) else {},
@@ -180,6 +297,9 @@ def _to_dataset_item(row) -> CategoryResearchDatasetItem:
 
 
 def _to_product_row(row) -> CategoryResearchProductRow:
+    extracted_dimensions = category_research_service.normalize_dimension_map(row.extracted_dimensions)
+    manual_dimensions = category_research_service.normalize_dimension_map(row.manual_dimensions)
+    effective_dimensions = category_research_service.effective_dimensions(row)
     return CategoryResearchProductRow(
         id=row.id,
         source_row_no=row.source_row_no,
@@ -197,6 +317,15 @@ def _to_product_row(row) -> CategoryResearchProductRow:
         listing_age_days=row.listing_age_days,
         fba_fee_usd=float(row.fba_fee_usd) if row.fba_fee_usd is not None else None,
         fulfillment_method=row.fulfillment_method,
+        bbx_seller_attribute=row.bbx_seller_attribute,
+        variant_count=row.variant_count,
+        has_main_image_video=row.has_main_image_video,
+        is_climate_pledge_friendly=row.is_climate_pledge_friendly,
+        has_brand_store=row.has_brand_store,
+        seller_country_region=row.seller_country_region,
         is_amazon=row.is_amazon,
         is_new_90d=row.is_new_90d,
+        extracted_dimensions=extracted_dimensions,
+        manual_dimensions=manual_dimensions,
+        effective_dimensions=effective_dimensions,
     )

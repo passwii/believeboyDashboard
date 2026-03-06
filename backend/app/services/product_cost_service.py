@@ -15,6 +15,22 @@ from app.schemas.product_cost import ProductCostCreate, ProductCostUpdate
 DECIMAL_ZERO = Decimal('0')
 COST_DECIMAL_QUANT = Decimal('0.01')
 DEFAULT_BLF_BASIC_INFO_PATH = Path(__file__).resolve().parents[3] / 'Docs' / 'ModelFiles' / 'BLF_Basic_Info.csv'
+COUNTRY_ALIASES = {
+    'US': 'US',
+    'USA': 'US',
+    '美国': 'US',
+    '美国站': 'US',
+    'DE': 'DE',
+    'GERMANY': 'DE',
+    '德国': 'DE',
+    '德国站': 'DE',
+    'UK': 'UK',
+    'GB': 'UK',
+    'UNITED KINGDOM': 'UK',
+    '英国': 'UK',
+    '英国站': 'UK',
+}
+ALLOWED_COUNTRIES = {'US', 'DE', 'UK'}
 
 
 def list_projects(db: Session) -> list[dict[str, str]]:
@@ -28,6 +44,7 @@ def list_product_costs(
     project_name: str | None,
     sku: str | None,
     asin: str | None,
+    country: str | None,
     is_active: bool | None,
     page: int,
     page_size: int,
@@ -41,6 +58,8 @@ def list_product_costs(
         stmt = stmt.where(ProductCost.sku.ilike(f'%{sku}%'))
     if asin:
         stmt = stmt.where(ProductCost.asin.ilike(f'%{asin}%'))
+    if country:
+        stmt = stmt.where(ProductCost.country == _normalize_country(country))
     if isinstance(is_active, bool):
         stmt = stmt.where(ProductCost.is_active.is_(is_active))
 
@@ -64,6 +83,7 @@ def list_product_costs_all(
     project_name: str | None,
     sku: str | None,
     asin: str | None,
+    country: str | None,
     is_active: bool | None = None,
 ) -> list[ProductCost]:
     stmt: Select = select(ProductCost)
@@ -74,6 +94,8 @@ def list_product_costs_all(
         stmt = stmt.where(ProductCost.sku.ilike(f'%{sku}%'))
     if asin:
         stmt = stmt.where(ProductCost.asin.ilike(f'%{asin}%'))
+    if country:
+        stmt = stmt.where(ProductCost.country == _normalize_country(country))
     if isinstance(is_active, bool):
         stmt = stmt.where(ProductCost.is_active.is_(is_active))
 
@@ -109,6 +131,17 @@ def _normalize_sort_order(value: int | str | None) -> int | None:
     if parsed < 1:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='sort_order must be >= 1')
     return parsed
+
+
+def _normalize_country(value: str | None) -> str:
+    normalized = (value or '').strip().upper()
+    if not normalized:
+        return 'US'
+    mapped = COUNTRY_ALIASES.get(normalized, normalized)
+    if mapped not in ALLOWED_COUNTRIES:
+        allowed = ', '.join(sorted(ALLOWED_COUNTRIES))
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f'country must be one of: {allowed}')
+    return mapped
 
 
 def _next_sort_order_for_project(db: Session, project_name: str) -> int:
@@ -147,6 +180,7 @@ def _normalize_item(item: ProductCostCreate, source_file: str | None = None) -> 
         'first_leg_unit_cost': _normalize_cost(item.first_leg_unit_cost, 'first_leg_unit_cost'),
         'fob_unit_cost': _normalize_cost(item.fob_unit_cost, 'fob_unit_cost'),
         'currency': _normalize_text(item.currency or 'USD', 'currency'),
+        'country': _normalize_country(item.country),
         'sort_order': _normalize_sort_order(item.sort_order),
         'is_active': bool(item.is_active),
         'source_file': (source_file or item.source_file or '').strip() or None,
@@ -167,6 +201,7 @@ def upsert_product_cost(
                 ProductCost.project_name == normalized['project_name'],
                 ProductCost.sku == normalized['sku'],
                 ProductCost.asin == normalized['asin'],
+                ProductCost.country == normalized['country'],
             )
         )
         .scalars()
@@ -178,6 +213,7 @@ def upsert_product_cost(
         existing.first_leg_unit_cost = normalized['first_leg_unit_cost']
         existing.fob_unit_cost = normalized['fob_unit_cost']
         existing.currency = normalized['currency']
+        existing.country = str(normalized['country'])
         if normalized['sort_order'] is not None:
             existing.sort_order = int(normalized['sort_order'])
         existing.is_active = bool(normalized['is_active'])
@@ -215,6 +251,7 @@ def update_product_cost_by_id(
     first_leg_unit_cost = _normalize_cost(payload.first_leg_unit_cost, 'first_leg_unit_cost')
     fob_unit_cost = _normalize_cost(payload.fob_unit_cost, 'fob_unit_cost')
     currency = _normalize_text(payload.currency or 'USD', 'currency')
+    country = _normalize_country(payload.country)
     sort_order = _normalize_sort_order(payload.sort_order)
     normalized_source_file = (source_file or payload.source_file or '').strip() or None
 
@@ -224,6 +261,7 @@ def update_product_cost_by_id(
                 ProductCost.project_name == row.project_name,
                 ProductCost.sku == sku,
                 ProductCost.asin == asin,
+                ProductCost.country == country,
                 ProductCost.id != product_cost_id,
             )
         )
@@ -233,7 +271,7 @@ def update_product_cost_by_id(
     if duplicate:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail='更新后与现有记录重复（project_name + sku + asin）',
+            detail='更新后与现有记录重复（project_name + sku + asin + country）',
         )
 
     row.sku = sku
@@ -241,6 +279,7 @@ def update_product_cost_by_id(
     row.first_leg_unit_cost = first_leg_unit_cost
     row.fob_unit_cost = fob_unit_cost
     row.currency = currency
+    row.country = country
     if sort_order is not None:
         row.sort_order = sort_order
     row.is_active = bool(payload.is_active)
@@ -370,6 +409,7 @@ def parse_product_cost_csv(content: bytes) -> list[ProductCostCreate]:
                 first_leg_unit_cost=(normalized_row.get('头程单价') or '').strip() or 0,
                 fob_unit_cost=(normalized_row.get('FOB单价') or '').strip() or 0,
                 currency='USD',
+                country=(normalized_row.get('国家') or normalized_row.get('country') or 'US').strip() or 'US',
             )
         )
 

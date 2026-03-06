@@ -13,6 +13,16 @@ import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarRail } fr
 
 const navMain = [
   {
+    title: '工作台',
+    url: '#',
+    icon: <ClipboardList className="h-4 w-4" />,
+    items: [
+      { title: '工作日历', url: '#' },
+      { title: '运营工作台', url: '#' },
+      { title: '运营公告', url: '#' },
+    ],
+  },
+  {
     title: '运营导航',
     url: '#',
     icon: <LayoutDashboard className="h-4 w-4" />,
@@ -39,16 +49,6 @@ const navMain = [
       { title: 'SKU 成本表', url: '#' },
       { title: '项目进度表', url: '#' },
       { title: '利润测算表', url: '#' },
-    ],
-  },
-  {
-    title: '工作协作',
-    url: '#',
-    icon: <ClipboardList className="h-4 w-4" />,
-    items: [
-      { title: '工作日历', url: '#' },
-      { title: '运营工作台', url: '#' },
-      { title: '运营公告', url: '#' },
     ],
   },
 ]
@@ -109,6 +109,7 @@ const adminTools = [
       { title: '数据库状态', url: '/dashboard/system-management/data-management' },
       { title: '账号管理', url: '/dashboard/system-management/account-management' },
       { title: '佣金管理', url: '/dashboard/system-management/commission-overview' },
+      { title: '日志查看', url: '/dashboard/system-management/logs' },
     ],
   },
 ]

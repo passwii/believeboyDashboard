@@ -13,6 +13,7 @@ class CreateProductAnalysisReportRequest(BaseModel):
     payment_report_file_id: str = Field(min_length=1)
     ad_report_file_id: str = Field(min_length=1)
     inventory_report_file_id: str | None = None
+    country: str = 'US'
 
 
 class ProductAnalysisReportResponse(BaseModel):

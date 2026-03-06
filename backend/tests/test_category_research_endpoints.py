@@ -34,12 +34,19 @@ def _write_research_workbook(path: Path) -> None:
         '物流方式',
         '评分星级',
         '评价数量',
+        'BBX卖家属性',
+        '变体数量',
+        '主图视频',
+        '是否气候承诺友好标',
+        '是否做品牌旗舰店',
+        '国籍/地区',
+        'Blade Material',
     ]
     for index, header in enumerate(headers, start=1):
         ws.cell(2, index).value = header
 
-    row1 = [1, 'Saw A', 'B000TEST01', 'PARENT1', '99.99', 800, '79992', 'BrandA', 'Amazon', '2024-01-10', 420, '8.15', 'FBA', 4.6, 2100]
-    row2 = [2, 'Saw B', 'B000TEST02', 'PARENT2', '69.99', 250, '17497.5', 'BrandB', 'SellerX', '2025-12-01', 30, '5.60', 'FBM', 4.2, 120]
+    row1 = [1, 'Saw A', 'B000TEST01', 'PARENT1', '99.99', 800, '79992', 'BrandA', 'Amazon', '2024-01-10', 420, '8.15', 'FBA', 4.6, 2100, 'Amazon', 6, '是', '是', '是', 'CN', 'Bi-Metal']
+    row2 = [2, 'Saw B', 'B000TEST02', 'PARENT2', '69.99', 250, '17497.5', 'BrandB', 'SellerX', '2025-12-01', 30, '5.60', 'FBM', 4.2, 120, '--', 2, '否', '否', '否', 'US', 'HCS']
     for col, value in enumerate(row1, start=1):
         ws.cell(3, col).value = value
     for col, value in enumerate(row2, start=1):
@@ -135,19 +142,61 @@ def test_category_research_endpoints_happy_path(tmp_path: Path):
     overview_resp = client.get(
         f'/api/v1/category-research/datasets/{dataset_id}',
         headers={'X-API-Key': settings.api_key},
+        params={'price_band_standard': 'custom', 'price_band_breaks': '80,120'},
     )
     assert overview_resp.status_code == 200
     overview = overview_resp.json()
     assert overview['kpis']['sample_count'] == 2
     assert overview['dataset']['category_keyword_en'] == 'reciprocating saws'
+    assert 'advanced_metrics' in overview
+    assert 'market_concentration' in overview['advanced_metrics']
+    assert 'brand_monopoly' in overview['advanced_metrics']
+    assert 'seller_monopoly' in overview['advanced_metrics']
+    assert 'product_monopoly' in overview['advanced_metrics']
+    assert 'china_seller_competition' in overview['advanced_metrics']
+    assert 'market_growth' in overview['advanced_metrics']
+    assert 'seasonality' in overview['advanced_metrics']
+    assert 'review_research' in overview['advanced_metrics']
+    assert 'data_quality' in overview['advanced_metrics']
+    assert 'dimension_blocks' in overview['advanced_metrics']
+    assert 'metric_definitions' in overview['advanced_metrics']
+    assert 'action_recommendations' in overview['advanced_metrics']
+    assert 'signals' in overview['advanced_metrics']
+    assert overview['advanced_metrics']['price_band_standard'] == 'custom'
+    assert overview['advanced_metrics']['price_band_breaks'] == [80.0, 120.0]
+    assert [item['label'] for item in overview['fixed_price_bands']] == ['$0-79', '$80-119', '$120+']
 
     products_resp = client.get(
         f'/api/v1/category-research/datasets/{dataset_id}/products',
         headers={'X-API-Key': settings.api_key},
-        params={'page': 1, 'page_size': 20},
+        params={'page': 1, 'page_size': 20, 'price_band_standard': 'custom', 'price_band_breaks': '80,120'},
     )
     assert products_resp.status_code == 200
-    assert len(products_resp.json()['rows']) == 2
+    product_rows = products_resp.json()['rows']
+    assert len(product_rows) == 2
+    assert product_rows[0]['bbx_seller_attribute'] == 'Amazon'
+    assert product_rows[0]['variant_count'] == 6
+    assert product_rows[0]['has_main_image_video'] is True
+    assert product_rows[0]['is_climate_pledge_friendly'] is True
+    assert product_rows[0]['has_brand_store'] is True
+    assert product_rows[0]['seller_country_region'] == 'CN'
+    assert product_rows[0]['effective_dimensions'].get('blade_material') in {'Bi-Metal', 'HCS'}
+
+    manual_upsert_resp = client.post(
+        f'/api/v1/category-research/datasets/{dataset_id}/dimensions/manual-upsert',
+        headers={'X-API-Key': settings.api_key},
+        json={
+            'items': [
+                {
+                    'product_row_id': product_rows[0]['id'],
+                    'key': 'blade_material',
+                    'value': 'Carbide',
+                }
+            ]
+        },
+    )
+    assert manual_upsert_resp.status_code == 200
+    assert manual_upsert_resp.json()['updated_count'] == 1
 
     trend_resp = client.get(
         f'/api/v1/category-research/datasets/{dataset_id}/trend',
@@ -156,5 +205,36 @@ def test_category_research_endpoints_happy_path(tmp_path: Path):
     )
     assert trend_resp.status_code == 200
     assert len(trend_resp.json()['points']) == 24
+
+    market_trend_resp = client.get(
+        f'/api/v1/category-research/datasets/{dataset_id}/market-trend',
+        headers={'X-API-Key': settings.api_key},
+        params={'months': 24},
+    )
+    assert market_trend_resp.status_code == 200
+    market_points = market_trend_resp.json()['points']
+    assert len(market_points) == 24
+    assert market_points[0]['year_month'] == '2024-02'
+    assert market_points[-1]['year_month'] == '2026-01'
+    jan_2026 = next(item for item in market_points if item['year_month'] == '2026-01')
+    assert jan_2026['monthly_sales'] == 150
+
+    recompute_one_resp = client.post(
+        f'/api/v1/category-research/datasets/{dataset_id}/recompute',
+        headers={'X-API-Key': settings.api_key},
+    )
+    assert recompute_one_resp.status_code == 200
+    assert recompute_one_resp.json()['dataset_id'] == dataset_id
+
+    recompute_batch_resp = client.post(
+        '/api/v1/category-research/datasets/recompute',
+        headers={'X-API-Key': settings.api_key},
+        params={'marketplace': 'US', 'category_keyword_en': 'reciprocating saws', 'include_history': True},
+    )
+    assert recompute_batch_resp.status_code == 200
+    batch_payload = recompute_batch_resp.json()
+    assert batch_payload['matched'] >= 1
+    assert batch_payload['recomputed'] >= 1
+    assert dataset_id in batch_payload['dataset_ids']
 
     app.dependency_overrides.clear()

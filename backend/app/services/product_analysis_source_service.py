@@ -37,6 +37,21 @@ SCOPE_EXCLUDED_UNMAPPED = 'excluded_unmapped'
 _SQLITE_TABLES_READY = False
 _SQLITE_TABLES_LOCK = Lock()
 PT_TIMEZONE = ZoneInfo('America/Los_Angeles')
+COUNTRY_ALIASES = {
+    'US': 'US',
+    'USA': 'US',
+    '美国': 'US',
+    '美国站': 'US',
+    'DE': 'DE',
+    'GERMANY': 'DE',
+    '德国': 'DE',
+    '德国站': 'DE',
+    'UK': 'UK',
+    'GB': 'UK',
+    'UNITED KINGDOM': 'UK',
+    '英国': 'UK',
+    '英国站': 'UK',
+}
 
 
 @dataclass
@@ -153,6 +168,7 @@ def list_weekly_product_analysis_from_details(
     db: Session,
     *,
     project_id: int,
+    country: str = 'US',
     start_date: date | None = None,
     end_date: date | None = None,
     current_only: bool = True,
@@ -161,7 +177,8 @@ def list_weekly_product_analysis_from_details(
     project = db.get(Project, project_id)
     if project is None:
         return []
-    known_skus, known_asins = _load_project_product_mapping(db, project.project_name)
+    normalized_country = _normalize_country(country)
+    known_skus, known_asins = _load_project_product_mapping(db, project.project_name, normalized_country)
     known_skus_ci = {value.lower() for value in known_skus}
     known_asins_ci = {value.lower() for value in known_asins}
     scope_filters = []
@@ -233,6 +250,7 @@ def persist_product_analysis_sources(
     project_name: str,
     report_start_date: str,
     report_end_date: str,
+    country: str = 'US',
     file_ids: dict[str, str],
     resolved_file_paths: dict[str, str],
     created_by: str | None = None,
@@ -247,7 +265,8 @@ def persist_product_analysis_sources(
     if start_date > end_date:
         raise ValueError('report_start_date cannot be greater than report_end_date')
 
-    known_skus, known_asins = _load_project_product_mapping(db, project.project_name)
+    normalized_country = _normalize_country(country)
+    known_skus, known_asins = _load_project_product_mapping(db, project.project_name, normalized_country)
     outcomes: list[SourcePersistOutcome] = []
     ordered_types = ['business_report', 'payment_report', 'ad_report', 'inventory_report']
 
@@ -933,11 +952,22 @@ def _is_counted_sales_status(status: str, purchase_date_pt: date, as_of_date_pt:
     return normalized == 'shipped'
 
 
-def _load_project_product_mapping(db: Session, project_name: str) -> tuple[set[str], set[str]]:
+def _normalize_country(value: str | None) -> str:
+    normalized = (value or '').strip().upper()
+    if not normalized:
+        return 'US'
+    mapped = COUNTRY_ALIASES.get(normalized, normalized)
+    if mapped not in {'US', 'DE', 'UK'}:
+        raise ValueError('country must be one of: US, DE, UK')
+    return mapped
+
+
+def _load_project_product_mapping(db: Session, project_name: str, country: str = 'US') -> tuple[set[str], set[str]]:
     rows = db.execute(
         select(ProductCost.sku, ProductCost.asin).where(
             ProductCost.project_name == project_name,
             ProductCost.is_active.is_(True),
+            ProductCost.country == _normalize_country(country),
         )
     ).all()
     known_skus = {_normalize_identity(value) for value, _ in rows if _normalize_identity(value)}

@@ -27,6 +27,7 @@ type ProductCostItem = {
   first_leg_unit_cost: number
   fob_unit_cost: number
   currency: string
+  country: string
   sort_order: number
   is_active: boolean
 }
@@ -49,6 +50,22 @@ const API_KEY = process.env.NEXT_PUBLIC_BACKEND_API_KEY ?? ''
 const REMOTE_FETCH_PAGE_SIZE = 200
 const PAGE_SIZE_OPTIONS = [20, 50, 100]
 const DEFAULT_PAGE_SIZE = 20
+const COUNTRY_OPTIONS = [
+  { value: 'US', label: '美国站 (US)' },
+  { value: 'DE', label: '德国站 (DE)' },
+  { value: 'UK', label: '英国站 (UK)' },
+] as const
+
+function normalizeCountry(raw: string): 'US' | 'DE' | 'UK' | null {
+  const normalized = raw.trim().toUpperCase()
+  if (!normalized) return null
+  if (normalized === 'US' || normalized === 'USA' || normalized === '美国' || normalized === '美国站') return 'US'
+  if (normalized === 'DE' || normalized === 'GERMANY' || normalized === '德国' || normalized === '德国站') return 'DE'
+  if (normalized === 'UK' || normalized === 'GB' || normalized === 'UNITED KINGDOM' || normalized === '英国' || normalized === '英国站') {
+    return 'UK'
+  }
+  return null
+}
 
 function authHeaders(): Record<string, string> {
   return API_KEY ? { 'X-API-Key': API_KEY } : {}
@@ -85,6 +102,7 @@ export default function SkuCostPage() {
   const [projectFilter, setProjectFilter] = useState('')
   const [skuFilter, setSkuFilter] = useState('')
   const [asinFilter, setAsinFilter] = useState('')
+  const [countryFilter, setCountryFilter] = useState<'all' | 'US' | 'DE' | 'UK'>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
 
   const [addDialogOpen, setAddDialogOpen] = useState(false)
@@ -97,6 +115,7 @@ export default function SkuCostPage() {
   const [editFirstLegCost, setEditFirstLegCost] = useState('')
   const [editFobCost, setEditFobCost] = useState('')
   const [editCurrency, setEditCurrency] = useState('USD')
+  const [editCountry, setEditCountry] = useState<'US' | 'DE' | 'UK'>('US')
   const [editSortOrder, setEditSortOrder] = useState('')
   const [editIsActive, setEditIsActive] = useState(true)
   const [moveSubmittingId, setMoveSubmittingId] = useState<number | null>(null)
@@ -113,10 +132,17 @@ export default function SkuCostPage() {
     return items.slice(start, end)
   }, [items, page, pageSize])
 
-  const fetchAllData = async (filters?: { project_name?: string; sku?: string; asin?: string; status?: 'all' | 'active' | 'inactive' }) => {
+  const fetchAllData = async (filters?: {
+    project_name?: string
+    sku?: string
+    asin?: string
+    country?: 'all' | 'US' | 'DE' | 'UK'
+    status?: 'all' | 'active' | 'inactive'
+  }) => {
     const projectValue = (filters?.project_name ?? projectFilter).trim()
     const skuValue = (filters?.sku ?? skuFilter).trim()
     const asinValue = (filters?.asin ?? asinFilter).trim()
+    const countryValue = filters?.country ?? countryFilter
     const statusValue = filters?.status ?? statusFilter
 
     const allItems: ProductCostItem[] = []
@@ -130,6 +156,7 @@ export default function SkuCostPage() {
       if (projectValue) search.set('project_name', projectValue)
       if (skuValue) search.set('sku', skuValue)
       if (asinValue) search.set('asin', asinValue)
+      if (countryValue !== 'all') search.set('country', countryValue)
       if (statusValue === 'active') search.set('is_active', 'true')
       if (statusValue === 'inactive') search.set('is_active', 'false')
 
@@ -155,12 +182,19 @@ export default function SkuCostPage() {
       projectValue,
       skuValue,
       asinValue,
+      countryValue,
       statusValue,
     }
   }
 
   const loadData = async (
-    filters?: { project_name?: string; sku?: string; asin?: string; status?: 'all' | 'active' | 'inactive' },
+    filters?: {
+      project_name?: string
+      sku?: string
+      asin?: string
+      country?: 'all' | 'US' | 'DE' | 'UK'
+      status?: 'all' | 'active' | 'inactive'
+    },
     options?: { resetPage?: boolean }
   ) => {
     setLoading(true)
@@ -235,6 +269,7 @@ export default function SkuCostPage() {
     setProjectFilter('')
     setSkuFilter('')
     setAsinFilter('')
+    setCountryFilter('all')
     setStatusFilter('all')
     setItems([])
     setPage(1)
@@ -251,6 +286,7 @@ export default function SkuCostPage() {
         project_name: value,
         sku: skuFilter,
         asin: asinFilter,
+        country: countryFilter,
         status: statusFilter,
       },
       { resetPage: true }
@@ -265,7 +301,7 @@ export default function SkuCostPage() {
       .filter(Boolean)
 
     if (lines.length === 0) {
-      setError('请先粘贴数据（每行 5 列：project_name, SKU, ASIN, 头程单价, FOB单价）')
+      setError('请先粘贴数据（每行至少 5 列：project_name, SKU, ASIN, 头程单价, FOB单价）')
       return
     }
 
@@ -276,17 +312,18 @@ export default function SkuCostPage() {
       first_leg_unit_cost: number
       fob_unit_cost: number
       currency: string
+      country: 'US' | 'DE' | 'UK'
     }> = []
     const parseErrors: string[] = []
 
     lines.forEach((line, index) => {
       const cols = line.split(',').map((col) => col.trim())
       if (cols.length < 5) {
-        parseErrors.push(`第 ${index + 1} 行列数不足（需要 5 列）`)
+        parseErrors.push(`第 ${index + 1} 行列数不足（至少需要 5 列）`)
         return
       }
 
-      const [project_name, sku, asin, firstLegRaw, fobRaw, currencyRaw] = cols
+      const [project_name, sku, asin, firstLegRaw, fobRaw, extra1, extra2] = cols
       if (!project_name || !sku || !asin) {
         parseErrors.push(`第 ${index + 1} 行 project_name/SKU/ASIN 不能为空`)
         return
@@ -299,13 +336,33 @@ export default function SkuCostPage() {
         return
       }
 
+      let currency = 'USD'
+      let country: 'US' | 'DE' | 'UK' = 'US'
+      if (cols.length === 6) {
+        const maybeCountry = normalizeCountry(extra1 || '')
+        if (maybeCountry) {
+          country = maybeCountry
+        } else {
+          currency = (extra1 || 'USD').trim() || 'USD'
+        }
+      } else if (cols.length >= 7) {
+        currency = (extra1 || 'USD').trim() || 'USD'
+        const parsedCountry = normalizeCountry(extra2 || '')
+        if (!parsedCountry) {
+          parseErrors.push(`第 ${index + 1} 行国家仅支持 US/DE/UK（或 美国站/德国站/英国站）`)
+          return
+        }
+        country = parsedCountry
+      }
+
       parsedItems.push({
         project_name,
         sku,
         asin,
         first_leg_unit_cost: firstLeg,
         fob_unit_cost: fob,
-        currency: currencyRaw || 'USD',
+        currency,
+        country,
       })
     })
 
@@ -365,6 +422,7 @@ export default function SkuCostPage() {
     setEditFirstLegCost(String(row.first_leg_unit_cost))
     setEditFobCost(String(row.fob_unit_cost))
     setEditCurrency(row.currency || 'USD')
+    setEditCountry((normalizeCountry(row.country || 'US') ?? 'US') as 'US' | 'DE' | 'UK')
     setEditSortOrder(String(row.sort_order))
     setEditIsActive(Boolean(row.is_active))
     setError(null)
@@ -380,6 +438,7 @@ export default function SkuCostPage() {
     const sku = editSku.trim()
     const asin = editAsin.trim()
     const currency = editCurrency.trim() || 'USD'
+    const country = editCountry
     const isActive = Boolean(editIsActive)
     const firstLeg = Number(editFirstLegCost)
     const fob = Number(editFobCost)
@@ -414,6 +473,7 @@ export default function SkuCostPage() {
           first_leg_unit_cost: firstLeg,
           fob_unit_cost: fob,
           currency,
+          country,
           sort_order: sortOrder,
           is_active: isActive,
           source_file: 'manual_inline_edit',
@@ -488,7 +548,7 @@ export default function SkuCostPage() {
                   <DialogHeader>
                     <DialogTitle>粘贴文本导入 SKU 成本</DialogTitle>
                     <DialogDescription>
-                      每行格式：project_name,SKU,ASIN,头程单价,FOB单价。若主键已存在（project_name + sku + asin），会自动更新。
+                      每行格式：project_name,SKU,ASIN,头程单价,FOB单价[,币种/国家][,国家]。国家可填 US/DE/UK（或美国站/德国站/英国站）；若主键已存在（project_name + sku + asin + country），会自动更新。
                     </DialogDescription>
                   </DialogHeader>
                   <div className="grid gap-2">
@@ -498,7 +558,7 @@ export default function SkuCostPage() {
                     <textarea
                       id="sku-paste-input"
                       className="min-h-56 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                      placeholder="创酷,JDB-M35-13PCS,B0G1SM4P52,0.32,2.57"
+                      placeholder="创酷,JDB-M35-13PCS,B0G1SM4P52,0.32,2.57,US"
                       value={addText}
                       onChange={(e) => setAddText(e.target.value)}
                       disabled={addSubmitting}
@@ -523,9 +583,9 @@ export default function SkuCostPage() {
           <div className="space-y-3">
             <div className="space-y-1">
               <h2 className="text-base font-semibold text-foreground">筛选条件</h2>
-              <p className="text-sm text-muted-foreground">按项目名、SKU、ASIN 查询。</p>
+              <p className="text-sm text-muted-foreground">按项目名、SKU、ASIN、国家站点查询。</p>
             </div>
-            <div className="grid gap-4 md:grid-cols-6">
+            <div className="grid gap-4 md:grid-cols-7">
               <div className="grid gap-2">
                 <label className="text-sm font-medium text-foreground" htmlFor="filter-project">
                   项目名
@@ -562,6 +622,22 @@ export default function SkuCostPage() {
                   ASIN
                 </label>
                 <Input id="filter-asin" placeholder="输入 ASIN" value={asinFilter} onChange={(e) => setAsinFilter(e.target.value)} />
+              </div>
+              <div className="grid gap-2">
+                <label className="text-sm font-medium text-foreground">国家站点</label>
+                <Select value={countryFilter} onValueChange={(value) => setCountryFilter(value as 'all' | 'US' | 'DE' | 'UK')}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="全部国家站点" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全部</SelectItem>
+                    {COUNTRY_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="grid gap-2">
                 <label className="text-sm font-medium text-foreground">状态</label>
@@ -638,6 +714,7 @@ export default function SkuCostPage() {
                   <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">ASIN</th>
                   <th className="sticky top-0 z-10 h-12 bg-background px-4 text-right align-middle font-medium text-muted-foreground">头程单价</th>
                   <th className="sticky top-0 z-10 h-12 bg-background px-4 text-right align-middle font-medium text-muted-foreground">FOB单价</th>
+                  <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">国家站点</th>
                   <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">币种</th>
                   <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">状态</th>
                   <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">操作</th>
@@ -667,6 +744,9 @@ export default function SkuCostPage() {
                         </td>
                         <td className="p-4 align-middle">
                           <Skeleton className="ml-auto h-4 w-16" />
+                        </td>
+                        <td className="p-4 align-middle">
+                          <Skeleton className="h-4 w-16" />
                         </td>
                         <td className="p-4 align-middle">
                           <Skeleton className="h-4 w-12" />
@@ -735,6 +815,24 @@ export default function SkuCostPage() {
                         />
                       ) : (
                         row.fob_unit_cost.toFixed(2)
+                      )}
+                    </td>
+                    <td className="p-4 align-middle">
+                      {editingId === row.id ? (
+                        <Select value={editCountry} onValueChange={(value) => setEditCountry(value as 'US' | 'DE' | 'UK')}>
+                          <SelectTrigger className="h-8 w-36">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {COUNTRY_OPTIONS.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        COUNTRY_OPTIONS.find((option) => option.value === row.country)?.label || row.country
                       )}
                     </td>
                     <td className="p-4 align-middle">
@@ -811,7 +909,7 @@ export default function SkuCostPage() {
 
                 {!loading && pagedItems.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="py-12 text-center text-sm text-muted-foreground">
+                    <td colSpan={10} className="py-12 text-center text-sm text-muted-foreground">
                       {projectFilter ? '当前筛选条件下暂无数据，请调整筛选或导入新记录。' : '请先在筛选条件中选择项目名，再读取并展示数据。'}
                     </td>
                   </tr>

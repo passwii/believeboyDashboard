@@ -16,6 +16,31 @@ from app.services import analysis_report_runtime_service, upload_service
 router = APIRouter(dependencies=[Depends(protected)])
 
 
+def _normalize_country(value: str | None) -> str:
+    normalized = (value or '').strip().upper()
+    if not normalized:
+        return 'US'
+    aliases = {
+        'US': 'US',
+        'USA': 'US',
+        '美国': 'US',
+        '美国站': 'US',
+        'DE': 'DE',
+        'GERMANY': 'DE',
+        '德国': 'DE',
+        '德国站': 'DE',
+        'UK': 'UK',
+        'GB': 'UK',
+        'UNITED KINGDOM': 'UK',
+        '英国': 'UK',
+        '英国站': 'UK',
+    }
+    mapped = aliases.get(normalized, normalized)
+    if mapped not in {'US', 'DE', 'UK'}:
+        raise HTTPException(status_code=400, detail='country must be one of: US, DE, UK')
+    return mapped
+
+
 @router.post('/product-analysis-reports', response_model=ProductAnalysisReportResponse)
 def create_product_analysis_report(
     data: CreateProductAnalysisReportRequest,
@@ -35,6 +60,7 @@ def create_product_analysis_report(
         raise HTTPException(status_code=400, detail='report_start_date cannot be greater than report_end_date')
 
     project_name = data.project_name.strip()
+    country = _normalize_country(data.country)
     file_ids = {
         'business_report': data.business_report_file_id,
         'payment_report': data.payment_report_file_id,
@@ -61,6 +87,7 @@ def create_product_analysis_report(
             'project_name': project_name,
             'report_start_date': start_date,
             'report_end_date': end_date,
+            'country': country,
             'file_ids': file_ids,
             'resolved_file_paths': resolved_file_paths,
             'operator': _operator,

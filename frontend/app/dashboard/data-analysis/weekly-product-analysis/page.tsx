@@ -51,6 +51,7 @@ type WeeklySummaryItem = {
 }
 
 type WeeklyViewTab = 'summary' | 'details'
+type CountryOption = 'US' | 'DE' | 'UK'
 
 type PT1DetailsResponse = {
   pt1_id: number
@@ -71,13 +72,19 @@ const PROJECTS_CACHE_TTL_MS = 10 * 60 * 1000
 const WEEKLY_DATA_CACHE_TTL_MS = 3 * 60 * 1000
 const WEEKLY_DETAILS_CACHE_TTL_MS = 5 * 60 * 1000
 
-function weeklyDataCacheKey(projectId: number, startDate: string, endDate: string): string {
-  return `weekly-analysis:data:${projectId}:${startDate || 'none'}:${endDate || 'none'}`
+function weeklyDataCacheKey(projectId: number, country: CountryOption, startDate: string, endDate: string): string {
+  return `weekly-analysis:data:${projectId}:${country}:${startDate || 'none'}:${endDate || 'none'}`
 }
 
-function weeklyDetailsCacheKey(pt1Id: number): string {
-  return `weekly-analysis:details:${pt1Id}`
+function weeklyDetailsCacheKey(pt1Id: number, country: CountryOption): string {
+  return `weekly-analysis:details:${pt1Id}:${country}`
 }
+
+const COUNTRY_OPTIONS: Array<{ value: CountryOption; label: string }> = [
+  { value: 'US', label: '美国站 (US)' },
+  { value: 'DE', label: '德国站 (DE)' },
+  { value: 'UK', label: '英国站 (UK)' },
+]
 
 const SUMMARY_COLUMN_GROUPS = [
   {
@@ -483,6 +490,7 @@ export default function WeeklyProductAnalysisPage() {
   const [projectLoadError, setProjectLoadError] = useState<string | null>(null)
 
   const [projectId, setProjectId] = useState('')
+  const [country, setCountry] = useState<CountryOption>('US')
   const [startDate, setStartDate] = useState(oneYearAgoDateString())
   const [endDate, setEndDate] = useState(lastSundayDateString())
 
@@ -552,7 +560,7 @@ export default function WeeklyProductAnalysisPage() {
     }
 
     const useCache = !options?.force
-    const cacheKey = weeklyDataCacheKey(parsedProjectId, startDate, endDate)
+    const cacheKey = weeklyDataCacheKey(parsedProjectId, country, startDate, endDate)
     const cachedPayload = useCache
       ? getClientCache<WeeklyDataRow[]>(cacheKey, WEEKLY_DATA_CACHE_TTL_MS)
       : null
@@ -573,6 +581,7 @@ export default function WeeklyProductAnalysisPage() {
     try {
       const search = new URLSearchParams({
         project_id: String(parsedProjectId),
+        country,
       })
       if (startDate) search.set('start_date', startDate)
       if (endDate) search.set('end_date', endDate)
@@ -600,7 +609,7 @@ export default function WeeklyProductAnalysisPage() {
         setLoading(false)
       }
     }
-  }, [projectId, startDate, endDate])
+  }, [projectId, country, startDate, endDate])
 
   const loadWeeklyDetails = useCallback(async (options?: { force?: boolean }) => {
     const pt1Id = Number(selectedWeekId)
@@ -611,7 +620,7 @@ export default function WeeklyProductAnalysisPage() {
     }
 
     const useCache = !options?.force
-    const cacheKey = weeklyDetailsCacheKey(pt1Id)
+    const cacheKey = weeklyDetailsCacheKey(pt1Id, country)
     const cachedRows = useCache
       ? getClientCache<Array<Record<string, unknown>>>(cacheKey, WEEKLY_DETAILS_CACHE_TTL_MS)
       : null
@@ -634,6 +643,7 @@ export default function WeeklyProductAnalysisPage() {
         const search = new URLSearchParams({
           page: String(page),
           page_size: '1000',
+          country,
         })
         const response = await fetch(`${API_BASE}/api/v1/product-analysis/pt1/${pt1Id}/details?${search.toString()}`, {
           cache: 'no-store',
@@ -659,7 +669,7 @@ export default function WeeklyProductAnalysisPage() {
     } finally {
       setDetailsLoading(false)
     }
-  }, [selectedWeekId])
+  }, [selectedWeekId, country])
 
   useEffect(() => {
     void loadProjects()
@@ -845,6 +855,21 @@ export default function WeeklyProductAnalysisPage() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="min-w-[170px] space-y-1.5">
+                <label className="text-xs text-muted-foreground">国家站点</label>
+                <Select value={country} onValueChange={(value) => setCountry(value as CountryOption)}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="请选择国家站点" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COUNTRY_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-1.5">
                 <label htmlFor="weekly_start_date" className="text-xs text-muted-foreground">开始日期</label>
                 <Input id="weekly_start_date" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-9 w-[170px]" />
@@ -968,27 +993,27 @@ export default function WeeklyProductAnalysisPage() {
                 <Skeleton className="h-[320px] w-full" />
               ) : trendPoints.length > 0 ? (
                 <ChartContainer config={chartConfig} className="aspect-auto h-[320px] w-full">
-                  <AreaChart data={trendPoints} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <AreaChart accessibilityLayer data={trendPoints} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                     <defs>
                       <linearGradient id="fillSales" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="hsl(var(--chart-2))" stopOpacity={0.7} />
-                        <stop offset="95%" stopColor="hsl(var(--chart-2))" stopOpacity={0.05} />
+                        <stop offset="5%" stopColor="var(--color-sales_amount)" stopOpacity={0.7} />
+                        <stop offset="95%" stopColor="var(--color-sales_amount)" stopOpacity={0.05} />
                       </linearGradient>
                       <linearGradient id="fillUnits" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.7} />
-                        <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0.05} />
+                        <stop offset="5%" stopColor="var(--color-units_sold)" stopOpacity={0.7} />
+                        <stop offset="95%" stopColor="var(--color-units_sold)" stopOpacity={0.05} />
                       </linearGradient>
                       <linearGradient id="fillAd" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="hsl(var(--destructive))" stopOpacity={0.7} />
-                        <stop offset="95%" stopColor="hsl(var(--destructive))" stopOpacity={0.05} />
+                        <stop offset="5%" stopColor="var(--color-ad_spend)" stopOpacity={0.7} />
+                        <stop offset="95%" stopColor="var(--color-ad_spend)" stopOpacity={0.05} />
                       </linearGradient>
                       <linearGradient id="fillAdClicks" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="hsl(var(--chart-4))" stopOpacity={0.5} />
-                        <stop offset="95%" stopColor="hsl(var(--chart-4))" stopOpacity={0.05} />
+                        <stop offset="5%" stopColor="var(--color-ad_clicks)" stopOpacity={0.5} />
+                        <stop offset="95%" stopColor="var(--color-ad_clicks)" stopOpacity={0.05} />
                       </linearGradient>
                       <linearGradient id="fillOrganicTraffic" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="hsl(var(--chart-5))" stopOpacity={0.5} />
-                        <stop offset="95%" stopColor="hsl(var(--chart-5))" stopOpacity={0.05} />
+                        <stop offset="5%" stopColor="var(--color-organic_traffic)" stopOpacity={0.5} />
+                        <stop offset="95%" stopColor="var(--color-organic_traffic)" stopOpacity={0.05} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid vertical={false} stroke="hsl(var(--border))" strokeOpacity={0.5} />
@@ -1039,7 +1064,7 @@ export default function WeeklyProductAnalysisPage() {
                       <Area
                         type="monotone"
                         dataKey="sales_amount"
-                        stroke="hsl(var(--chart-2))"
+                        stroke="var(--color-sales_amount)"
                         fill="url(#fillSales)"
                         strokeWidth={2}
                         dot={false}
@@ -1050,7 +1075,7 @@ export default function WeeklyProductAnalysisPage() {
                       <Area
                         type="monotone"
                         dataKey="units_sold"
-                        stroke="hsl(var(--primary))"
+                        stroke="var(--color-units_sold)"
                         fill="url(#fillUnits)"
                         strokeWidth={2}
                         dot={false}
@@ -1061,7 +1086,7 @@ export default function WeeklyProductAnalysisPage() {
                       <Area
                         type="monotone"
                         dataKey="ad_spend"
-                        stroke="hsl(var(--destructive))"
+                        stroke="var(--color-ad_spend)"
                         fill="url(#fillAd)"
                         strokeWidth={2}
                         dot={false}
@@ -1072,7 +1097,7 @@ export default function WeeklyProductAnalysisPage() {
                       <Area
                         type="monotone"
                         dataKey="ad_clicks"
-                        stroke="hsl(var(--chart-4))"
+                        stroke="var(--color-ad_clicks)"
                         fill="url(#fillAdClicks)"
                         strokeWidth={2}
                         dot={false}
@@ -1083,7 +1108,7 @@ export default function WeeklyProductAnalysisPage() {
                       <Area
                         type="monotone"
                         dataKey="organic_traffic"
-                        stroke="hsl(var(--chart-5))"
+                        stroke="var(--color-organic_traffic)"
                         fill="url(#fillOrganicTraffic)"
                         strokeWidth={2}
                         dot={false}

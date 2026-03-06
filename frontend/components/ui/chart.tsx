@@ -192,9 +192,14 @@ const ChartTooltipContent = React.forwardRef<
               const itemConfig = getPayloadConfigFromPayload(config, item, key)
               const indicatorColor = color || item.payload.fill || item.color
 
+              const itemValue =
+                item.value !== undefined && item.value !== null
+                  ? item.value
+                  : null
+
               return (
                 <div
-                  key={item.dataKey}
+                  key={`${item.dataKey ?? item.name ?? "value"}-${index}`}
                   className={cn(
                     "flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5 [&>svg]:text-muted-foreground",
                     indicator === "dot" && "items-center"
@@ -240,9 +245,11 @@ const ChartTooltipContent = React.forwardRef<
                             {itemConfig?.label || item.name}
                           </span>
                         </div>
-                        {item.value && (
+                        {itemValue !== null && (
                           <span className="font-mono font-medium tabular-nums text-foreground">
-                            {item.value.toLocaleString()}
+                            {typeof itemValue === "number"
+                              ? itemValue.toLocaleString()
+                              : String(itemValue)}
                           </span>
                         )}
                       </div>

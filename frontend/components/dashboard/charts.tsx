@@ -105,29 +105,29 @@ export function VisitorsChart() {
           config={chartConfig}
           className="aspect-auto h-[300px] w-full"
         >
-          <AreaChart data={filteredData}>
+          <AreaChart accessibilityLayer data={filteredData}>
             <defs>
               <linearGradient id="fillVisitors" x1="0" y1="0" x2="0" y2="1">
                 <stop
                   offset="5%"
-                  stopColor="hsl(var(--primary))"
+                  stopColor="var(--color-visitors)"
                   stopOpacity={0.8}
                 />
                 <stop
                   offset="95%"
-                  stopColor="hsl(var(--primary))"
+                  stopColor="var(--color-visitors)"
                   stopOpacity={0.1}
                 />
               </linearGradient>
               <linearGradient id="fillPageViews" x1="0" y1="0" x2="0" y2="1">
                 <stop
                   offset="5%"
-                  stopColor="hsl(var(--chart-2))"
+                  stopColor="var(--color-pageViews)"
                   stopOpacity={0.8}
                 />
                 <stop
                   offset="95%"
-                  stopColor="hsl(var(--chart-2))"
+                  stopColor="var(--color-pageViews)"
                   stopOpacity={0.1}
                 />
               </linearGradient>
@@ -171,14 +171,14 @@ export function VisitorsChart() {
               dataKey="pageViews"
               type="natural"
               fill="url(#fillPageViews)"
-              stroke="hsl(var(--chart-2))"
+              stroke="var(--color-pageViews)"
               stackId="a"
             />
             <Area
               dataKey="visitors"
               type="natural"
               fill="url(#fillVisitors)"
-              stroke="hsl(var(--primary))"
+              stroke="var(--color-visitors)"
               stackId="a"
             />
             <ChartLegend content={<ChartLegendContent />} />

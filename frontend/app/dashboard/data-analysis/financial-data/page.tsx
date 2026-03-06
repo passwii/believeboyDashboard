@@ -716,15 +716,15 @@ export default function FinancialDataPage() {
                 <Skeleton className="h-[320px] w-full" />
               ) : trendPoints.length > 0 ? (
                 <ChartContainer config={chartConfig} className="aspect-auto h-[320px] w-full">
-                  <AreaChart data={trendPoints} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <AreaChart accessibilityLayer data={trendPoints} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                     <defs>
                       <linearGradient id="fillSales" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="hsl(var(--chart-2))" stopOpacity={0.7} />
-                        <stop offset="95%" stopColor="hsl(var(--chart-2))" stopOpacity={0.05} />
+                        <stop offset="5%" stopColor="var(--color-income_sales)" stopOpacity={0.7} />
+                        <stop offset="95%" stopColor="var(--color-income_sales)" stopOpacity={0.05} />
                       </linearGradient>
                       <linearGradient id="fillRefund" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="hsl(var(--destructive))" stopOpacity={0.7} />
-                        <stop offset="95%" stopColor="hsl(var(--destructive))" stopOpacity={0.05} />
+                        <stop offset="5%" stopColor="var(--color-income_refund)" stopOpacity={0.7} />
+                        <stop offset="95%" stopColor="var(--color-income_refund)" stopOpacity={0.05} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid vertical={false} stroke="hsl(var(--border))" strokeOpacity={0.5} />
@@ -771,7 +771,7 @@ export default function FinancialDataPage() {
                       <Area
                         type="monotone"
                         dataKey="income_refund"
-                        stroke="hsl(var(--destructive))"
+                        stroke="var(--color-income_refund)"
                         fill="url(#fillRefund)"
                         strokeWidth={2}
                         dot={false}
@@ -782,7 +782,7 @@ export default function FinancialDataPage() {
                       <Area
                         type="monotone"
                         dataKey="income_sales"
-                        stroke="hsl(var(--chart-2))"
+                        stroke="var(--color-income_sales)"
                         fill="url(#fillSales)"
                         strokeWidth={2}
                         dot={false}
