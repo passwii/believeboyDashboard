@@ -43,7 +43,7 @@ export default function DashboardLayout({
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset className="min-w-0 overflow-x-hidden">
+      <SidebarInset className="min-w-0 overflow-x-clip">
         <header className="sticky top-0 z-20 border-b border-border/80 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/70">
           <div className="flex h-[4.5rem] items-center gap-2 px-4 md:h-20 md:px-6">
             <SidebarTrigger className="-ml-1" />
@@ -63,7 +63,7 @@ export default function DashboardLayout({
             </div>
           </div>
         </header>
-        <main className="dashboard-full-width relative min-w-0 flex-1 overflow-x-hidden p-4 md:p-6 lg:p-8">
+        <main className="dashboard-full-width relative min-w-0 flex-1 overflow-x-clip p-4 md:p-6 lg:p-8">
           {children}
         </main>
       </SidebarInset>

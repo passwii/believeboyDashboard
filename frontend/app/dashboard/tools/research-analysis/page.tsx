@@ -26,7 +26,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { Database, Lightbulb, Loader2, RefreshCw, TrendingUp, Upload } from 'lucide-react'
+import { ArrowRight, ChevronDown, Database, Lightbulb, Loader2, RefreshCw, ShieldAlert, Sparkles, TrendingUp, Upload } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 import { Badge } from '@/components/ui/badge'
@@ -294,12 +294,32 @@ type CategoryResearchMarketTrendPayload = {
 type ViewTab = 'overview' | 'market' | 'brand' | 'seller' | 'review' | 'price'
 type WorkspaceTab = 'research' | 'analysis'
 type AlertLevel = 'high' | 'medium' | 'low'
+type AnalysisSection = {
+  key: ViewTab
+  label: string
+  prompt: string
+}
 
 type MetricItem = {
   label: string
   value: ReactNode
   tone?: 'default' | 'positive' | 'negative'
   hint?: string
+}
+
+type SummaryCard = {
+  key: string
+  label: string
+  value: ReactNode
+  detail: string
+  level: AlertLevel
+  icon: ReactNode
+}
+
+type ContextBadge = {
+  key: string
+  label: string
+  value: string
 }
 
 type OverviewRadarDatum = {
@@ -387,6 +407,15 @@ const priceChartConfig = {
   count: { label: '样本数', color: DASHBOARD_PALETTE.gold },
   value: { label: '价格画像', color: DASHBOARD_PALETTE.indigo },
 } satisfies ChartConfig
+
+const ANALYSIS_SECTIONS: AnalysisSection[] = [
+  { key: 'overview', label: '总览', prompt: '先判断值不值得进入、风险大不大、下一步做什么。' },
+  { key: 'market', label: '市场', prompt: '回答市场是在扩张、波动还是回落，以及进入时机。' },
+  { key: 'brand', label: '品牌', prompt: '回答头部品牌是否已经过度集中并占满主力带。' },
+  { key: 'seller', label: '卖家', prompt: '回答竞争更偏渠道格局还是运营能力，以及第三方空间。' },
+  { key: 'review', label: '评论', prompt: '回答评论壁垒高不高，低评论层还有没有拿量空间。' },
+  { key: 'price', label: '价格', prompt: '回答销量集中在哪些价格带，以及价格是否主导决策。' },
+]
 
 function authHeaders(operator?: string, isAdmin = false): Record<string, string> {
   const headers: Record<string, string> = {}
@@ -1183,14 +1212,14 @@ function buildPriceChartModels(overview: CategoryResearchOverview | null) {
 
 function MetricGridCard({ title, description, items }: { title: string; description: string; items: MetricItem[] }) {
   return (
-    <Card>
+    <Card className="dashboard-surface border-border/70">
       <CardHeader>
         <CardTitle className="text-base">{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {items.map((item) => (
-          <div key={item.label} className="rounded-xl border border-border/70 bg-muted/20 p-3">
+          <div key={item.label} className="rounded-xl border border-border/70 bg-muted/[0.14] p-3 transition-colors duration-200 hover:border-primary/30 hover:bg-muted/[0.2]">
             <p className="text-xs text-muted-foreground">{item.label}</p>
             <p
               className={cn(
@@ -1225,7 +1254,7 @@ function InsightChartCard({
   contentClassName?: string
 }) {
   return (
-    <Card className={className}>
+    <Card className={cn('dashboard-surface border-border/70', className)}>
       <CardHeader>
         <CardTitle className="text-base">{title}</CardTitle>
         {description ? <CardDescription>{description}</CardDescription> : null}
@@ -1325,6 +1354,100 @@ function SingleRadialGauge({
   )
 }
 
+function ContextSummaryStrip({
+  items,
+  priceBandLabel,
+}: {
+  items: ContextBadge[]
+  priceBandLabel: string
+}) {
+  return (
+    <div className="rounded-2xl border border-border/80 bg-background/80 p-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/65">
+      <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-[repeat(6,minmax(0,1fr))_220px]">
+        {items.map((item) => (
+          <div key={item.key} className="rounded-xl border border-border/70 bg-muted/[0.12] px-3 py-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{item.label}</p>
+            <p className="mt-1 truncate text-sm font-semibold text-foreground">{item.value}</p>
+          </div>
+        ))}
+        <div className="rounded-xl border border-primary/20 bg-primary/[0.07] px-3 py-2">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-primary/80">价格带配置</p>
+          <p className="mt-1 text-sm font-semibold text-foreground">{priceBandLabel}</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DecisionSummaryCard({ item }: { item: SummaryCard }) {
+  return (
+    <div className="rounded-2xl border border-border/80 bg-background/85 p-4 shadow-sm transition-colors duration-200 hover:border-primary/25">
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <span className="rounded-lg border border-border/60 bg-muted/[0.18] p-2 text-muted-foreground">{item.icon}</span>
+            <span>{item.label}</span>
+          </div>
+          <p className="text-xl font-semibold tracking-tight text-foreground">{item.value}</p>
+        </div>
+        <Badge variant="outline" className={alertBadgeClass(item.level)}>
+          {item.level === 'high' ? '高关注' : item.level === 'medium' ? '需验证' : '较友好'}
+        </Badge>
+      </div>
+      <p className="mt-3 text-sm leading-6 text-muted-foreground">{item.detail}</p>
+    </div>
+  )
+}
+
+function AnalysisSectionNav({
+  activeSection,
+  onSelect,
+}: {
+  activeSection: ViewTab
+  onSelect: (section: ViewTab) => void
+}) {
+  return (
+    <div className="sticky top-[5.25rem] z-[19] -mx-1 rounded-2xl border border-border/80 bg-background/95 px-1 py-1 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/82 md:top-[6rem]">
+      <div className="overflow-x-auto">
+        <div className="flex min-w-max gap-1 md:grid md:min-w-0 md:grid-cols-6">
+          {ANALYSIS_SECTIONS.map((section) => (
+            <button
+              key={section.key}
+              type="button"
+              onClick={() => onSelect(section.key)}
+              className={cn(
+                'cursor-pointer whitespace-nowrap rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:w-full',
+                activeSection === section.key
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground'
+              )}
+              aria-current={activeSection === section.key ? 'page' : undefined}
+            >
+              {section.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function AnalysisSectionHeader({
+  section,
+}: {
+  section: AnalysisSection
+}) {
+  return (
+    <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Deep Dive</p>
+        <h2 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">{section.label}</h2>
+      </div>
+      <p className="max-w-2xl text-sm leading-6 text-muted-foreground">{section.prompt}</p>
+    </div>
+  )
+}
+
 export default function CategoryResearchPage() {
   const { data: session } = useSession()
   const isAdmin = Boolean(session?.user?.isAdmin)
@@ -1356,7 +1479,8 @@ export default function CategoryResearchPage() {
   const [analysisKeyword, setAnalysisKeyword] = useState('')
   const [keywordLoading, setKeywordLoading] = useState(false)
   const [availableKeywords, setAvailableKeywords] = useState<Array<{ keyword: string; nameZh: string }>>([])
-  const [tab, setTab] = useState<ViewTab>('overview')
+  const [activeSection, setActiveSection] = useState<ViewTab>('overview')
+  const [showAllDefinitions, setShowAllDefinitions] = useState(false)
 
   const loadKeywordOptions = useCallback(async () => {
     setKeywordLoading(true)
@@ -1552,7 +1676,7 @@ export default function CategoryResearchPage() {
       setSelectedDatasetId(payload.dataset_id)
       setAnalysisKeyword(normalizedKeyword)
       setWorkspaceTab('analysis')
-      setTab('overview')
+      setActiveSection('overview')
       setFormSuccess(`导入成功：版本 V${payload.version}，产品 ${payload.row_count_products} 条，趋势 ${payload.row_count_trends} 条`)
       await loadDatasets(normalizedKeyword)
       await loadKeywordOptions()
@@ -1648,20 +1772,103 @@ export default function CategoryResearchPage() {
   const sellerModels = useMemo(() => buildSellerChartModels(overview), [overview])
   const reviewModels = useMemo(() => buildReviewChartModels(overview), [overview])
   const priceModels = useMemo(() => buildPriceChartModels(overview), [overview])
-
-  const analysisHeaderBadges = useMemo(() => {
-    if (!overview) return []
+  const analysisContextItems = useMemo(() => {
+    if (!overview) return [] as ContextBadge[]
     return [
-      `关键词: ${overview.dataset.category_keyword_en}`,
-      `版本: V${overview.dataset.version}`,
-      `数据日期: ${formatDatasetDate(overview.dataset)}`,
-      `时效: ${formatDatasetFreshness(overview.dataset)}`,
-      `产品: ${formatNumber(overview.dataset.row_count_products)}`,
-      `趋势: ${formatNumber(overview.dataset.row_count_trends)}`,
+      { key: 'keyword', label: '调研关键词', value: overview.dataset.category_keyword_en },
+      { key: 'version', label: '版本', value: `V${overview.dataset.version}` },
+      { key: 'date', label: '数据日期', value: formatDatasetDate(overview.dataset) },
+      { key: 'freshness', label: '数据时效', value: formatDatasetFreshness(overview.dataset) },
+      { key: 'products', label: '样本产品', value: formatNumber(overview.dataset.row_count_products) },
+      { key: 'trends', label: '趋势样本', value: formatNumber(overview.dataset.row_count_trends) },
     ]
   }, [overview])
 
+  const summaryCards = useMemo(() => {
+    if (!overview) return [] as SummaryCard[]
+    const topAction = overviewModels.actions[0]
+    const items: SummaryCard[] = [
+      {
+        key: 'growth',
+        label: '进入窗口',
+        value: `${growthTierText(overview.advanced_metrics.market_growth.growth_tier)} / ${seasonalityTierText(overview.advanced_metrics.seasonality.seasonality_tier)}`,
+        detail: `同比 ${formatSignedPercent(overview.advanced_metrics.market_growth.last12_vs_prev12_growth)}，建议入场月 ${overview.advanced_metrics.seasonality.recommended_entry_months.join('、') || '待观察'}。`,
+        level:
+          overview.advanced_metrics.market_growth.last12_vs_prev12_growth > 0.1 && overview.advanced_metrics.seasonality.seasonality_level !== 'strong'
+            ? 'low'
+            : overview.advanced_metrics.market_growth.last12_vs_prev12_growth >= 0
+              ? 'medium'
+              : 'high',
+        icon: <TrendingUp className="h-4 w-4" />,
+      },
+      {
+        key: 'competition',
+        label: '竞争压力',
+        value: `${riskLevelText(overview.advanced_metrics.brand_monopoly.risk_level)} / ${riskLevelText(overview.advanced_metrics.seller_monopoly.risk_level)}`,
+        detail: `品牌 CR3 ${formatPercent(overview.advanced_metrics.brand_monopoly.brand_cr3)}，卖家 CR3 ${formatPercent(overview.advanced_metrics.seller_monopoly.seller_cr3)}，中国卖家销量占比 ${formatPercent(overview.advanced_metrics.china_seller_competition.china_seller_sales_share)}。`,
+        level: normalizeRiskLevel(
+          overview.advanced_metrics.brand_monopoly.risk_level === 'high' || overview.advanced_metrics.seller_monopoly.risk_level === 'high'
+            ? 'high'
+            : overview.advanced_metrics.brand_monopoly.risk_level === 'medium' || overview.advanced_metrics.seller_monopoly.risk_level === 'medium'
+              ? 'medium'
+              : 'low'
+        ),
+        icon: <ShieldAlert className="h-4 w-4" />,
+      },
+      {
+        key: 'action',
+        label: '优先动作',
+        value: topAction?.action ?? '等待补充建议',
+        detail: topAction
+          ? `${topAction.why} 先验证：${topAction.required_validation.join('、') || '暂无'}。`
+          : '当前返回结果中暂无 action_recommendations，可先从市场与价格结构交叉验证切入。',
+        level: topAction ? normalizeRiskLevel(topAction.priority) : 'medium',
+        icon: <Sparkles className="h-4 w-4" />,
+      },
+    ]
+    return items
+  }, [overview, overviewModels.actions])
+
   const brandBandKeys = useMemo(() => brandModels.tableRows.map((item) => item.brand), [brandModels.tableRows])
+  const priceBandLabel = useMemo(() => {
+    if (priceBandBreaksText.trim()) return `自定义 ${priceBandBreaksText}`
+    if (priceBandStandard === 'refined') return '自动精细'
+    if (priceBandStandard === 'default') return '标准预设'
+    if (priceBandStandard === 'value') return 'Value 预设'
+    return 'Premium 预设'
+  }, [priceBandBreaksText, priceBandStandard])
+  const collapsedMetricDefinitions = useMemo(() => overviewModels.metricDefinitionCards.slice(0, 3), [overviewModels.metricDefinitionCards])
+
+  useEffect(() => {
+    if (workspaceTab !== 'analysis' || !overview) return
+    const nodes = ANALYSIS_SECTIONS
+      .map((section) => document.getElementById(`analysis-section-${section.key}`))
+      .filter((node): node is HTMLElement => Boolean(node))
+    if (nodes.length === 0) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visibleEntries = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)
+        if (visibleEntries[0]?.target?.id) {
+          const key = visibleEntries[0].target.id.replace('analysis-section-', '') as ViewTab
+          setActiveSection(key)
+        }
+      },
+      { rootMargin: '-18% 0px -55% 0px', threshold: [0.2, 0.35, 0.6] }
+    )
+
+    nodes.forEach((node) => observer.observe(node))
+    return () => observer.disconnect()
+  }, [overview, workspaceTab])
+
+  const scrollToSection = useCallback((section: ViewTab) => {
+    setActiveSection(section)
+    const node = document.getElementById(`analysis-section-${section}`)
+    if (!node) return
+    node.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [])
 
   return (
     <Tabs
@@ -1758,7 +1965,7 @@ export default function CategoryResearchPage() {
             <CardDescription>按官方 shadcn 图表体系重构的高密度分析界面，聚焦机会、风险与结构判断。</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5 p-6">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-4 xl:grid-cols-[1fr_1.35fr_220px]">
               <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">站点</p>
                 <Select value={marketplace} onValueChange={setMarketplace}>
@@ -1773,7 +1980,7 @@ export default function CategoryResearchPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2 xl:col-span-2">
+              <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">调研关键词</p>
                 <Select value={analysisKeyword || ''} onValueChange={setAnalysisKeyword}>
                   <SelectTrigger>
@@ -1789,14 +1996,14 @@ export default function CategoryResearchPage() {
                 </Select>
               </div>
               <div className="flex items-end">
-                <Button variant="outline" className="w-full" onClick={() => void loadKeywordOptions()} disabled={keywordLoading}>
+                <Button variant="outline" className="w-full cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring" onClick={() => void loadKeywordOptions()} disabled={keywordLoading}>
                   {keywordLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Database className="mr-2 h-4 w-4" />}
                   刷新关键词
                 </Button>
               </div>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-[1fr_auto_auto_auto] md:items-end">
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_auto_auto_auto] xl:items-end">
               <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">版本选择</p>
                 <Select value={selectedDatasetId ? String(selectedDatasetId) : ''} onValueChange={(value) => setSelectedDatasetId(Number(value))}>
@@ -1812,15 +2019,15 @@ export default function CategoryResearchPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <Button variant="outline" onClick={() => void loadDatasets(analysisKeyword)} disabled={datasetLoading || !analysisKeyword.trim()}>
+              <Button variant="outline" className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring" onClick={() => void loadDatasets(analysisKeyword)} disabled={datasetLoading || !analysisKeyword.trim()}>
                 {datasetLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Database className="mr-2 h-4 w-4" />}
                 加载版本
               </Button>
-              <Button variant="outline" onClick={() => void onRecomputeCurrent()} disabled={recomputingCurrent || !selectedDatasetId}>
+              <Button variant="outline" className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring" onClick={() => void onRecomputeCurrent()} disabled={recomputingCurrent || !selectedDatasetId}>
                 {recomputingCurrent ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
                 重算当前版本
               </Button>
-              <Button variant="outline" onClick={() => void onRecomputeHistory()} disabled={recomputingHistory || !analysisKeyword.trim()}>
+              <Button variant="outline" className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring" onClick={() => void onRecomputeHistory()} disabled={recomputingHistory || !analysisKeyword.trim()}>
                 {recomputingHistory ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
                 重算历史版本
               </Button>
@@ -1855,18 +2062,7 @@ export default function CategoryResearchPage() {
             {formError ? <p className="text-sm text-rose-600">{formError}</p> : null}
             {formSuccess ? <p className="text-sm text-emerald-600">{formSuccess}</p> : null}
 
-            {analysisHeaderBadges.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {analysisHeaderBadges.map((item) => (
-                  <Badge key={item} variant="outline">
-                    {item}
-                  </Badge>
-                ))}
-                <Badge variant="outline">
-                  {priceBandBreaksText.trim() ? `价格带: 自定义 ${priceBandBreaksText}` : `价格带: ${priceBandStandard}`}
-                </Badge>
-              </div>
-            ) : null}
+            {analysisContextItems.length > 0 ? <ContextSummaryStrip items={analysisContextItems} priceBandLabel={priceBandLabel} /> : null}
           </CardContent>
         </Card>
 
@@ -1877,18 +2073,81 @@ export default function CategoryResearchPage() {
             ))}
           </div>
         ) : overview ? (
-          <Tabs value={tab} onValueChange={(value) => setTab(value as ViewTab)} className="space-y-6">
-            <TabsList className="grid h-11 w-full grid-cols-3 md:grid-cols-6">
-              <TabsTrigger value="overview">总览</TabsTrigger>
-              <TabsTrigger value="market">市场</TabsTrigger>
-              <TabsTrigger value="brand">品牌</TabsTrigger>
-              <TabsTrigger value="seller">卖家</TabsTrigger>
-              <TabsTrigger value="review">评论</TabsTrigger>
-              <TabsTrigger value="price">价格</TabsTrigger>
-            </TabsList>
+          <div className="space-y-6">
+            <AnalysisSectionNav activeSection={activeSection} onSelect={scrollToSection} />
 
-            <TabsContent value="overview" className="space-y-6">
+            <section id="analysis-section-overview" className="scroll-mt-32 space-y-6">
+              <AnalysisSectionHeader section={ANALYSIS_SECTIONS[0]} />
+              <div className="grid gap-4 xl:grid-cols-3">
+                {summaryCards.map((item) => (
+                  <DecisionSummaryCard key={item.key} item={item} />
+                ))}
+              </div>
               <MetricGridCard title="总览结论板" description="把增长、季节性、新品窗口、供给复杂度、数据质量和样本跨度放在同一屏做决策扫描。" items={overviewModels.metrics} />
+
+              <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+                <InsightChartCard
+                  title="高优先风险 / 机会"
+                  description="先看最影响 go / no-go 判断的三个结论，再决定要不要继续展开图表。"
+                  contentClassName="grid gap-3"
+                >
+                  {overviewModels.radialRisks.map((item, index) => (
+                    <div key={item.label} className="rounded-xl border border-border/70 bg-muted/[0.12] p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">{item.label}</p>
+                          <p className="mt-1 text-sm text-muted-foreground">{item.detail}</p>
+                        </div>
+                        <Badge variant="outline" className={alertBadgeClass(index === 2 ? 'medium' : normalizeRiskLevel(item.text.includes('高风险') ? 'high' : item.text.includes('中风险') ? 'medium' : 'low'))}>
+                          {item.text}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </InsightChartCard>
+
+                <InsightChartCard
+                  title="行动建议"
+                  description="把当前最值得先验证的动作排出来，避免分析停在结论描述。"
+                >
+                  <div className="space-y-3">
+                    {overviewModels.actions.length > 0 ? (
+                      overviewModels.actions.map((item) => (
+                        <div key={`${item.priority}-${item.action}`} className="rounded-xl border border-border/70 bg-muted/[0.12] p-4">
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="font-medium text-foreground">{item.action}</p>
+                            <Badge variant="outline" className={alertBadgeClass(normalizeRiskLevel(item.priority))}>
+                              {item.priority.toUpperCase()}
+                            </Badge>
+                          </div>
+                          <p className="mt-2 text-sm text-muted-foreground">{item.why}</p>
+                          {item.rule_basis && item.rule_basis.length > 0 ? (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {item.rule_basis.map((rule) => (
+                                <Badge key={rule} variant="secondary" className="bg-muted/60 text-muted-foreground">
+                                  {rule}
+                                </Badge>
+                              ))}
+                            </div>
+                          ) : null}
+                          {item.required_validation.length > 0 ? (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {item.required_validation.map((rule) => (
+                                <Badge key={rule} variant="outline" className="inline-flex items-center gap-1">
+                                  <ArrowRight className="h-3 w-3" />
+                                  {rule}
+                                </Badge>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      ))
+                    ) : (
+                      <EmptyChartState message="暂无行动建议" height="h-[300px]" />
+                    )}
+                  </div>
+                </InsightChartCard>
+              </div>
 
               <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
                 <InsightChartCard
@@ -1947,55 +2206,35 @@ export default function CategoryResearchPage() {
                     <EmptyChartState message="暂无版本历史数据" height="h-[300px]" />
                   )}
                 </InsightChartCard>
-
-                <InsightChartCard
-                  title="行动建议"
-                  description="把当前最值得先验证的动作排出来，避免分析停在结论描述。"
-                >
-                  <div className="space-y-3">
-                    {overviewModels.actions.length > 0 ? (
-                      overviewModels.actions.map((item) => (
-                        <div key={`${item.priority}-${item.action}`} className="rounded-xl border border-border/70 bg-muted/10 p-4">
-                          <div className="flex items-center justify-between gap-3">
-                            <p className="font-medium text-foreground">{item.action}</p>
-                            <Badge variant="outline" className={alertBadgeClass(normalizeRiskLevel(item.priority))}>
-                              {item.priority.toUpperCase()}
-                            </Badge>
-                          </div>
-                          <p className="mt-2 text-sm text-muted-foreground">{item.why}</p>
-                          {item.rule_basis && item.rule_basis.length > 0 ? (
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {item.rule_basis.map((rule) => (
-                                <Badge key={rule} variant="secondary" className="bg-muted/60 text-muted-foreground">
-                                  {rule}
-                                </Badge>
-                              ))}
-                            </div>
-                          ) : null}
-                          {item.required_validation.length > 0 ? (
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {item.required_validation.map((rule) => (
-                                <Badge key={rule} variant="outline">
-                                  {rule}
-                                </Badge>
-                              ))}
-                            </div>
-                          ) : null}
-                        </div>
-                      ))
-                    ) : (
-                      <EmptyChartState message="暂无行动建议" height="h-[300px]" />
-                    )}
-                  </div>
+                <InsightChartCard title="数据质量警报" description="先识别会误导判断的原始问题，再决定这份样本是否值得继续分析。" contentClassName="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  {overviewModels.warningItems.map((item) => (
+                    <div key={item.label} className="rounded-xl border border-border/70 bg-muted/[0.12] p-4">
+                      <p className="text-xs text-muted-foreground">{item.label}</p>
+                      <p className={cn('mt-1 text-2xl font-semibold', item.value > 0 ? 'text-amber-600' : 'text-emerald-600')}>{formatNumber(item.value)}</p>
+                    </div>
+                  ))}
                 </InsightChartCard>
               </div>
 
               <InsightChartCard
                 title="等级与公式说明"
                 description="关键等级都给出口径、阈值和当前解释，避免出现只有结论、没有依据。"
+                footer={
+                  overviewModels.metricDefinitionCards.length > 3 ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="h-auto cursor-pointer px-0 text-xs font-medium text-primary hover:bg-transparent hover:text-primary/80 focus-visible:ring-2 focus-visible:ring-ring"
+                      onClick={() => setShowAllDefinitions((value) => !value)}
+                    >
+                      {showAllDefinitions ? '收起完整口径' : '展开完整口径'}
+                      <ChevronDown className={cn('ml-1 h-3.5 w-3.5 transition-transform duration-200', showAllDefinitions && 'rotate-180')} />
+                    </Button>
+                  ) : null
+                }
                 contentClassName="grid gap-3 xl:grid-cols-2"
               >
-                {overviewModels.metricDefinitionCards.map((item) => (
+                {(showAllDefinitions ? overviewModels.metricDefinitionCards : collapsedMetricDefinitions).map((item) => (
                   <div key={item.title} className="rounded-xl border border-border/70 bg-muted/10 p-4">
                     <p className="font-medium text-foreground">{item.title}</p>
                     <p className="mt-2 text-xs text-muted-foreground">{item.formula}</p>
@@ -2011,22 +2250,10 @@ export default function CategoryResearchPage() {
                   </div>
                 ))}
               </InsightChartCard>
+            </section>
 
-              <InsightChartCard
-                title="数据质量警报"
-                description="先识别会误导判断的原始问题，再决定这份样本是否值得继续分析。"
-                contentClassName="grid gap-3 md:grid-cols-2 xl:grid-cols-4"
-              >
-                {overviewModels.warningItems.map((item) => (
-                  <div key={item.label} className="rounded-xl border border-border/70 bg-muted/10 p-4">
-                    <p className="text-xs text-muted-foreground">{item.label}</p>
-                    <p className={cn('mt-1 text-2xl font-semibold', item.value > 0 ? 'text-amber-600' : 'text-emerald-600')}>{formatNumber(item.value)}</p>
-                  </div>
-                ))}
-              </InsightChartCard>
-            </TabsContent>
-
-            <TabsContent value="market" className="space-y-6">
+            <section id="analysis-section-market" className="scroll-mt-32 space-y-6">
+              <AnalysisSectionHeader section={ANALYSIS_SECTIONS[1]} />
               <MetricGridCard title="市场节奏总览" description="先看增长斜率、峰值位置和同比环比，再判断这个市场是在扩张、波动还是回落。" items={marketModels.trendMetrics} />
 
               <div className="grid gap-4 xl:grid-cols-[1.3fr_0.7fr]">
@@ -2198,9 +2425,10 @@ export default function CategoryResearchPage() {
                   <EmptyChartState message="暂无上架分段数据" />
                 )}
               </InsightChartCard>
-            </TabsContent>
+            </section>
 
-            <TabsContent value="brand" className="space-y-6">
+            <section id="analysis-section-brand" className="scroll-mt-32 space-y-6">
+              <AnalysisSectionHeader section={ANALYSIS_SECTIONS[2]} />
               <MetricGridCard title="品牌竞争总览" description="先看品牌集中度，再看头部品牌覆盖力和价格带控制力。 " items={brandModels.metrics} />
 
               <InsightChartCard title="品牌指标说明" description="把 CR / HHI 的公式、阈值和当前值统一放在一起，避免品牌判断只剩一个风险词。">
@@ -2380,9 +2608,10 @@ export default function CategoryResearchPage() {
                   </Table>
                 </div>
               </InsightChartCard>
-            </TabsContent>
+            </section>
 
-            <TabsContent value="seller" className="space-y-6">
+            <section id="analysis-section-seller" className="scroll-mt-32 space-y-6">
+              <AnalysisSectionHeader section={ANALYSIS_SECTIONS[3]} />
               <MetricGridCard title="卖家结构总览" description="把国籍、自营、履约和渠道集中度放在一起，看第三方卖家有没有空间。 " items={sellerModels.metrics} />
 
               <InsightChartCard title="卖家指标说明" description="统一解释 CR、HHI、中国卖家占比和卖家垄断系数，让卖家结构判断有明确口径。">
@@ -2506,9 +2735,10 @@ export default function CategoryResearchPage() {
                   <EmptyChartState message="暂无物流方式数据" />
                 )}
               </InsightChartCard>
-            </TabsContent>
+            </section>
 
-            <TabsContent value="review" className="space-y-6">
+            <section id="analysis-section-review" className="scroll-mt-32 space-y-6">
+              <AnalysisSectionHeader section={ANALYSIS_SECTIONS[4]} />
               <MetricGridCard title="评论门槛总览" description="重点回答两个问题：评论门槛高不高，低评论产品还有没有拿量机会。 " items={reviewModels.metrics} />
 
               <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
@@ -2645,9 +2875,10 @@ export default function CategoryResearchPage() {
                 </div>
                 </div>
               </InsightChartCard>
-            </TabsContent>
+            </section>
 
-            <TabsContent value="price" className="space-y-6">
+            <section id="analysis-section-price" className="scroll-mt-32 space-y-6">
+              <AnalysisSectionHeader section={ANALYSIS_SECTIONS[5]} />
               <MetricGridCard title="价格结构总览" description="先看主力价格带，再看价格和销量到底是强绑定还是弱绑定。 " items={priceModels.metrics} />
 
               <InsightChartCard title="精细价格带方法" description="先把分段方法讲清楚，再看价格图，避免误把粗断点当市场结构。">
@@ -2806,8 +3037,8 @@ export default function CategoryResearchPage() {
                   </Table>
                 </div>
               </InsightChartCard>
-            </TabsContent>
-          </Tabs>
+            </section>
+          </div>
         ) : (
           <Card className="border-dashed">
             <CardContent className="flex h-48 flex-col items-center justify-center gap-2 text-center">
