@@ -1,6 +1,8 @@
 from datetime import date
 from pathlib import Path
+import warnings
 
+import pandas as pd
 from openpyxl import Workbook
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
@@ -753,3 +755,24 @@ def test_parse_transaction_at_handles_pst_and_pdt():
     assert parsed_pdt is not None
     assert parsed_pst.isoformat() == '2026-03-07T14:58:21+00:00'
     assert parsed_pdt.isoformat() == '2026-03-08T11:52:59+00:00'
+
+
+def test_read_excel_without_style_warning_suppresses_known_openpyxl_warning(monkeypatch, tmp_path: Path):
+    expected = pd.DataFrame([{'广告SKU': 'SKU1'}])
+
+    def fake_read_excel(path, engine):
+        warnings.warn(
+            "Workbook contains no default style, apply openpyxl's default",
+            UserWarning,
+            stacklevel=1,
+        )
+        return expected
+
+    monkeypatch.setattr(product_analysis_source_service.pd, 'read_excel', fake_read_excel)
+
+    with warnings.catch_warnings(record=True) as captured:
+        warnings.simplefilter('always')
+        result = product_analysis_source_service._read_excel_without_style_warning(tmp_path / 'ad.xlsx')
+
+    assert result.equals(expected)
+    assert captured == []
