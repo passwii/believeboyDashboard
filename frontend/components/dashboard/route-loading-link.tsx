@@ -36,13 +36,13 @@ export function RouteLoadingLink({
       clearTimeout(watchdogTimerRef.current)
       watchdogTimerRef.current = null
     }
-    endGlobalLoading()
+    endGlobalLoading('navigation')
   }, [endGlobalLoading])
 
   const beginNavigationLoading = useCallback(() => {
     if (pendingRef.current) return
     pendingRef.current = true
-    startGlobalLoading()
+    startGlobalLoading('navigation')
     watchdogTimerRef.current = setTimeout(() => {
       finishNavigationLoading()
     }, NAVIGATION_LOADING_WATCHDOG_MS)

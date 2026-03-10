@@ -13,6 +13,7 @@ settings = get_settings()
 
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 request_logger = logging.getLogger('app.request')
+performance_logger = logging.getLogger('app.performance')
 logging.getLogger('uvicorn.access').disabled = True
 
 app = FastAPI(title=settings.app_name)
@@ -62,5 +63,16 @@ async def request_logging_middleware(request: Request, call_next):
 
         if response is not None:
             response.headers['X-Request-Id'] = request_id
+            response.headers['X-Response-Time-Ms'] = str(duration_ms)
+            response.headers['Server-Timing'] = f'app;dur={duration_ms}'
+            if duration_ms >= 800:
+                performance_logger.info(
+                    'slow_request path=%s method=%s status=%s duration_ms=%s request_id=%s',
+                    request.url.path,
+                    request.method,
+                    status_code,
+                    duration_ms,
+                    request_id[:8],
+                )
 
 app.include_router(api_router, prefix='/api/v1')

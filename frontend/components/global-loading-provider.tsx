@@ -2,10 +2,14 @@
 
 import { createContext, useCallback, useContext, useMemo, useState } from 'react'
 
+type GlobalLoadingKind = 'blocking' | 'navigation'
+
 type GlobalLoadingContextValue = {
   isLoading: boolean
-  startGlobalLoading: () => void
-  endGlobalLoading: () => void
+  isBlockingLoading: boolean
+  isNavigationLoading: boolean
+  startGlobalLoading: (kind?: GlobalLoadingKind) => void
+  endGlobalLoading: (kind?: GlobalLoadingKind) => void
   withGlobalLoading: <T>(task: () => Promise<T>) => Promise<T>
 }
 
@@ -16,33 +20,44 @@ export function GlobalLoadingProvider({
 }: {
   children: React.ReactNode
 }) {
-  const [pendingCount, setPendingCount] = useState(0)
+  const [blockingPendingCount, setBlockingPendingCount] = useState(0)
+  const [navigationPendingCount, setNavigationPendingCount] = useState(0)
 
-  const startGlobalLoading = useCallback(() => {
-    setPendingCount((count) => count + 1)
+  const startGlobalLoading = useCallback((kind: GlobalLoadingKind = 'blocking') => {
+    if (kind === 'navigation') {
+      setNavigationPendingCount((count) => count + 1)
+      return
+    }
+    setBlockingPendingCount((count) => count + 1)
   }, [])
 
-  const endGlobalLoading = useCallback(() => {
-    setPendingCount((count) => Math.max(0, count - 1))
+  const endGlobalLoading = useCallback((kind: GlobalLoadingKind = 'blocking') => {
+    if (kind === 'navigation') {
+      setNavigationPendingCount((count) => Math.max(0, count - 1))
+      return
+    }
+    setBlockingPendingCount((count) => Math.max(0, count - 1))
   }, [])
 
   const withGlobalLoading = useCallback(async <T,>(task: () => Promise<T>) => {
-    startGlobalLoading()
+    startGlobalLoading('blocking')
     try {
       return await task()
     } finally {
-      endGlobalLoading()
+      endGlobalLoading('blocking')
     }
   }, [endGlobalLoading, startGlobalLoading])
 
   const value = useMemo<GlobalLoadingContextValue>(
     () => ({
-      isLoading: pendingCount > 0,
+      isLoading: blockingPendingCount > 0 || navigationPendingCount > 0,
+      isBlockingLoading: blockingPendingCount > 0,
+      isNavigationLoading: navigationPendingCount > 0,
       startGlobalLoading,
       endGlobalLoading,
       withGlobalLoading,
     }),
-    [endGlobalLoading, pendingCount, startGlobalLoading, withGlobalLoading]
+    [blockingPendingCount, endGlobalLoading, navigationPendingCount, startGlobalLoading, withGlobalLoading]
   )
 
   return (

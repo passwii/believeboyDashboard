@@ -1,7 +1,9 @@
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+import logging
 from pathlib import Path
 import re
+from threading import Lock
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import MetaData, Table, func, inspect, or_, select, text
@@ -62,6 +64,7 @@ from app.schemas.system_management import (
 from app.services.audit_log_service import append_operation_audit_log
 
 router = APIRouter(prefix='/system-management', dependencies=[Depends(protected)])
+performance_logger = logging.getLogger('app.performance')
 
 DATA_STATE_TABLE = 'system_management_data_state'
 STALE_WINDOW_HOURS = 72
@@ -74,6 +77,14 @@ OPERATOR_BONUS_RATIO_TIERS: tuple[tuple[Decimal, Decimal], ...] = (
     (Decimal('450000'), Decimal('0.18')),
 )
 ASSISTANT_BONUS_RATIO = Decimal('0.02')
+DATA_MANAGEMENT_OVERVIEW_CACHE_TTL_SECONDS = 15
+
+
+_data_management_overview_cache_lock = Lock()
+_data_management_overview_cache: dict[str, object] = {
+    'expires_at': None,
+    'payload': None,
+}
 
 
 def _resolve_database_source(database_url: str) -> tuple[str, str | None]:
@@ -465,6 +476,28 @@ def _collect_recent_statuses(db: Session, data_status: DataLifecycleStatus, chec
     return items
 
 
+def _get_cached_data_management_overview() -> DataManagementOverviewResponse | None:
+    now = _now()
+    with _data_management_overview_cache_lock:
+        expires_at = _data_management_overview_cache.get('expires_at')
+        payload = _data_management_overview_cache.get('payload')
+        if isinstance(expires_at, datetime) and expires_at > now and isinstance(payload, DataManagementOverviewResponse):
+            return payload
+    return None
+
+
+def _set_cached_data_management_overview(payload: DataManagementOverviewResponse) -> None:
+    with _data_management_overview_cache_lock:
+        _data_management_overview_cache['payload'] = payload
+        _data_management_overview_cache['expires_at'] = _now() + timedelta(seconds=DATA_MANAGEMENT_OVERVIEW_CACHE_TTL_SECONDS)
+
+
+def _clear_cached_data_management_overview() -> None:
+    with _data_management_overview_cache_lock:
+        _data_management_overview_cache['payload'] = None
+        _data_management_overview_cache['expires_at'] = None
+
+
 @router.get('/audit-logs', response_model=OperationAuditLogsResponse)
 def list_operation_audit_logs(
     page: int = Query(default=1, ge=1),
@@ -536,6 +569,7 @@ def get_data_management_status(db: Session = Depends(get_db_session)) -> DataMan
     settings = get_settings()
     db_healthy, checked_at = _check_database(db)
     db_engine, db_source = _resolve_database_source(settings.database_url)
+    data_status, note, updated_by, updated_at = _load_data_state(db)
     return DataManagementStatusResponse(
         server_time=checked_at,
         database=DatabaseStatus(
@@ -545,20 +579,45 @@ def get_data_management_status(db: Session = Depends(get_db_session)) -> DataMan
             checked_at=checked_at,
         ),
         cache_enabled=False,
+        summary=DataSummary(
+            total_tables=0,
+            total_rows=0,
+            stale_tables=0,
+            data_status=data_status,
+        ),
+        data_status_note=note,
+        data_status_updated_at=updated_at,
+        data_status_updated_by=updated_by,
     )
 
 
 @router.get('/data-management/overview', response_model=DataManagementOverviewResponse)
 def get_data_management_overview(db: Session = Depends(get_db_session)) -> DataManagementOverviewResponse:
+    overall_started_at = _now()
+    cached_payload = _get_cached_data_management_overview()
+    if cached_payload is not None:
+        performance_logger.info('data_management_overview cache=hit duration_ms=0')
+        return cached_payload
+
+    timing_started_at = _now()
     settings = get_settings()
     db_healthy, checked_at = _check_database(db)
     db_engine, db_source = _resolve_database_source(settings.database_url)
+    database_check_ms = int((_now() - timing_started_at).total_seconds() * 1000)
 
+    timing_started_at = _now()
     data_status, note, updated_by, updated_at = _load_data_state(db)
-    table_statuses, total_rows, stale_tables = _collect_table_statuses(db)
-    recent_statuses = _collect_recent_statuses(db, data_status, checked_at)
+    data_state_ms = int((_now() - timing_started_at).total_seconds() * 1000)
 
-    return DataManagementOverviewResponse(
+    timing_started_at = _now()
+    table_statuses, total_rows, stale_tables = _collect_table_statuses(db)
+    table_scan_ms = int((_now() - timing_started_at).total_seconds() * 1000)
+
+    timing_started_at = _now()
+    recent_statuses = _collect_recent_statuses(db, data_status, checked_at)
+    recent_statuses_ms = int((_now() - timing_started_at).total_seconds() * 1000)
+
+    payload = DataManagementOverviewResponse(
         server_time=checked_at,
         database=DatabaseStatus(
             engine=db_engine,
@@ -579,6 +638,19 @@ def get_data_management_overview(db: Session = Depends(get_db_session)) -> DataM
         tables=table_statuses,
         recent_statuses=recent_statuses,
     )
+    _set_cached_data_management_overview(payload)
+    total_duration_ms = int((_now() - overall_started_at).total_seconds() * 1000)
+    performance_logger.info(
+        'data_management_overview cache=miss total_ms=%s db_check_ms=%s data_state_ms=%s table_scan_ms=%s recent_statuses_ms=%s tables=%s total_rows=%s',
+        total_duration_ms,
+        database_check_ms,
+        data_state_ms,
+        table_scan_ms,
+        recent_statuses_ms,
+        len(table_statuses),
+        total_rows,
+    )
+    return payload
 
 
 @router.patch('/data-management/data-status', response_model=UpdateDataStatusResponse)
@@ -645,6 +717,7 @@ def update_data_status(
         request=request,
     )
     db.commit()
+    _clear_cached_data_management_overview()
 
     return UpdateDataStatusResponse(
         status=payload.status,

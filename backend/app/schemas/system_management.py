@@ -28,6 +28,10 @@ class DataManagementStatusResponse(BaseModel):
     server_time: str
     database: DatabaseStatus
     cache_enabled: bool
+    summary: DataSummary
+    data_status_note: str | None = None
+    data_status_updated_at: str | None = None
+    data_status_updated_by: str | None = None
 
 
 class DataSummary(BaseModel):

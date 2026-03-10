@@ -235,13 +235,13 @@ const SignInCard = () => {
       clearTimeout(loadingWatchdogRef.current);
       loadingWatchdogRef.current = null;
     }
-    endGlobalLoading();
+    endGlobalLoading('navigation');
   }, [endGlobalLoading]);
 
   const beginNavigationLoading = useCallback(() => {
     if (loadingPendingRef.current) return;
     loadingPendingRef.current = true;
-    startGlobalLoading();
+    startGlobalLoading('navigation');
     loadingWatchdogRef.current = setTimeout(() => {
       finishNavigationLoading();
     }, SIGNIN_LOADING_WATCHDOG_MS);

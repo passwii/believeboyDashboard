@@ -49,6 +49,26 @@ type DataManagementOverview = {
   }>
 }
 
+type DataManagementStatusPayload = {
+  server_time: string
+  database: {
+    engine: string
+    source: string | null
+    healthy: boolean
+    checked_at: string
+  }
+  cache_enabled: boolean
+  summary: {
+    total_tables: number
+    total_rows: number
+    stale_tables: number
+    data_status: DataLifecycleStatus
+  }
+  data_status_note: string | null
+  data_status_updated_at: string | null
+  data_status_updated_by: string | null
+}
+
 const API_BASE = '/api/backend'
 
 function formatDateTime(value: string | null): string {
@@ -89,7 +109,9 @@ function tableStatusTone(status: TableHealthStatus): string {
 export default function SystemDataManagementPage() {
   const { data: session, status } = useSession()
   const [overview, setOverview] = useState<DataManagementOverview | null>(null)
+  const [statusOverview, setStatusOverview] = useState<DataManagementStatusPayload | null>(null)
   const [loading, setLoading] = useState(false)
+  const [detailsLoading, setDetailsLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -97,11 +119,34 @@ export default function SystemDataManagementPage() {
   const [selectedStatus, setSelectedStatus] = useState<DataLifecycleStatus>('active')
   const [statusNote, setStatusNote] = useState('')
 
-  const loadOverview = useCallback(async (): Promise<void> => {
+  const loadStatus = useCallback(async (): Promise<void> => {
     if (status === 'loading') return
 
     setLoading(true)
-    setError(null)
+
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/system-management/data-management/status`, {
+        headers: buildBackendHeaders(session),
+        cache: 'no-store',
+      })
+      if (!response.ok) {
+        throw new Error(await parseError(response))
+      }
+      const payload = (await response.json()) as DataManagementStatusPayload
+      setStatusOverview(payload)
+      setSelectedStatus(payload.summary.data_status)
+      setStatusNote(payload.data_status_note || '')
+    } catch (loadErr) {
+      setError(loadErr instanceof Error ? loadErr.message : '状态加载失败')
+    } finally {
+      setLoading(false)
+    }
+  }, [session, status])
+
+  const loadOverview = useCallback(async (): Promise<void> => {
+    if (status === 'loading') return
+
+    setDetailsLoading(true)
 
     try {
       const response = await fetch(`${API_BASE}/api/v1/system-management/data-management/overview`, {
@@ -113,20 +158,34 @@ export default function SystemDataManagementPage() {
       }
       const payload = (await response.json()) as DataManagementOverview
       setOverview(payload)
-      setSelectedStatus(payload.summary.data_status)
-      setStatusNote(payload.data_status_note || '')
+      setStatusOverview((previous) => ({
+        server_time: payload.server_time,
+        database: payload.database,
+        cache_enabled: payload.cache_enabled,
+        summary: payload.summary,
+        data_status_note: payload.data_status_note,
+        data_status_updated_at: payload.data_status_updated_at,
+        data_status_updated_by: payload.data_status_updated_by,
+      }))
     } catch (loadErr) {
       setError(loadErr instanceof Error ? loadErr.message : '状态加载失败')
     } finally {
-      setLoading(false)
+      setDetailsLoading(false)
     }
   }, [session, status])
 
   useEffect(() => {
     if (status !== 'loading') {
+      setError(null)
+      void loadStatus()
       void loadOverview()
     }
-  }, [loadOverview, status])
+  }, [loadOverview, loadStatus, status])
+
+  const refreshAll = useCallback(async () => {
+    setError(null)
+    await Promise.all([loadStatus(), loadOverview()])
+  }, [loadOverview, loadStatus])
 
   const onSaveStatus = useCallback(async () => {
     setSaving(true)
@@ -146,51 +205,52 @@ export default function SystemDataManagementPage() {
         throw new Error(await parseError(response))
       }
       setSuccess('数据状态更新成功')
-      await loadOverview()
+      await refreshAll()
     } catch (saveErr) {
       setError(saveErr instanceof Error ? saveErr.message : '状态更新失败')
     } finally {
       setSaving(false)
     }
-  }, [loadOverview, selectedStatus, session, statusNote])
+  }, [refreshAll, selectedStatus, session, statusNote])
 
   const summaryCards = useMemo(() => {
-    if (!overview) return []
+    const snapshot = overview ?? statusOverview
+    if (!snapshot) return []
     return [
       {
         key: 'db',
         title: '数据库连接',
-        value: overview.database.healthy ? '正常' : '异常',
-        hint: `引擎 ${overview.database.engine}`,
+        value: snapshot.database.healthy ? '正常' : '异常',
+        hint: `引擎 ${snapshot.database.engine}`,
         icon: <Database className="h-4 w-4" />,
-        tone: overview.database.healthy ? 'text-emerald-600' : 'text-destructive',
+        tone: snapshot.database.healthy ? 'text-emerald-600' : 'text-destructive',
       },
       {
         key: 'tables',
         title: '表数量',
-        value: formatNumber(overview.summary.total_tables),
-        hint: `异常/陈旧 ${overview.summary.stale_tables}`,
+        value: formatNumber(snapshot.summary.total_tables),
+        hint: detailsLoading ? '明细加载中' : `异常/陈旧 ${snapshot.summary.stale_tables}`,
         icon: <Server className="h-4 w-4" />,
-        tone: overview.summary.stale_tables > 0 ? 'text-amber-600' : 'text-foreground',
+        tone: snapshot.summary.stale_tables > 0 ? 'text-amber-600' : 'text-foreground',
       },
       {
         key: 'rows',
         title: '总数据量',
-        value: formatNumber(overview.summary.total_rows),
-        hint: '统计所有业务表',
+        value: formatNumber(snapshot.summary.total_rows),
+        hint: detailsLoading ? '正在更新统计' : '统计所有业务表',
         icon: <Database className="h-4 w-4" />,
         tone: 'text-foreground',
       },
       {
         key: 'status',
         title: '数据状态',
-        value: statusLabel(overview.summary.data_status),
-        hint: `更新时间 ${formatDateTime(overview.data_status_updated_at)}`,
+        value: statusLabel(snapshot.summary.data_status),
+        hint: `更新时间 ${formatDateTime(snapshot.data_status_updated_at)}`,
         icon: <CheckCircle2 className="h-4 w-4" />,
         tone: 'text-cyan-700 dark:text-cyan-300',
       },
     ]
-  }, [overview])
+  }, [detailsLoading, overview, statusOverview])
 
   return (
     <div className="w-full space-y-6">
@@ -202,9 +262,9 @@ export default function SystemDataManagementPage() {
           <CardTitle>数据库状态</CardTitle>
           <CardDescription>支持修改数据状态，并实时查看数据库状态、表状态、数据状态与最近系统状态。</CardDescription>
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="outline" onClick={() => void loadOverview()} disabled={loading || saving}>
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              {loading ? '刷新中...' : '刷新状态'}
+            <Button type="button" variant="outline" onClick={() => void refreshAll()} disabled={loading || detailsLoading || saving}>
+              {loading || detailsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              {loading || detailsLoading ? '刷新中...' : '刷新状态'}
             </Button>
           </div>
         </CardHeader>
@@ -275,7 +335,7 @@ export default function SystemDataManagementPage() {
                       {!overview || overview.tables.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={4} className="text-center text-muted-foreground">
-                            {loading ? '加载中...' : '暂无表状态数据'}
+                            {detailsLoading ? '加载中...' : '暂无表状态数据'}
                           </TableCell>
                         </TableRow>
                       ) : (
@@ -332,7 +392,7 @@ export default function SystemDataManagementPage() {
           </div>
 
           <p className="text-xs leading-5 text-muted-foreground">
-            数据源：{overview?.database.source || '-'}，检查时间：{formatDateTime(overview?.database.checked_at || null)}。
+            数据源：{(overview ?? statusOverview)?.database.source || '-'}，检查时间：{formatDateTime((overview ?? statusOverview)?.database.checked_at || null)}。
           </p>
         </CardContent>
       </Card>
