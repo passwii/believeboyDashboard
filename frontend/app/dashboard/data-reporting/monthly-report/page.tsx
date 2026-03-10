@@ -63,8 +63,7 @@ type PersistenceSyncState = {
   message: string | null
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
-const API_KEY = process.env.NEXT_PUBLIC_BACKEND_API_KEY ?? ''
+const API_BASE = '/api/backend'
 const UPLOAD_TYPES: UploadType[] = ['payment_report', 'monthly_summary_pdf']
 const REQUIRED_TYPES: UploadType[] = ['payment_report']
 const JOB_POLL_INTERVAL_MS = 1000
@@ -76,12 +75,8 @@ const TYPE_LABEL: Record<UploadType, string> = {
 }
 const PROGRESS_STEP_LABELS = ['处理中', '合成数据（报表总览）', '合成数据（报表核算/明细）', '处理表格样式', '完成']
 
-function authHeaders(operator?: string, isAdmin = false): Record<string, string> {
-  const headers: Record<string, string> = {}
-  if (API_KEY) headers['X-API-Key'] = API_KEY
-  if (isAdmin) headers['X-Is-Admin'] = 'true'
-  if (operator && operator.trim()) headers['X-Operator'] = encodeURIComponent(operator.trim())
-  return headers
+function authHeaders(_operator?: string, _isAdmin = false): Record<string, string> {
+  return {}
 }
 
 function resolveApiUrl(path: string) {

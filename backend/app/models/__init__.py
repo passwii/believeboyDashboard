@@ -15,6 +15,11 @@ from app.models.product_analysis_source import (
     AnalysisSourceFile,
     InventorySnapshotRow,
 )
+from app.models.daily_report_source import (
+    DailyAdProduct,
+    DailySalesOrder,
+    DailySourceFile,
+)
 from app.models.category_research import (
     CategoryResearchDataset,
     CategoryResearchProductDetail,
@@ -28,6 +33,9 @@ from app.models.commission_project_month import CommissionProjectMonth
 from app.models.commission_ratio_override import CommissionRatioOverride
 from app.models.project_role_assignment import ProjectRoleAssignment
 from app.models.operation_audit_log import OperationAuditLog
+from app.models.exchange_rate import ExchangeRate
+from app.models.inventory_replenishment import InventoryReplenishmentSetting
+from app.models.shipment_schedule import ShipmentSchedule, ShipmentScheduleItem
 
 __all__ = [
     'ProductCost',
@@ -42,6 +50,10 @@ __all__ = [
     'CommissionRatioOverride',
     'ProjectRoleAssignment',
     'OperationAuditLog',
+    'ExchangeRate',
+    'InventoryReplenishmentSetting',
+    'ShipmentSchedule',
+    'ShipmentScheduleItem',
     'MonthlyReport',
     'MonthlyReportTransaction',
     'MonthlyReportPT3Calculation',
@@ -54,6 +66,9 @@ __all__ = [
     'AnalysisSalesOrderRow',
     'AnalysisAdRow',
     'InventorySnapshotRow',
+    'DailySourceFile',
+    'DailySalesOrder',
+    'DailyAdProduct',
     'CategoryResearchDataset',
     'CategoryResearchProductDetail',
     'CategoryResearchSalesTrend',

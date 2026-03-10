@@ -44,3 +44,23 @@ class AnalysisSourceRowsResponse(BaseModel):
 class CurrentInventorySnapshotResponse(BaseModel):
     source: AnalysisSourceFileItem
     rows: list[dict[str, Any]]
+
+
+class ProductAnalysisWeeklyRecomputePeriodItem(BaseModel):
+    pt1_id: int
+    version: int
+    report_start_date: date
+    report_end_date: date
+    row_count: int
+    business_report_source_id: int
+    ad_report_source_id: int
+    payment_report_source_id: int
+
+
+class ProductAnalysisWeeklyRecomputeResponse(BaseModel):
+    project_id: int
+    project_name: str
+    country: str
+    recomputed: int
+    skipped: int
+    periods: list[ProductAnalysisWeeklyRecomputePeriodItem]

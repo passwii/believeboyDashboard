@@ -12,8 +12,10 @@ from app.models import (
     AnalysisPaymentRow,
     AnalysisPT1Calculation,
     AnalysisPTSKUDetail,
-    AnalysisSalesOrderRow,
     AnalysisSourceFile,
+    DailyAdProduct,
+    DailySalesOrder,
+    DailySourceFile,
     InventorySnapshotRow,
     ProductCost,
     Project,
@@ -317,14 +319,13 @@ def test_persist_daily_report_sources_sales_status_rule(tmp_path: Path):
         assert all(item.success for item in outcomes)
 
         sales_source = db.execute(
-            select(AnalysisSourceFile).where(AnalysisSourceFile.report_type == 'sales_report')
+            select(DailySourceFile).where(DailySourceFile.report_type == 'sales_report')
         ).scalars().first()
         assert sales_source is not None
-        assert sales_source.period_start_date.isoformat() == '2026-02-25'
-        assert sales_source.period_end_date.isoformat() == '2026-02-25'
+        assert sales_source.report_date.isoformat() == '2026-02-25'
 
         sales_rows = db.execute(
-            select(AnalysisSalesOrderRow).order_by(AnalysisSalesOrderRow.amazon_order_id.asc())
+            select(DailySalesOrder).order_by(DailySalesOrder.amazon_order_id.asc())
         ).scalars().all()
         assert len(sales_rows) == 4
         counted_by_order = {row.amazon_order_id: row.is_counted_sales for row in sales_rows}
@@ -332,6 +333,22 @@ def test_persist_daily_report_sources_sales_status_rule(tmp_path: Path):
         assert counted_by_order['111-2'] is False
         assert counted_by_order['111-3'] is True
         assert counted_by_order['111-4'] is False
+
+        ad_source = db.execute(
+            select(DailySourceFile).where(DailySourceFile.report_type == 'ad_report')
+        ).scalars().first()
+        assert ad_source is not None
+        assert ad_source.report_date.isoformat() == '2026-02-25'
+
+        ad_rows = db.execute(select(DailyAdProduct)).scalars().all()
+        assert len(ad_rows) == 2
+
+        inventory_source = db.execute(
+            select(AnalysisSourceFile).where(AnalysisSourceFile.report_type == 'inventory_report')
+        ).scalars().first()
+        assert inventory_source is not None
+        inventory_rows = db.execute(select(InventorySnapshotRow)).scalars().all()
+        assert len(inventory_rows) == 1
 
 
 def test_persist_product_analysis_pt1_calculation_versioning():
@@ -611,3 +628,128 @@ def test_pt1_details_sorted_by_product_cost_sort_order():
         assert payload['has_next'] is False
         assert [item['sku'] for item in payload['rows']] == ['SKU_B', 'SKU_A']
         assert [item['sku_sort_order'] for item in payload['rows']] == [1, 2]
+
+
+def test_recompute_weekly_product_analysis_from_history_uses_latest_product_costs(tmp_path: Path):
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        db.add(Project(project_name='Demo', sort_order=1, source_file='seed.csv'))
+        db.add(
+            ProductCost(
+                project_name='Demo',
+                sku='SKU1',
+                asin='ASIN1',
+                first_leg_unit_cost=1,
+                fob_unit_cost=1,
+                currency='USD',
+                is_active=True,
+                country='US',
+            )
+        )
+        db.commit()
+
+        business = tmp_path / 'business.csv'
+        payment = tmp_path / 'payment.csv'
+        ad = tmp_path / 'ad.xlsx'
+        _write_business_csv(business)
+        _write_payment_csv(payment)
+        _write_ad_xlsx(ad)
+
+        product_analysis_source_service.persist_product_analysis_sources(
+            db,
+            project_name='Demo',
+            report_start_date='2026-02-01',
+            report_end_date='2026-02-07',
+            file_ids={
+                'business_report': 'business.csv',
+                'payment_report': 'payment.csv',
+                'ad_report': 'ad.xlsx',
+            },
+            resolved_file_paths={
+                'business_report': str(business),
+                'payment_report': str(payment),
+                'ad_report': str(ad),
+            },
+        )
+        product_analysis_source_service.persist_product_analysis_pt1_calculation(
+            db,
+            project_name='Demo',
+            report_start_date='2026-02-01',
+            report_end_date='2026-02-07',
+            pt1={
+                'row_count': 1,
+                'summary': {'SKU': '汇总', '产品FOB': 10, '销售头程': 10, '总成本': 63, '利润': 45},
+                'details': [
+                    {
+                        '日期': '20260201-0207',
+                        'SKU': 'SKU1',
+                        'ASIN': 'ASIN1',
+                        '总销量': 10,
+                        '总销售额': 120,
+                        '页面浏览量': 100,
+                        '总访客': 90,
+                        '广告展示量': 200,
+                        '广告点击量': 20,
+                        '广告订单量': 5,
+                        '广告花费': 12,
+                        '广告销售额': 50,
+                        '产品FOB': 10,
+                        '销售头程': 10,
+                        'FBA配送费': 25,
+                        '平台佣金': 18,
+                        '总成本': 63,
+                        '利润': 45,
+                        '实际销售额': 120,
+                        '实际销售量': 10,
+                        '实际退款额': 0,
+                        '实际退款量': 0,
+                        '利润率': 0.375,
+                    }
+                ],
+            },
+        )
+        db.commit()
+
+        cost_row = db.execute(select(ProductCost).where(ProductCost.sku == 'SKU1')).scalars().one()
+        cost_row.first_leg_unit_cost = 2
+        cost_row.fob_unit_cost = 3
+        db.commit()
+
+        payload = product_analysis_source_service.recompute_weekly_product_analysis_from_history(
+            db,
+            project_id=1,
+            country='US',
+        )
+        db.commit()
+
+        assert payload['recomputed'] == 1
+        assert payload['periods'][0]['version'] == 2
+
+        pt1_rows = db.execute(select(AnalysisPT1Calculation).order_by(AnalysisPT1Calculation.version.asc())).scalars().all()
+        assert len(pt1_rows) == 2
+        assert pt1_rows[0].is_current is False
+        assert pt1_rows[1].is_current is True
+        assert pt1_rows[1].summary_row['产品FOB'] == 30.0
+        assert pt1_rows[1].summary_row['销售头程'] == 20.0
+        assert pt1_rows[1].summary_row['总成本'] == 93.0
+        assert pt1_rows[1].summary_row['利润'] == 15.0
+
+        detail_rows = db.execute(
+            select(AnalysisPTSKUDetail).where(AnalysisPTSKUDetail.pt1_calculation_id == pt1_rows[1].id)
+        ).scalars().all()
+        assert len(detail_rows) == 1
+        assert detail_rows[0].raw_row['产品FOB'] == 30.0
+        assert detail_rows[0].raw_row['销售头程'] == 20.0
+        assert detail_rows[0].raw_row['总成本'] == 93.0
+
+
+def test_parse_transaction_at_handles_pst_and_pdt():
+    parsed_pst = product_analysis_source_service._parse_transaction_at({'date/time': 'Mar 7, 2026 6:58:21 AM PST'})
+    parsed_pdt = product_analysis_source_service._parse_transaction_at({'date/time': 'Mar 8, 2026 4:52:59 AM PDT'})
+
+    assert parsed_pst is not None
+    assert parsed_pdt is not None
+    assert parsed_pst.isoformat() == '2026-03-07T14:58:21+00:00'
+    assert parsed_pdt.isoformat() == '2026-03-08T11:52:59+00:00'

@@ -11,7 +11,6 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { buildBackendHeaders } from '@/lib/backend-auth'
-import { resolveOperationCommissionUsd } from '@/lib/commission'
 
 type PaymentStatus = 'paid' | 'partial' | 'unpaid'
 type IncomeCategory = 'operator' | 'assistant'
@@ -86,8 +85,8 @@ type CommissionRecord = {
   income_category: IncomeCategory
   income_total_usd: number
   factory_commission_rate: number
-  public_commission_ratio: number
-  commission_amount_rmb: number
+  operator_bonus_ratio: number
+  bonus_amount_rmb: number
   payment_status: 'paid' | 'unpaid'
 }
 
@@ -104,27 +103,7 @@ type ProjectMeta = {
   commission_rate: number | null
 }
 
-type FinancialSeriesRow = {
-  report_month: string
-  income_total: number
-  amazon_pay_back: number
-}
-
-type FinancialSeriesResponse = {
-  rows: FinancialSeriesRow[]
-}
-
-type ExchangeRateListResponse = {
-  data?: Array<{
-    year_month: string
-    rate: number
-  }>
-  pagination?: {
-    totalPages: number
-  }
-}
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
+const API_BASE = '/api/backend'
 
 function lastMonthString(): string {
   const now = new Date()
@@ -207,6 +186,35 @@ function toCategoryLabel(value: IncomeCategory): string {
   return value === 'operator' ? '运营' : '助理'
 }
 
+const OPERATOR_PUBLIC_COMMISSION_TIERS: Array<{ range: string; ratio: string; note?: string }> = [
+  { range: '0 - 10,000 USD', ratio: '12%', note: '新店铺开售3个月内' },
+  { range: '10,001 - 50,000 USD', ratio: '14%' },
+  { range: '50,001 - 150,000 USD', ratio: '16%' },
+  { range: '150,001 - 450,000 USD', ratio: '18%' },
+  { range: '450,001 USD 以上', ratio: '20%' },
+] as const
+
+const PROJECT_COMMISSION_RULES = [
+  {
+    code: 'Rule 01',
+    title: '销售额佣金计算',
+    tag: '按销售额',
+    description: '项目设置为按销售额计算时，按当月销售收入与项目佣金点数核算工厂佣金。',
+  },
+  {
+    code: 'Rule 02',
+    title: '回款佣金核算',
+    tag: '按回款率',
+    description: '项目设置为按回款核算时，按回款率阶梯自动计算项目佣金。',
+    tiers: [
+      '40% - 50% -> 7%',
+      '50% - 60% -> 10%',
+      '60% - 70% -> 13%',
+      '70% 以上 -> 15%',
+    ],
+  },
+] as const
+
 export default function CommissionOverviewPage() {
   const { data: session } = useSession()
   const [month, setMonth] = useState(lastMonthString())
@@ -216,6 +224,7 @@ export default function CommissionOverviewPage() {
   const [loading, setLoading] = useState(true)
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [operationLoading, setOperationLoading] = useState(false)
+  const [recomputing, setRecomputing] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const [rows, setRows] = useState<CommissionProjectMonth[]>([])
@@ -224,7 +233,6 @@ export default function CommissionOverviewPage() {
   const [operationRows, setOperationRows] = useState<CommissionRecord[]>([])
   const [operationPersonFilter, setOperationPersonFilter] = useState('all')
   const [projectMetaById, setProjectMetaById] = useState<Record<number, ProjectMeta>>({})
-  const [overviewCommissionRmbByProjectId, setOverviewCommissionRmbByProjectId] = useState<Record<number, number>>({})
 
   const [updatingId, setUpdatingId] = useState<number | null>(null)
   const [receivedDraftById, setReceivedDraftById] = useState<Record<number, string>>({})
@@ -282,77 +290,6 @@ export default function CommissionOverviewPage() {
       setProjectMetaById({})
     }
   }, [session])
-
-  const loadOverviewCommissionRmb = useCallback(async (currentRows: CommissionProjectMonth[], currentMonth: string) => {
-    const uniqueProjectIds = Array.from(new Set(currentRows.map((row) => row.project_id))).filter((id) => id > 0)
-    if (uniqueProjectIds.length === 0) {
-      return {}
-    }
-
-    const rowByProjectId = new Map<number, CommissionProjectMonth>(currentRows.map((row) => [row.project_id, row]))
-
-    let page = 1
-    let totalPages = 1
-    const exchangeRateByMonth: Record<string, number> = {}
-
-    while (page <= totalPages) {
-      const exchangeResp = await fetch(`/api/exchange-rates?currency=USD&page=${page}&pageSize=200`, {
-        cache: 'no-store',
-      })
-      if (!exchangeResp.ok) {
-        throw new Error(parseErrorBody(await exchangeResp.text(), exchangeResp.status))
-      }
-      const exchangePayload = (await exchangeResp.json()) as ExchangeRateListResponse
-      const list = Array.isArray(exchangePayload.data) ? exchangePayload.data : []
-      list.forEach((item) => {
-        if (item.year_month) {
-          exchangeRateByMonth[item.year_month] = Number(item.rate) || 0
-        }
-      })
-      totalPages = Number(exchangePayload.pagination?.totalPages || 1)
-      page += 1
-    }
-
-    const pairs = await Promise.all(
-      uniqueProjectIds.map(async (projectId) => {
-        const row = rowByProjectId.get(projectId)
-        if (!row) return [projectId, 0] as const
-
-        const projectMeta = projectMetaById[projectId]
-        const financialResp = await fetch(
-          `${API_BASE}/api/v1/monthly-reports/financial-series?project_id=${projectId}&start_month=${currentMonth}&end_month=${currentMonth}&fill_missing=true`,
-          {
-            cache: 'no-store',
-            headers: buildBackendHeaders(session),
-          }
-        )
-        if (!financialResp.ok) {
-          return [projectId, row.factory_commission_rmb] as const
-        }
-
-        const financialPayload = (await financialResp.json()) as FinancialSeriesResponse
-        const monthRow = (Array.isArray(financialPayload.rows) ? financialPayload.rows : []).find((item) => item.report_month === currentMonth)
-        if (!monthRow) {
-          return [projectId, row.factory_commission_rmb] as const
-        }
-
-        const exchangeRate = exchangeRateByMonth[currentMonth] > 0 ? exchangeRateByMonth[currentMonth] : row.usd_to_rmb_rate
-        const operationCommission = resolveOperationCommissionUsd({
-          commissionBasis: projectMeta?.commission_basis,
-          configuredCommissionRate: projectMeta?.commission_rate ?? row.factory_commission_rate,
-          incomeTotalUsd: monthRow.income_total,
-          amazonPaybackUsd: monthRow.amazon_pay_back,
-        })
-        const commissionRmb = operationCommission.commissionUsd * exchangeRate
-        return [projectId, Number.isFinite(commissionRmb) ? commissionRmb : row.factory_commission_rmb] as const
-      })
-    )
-
-    return pairs.reduce<Record<number, number>>((acc, [projectId, value]) => {
-      acc[projectId] = value
-      return acc
-    }, {})
-  }, [projectMetaById, session])
 
   const loadYearlySummary = useCallback(async () => {
     setSummaryLoading(true)
@@ -418,40 +355,13 @@ export default function CommissionOverviewPage() {
     void loadProjectMeta()
   }, [loadProjectMeta])
 
-  useEffect(() => {
-    let canceled = false
-    if (rows.length === 0) {
-      setOverviewCommissionRmbByProjectId({})
-      return () => {
-        canceled = true
-      }
-    }
-
-    void (async () => {
-      try {
-        const nextMap = await loadOverviewCommissionRmb(rows, month)
-        if (!canceled) {
-          setOverviewCommissionRmbByProjectId(nextMap)
-        }
-      } catch {
-        if (!canceled) {
-          setOverviewCommissionRmbByProjectId({})
-        }
-      }
-    })()
-
-    return () => {
-      canceled = true
-    }
-  }, [loadOverviewCommissionRmb, month, rows])
-
   const sortedRows = useMemo(() => {
     return [...rows].sort((a, b) => a.project_id - b.project_id)
   }, [rows])
 
   const getOverviewCommissionRmb = useCallback((row: CommissionProjectMonth) => {
-    return overviewCommissionRmbByProjectId[row.project_id] ?? row.factory_commission_rmb
-  }, [overviewCommissionRmbByProjectId])
+    return row.factory_commission_rmb
+  }, [])
 
   useEffect(() => {
     if (activeTab === 'monthly' || activeTab === 'projectSummary') {
@@ -561,6 +471,33 @@ export default function CommissionOverviewPage() {
     void loadYearlySummary()
   }
 
+  const handleRecompute = async () => {
+    setRecomputing(true)
+    setError(null)
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/system-management/commission-management/recompute`, {
+        method: 'POST',
+        headers: buildBackendHeaders(session, { contentType: 'application/json' }),
+        body: JSON.stringify({ report_month: month }),
+      })
+      if (!response.ok) {
+        throw new Error(parseErrorBody(await response.text(), response.status))
+      }
+
+      await response.json()
+      await Promise.all([
+        loadData(),
+        loadProjectMeta(),
+        activeTab === 'operation' ? loadOperationRows() : Promise.resolve(),
+        activeTab === 'monthly' || activeTab === 'projectSummary' ? loadYearlySummary() : Promise.resolve(),
+      ])
+    } catch (recomputeError) {
+      setError(recomputeError instanceof Error ? recomputeError.message : '佣金核算失败')
+    } finally {
+      setRecomputing(false)
+    }
+  }
+
   const getDetailCommissionRatioLabel = useCallback((row: CommissionProjectMonth): string => {
     const projectMeta = projectMetaById[row.project_id]
     if (!projectMeta) {
@@ -621,19 +558,18 @@ export default function CommissionOverviewPage() {
 
   const renderProjectSummaryTable = () => (
     <div className="rounded-lg border border-border/70 flex-1 flex flex-col min-h-0 overflow-hidden">
-      <div className="flex-1 overflow-auto">
-        <Table>
-          <TableHeader className="bg-slate-100/80 dark:bg-slate-900/45 sticky top-0 z-10">
+        <Table containerClassName="h-full overflow-auto">
+          <TableHeader className="bg-slate-100/80 dark:bg-slate-900/45">
             <TableRow>
-              <TableHead className="sticky left-0 z-20 bg-slate-100/90 font-semibold text-foreground dark:bg-slate-900/60">项目名称</TableHead>
+              <TableHead className="sticky left-0 top-0 z-30 whitespace-nowrap bg-slate-100/90 font-semibold text-foreground dark:bg-slate-900/60">项目名称</TableHead>
               {getYearMonths(summaryYear).map((m) => (
-                <TableHead key={m} className="text-right text-xs whitespace-nowrap font-semibold text-foreground">
+                <TableHead key={m} className="sticky top-0 z-20 bg-slate-100/90 text-right text-xs whitespace-nowrap font-semibold text-foreground dark:bg-slate-900/60">
                   {m.slice(5)}月佣金
                 </TableHead>
               ))}
-              <TableHead className="text-right font-semibold text-foreground">年度佣金合计</TableHead>
-              <TableHead className="text-right font-semibold text-foreground">年度回款</TableHead>
-              <TableHead className="text-right font-semibold text-foreground">回款率</TableHead>
+              <TableHead className="sticky top-0 z-20 bg-slate-100/90 text-right whitespace-nowrap font-semibold text-foreground dark:bg-slate-900/60">年度佣金合计</TableHead>
+              <TableHead className="sticky top-0 z-20 bg-slate-100/90 text-right whitespace-nowrap font-semibold text-foreground dark:bg-slate-900/60">年度回款</TableHead>
+              <TableHead className="sticky top-0 z-20 bg-slate-100/90 text-right whitespace-nowrap font-semibold text-foreground dark:bg-slate-900/60">回款率</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -665,31 +601,11 @@ export default function CommissionOverviewPage() {
             )}
           </TableBody>
         </Table>
-      </div>
     </div>
   )
 
   const renderOperationTable = () => (
     <div className="flex flex-col flex-1 min-h-0 space-y-3">
-      <div className="flex flex-wrap items-end gap-3 shrink-0">
-        <div className="space-y-1.5">
-          <label htmlFor="operation_person" className="text-xs text-muted-foreground">筛选人员</label>
-          <Select value={operationPersonFilter} onValueChange={setOperationPersonFilter}>
-            <SelectTrigger id="operation_person" className="w-[200px]">
-              <SelectValue placeholder="请选择人员" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部人员</SelectItem>
-              {operationPeople.map((person) => (
-                <SelectItem key={person} value={person}>
-                  {person}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
       <div className="rounded-lg border border-border/70 flex-1 flex flex-col min-h-0 overflow-hidden">
         <div className="flex-1 overflow-auto">
           <Table>
@@ -699,9 +615,9 @@ export default function CommissionOverviewPage() {
                 <TableHead className="font-semibold text-foreground">项目</TableHead>
                 <TableHead className="font-semibold text-foreground">角色</TableHead>
                 <TableHead className="text-right font-semibold text-foreground">销售收入(USD)</TableHead>
-                <TableHead className="text-right font-semibold text-foreground">工厂佣金率</TableHead>
-                <TableHead className="text-right font-semibold text-foreground">提成比例</TableHead>
-                <TableHead className="text-right font-semibold text-foreground">提成金额(RMB)</TableHead>
+                <TableHead className="text-right font-semibold text-foreground">项目佣金率</TableHead>
+                <TableHead className="text-right font-semibold text-foreground">运营提成比例</TableHead>
+                <TableHead className="text-right font-semibold text-foreground">运营提成金额(RMB)</TableHead>
                 <TableHead className="font-semibold text-foreground">项目回款状态(只读)</TableHead>
               </TableRow>
             </TableHeader>
@@ -724,8 +640,8 @@ export default function CommissionOverviewPage() {
                       <TableCell>{toCategoryLabel(row.income_category)}</TableCell>
                       <TableCell className="text-right tabular-nums">{formatUsd(row.income_total_usd)}</TableCell>
                       <TableCell className="text-right tabular-nums">{formatPercent(row.factory_commission_rate)}</TableCell>
-                      <TableCell className="text-right tabular-nums">{formatPercent(row.public_commission_ratio)}</TableCell>
-                      <TableCell className="text-right tabular-nums font-medium">{formatRmb(row.commission_amount_rmb)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatPercent(row.operator_bonus_ratio)}</TableCell>
+                      <TableCell className="text-right tabular-nums font-medium">{formatRmb(row.bonus_amount_rmb)}</TableCell>
                       <TableCell>{toPaymentLabel(projectPaymentStatus)}</TableCell>
                     </TableRow>
                   )
@@ -752,35 +668,55 @@ export default function CommissionOverviewPage() {
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div className="flex flex-wrap items-end gap-4">
               {activeTab === 'detail' || activeTab === 'operation' ? (
-                <div className="space-y-1.5">
-                  <label htmlFor="commission_month" className="text-xs text-muted-foreground">年度月份</label>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() => setMonth((prev) => shiftMonth(prev, -1))}
-                      aria-label="上一个月份"
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <input
-                      id="commission_month"
-                      type="month"
-                      value={month}
-                      onChange={(event) => setMonth(event.target.value)}
-                      className="h-10 w-[190px] rounded-md border border-input bg-background px-3 text-sm"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() => setMonth((prev) => shiftMonth(prev, 1))}
-                      aria-label="下一个月份"
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
+                <div className="flex flex-wrap items-end gap-4">
+                  <div className="space-y-1.5">
+                    <label htmlFor="commission_month" className="text-xs text-muted-foreground">年度月份</label>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setMonth((prev) => shiftMonth(prev, -1))}
+                        aria-label="上一个月份"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <input
+                        id="commission_month"
+                        type="month"
+                        value={month}
+                        onChange={(event) => setMonth(event.target.value)}
+                        className="h-10 w-[190px] rounded-md border border-input bg-background px-3 text-sm"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setMonth((prev) => shiftMonth(prev, 1))}
+                        aria-label="下一个月份"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
+                  {activeTab === 'operation' ? (
+                    <div className="space-y-1.5">
+                      <label htmlFor="operation_person" className="text-xs text-muted-foreground">筛选人员</label>
+                      <Select value={operationPersonFilter} onValueChange={setOperationPersonFilter}>
+                        <SelectTrigger id="operation_person" className="w-[200px]">
+                          <SelectValue placeholder="请选择人员" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">全部人员</SelectItem>
+                          {operationPeople.map((person) => (
+                            <SelectItem key={person} value={person}>
+                              {person}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : null}
                 </div>
               ) : (
                 <div className="space-y-1.5">
@@ -814,11 +750,20 @@ export default function CommissionOverviewPage() {
               <Button
                 variant="outline"
                 onClick={handleRefresh}
-                disabled={loading || summaryLoading || operationLoading}
+                disabled={loading || summaryLoading || operationLoading || recomputing}
               >
                 {loading || summaryLoading || operationLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                 刷新
               </Button>
+              {(activeTab === 'detail' || activeTab === 'operation') ? (
+                <Button
+                  onClick={() => void handleRecompute()}
+                  disabled={recomputing || loading || operationLoading}
+                >
+                  {recomputing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  核算
+                </Button>
+              ) : null}
             </div>
 
             <div className="flex items-center gap-2">
@@ -957,6 +902,125 @@ export default function CommissionOverviewPage() {
           ) : (
             renderOperationTable()
           )}
+
+          <section className="shrink-0 overflow-hidden rounded-2xl border border-slate-200/80 bg-[linear-gradient(145deg,rgba(248,250,252,0.96),rgba(255,255,255,0.98)),radial-gradient(circle_at_top_right,rgba(245,158,11,0.12),transparent_32%),radial-gradient(circle_at_bottom_left,rgba(14,165,233,0.1),transparent_26%)] shadow-[0_20px_45px_-30px_rgba(15,23,42,0.28)]">
+            {activeTab === 'operation' ? (
+              <div className="space-y-4 p-5">
+                <div className="space-y-1.5">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-700/80">Bonus Rules</p>
+                  <h3 className="text-lg font-semibold tracking-tight text-slate-900">运营提成备注</h3>
+                  <p className="text-sm leading-6 text-slate-600">
+                    运营提成在项目佣金基础上再次核算。只有运营时，运营按阶梯提成；有助理时，助理默认按项目佣金基数的 2% 核算，手工 override 存在时优先按 override。
+                  </p>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {OPERATOR_PUBLIC_COMMISSION_TIERS.map((item, index) => (
+                    <article
+                      key={item.range}
+                      className="rounded-2xl border border-white/80 bg-white/85 p-4 shadow-[0_16px_30px_-24px_rgba(15,23,42,0.45)] backdrop-blur-sm"
+                    >
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">Tier {index + 1}</p>
+                      <p className="mt-3 text-sm font-medium text-slate-500">月销售额</p>
+                      <p className="mt-1 text-base font-semibold text-slate-900">{item.range}</p>
+                      <div className="mt-4 inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200/80">
+                        运营提成比例 {item.ratio}
+                      </div>
+                      {item.note ? (
+                        <p className="mt-3 rounded-xl border border-amber-200/80 bg-amber-50/90 px-3 py-2 text-xs leading-5 text-amber-800">
+                          备注：{item.note}
+                        </p>
+                      ) : null}
+                    </article>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="grid gap-4 p-5 xl:grid-cols-[0.92fr_1.45fr]">
+                <aside className="relative overflow-hidden rounded-[28px] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(14,165,233,0.08),rgba(255,255,255,0.92)),radial-gradient(circle_at_top_left,rgba(14,165,233,0.14),transparent_36%)] p-5 shadow-[0_18px_34px_-28px_rgba(15,23,42,0.45)]">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-sky-700/80">Project Commission</p>
+                      <h3 className="text-xl font-semibold tracking-tight text-slate-900">工厂佣金结算备注</h3>
+                      <p className="text-sm leading-6 text-slate-600">
+                        这里展示的是项目与工厂之间的佣金结算口径。当前先引用现有两类规则作为说明，后续你可以继续补充更多结算规则。
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/80 bg-white/85 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Rule Index</p>
+                      <div className="mt-3 space-y-2">
+                        {PROJECT_COMMISSION_RULES.map((item) => (
+                          <div key={item.code} className="flex items-center justify-between rounded-2xl bg-slate-50/90 px-3 py-2.5">
+                            <div>
+                              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{item.code}</p>
+                              <p className="mt-1 text-sm font-semibold text-slate-900">{item.title}</p>
+                            </div>
+                            <span className="rounded-full border border-sky-200/80 bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700">
+                              {item.tag}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-dashed border-slate-300 bg-white/72 p-4 text-sm leading-6 text-slate-600">
+                      当前区域作为结算手册占位。
+                      <span className="font-medium text-slate-800"> 未来新增规则 </span>
+                      可以继续沿用右侧卡片结构补充。
+                    </div>
+                  </div>
+                </aside>
+
+                <div className="space-y-3">
+                  {PROJECT_COMMISSION_RULES.map((item) => (
+                    <article
+                      key={item.title}
+                      className="group relative overflow-hidden rounded-[28px] border border-white/85 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(248,250,252,0.9))] p-5 shadow-[0_20px_40px_-30px_rgba(15,23,42,0.42)] transition-colors duration-200 hover:border-sky-200/80"
+                    >
+                      <div className="absolute inset-y-5 left-0 w-1 rounded-full bg-gradient-to-b from-sky-500 via-cyan-400 to-emerald-400" />
+                      <div className="pl-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="space-y-1">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">{item.code}</p>
+                            <h4 className="text-base font-semibold text-slate-900">{item.title}</h4>
+                          </div>
+                          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
+                            {item.tag}
+                          </span>
+                        </div>
+
+                        <div className="mt-4 grid gap-3 md:grid-cols-[0.9fr_1.5fr]">
+                          <div className="rounded-2xl bg-slate-950/[0.035] p-4">
+                            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">适用口径</p>
+                            <p className="mt-2 text-sm font-medium leading-6 text-slate-700">
+                              {item.tag === '按销售额' ? '按月销售收入与项目佣金点数核算' : '按回款率阶梯自动核算项目佣金'}
+                            </p>
+                          </div>
+                          <div className="rounded-2xl border border-slate-100 bg-white/82 p-4">
+                            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">规则说明</p>
+                            <p className="mt-2 text-sm leading-7 text-slate-600">{item.description}</p>
+                            {'tiers' in item ? (
+                              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                                {item.tiers.map((tier) => (
+                                  <div
+                                    key={tier}
+                                    className="rounded-xl border border-emerald-100 bg-emerald-50/70 px-3 py-2 text-sm font-medium text-emerald-800"
+                                  >
+                                    {tier}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
         </CardContent>
       </Card>
     </div>

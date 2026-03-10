@@ -47,8 +47,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
-const API_KEY = process.env.NEXT_PUBLIC_BACKEND_API_KEY ?? ''
+const API_BASE = '/api/backend'
 const DASHBOARD_PALETTE = {
   blue: 'hsl(217 91% 60%)',
   blueDeep: 'hsl(224 76% 48%)',
@@ -417,12 +416,8 @@ const ANALYSIS_SECTIONS: AnalysisSection[] = [
   { key: 'price', label: '价格', prompt: '回答销量集中在哪些价格带，以及价格是否主导决策。' },
 ]
 
-function authHeaders(operator?: string, isAdmin = false): Record<string, string> {
-  const headers: Record<string, string> = {}
-  if (API_KEY) headers['X-API-Key'] = API_KEY
-  if (isAdmin) headers['X-Is-Admin'] = 'true'
-  if (operator && operator.trim()) headers['X-Operator'] = encodeURIComponent(operator.trim())
-  return headers
+function authHeaders(_operator?: string, _isAdmin = false): Record<string, string> {
+  return {}
 }
 
 function resolveApiUrl(path: string) {

@@ -4,8 +4,7 @@ import { ArrowUpRight, Building2, ExternalLink, Loader2, Store } from 'lucide-re
 import { useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
-const API_KEY = process.env.NEXT_PUBLIC_BACKEND_API_KEY ?? ''
+const API_BASE = '/api/backend'
 
 type StoreItem = {
   id: number
@@ -109,26 +108,7 @@ export default function StoreNavigationPage() {
         setLoading(true)
         setError(null)
 
-        const currentOperator = (
-          session?.user?.operatorNameZh ||
-          session?.user?.name ||
-          session?.user?.email ||
-          session?.user?.id ||
-          ''
-        ).trim()
-        const isAdmin = Boolean(session?.user?.isAdmin)
-
-        const headers: Record<string, string> = {}
-        if (API_KEY) {
-          headers['X-API-Key'] = API_KEY
-        }
-        if (currentOperator) {
-          headers['X-Operator'] = encodeURIComponent(currentOperator)
-        }
-        headers['X-Is-Admin'] = String(isAdmin)
-
         const response = await fetch(`${API_BASE}/api/v1/projects/manage`, {
-          headers,
           cache: 'no-store',
         })
         if (!response.ok) {

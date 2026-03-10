@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import date
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import exists, func, or_, select
@@ -14,6 +14,7 @@ from app.schemas.product_analysis_source import (
     AnalysisSourceFileItem,
     AnalysisSourceRowsResponse,
     CurrentInventorySnapshotResponse,
+    ProductAnalysisWeeklyRecomputeResponse,
 )
 from app.services import product_analysis_source_service
 
@@ -377,7 +378,7 @@ def list_product_analysis_pt1(
 @router.get('/product-analysis/pt1/{pt1_id:int}/details')
 def list_product_analysis_pt1_details(
     pt1_id: int,
-    country: str = Query(default='US'),
+    country: Annotated[str, Query()] = 'US',
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=500, ge=1, le=1000),
     db: Session = Depends(get_db_session),
@@ -455,7 +456,7 @@ def list_product_analysis_pt1_details(
 @router.get('/product-analysis/weekly')
 def list_product_analysis_weekly(
     project_id: int = Query(gt=0),
-    country: str = Query(default='US'),
+    country: Annotated[str, Query()] = 'US',
     start_date: date | None = Query(default=None),
     end_date: date | None = Query(default=None),
     current_only: bool = Query(default=True),
@@ -533,6 +534,38 @@ def list_product_analysis_weekly(
             }
         )
     return fallback_payload
+
+
+@router.post('/product-analysis/weekly/recompute', response_model=ProductAnalysisWeeklyRecomputeResponse)
+def recompute_product_analysis_weekly(
+    project_id: int = Query(gt=0),
+    country: Annotated[str, Query()] = 'US',
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
+    current_only: bool = Query(default=True),
+    db: Session = Depends(get_db_session),
+):
+    normalized_country = _normalize_country(country)
+    try:
+        payload = product_analysis_source_service.recompute_weekly_product_analysis_from_history(
+            db,
+            project_id=project_id,
+            country=normalized_country,
+            start_date=start_date,
+            end_date=end_date,
+            current_only=current_only,
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        detail = str(exc)
+        if detail == 'project not found':
+            raise HTTPException(status_code=404, detail=detail) from exc
+        raise HTTPException(status_code=400, detail=detail) from exc
+    except Exception:
+        db.rollback()
+        raise
+    return payload
 
 
 def _to_source_item(row) -> AnalysisSourceFileItem:

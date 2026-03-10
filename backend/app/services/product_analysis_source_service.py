@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 import hashlib
 from pathlib import Path
 import re
 from threading import Lock
 from typing import Any
+import warnings
 from zoneinfo import ZoneInfo
 
 import pandas as pd
@@ -15,6 +16,7 @@ from slugify import slugify
 from sqlalchemy import Select, func, insert, or_, select, update as sa_update
 from sqlalchemy.orm import Session
 
+from app.tasks.scripts import product_analysis as product_analysis_script
 from app.models import (
     AnalysisAdRow,
     AnalysisBusinessRow,
@@ -23,6 +25,9 @@ from app.models import (
     AnalysisPaymentRow,
     AnalysisSalesOrderRow,
     AnalysisSourceFile,
+    DailyAdProduct,
+    DailySalesOrder,
+    DailySourceFile,
     InventorySnapshotRow,
     ProductCost,
     Project,
@@ -33,9 +38,12 @@ ALL_REPORT_TYPES = PERIODIC_REPORT_TYPES | {'inventory_report'}
 SCOPE_INCLUDED = 'included_product'
 SCOPE_EXCLUDED_STORE = 'excluded_store_level'
 SCOPE_EXCLUDED_UNMAPPED = 'excluded_unmapped'
+OPENPYXL_MISSING_DEFAULT_STYLE_WARNING = r"Workbook contains no default style, apply openpyxl's default"
 
 _SQLITE_TABLES_READY = False
 _SQLITE_TABLES_LOCK = Lock()
+_SQLITE_DAILY_TABLES_READY = False
+_SQLITE_DAILY_TABLES_LOCK = Lock()
 PT_TIMEZONE = ZoneInfo('America/Los_Angeles')
 COUNTRY_ALIASES = {
     'US': 'US',
@@ -51,6 +59,12 @@ COUNTRY_ALIASES = {
     'UNITED KINGDOM': 'UK',
     '英国': 'UK',
     '英国站': 'UK',
+}
+TZ_OFFSET_BY_ABBR = {
+    'UTC': 0,
+    'GMT': 0,
+    'PST': -8,
+    'PDT': -7,
 }
 
 
@@ -85,6 +99,26 @@ def ensure_tables(db: Session) -> None:
         ):
             table.create(bind=bind, checkfirst=True)
         _SQLITE_TABLES_READY = True
+
+
+def ensure_daily_tables(db: Session) -> None:
+    global _SQLITE_DAILY_TABLES_READY
+    bind = db.get_bind()
+    if bind.dialect.name != 'sqlite':
+        return
+    if _SQLITE_DAILY_TABLES_READY:
+        return
+
+    with _SQLITE_DAILY_TABLES_LOCK:
+        if _SQLITE_DAILY_TABLES_READY:
+            return
+        for table in (
+            DailySourceFile.__table__,
+            DailySalesOrder.__table__,
+            DailyAdProduct.__table__,
+        ):
+            table.create(bind=bind, checkfirst=True)
+        _SQLITE_DAILY_TABLES_READY = True
 
 
 def persist_product_analysis_pt1_calculation(
@@ -244,6 +278,83 @@ def list_weekly_product_analysis_from_details(
     ]
 
 
+def recompute_weekly_product_analysis_from_history(
+    db: Session,
+    *,
+    project_id: int,
+    country: str = 'US',
+    start_date: date | None = None,
+    end_date: date | None = None,
+    current_only: bool = True,
+) -> dict[str, Any]:
+    ensure_tables(db)
+    project = db.get(Project, project_id)
+    if project is None:
+        raise ValueError('project not found')
+
+    normalized_country = _normalize_country(country)
+    df_cost = _build_active_product_costs_df(db, project_name=project.project_name, country=normalized_country)
+    period_sources = _list_recomputable_weekly_period_sources(
+        db,
+        project_id=project_id,
+        start_date=start_date,
+        end_date=end_date,
+        current_only=current_only,
+    )
+
+    periods: list[dict[str, Any]] = []
+    for item in period_sources:
+        report_start_date = item['report_start_date']
+        report_end_date = item['report_end_date']
+        df_business = _build_business_df_from_source(db, source_id=item['business_report_source_id'])
+        df_ad = _build_ad_df_from_source(db, source_id=item['ad_report_source_id'])
+        df_payment = _build_payment_df_from_source(db, source_id=item['payment_report_source_id'])
+        report_date = product_analysis_script._format_report_date(
+            report_start_date.isoformat(),
+            report_end_date.isoformat(),
+        )
+        df_overview = product_analysis_script._build_overview(
+            project.project_name,
+            report_date,
+            df_cost,
+            df_business,
+            df_ad,
+            product_analysis_script._build_payment_aggregate(df_payment),
+        )
+        df_overview = product_analysis_script._append_summary_row(df_overview, report_date)
+        pt1 = product_analysis_script._build_pt1_payload(df_overview)
+        pt1_row = persist_product_analysis_pt1_calculation(
+            db,
+            project_name=project.project_name,
+            report_start_date=report_start_date.isoformat(),
+            report_end_date=report_end_date.isoformat(),
+            pt1=pt1,
+            result_file_path=None,
+            calculation_version=1,
+        )
+        periods.append(
+            {
+                'pt1_id': int(pt1_row.id),
+                'version': int(pt1_row.version),
+                'report_start_date': report_start_date.isoformat(),
+                'report_end_date': report_end_date.isoformat(),
+                'row_count': int(pt1_row.row_count or 0),
+                'business_report_source_id': int(item['business_report_source_id']),
+                'ad_report_source_id': int(item['ad_report_source_id']),
+                'payment_report_source_id': int(item['payment_report_source_id']),
+            }
+        )
+
+    return {
+        'project_id': int(project.id),
+        'project_name': project.project_name,
+        'country': normalized_country,
+        'recomputed': len(periods),
+        'skipped': 0,
+        'periods': periods,
+    }
+
+
 def persist_product_analysis_sources(
     db: Session,
     *,
@@ -314,6 +425,7 @@ def persist_daily_report_sources(
     created_by: str | None = None,
 ) -> list[SourcePersistOutcome]:
     ensure_tables(db)
+    ensure_daily_tables(db)
     if not isinstance(file_ids, dict) or not isinstance(resolved_file_paths, dict):
         raise ValueError('file_ids and resolved_file_paths are required')
 
@@ -321,9 +433,7 @@ def persist_daily_report_sources(
     target_date = _parse_yyyy_mm_dd(report_date, 'report_date')
     known_skus, known_asins = _load_project_product_mapping(db, project.project_name)
     outcomes: list[SourcePersistOutcome] = []
-    ordered_types = ['sales_report', 'ad_report', 'inventory_report']
-
-    for report_type in ordered_types:
+    for report_type in ('sales_report', 'ad_report'):
         file_id = str(file_ids.get(report_type) or '').strip()
         file_path = str(resolved_file_paths.get(report_type) or '').strip()
         if not file_id and not file_path:
@@ -337,21 +447,48 @@ def persist_daily_report_sources(
             )
             continue
 
-        outcome = _persist_one_source_file(
+        outcome = _persist_one_daily_source_file(
             db,
             project=project,
             report_type=report_type,
-            period_start_date=target_date if report_type in PERIODIC_REPORT_TYPES else None,
-            period_end_date=target_date if report_type in PERIODIC_REPORT_TYPES else None,
+            report_date=target_date,
             upload_file_id=file_id or Path(file_path).name,
             upload_file_path=file_path or file_id,
             known_skus=known_skus,
             known_asins=known_asins,
             created_by=created_by,
-            sales_count_as_of_date=target_date if report_type == 'sales_report' else None,
         )
         outcomes.append(outcome)
         db.commit()
+
+    inventory_file_id = str(file_ids.get('inventory_report') or '').strip()
+    inventory_file_path = str(resolved_file_paths.get('inventory_report') or '').strip()
+    if not inventory_file_id and not inventory_file_path:
+        outcomes.append(
+            SourcePersistOutcome(
+                report_type='inventory_report',
+                source_id=None,
+                success=False,
+                error_message='missing file for inventory_report',
+            )
+        )
+        return outcomes
+
+    outcomes.append(
+        _persist_one_source_file(
+            db,
+            project=project,
+            report_type='inventory_report',
+            period_start_date=None,
+            period_end_date=None,
+            upload_file_id=inventory_file_id or Path(inventory_file_path).name,
+            upload_file_path=inventory_file_path or inventory_file_id,
+            known_skus=known_skus,
+            known_asins=known_asins,
+            created_by=created_by,
+        )
+    )
+    db.commit()
 
     return outcomes
 
@@ -573,6 +710,107 @@ def _persist_one_source_file(
         return SourcePersistOutcome(report_type=report_type, source_id=source.id, success=False, error_message=str(exc))
 
 
+def _persist_one_daily_source_file(
+    db: Session,
+    *,
+    project: Project,
+    report_type: str,
+    report_date: date,
+    upload_file_id: str,
+    upload_file_path: str,
+    known_skus: set[str],
+    known_asins: set[str],
+    created_by: str | None,
+) -> SourcePersistOutcome:
+    if report_type not in {'sales_report', 'ad_report'}:
+        raise ValueError(f'Unsupported daily report_type: {report_type}')
+
+    now = datetime.now(UTC)
+    path = Path(upload_file_path)
+    extension = (path.suffix or Path(upload_file_id).suffix or '').lower()
+    version = _next_daily_version(
+        db,
+        project_id=project.id,
+        report_type=report_type,
+        report_date=report_date,
+    )
+    project_slug = _project_slug(project.project_name)
+    logical_filename = _build_logical_filename(
+        project_slug=project_slug,
+        report_type=report_type,
+        period_start_date=report_date,
+        period_end_date=report_date,
+        snapshot_at=now,
+        version=version,
+        extension=extension,
+    )
+    storage_key = _build_daily_storage_key(
+        project_slug=project_slug,
+        report_type=report_type,
+        report_date=report_date,
+        version=version,
+        upload_file_id=upload_file_id,
+    )
+
+    source = DailySourceFile(
+        project_id=project.id,
+        report_type=report_type,
+        report_date=report_date,
+        version=version,
+        is_current=False,
+        superseded_at=None,
+        upload_file_id=upload_file_id,
+        upload_file_path=upload_file_path,
+        original_filename=_restore_original_filename(upload_file_id),
+        stored_filename=upload_file_id,
+        logical_filename=logical_filename,
+        storage_key=storage_key,
+        file_size_bytes=None,
+        file_sha256=None,
+        ingestion_status='running',
+        ingestion_error=None,
+        row_count_total=0,
+        row_count_included=0,
+        created_by=(created_by or '').strip()[:255] or None,
+    )
+    db.add(source)
+    db.flush()
+
+    try:
+        if not path.exists() or not path.is_file():
+            raise FileNotFoundError(f'File not found: {upload_file_path}')
+
+        source.file_size_bytes = path.stat().st_size
+        source.file_sha256 = _sha256_file(path)
+
+        if report_type == 'sales_report':
+            rows, total, included = _parse_sales_rows(path, source.id, report_date)
+            if rows:
+                db.execute(insert(DailySalesOrder), rows)
+        else:
+            rows, total, included = _parse_ad_rows(path, source.id, known_skus, known_asins)
+            if rows:
+                db.execute(insert(DailyAdProduct), rows)
+
+        source.row_count_total = total
+        source.row_count_included = included
+        source.ingestion_status = 'success'
+        source.ingestion_error = None
+
+        _replace_current_daily_pointer(db, source)
+        source.is_current = True
+        source.superseded_at = None
+        db.flush()
+        return SourcePersistOutcome(report_type=report_type, source_id=source.id, success=True, error_message=None)
+    except Exception as exc:  # noqa: BLE001
+        source.ingestion_status = 'failed'
+        source.ingestion_error = str(exc)[:4000]
+        source.is_current = False
+        source.superseded_at = None
+        db.flush()
+        return SourcePersistOutcome(report_type=report_type, source_id=source.id, success=False, error_message=str(exc))
+
+
 def _replace_current_pointer(db: Session, source: AnalysisSourceFile) -> None:
     conditions = [
         AnalysisSourceFile.project_id == source.project_id,
@@ -590,6 +828,23 @@ def _replace_current_pointer(db: Session, source: AnalysisSourceFile) -> None:
     db.execute(
         sa_update(AnalysisSourceFile)
         .where(*conditions)
+        .values(
+            is_current=False,
+            superseded_at=datetime.now(UTC),
+        )
+    )
+
+
+def _replace_current_daily_pointer(db: Session, source: DailySourceFile) -> None:
+    db.execute(
+        sa_update(DailySourceFile)
+        .where(
+            DailySourceFile.project_id == source.project_id,
+            DailySourceFile.report_type == source.report_type,
+            DailySourceFile.report_date == source.report_date,
+            DailySourceFile.id != source.id,
+            DailySourceFile.is_current.is_(True),
+        )
         .values(
             is_current=False,
             superseded_at=datetime.now(UTC),
@@ -618,6 +873,22 @@ def _next_version(
     return int(value or 0) + 1
 
 
+def _next_daily_version(
+    db: Session,
+    *,
+    project_id: int,
+    report_type: str,
+    report_date: date,
+) -> int:
+    stmt = select(func.max(DailySourceFile.version)).where(
+        DailySourceFile.project_id == project_id,
+        DailySourceFile.report_type == report_type,
+        DailySourceFile.report_date == report_date,
+    )
+    value = db.execute(stmt).scalar_one_or_none()
+    return int(value or 0) + 1
+
+
 def _next_pt1_version(
     db: Session,
     *,
@@ -635,6 +906,144 @@ def _next_pt1_version(
     )
     value = db.execute(stmt).scalar_one_or_none()
     return int(value or 0) + 1
+
+
+def _build_active_product_costs_df(db: Session, *, project_name: str, country: str) -> pd.DataFrame:
+    rows = db.execute(
+        select(ProductCost).where(
+            ProductCost.project_name == project_name,
+            ProductCost.is_active.is_(True),
+            ProductCost.country == country,
+        )
+    ).scalars().all()
+    if not rows:
+        raise ValueError(f'No active product_costs found for project_name={project_name}, country={country}')
+
+    return pd.DataFrame(
+        [
+            {
+                'SKU': row.sku,
+                'ASIN': row.asin,
+                '头程单价': float(row.first_leg_unit_cost or 0),
+                'FOB单价': float(row.fob_unit_cost or 0),
+            }
+            for row in rows
+        ]
+    )
+
+
+def _list_recomputable_weekly_period_sources(
+    db: Session,
+    *,
+    project_id: int,
+    start_date: date | None,
+    end_date: date | None,
+    current_only: bool,
+) -> list[dict[str, Any]]:
+    stmt = select(AnalysisSourceFile).where(
+        AnalysisSourceFile.project_id == project_id,
+        AnalysisSourceFile.report_type.in_(('business_report', 'ad_report', 'payment_report')),
+    )
+    if current_only:
+        stmt = stmt.where(AnalysisSourceFile.is_current.is_(True))
+    if start_date is not None:
+        stmt = stmt.where(AnalysisSourceFile.period_end_date >= start_date)
+    if end_date is not None:
+        stmt = stmt.where(AnalysisSourceFile.period_start_date <= end_date)
+
+    rows = db.execute(
+        stmt.order_by(
+            AnalysisSourceFile.period_start_date.asc(),
+            AnalysisSourceFile.period_end_date.asc(),
+            AnalysisSourceFile.report_type.asc(),
+            AnalysisSourceFile.version.desc(),
+        )
+    ).scalars().all()
+
+    by_period: dict[tuple[date, date], dict[str, AnalysisSourceFile]] = {}
+    for row in rows:
+        if row.period_start_date is None or row.period_end_date is None:
+            continue
+        key = (row.period_start_date, row.period_end_date)
+        period_map = by_period.setdefault(key, {})
+        if row.report_type not in period_map:
+            period_map[row.report_type] = row
+
+    periods: list[dict[str, Any]] = []
+    for (period_start_date, period_end_date), source_map in sorted(by_period.items()):
+        if {'business_report', 'ad_report', 'payment_report'} - set(source_map.keys()):
+            continue
+        periods.append(
+            {
+                'report_start_date': period_start_date,
+                'report_end_date': period_end_date,
+                'business_report_source_id': int(source_map['business_report'].id),
+                'ad_report_source_id': int(source_map['ad_report'].id),
+                'payment_report_source_id': int(source_map['payment_report'].id),
+            }
+        )
+    return periods
+
+
+def _build_business_df_from_source(db: Session, *, source_id: int) -> pd.DataFrame:
+    rows = db.execute(
+        select(AnalysisBusinessRow).where(AnalysisBusinessRow.source_file_id == source_id).order_by(AnalysisBusinessRow.source_row_no.asc())
+    ).scalars().all()
+    return pd.DataFrame(
+        [
+            {
+                'ASIN': row.asin or '',
+                '页面浏览量': int(row.page_views or 0),
+                '总销量': int(row.units_ordered or 0),
+                '总访客': int(row.sessions or 0),
+                '总销售额': float(row.ordered_sales_amount or 0),
+            }
+            for row in rows
+        ]
+    )
+
+
+def _build_ad_df_from_source(db: Session, *, source_id: int) -> pd.DataFrame:
+    rows = db.execute(
+        select(AnalysisAdRow).where(AnalysisAdRow.source_file_id == source_id).order_by(AnalysisAdRow.source_row_no.asc())
+    ).scalars().all()
+    return pd.DataFrame(
+        [
+            {
+                'SKU': row.sku or '',
+                '广告展示量': int(row.impressions or 0),
+                '广告点击量': int(row.clicks or 0),
+                '广告花费': float(row.spend or 0),
+                '广告销售额': float(row.sales_7d or 0),
+                '广告订单量': int(row.orders_7d or 0),
+            }
+            for row in rows
+        ]
+    ).groupby('SKU', as_index=False).sum() if rows else pd.DataFrame(
+        columns=['SKU', '广告展示量', '广告点击量', '广告花费', '广告销售额', '广告订单量']
+    )
+
+
+def _build_payment_df_from_source(db: Session, *, source_id: int) -> pd.DataFrame:
+    rows = db.execute(
+        select(AnalysisPaymentRow).where(AnalysisPaymentRow.source_file_id == source_id).order_by(AnalysisPaymentRow.source_row_no.asc())
+    ).scalars().all()
+    return pd.DataFrame(
+        [
+            {
+                'type': row.transaction_type,
+                'sku': row.sku or '',
+                'quantity': int(row.quantity or 0),
+                'product sales': float(row.product_sales or 0),
+                'shipping credits': float(row.shipping_credits or 0),
+                'promotional rebates': float(row.promotional_rebates or 0),
+                'other': float(row.other_amount or 0),
+                'selling fees': float(row.selling_fees or 0),
+                'fba fees': float(row.fba_fees or 0),
+            }
+            for row in rows
+        ]
+    )
 
 
 def _build_pt_sku_detail_rows(details: Any) -> list[dict[str, Any]]:
@@ -708,29 +1117,19 @@ def _parse_business_rows(path: Path, source_file_id: int) -> tuple[list[dict[str
     return payloads, total, total
 
 
+def _read_excel_without_style_warning(path: Path) -> pd.DataFrame:
+    with warnings.catch_warnings():
+        warnings.filterwarnings('ignore', message=OPENPYXL_MISSING_DEFAULT_STYLE_WARNING, category=UserWarning)
+        return pd.read_excel(path, engine='openpyxl')
+
+
 def _parse_payment_rows(
     path: Path,
     source_file_id: int,
     known_skus: set[str],
     known_asins: set[str],
 ) -> tuple[list[dict[str, Any]], int, int]:
-    df = pd.read_csv(path, encoding='utf-8-sig', thousands=',', skiprows=7)
-    df.columns = [str(col).strip() for col in df.columns]
-
-    required = {
-        'type',
-        'sku',
-        'quantity',
-        'product sales',
-        'shipping credits',
-        'promotional rebates',
-        'other',
-        'selling fees',
-        'fba fees',
-    }
-    missing = [col for col in required if col not in df.columns]
-    if missing:
-        raise ValueError(f'Payment report missing required columns: {missing}')
+    df = product_analysis_script._read_payment_report(path)
 
     numeric_cols = [
         'quantity',
@@ -797,7 +1196,7 @@ def _parse_ad_rows(
     known_skus: set[str],
     known_asins: set[str],
 ) -> tuple[list[dict[str, Any]], int, int]:
-    df = pd.read_excel(path, engine='openpyxl')
+    df = _read_excel_without_style_warning(path)
     df.columns = [str(col).strip() for col in df.columns]
 
     required = ['广告SKU', '展示量', '点击量', '花费', '7天总销售额', '7天总销售量(#)']
@@ -1073,6 +1472,17 @@ def _build_storage_key(
     return f'analysis/{project_slug}/{report_type}/{period_or_snapshot}/v{version}/{upload_file_id}'
 
 
+def _build_daily_storage_key(
+    *,
+    project_slug: str,
+    report_type: str,
+    report_date: date,
+    version: int,
+    upload_file_id: str,
+) -> str:
+    return f'daily/{project_slug}/{report_type}/{report_date.strftime("%Y%m%d")}/v{version}/{upload_file_id}'
+
+
 def _sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open('rb') as handle:
@@ -1176,11 +1586,29 @@ def _parse_transaction_at(row: Any) -> datetime | None:
         value = row.get(key)
         if value is None:
             continue
-        parsed = pd.to_datetime(value, utc=True, errors='coerce')
+        parsed = _parse_utc_timestamp(value)
         if pd.isna(parsed):
             continue
         return parsed.to_pydatetime()
     return None
+
+
+def _parse_utc_timestamp(value: Any) -> pd.Timestamp:
+    text = _normalize_text(value)
+    if text is None:
+        return pd.NaT
+
+    parts = text.rsplit(' ', 1)
+    if len(parts) == 2 and parts[1] in TZ_OFFSET_BY_ABBR:
+        try:
+            naive = datetime.strptime(parts[0], '%b %d, %Y %I:%M:%S %p')
+        except ValueError:
+            pass
+        else:
+            tz = timezone(timedelta(hours=TZ_OFFSET_BY_ABBR[parts[1]]))
+            return pd.Timestamp(naive.replace(tzinfo=tz).astimezone(UTC))
+
+    return pd.to_datetime(text, utc=True, errors='coerce')
 
 
 def _to_raw_row(row: dict[str, Any]) -> dict[str, Any]:

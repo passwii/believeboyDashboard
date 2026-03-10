@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { getClientCache, setClientCache } from '@/lib/client-cache'
-import { resolveOperationCommissionUsd } from '@/lib/commission'
+import { resolveProjectCommissionUsd } from '@/lib/commission'
 
 type ProjectOption = {
   id: number | null
@@ -76,8 +76,7 @@ type FinancialSeriesResponse = {
   }
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
-const API_KEY = process.env.NEXT_PUBLIC_BACKEND_API_KEY ?? ''
+const API_BASE = '/api/backend'
 const PROJECTS_CACHE_TTL_MS = 10 * 60 * 1000
 const FINANCIAL_SERIES_CACHE_TTL_MS = 3 * 60 * 1000
 const EXCHANGE_RATE_CACHE_TTL_MS = 30 * 60 * 1000
@@ -119,7 +118,7 @@ const chartConfig = {
 } satisfies ChartConfig
 
 function authHeaders(): Record<string, string> {
-  return API_KEY ? { 'X-API-Key': API_KEY } : {}
+  return {}
 }
 
 function currentMonthString() {
@@ -539,7 +538,7 @@ export default function FinancialDataPage() {
         const creditCardUsd = row.credit_card_deduction_usd
         const evaluationFeeRmb = 0
         const prepaymentOtherRmb = 0
-        const operationCommission = resolveOperationCommissionUsd({
+        const operationCommission = resolveProjectCommissionUsd({
           commissionBasis,
           configuredCommissionRate: commissionRate,
           incomeTotalUsd: row.income_total,
@@ -880,7 +879,7 @@ export default function FinancialDataPage() {
                         const creditCardUsd = row.credit_card_deduction_usd
                         const evaluationFeeRmb = 0
                         const prepaymentOtherRmb = 0
-                        const operationCommission = resolveOperationCommissionUsd({
+                        const operationCommission = resolveProjectCommissionUsd({
                           commissionBasis,
                           configuredCommissionRate: commissionRate,
                           incomeTotalUsd: row.income_total,

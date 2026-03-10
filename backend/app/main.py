@@ -1,4 +1,3 @@
-import json
 import logging
 import time
 from urllib.parse import unquote
@@ -14,6 +13,7 @@ settings = get_settings()
 
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 request_logger = logging.getLogger('app.request')
+logging.getLogger('uvicorn.access').disabled = True
 
 app = FastAPI(title=settings.app_name)
 
@@ -42,29 +42,23 @@ async def request_logging_middleware(request: Request, call_next):
         raise
     finally:
         duration_ms = int((time.perf_counter() - start) * 1000)
-        operator = unquote(request.headers.get('X-Operator', '')).strip() or None
-        forwarded_for = request.headers.get('x-forwarded-for')
-        ip_address = forwarded_for.split(',')[0].strip() if forwarded_for else (request.client.host if request.client else None)
+        status_code = response.status_code if response is not None else 500
 
-        request_logger.info(
-            json.dumps(
-                {
-                    'event': 'http_request',
-                    'service': settings.app_name,
-                    'env': settings.app_env,
-                    'request_id': request_id,
-                    'method': request.method,
-                    'path': request.url.path,
-                    'status_code': response.status_code if response is not None else 500,
-                    'duration_ms': duration_ms,
-                    'operator': operator,
-                    'ip': ip_address,
-                    'user_agent': request.headers.get('user-agent'),
-                    'error': error_message,
-                },
-                ensure_ascii=False,
-            )
-        )
+        if request.method != 'OPTIONS':
+            operator = unquote(request.headers.get('X-Operator', '')).strip()
+            log_parts = [
+                f'[{status_code}]',
+                request.method,
+                request.url.path,
+                f'{duration_ms}ms',
+            ]
+            if operator:
+                log_parts.append(f'operator={operator}')
+            if error_message:
+                log_parts.append(f'error={error_message}')
+            else:
+                log_parts.append(f'request_id={request_id[:8]}')
+            request_logger.info(' '.join(log_parts))
 
         if response is not None:
             response.headers['X-Request-Id'] = request_id

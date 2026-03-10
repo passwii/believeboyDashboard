@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -51,6 +52,38 @@ PERCENT_COLUMNS = {
 }
 
 
+PAYMENT_REPORT_REQUIRED_COLUMNS = {
+    'type',
+    'sku',
+    'quantity',
+    'product sales',
+    'shipping credits',
+    'promotional rebates',
+    'other',
+    'selling fees',
+    'fba fees',
+}
+
+PAYMENT_REPORT_COLUMN_ALIASES = {
+    'type': ['type', 'typ'],
+    'sku': ['sku'],
+    'quantity': ['quantity', 'menge'],
+    'product sales': ['product sales', 'umsaetze', 'umsätze'],
+    'shipping credits': ['shipping credits', 'gutschrift fuer versandkosten', 'gutschrift für versandkosten'],
+    'promotional rebates': ['promotional rebates', 'rabatte aus werbeaktionen'],
+    'other': ['other', 'andere'],
+    'selling fees': ['selling fees', 'verkaufsgebuehren', 'verkaufsgebühren'],
+    'fba fees': ['fba fees', 'gebuehren zu versand durch amazon', 'gebühren zu versand durch amazon'],
+}
+
+PAYMENT_REPORT_TYPE_ALIASES = {
+    'order': ['order', 'bestellung'],
+    'refund': ['refund', 'erstattung'],
+}
+
+OPENPYXL_MISSING_DEFAULT_STYLE_WARNING = r"Workbook contains no default style, apply openpyxl's default"
+
+
 def _safe_project_name(project_name: str) -> str:
     sanitized = ''.join(ch for ch in project_name.strip() if ch not in r'\\/:*?"<>|')
     return sanitized or 'unknown'
@@ -69,6 +102,18 @@ def _format_report_date(report_start_date: str, report_end_date: str) -> str:
     start = datetime.strptime(report_start_date, '%Y-%m-%d')
     end = datetime.strptime(report_end_date, '%Y-%m-%d')
     return f"{start.strftime('%Y%m%d')}-{end.strftime('%m%d')}"
+
+
+def _read_excel_without_style_warning(path: Path) -> pd.DataFrame:
+    with warnings.catch_warnings():
+        warnings.filterwarnings('ignore', message=OPENPYXL_MISSING_DEFAULT_STYLE_WARNING, category=UserWarning)
+        return pd.read_excel(path, engine='openpyxl')
+
+
+def _load_workbook_without_style_warning(path: Path) -> Workbook:
+    with warnings.catch_warnings():
+        warnings.filterwarnings('ignore', message=OPENPYXL_MISSING_DEFAULT_STYLE_WARNING, category=UserWarning)
+        return load_workbook(path)
 
 
 def _read_business_report(path: Path) -> pd.DataFrame:
@@ -112,7 +157,7 @@ def _read_business_report(path: Path) -> pd.DataFrame:
 
 
 def _read_ad_report(path: Path) -> pd.DataFrame:
-    df = pd.read_excel(path, engine='openpyxl')
+    df = _read_excel_without_style_warning(path)
     df.columns = [str(col).strip() for col in df.columns]
 
     required = ['广告SKU', '展示量', '点击量', '花费', '7天总销售额', '7天总销售量(#)']
@@ -142,29 +187,119 @@ def _read_ad_report(path: Path) -> pd.DataFrame:
     return grouped
 
 
-def _read_payment_report(path: Path) -> pd.DataFrame:
-    df = pd.read_csv(path, encoding='utf-8-sig', thousands=',', skiprows=7)
-    df.columns = [str(col).strip() for col in df.columns]
+def _normalize_payment_token(value: str) -> str:
+    return ' '.join(
+        str(value)
+        .strip()
+        .strip('"')
+        .lower()
+        .replace('\ufeff', '')
+        .replace('ä', 'ae')
+        .replace('ö', 'oe')
+        .replace('ü', 'ue')
+        .replace('ß', 'ss')
+        .split()
+    )
 
-    required = {
-        'type',
-        'sku',
-        'quantity',
-        'product sales',
-        'shipping credits',
-        'promotional rebates',
-        'other',
-        'selling fees',
-        'fba fees',
-    }
+
+def _match_payment_columns(columns: list[str]) -> tuple[dict[str, str], str] | None:
+    normalized_columns = {_normalize_payment_token(column): column for column in columns}
+    mapped: dict[str, str] = {}
+
+    for standard_name, aliases in PAYMENT_REPORT_COLUMN_ALIASES.items():
+        for alias in aliases:
+            source_name = normalized_columns.get(_normalize_payment_token(alias))
+            if source_name:
+                mapped[standard_name] = source_name
+                break
+
+    if PAYMENT_REPORT_REQUIRED_COLUMNS - set(mapped.keys()):
+        return None
+
+    locale = 'de' if any(_normalize_payment_token(col) == 'typ' for col in columns) else 'en'
+    return mapped, locale
+
+
+def _detect_payment_report_structure(path: Path) -> tuple[int, str, dict[str, str], str]:
+    raw_bytes = path.read_bytes()
+    decoded_text = None
+    for encoding in ('utf-8-sig', 'utf-8', 'utf-16', 'utf-16le', 'utf-16be'):
+        try:
+            decoded_text = raw_bytes.decode(encoding)
+            break
+        except UnicodeDecodeError:
+            continue
+    if decoded_text is None:
+        decoded_text = raw_bytes.decode('latin1')
+
+    for line_no, raw_line in enumerate(decoded_text.splitlines()):
+        line = raw_line.strip()
+        if not line:
+            continue
+        for delimiter in (',', '\t', ';'):
+            columns = [part.strip().strip('"') for part in raw_line.split(delimiter)]
+            matched = _match_payment_columns(columns)
+            if matched is not None:
+                column_mapping, locale = matched
+                return line_no, delimiter, column_mapping, locale
+    raise ValueError('Payment report missing required columns in header row')
+
+
+def _parse_localized_number(value: Any, locale: str) -> float:
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return 0.0
+    text = str(value).strip()
+    if not text or text.lower() in {'nan', 'none', 'null'}:
+        return 0.0
+
+    negative = text.startswith('(') and text.endswith(')')
+    cleaned = ''.join(ch for ch in text if ch.isdigit() or ch in {',', '.', '-'})
+    if not cleaned or cleaned in {'-', ',', '.', '-.', '-,'}:
+        return 0.0
+
+    if locale == 'de':
+        cleaned = cleaned.replace('.', '').replace(',', '.')
+    else:
+        if ',' in cleaned and '.' in cleaned:
+            cleaned = cleaned.replace(',', '')
+        elif ',' in cleaned:
+            cleaned = cleaned.replace(',', '')
+
+    number = float(cleaned)
+    return -number if negative and number > 0 else number
+
+
+def _normalize_payment_type(value: Any) -> str:
+    normalized = _normalize_payment_token(str(value or ''))
+    for canonical, aliases in PAYMENT_REPORT_TYPE_ALIASES.items():
+        if normalized in {_normalize_payment_token(alias) for alias in aliases}:
+            return canonical.title()
+    return str(value or '').strip()
+
+
+def _read_payment_report(path: Path) -> pd.DataFrame:
+    skiprows, delimiter, column_mapping, locale = _detect_payment_report_structure(path)
+    df = pd.read_csv(
+        path,
+        encoding='utf-8-sig',
+        sep=delimiter,
+        skiprows=skiprows,
+        engine='python',
+        dtype=str,
+    )
+    df.columns = [str(col).strip() for col in df.columns]
+    df.rename(columns={source: target for target, source in column_mapping.items()}, inplace=True)
+
+    required = PAYMENT_REPORT_REQUIRED_COLUMNS
     missing = [col for col in required if col not in df.columns]
     if missing:
         raise ValueError(f'Payment report missing required columns: {missing}')
 
     for col in ['quantity', 'product sales', 'shipping credits', 'promotional rebates', 'other', 'selling fees', 'fba fees']:
-        df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+        df[col] = df[col].map(lambda value: _parse_localized_number(value, locale))
 
     df['sku'] = df['sku'].fillna('').astype(str).str.strip()
+    df['type'] = df['type'].map(_normalize_payment_type)
     return df
 
 
@@ -460,7 +595,7 @@ def _load_template_or_create() -> Workbook:
     backend_root = Path(__file__).resolve().parents[3]
     template = backend_root / 'storage' / 'model-file' / 'product_analysis_template.xlsx'
     if template.exists():
-        return load_workbook(template)
+        return _load_workbook_without_style_warning(template)
     wb = Workbook()
     wb.active.title = '产品分析'
     return wb

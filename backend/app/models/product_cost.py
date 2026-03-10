@@ -10,6 +10,7 @@ class ProductCost(Base):
     __table_args__ = (
         UniqueConstraint('project_name', 'sku', 'asin', 'country', name='product_costs_project_sku_asin_country_key'),
         Index('idx_product_costs_project_sort', 'project_name', 'sort_order', 'id'),
+        Index('idx_product_costs_project_sku_active', 'project_name', 'sku', 'is_active'),
     )
 
     id: Mapped[int] = mapped_column(

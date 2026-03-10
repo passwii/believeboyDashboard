@@ -35,10 +35,13 @@ class CommissionRecord(Base):
         CheckConstraint("income_category in ('operator', 'assistant')", name='ck_commission_records_income_category'),
         CheckConstraint("payment_status in ('paid', 'unpaid')", name='ck_commission_records_payment_status'),
         CheckConstraint('factory_commission_rate >= 0 and factory_commission_rate <= 1', name='ck_commission_records_factory_rate'),
-        CheckConstraint('public_commission_ratio >= 0 and public_commission_ratio <= 1', name='ck_commission_records_public_ratio'),
+        CheckConstraint('operator_bonus_ratio >= 0 and operator_bonus_ratio <= 1', name='ck_commission_records_operator_bonus_ratio'),
         CheckConstraint('usd_to_rmb_rate >= 0', name='ck_commission_records_exchange_rate'),
-        CheckConstraint("ratio_source in ('rule', 'manual')", name='ck_commission_records_ratio_source'),
-        CheckConstraint('manual_ratio is null or (manual_ratio >= 0 and manual_ratio <= 1)', name='ck_commission_records_manual_ratio'),
+        CheckConstraint("bonus_ratio_source in ('rule', 'manual')", name='ck_commission_records_bonus_ratio_source'),
+        CheckConstraint(
+            'manual_bonus_ratio is null or (manual_bonus_ratio >= 0 and manual_bonus_ratio <= 1)',
+            name='ck_commission_records_manual_bonus_ratio',
+        ),
         Index('idx_commission_records_month', 'report_month'),
         Index('idx_commission_records_person_month', 'person_name', 'report_month'),
         Index('idx_commission_records_month_active', 'report_month', 'is_active'),
@@ -68,12 +71,12 @@ class CommissionRecord(Base):
 
     income_total_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, server_default='0')
     factory_commission_rate: Mapped[Decimal] = mapped_column(Numeric(8, 6), nullable=False, server_default='0')
-    public_commission_ratio: Mapped[Decimal] = mapped_column(Numeric(8, 6), nullable=False, server_default='0')
-    commission_amount_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, server_default='0')
+    operator_bonus_ratio: Mapped[Decimal] = mapped_column(Numeric(8, 6), nullable=False, server_default='0')
+    bonus_amount_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, server_default='0')
     usd_to_rmb_rate: Mapped[Decimal] = mapped_column(Numeric(18, 8), nullable=False, server_default='0')
-    commission_amount_rmb: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, server_default='0')
-    ratio_source: Mapped[str] = mapped_column(String(16), nullable=False, server_default='rule')
-    manual_ratio: Mapped[Decimal | None] = mapped_column(Numeric(8, 6), nullable=True)
+    bonus_amount_rmb: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, server_default='0')
+    bonus_ratio_source: Mapped[str] = mapped_column(String(16), nullable=False, server_default='rule')
+    manual_bonus_ratio: Mapped[Decimal | None] = mapped_column(Numeric(8, 6), nullable=True)
 
     payment_status: Mapped[str] = mapped_column(String(16), nullable=False, server_default='unpaid')
     payment_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -14,7 +14,10 @@ from app.core.config import get_settings
 from app.models.commission_project_month import CommissionProjectMonth
 from app.models.commission_record import CommissionRecord
 from app.models.commission_ratio_override import CommissionRatioOverride
+from app.models.exchange_rate import ExchangeRate
+from app.models.monthly_report import MonthlyReport, MonthlyReportPT4Calculation
 from app.models.operation_audit_log import OperationAuditLog
+from app.models.project import Project
 from app.models.project_role_assignment import ProjectRoleAssignment
 from app.schemas.system_management import (
     CommissionIncomeCategory,
@@ -36,6 +39,8 @@ from app.schemas.system_management import (
     CommissionYearlyMonthlySummaryResponse,
     UpdateCommissionProjectPaymentRequest,
     UpdateCommissionProjectPaymentResponse,
+    RecomputeCommissionRequest,
+    RecomputeCommissionResponse,
     DataLifecycleStatus,
     DataManagementOverviewResponse,
     DataManagementStatusResponse,
@@ -62,6 +67,13 @@ DATA_STATE_TABLE = 'system_management_data_state'
 STALE_WINDOW_HOURS = 72
 REPORT_MONTH_RE = re.compile(r'^\d{4}-(0[1-9]|1[0-2])$')
 YEAR_RE = re.compile(r'^\d{4}$')
+OPERATOR_BONUS_RATIO_TIERS: tuple[tuple[Decimal, Decimal], ...] = (
+    (Decimal('10000'), Decimal('0.12')),
+    (Decimal('50000'), Decimal('0.14')),
+    (Decimal('150000'), Decimal('0.16')),
+    (Decimal('450000'), Decimal('0.18')),
+)
+ASSISTANT_BONUS_RATIO = Decimal('0.02')
 
 
 def _resolve_database_source(database_url: str) -> tuple[str, str | None]:
@@ -122,6 +134,89 @@ def _to_decimal(value: float | int | str, scale: str = '0.000000') -> Decimal:
     return parsed.quantize(Decimal(scale), rounding=ROUND_HALF_UP)
 
 
+def _normalize_rate_decimal(value: Decimal | None) -> Decimal:
+    if value is None:
+        return Decimal('0')
+    if value <= 0:
+        return Decimal('0')
+    if value >= 1:
+        return Decimal('1')
+    return value
+
+
+def _resolve_factory_commission(
+    commission_basis: str | None,
+    configured_commission_rate: Decimal | None,
+    income_total_usd: Decimal,
+    amazon_pay_back_usd: Decimal,
+) -> tuple[Decimal, Decimal, Decimal]:
+    normalized_income = max(income_total_usd, Decimal('0'))
+    normalized_payback = max(amazon_pay_back_usd, Decimal('0'))
+
+    if commission_basis == 'cash_received':
+        payback_ratio = (normalized_payback / normalized_income) if normalized_income > 0 else Decimal('0')
+        if payback_ratio < Decimal('0.4'):
+            commission_rate = Decimal('0')
+        elif payback_ratio < Decimal('0.5'):
+            commission_rate = Decimal('0.07')
+        elif payback_ratio < Decimal('0.6'):
+            commission_rate = Decimal('0.10')
+        elif payback_ratio < Decimal('0.7'):
+            commission_rate = Decimal('0.13')
+        else:
+            commission_rate = Decimal('0.15')
+        base_amount_usd = normalized_payback
+    else:
+        commission_rate = _normalize_rate_decimal(configured_commission_rate)
+        base_amount_usd = normalized_income
+
+    commission_usd = _to_decimal(base_amount_usd * commission_rate, '0.01')
+    return commission_rate, base_amount_usd, commission_usd
+
+
+def _resolve_operator_bonus_ratio(income_total_usd: Decimal) -> Decimal:
+    normalized_income = max(income_total_usd, Decimal('0'))
+    for max_inclusive, ratio in OPERATOR_BONUS_RATIO_TIERS:
+        if normalized_income <= max_inclusive:
+            return ratio
+    return Decimal('0.20')
+
+
+def _build_default_bonus_ratios(
+    *,
+    income_total_usd: Decimal,
+    operator_names: list[str],
+    assistant_names: list[str],
+) -> dict[tuple[str, str], Decimal]:
+    ratio_map: dict[tuple[str, str], Decimal] = {}
+    operator_ratio = _resolve_operator_bonus_ratio(income_total_usd)
+    assistant_ratio = ASSISTANT_BONUS_RATIO
+
+    if operator_names:
+        split_ratio = operator_ratio / Decimal(len(operator_names))
+        for person_name in operator_names:
+            ratio_map[(person_name, CommissionIncomeCategory.operator.value)] = split_ratio
+
+    if assistant_names:
+        split_ratio = assistant_ratio / Decimal(len(assistant_names))
+        for person_name in assistant_names:
+            ratio_map[(person_name, CommissionIncomeCategory.assistant.value)] = split_ratio
+
+    return ratio_map
+
+
+def _dedupe_names(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for item in values:
+        normalized = item.strip()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        result.append(normalized)
+    return result
+
+
 def _serialize_commission_record(row: CommissionRecord) -> CommissionRecordItem:
     return CommissionRecordItem(
         id=row.id,
@@ -133,12 +228,12 @@ def _serialize_commission_record(row: CommissionRecord) -> CommissionRecordItem:
         income_category=CommissionIncomeCategory(row.income_category),
         income_total_usd=float(row.income_total_usd),
         factory_commission_rate=float(row.factory_commission_rate),
-        public_commission_ratio=float(row.public_commission_ratio),
-        commission_amount_usd=float(row.commission_amount_usd),
+        operator_bonus_ratio=float(row.operator_bonus_ratio),
+        bonus_amount_usd=float(row.bonus_amount_usd),
         usd_to_rmb_rate=float(row.usd_to_rmb_rate),
-        commission_amount_rmb=float(row.commission_amount_rmb),
-        ratio_source=CommissionRatioSource(row.ratio_source),
-        manual_ratio=float(row.manual_ratio) if row.manual_ratio is not None else None,
+        bonus_amount_rmb=float(row.bonus_amount_rmb),
+        bonus_ratio_source=CommissionRatioSource(row.bonus_ratio_source),
+        manual_bonus_ratio=float(row.manual_bonus_ratio) if row.manual_bonus_ratio is not None else None,
         payment_status=CommissionPaymentStatus(row.payment_status),
         payment_confirmed_at=_to_iso(row.payment_confirmed_at),
         payment_confirmed_by=row.payment_confirmed_by,
@@ -662,19 +757,19 @@ def upsert_commission_records(
         if row.is_locked:
             continue
 
-        ratio_source = item.ratio_source
-        manual_ratio_value: float | None = item.manual_ratio
-        if manual_ratio_value is not None:
-            ratio_source = CommissionRatioSource.manual
+        bonus_ratio_source = item.bonus_ratio_source
+        manual_bonus_ratio_value: float | None = item.manual_bonus_ratio
+        if manual_bonus_ratio_value is not None:
+            bonus_ratio_source = CommissionRatioSource.manual
         try:
             row.income_total_usd = _to_decimal(item.income_total_usd, '0.01')
             row.factory_commission_rate = _to_decimal(item.factory_commission_rate, '0.000001')
-            row.public_commission_ratio = _to_decimal(item.public_commission_ratio, '0.000001')
-            row.commission_amount_usd = _to_decimal(item.commission_amount_usd, '0.01')
+            row.operator_bonus_ratio = _to_decimal(item.operator_bonus_ratio, '0.000001')
+            row.bonus_amount_usd = _to_decimal(item.bonus_amount_usd, '0.01')
             row.usd_to_rmb_rate = _to_decimal(item.usd_to_rmb_rate, '0.00000001')
-            row.commission_amount_rmb = _to_decimal(item.commission_amount_rmb, '0.01')
-            row.ratio_source = ratio_source.value
-            row.manual_ratio = _to_decimal(manual_ratio_value, '0.000001') if manual_ratio_value is not None else None
+            row.bonus_amount_rmb = _to_decimal(item.bonus_amount_rmb, '0.01')
+            row.bonus_ratio_source = bonus_ratio_source.value
+            row.manual_bonus_ratio = _to_decimal(manual_bonus_ratio_value, '0.000001') if manual_bonus_ratio_value is not None else None
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         row.computed_at = now
@@ -686,8 +781,8 @@ def upsert_commission_records(
 
     append_operation_audit_log(
         db,
-        action='commission.records.upsert',
-        target_type='commission_record',
+        action='commission.bonus_records.upsert',
+        target_type='commission_bonus_record',
         target_id=report_month,
         operator=operator,
         after={
@@ -712,6 +807,230 @@ def upsert_commission_records(
     return CommissionRecordsResponse(
         report_month=report_month,
         items=[_serialize_commission_record(row) for row in rows],
+    )
+
+
+@router.post('/commission-management/recompute', response_model=RecomputeCommissionResponse)
+def recompute_commission_records(
+    payload: RecomputeCommissionRequest,
+    request: Request,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+) -> RecomputeCommissionResponse:
+    try:
+        report_month = _parse_report_month(payload.report_month)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    now = _now().replace(microsecond=0)
+
+    report_rows = db.execute(
+        select(MonthlyReport, MonthlyReportPT4Calculation)
+        .join(MonthlyReportPT4Calculation, MonthlyReportPT4Calculation.report_id == MonthlyReport.id)
+        .where(
+            MonthlyReport.report_month == report_month,
+            MonthlyReport.is_current.is_(True),
+        )
+        .order_by(MonthlyReport.project_id.asc())
+    ).all()
+
+    project_ids = [int(report.project_id) for report, _pt4 in report_rows]
+    if not project_ids:
+        append_operation_audit_log(
+            db,
+            action='commission.bonus.recompute',
+            target_type='commission_bonus_record',
+            target_id=report_month,
+            operator=operator,
+            after={'report_month': report_month, 'project_month_count': 0, 'record_count': 0},
+            request=request,
+        )
+        db.commit()
+        return RecomputeCommissionResponse(
+            report_month=report_month,
+            project_month_count=0,
+            record_count=0,
+            locked_record_count=0,
+            computed_at=_to_iso(now) or '',
+        )
+
+    projects = db.execute(select(Project).where(Project.id.in_(project_ids))).scalars().all()
+    project_map = {int(project.id): project for project in projects}
+
+    exchange_rate = db.execute(
+        select(ExchangeRate).where(
+            ExchangeRate.currency == 'USD',
+            ExchangeRate.year_month == report_month,
+        )
+    ).scalars().first()
+    if exchange_rate is None:
+        raise HTTPException(status_code=422, detail=f'USD exchange rate for {report_month} not found')
+    usd_to_rmb_rate = exchange_rate.rate
+
+    role_rows = db.execute(
+        select(ProjectRoleAssignment).where(
+            ProjectRoleAssignment.project_id.in_(project_ids),
+            ProjectRoleAssignment.effective_from_month <= report_month,
+            (ProjectRoleAssignment.effective_to_month.is_(None) | (ProjectRoleAssignment.effective_to_month >= report_month)),
+        )
+    ).scalars().all()
+    roles_by_project: dict[int, dict[str, list[str]]] = {}
+    for row in role_rows:
+        project_roles = roles_by_project.setdefault(int(row.project_id), {'operator': [], 'assistant': []})
+        project_roles[row.role_type].append(row.person_name.strip())
+
+    override_rows = db.execute(
+        select(CommissionRatioOverride).where(CommissionRatioOverride.report_month == report_month)
+    ).scalars().all()
+    override_map = {
+        (int(row.project_id), row.person_name.strip(), row.income_category): row
+        for row in override_rows
+    }
+
+    existing_project_months = db.execute(
+        select(CommissionProjectMonth).where(CommissionProjectMonth.report_month == report_month)
+    ).scalars().all()
+    project_month_map = {int(row.project_id): row for row in existing_project_months}
+
+    existing_records = db.execute(
+        select(CommissionRecord).where(CommissionRecord.report_month == report_month)
+    ).scalars().all()
+    record_map = {
+        (int(row.project_id), row.person_name.strip(), row.income_category): row
+        for row in existing_records
+    }
+
+    incoming_record_keys: set[tuple[int, str, str]] = set()
+    locked_record_count = 0
+
+    for report, pt4 in report_rows:
+        project = project_map.get(int(report.project_id))
+        if project is None:
+            continue
+
+        income_total_usd = _to_decimal(pt4.income_total, '0.01')
+        amazon_pay_back = _to_decimal(pt4.amazon_pay_back, '0.01')
+        factory_commission_rate, _base_amount_usd, factory_commission_usd = _resolve_factory_commission(
+            project.commission_basis,
+            project.commission_rate,
+            income_total_usd,
+            amazon_pay_back,
+        )
+        factory_commission_rmb = _to_decimal(factory_commission_usd * usd_to_rmb_rate, '0.01')
+
+        project_month_row = project_month_map.get(int(project.id))
+        if project_month_row is None:
+            project_month_row = CommissionProjectMonth(
+                report_month=report_month,
+                project_id=project.id,
+                project_name=project.project_name,
+                payment_status=CommissionProjectPaymentStatus.unpaid.value,
+            )
+            db.add(project_month_row)
+            project_month_map[int(project.id)] = project_month_row
+
+        project_month_row.project_name = project.project_name
+        project_month_row.income_total_usd = income_total_usd
+        project_month_row.factory_commission_rate = _to_decimal(factory_commission_rate, '0.000001')
+        project_month_row.usd_to_rmb_rate = _to_decimal(usd_to_rmb_rate, '0.00000001')
+        project_month_row.factory_commission_usd = factory_commission_usd
+        project_month_row.factory_commission_rmb = factory_commission_rmb
+        project_month_row.computed_at = now
+
+        fallback_roles = roles_by_project.get(int(project.id), {'operator': [], 'assistant': []})
+        operator_names = _dedupe_names(fallback_roles['operator']) or _dedupe_names([project.project_operator or ''])
+        assistant_names = _dedupe_names(fallback_roles['assistant']) or _dedupe_names([project.assistant_operator or ''])
+        default_ratio_map = _build_default_bonus_ratios(
+            income_total_usd=income_total_usd,
+            operator_names=operator_names,
+            assistant_names=assistant_names,
+        )
+
+        for (person_name, income_category), default_ratio in default_ratio_map.items():
+            incoming_record_keys.add((int(project.id), person_name, income_category))
+            override_row = override_map.get((int(project.id), person_name, income_category))
+            ratio_value = override_row.override_ratio if override_row is not None else default_ratio
+            bonus_ratio_source = CommissionRatioSource.manual if override_row is not None else CommissionRatioSource.rule
+            manual_bonus_ratio = override_row.override_ratio if override_row is not None else None
+            bonus_amount_usd = _to_decimal(factory_commission_usd * ratio_value, '0.01')
+            bonus_amount_rmb = _to_decimal(bonus_amount_usd * usd_to_rmb_rate, '0.01')
+
+            record_key = (int(project.id), person_name, income_category)
+            row = record_map.get(record_key)
+            if row is None:
+                row = CommissionRecord(
+                    report_month=report_month,
+                    project_id=project.id,
+                    project_name=project.project_name,
+                    project_month_id=project_month_row.id,
+                    person_name=person_name,
+                    income_category=income_category,
+                    payment_status=CommissionPaymentStatus.unpaid.value,
+                    is_active=True,
+                )
+                db.add(row)
+                record_map[record_key] = row
+
+            row.project_name = project.project_name
+            row.project_month_id = project_month_row.id
+            row.is_active = True
+            row.deactivated_at = None
+            if row.is_locked:
+                locked_record_count += 1
+                continue
+
+            row.income_total_usd = income_total_usd
+            row.factory_commission_rate = _to_decimal(factory_commission_rate, '0.000001')
+            row.operator_bonus_ratio = _to_decimal(ratio_value, '0.000001')
+            row.bonus_amount_usd = bonus_amount_usd
+            row.usd_to_rmb_rate = _to_decimal(usd_to_rmb_rate, '0.00000001')
+            row.bonus_amount_rmb = bonus_amount_rmb
+            row.bonus_ratio_source = bonus_ratio_source.value
+            row.manual_bonus_ratio = _to_decimal(manual_bonus_ratio, '0.000001') if manual_bonus_ratio is not None else None
+            row.computed_at = now
+
+    db.flush()
+
+    for row in project_month_map.values():
+        if row.id is None:
+            db.flush()
+            break
+
+    for record_key in incoming_record_keys:
+        row = record_map.get(record_key)
+        if row is not None and row.project_month_id is None:
+            project_month_row = project_month_map.get(record_key[0])
+            if project_month_row is not None:
+                row.project_month_id = project_month_row.id
+
+    stale_rows = [row for old_key, row in record_map.items() if old_key not in incoming_record_keys and row.is_active]
+    for stale in stale_rows:
+        stale.is_active = False
+        stale.deactivated_at = now
+
+    append_operation_audit_log(
+        db,
+        action='commission.bonus.recompute',
+        target_type='commission_bonus_record',
+        target_id=report_month,
+        operator=operator,
+        after={
+            'report_month': report_month,
+            'project_month_count': len(project_ids),
+            'record_count': len(incoming_record_keys),
+            'locked_record_count': locked_record_count,
+            'stale_rows_deactivated': len(stale_rows),
+        },
+        request=request,
+    )
+    db.commit()
+
+    return RecomputeCommissionResponse(
+        report_month=report_month,
+        project_month_count=len(project_ids),
+        record_count=len(incoming_record_keys),
+        locked_record_count=locked_record_count,
+        computed_at=_to_iso(now) or '',
     )
 
 
@@ -777,8 +1096,8 @@ def update_commission_payment_status(
     after = _serialize_commission_record(row).model_dump()
     append_operation_audit_log(
         db,
-        action='commission.record.payment_status.update',
-        target_type='commission_record',
+        action='commission.bonus_record.payment_status.update',
+        target_type='commission_bonus_record',
         target_id=record_id,
         operator=operator,
         before=before,
@@ -998,7 +1317,7 @@ def update_commission_project_payment(
     after = _serialize_project_month(row).model_dump()
     append_operation_audit_log(
         db,
-        action='commission.project_month.payment.update',
+        action='commission.project_commission.payment.update',
         target_type='commission_project_month',
         target_id=project_month_id,
         operator=operator,

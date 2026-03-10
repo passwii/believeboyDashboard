@@ -118,3 +118,37 @@ def test_product_analysis_current_inventory_api(monkeypatch):
     payload = response.json()
     assert payload['source']['report_type'] == 'inventory_report'
     assert payload['rows'][0]['stock_status'] == 'out_of_stock'
+
+
+def test_product_analysis_weekly_recompute_api(monkeypatch):
+    monkeypatch.setattr(
+        'app.api.v1.endpoints.product_analysis.product_analysis_source_service.recompute_weekly_product_analysis_from_history',
+        lambda db, project_id, country, start_date, end_date, current_only: {  # noqa: ARG005
+            'project_id': project_id,
+            'project_name': 'Demo',
+            'country': country,
+            'recomputed': 1,
+            'skipped': 0,
+            'periods': [
+                {
+                    'pt1_id': 9,
+                    'version': 3,
+                    'report_start_date': date(2026, 2, 1),
+                    'report_end_date': date(2026, 2, 7),
+                    'row_count': 12,
+                    'business_report_source_id': 11,
+                    'ad_report_source_id': 12,
+                    'payment_report_source_id': 13,
+                }
+            ],
+        },
+    )
+
+    response = client.post(
+        '/api/v1/product-analysis/weekly/recompute?project_id=11&country=US',
+        headers={'X-API-Key': get_settings().api_key},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload['recomputed'] == 1
+    assert payload['periods'][0]['pt1_id'] == 9

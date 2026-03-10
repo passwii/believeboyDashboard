@@ -5,15 +5,12 @@ function trimTrailingSlash(value: string) {
 }
 
 export function getBackendBaseUrl() {
-  const base =
-    process.env.BACKEND_API_BASE_URL ||
-    process.env.NEXT_PUBLIC_API_BASE_URL ||
-    'http://127.0.0.1:8000'
+  const base = process.env.BACKEND_API_BASE_URL || 'http://127.0.0.1:8000'
   return trimTrailingSlash(base)
 }
 
 export function getBackendApiKey() {
-  return process.env.BACKEND_API_KEY || process.env.NEXT_PUBLIC_BACKEND_API_KEY || ''
+  return process.env.BACKEND_API_KEY || ''
 }
 
 export async function backendFetchJson<T>(path: string, init?: RequestInit): Promise<T> {

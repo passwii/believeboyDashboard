@@ -49,7 +49,7 @@ type DataManagementOverview = {
   }>
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
+const API_BASE = '/api/backend'
 
 function formatDateTime(value: string | null): string {
   if (!value) return '-'

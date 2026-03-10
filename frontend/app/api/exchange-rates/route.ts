@@ -1,13 +1,36 @@
-// 使用 Node.js 运行时（支持 SQLite）
-export const runtime = "nodejs"
-export const dynamic = "force-dynamic"
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
-import { NextRequest, NextResponse } from "next/server"
-import { requireAdminSession, requireUserSession } from "@/lib/auth/server"
-import { exchangeRateDb, ExchangeRateFilters, ExchangeRateNoteImage } from "@/lib/db"
+import { NextRequest, NextResponse } from 'next/server'
 
-function toClientModel(rate: any) {
-  const [yearText, monthText] = String(rate.year_month ?? "").split("-")
+import { requireAdminSession, requireUserSession } from '@/lib/auth/server'
+import {
+  buildBackendProxyHeaders,
+  buildBackendUrl,
+} from '@/lib/server/backend-proxy'
+
+type BackendExchangeRateItem = {
+  id: number
+  currency: string
+  currency_name?: string | null
+  year_month: string
+  rate: number
+  description?: string | null
+  note_images?: Array<{
+    id: string
+    url: string
+    thumbnail_url?: string | null
+    filename: string
+    content_type: string
+    size: number
+    uploaded_at: string
+  }> | null
+  created_at: string
+  updated_at: string
+}
+
+function toClientModel(rate: BackendExchangeRateItem) {
+  const [yearText, monthText] = String(rate.year_month ?? '').split('-')
   const year = Number(yearText)
   const month = Number(monthText)
   return {
@@ -19,122 +42,140 @@ function toClientModel(rate: any) {
     year_month: rate.year_month,
     rate: Number(rate.rate),
     description: rate.description ?? null,
-    noteImages: Array.isArray(rate.note_images) ? rate.note_images : [],
+    noteImages: Array.isArray(rate.note_images)
+      ? rate.note_images.map((item) => ({
+          id: item.id,
+          url: item.url,
+          thumbnailUrl: item.thumbnail_url ?? undefined,
+          filename: item.filename,
+          contentType: item.content_type,
+          size: Number(item.size || 0),
+          uploadedAt: item.uploaded_at,
+        }))
+      : [],
     createdAt: rate.created_at,
     updatedAt: rate.updated_at,
   }
 }
 
-function normalizeNoteImages(value: unknown): ExchangeRateNoteImage[] {
-  if (!Array.isArray(value)) return []
-  return value
-    .filter((item) => item && typeof item === "object")
-    .map((item: any) => ({
-      id: String(item.id || ""),
-      url: String(item.url || ""),
-      thumbnailUrl: item.thumbnailUrl ? String(item.thumbnailUrl) : undefined,
-      filename: String(item.filename || ""),
-      contentType: String(item.contentType || ""),
-      size: Number(item.size || 0),
-      uploadedAt: String(item.uploadedAt || ""),
-    }))
-    .filter((item) => item.id && item.url && item.filename)
+function toBackendPayload(body: any) {
+  return {
+    currency: body.currency,
+    currency_name: body.currencyName ?? body.currency_name ?? null,
+    year_month: body.year_month ?? null,
+    year: body.year ?? null,
+    month: body.month ?? null,
+    rate: body.rate === '' || body.rate == null ? null : Number(body.rate),
+    description: body.description ?? null,
+    note_images: Array.isArray(body.noteImages ?? body.note_images)
+      ? (body.noteImages ?? body.note_images).map((item: any) => ({
+          id: String(item.id || ''),
+          url: String(item.url || ''),
+          thumbnail_url: item.thumbnailUrl ? String(item.thumbnailUrl) : item.thumbnail_url ? String(item.thumbnail_url) : null,
+          filename: String(item.filename || ''),
+          content_type: String(item.contentType || item.content_type || ''),
+          size: Number(item.size || 0),
+          uploaded_at: String(item.uploadedAt || item.uploaded_at || ''),
+        }))
+      : [],
+  }
 }
 
-// GET: Fetch all exchange rates with optional filtering
-export async function GET(request: NextRequest) {
+async function toErrorResponse(response: Response, fallbackMessage: string) {
   try {
-    const session = await requireUserSession()
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const payload = (await response.json()) as { detail?: string; message?: string; error?: string }
+    return NextResponse.json(
+      { success: false, error: payload.error || payload.detail || payload.message || fallbackMessage },
+      { status: response.status }
+    )
+  } catch {
+    const text = await response.text()
+    return NextResponse.json({ success: false, error: text || fallbackMessage }, { status: response.status })
+  }
+}
+
+export async function GET(request: NextRequest) {
+  const session = await requireUserSession()
+  if (!session) {
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+  }
+
+  try {
+    const params = new URLSearchParams(request.nextUrl.search)
+    const backendParams = new URLSearchParams()
+    const page = params.get('page')
+    const pageSize = params.get('pageSize')
+    const currency = params.get('currency')
+    const year = params.get('year')
+    const month = params.get('month')
+    const yearMonth = params.get('year_month')
+
+    if (page) backendParams.set('page', page)
+    if (pageSize) backendParams.set('page_size', pageSize)
+    if (currency) backendParams.set('currency', currency)
+    if (yearMonth) {
+      backendParams.set('year_month', yearMonth)
+    } else if (year && month) {
+      backendParams.set('year_month', `${year}-${month.padStart(2, '0')}`)
     }
 
-    const { searchParams } = new URL(request.url)
-    const currency = searchParams.get("currency") || undefined
-    const year = searchParams.get("year") || undefined
-    const month = searchParams.get("month") || undefined
-    const year_month = searchParams.get("year_month") || undefined
-    const page = Math.max(1, Number(searchParams.get("page") || "1"))
-    const pageSize = Math.max(1, Number(searchParams.get("pageSize") || "12"))
+    const search = backendParams.toString()
+    const response = await fetch(`${buildBackendUrl('api/v1/exchange-rates')}${search ? `?${search}` : ''}`, {
+      method: 'GET',
+      headers: buildBackendProxyHeaders(session, request.headers),
+      cache: 'no-store',
+    })
+    if (!response.ok) {
+      return await toErrorResponse(response, 'Failed to fetch exchange rates')
+    }
 
-    const filters: ExchangeRateFilters = {}
-    if (currency) filters.currency = currency
-    if (year) filters.year = year
-    if (month) filters.month = month
-    if (year_month) filters.year_month = year_month
-
-    const result = await exchangeRateDb.getAll(filters, { page, pageSize })
-    const totalPages = Math.ceil(result.total / pageSize)
+    const payload = (await response.json()) as {
+      items: BackendExchangeRateItem[]
+      total: number
+      page: number
+      page_size: number
+    }
     return NextResponse.json({
       success: true,
-      data: result.data.map(toClientModel),
+      data: payload.items.map(toClientModel),
       pagination: {
-        page,
-        pageSize,
-        total: result.total,
-        totalPages,
+        page: payload.page,
+        pageSize: payload.page_size,
+        total: payload.total,
+        totalPages: Math.max(1, Math.ceil(payload.total / payload.page_size)),
       },
     })
   } catch (error) {
-    console.error("Error fetching exchange rates:", error)
     return NextResponse.json(
-      { success: false, error: "Failed to fetch exchange rates" },
+      { success: false, error: error instanceof Error ? error.message : 'Failed to fetch exchange rates' },
       { status: 500 }
     )
   }
 }
 
-// POST: Create a new exchange rate
 export async function POST(request: NextRequest) {
+  const session = await requireAdminSession()
+  if (!session) {
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+  }
+
   try {
-    const session = await requireAdminSession()
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
     const body = await request.json()
-    const { currency, currencyName, year, month, year_month, rate, description, noteImages } = body
-    const parsedRate = Number(rate)
-
-    // Validation
-    if (!currency || (!year_month && (year === undefined || month === undefined)) || Number.isNaN(parsedRate)) {
-      return NextResponse.json(
-        { success: false, error: "Missing required fields: currency, year/month (or year_month), rate" },
-        { status: 400 }
-      )
-    }
-
-    if (parsedRate <= 0) {
-      return NextResponse.json(
-        { success: false, error: "Rate must be a positive number" },
-        { status: 400 }
-      )
-    }
-
-    const normalizedYearMonth = year_month || `${year}-${String(month).padStart(2, "0")}`
-
-    // Check for existing record
-    const existing = await exchangeRateDb.getByCurrencyAndMonth(currency, normalizedYearMonth)
-    if (existing) {
-      return NextResponse.json(
-        { success: false, error: "Exchange rate for this currency and month already exists" },
-        { status: 409 }
-      )
-    }
-
-    const newExchangeRate = await exchangeRateDb.create({
-      currency,
-      currency_name: currencyName || null,
-      year_month: normalizedYearMonth,
-      rate: parsedRate,
-      description: description || null,
-      note_images: normalizeNoteImages(noteImages),
+    const response = await fetch(buildBackendUrl('api/v1/exchange-rates'), {
+      method: 'POST',
+      headers: buildBackendProxyHeaders(session, request.headers),
+      body: JSON.stringify(toBackendPayload(body)),
+      cache: 'no-store',
     })
-    return NextResponse.json({ success: true, data: toClientModel(newExchangeRate) }, { status: 201 })
+    if (!response.ok) {
+      return await toErrorResponse(response, 'Failed to create exchange rate')
+    }
+
+    const payload = (await response.json()) as BackendExchangeRateItem
+    return NextResponse.json({ success: true, data: toClientModel(payload) }, { status: 201 })
   } catch (error) {
-    console.error("Error creating exchange rate:", error)
     return NextResponse.json(
-      { success: false, error: "Failed to create exchange rate" },
+      { success: false, error: error instanceof Error ? error.message : 'Failed to create exchange rate' },
       { status: 500 }
     )
   }

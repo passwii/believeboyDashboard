@@ -1,6 +1,6 @@
 export type CommissionBasis = 'sales_amount' | 'cash_received' | 'profit_margin' | string | null | undefined
 
-export const CASH_RECEIVED_COMMISSION_TIERS = [
+export const PROJECT_CASH_RECEIVED_COMMISSION_TIERS = [
   { minInclusive: 0.4, maxExclusive: 0.5, rate: 0.07 },
   { minInclusive: 0.5, maxExclusive: 0.6, rate: 0.1 },
   { minInclusive: 0.6, maxExclusive: 0.7, rate: 0.13 },
@@ -18,14 +18,14 @@ function normalizeRate(value: number): number {
   return safe
 }
 
-export function getCashReceivedCommissionRate(paybackRatio: number): number {
+export function getProjectCashReceivedCommissionRate(paybackRatio: number): number {
   const ratio = toFiniteNumber(paybackRatio)
   if (ratio < 0.4) return 0
-  const tier = CASH_RECEIVED_COMMISSION_TIERS.find((item) => ratio >= item.minInclusive && ratio < item.maxExclusive)
+  const tier = PROJECT_CASH_RECEIVED_COMMISSION_TIERS.find((item) => ratio >= item.minInclusive && ratio < item.maxExclusive)
   return tier?.rate ?? 0
 }
 
-export function resolveOperationCommissionUsd(params: {
+export function resolveProjectCommissionUsd(params: {
   commissionBasis: CommissionBasis
   configuredCommissionRate: number
   incomeTotalUsd: number
@@ -36,7 +36,7 @@ export function resolveOperationCommissionUsd(params: {
 
   if (params.commissionBasis === 'cash_received') {
     const paybackRatio = incomeTotalUsd > 0 ? amazonPaybackUsd / incomeTotalUsd : 0
-    const commissionRate = getCashReceivedCommissionRate(paybackRatio)
+    const commissionRate = getProjectCashReceivedCommissionRate(paybackRatio)
     const baseAmountUsd = amazonPaybackUsd > 0 ? amazonPaybackUsd : 0
     return {
       commissionRate,

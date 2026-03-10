@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { getClientCache, setClientCache } from '@/lib/client-cache'
+import { clearClientCache, getClientCache, setClientCache } from '@/lib/client-cache'
 
 type ProjectOption = {
   id: number | null
@@ -65,8 +65,7 @@ type PT1DetailsResponse = {
   }>
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
-const API_KEY = process.env.NEXT_PUBLIC_BACKEND_API_KEY ?? ''
+const API_BASE = '/api/backend'
 const PROJECTS_CACHE_KEY = 'weekly-analysis:projects'
 const PROJECTS_CACHE_TTL_MS = 10 * 60 * 1000
 const WEEKLY_DATA_CACHE_TTL_MS = 3 * 60 * 1000
@@ -241,7 +240,7 @@ function eightWeeksAgoMondayDateString(): string {
 }
 
 function authHeaders(): Record<string, string> {
-  return API_KEY ? { 'X-API-Key': API_KEY } : {}
+  return {}
 }
 
 function lastSundayDateString(): string {
@@ -505,6 +504,8 @@ export default function WeeklyProductAnalysisPage() {
   const [detailsLoading, setDetailsLoading] = useState(false)
   const [detailsError, setDetailsError] = useState<string | null>(null)
   const [detailRows, setDetailRows] = useState<Array<Record<string, unknown>>>([])
+  const [recomputing, setRecomputing] = useState(false)
+  const [recomputeMessage, setRecomputeMessage] = useState<string | null>(null)
 
   const [visibleLines, setVisibleLines] = useState({
     sales_amount: true,
@@ -673,6 +674,48 @@ export default function WeeklyProductAnalysisPage() {
       setDetailsLoading(false)
     }
   }, [selectedWeekId, country])
+
+  const handleRecomputeHistory = useCallback(async () => {
+    const parsedProjectId = Number(projectId)
+    if (!parsedProjectId) {
+      setError('请先选择店铺')
+      return
+    }
+
+    setRecomputeMessage(null)
+    setRecomputing(true)
+    try {
+      const search = new URLSearchParams({
+        project_id: String(parsedProjectId),
+        country,
+      })
+      if (startDate) search.set('start_date', startDate)
+      if (endDate) search.set('end_date', endDate)
+
+      const response = await fetch(`${API_BASE}/api/v1/product-analysis/weekly/recompute?${search.toString()}`, {
+        method: 'POST',
+        headers: authHeaders(),
+      })
+      if (!response.ok) {
+        throw new Error(parseErrorBody(await response.text(), response.status))
+      }
+
+      const payload = (await response.json()) as { recomputed?: number }
+      clearClientCache(weeklyDataCacheKey(parsedProjectId, country, startDate, endDate))
+      if (selectedWeekId) {
+        clearClientCache(weeklyDetailsCacheKey(Number(selectedWeekId), country))
+      }
+      await loadWeeklyData({ force: true })
+      if (activeTab === 'details') {
+        await loadWeeklyDetails({ force: true })
+      }
+      setRecomputeMessage(`已按最新 SKU cost 重算 ${Number(payload.recomputed || 0)} 个历史周报`)
+    } catch (recomputeError) {
+      setError(recomputeError instanceof Error ? recomputeError.message : '历史周报重算失败')
+    } finally {
+      setRecomputing(false)
+    }
+  }, [projectId, country, startDate, endDate, selectedWeekId, loadWeeklyData, activeTab, loadWeeklyDetails])
 
   useEffect(() => {
     void loadProjects()
@@ -889,6 +932,7 @@ export default function WeeklyProductAnalysisPage() {
 
           {projectLoadError ? <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{projectLoadError}</div> : null}
           {error ? <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div> : null}
+          {recomputeMessage ? <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">{recomputeMessage}</div> : null}
 
           <div className="grid gap-4 md:grid-cols-3">
             <StatCard
@@ -1135,21 +1179,32 @@ export default function WeeklyProductAnalysisPage() {
                     默认显示周汇总；可切换到 SKU明细 查看每周的行级结果。
                   </CardDescription>
                 </div>
-                <div className="inline-flex rounded-md border bg-muted/20 p-1">
-                  <button
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
                     type="button"
-                    className={`rounded px-3 py-1.5 text-xs font-medium transition ${activeTab === 'summary' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
-                    onClick={() => setActiveTab('summary')}
+                    variant="outline"
+                    className="h-8"
+                    onClick={() => void handleRecomputeHistory()}
+                    disabled={recomputing || loading || !projectId}
                   >
-                    周汇总
-                  </button>
-                  <button
-                    type="button"
-                    className={`rounded px-3 py-1.5 text-xs font-medium transition ${activeTab === 'details' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
-                    onClick={() => setActiveTab('details')}
-                  >
-                    SKU明细
-                  </button>
+                    {recomputing ? '重新核算中...' : '重新核算'}
+                  </Button>
+                  <div className="inline-flex rounded-md border bg-muted/20 p-1">
+                    <button
+                      type="button"
+                      className={`rounded px-3 py-1.5 text-xs font-medium transition ${activeTab === 'summary' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
+                      onClick={() => setActiveTab('summary')}
+                    >
+                      周汇总
+                    </button>
+                    <button
+                      type="button"
+                      className={`rounded px-3 py-1.5 text-xs font-medium transition ${activeTab === 'details' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
+                      onClick={() => setActiveTab('details')}
+                    >
+                      SKU明细
+                    </button>
+                  </div>
                 </div>
               </div>
               {activeTab === 'details' ? (

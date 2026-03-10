@@ -7,7 +7,7 @@ User=www-data
 Group=www-data
 WorkingDirectory=/opt/believeboy/backend
 EnvironmentFile=/opt/believeboy/backend/.env
-ExecStart=/opt/believeboy/backend/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+ExecStart=/opt/believeboy/backend/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --no-access-log
 Restart=always
 RestartSec=3
 

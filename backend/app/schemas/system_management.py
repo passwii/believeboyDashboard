@@ -104,12 +104,12 @@ class CommissionRecordUpsertItem(BaseModel):
     income_category: CommissionIncomeCategory
     income_total_usd: float = Field(ge=0)
     factory_commission_rate: float = Field(ge=0, le=1)
-    public_commission_ratio: float = Field(ge=0, le=1)
-    commission_amount_usd: float = Field(ge=0)
+    operator_bonus_ratio: float = Field(ge=0, le=1)
+    bonus_amount_usd: float = Field(ge=0)
     usd_to_rmb_rate: float = Field(ge=0)
-    commission_amount_rmb: float = Field(ge=0)
-    ratio_source: CommissionRatioSource = CommissionRatioSource.rule
-    manual_ratio: float | None = Field(default=None, ge=0, le=1)
+    bonus_amount_rmb: float = Field(ge=0)
+    bonus_ratio_source: CommissionRatioSource = CommissionRatioSource.rule
+    manual_bonus_ratio: float | None = Field(default=None, ge=0, le=1)
 
 
 class UpsertCommissionRecordsRequest(BaseModel):
@@ -127,12 +127,12 @@ class CommissionRecordItem(BaseModel):
     income_category: CommissionIncomeCategory
     income_total_usd: float
     factory_commission_rate: float
-    public_commission_ratio: float
-    commission_amount_usd: float
+    operator_bonus_ratio: float
+    bonus_amount_usd: float
     usd_to_rmb_rate: float
-    commission_amount_rmb: float
-    ratio_source: CommissionRatioSource
-    manual_ratio: float | None = None
+    bonus_amount_rmb: float
+    bonus_ratio_source: CommissionRatioSource
+    manual_bonus_ratio: float | None = None
     payment_status: CommissionPaymentStatus
     payment_confirmed_at: str | None = None
     payment_confirmed_by: str | None = None
@@ -227,6 +227,18 @@ class UpdateCommissionProjectPaymentRequest(BaseModel):
 
 class UpdateCommissionProjectPaymentResponse(BaseModel):
     item: CommissionProjectMonthItem
+
+
+class RecomputeCommissionRequest(BaseModel):
+    report_month: str = Field(min_length=7, max_length=7)
+
+
+class RecomputeCommissionResponse(BaseModel):
+    report_month: str
+    project_month_count: int
+    record_count: int
+    locked_record_count: int
+    computed_at: str
 
 
 class CommissionRatioOverrideItem(BaseModel):

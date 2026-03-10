@@ -45,8 +45,7 @@ type CommissionBasisOption = {
   value: string
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
-const API_KEY = process.env.NEXT_PUBLIC_BACKEND_API_KEY ?? ''
+const API_BASE = '/api/backend'
 const COMMISSION_BASIS_OPTIONS: CommissionBasisOption[] = [
   { label: '销售额', value: 'sales_amount' },
   { label: '平台回款', value: 'cash_received' },
@@ -59,10 +58,7 @@ const COMMISSION_BASIS_LABEL: Record<string, string> = {
 }
 
 function authHeaders(): Record<string, string> {
-  if (!API_KEY) {
-    return {}
-  }
-  return { 'X-API-Key': API_KEY }
+  return {}
 }
 
 async function parseError(response: Response): Promise<string> {

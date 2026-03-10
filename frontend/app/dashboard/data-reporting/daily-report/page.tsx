@@ -58,8 +58,7 @@ type SubmitState = {
   filename: string | null
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
-const API_KEY = process.env.NEXT_PUBLIC_BACKEND_API_KEY ?? ''
+const API_BASE = '/api/backend'
 const REQUIRED_TYPES: UploadType[] = ['sales_report', 'ad_report', 'inventory_report']
 
 const TYPE_LABEL: Record<UploadType, string> = {
@@ -68,12 +67,8 @@ const TYPE_LABEL: Record<UploadType, string> = {
   inventory_report: '库存报告',
 }
 
-function authHeaders(operator?: string, isAdmin = false): Record<string, string> {
-  const headers: Record<string, string> = {}
-  if (API_KEY) headers['X-API-Key'] = API_KEY
-  if (isAdmin) headers['X-Is-Admin'] = 'true'
-  if (operator && operator.trim()) headers['X-Operator'] = encodeURIComponent(operator.trim())
-  return headers
+function authHeaders(_operator?: string, _isAdmin = false): Record<string, string> {
+  return {}
 }
 
 function resolveApiUrl(path: string) {

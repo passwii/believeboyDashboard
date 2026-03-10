@@ -45,8 +45,7 @@ type ProjectOption = {
   name: string
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
-const API_KEY = process.env.NEXT_PUBLIC_BACKEND_API_KEY ?? ''
+const API_BASE = '/api/backend'
 const REMOTE_FETCH_PAGE_SIZE = 200
 const PAGE_SIZE_OPTIONS = [20, 50, 100]
 const DEFAULT_PAGE_SIZE = 20
@@ -68,7 +67,7 @@ function normalizeCountry(raw: string): 'US' | 'DE' | 'UK' | null {
 }
 
 function authHeaders(): Record<string, string> {
-  return API_KEY ? { 'X-API-Key': API_KEY } : {}
+  return {}
 }
 
 function sortProductCosts(rows: ProductCostItem[]): ProductCostItem[] {

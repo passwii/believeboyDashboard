@@ -17,6 +17,7 @@ from app.models import (  # noqa: F401
     InventorySnapshotRow,
     Job,
     JobRun,
+    ExchangeRate,
     ProductCost,
     Project,
 )
