@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { cn } from '@/lib/utils'
 
 type UploadType = 'sales_report' | 'ad_report' | 'inventory_report'
@@ -149,12 +150,7 @@ export default function DailyReportPage() {
       setProjectsLoading(true)
       setProjectLoadError(null)
       try {
-        const response = await fetch(`${API_BASE}/api/v1/projects/manage`, {
-          cache: 'no-store',
-          headers: authHeaders(currentOperator, isAdmin),
-        })
-        if (!response.ok) throw new Error(`项目列表加载失败 (${response.status})`)
-        const data = (await response.json()) as ProjectOption[]
+        const data = await fetchManagedProjectsCached<ProjectOption[]>(session)
         setProjects(data)
       } catch (error) {
         setProjectLoadError(error instanceof Error ? error.message : '项目列表加载失败')
@@ -163,7 +159,7 @@ export default function DailyReportPage() {
       }
     }
     void loadProjects()
-  }, [currentOperator, isAdmin])
+  }, [session])
 
   useEffect(() => {
     setUploadState((prev) => {

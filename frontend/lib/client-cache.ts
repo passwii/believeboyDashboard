@@ -79,3 +79,28 @@ export function clearClientCache(key: string): void {
   MEMORY_CACHE.delete(key)
   removeFromSessionStorage(key)
 }
+
+export function clearClientCacheByPrefix(prefix: string): void {
+  const memoryKeys = Array.from(MEMORY_CACHE.keys())
+  memoryKeys.forEach((key) => {
+    if (key.startsWith(prefix)) {
+      MEMORY_CACHE.delete(key)
+    }
+  })
+
+  if (typeof window === 'undefined') return
+  try {
+    const matchedKeys: string[] = []
+    for (let i = 0; i < window.sessionStorage.length; i += 1) {
+      const key = window.sessionStorage.key(i)
+      if (!key || !key.startsWith(STORAGE_PREFIX)) continue
+      const rawKey = key.slice(STORAGE_PREFIX.length)
+      if (rawKey.startsWith(prefix)) {
+        matchedKeys.push(key)
+      }
+    }
+    matchedKeys.forEach((key) => window.sessionStorage.removeItem(key))
+  } catch {
+    // Ignore storage errors.
+  }
+}

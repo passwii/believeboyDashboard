@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
+import { fetchProjectOptionsCached } from '@/lib/project-client-cache'
 
 type ProductCostItem = {
   id: number
@@ -46,7 +47,6 @@ type ProjectOption = {
 }
 
 const API_BASE = '/api/backend'
-const REMOTE_FETCH_PAGE_SIZE = 200
 const PAGE_SIZE_OPTIONS = [20, 50, 100]
 const DEFAULT_PAGE_SIZE = 20
 const COUNTRY_OPTIONS = [
@@ -91,6 +91,8 @@ export default function SkuCostPage() {
   const [items, setItems] = useState<ProductCostItem[]>([])
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
+  const [total, setTotal] = useState(0)
+  const [hasNextPage, setHasNextPage] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -121,36 +123,43 @@ export default function SkuCostPage() {
 
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
-  const total = items.length
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize])
-  const hasNextPage = page < totalPages
 
-  const pagedItems = useMemo(() => {
-    const start = (page - 1) * pageSize
-    const end = start + pageSize
-    return items.slice(start, end)
-  }, [items, page, pageSize])
-
-  const fetchAllData = async (filters?: {
-    project_name?: string
-    sku?: string
-    asin?: string
-    country?: 'all' | 'US' | 'DE' | 'UK'
-    status?: 'all' | 'active' | 'inactive'
-  }) => {
+  const loadData = async (
+    filters?: {
+      project_name?: string
+      sku?: string
+      asin?: string
+      country?: 'all' | 'US' | 'DE' | 'UK'
+      status?: 'all' | 'active' | 'inactive'
+    },
+    options?: { resetPage?: boolean; pageOverride?: number; clearOnMissingProject?: boolean }
+  ) => {
     const projectValue = (filters?.project_name ?? projectFilter).trim()
     const skuValue = (filters?.sku ?? skuFilter).trim()
     const asinValue = (filters?.asin ?? asinFilter).trim()
     const countryValue = filters?.country ?? countryFilter
     const statusValue = filters?.status ?? statusFilter
+    const nextPage = options?.resetPage ? 1 : (options?.pageOverride ?? page)
 
-    const allItems: ProductCostItem[] = []
-    let currentPage = 1
+    if (!projectValue) {
+      if (options?.clearOnMissingProject) {
+        setItems([])
+        setTotal(0)
+        setHasNextPage(false)
+      }
+      setError('请先在筛选区域选择项目名')
+      return
+    }
 
-    while (true) {
+    setLoading(true)
+    setError(null)
+
+    try {
       const search = new URLSearchParams({
-        page: String(currentPage),
-        page_size: String(REMOTE_FETCH_PAGE_SIZE),
+        page: String(nextPage),
+        page_size: String(pageSize),
+        include_total: 'true',
       })
       if (projectValue) search.set('project_name', projectValue)
       if (skuValue) search.set('sku', skuValue)
@@ -168,48 +177,10 @@ export default function SkuCostPage() {
       }
 
       const payload = (await response.json()) as ProductCostsPage
-      allItems.push(...payload.items)
-
-      if (!payload.has_next) {
-        break
-      }
-      currentPage += 1
-    }
-
-    return {
-      items: allItems,
-      projectValue,
-      skuValue,
-      asinValue,
-      countryValue,
-      statusValue,
-    }
-  }
-
-  const loadData = async (
-    filters?: {
-      project_name?: string
-      sku?: string
-      asin?: string
-      country?: 'all' | 'US' | 'DE' | 'UK'
-      status?: 'all' | 'active' | 'inactive'
-    },
-    options?: { resetPage?: boolean }
-  ) => {
-    setLoading(true)
-    setError(null)
-
-    try {
-      const result = await fetchAllData(filters)
-      const newItems = sortProductCosts(result.items)
-      setItems(newItems)
-      setPage((prev) => {
-        if (options?.resetPage) {
-          return 1
-        }
-        const nextTotalPages = Math.max(1, Math.ceil(newItems.length / pageSize))
-        return Math.min(prev, nextTotalPages)
-      })
+      setItems(sortProductCosts(payload.items))
+      setTotal(Math.max(0, payload.total ?? 0))
+      setHasNextPage(payload.has_next)
+      setPage(nextPage)
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : '加载失败')
     } finally {
@@ -222,14 +193,7 @@ export default function SkuCostPage() {
       setProjectsLoading(true)
       setProjectLoadError(null)
       try {
-        const response = await fetch(`${API_BASE}/api/v1/projects`, {
-          cache: 'no-store',
-          headers: authHeaders(),
-        })
-        if (!response.ok) {
-          throw new Error(await parseError(response))
-        }
-        const data = (await response.json()) as ProjectOption[]
+        const data = await fetchProjectOptionsCached<ProjectOption[]>()
         setProjects(data)
       } catch (loadError) {
         setProjectLoadError(loadError instanceof Error ? loadError.message : '项目列表加载失败')
@@ -240,28 +204,14 @@ export default function SkuCostPage() {
     void loadProjects()
   }, [])
 
-  useEffect(() => {
-    setPage((prev) => Math.min(prev, totalPages))
-  }, [totalPages])
-
   const onRefresh = async () => {
     setSuccessMessage(null)
-    if (!projectFilter.trim()) {
-      setItems([])
-      setError('请先在筛选区域选择项目名')
-      return
-    }
-    await loadData()
+    await loadData(undefined, { pageOverride: page, clearOnMissingProject: true })
   }
 
   const onSearch = async () => {
     setSuccessMessage(null)
-    if (!projectFilter.trim()) {
-      setItems([])
-      setError('请先在筛选区域选择项目名')
-      return
-    }
-    await loadData(undefined, { resetPage: true })
+    await loadData(undefined, { resetPage: true, clearOnMissingProject: true })
   }
 
   const onResetFilters = async () => {
@@ -271,6 +221,8 @@ export default function SkuCostPage() {
     setCountryFilter('all')
     setStatusFilter('all')
     setItems([])
+    setTotal(0)
+    setHasNextPage(false)
     setPage(1)
     setError(null)
     setSuccessMessage(null)
@@ -288,7 +240,7 @@ export default function SkuCostPage() {
         country: countryFilter,
         status: statusFilter,
       },
-      { resetPage: true }
+      { resetPage: true, clearOnMissingProject: true }
     )
   }
 
@@ -393,9 +345,10 @@ export default function SkuCostPage() {
       setAddText('')
       setAddDialogOpen(false)
       if (projectFilter.trim()) {
-        await loadData(undefined, { resetPage: true })
+        await loadData(undefined, { resetPage: true, clearOnMissingProject: true })
       } else {
         setItems([])
+        setTotal(0)
         setPage(1)
       }
     } catch (submitError) {
@@ -482,8 +435,7 @@ export default function SkuCostPage() {
         throw new Error(await parseError(response))
       }
       const updated = (await response.json()) as ProductCostItem
-      const nextItems = sortProductCosts(items.map((item) => (item.id === updated.id ? updated : item)))
-      setItems(nextItems)
+      setItems((currentItems) => sortProductCosts(currentItems.map((item) => (item.id === updated.id ? updated : item))))
       setEditingId(null)
       setSuccessMessage('该行已更新')
     } catch (saveError) {
@@ -509,7 +461,7 @@ export default function SkuCostPage() {
       if (!response.ok) {
         throw new Error(await parseError(response))
       }
-      await loadData()
+      await loadData(undefined, { pageOverride: page, clearOnMissingProject: true })
       setSuccessMessage(direction === 'up' ? '该行已上移' : '该行已下移')
     } catch (moveError) {
       setError(moveError instanceof Error ? moveError.message : '调整排序失败')
@@ -517,6 +469,17 @@ export default function SkuCostPage() {
       setMoveSubmittingId(null)
     }
   }
+
+  useEffect(() => {
+    if (!projectFilter.trim()) return
+    const run = async () => {
+      await loadData(undefined, { pageOverride: page, clearOnMissingProject: true })
+    }
+    void run()
+    // Page and page size changes should re-fetch the current query.
+    // Other filter changes are handled by explicit search actions.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, pageSize, projectFilter])
 
   return (
     <div className="w-full space-y-6">
@@ -757,7 +720,7 @@ export default function SkuCostPage() {
                     ))
                   : null}
 
-                {pagedItems.map((row) => (
+                {items.map((row) => (
                   <tr key={row.id} className="border-b transition-colors hover:bg-muted/50">
                     <td className="p-4 align-middle">
                       {editingId === row.id ? (
@@ -906,7 +869,7 @@ export default function SkuCostPage() {
                   </tr>
                 ))}
 
-                {!loading && pagedItems.length === 0 ? (
+                {!loading && items.length === 0 ? (
                   <tr>
                     <td colSpan={10} className="py-12 text-center text-sm text-muted-foreground">
                       {projectFilter ? '当前筛选条件下暂无数据，请调整筛选或导入新记录。' : '请先在筛选条件中选择项目名，再读取并展示数据。'}

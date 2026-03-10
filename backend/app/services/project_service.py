@@ -6,7 +6,7 @@ from io import StringIO
 from pathlib import Path
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select, text
+from sqlalchemy import func, or_, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -140,8 +140,27 @@ def bulk_upsert_projects(
     return rows, inserted, updated
 
 
-def list_project_items(db: Session) -> list[Project]:
-    stmt = select(Project).order_by(Project.sort_order.asc(), Project.id.asc())
+def list_project_items(
+    db: Session,
+    *,
+    operator: str | None = None,
+    is_admin: bool = True,
+) -> list[Project]:
+    stmt = select(Project)
+
+    normalized_operator = (operator or '').strip()
+    if not is_admin:
+        if normalized_operator:
+            stmt = stmt.where(
+                or_(
+                    Project.project_operator == normalized_operator,
+                    Project.assistant_operator == normalized_operator,
+                )
+            )
+        else:
+            return []
+
+    stmt = stmt.order_by(Project.sort_order.asc(), Project.id.asc())
     return db.execute(stmt).scalars().all()
 
 

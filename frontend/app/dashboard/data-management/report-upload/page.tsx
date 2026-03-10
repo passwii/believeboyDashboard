@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { buildBackendHeaders } from '@/lib/backend-auth'
+import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { cn } from '@/lib/utils'
 
 type ReportTabKey = 'daily-sales' | 'inventory-snapshot' | 'promoted-products'
@@ -124,14 +125,7 @@ export default function ReportUploadPage() {
       setProjectsLoading(true)
       setProjectLoadError(null)
       try {
-        const response = await fetch(`${API_BASE}/api/v1/projects/manage`, {
-          cache: 'no-store',
-          headers: buildBackendHeaders(session),
-        })
-        if (!response.ok) {
-          throw new Error(await parseError(response))
-        }
-        const payload = (await response.json()) as ProjectOption[]
+        const payload = await fetchManagedProjectsCached<ProjectOption[]>(session)
         setProjects(payload)
       } catch (error) {
         setProjectLoadError(error instanceof Error ? error.message : '项目列表加载失败')

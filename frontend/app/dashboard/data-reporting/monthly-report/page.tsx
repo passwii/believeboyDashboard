@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { cn } from '@/lib/utils'
 
 type UploadType = 'payment_report' | 'monthly_summary_pdf'
@@ -245,12 +246,7 @@ export default function MonthlyReportPage() {
       setProjectsLoading(true)
       setProjectLoadError(null)
       try {
-        const response = await fetch(`${API_BASE}/api/v1/projects/manage`, {
-          cache: 'no-store',
-          headers: authHeaders(currentOperator, isAdmin),
-        })
-        if (!response.ok) throw new Error(`项目列表加载失败 (${response.status})`)
-        const raw = (await response.json()) as Array<{ id?: number | null; name?: string }>
+        const raw = await fetchManagedProjectsCached<Array<{ id?: number | null; name?: string }>>(session)
         const data = raw
           .filter((item) => typeof item.name === 'string' && item.name.trim().length > 0)
           .map((item) => ({ id: typeof item.id === 'number' && item.id > 0 ? item.id : null, name: item.name as string }))
@@ -262,7 +258,7 @@ export default function MonthlyReportPage() {
       }
     }
     void loadProjects()
-  }, [currentOperator, isAdmin])
+  }, [session])
 
   useEffect(() => {
     setUploadState((prev) => {

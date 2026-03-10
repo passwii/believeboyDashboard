@@ -16,6 +16,7 @@ pnpm-debug.log*
 /frontend/.pnp.js
 /frontend/.yarn/install-state.gz
 /frontend/.next/
+/frontend/.next-temp-build/
 /frontend/out/
 /frontend/build/
 /frontend/coverage/

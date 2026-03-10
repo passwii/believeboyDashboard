@@ -41,19 +41,11 @@ def list_projects_manage(
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> list[ProjectItem]:
-    rows = project_service.list_project_items(db)
-
-    normalized_operator = (operator or '').strip()
-    if not is_admin:
-        if normalized_operator:
-            rows = [
-                row
-                for row in rows
-                if (row.project_operator or '').strip() == normalized_operator
-                or (row.assistant_operator or '').strip() == normalized_operator
-            ]
-        else:
-            rows = []
+    rows = project_service.list_project_items(
+        db,
+        operator=operator,
+        is_admin=bool(is_admin),
+    )
 
     return [
         ProjectItem(

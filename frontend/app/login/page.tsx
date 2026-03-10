@@ -1,7 +1,12 @@
 'use client'
 
+import { Suspense } from 'react'
 import Index from '@/components/ui/bilifu-crossborder-signin'
 
 export default function LoginPage() {
-  return <Index />
+  return (
+    <Suspense fallback={null}>
+      <Index />
+    </Suspense>
+  )
 }

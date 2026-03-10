@@ -3,8 +3,7 @@
 import { ArrowUpRight, Building2, ExternalLink, Loader2, Store } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
-
-const API_BASE = '/api/backend'
+import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 
 type StoreItem = {
   id: number
@@ -108,13 +107,7 @@ export default function StoreNavigationPage() {
         setLoading(true)
         setError(null)
 
-        const response = await fetch(`${API_BASE}/api/v1/projects/manage`, {
-          cache: 'no-store',
-        })
-        if (!response.ok) {
-          throw new Error('获取店铺数据失败')
-        }
-        const data = await response.json()
+        const data = await fetchManagedProjectsCached<StoreItem[]>(session)
         setStores(data)
       } catch (err) {
         setError(err instanceof Error ? err.message : '未知错误')
@@ -124,7 +117,7 @@ export default function StoreNavigationPage() {
     }
 
     fetchStores()
-  }, [session?.user?.email, session?.user?.id, session?.user?.isAdmin, session?.user?.name, session?.user?.operatorNameZh, status])
+  }, [session, status])
 
   const stats = [
     { label: '店铺总数', value: `${stores.length}`, icon: Store },

@@ -26,6 +26,11 @@ import {
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useGlobalLoading } from '@/components/global-loading-provider'
+import {
+  clearProjectClientCaches,
+  fetchManagedProjectsCached,
+  fetchProjectOperatorOptionsCached,
+} from '@/lib/project-client-cache'
 
 type ProjectItem = {
   id: number
@@ -133,14 +138,7 @@ export default function StoreInfoPage() {
 
   const loadOperatorOptions = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE}/api/v1/projects/operator-options`, {
-        headers: authHeaders(),
-        cache: 'no-store',
-      })
-      if (!response.ok) {
-        throw new Error(await parseError(response))
-      }
-      const payload = (await response.json()) as string[]
+      const payload = await fetchProjectOperatorOptionsCached()
       setOperatorOptions(payload)
     } catch {
       setOperatorOptions([])
@@ -155,23 +153,7 @@ export default function StoreInfoPage() {
       setLoading(true)
       setError(null)
       try {
-        const headers: Record<string, string> = { ...authHeaders() }
-        if (session?.user?.isAdmin) {
-          headers['X-Is-Admin'] = 'true'
-        }
-        const operatorName = session?.user?.operatorNameZh?.trim()
-        if (operatorName) {
-          headers['X-Operator'] = encodeURIComponent(operatorName)
-        }
-
-        const response = await fetch(`${API_BASE}/api/v1/projects/manage`, {
-          headers,
-          cache: 'no-store',
-        })
-        if (!response.ok) {
-          throw new Error(await parseError(response))
-        }
-        const payload = (await response.json()) as ProjectItem[]
+        const payload = await fetchManagedProjectsCached<ProjectItem[]>(session)
         setItems(payload)
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : '加载失败')
@@ -179,7 +161,7 @@ export default function StoreInfoPage() {
         setLoading(false)
       }
     })
-  }, [session?.user?.isAdmin, session?.user?.operatorNameZh, status, withGlobalLoading])
+  }, [session, status, withGlobalLoading])
 
   useEffect(() => {
     void loadProjects()
@@ -227,6 +209,7 @@ export default function StoreInfoPage() {
       setAddCommissionMode('')
       setAddCommissionRate('')
       setAddDialogOpen(false)
+      clearProjectClientCaches()
       setSuccessMessage(`已新增项目：${normalizedName}`)
       await loadProjects()
     } catch (submitError) {
@@ -292,6 +275,7 @@ export default function StoreInfoPage() {
       setEditAssistantOperator('')
       setEditCommissionMode('')
       setEditCommissionRate('')
+      clearProjectClientCaches()
       setSuccessMessage(`已更新项目名称：${normalizedName}`)
       await loadProjects()
     } catch (submitError) {
