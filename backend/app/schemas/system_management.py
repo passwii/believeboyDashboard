@@ -24,6 +24,13 @@ class DatabaseStatus(BaseModel):
     checked_at: str
 
 
+class DataSummary(BaseModel):
+    total_tables: int
+    total_rows: int
+    stale_tables: int
+    data_status: DataLifecycleStatus
+
+
 class DataManagementStatusResponse(BaseModel):
     server_time: str
     database: DatabaseStatus
@@ -32,13 +39,6 @@ class DataManagementStatusResponse(BaseModel):
     data_status_note: str | None = None
     data_status_updated_at: str | None = None
     data_status_updated_by: str | None = None
-
-
-class DataSummary(BaseModel):
-    total_tables: int
-    total_rows: int
-    stale_tables: int
-    data_status: DataLifecycleStatus
 
 
 class TableStatusItem(BaseModel):
