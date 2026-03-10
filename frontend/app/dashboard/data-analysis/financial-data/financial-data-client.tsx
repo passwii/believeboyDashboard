@@ -132,6 +132,13 @@ function lastMonthString(): string {
   return `${y}-${m}`
 }
 
+function getBrowserDefaultMonthRange(): { startMonth: string; endMonth: string } {
+  return {
+    startMonth: oneYearAgoMonthString(),
+    endMonth: lastMonthString(),
+  }
+}
+
 function parseErrorBody(text: string, status: number): string {
   if (!text) return `请求失败 (${status})`
   try {
@@ -331,6 +338,13 @@ export default function FinancialDataClient({
 
   const latestRequestIdRef = useRef(0)
   const skipInitialSeriesLoadRef = useRef(Boolean(initialData))
+
+  useEffect(() => {
+    if (initialStartMonth && initialEndMonth) return
+    const defaults = getBrowserDefaultMonthRange()
+    setStartMonth((current) => current || defaults.startMonth)
+    setEndMonth((current) => current || defaults.endMonth)
+  }, [initialEndMonth, initialStartMonth])
 
   const loadProjects = useCallback(async () => {
     setProjectsLoading(true)

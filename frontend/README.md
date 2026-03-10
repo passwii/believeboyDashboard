@@ -31,6 +31,12 @@ BACKEND_API_BASE_URL=http://localhost:8000
 BACKEND_API_KEY=replace_with_backend_api_key
 ```
 
+说明：
+
+- 前端 `.env.local` 不需要配置 `DATABASE_URL`、`PGHOST` 之类的数据库变量。
+- 数据库连接只由后端读取，放在 `backend/.env`。
+- 如果前后端部署在同一台 VPS，`BACKEND_API_BASE_URL` 推荐写成 `http://127.0.0.1:8000`。
+
 ### 启动开发服务器
 
 ```bash

@@ -30,7 +30,6 @@ pnpm-debug.log*
 /backend/dist/
 /backend/build/
 /backend/coverage/
-/backend/.env
 /backend/.env.*
 /backend/.venv/
 /backend/**/__pycache__/

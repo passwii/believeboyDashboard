@@ -70,6 +70,12 @@ type DataManagementStatusPayload = {
 }
 
 const API_BASE = '/api/backend'
+const EMPTY_SUMMARY = {
+  total_tables: 0,
+  total_rows: 0,
+  stale_tables: 0,
+  data_status: 'active' as DataLifecycleStatus,
+}
 
 function formatDateTime(value: string | null): string {
   if (!value) return '-'
@@ -106,6 +112,10 @@ function tableStatusTone(status: TableHealthStatus): string {
   return 'bg-destructive/10 text-destructive border-destructive/30'
 }
 
+function hasSummary(value: unknown): value is { summary: DataManagementOverview['summary'] } {
+  return !!value && typeof value === 'object' && 'summary' in value && !!(value as { summary?: unknown }).summary
+}
+
 export default function SystemDataManagementPage() {
   const { data: session, status } = useSession()
   const [overview, setOverview] = useState<DataManagementOverview | null>(null)
@@ -133,6 +143,9 @@ export default function SystemDataManagementPage() {
         throw new Error(await parseError(response))
       }
       const payload = (await response.json()) as DataManagementStatusPayload
+      if (!hasSummary(payload)) {
+        throw new Error('数据状态接口返回缺少 summary 字段')
+      }
       setStatusOverview(payload)
       setSelectedStatus(payload.summary.data_status)
       setStatusNote(payload.data_status_note || '')
@@ -157,6 +170,9 @@ export default function SystemDataManagementPage() {
         throw new Error(await parseError(response))
       }
       const payload = (await response.json()) as DataManagementOverview
+      if (!hasSummary(payload)) {
+        throw new Error('数据总览接口返回缺少 summary 字段')
+      }
       setOverview(payload)
       setStatusOverview((previous) => ({
         server_time: payload.server_time,
@@ -216,6 +232,7 @@ export default function SystemDataManagementPage() {
   const summaryCards = useMemo(() => {
     const snapshot = overview ?? statusOverview
     if (!snapshot) return []
+    const summary = snapshot.summary ?? EMPTY_SUMMARY
     return [
       {
         key: 'db',
@@ -228,15 +245,15 @@ export default function SystemDataManagementPage() {
       {
         key: 'tables',
         title: '表数量',
-        value: formatNumber(snapshot.summary.total_tables),
-        hint: detailsLoading ? '明细加载中' : `异常/陈旧 ${snapshot.summary.stale_tables}`,
+        value: formatNumber(summary.total_tables),
+        hint: detailsLoading ? '明细加载中' : `异常/陈旧 ${summary.stale_tables}`,
         icon: <Server className="h-4 w-4" />,
-        tone: snapshot.summary.stale_tables > 0 ? 'text-amber-600' : 'text-foreground',
+        tone: summary.stale_tables > 0 ? 'text-amber-600' : 'text-foreground',
       },
       {
         key: 'rows',
         title: '总数据量',
-        value: formatNumber(snapshot.summary.total_rows),
+        value: formatNumber(summary.total_rows),
         hint: detailsLoading ? '正在更新统计' : '统计所有业务表',
         icon: <Database className="h-4 w-4" />,
         tone: 'text-foreground',
@@ -244,7 +261,7 @@ export default function SystemDataManagementPage() {
       {
         key: 'status',
         title: '数据状态',
-        value: statusLabel(snapshot.summary.data_status),
+        value: statusLabel(summary.data_status),
         hint: `更新时间 ${formatDateTime(snapshot.data_status_updated_at)}`,
         icon: <CheckCircle2 className="h-4 w-4" />,
         tone: 'text-cyan-700 dark:text-cyan-300',

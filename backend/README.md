@@ -10,6 +10,8 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
+`backend/.env` 用于后端自己的运行配置，其中 `DATABASE_URL`、`PGHOST`、`PGPORT`、`PGDATABASE`、`PGUSER`、`PGPASSWORD` 都只应保留在后端，不应放到前端的 `.env.local`。
+
 ## Run API
 
 ```bash
