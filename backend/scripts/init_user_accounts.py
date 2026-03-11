@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from app.core.passwords import hash_password
 from app.db.session import engine
 from create_user_accounts_table import CREATE_USER_ACCOUNTS_TABLE_SQL
 
@@ -50,14 +51,14 @@ def main() -> int:
         seed_sql = text(
             """
             insert into public.user_accounts (name, email, password_hash, is_admin, is_active)
-            values (:name, :email, crypt(:password, gen_salt('bf', 12)), true, true)
+            values (:name, :email, :password_hash, true, true)
             on conflict ((lower(email)))
             do update
             set
               name = excluded.name,
               is_admin = true,
               is_active = true,
-              password_hash = crypt(:password, gen_salt('bf', 12)),
+              password_hash = excluded.password_hash,
               updated_at = now()
             """
         )
@@ -65,7 +66,7 @@ def main() -> int:
         seed_sql = text(
             """
             insert into public.user_accounts (name, email, password_hash, is_admin, is_active)
-            values (:name, :email, crypt(:password, gen_salt('bf', 12)), true, true)
+            values (:name, :email, :password_hash, true, true)
             on conflict ((lower(email)))
             do update
             set
@@ -84,7 +85,7 @@ def main() -> int:
                 {
                     'name': args.name.strip(),
                     'email': args.email.strip().lower(),
-                    'password': args.password,
+                    'password_hash': hash_password(args.password),
                 },
             )
     except SQLAlchemyError as exc:

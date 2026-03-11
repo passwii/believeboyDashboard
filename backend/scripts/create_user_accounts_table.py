@@ -13,8 +13,6 @@ if str(ROOT) not in sys.path:
 from app.db.session import engine
 
 CREATE_USER_ACCOUNTS_TABLE_SQL = """
-create extension if not exists pgcrypto;
-
 create table if not exists public.user_accounts (
   id uuid primary key default gen_random_uuid(),
   name text not null check (length(trim(name)) > 0),

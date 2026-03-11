@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.core.passwords import verify_password
 from app.db.session import SessionLocal
 
 router = APIRouter(prefix='/auth', tags=['auth'])
@@ -26,23 +27,10 @@ def _is_yawei_account(name: str, email: str) -> bool:
     return name.strip().lower() == 'yawei' or email.strip().lower().startswith('yawei@')
 
 
-def _ensure_pgcrypto(db: Session) -> None:
-    try:
-        db.execute(text("create extension if not exists pgcrypto"))
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail='数据库缺少 pgcrypto 扩展，且自动启用失败',
-        )
-
-
 @router.post('/login', response_model=LoginResponse)
 def login(payload: LoginRequest) -> LoginResponse:
     db: Session = SessionLocal()
     try:
-        _ensure_pgcrypto(db)
         row = db.execute(
             text(
                 '''
@@ -50,18 +38,18 @@ def login(payload: LoginRequest) -> LoginResponse:
                   id::text as id,
                   name,
                   email,
+                  password_hash,
                   operator_name_zh,
                   is_admin,
                   is_active
                 from public.user_accounts
                 where lower(email) = lower(:email)
-                  and password_hash = crypt(:password, password_hash)
                 limit 1
                 '''
             ),
-            {'email': payload.email.strip().lower(), 'password': payload.password},
+            {'email': payload.email.strip().lower()},
         ).mappings().first()
-        if row is None:
+        if row is None or not verify_password(payload.password, str(row['password_hash'])):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid credentials')
 
         is_yawei = _is_yawei_account(str(row['name']), str(row['email']))

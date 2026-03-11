@@ -4,6 +4,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, get_request_operator, protected
+from app.core.passwords import hash_password
 from app.services.audit_log_service import append_operation_audit_log
 
 router = APIRouter(prefix='/system-management/users', tags=['users'], dependencies=[Depends(protected)])
@@ -53,18 +54,6 @@ class UpdateUserResponse(BaseModel):
 
 def _is_yawei_account(name: str, email: str) -> bool:
     return name.strip().lower() == 'yawei' or email.strip().lower().startswith('yawei@')
-
-
-def _ensure_pgcrypto(db: Session) -> None:
-    try:
-        db.execute(text("create extension if not exists pgcrypto"))
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail='数据库缺少 pgcrypto 扩展，且自动启用失败',
-        )
 
 
 def _to_item(row: dict) -> UserItem:
@@ -124,13 +113,13 @@ def create_user(
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> CreateUserResponse:
-    _ensure_pgcrypto(db)
+    password_hash = hash_password(payload.password)
     try:
         row = db.execute(
             text(
                 '''
                 insert into public.user_accounts (name, email, full_name, operator_name_zh, password_hash, is_admin, is_active)
-                values (:name, :email, :full_name, :operator_name_zh, crypt(:password, gen_salt('bf', 12)), :is_admin, true)
+                values (:name, :email, :full_name, :operator_name_zh, :password_hash, :is_admin, true)
                 returning
                   id::text as id,
                   name,
@@ -148,7 +137,7 @@ def create_user(
                 'email': payload.email.strip().lower(),
                 'full_name': payload.full_name.strip() if payload.full_name else None,
                 'operator_name_zh': payload.operator_name_zh.strip() if payload.operator_name_zh else None,
-                'password': payload.password,
+                'password_hash': password_hash,
                 'is_admin': bool(payload.is_admin),
             },
         ).mappings().first()
@@ -184,7 +173,6 @@ def update_user(
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> UpdateUserResponse:
-    _ensure_pgcrypto(db)
     before_row = db.execute(
         text(
             '''
@@ -211,6 +199,7 @@ def update_user(
     is_admin = payload.is_admin if isinstance(payload.is_admin, bool) else None
     is_active = payload.is_active if isinstance(payload.is_active, bool) else None
     password = payload.password if isinstance(payload.password, str) and payload.password else None
+    password_hash = hash_password(password) if password is not None else None
 
     row = db.execute(
         text(
@@ -232,8 +221,8 @@ def update_user(
               full_name = coalesce(:full_name, full_name),
               operator_name_zh = coalesce(:operator_name_zh, operator_name_zh),
               password_hash = case
-                when :password is null then password_hash
-                else crypt(:password, gen_salt('bf', 12))
+                when :password_hash is null then password_hash
+                else :password_hash
               end,
               updated_at = now()
             where id::text = :user_id
@@ -256,7 +245,7 @@ def update_user(
             'operator_name_zh': operator_name_zh,
             'is_admin': is_admin,
             'is_active': is_active,
-            'password': password,
+            'password_hash': password_hash,
         },
     ).mappings().first()
 
