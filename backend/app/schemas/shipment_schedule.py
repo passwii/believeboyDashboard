@@ -10,7 +10,6 @@ class ShipmentScheduleListItem(BaseModel):
     shipment_no: str
     tracking_no: str | None = None
     warehouse_code: str | None = None
-    supplier_name: str | None = None
     forwarder_name: str | None = None
     shipping_method: str
     created_date: str | None = None
@@ -50,7 +49,6 @@ class ShipmentScheduleDetail(BaseModel):
     shipment_no: str
     tracking_no: str | None = None
     warehouse_code: str | None = None
-    supplier_name: str | None = None
     forwarder_name: str | None = None
     shipping_method: str
     created_date: str | None = None
@@ -74,7 +72,6 @@ class ShipmentScheduleCreate(BaseModel):
     shipment_no: str = Field(min_length=1, max_length=100)
     tracking_no: str | None = Field(default=None, max_length=100)
     warehouse_code: str | None = Field(default=None, max_length=100)
-    supplier_name: str | None = Field(default=None, max_length=100)
     forwarder_name: str | None = Field(default=None, max_length=100)
     shipping_method: str = Field(min_length=1, max_length=50)
     created_date: str | None = None
@@ -94,7 +91,6 @@ class ShipmentScheduleUpdate(BaseModel):
     project_id: int = Field(gt=0)
     tracking_no: str | None = Field(default=None, max_length=100)
     warehouse_code: str | None = Field(default=None, max_length=100)
-    supplier_name: str | None = Field(default=None, max_length=100)
     forwarder_name: str | None = Field(default=None, max_length=100)
     shipping_method: str = Field(min_length=1, max_length=50)
     created_date: str | None = None
@@ -116,3 +112,8 @@ class ShipmentItemsImportResponse(BaseModel):
     inserted: int
     replaced: int
     total_quantity: int
+
+
+class ShipmentSchedulesImportResponse(BaseModel):
+    inserted: int
+    shipment_nos: list[str]

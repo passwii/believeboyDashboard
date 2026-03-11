@@ -158,12 +158,14 @@ def _resolve_report_paths(input_path: str, params: dict) -> tuple[Path, Path, Pa
 
 def _build_overview_rows(
     report_date: str,
+    country: str,
     sales: dict[str, dict[str, Any]],
     ads: dict[str, dict[str, Any]],
     inventory: dict[str, dict[str, Any]],
 ) -> list[list[Any]]:
     columns = [
         '日期(US)',
+        '国家站点',
         'SKU',
         'ASIN',
         '订单量',
@@ -201,6 +203,7 @@ def _build_overview_rows(
         rows.append(
             [
                 report_date,
+                country,
                 sku,
                 asin,
                 order_qty,
@@ -231,6 +234,7 @@ def run(input_path: str, output_dir: str, params: dict) -> dict:
     output_root.mkdir(parents=True, exist_ok=True)
 
     project_name = _safe_project_name(str(params.get('project_name', 'unknown')))
+    country = str(params.get('country', 'US')).strip().upper() or 'US'
     report_date = str(params.get('report_date', datetime.utcnow().date().isoformat()))
     sales_path, ad_path, inventory_path = _resolve_report_paths(input_path, params)
 
@@ -241,7 +245,7 @@ def run(input_path: str, output_dir: str, params: dict) -> dict:
     sales = _aggregate_sales(sales_rows)
     ads = _aggregate_ads(ad_rows)
     inventory = _aggregate_inventory(inventory_rows)
-    overview_rows = _build_overview_rows(report_date, sales, ads, inventory)
+    overview_rows = _build_overview_rows(report_date, country, sales, ads, inventory)
 
     wb = _load_template_or_create()
     ws = wb.active

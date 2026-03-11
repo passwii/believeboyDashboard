@@ -353,6 +353,57 @@ def test_persist_daily_report_sources_sales_status_rule(tmp_path: Path):
         assert len(inventory_rows) == 1
 
 
+def test_persist_daily_report_sources_separates_country_sources(tmp_path: Path):
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        db.add(Project(project_name='Demo', sort_order=1, source_file='seed.csv'))
+        db.commit()
+
+        sales = tmp_path / 'sales.txt'
+        ad = tmp_path / 'ad.xlsx'
+        inventory = tmp_path / 'inventory.txt'
+        _write_sales_txt(sales)
+        _write_ad_xlsx(ad)
+        _write_inventory_txt(inventory)
+
+        for country in ('US', 'DE'):
+            outcomes = product_analysis_source_service.persist_daily_report_sources(
+                db,
+                project_name='Demo',
+                report_date='2026-02-25',
+                country=country,
+                file_ids={
+                    'sales_report': 'sales.txt',
+                    'ad_report': 'ad.xlsx',
+                    'inventory_report': 'inventory.txt',
+                },
+                resolved_file_paths={
+                    'sales_report': str(sales),
+                    'ad_report': str(ad),
+                    'inventory_report': str(inventory),
+                },
+            )
+            assert all(item.success for item in outcomes)
+
+        sales_sources = db.execute(
+            select(DailySourceFile)
+            .where(DailySourceFile.report_type == 'sales_report')
+            .order_by(DailySourceFile.country.asc(), DailySourceFile.id.asc())
+        ).scalars().all()
+        assert [row.country for row in sales_sources] == ['DE', 'US']
+        assert all(row.is_current is True for row in sales_sources)
+
+        inventory_sources = db.execute(
+            select(AnalysisSourceFile)
+            .where(AnalysisSourceFile.report_type == 'inventory_report')
+            .order_by(AnalysisSourceFile.country.asc(), AnalysisSourceFile.id.asc())
+        ).scalars().all()
+        assert [row.country for row in inventory_sources] == ['DE', 'US']
+        assert all(row.is_current is True for row in inventory_sources)
+
+
 def test_persist_product_analysis_pt1_calculation_versioning():
     engine = create_engine('sqlite:///:memory:', future=True)
     Base.metadata.create_all(bind=engine)

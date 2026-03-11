@@ -297,6 +297,7 @@ def recompute_weekly_product_analysis_from_history(
     period_sources = _list_recomputable_weekly_period_sources(
         db,
         project_id=project_id,
+        country=normalized_country,
         start_date=start_date,
         end_date=end_date,
         current_only=current_only,
@@ -401,6 +402,7 @@ def persist_product_analysis_sources(
             db,
             project=project,
             report_type=report_type,
+            country=normalized_country,
             period_start_date=start_date if report_type in PERIODIC_REPORT_TYPES else None,
             period_end_date=end_date if report_type in PERIODIC_REPORT_TYPES else None,
             upload_file_id=file_id or Path(file_path).name,
@@ -420,6 +422,7 @@ def persist_daily_report_sources(
     *,
     project_name: str,
     report_date: str,
+    country: str = 'US',
     file_ids: dict[str, str],
     resolved_file_paths: dict[str, str],
     created_by: str | None = None,
@@ -431,7 +434,8 @@ def persist_daily_report_sources(
 
     project = _get_project_by_name(db, project_name)
     target_date = _parse_yyyy_mm_dd(report_date, 'report_date')
-    known_skus, known_asins = _load_project_product_mapping(db, project.project_name)
+    normalized_country = _normalize_country(country)
+    known_skus, known_asins = _load_project_product_mapping(db, project.project_name, normalized_country)
     outcomes: list[SourcePersistOutcome] = []
     for report_type in ('sales_report', 'ad_report'):
         file_id = str(file_ids.get(report_type) or '').strip()
@@ -452,6 +456,7 @@ def persist_daily_report_sources(
             project=project,
             report_type=report_type,
             report_date=target_date,
+            country=normalized_country,
             upload_file_id=file_id or Path(file_path).name,
             upload_file_path=file_path or file_id,
             known_skus=known_skus,
@@ -479,6 +484,7 @@ def persist_daily_report_sources(
             db,
             project=project,
             report_type='inventory_report',
+            country=normalized_country,
             period_start_date=None,
             period_end_date=None,
             upload_file_id=inventory_file_id or Path(inventory_file_path).name,
@@ -595,6 +601,7 @@ def _persist_one_source_file(
     *,
     project: Project,
     report_type: str,
+    country: str,
     period_start_date: date | None,
     period_end_date: date | None,
     upload_file_id: str,
@@ -614,6 +621,7 @@ def _persist_one_source_file(
         db,
         project_id=project.id,
         report_type=report_type,
+        country=country,
         period_start_date=period_start_date,
         period_end_date=period_end_date,
     )
@@ -640,6 +648,7 @@ def _persist_one_source_file(
     source = AnalysisSourceFile(
         project_id=project.id,
         report_type=report_type,
+        country=country,
         period_start_date=period_start_date,
         period_end_date=period_end_date,
         snapshot_at=now if report_type == 'inventory_report' else None,
@@ -716,6 +725,7 @@ def _persist_one_daily_source_file(
     project: Project,
     report_type: str,
     report_date: date,
+    country: str,
     upload_file_id: str,
     upload_file_path: str,
     known_skus: set[str],
@@ -732,6 +742,7 @@ def _persist_one_daily_source_file(
         db,
         project_id=project.id,
         report_type=report_type,
+        country=country,
         report_date=report_date,
     )
     project_slug = _project_slug(project.project_name)
@@ -755,6 +766,7 @@ def _persist_one_daily_source_file(
     source = DailySourceFile(
         project_id=project.id,
         report_type=report_type,
+        country=country,
         report_date=report_date,
         version=version,
         is_current=False,
@@ -815,6 +827,7 @@ def _replace_current_pointer(db: Session, source: AnalysisSourceFile) -> None:
     conditions = [
         AnalysisSourceFile.project_id == source.project_id,
         AnalysisSourceFile.report_type == source.report_type,
+        AnalysisSourceFile.country == source.country,
         AnalysisSourceFile.id != source.id,
         AnalysisSourceFile.is_current.is_(True),
     ]
@@ -841,6 +854,7 @@ def _replace_current_daily_pointer(db: Session, source: DailySourceFile) -> None
         .where(
             DailySourceFile.project_id == source.project_id,
             DailySourceFile.report_type == source.report_type,
+            DailySourceFile.country == source.country,
             DailySourceFile.report_date == source.report_date,
             DailySourceFile.id != source.id,
             DailySourceFile.is_current.is_(True),
@@ -857,12 +871,14 @@ def _next_version(
     *,
     project_id: int,
     report_type: str,
+    country: str,
     period_start_date: date | None,
     period_end_date: date | None,
 ) -> int:
     stmt = select(func.max(AnalysisSourceFile.version)).where(
         AnalysisSourceFile.project_id == project_id,
         AnalysisSourceFile.report_type == report_type,
+        AnalysisSourceFile.country == country,
     )
     if report_type in PERIODIC_REPORT_TYPES:
         stmt = stmt.where(
@@ -878,11 +894,13 @@ def _next_daily_version(
     *,
     project_id: int,
     report_type: str,
+    country: str,
     report_date: date,
 ) -> int:
     stmt = select(func.max(DailySourceFile.version)).where(
         DailySourceFile.project_id == project_id,
         DailySourceFile.report_type == report_type,
+        DailySourceFile.country == country,
         DailySourceFile.report_date == report_date,
     )
     value = db.execute(stmt).scalar_one_or_none()
@@ -936,6 +954,7 @@ def _list_recomputable_weekly_period_sources(
     db: Session,
     *,
     project_id: int,
+    country: str,
     start_date: date | None,
     end_date: date | None,
     current_only: bool,
@@ -943,6 +962,7 @@ def _list_recomputable_weekly_period_sources(
     stmt = select(AnalysisSourceFile).where(
         AnalysisSourceFile.project_id == project_id,
         AnalysisSourceFile.report_type.in_(('business_report', 'ad_report', 'payment_report')),
+        AnalysisSourceFile.country == country,
     )
     if current_only:
         stmt = stmt.where(AnalysisSourceFile.is_current.is_(True))

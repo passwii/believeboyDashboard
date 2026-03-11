@@ -267,6 +267,7 @@ def _persist_daily_report_sources(task_id: int, params: dict[str, Any]) -> None:
     try:
         report_date = str(params.get('report_date') or '').strip()
         project_name = str(params.get('project_name') or '').strip()
+        country = str(params.get('country') or 'US').strip() or 'US'
         file_ids = params.get('file_ids') if isinstance(params.get('file_ids'), dict) else {}
         resolved_file_paths = params.get('resolved_file_paths') if isinstance(params.get('resolved_file_paths'), dict) else {}
         created_by = str(params.get('operator') or '').strip() or None
@@ -275,6 +276,7 @@ def _persist_daily_report_sources(task_id: int, params: dict[str, Any]) -> None:
             db,
             project_name=project_name,
             report_date=report_date,
+            country=country,
             file_ids=file_ids,
             resolved_file_paths=resolved_file_paths,
             created_by=created_by,

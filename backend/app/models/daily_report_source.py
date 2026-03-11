@@ -34,6 +34,7 @@ class DailySourceFile(Base):
         UniqueConstraint(
             'project_id',
             'report_type',
+            'country',
             'report_date',
             'version',
             name='daily_sources_date_version_key',
@@ -49,13 +50,15 @@ class DailySourceFile(Base):
         ),
         Index('idx_daily_sources_project_id', 'project_id'),
         Index('idx_daily_sources_report_type', 'report_type'),
+        Index('idx_daily_sources_country', 'country'),
         Index('idx_daily_sources_report_date', 'report_date'),
         Index('idx_daily_sources_is_current', 'is_current'),
         Index('idx_daily_sources_ingestion_status', 'ingestion_status'),
         Index(
-            'idx_daily_sources_project_type_date',
+            'idx_daily_sources_project_type_country_date',
             'project_id',
             'report_type',
+            'country',
             'report_date',
         ),
     )
@@ -71,6 +74,7 @@ class DailySourceFile(Base):
         nullable=False,
     )
     report_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    country: Mapped[str] = mapped_column(String(2), nullable=False, default='US', server_default='US')
     report_date: Mapped[date] = mapped_column(Date(), nullable=False)
     version: Mapped[int] = mapped_column(Integer, nullable=False, server_default='1')
     is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default='false')

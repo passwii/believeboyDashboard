@@ -106,6 +106,13 @@ def _normalize_shipping_method(value: str) -> str:
     return normalized
 
 
+def _header_value(row: dict[str, str | None], key: str) -> str | None:
+    for candidate in (key, key.lower(), key.upper()):
+        if candidate in row:
+            return row.get(candidate)
+    return None
+
+
 def _get_project_or_404(db: Session, project_id: int) -> Project:
     row = db.get(Project, project_id)
     if row is None:
@@ -230,7 +237,6 @@ def create_shipment_schedule(
         shipment_no=shipment_no,
         tracking_no=_normalize_text(payload.tracking_no, max_length=100),
         warehouse_code=_normalize_text(payload.warehouse_code, max_length=100),
-        supplier_name=_normalize_text(payload.supplier_name, max_length=100),
         forwarder_name=_normalize_text(payload.forwarder_name, max_length=100),
         shipping_method=_normalize_shipping_method(payload.shipping_method),
         created_date=_parse_date(payload.created_date, 'created_date'),
@@ -268,7 +274,6 @@ def update_shipment_schedule(
     row.project_name_snapshot = project.project_name
     row.tracking_no = _normalize_text(payload.tracking_no, max_length=100)
     row.warehouse_code = _normalize_text(payload.warehouse_code, max_length=100)
-    row.supplier_name = _normalize_text(payload.supplier_name, max_length=100)
     row.forwarder_name = _normalize_text(payload.forwarder_name, max_length=100)
     row.shipping_method = _normalize_shipping_method(payload.shipping_method)
     row.created_date = _parse_date(payload.created_date, 'created_date')
@@ -427,3 +432,126 @@ def replace_shipment_schedule_items_from_csv(
     db.flush()
     db.refresh(schedule)
     return schedule, len(items), int(replaced), total_quantity
+
+
+def parse_shipment_schedules_csv(content: bytes) -> list[dict[str, object]]:
+    text = _decode_csv_text(content)
+
+    reader = csv.DictReader(StringIO(text))
+    if not reader.fieldnames:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='CSV 缺少表头')
+
+    available_headers = {str(name).strip() for name in reader.fieldnames if name}
+    required_headers = {'project_name', 'shipment_no', 'shipping_method', 'shipment_status'}
+    if not required_headers.issubset(available_headers):
+        missing = ', '.join(sorted(required_headers - available_headers))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f'CSV 缺少字段: {missing}')
+
+    schedules: list[dict[str, object]] = []
+    shipment_nos_seen: set[str] = set()
+    for index, row in enumerate(reader, start=2):
+        normalized = {(key or '').strip(): value for key, value in row.items()}
+        project_name = _normalize_text(_header_value(normalized, 'project_name'), max_length=255)
+        shipment_no = _normalize_text(_header_value(normalized, 'shipment_no'), max_length=100)
+        if project_name is None and shipment_no is None:
+            continue
+        if project_name is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f'第 {index} 行 project_name 不能为空')
+        if shipment_no is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f'第 {index} 行 shipment_no 不能为空')
+        if shipment_no in shipment_nos_seen:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f'CSV 中存在重复 shipment_no: {shipment_no}')
+        shipment_nos_seen.add(shipment_no)
+
+        schedules.append(
+            {
+                'row_no': index,
+                'project_name': project_name,
+                'shipment_no': shipment_no,
+                'tracking_no': _normalize_text(_header_value(normalized, 'tracking_no'), max_length=100),
+                'warehouse_code': _normalize_text(_header_value(normalized, 'warehouse_code'), max_length=100),
+                'forwarder_name': _normalize_text(_header_value(normalized, 'forwarder_name'), max_length=100),
+                'shipping_method': _normalize_shipping_method(str(_header_value(normalized, 'shipping_method') or '')),
+                'created_date': _parse_date(_header_value(normalized, 'created_date'), f'第 {index} 行 created_date'),
+                'etd_date': _parse_date(_header_value(normalized, 'etd_date'), f'第 {index} 行 etd_date'),
+                'eta_date': _parse_date(_header_value(normalized, 'eta_date'), f'第 {index} 行 eta_date'),
+                'expected_inbound_start_date': _parse_date(
+                    _header_value(normalized, 'expected_inbound_start_date'),
+                    f'第 {index} 行 expected_inbound_start_date',
+                ),
+                'expected_inbound_end_date': _parse_date(
+                    _header_value(normalized, 'expected_inbound_end_date'),
+                    f'第 {index} 行 expected_inbound_end_date',
+                ),
+                'booking_note': _normalize_text(_header_value(normalized, 'booking_note')),
+                'forwarder_update': _normalize_text(_header_value(normalized, 'forwarder_update')),
+                'remark': _normalize_text(_header_value(normalized, 'remark')),
+                'shipment_status': _normalize_status(str(_header_value(normalized, 'shipment_status') or '')),
+                'stat_date': _parse_date(_header_value(normalized, 'stat_date'), f'第 {index} 行 stat_date'),
+            }
+        )
+
+    if not schedules:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='CSV 没有可导入的有效数据')
+    return schedules
+
+
+def import_shipment_schedules_from_csv(
+    db: Session,
+    content: bytes,
+    *,
+    filename: str | None = None,
+    operator: str | None = None,
+) -> list[ShipmentSchedule]:
+    schedules = parse_shipment_schedules_csv(content)
+
+    project_names = sorted({str(item['project_name']) for item in schedules})
+    projects = {
+        str(project.project_name): project
+        for project in db.execute(select(Project).where(Project.project_name.in_(project_names))).scalars().all()
+    }
+    missing_project_names = [name for name in project_names if name not in projects]
+    if missing_project_names:
+        missing_text = '、'.join(missing_project_names[:20])
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f'以下项目不存在，请先在项目管理中维护：{missing_text}')
+
+    shipment_nos = [str(item['shipment_no']) for item in schedules]
+    duplicated = db.execute(select(ShipmentSchedule.shipment_no).where(ShipmentSchedule.shipment_no.in_(shipment_nos))).scalars().all()
+    if duplicated:
+        duplicated_text = '、'.join(sorted({str(item) for item in duplicated})[:20])
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f'以下货件编号已存在，不能重复导入：{duplicated_text}')
+
+    source_file = _normalize_text(filename, max_length=255)
+    created_rows: list[ShipmentSchedule] = []
+    for item in schedules:
+        project = projects[str(item['project_name'])]
+        row = ShipmentSchedule(
+            project_id=project.id,
+            project_name_snapshot=project.project_name,
+            shipment_no=str(item['shipment_no']),
+            tracking_no=item['tracking_no'],
+            warehouse_code=item['warehouse_code'],
+            forwarder_name=item['forwarder_name'],
+            shipping_method=str(item['shipping_method']),
+            created_date=item['created_date'],
+            etd_date=item['etd_date'],
+            eta_date=item['eta_date'],
+            expected_inbound_start_date=item['expected_inbound_start_date'],
+            expected_inbound_end_date=item['expected_inbound_end_date'],
+            booking_note=item['booking_note'],
+            forwarder_update=item['forwarder_update'],
+            remark=item['remark'],
+            shipment_status=str(item['shipment_status']),
+            stat_date=item['stat_date'],
+            source_type='csv_import',
+            source_file=source_file,
+            created_by=_normalize_text(operator, max_length=255),
+            updated_by=_normalize_text(operator, max_length=255),
+        )
+        db.add(row)
+        created_rows.append(row)
+
+    db.flush()
+    for row in created_rows:
+        db.refresh(row)
+    return created_rows

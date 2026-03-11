@@ -25,6 +25,7 @@ import { cn } from '@/lib/utils'
 type UploadType = 'sales_report' | 'ad_report' | 'inventory_report'
 type AssignedType = UploadType | 'skip'
 type UploadStatus = 'empty' | 'ready' | 'uploading' | 'success' | 'error'
+type CountryOption = 'US' | 'DE' | 'UK'
 
 type ProjectOption = {
   name: string
@@ -67,6 +68,12 @@ const TYPE_LABEL: Record<UploadType, string> = {
   ad_report: '广告报表',
   inventory_report: '库存报告',
 }
+
+const COUNTRY_OPTIONS: Array<{ value: CountryOption; label: string }> = [
+  { value: 'US', label: '美国站' },
+  { value: 'DE', label: '德国站' },
+  { value: 'UK', label: '英国站' },
+]
 
 function authHeaders(_operator?: string, _isAdmin = false): Record<string, string> {
   return {}
@@ -133,6 +140,7 @@ export default function DailyReportPage() {
   const [projectLoadError, setProjectLoadError] = useState<string | null>(null)
 
   const [projectName, setProjectName] = useState('')
+  const [country, setCountry] = useState<CountryOption>('US')
   const [reportDate, setReportDate] = useState(yesterdayDateString())
   const [formError, setFormError] = useState<string | null>(null)
 
@@ -408,6 +416,7 @@ export default function DailyReportPage() {
         },
         body: JSON.stringify({
           project_name: projectName.trim(),
+          country,
           report_date: reportDate,
           sales_report_file_id: salesReportFileId,
           ad_report_file_id: adReportFileId,
@@ -564,6 +573,22 @@ export default function DailyReportPage() {
                   昨天
                 </Button>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="country" className="text-sm font-medium text-foreground">国家站点</label>
+              <Select value={country} onValueChange={(value) => setCountry(value as CountryOption)}>
+                <SelectTrigger id="country" className="h-10 max-w-xs">
+                  <SelectValue placeholder="请选择国家站点" />
+                </SelectTrigger>
+                <SelectContent>
+                  {COUNTRY_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {formError ? <p className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">{formError}</p> : null}

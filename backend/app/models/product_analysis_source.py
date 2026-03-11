@@ -34,6 +34,7 @@ class AnalysisSourceFile(Base):
         UniqueConstraint(
             'project_id',
             'report_type',
+            'country',
             'period_start_date',
             'period_end_date',
             'version',
@@ -65,12 +66,14 @@ class AnalysisSourceFile(Base):
         ),
         Index('idx_analysis_sources_project_id', 'project_id'),
         Index('idx_analysis_sources_report_type', 'report_type'),
+        Index('idx_analysis_sources_country', 'country'),
         Index('idx_analysis_sources_is_current', 'is_current'),
         Index('idx_analysis_sources_ingestion_status', 'ingestion_status'),
         Index(
-            'idx_analysis_sources_project_type_period',
+            'idx_analysis_sources_project_type_country_period',
             'project_id',
             'report_type',
+            'country',
             'period_start_date',
             'period_end_date',
         ),
@@ -87,6 +90,7 @@ class AnalysisSourceFile(Base):
         nullable=False,
     )
     report_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    country: Mapped[str] = mapped_column(String(2), nullable=False, default='US', server_default='US')
     period_start_date: Mapped[date | None] = mapped_column(Date(), nullable=True)
     period_end_date: Mapped[date | None] = mapped_column(Date(), nullable=True)
     snapshot_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

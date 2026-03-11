@@ -52,7 +52,6 @@ class ShipmentSchedule(Base):
     shipment_no: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     tracking_no: Mapped[str | None] = mapped_column(String(100), nullable=True)
     warehouse_code: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    supplier_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     forwarder_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     shipping_method: Mapped[str] = mapped_column(String(50), nullable=False, server_default='sea')
     created_date: Mapped[date | None] = mapped_column(Date(), nullable=True)

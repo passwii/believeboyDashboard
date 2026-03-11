@@ -10,6 +10,7 @@ from app.schemas.shipment_schedule import (
     ShipmentItemsImportResponse,
     ShipmentScheduleCreate,
     ShipmentScheduleDetail,
+    ShipmentSchedulesImportResponse,
     ShipmentScheduleListItem,
     ShipmentScheduleListResponse,
     ShipmentScheduleUpdate,
@@ -34,7 +35,6 @@ def _serialize_schedule_list_item(row: object, sku_count: int, total_quantity: i
         shipment_no=str(row.shipment_no),
         tracking_no=row.tracking_no,
         warehouse_code=row.warehouse_code,
-        supplier_name=row.supplier_name,
         forwarder_name=row.forwarder_name,
         shipping_method=str(row.shipping_method),
         created_date=_date_text(row.created_date),
@@ -103,7 +103,6 @@ def get_shipment_schedule_detail(
         shipment_no=str(row.shipment_no),
         tracking_no=row.tracking_no,
         warehouse_code=row.warehouse_code,
-        supplier_name=row.supplier_name,
         forwarder_name=row.forwarder_name,
         shipping_method=str(row.shipping_method),
         created_date=_date_text(row.created_date),
@@ -151,6 +150,45 @@ def create_shipment_schedule(
     )
     db.commit()
     return get_shipment_schedule_detail(schedule_id=row.id, db=db)
+
+
+@router.post('/shipment-schedules/import-csv', response_model=ShipmentSchedulesImportResponse)
+def import_shipment_schedules_csv(
+    request: Request,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+) -> ShipmentSchedulesImportResponse:
+    if not file.filename:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Missing filename')
+    if Path(file.filename).suffix.lower() != '.csv':
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Only .csv file is supported')
+
+    content = file.file.read()
+    if not content:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='CSV 文件为空')
+
+    rows = shipment_schedule_service.import_shipment_schedules_from_csv(
+        db,
+        content,
+        filename=file.filename,
+        operator=operator,
+    )
+    append_operation_audit_log(
+        db,
+        action='shipment_schedules.import_csv',
+        target_type='shipment_schedule',
+        target_id=rows[0].id if rows else None,
+        operator=operator,
+        after={
+            'filename': file.filename,
+            'inserted': len(rows),
+            'shipment_nos': [row.shipment_no for row in rows[:50]],
+        },
+        request=request,
+    )
+    db.commit()
+    return ShipmentSchedulesImportResponse(inserted=len(rows), shipment_nos=[str(row.shipment_no) for row in rows])
 
 
 @router.patch('/shipment-schedules/{schedule_id}', response_model=ShipmentScheduleDetail)

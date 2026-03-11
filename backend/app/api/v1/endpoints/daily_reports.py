@@ -40,6 +40,7 @@ def create_daily_report(
         input_path=str(sales_path),
         params={
             'project_name': project_name,
+            'country': data.country.strip() or 'US',
             'report_date': report_date,
             'file_ids': {
                 'sales_report': data.sales_report_file_id,

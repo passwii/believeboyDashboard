@@ -462,6 +462,180 @@ def test_inventory_replenishment_analysis_filters_base_skus_by_country():
         assert items[0]['country'] == 'DE'
 
 
+def test_inventory_replenishment_analysis_filters_sources_by_country():
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        project = Project(project_name='Country Source Demo', sort_order=1, source_file='seed.csv')
+        db.add(project)
+        db.flush()
+
+        db.add(ProductCost(
+            project_name='Country Source Demo',
+            sku='SKU-DE',
+            asin='ASIN-DE',
+            first_leg_unit_cost=1,
+            fob_unit_cost=2,
+            currency='EUR',
+            country='DE',
+            sort_order=1,
+            is_active=True,
+        ))
+
+        inventory_source_us = AnalysisSourceFile(
+            project_id=project.id,
+            report_type='inventory_report',
+            country='US',
+            snapshot_at=datetime(2026, 3, 8, tzinfo=UTC),
+            version=1,
+            is_current=True,
+            upload_file_id='inventory-us',
+            upload_file_path='/tmp/inventory-us.txt',
+            stored_filename='inventory-us.txt',
+            logical_filename='inventory-us.txt',
+            storage_key='inventory-us.txt',
+            original_filename='inventory-us.txt',
+            ingestion_status='success',
+        )
+        inventory_source_de = AnalysisSourceFile(
+            project_id=project.id,
+            report_type='inventory_report',
+            country='DE',
+            snapshot_at=datetime(2026, 3, 8, tzinfo=UTC),
+            version=1,
+            is_current=True,
+            upload_file_id='inventory-de',
+            upload_file_path='/tmp/inventory-de.txt',
+            stored_filename='inventory-de.txt',
+            logical_filename='inventory-de.txt',
+            storage_key='inventory-de.txt',
+            original_filename='inventory-de.txt',
+            ingestion_status='success',
+        )
+        daily_source_us = DailySourceFile(
+            project_id=project.id,
+            report_type='sales_report',
+            country='US',
+            report_date=date(2026, 3, 8),
+            version=1,
+            is_current=True,
+            upload_file_id='daily-us',
+            upload_file_path='/tmp/daily-us.txt',
+            stored_filename='daily-us.txt',
+            logical_filename='daily-us.txt',
+            storage_key='daily-us.txt',
+            original_filename='daily-us.txt',
+            ingestion_status='success',
+        )
+        daily_source_de = DailySourceFile(
+            project_id=project.id,
+            report_type='sales_report',
+            country='DE',
+            report_date=date(2026, 3, 8),
+            version=1,
+            is_current=True,
+            upload_file_id='daily-de',
+            upload_file_path='/tmp/daily-de.txt',
+            stored_filename='daily-de.txt',
+            logical_filename='daily-de.txt',
+            storage_key='daily-de.txt',
+            original_filename='daily-de.txt',
+            ingestion_status='success',
+        )
+        db.add_all([inventory_source_us, inventory_source_de, daily_source_us, daily_source_de])
+        db.flush()
+
+        db.add_all(
+            [
+                InventorySnapshotRow(
+                    source_file_id=inventory_source_us.id,
+                    source_row_no=1,
+                    sku='SKU-DE',
+                    asin='ASIN-DE',
+                    available_qty=999,
+                    age_0_90_qty=0,
+                    age_91_180_qty=0,
+                    age_181_270_qty=0,
+                    age_271_365_qty=0,
+                    age_365_plus_qty=0,
+                    recommended_action=None,
+                    stock_status='in_stock',
+                    aging_status='fresh',
+                    raw_row={},
+                ),
+                InventorySnapshotRow(
+                    source_file_id=inventory_source_de.id,
+                    source_row_no=1,
+                    sku='SKU-DE',
+                    asin='ASIN-DE',
+                    available_qty=12,
+                    age_0_90_qty=0,
+                    age_91_180_qty=0,
+                    age_181_270_qty=0,
+                    age_271_365_qty=0,
+                    age_365_plus_qty=0,
+                    recommended_action=None,
+                    stock_status='in_stock',
+                    aging_status='fresh',
+                    raw_row={},
+                ),
+                DailySalesOrder(
+                    source_file_id=daily_source_us.id,
+                    source_row_no=1,
+                    amazon_order_id='ORDER-US',
+                    purchase_at_utc=datetime(2026, 3, 7, tzinfo=UTC),
+                    purchase_at_pt=datetime(2026, 3, 7, 8, 0, 0),
+                    purchase_date_pt=date(2026, 3, 7),
+                    order_status='Shipped',
+                    sku='SKU-DE',
+                    asin='ASIN-DE',
+                    quantity=99,
+                    item_price=0,
+                    currency='USD',
+                    is_counted_sales=True,
+                    status_rule_version=1,
+                    raw_row={},
+                ),
+                DailySalesOrder(
+                    source_file_id=daily_source_de.id,
+                    source_row_no=1,
+                    amazon_order_id='ORDER-DE',
+                    purchase_at_utc=datetime(2026, 3, 7, tzinfo=UTC),
+                    purchase_at_pt=datetime(2026, 3, 7, 8, 0, 0),
+                    purchase_date_pt=date(2026, 3, 7),
+                    order_status='Shipped',
+                    sku='SKU-DE',
+                    asin='ASIN-DE',
+                    quantity=6,
+                    item_price=0,
+                    currency='EUR',
+                    is_counted_sales=True,
+                    status_rule_version=1,
+                    raw_row={},
+                ),
+            ]
+        )
+        db.commit()
+
+        items, summary, total, has_next = inventory_replenishment_service.list_inventory_replenishment_analysis(
+            db,
+            project_id=project.id,
+            country='DE',
+            keyword=None,
+            risk_status=None,
+            in_transit_only=False,
+            page=1,
+            page_size=20,
+        )
+
+        assert has_next is False
+        assert total == 1
+        assert summary['sku_count'] == 1
+        assert items[0]['available_inventory'] == 12
+        assert items[0]['dms_3'] == 2.0
+
+
 def test_upsert_inventory_replenishment_setting_separates_country_rows():
     engine = create_engine('sqlite:///:memory:', future=True)
     Base.metadata.create_all(bind=engine)
@@ -577,6 +751,6 @@ def test_load_daily_dms_map_uses_lagged_three_day_window():
         )
         db.commit()
 
-        dms_map = inventory_replenishment_service._load_daily_dms_map(db, project.id, date(2026, 3, 9))
+        dms_map = inventory_replenishment_service._load_daily_dms_map(db, project.id, 'US', date(2026, 3, 9))
 
         assert dms_map['SKU-001'] == Decimal('2')

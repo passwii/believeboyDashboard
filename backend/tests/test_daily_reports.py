@@ -14,6 +14,7 @@ def test_daily_reports_requires_api_key():
         '/api/v1/daily-reports',
         json={
             'project_name': 'Demo',
+            'country': 'US',
             'report_date': '2026-02-25',
             'sales_report_file_id': 'a.txt',
             'ad_report_file_id': 'b.xlsx',
@@ -32,6 +33,7 @@ def test_daily_reports_creates_job(monkeypatch):
     def fake_create_task(settings, *, report_type, input_path, params):  # noqa: ARG001
         assert report_type == 'daily_report'
         assert input_path.endswith('sales_report-sales.txt')
+        assert params['country'] == 'DE'
         assert params['file_ids']['sales_report'] == 'sales.txt'
         assert params['file_ids']['ad_report'] == 'ad.xlsx'
         assert params['file_ids']['inventory_report'] == 'inventory.txt'
@@ -48,6 +50,7 @@ def test_daily_reports_creates_job(monkeypatch):
         headers={'X-API-Key': get_settings().api_key, 'X-Operator': 'operator@example.com'},
         json={
             'project_name': 'Demo',
+            'country': 'DE',
             'report_date': '2026-02-25',
             'sales_report_file_id': 'sales.txt',
             'ad_report_file_id': 'ad.xlsx',

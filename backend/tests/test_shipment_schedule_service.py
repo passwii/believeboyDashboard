@@ -162,3 +162,83 @@ def test_replace_shipment_schedule_items_from_csv_accepts_active_sku():
         assert inserted == 1
         assert replaced == 0
         assert total_quantity == 100
+
+
+def test_parse_shipment_schedules_csv_supports_excel_date_formats():
+    content = (
+        'project_name,shipment_no,shipping_method,shipment_status,created_date,etd_date,eta_date\n'
+        '宝勒1店,SHP-100,sea,draft,2026/3/8,3/10/2026,2026-03-20 00:00:00\n'
+    ).encode('utf-8-sig')
+
+    rows = shipment_schedule_service.parse_shipment_schedules_csv(content)
+
+    assert len(rows) == 1
+    assert rows[0]['project_name'] == '宝勒1店'
+    assert rows[0]['shipment_no'] == 'SHP-100'
+    assert rows[0]['created_date'].isoformat() == '2026-03-08'
+    assert rows[0]['etd_date'].isoformat() == '2026-03-10'
+    assert rows[0]['eta_date'].isoformat() == '2026-03-20'
+
+
+def test_import_shipment_schedules_from_csv_creates_rows():
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        db.add(Project(project_name='宝勒1店', sort_order=1, source_file='seed.csv'))
+        db.commit()
+
+        content = (
+            'project_name,shipment_no,shipping_method,shipment_status,created_date,remark\n'
+            '宝勒1店,SHP-200,sea,draft,2026-03-08,首批导入\n'
+        ).encode('gb18030')
+
+        rows = shipment_schedule_service.import_shipment_schedules_from_csv(
+            db,
+            content,
+            filename='shipment-batch.csv',
+            operator='tester',
+        )
+        db.commit()
+
+        saved = db.query(ShipmentSchedule).filter(ShipmentSchedule.shipment_no == 'SHP-200').one()
+        assert len(rows) == 1
+        assert saved.project_name_snapshot == '宝勒1店'
+        assert saved.shipping_method == 'sea'
+        assert saved.shipment_status == 'draft'
+        assert saved.source_type == 'csv_import'
+        assert saved.source_file == 'shipment-batch.csv'
+        assert saved.created_by == 'tester'
+        assert saved.remark == '首批导入'
+
+
+def test_import_shipment_schedules_from_csv_rejects_duplicate_shipment_no():
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        project = Project(project_name='宝勒1店', sort_order=1, source_file='seed.csv')
+        db.add(project)
+        db.flush()
+        db.add(
+            ShipmentSchedule(
+                project_id=project.id,
+                project_name_snapshot=project.project_name,
+                shipment_no='SHP-300',
+                shipping_method='sea',
+                shipment_status='draft',
+                source_type='manual',
+            )
+        )
+        db.commit()
+
+        content = (
+            'project_name,shipment_no,shipping_method,shipment_status\n'
+            '宝勒1店,SHP-300,sea,draft\n'
+        ).encode('utf-8')
+
+        with pytest.raises(HTTPException) as exc_info:
+            shipment_schedule_service.import_shipment_schedules_from_csv(db, content, filename='shipment-batch.csv')
+
+        assert exc_info.value.status_code == 409
+        assert 'SHP-300' in str(exc_info.value.detail)

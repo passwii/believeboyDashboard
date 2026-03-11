@@ -34,7 +34,6 @@ type ShipmentScheduleListItem = {
   shipment_no: string
   tracking_no: string | null
   warehouse_code: string | null
-  supplier_name: string | null
   forwarder_name: string | null
   shipping_method: string
   created_date: string | null
@@ -72,12 +71,16 @@ type ShipmentScheduleListResponse = {
   has_next: boolean
 }
 
+type ShipmentSchedulesImportResponse = {
+  inserted: number
+  shipment_nos: string[]
+}
+
 type ScheduleFormState = {
   project_id: string
   shipment_no: string
   tracking_no: string
   warehouse_code: string
-  supplier_name: string
   forwarder_name: string
   shipping_method: string
   created_date: string
@@ -116,7 +119,6 @@ const EMPTY_FORM: ScheduleFormState = {
   shipment_no: '',
   tracking_no: '',
   warehouse_code: '',
-  supplier_name: '',
   forwarder_name: '',
   shipping_method: 'sea',
   created_date: '',
@@ -162,6 +164,26 @@ function formatTime(value: string): string {
   return date.toLocaleString('zh-CN', { hour12: false })
 }
 
+function escapeCsvCell(value: string | number | null | undefined): string {
+  const text = String(value ?? '')
+  if (/[",\n\r]/.test(text)) {
+    return `"${text.replaceAll('"', '""')}"`
+  }
+  return text
+}
+
+function downloadCsvFile(filename: string, header: string[], rows: Array<Array<string | number | null | undefined>>) {
+  const csvBody = [header, ...rows].map((row) => row.map(escapeCsvCell).join(',')).join('\n')
+  const csv = `\uFEFF${csvBody}\n`
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
 function statusMeta(status: string): { label: string; className: string } {
   const map: Record<string, { label: string; className: string }> = {
     draft: { label: '草稿', className: 'bg-slate-100 text-slate-700' },
@@ -185,7 +207,6 @@ function buildFormFromDetail(detail: ShipmentScheduleDetail): ScheduleFormState 
     shipment_no: detail.shipment_no,
     tracking_no: detail.tracking_no || '',
     warehouse_code: detail.warehouse_code || '',
-    supplier_name: detail.supplier_name || '',
     forwarder_name: detail.forwarder_name || '',
     shipping_method: detail.shipping_method,
     created_date: detail.created_date || '',
@@ -230,6 +251,7 @@ export default function ShipmentManagementPage() {
   const [submitting, setSubmitting] = useState(false)
 
   const [importing, setImporting] = useState(false)
+  const [batchImporting, setBatchImporting] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   const summary = useMemo(() => {
@@ -368,7 +390,6 @@ export default function ShipmentManagementPage() {
         shipment_no: form.shipment_no.trim(),
         tracking_no: form.tracking_no || null,
         warehouse_code: form.warehouse_code || null,
-        supplier_name: form.supplier_name || null,
         forwarder_name: form.forwarder_name || null,
         created_date: form.created_date || null,
         etd_date: form.etd_date || null,
@@ -393,7 +414,6 @@ export default function ShipmentManagementPage() {
               project_id: payload.project_id,
               tracking_no: payload.tracking_no,
               warehouse_code: payload.warehouse_code,
-              supplier_name: payload.supplier_name,
               forwarder_name: payload.forwarder_name,
               shipping_method: payload.shipping_method,
               created_date: payload.created_date,
@@ -433,24 +453,57 @@ export default function ShipmentManagementPage() {
 
   const downloadTemplate = () => {
     if (!detail) return
-    const escapeCsvCell = (value: string | number | null | undefined) => {
-      const text = String(value ?? '')
-      if (/[",\n\r]/.test(text)) {
-        return `"${text.replaceAll('"', '""')}"`
-      }
-      return text
-    }
+    downloadCsvFile(
+      `${detail.shipment_no}-items-template.csv`,
+      ['project_name', 'shipment_no', 'date', 'SKU', 'quantity', 'remark'],
+      [[detail.project_name, detail.shipment_no, detail.created_date || '', 'SKU-DEMO', 100, '']]
+    )
+  }
 
-    const header = ['project_name', 'shipment_no', 'date', 'SKU', 'quantity', 'remark']
-    const row = [detail.project_name, detail.shipment_no, detail.created_date || '', 'SKU-DEMO', 100, '']
-    const csv = `\uFEFF${header.map(escapeCsvCell).join(',')}\n${row.map(escapeCsvCell).join(',')}\n`
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `${detail.shipment_no}-items-template.csv`
-    link.click()
-    URL.revokeObjectURL(url)
+  const downloadBatchTemplate = () => {
+    const fallbackProjectName = projects[0]?.name || '项目名称'
+    downloadCsvFile(
+      'shipment-schedules-template.csv',
+      [
+        'project_name',
+        'shipment_no',
+        'shipping_method',
+        'shipment_status',
+        'tracking_no',
+        'warehouse_code',
+        'forwarder_name',
+        'created_date',
+        'etd_date',
+        'eta_date',
+        'expected_inbound_start_date',
+        'expected_inbound_end_date',
+        'stat_date',
+        'booking_note',
+        'forwarder_update',
+        'remark',
+      ],
+      [
+        [
+          fallbackProjectName,
+          'FBA19647N7ZW',
+          'sea',
+          'draft',
+          '',
+          '',
+          '',
+          '',
+          '2026-03-11',
+          '2026-03-15',
+          '2026-04-08',
+          '2026-04-10',
+          '2026-04-12',
+          '2026-03-11',
+          '',
+          '',
+          '日期建议统一填 YYYY-MM-DD',
+        ],
+      ]
+    )
   }
 
   const handleImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -483,6 +536,36 @@ export default function ShipmentManagementPage() {
       setError(importError instanceof Error ? importError.message : 'CSV 导入失败')
     } finally {
       setImporting(false)
+    }
+  }
+
+  const handleBatchImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+
+    setBatchImporting(true)
+    setError(null)
+    setSuccessMessage(null)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const response = await fetch(`${API_BASE}/api/v1/shipment-schedules/import-csv`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: formData,
+      })
+      if (!response.ok) throw new Error(await parseError(response))
+
+      const payload = (await response.json()) as ShipmentSchedulesImportResponse
+      const preview = payload.shipment_nos.slice(0, 5).join('、')
+      const suffix = payload.shipment_nos.length > 5 ? ` 等 ${payload.shipment_nos.length} 个批次` : ''
+      setSuccessMessage(`批量导入完成：新增 ${payload.inserted} 个发货批次${preview ? `（${preview}${suffix}）` : ''}`)
+      await loadList(1)
+    } catch (importError) {
+      setError(importError instanceof Error ? importError.message : '批量导入失败')
+    } finally {
+      setBatchImporting(false)
     }
   }
 
@@ -589,10 +672,26 @@ export default function ShipmentManagementPage() {
               <RefreshCcw className="h-4 w-4" />
               刷新
             </Button>
+            <Button variant="outline" onClick={downloadBatchTemplate} className="gap-2">
+              <FileDown className="h-4 w-4" />
+              下载批量模板
+            </Button>
+            <Button asChild variant="outline" disabled={batchImporting} className="gap-2">
+              <label>
+                <Upload className="h-4 w-4" />
+                {batchImporting ? '导入中...' : '批量上传批次'}
+                <input type="file" accept=".csv" className="hidden" onChange={handleBatchImportFile} />
+              </label>
+            </Button>
             <Button variant="outline" onClick={openCreateDialog} className="gap-2">
               <Plus className="h-4 w-4" />
               新建船期
             </Button>
+          </div>
+          <div className="rounded-2xl border border-sky-100 bg-sky-50/80 px-4 py-3 text-xs leading-6 text-sky-900 md:col-span-2 xl:col-span-4">
+            批量模板必填字段：`project_name`、`shipment_no`、`shipping_method`、`shipment_status`。日期字段建议统一使用 `YYYY-MM-DD`；
+            后端同时兼容 Excel 常见格式，如 `2026/03/11`、`03/11/2026`、`2026-03-11 00:00:00`。模板下载默认带 UTF-8 BOM，导入同时兼容
+            UTF-8 和 GBK/ANSI，尽量避免中文乱码。
           </div>
         </CardContent>
       </Card>
@@ -734,7 +833,6 @@ export default function ShipmentManagementPage() {
                     <div className="text-slate-500">货代 / 供应商</div>
                     <div className="font-medium text-slate-900">
                       {detail.forwarder_name || '-'}
-                      {detail.supplier_name ? ` / ${detail.supplier_name}` : ''}
                     </div>
                   </div>
                   <div className="space-y-2 text-sm">
@@ -891,10 +989,6 @@ export default function ShipmentManagementPage() {
             <div className="space-y-2">
               <div className="text-sm font-medium text-slate-700">仓库编码</div>
               <Input value={form.warehouse_code} onChange={(event) => handleFormChange('warehouse_code', event.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <div className="text-sm font-medium text-slate-700">供应商</div>
-              <Input value={form.supplier_name} onChange={(event) => handleFormChange('supplier_name', event.target.value)} />
             </div>
             <div className="space-y-2">
               <div className="text-sm font-medium text-slate-700">货代公司</div>

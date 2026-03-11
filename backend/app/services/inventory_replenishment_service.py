@@ -102,12 +102,13 @@ def _get_project_or_404(db: Session, project_id: int) -> Project:
     return project
 
 
-def _pick_business_source(db: Session, project_id: int, target_days: int, today: date) -> AnalysisSourceFile | None:
+def _pick_business_source(db: Session, project_id: int, country: str, target_days: int, today: date) -> AnalysisSourceFile | None:
     rows = db.execute(
         select(AnalysisSourceFile)
         .where(
             AnalysisSourceFile.project_id == project_id,
             AnalysisSourceFile.report_type == 'business_report',
+            AnalysisSourceFile.country == country,
             AnalysisSourceFile.is_current.is_(True),
             AnalysisSourceFile.period_start_date.is_not(None),
             AnalysisSourceFile.period_end_date.is_not(None),
@@ -179,12 +180,13 @@ def _load_settings_map(db: Session, project_id: int, country: str) -> dict[tuple
     return {(row.sku, row.country): row for row in rows}
 
 
-def _load_inventory_map(db: Session, project_id: int) -> dict[str, int]:
+def _load_inventory_map(db: Session, project_id: int, country: str) -> dict[str, int]:
     source = db.execute(
         select(AnalysisSourceFile)
         .where(
             AnalysisSourceFile.project_id == project_id,
             AnalysisSourceFile.report_type == 'inventory_report',
+            AnalysisSourceFile.country == country,
             AnalysisSourceFile.is_current.is_(True),
         )
         .order_by(AnalysisSourceFile.id.desc())
@@ -226,11 +228,12 @@ def _load_asin_to_skus_map(base_rows: list[_BaseSkuRow]) -> dict[str, set[str]]:
 def _load_business_dms_map(
     db: Session,
     project_id: int,
+    country: str,
     target_days: int,
     today: date,
     asin_to_skus: dict[str, set[str]],
 ) -> dict[str, Decimal]:
-    source = _pick_business_source(db, project_id, target_days, today)
+    source = _pick_business_source(db, project_id, country, target_days, today)
     if source is None:
         return {}
     rows = db.execute(
@@ -253,7 +256,7 @@ def _load_business_dms_map(
     return result
 
 
-def _load_daily_dms_map(db: Session, project_id: int, today: date) -> dict[str, Decimal]:
+def _load_daily_dms_map(db: Session, project_id: int, country: str, today: date) -> dict[str, Decimal]:
     window_end = today - timedelta(days=DAILY_SALES_LAG_DAYS)
     since = window_end - timedelta(days=DAILY_SALES_WINDOW_DAYS - 1)
     rows = db.execute(
@@ -262,6 +265,7 @@ def _load_daily_dms_map(db: Session, project_id: int, today: date) -> dict[str, 
         .where(
             DailySourceFile.project_id == project_id,
             DailySourceFile.report_type == 'sales_report',
+            DailySourceFile.country == country,
             DailySourceFile.is_current.is_(True),
             DailySalesOrder.is_counted_sales.is_(True),
             DailySalesOrder.purchase_date_pt >= since,
@@ -338,13 +342,13 @@ def list_inventory_replenishment_analysis(
     today = date.today()
     base_rows = _load_base_skus(db, project, normalized_country)
     settings_map = _load_settings_map(db, project.id, normalized_country)
-    inventory_map = _load_inventory_map(db, project.id)
+    inventory_map = _load_inventory_map(db, project.id, normalized_country)
     in_transit_map = _load_in_transit_map(db, project.id)
     asin_to_skus = _load_asin_to_skus_map(base_rows)
-    dms_30_map = _load_business_dms_map(db, project.id, 30, today, asin_to_skus)
-    dms_14_map = _load_business_dms_map(db, project.id, 14, today, asin_to_skus)
-    dms_7_map = _load_business_dms_map(db, project.id, 7, today, asin_to_skus)
-    dms_3_map = _load_daily_dms_map(db, project.id, today)
+    dms_30_map = _load_business_dms_map(db, project.id, normalized_country, 30, today, asin_to_skus)
+    dms_14_map = _load_business_dms_map(db, project.id, normalized_country, 14, today, asin_to_skus)
+    dms_7_map = _load_business_dms_map(db, project.id, normalized_country, 7, today, asin_to_skus)
+    dms_3_map = _load_daily_dms_map(db, project.id, normalized_country, today)
 
     keyword_text = (keyword or '').strip().lower()
     normalized_risk = (risk_status or '').strip()
