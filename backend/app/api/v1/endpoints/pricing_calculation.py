@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, get_request_operator, protected
@@ -58,3 +58,16 @@ def calculate_pricing_reverse_quote(
 
     db.commit()
     return PricingCalculationRunItem(**pricing_calculation_service.serialize_pricing_run(row))
+
+
+@router.delete('/pricing-calculation/runs/{run_id}', status_code=status.HTTP_204_NO_CONTENT)
+def delete_pricing_run(
+    run_id: int,
+    db: Session = Depends(get_db_session),
+) -> Response:
+    deleted = pricing_calculation_service.delete_pricing_run(db, run_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail='测算记录不存在')
+
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

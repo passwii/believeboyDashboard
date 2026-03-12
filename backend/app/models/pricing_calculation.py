@@ -28,6 +28,7 @@ class PricingCalculationRun(Base):
     ddp_cost_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
 
     sale_price_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    calculation_type: Mapped[str] = mapped_column(String(32), nullable=False, server_default='profit_calc')
     commission_rate: Mapped[Decimal] = mapped_column(Numeric(8, 6), nullable=False, server_default='0.150000')
     advertising_rate: Mapped[Decimal] = mapped_column(Numeric(8, 6), nullable=False, server_default='0.120000')
     return_loss_rate: Mapped[Decimal] = mapped_column(Numeric(8, 6), nullable=False, server_default='0.040000')

@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 InboundPlacementMode = Literal['single_destination', 'amazon_optimized_split']
+CalculationType = Literal['profit_calc', 'profit_reverse']
 
 
 class PricingCalculationCreateRequest(BaseModel):
@@ -78,6 +79,7 @@ class PricingCalculationProfit(BaseModel):
 class PricingCalculationRunItem(BaseModel):
     id: int
     product_name: str
+    calculation_type: CalculationType = 'profit_calc'
     package_length_cm: float
     package_width_cm: float
     package_height_cm: float

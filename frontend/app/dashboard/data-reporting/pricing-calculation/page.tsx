@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { AlertCircle, Calculator, CheckCircle2, Database, Loader2, Package2, Search, X } from 'lucide-react'
+import { AlertCircle, Calculator, CheckCircle2, Loader2, Search, Trash2, X } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -19,6 +19,7 @@ const MAX_SELECTED_RUNS = 4
 type PricingCalculationRunItem = {
   id: number
   product_name: string
+  calculation_type: 'profit_calc' | 'profit_reverse'
   package_length_cm: number
   package_width_cm: number
   package_height_cm: number
@@ -153,6 +154,24 @@ function formatCompactDate(value: string) {
   })
 }
 
+function getCalculationTypeMeta(calculationType: PricingCalculationRunItem['calculation_type']) {
+  if (calculationType === 'profit_reverse') {
+    return {
+      label: '利润倒算',
+      badgeClassName: 'border-amber-300 bg-amber-100 text-amber-900',
+      cardClassName: 'border-amber-300 bg-amber-50/80 hover:border-amber-400 hover:bg-amber-50',
+      selectedClassName: 'border-amber-400 bg-amber-100 shadow-sm ring-1 ring-amber-200',
+    }
+  }
+
+  return {
+    label: '利润核算',
+    badgeClassName: 'border-sky-300 bg-sky-100 text-sky-900',
+    cardClassName: 'border-sky-200 bg-sky-50/70 hover:border-sky-300 hover:bg-sky-50',
+    selectedClassName: 'border-sky-400 bg-sky-100 shadow-sm ring-1 ring-sky-200',
+  }
+}
+
 export default function PricingCalculationPage() {
   const [form, setForm] = useState<FormState>(INITIAL_FORM)
   const [calculationMode, setCalculationMode] = useState<CalculationMode>('profit-calc')
@@ -160,7 +179,7 @@ export default function PricingCalculationPage() {
   const [productKeyword, setProductKeyword] = useState('')
   const [selectedRunIds, setSelectedRunIds] = useState<number[]>([])
   const [loading, setLoading] = useState(false)
-  const [bootstrapping, setBootstrapping] = useState(true)
+  const [deletingRunId, setDeletingRunId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -177,8 +196,6 @@ export default function PricingCalculationPage() {
         setRuns((payload as ListResponse).items)
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : '测算记录加载失败')
-      } finally {
-        setBootstrapping(false)
       }
     }
 
@@ -276,6 +293,34 @@ export default function PricingCalculationPage() {
     })
   }
 
+  async function handleDeleteRun(runId: number) {
+    const confirmed = window.confirm('确认删除这条测算记录吗？删除后不可恢复。')
+    if (!confirmed) {
+      return
+    }
+
+    setDeletingRunId(runId)
+    setError(null)
+
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/pricing-calculation/runs/${runId}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { detail?: string; message?: string } | null
+        throw new Error(payload?.detail || payload?.message || '删除测算记录失败')
+      }
+
+      setRuns((current) => current.filter((run) => run.id !== runId))
+      setSelectedRunIds((current) => current.filter((id) => id !== runId))
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : '删除测算记录失败')
+    } finally {
+      setDeletingRunId(null)
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="grid gap-4 xl:grid-cols-[520px_minmax(0,1fr)]">
@@ -365,11 +410,6 @@ export default function PricingCalculationPage() {
         </Card>
 
         <div className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-2">
-            <SummaryCard icon={<Database className="h-4 w-4" />} label="历史" value={bootstrapping ? '...' : String(runs.length)} />
-            <SummaryCard icon={<Package2 className="h-4 w-4" />} label="已选对比" value={`${selectedRuns.length}/${MAX_SELECTED_RUNS}`} />
-          </div>
-
           <Card className="border-slate-200 shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg">筛选产品</CardTitle>
@@ -419,38 +459,57 @@ export default function PricingCalculationPage() {
                     {runs.length === 0 ? '暂无测算记录' : '没有匹配当前筛选条件的产品'}
                   </div>
                 ) : (
-                  visibleRuns.map((run) => (
-                    <button
-                      key={run.id}
-                      type="button"
-                      onClick={() => toggleRunSelection(run.id)}
-                      className={cn(
-                        'min-w-[180px] rounded-xl border p-3 text-left transition-colors',
-                        selectedRunIds.includes(run.id)
-                          ? 'border-emerald-300 bg-emerald-50 shadow-sm'
-                          : 'bg-slate-50/80 hover:border-slate-300 hover:bg-white'
-                      )}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="text-xs text-slate-500">{formatCompactDate(run.created_at)}</p>
-                          <p className="mt-1 line-clamp-1 text-sm font-semibold text-slate-900">{run.product_name}</p>
-                        </div>
-                        {selectedRunIds.includes(run.id) ? (
-                          <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                        ) : (
-                          <X className="h-4 w-4 text-slate-300" />
+                  visibleRuns.map((run) => {
+                    const typeMeta = getCalculationTypeMeta(run.calculation_type ?? 'profit_calc')
+                    const isSelected = selectedRunIds.includes(run.id)
+
+                    return (
+                      <button
+                        key={run.id}
+                        type="button"
+                        onClick={() => toggleRunSelection(run.id)}
+                        className={cn(
+                          'min-w-[180px] rounded-xl border p-3 text-left transition-colors',
+                          isSelected ? typeMeta.selectedClassName : typeMeta.cardClassName
                         )}
-                      </div>
-                      <div className="mt-2 flex items-center gap-2">
-                        <Badge variant="secondary" className="text-[10px]">{run.size_tier_label}</Badge>
-                      </div>
-                      <p className={`mt-2 text-lg font-semibold ${run.profit.profit_usd >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                        {formatCurrency(run.profit.profit_usd)}
-                      </p>
-                      <p className="text-xs text-slate-500">{formatPercent(run.profit.profit_rate)}</p>
-                    </button>
-                  ))
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="text-xs text-slate-500">{formatCompactDate(run.created_at)}</p>
+                            <p className="mt-1 line-clamp-1 text-sm font-semibold text-slate-900">{run.product_name}</p>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            {isSelected ? (
+                              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                            ) : (
+                              <X className="h-4 w-4 text-slate-300" />
+                            )}
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 rounded-full text-slate-400 hover:bg-white/70 hover:text-rose-600"
+                              disabled={deletingRunId === run.id}
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                void handleDeleteRun(run.id)
+                              }}
+                            >
+                              {deletingRunId === run.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="mt-2 flex items-center gap-2">
+                          <Badge className={cn('border text-[10px]', typeMeta.badgeClassName)}>{typeMeta.label}</Badge>
+                          <Badge variant="secondary" className="text-[10px]">{run.size_tier_label}</Badge>
+                        </div>
+                        <p className={`mt-2 text-lg font-semibold ${run.profit.profit_usd >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                          {formatCurrency(run.profit.profit_usd)}
+                        </p>
+                        <p className="text-xs text-slate-500">{formatPercent(run.profit.profit_rate)}</p>
+                      </button>
+                    )
+                  })
                 )}
               </div>
             </CardContent>
@@ -476,18 +535,6 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div className="space-y-1.5">
       <Label className="text-xs">{label}</Label>
       {children}
-    </div>
-  )
-}
-
-function SummaryCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-      <div className="flex items-center gap-1.5 text-xs text-slate-500">
-        {icon}
-        <span>{label}</span>
-      </div>
-      <p className="mt-2 text-xl font-semibold text-slate-900">{value}</p>
     </div>
   )
 }

@@ -4,7 +4,7 @@ from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
 import math
 
-from sqlalchemy import func, select
+from sqlalchemy import func, inspect, select, text
 from sqlalchemy.orm import Session
 
 from app.models import ExchangeRate, PricingCalculationRun
@@ -106,6 +106,10 @@ def ensure_tables(db: Session) -> None:
     if bind.dialect.name != 'sqlite':
         return
     PricingCalculationRun.__table__.create(bind=bind, checkfirst=True)
+    inspector = inspect(bind)
+    columns = {column['name'] for column in inspector.get_columns('pricing_calculation_runs')}
+    if 'calculation_type' not in columns:
+        bind.execute(text("ALTER TABLE pricing_calculation_runs ADD COLUMN calculation_type VARCHAR(32) NOT NULL DEFAULT 'profit_calc'"))
 
 
 def create_pricing_run(db: Session, payload: PricingCalculationCreateRequest, *, operator: str | None = None) -> PricingCalculationRun:
@@ -122,6 +126,7 @@ def create_pricing_run(db: Session, payload: PricingCalculationCreateRequest, *,
         ddp_cost_rmb=computed['profit_decimal']['ddp_cost_rmb'],
         ddp_cost_usd=computed['profit_decimal']['ddp_cost_usd'],
         sale_price_usd=computed['inputs']['sale_price_usd'],
+        calculation_type='profit_calc',
         commission_rate=COMMISSION_RATE,
         advertising_rate=computed['inputs']['advertising_rate'],
         return_loss_rate=computed['inputs']['return_loss_rate'],
@@ -191,7 +196,11 @@ def create_pricing_reverse_run(
         inbound_placement_mode=payload.inbound_placement_mode,
         usd_to_rmb_rate=payload.usd_to_rmb_rate,
     )
-    return create_pricing_run(db, create_payload, operator=operator)
+    row = create_pricing_run(db, create_payload, operator=operator)
+    row.calculation_type = 'profit_reverse'
+    db.flush()
+    db.refresh(row)
+    return row
 
 
 def list_pricing_runs(db: Session, *, page: int = 1, page_size: int = 20) -> tuple[list[PricingCalculationRun], int]:
@@ -208,10 +217,21 @@ def list_pricing_runs(db: Session, *, page: int = 1, page_size: int = 20) -> tup
     return rows, total
 
 
+def delete_pricing_run(db: Session, run_id: int) -> bool:
+    ensure_tables(db)
+    row = db.get(PricingCalculationRun, run_id)
+    if row is None:
+        return False
+    db.delete(row)
+    db.flush()
+    return True
+
+
 def serialize_pricing_run(row: PricingCalculationRun) -> dict[str, object]:
     return {
         'id': int(row.id),
         'product_name': str(row.product_name),
+        'calculation_type': str(getattr(row, 'calculation_type', 'profit_calc') or 'profit_calc'),
         'package_length_cm': float(row.package_length_cm),
         'package_width_cm': float(row.package_width_cm),
         'package_height_cm': float(row.package_height_cm),
