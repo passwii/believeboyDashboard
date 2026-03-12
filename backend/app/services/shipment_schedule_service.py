@@ -15,12 +15,8 @@ from app.schemas.shipment_schedule import ShipmentScheduleCreate, ShipmentSchedu
 
 ALLOWED_SHIPMENT_STATUS = {
     "draft",
-    "preparing",
     "in_transit",
-    "arrived_port",
-    "inbound_processing",
     "completed",
-    "cancelled",
 }
 ALLOWED_SHIPPING_METHOD = {"sea", "air", "express", "truck", "rail", "other"}
 

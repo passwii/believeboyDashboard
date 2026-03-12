@@ -87,12 +87,8 @@ type ScheduleFormState = {
 
 const STATUS_OPTIONS = [
   { value: 'draft', label: '草稿' },
-  { value: 'preparing', label: '备货中' },
   { value: 'in_transit', label: '在途' },
-  { value: 'arrived_port', label: '已到港' },
-  { value: 'inbound_processing', label: '入仓处理中' },
-  { value: 'completed', label: '完成' },
-  { value: 'cancelled', label: '已取消' },
+  { value: 'completed', label: '已完成' },
 ] as const
 
 const METHOD_OPTIONS = [
@@ -167,12 +163,8 @@ function downloadCsvFile(filename: string, header: string[], rows: Array<Array<s
 function statusMeta(status: string): { label: string; className: string } {
   const map: Record<string, { label: string; className: string }> = {
     draft: { label: '草稿', className: 'border border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200' },
-    preparing: { label: '备货中', className: 'border border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-900/80 dark:bg-amber-950/60 dark:text-amber-300' },
     in_transit: { label: '在途', className: 'border border-sky-200 bg-sky-100 text-sky-700 dark:border-sky-900/80 dark:bg-sky-950/60 dark:text-sky-300' },
-    arrived_port: { label: '已到港', className: 'border border-cyan-200 bg-cyan-100 text-cyan-700 dark:border-cyan-900/80 dark:bg-cyan-950/60 dark:text-cyan-300' },
-    inbound_processing: { label: '入仓处理中', className: 'border border-violet-200 bg-violet-100 text-violet-700 dark:border-violet-900/80 dark:bg-violet-950/60 dark:text-violet-300' },
-    completed: { label: '完成', className: 'border border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-900/80 dark:bg-emerald-950/60 dark:text-emerald-300' },
-    cancelled: { label: '已取消', className: 'border border-rose-200 bg-rose-100 text-rose-700 dark:border-rose-900/80 dark:bg-rose-950/60 dark:text-rose-300' },
+    completed: { label: '已完成', className: 'border border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-900/80 dark:bg-emerald-950/60 dark:text-emerald-300' },
   }
   return map[status] || { label: status, className: 'border border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200' }
 }
@@ -748,7 +740,7 @@ export default function ShipmentManagementPage() {
                       <TableHeader>
                         <TableRow className="bg-muted/50">
                           <TableHead className="w-[90px] text-sm whitespace-nowrap">项目</TableHead>
-                          <TableHead className="w-[90px] text-sm whitespace-nowrap">创建日期</TableHead>
+                          <TableHead className="w-[90px] text-sm whitespace-nowrap">发货时间</TableHead>
                           <TableHead className="w-[120px] text-sm whitespace-nowrap">货件编号</TableHead>
                           <TableHead className="w-[70px] text-sm whitespace-nowrap">状态</TableHead>
                           <TableHead className="w-[80px] text-sm whitespace-nowrap">货代</TableHead>
@@ -1007,7 +999,7 @@ export default function ShipmentManagementPage() {
             </div>
 
             <div className="space-y-2">
-              <div className="text-sm font-medium text-slate-700 dark:text-slate-200">创建日期</div>
+              <div className="text-sm font-medium text-slate-700 dark:text-slate-200">发货时间</div>
               <Input type="date" value={form.created_date} onChange={(event) => handleFormChange('created_date', event.target.value)} />
             </div>
             <div className="space-y-2">
@@ -1065,6 +1057,18 @@ export default function ShipmentManagementPage() {
                     >
                       <FileDown className="h-4 w-4" />
                       下载模板
+                    </Button>
+                    <Button asChild variant="outline" disabled={importing} className="gap-2">
+                      <label>
+                        <Upload className="h-4 w-4" />
+                        {importing ? '导入中...' : '上传 CSV'}
+                        <input
+                          type="file"
+                          accept=".csv"
+                          className="hidden"
+                          onChange={handleImportFile}
+                        />
+                      </label>
                     </Button>
                   </div>
                 </div>
