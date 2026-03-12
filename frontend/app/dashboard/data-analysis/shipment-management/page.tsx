@@ -3,6 +3,7 @@
 import { type ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react'
 import { RefreshCcw, Upload, FileDown, Plus, Pencil } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -701,125 +702,229 @@ export default function ShipmentManagementPage() {
       ) : null}
 
       <div className="grid gap-6">
-        <Card className="dashboard-surface">
-          <CardHeader className="border-b border-border/70">
-            <div className="flex flex-row items-center justify-between gap-4">
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Batches</div>
-              <CardTitle>船期批次</CardTitle>
-              <CardDescription>
-                共 {total} 条记录，当前第 {page} / {pageCount} 页
-              </CardDescription>
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" disabled={page <= 1 || loading} onClick={() => void loadList(page - 1)}>
-                上一页
-              </Button>
-              <Button variant="outline" disabled={!hasNext || loading} onClick={() => void loadList(page + 1)}>
-                下一页
-              </Button>
-            </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3 p-4">
-            {loading ? (
-              <div className="space-y-3">
-                {Array.from({ length: 5 }).map((_, index) => (
-                  <Skeleton key={index} className="h-28 w-full rounded-[28px]" />
-                ))}
-              </div>
-            ) : items.length === 0 ? (
-              <div className="rounded-[28px] border border-dashed border-border px-4 py-14 text-center text-sm text-muted-foreground">
-                当前没有符合筛选条件的船期记录。
-              </div>
-            ) : (
-              items.map((item) => {
-                const selected = item.id === selectedId
-                const status = statusMeta(item.shipment_status)
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setSelectedId(item.id)}
-                    className={`group relative w-full overflow-hidden rounded-[28px] border p-5 text-left transition ${
-                      selected
-                        ? 'border-primary/50 bg-primary/5 shadow-md dark:bg-primary/10'
-                        : 'border-border/70 bg-card/50 hover:border-border hover:bg-muted/50'
-                    }`}
-                  >
-                    <div className="flex flex-col gap-4">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex flex-col gap-2 pl-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <div className="text-base font-semibold">{item.project_name}</div>
-                            <Badge className={status.className}>{status.label}</Badge>
+        <Tabs defaultValue="overview" className="w-full">
+          <TabsList className="mb-4">
+            <TabsTrigger value="overview">总览</TabsTrigger>
+            <TabsTrigger value="edit">编辑</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="overview" className="mt-0">
+            <Card className="dashboard-surface">
+              <CardHeader className="border-b border-border/70">
+                <div className="flex flex-row items-center justify-between gap-4">
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Overview</div>
+                    <CardTitle>船期批次总览</CardTitle>
+                    <CardDescription>
+                      共 {total} 条记录，当前第 {page} / {pageCount} 页
+                    </CardDescription>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" disabled={page <= 1 || loading} onClick={() => void loadList(page - 1)}>
+                      上一页
+                    </Button>
+                    <Button variant="outline" disabled={!hasNext || loading} onClick={() => void loadList(page + 1)}>
+                      下一页
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                {loading ? (
+                  <div className="p-4">
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="mt-2 h-12 w-full" />
+                    <Skeleton className="mt-2 h-12 w-full" />
+                    <Skeleton className="mt-2 h-12 w-full" />
+                    <Skeleton className="mt-2 h-12 w-full" />
+                  </div>
+                ) : items.length === 0 ? (
+                  <div className="rounded-[28px] border border-dashed border-border px-4 py-14 text-center text-sm text-muted-foreground">
+                    当前没有符合筛选条件的船期记录。
+                  </div>
+                ) : (
+                  <div className="overflow-auto">
+                    <Table className="w-full min-w-[1000px]">
+                      <TableHeader>
+                        <TableRow className="bg-muted/50">
+                          <TableHead className="w-[90px] text-sm whitespace-nowrap">项目</TableHead>
+                          <TableHead className="w-[90px] text-sm whitespace-nowrap">创建日期</TableHead>
+                          <TableHead className="w-[120px] text-sm whitespace-nowrap">货件编号</TableHead>
+                          <TableHead className="w-[70px] text-sm whitespace-nowrap">状态</TableHead>
+                          <TableHead className="w-[80px] text-sm whitespace-nowrap">货代</TableHead>
+                          <TableHead className="w-[70px] text-sm whitespace-nowrap">仓库</TableHead>
+                          <TableHead className="w-[90px] text-sm whitespace-nowrap">ETD</TableHead>
+                          <TableHead className="w-[90px] text-sm whitespace-nowrap">ETA</TableHead>
+                          <TableHead className="w-[90px] text-sm whitespace-nowrap">ATA</TableHead>
+                          <TableHead className="w-[50px] text-sm whitespace-nowrap text-right">SKU</TableHead>
+                          <TableHead className="w-[60px] text-sm whitespace-nowrap text-right">数量</TableHead>
+                          <TableHead className="w-[60px] text-sm whitespace-nowrap">操作</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {items.map((item) => {
+                          const status = statusMeta(item.shipment_status)
+                          return (
+                            <TableRow key={item.id} className={item.id === selectedId ? 'bg-primary/5' : ''}>
+                              <TableCell className="text-sm font-medium">{item.project_name}</TableCell>
+                              <TableCell className="text-sm">{formatDate(item.created_date)}</TableCell>
+                              <TableCell className="text-sm font-medium">{item.shipment_no}</TableCell>
+                              <TableCell>
+                                <Badge className={`${status.className} text-[11px] py-0 h-5`}>{status.label}</Badge>
+                              </TableCell>
+                              <TableCell className="text-sm">{item.forwarder_name || '-'}</TableCell>
+                              <TableCell className="text-sm">{item.warehouse_code || '-'}</TableCell>
+                              <TableCell className="text-sm">{formatDate(item.etd_date)}</TableCell>
+                              <TableCell className="text-sm">{formatDate(item.eta_date)}</TableCell>
+                              <TableCell className="text-sm">{formatDate(item.actual_inbound_date)}</TableCell>
+                              <TableCell className="text-sm text-right">{item.sku_count}</TableCell>
+                              <TableCell className="text-sm text-right">{item.total_quantity.toLocaleString()}</TableCell>
+                              <TableCell>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 text-xs px-2"
+                                  onClick={(event) => {
+                                    event.stopPropagation()
+                                    void handleEditSchedule(item.id)
+                                  }}
+                                >
+                                  编辑
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="edit" className="mt-0">
+            <Card className="dashboard-surface">
+              <CardHeader className="border-b border-border/70">
+                <div className="flex flex-row items-center justify-between gap-4">
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Batches</div>
+                    <CardTitle>船期批次</CardTitle>
+                    <CardDescription>
+                      共 {total} 条记录，当前第 {page} / {pageCount} 页
+                    </CardDescription>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" disabled={page <= 1 || loading} onClick={() => void loadList(page - 1)}>
+                      上一页
+                    </Button>
+                    <Button variant="outline" disabled={!hasNext || loading} onClick={() => void loadList(page + 1)}>
+                      下一页
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3 p-4">
+                {loading ? (
+                  <div className="space-y-3">
+                    {Array.from({ length: 5 }).map((_, index) => (
+                      <Skeleton key={index} className="h-28 w-full rounded-[28px]" />
+                    ))}
+                  </div>
+                ) : items.length === 0 ? (
+                  <div className="rounded-[28px] border border-dashed border-border px-4 py-14 text-center text-sm text-muted-foreground">
+                    当前没有符合筛选条件的船期记录。
+                  </div>
+                ) : (
+                  items.map((item) => {
+                    const selected = item.id === selectedId
+                    const status = statusMeta(item.shipment_status)
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => setSelectedId(item.id)}
+                        className={`group relative w-full overflow-hidden rounded-[28px] border p-5 text-left transition ${
+                          selected
+                            ? 'border-primary/50 bg-primary/5 shadow-md dark:bg-primary/10'
+                            : 'border-border/70 bg-card/50 hover:border-border hover:bg-muted/50'
+                        }`}
+                      >
+                        <div className="flex flex-col gap-4">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex flex-col gap-2 pl-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <div className="text-base font-semibold">{item.project_name}</div>
+                                <Badge className={status.className}>{status.label}</Badge>
+                              </div>
+                              <div className="text-xl font-semibold tracking-tight">{item.shipment_no}</div>
+                              <div className="text-sm text-muted-foreground">
+                                创建于 {item.created_date || '待补充'}
+                              </div>
+                            </div>
+                            <div className="grid shrink-0 grid-cols-3 gap-2 sm:min-w-[280px]">
+                              <button
+                                type="button"
+                                className="cursor-pointer rounded-2xl border border-border/70 bg-muted/50 p-3 text-center transition hover:border-primary/50 hover:bg-primary/5 dark:bg-muted/30"
+                                onClick={(event) => {
+                                  event.stopPropagation()
+                                  void openSkuDialog(item.id)
+                                }}
+                              >
+                                <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">SKU</div>
+                                <div className="text-lg font-semibold text-foreground">{item.sku_count}</div>
+                              </button>
+                              <div className="rounded-2xl border border-border/70 bg-muted/50 p-3 text-center dark:bg-muted/30">
+                                <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">数量</div>
+                                <div className="text-lg font-semibold text-foreground">{item.total_quantity.toLocaleString()}</div>
+                              </div>
+                              <Button
+                                type="button"
+                                variant={selected ? 'default' : 'outline'}
+                                className="h-auto rounded-2xl"
+                                onClick={(event) => {
+                                  event.stopPropagation()
+                                  void handleEditSchedule(item.id)
+                                }}
+                              >
+                                <span className="flex items-center justify-center gap-2">
+                                  <Pencil className="h-4 w-4" />
+                                  编辑
+                                </span>
+                              </Button>
+                            </div>
                           </div>
-                          <div className="text-xl font-semibold tracking-tight">{item.shipment_no}</div>
-                          <div className="text-sm text-muted-foreground">
-                            创建于 {item.created_date || '待补充'}
+                          <div className="grid gap-3 md:grid-cols-5">
+                            <div className="rounded-2xl border border-border/70 bg-muted/50 px-3 py-2 dark:bg-muted/30">
+                              <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">货代</div>
+                              <div className="mt-1 text-sm font-medium truncate">{item.forwarder_name || '待补充'}</div>
+                            </div>
+                            <div className="rounded-2xl border border-border/70 bg-muted/50 px-3 py-2 dark:bg-muted/30">
+                              <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">仓库</div>
+                              <div className="mt-1 text-sm font-medium truncate">{item.warehouse_code || '待补充'}</div>
+                            </div>
+                            <div className="rounded-2xl border border-border/70 bg-muted/50 px-3 py-2 dark:bg-muted/30">
+                              <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">ETD</div>
+                              <div className="mt-1 text-sm font-medium">{formatDate(item.etd_date)}</div>
+                            </div>
+                            <div className="rounded-2xl border border-border/70 bg-muted/50 px-3 py-2 dark:bg-muted/30">
+                              <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">ETA</div>
+                              <div className="mt-1 text-sm font-medium">{formatDate(item.eta_date)}</div>
+                            </div>
+                            <div className="rounded-2xl border border-border/70 bg-muted/50 px-3 py-2 dark:bg-muted/30">
+                              <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">ATA</div>
+                              <div className="mt-1 text-sm font-medium">{formatDate(item.actual_inbound_date)}</div>
+                            </div>
                           </div>
                         </div>
-                        <div className="grid shrink-0 grid-cols-3 gap-2 sm:min-w-[280px]">
-                          <button
-                            type="button"
-                            className="cursor-pointer rounded-2xl border border-border/70 bg-muted/50 p-3 text-center transition hover:border-primary/50 hover:bg-primary/5 dark:bg-muted/30"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              void openSkuDialog(item.id)
-                            }}
-                          >
-                            <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">SKU</div>
-                            <div className="text-lg font-semibold text-foreground">{item.sku_count}</div>
-                          </button>
-                          <div className="rounded-2xl border border-border/70 bg-muted/50 p-3 text-center dark:bg-muted/30">
-                            <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">数量</div>
-                            <div className="text-lg font-semibold text-foreground">{item.total_quantity.toLocaleString()}</div>
-                          </div>
-                          <Button
-                            type="button"
-                            variant={selected ? 'default' : 'outline'}
-                            className="h-auto rounded-2xl"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              void handleEditSchedule(item.id)
-                            }}
-                          >
-                            <span className="flex items-center justify-center gap-2">
-                              <Pencil className="h-4 w-4" />
-                              编辑
-                            </span>
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="grid gap-3 md:grid-cols-5">
-                        <div className="rounded-2xl border border-border/70 bg-muted/50 px-3 py-2 dark:bg-muted/30">
-                          <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">货代</div>
-                          <div className="mt-1 text-sm font-medium truncate">{item.forwarder_name || '待补充'}</div>
-                        </div>
-                        <div className="rounded-2xl border border-border/70 bg-muted/50 px-3 py-2 dark:bg-muted/30">
-                          <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">仓库</div>
-                          <div className="mt-1 text-sm font-medium truncate">{item.warehouse_code || '待补充'}</div>
-                        </div>
-                        <div className="rounded-2xl border border-border/70 bg-muted/50 px-3 py-2 dark:bg-muted/30">
-                          <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">ETD</div>
-                          <div className="mt-1 text-sm font-medium">{formatDate(item.etd_date)}</div>
-                        </div>
-                        <div className="rounded-2xl border border-border/70 bg-muted/50 px-3 py-2 dark:bg-muted/30">
-                          <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">ETA</div>
-                          <div className="mt-1 text-sm font-medium">{formatDate(item.eta_date)}</div>
-                        </div>
-                        <div className="rounded-2xl border border-border/70 bg-muted/50 px-3 py-2 dark:bg-muted/30">
-                          <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">ATA</div>
-                          <div className="mt-1 text-sm font-medium">{formatDate(item.actual_inbound_date)}</div>
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                )
-              })
-            )}
-          </CardContent>
-        </Card>
+                      </button>
+                    )
+                  })
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
