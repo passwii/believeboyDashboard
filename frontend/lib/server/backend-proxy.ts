@@ -3,6 +3,7 @@ import type { Session } from 'next-auth'
 import { getBackendApiKey, getBackendBaseUrl } from '@/lib/server/backend-api'
 
 const RESPONSE_HEADER_ALLOWLIST = ['content-type', 'content-disposition', 'cache-control', 'x-request-id']
+const NULL_BODY_STATUS_CODES = new Set([204, 205, 304])
 
 function trimLeadingSlash(value: string) {
   return value.startsWith('/') ? value.slice(1) : value
@@ -62,7 +63,12 @@ export async function toProxyResponse(response: Response) {
   }
 
   const body = await response.arrayBuffer()
-  return new Response(body, {
+  const responseBody =
+    NULL_BODY_STATUS_CODES.has(response.status) || body.byteLength === 0
+      ? null
+      : body
+
+  return new Response(responseBody, {
     status: response.status,
     headers,
   })
