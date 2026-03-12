@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { type ChangeEvent, useEffect, useMemo, useState } from 'react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { fetchProjectOptionsCached } from '@/lib/project-client-cache'
+import { FileDown, Upload } from 'lucide-react'
 
 type ProductCostItem = {
   id: number
@@ -68,6 +69,37 @@ function normalizeCountry(raw: string): 'US' | 'DE' | 'UK' | null {
 
 function authHeaders(): Record<string, string> {
   return {}
+}
+
+function escapeCsvCell(value: string | number | null | undefined): string {
+  const text = String(value ?? '')
+  if (/[",\n\r]/.test(text)) {
+    return `"${text.replaceAll('"', '""')}"`
+  }
+  return text
+}
+
+function downloadCsvFile(filename: string, header: string[], rows: Array<Array<string | number | null | undefined>>) {
+  const csvBody = [header, ...rows].map((row) => row.map(escapeCsvCell).join(',')).join('\n')
+  const csv = `\uFEFF${csvBody}\n`
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+function downloadTemplate() {
+  downloadCsvFile(
+    'sku-cost-template.csv',
+    ['project_name', 'SKU', 'ASIN', '头程单价', 'FOB单价', '国家'],
+    [
+      ['创酷', 'JDB-M35-13PCS', 'B0G1SM4P52', '0.32', '2.57', 'US'],
+      ['创酷', 'JDB-M50-20PCS', 'B0G1SM4P53', '0.45', '3.20', 'US'],
+    ]
+  )
 }
 
 function sortProductCosts(rows: ProductCostItem[]): ProductCostItem[] {
@@ -122,6 +154,7 @@ export default function SkuCostPage() {
   const [moveSubmittingId, setMoveSubmittingId] = useState<number | null>(null)
 
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [batchImporting, setBatchImporting] = useState(false)
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize])
 
@@ -358,6 +391,36 @@ export default function SkuCostPage() {
     }
   }
 
+  const handleBatchImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+
+    setBatchImporting(true)
+    setError(null)
+    setSuccessMessage(null)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const response = await fetch(`${API_BASE}/api/v1/product-costs/import-csv`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: formData,
+      })
+      if (!response.ok) throw new Error(await parseError(response))
+
+      const payload = (await response.json()) as { inserted: number; updated: number; total: number }
+      setSuccessMessage(`CSV 批量导入完成：新增 ${payload.inserted} 条，更新 ${payload.updated} 条`)
+      if (projectFilter.trim()) {
+        await loadData(undefined, { resetPage: true, clearOnMissingProject: true })
+      }
+    } catch (importError) {
+      setError(importError instanceof Error ? importError.message : 'CSV 批量导入失败')
+    } finally {
+      setBatchImporting(false)
+    }
+  }
+
   const onPageSizeChange = (value: string) => {
     const nextPageSize = Number(value)
     if (!PAGE_SIZE_OPTIONS.includes(nextPageSize)) {
@@ -498,6 +561,19 @@ export default function SkuCostPage() {
             <div className="flex flex-wrap items-center gap-2">
               <Button type="button" onClick={() => void onRefresh()} disabled={loading}>
                 {loading ? '刷新中...' : '刷新数据'}
+              </Button>
+
+              <Button type="button" variant="outline" onClick={downloadTemplate}>
+                <FileDown className="mr-2 h-4 w-4" />
+                模板下载
+              </Button>
+
+              <Button asChild variant="outline" disabled={batchImporting}>
+                <label>
+                  <Upload className="mr-2 h-4 w-4" />
+                  {batchImporting ? '导入中...' : '批量上传'}
+                  <input type="file" accept=".csv" className="hidden" onChange={handleBatchImportFile} />
+                </label>
               </Button>
 
               <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
@@ -721,7 +797,7 @@ export default function SkuCostPage() {
                   : null}
 
                 {items.map((row) => (
-                  <tr key={row.id} className="border-b transition-colors hover:bg-muted/50">
+                  <tr key={row.id} className={`border-b transition-colors hover:bg-muted/50 ${editingId === row.id ? 'bg-muted/30' : ''}`}>
                     <td className="p-4 align-middle">
                       {editingId === row.id ? (
                         <Input
@@ -730,7 +806,7 @@ export default function SkuCostPage() {
                           step="1"
                           value={editSortOrder}
                           onChange={(e) => setEditSortOrder(e.target.value)}
-                          className="h-8 w-24"
+                          className="h-8 w-16"
                         />
                       ) : (
                         row.sort_order
@@ -739,14 +815,14 @@ export default function SkuCostPage() {
                     <td className="p-4 align-middle font-medium text-foreground">{row.project_name}</td>
                     <td className="p-4 align-middle">
                       {editingId === row.id ? (
-                        <Input value={editSku} onChange={(e) => setEditSku(e.target.value)} className="h-8 min-w-28" />
+                        <Input value={editSku} onChange={(e) => setEditSku(e.target.value)} className="h-8 w-24" />
                       ) : (
                         row.sku
                       )}
                     </td>
                     <td className="p-4 align-middle">
                       {editingId === row.id ? (
-                        <Input value={editAsin} onChange={(e) => setEditAsin(e.target.value)} className="h-8 min-w-28" />
+                        <Input value={editAsin} onChange={(e) => setEditAsin(e.target.value)} className="h-8 w-28" />
                       ) : (
                         row.asin
                       )}
@@ -759,7 +835,7 @@ export default function SkuCostPage() {
                           step="0.01"
                           value={editFirstLegCost}
                           onChange={(e) => setEditFirstLegCost(e.target.value)}
-                          className="ml-auto h-8 w-24"
+                          className="h-8 w-20"
                         />
                       ) : (
                         row.first_leg_unit_cost.toFixed(2)
@@ -773,7 +849,7 @@ export default function SkuCostPage() {
                           step="0.01"
                           value={editFobCost}
                           onChange={(e) => setEditFobCost(e.target.value)}
-                          className="ml-auto h-8 w-24"
+                          className="h-8 w-20"
                         />
                       ) : (
                         row.fob_unit_cost.toFixed(2)
@@ -782,7 +858,7 @@ export default function SkuCostPage() {
                     <td className="p-4 align-middle">
                       {editingId === row.id ? (
                         <Select value={editCountry} onValueChange={(value) => setEditCountry(value as 'US' | 'DE' | 'UK')}>
-                          <SelectTrigger className="h-8 w-36">
+                          <SelectTrigger className="h-8 w-28">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -799,7 +875,7 @@ export default function SkuCostPage() {
                     </td>
                     <td className="p-4 align-middle">
                       {editingId === row.id ? (
-                        <Input value={editCurrency} onChange={(e) => setEditCurrency(e.target.value)} className="h-8 w-20" />
+                        <Input value={editCurrency} onChange={(e) => setEditCurrency(e.target.value)} className="h-8 w-16" />
                       ) : (
                         row.currency
                       )}
@@ -807,7 +883,7 @@ export default function SkuCostPage() {
                     <td className="p-4 align-middle">
                       {editingId === row.id ? (
                         <Select value={editIsActive ? 'active' : 'inactive'} onValueChange={(value) => setEditIsActive(value === 'active')}>
-                          <SelectTrigger className="h-8 w-24">
+                          <SelectTrigger className="h-8 w-20">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -827,27 +903,29 @@ export default function SkuCostPage() {
                     </td>
                     <td className="p-4 align-middle">
                       {editingId === row.id ? (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
                           <Button
                             type="button"
                             size="sm"
                             onClick={() => void onSaveEditRow(row.id)}
                             disabled={editSubmitting}
+                            className="h-7 px-2 text-xs"
                           >
                             {editSubmitting ? '保存中...' : '保存'}
                           </Button>
-                          <Button type="button" size="sm" variant="outline" onClick={cancelEditRow} disabled={editSubmitting}>
+                          <Button type="button" size="sm" variant="outline" onClick={cancelEditRow} disabled={editSubmitting} className="h-7 px-2 text-xs">
                             取消
                           </Button>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
                           <Button
                             type="button"
                             size="sm"
                             variant="outline"
                             onClick={() => void onMoveRow(row.id, 'up')}
                             disabled={editSubmitting || moveSubmittingId === row.id}
+                            className="h-7 px-2 text-xs"
                           >
                             上移
                           </Button>
@@ -857,10 +935,11 @@ export default function SkuCostPage() {
                             variant="outline"
                             onClick={() => void onMoveRow(row.id, 'down')}
                             disabled={editSubmitting || moveSubmittingId === row.id}
+                            className="h-7 px-2 text-xs"
                           >
                             下移
                           </Button>
-                          <Button type="button" size="sm" variant="outline" onClick={() => startEditRow(row)} disabled={editSubmitting}>
+                          <Button type="button" size="sm" variant="outline" onClick={() => startEditRow(row)} disabled={editSubmitting} className="h-7 px-2 text-xs">
                             编辑
                           </Button>
                         </div>
