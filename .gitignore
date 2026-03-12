@@ -30,6 +30,7 @@ pnpm-debug.log*
 /backend/dist/
 /backend/build/
 /backend/coverage/
+/backend/.env
 /backend/.env.*
 /backend/.venv/
 /backend/**/__pycache__/
@@ -45,4 +46,5 @@ pnpm-debug.log*
 /backend/tmp_upload_check/
 
 # Docs
-/Docs/
+/Docs/*
+!/Docs/定价核算页面说明.md
