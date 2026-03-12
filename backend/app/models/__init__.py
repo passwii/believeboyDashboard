@@ -35,6 +35,7 @@ from app.models.project_role_assignment import ProjectRoleAssignment
 from app.models.operation_audit_log import OperationAuditLog
 from app.models.exchange_rate import ExchangeRate
 from app.models.inventory_replenishment import InventoryReplenishmentSetting
+from app.models.pricing_calculation import PricingCalculationRun
 from app.models.shipment_schedule import ShipmentSchedule, ShipmentScheduleItem
 
 __all__ = [
@@ -52,6 +53,7 @@ __all__ = [
     'OperationAuditLog',
     'ExchangeRate',
     'InventoryReplenishmentSetting',
+    'PricingCalculationRun',
     'ShipmentSchedule',
     'ShipmentScheduleItem',
     'MonthlyReport',

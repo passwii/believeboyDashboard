@@ -234,7 +234,7 @@ export default function SystemOperationLogsPage() {
       },
       {
         key: 'shipment',
-        title: '编辑发货信息管理',
+        title: '编辑发货管理',
         value: modules.find((item) => item.key === 'shipment_schedules')?.count ?? 0,
         detail: `成功 ${modules.find((item) => item.key === 'shipment_schedules')?.success_count ?? 0} / 失败 ${modules.find((item) => item.key === 'shipment_schedules')?.failure_count ?? 0}`,
         icon: <PackageCheck className="h-4 w-4" />,

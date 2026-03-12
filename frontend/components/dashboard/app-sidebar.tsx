@@ -67,6 +67,7 @@ const tools = [
       { title: '销售日报', url: '/dashboard/data-reporting/daily-report' },
       { title: '财务月报', url: '/dashboard/data-reporting/monthly-report' },
       { title: '产品分析', url: '/dashboard/data-reporting/product-analysis' },
+      { title: '定价核算', url: '/dashboard/data-reporting/pricing-calculation' },
     ],
   },
   {
@@ -76,7 +77,6 @@ const tools = [
       { title: '月度财务分析', url: '/dashboard/data-analysis/financial-data' },
       { title: '按周产品分析', url: '/dashboard/data-analysis/weekly-product-analysis' },
       { title: '库存及补货分析', url: '/dashboard/data-analysis/inventory-replenishment' },
-      { title: '发货信息管理', url: '/dashboard/data-analysis/shipment-management' },
     ],
   },
   {
@@ -94,6 +94,7 @@ const tools = [
     icon: <Database className="h-4 w-4" />,
     items: [
       { title: '报表上传', url: '/dashboard/data-management/report-upload' },
+      { title: '发货管理', url: '/dashboard/data-management/shipment-management' },
       { title: 'SKU成本', url: '/dashboard/data-management/sku-cost' },
       { title: '汇率信息', url: '/dashboard/data-management/exchange-rate' },
     ],

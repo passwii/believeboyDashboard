@@ -441,7 +441,7 @@ export default function InventoryReplenishmentPage() {
     {
       title: '总在途库存',
       value: formatInt(summary.total_in_transit_quantity),
-      description: '来自发货信息管理',
+      description: '来自发货管理',
       icon: <ShipWheel className="h-4 w-4" />,
       className: 'from-amber-100 via-white to-yellow-50 dark:from-amber-950/50 dark:via-slate-950 dark:to-slate-900',
     },
@@ -461,7 +461,7 @@ export default function InventoryReplenishmentPage() {
               库存及补货分析
             </h2>
             <p className="break-keep text-sm leading-6 text-slate-600 dark:text-slate-300">
-              统一查看 SKU 库存、在途、加权 DMS 和补货时点。在途数据直接复用发货信息管理，不在本页重复维护。
+              统一查看 SKU 库存、在途、加权 DMS 和补货时点。在途数据直接复用发货管理，不在本页重复维护。
             </p>
           </div>
           <div className="flex flex-wrap items-end gap-3 lg:max-w-[820px] lg:justify-end">
@@ -548,7 +548,7 @@ export default function InventoryReplenishmentPage() {
         <CardHeader className="border-b border-slate-100 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-900/70">
           <CardTitle className="text-slate-900 dark:text-slate-50">SKU 补货主表</CardTitle>
           <CardDescription className="dark:text-slate-400">
-            ASIN 默认为只读；行内仅可修改生产交货时间、运输时间和加权系数。发货信息仅查看，维护入口仍在发货信息管理。
+            ASIN 默认为只读；行内仅可修改生产交货时间、运输时间和加权系数。发货信息仅查看，维护入口仍在发货管理。
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
@@ -689,7 +689,7 @@ export default function InventoryReplenishmentPage() {
                               size="sm"
                               variant="outline"
                               className="h-8 justify-start whitespace-nowrap px-2.5 text-xs dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                              onClick={() => router.push('/dashboard/data-analysis/shipment-management')}
+                              onClick={() => router.push('/dashboard/data-management/shipment-management')}
                             >
                               前往发货管理
                             </Button>
@@ -709,7 +709,7 @@ export default function InventoryReplenishmentPage() {
           <SheetHeader>
             <SheetTitle className="dark:text-slate-100">{selectedRow ? `${selectedRow.sku} 发货信息` : '发货信息'}</SheetTitle>
             <SheetDescription className="dark:text-slate-400">
-              在途数量口径包含 `in_transit`、`arrived_port`、`inbound_processing`。本抽屉只读展示，维护请前往发货信息管理。
+              在途数量口径包含 `in_transit`、`arrived_port`、`inbound_processing`。本抽屉只读展示，维护请前往发货管理。
             </SheetDescription>
           </SheetHeader>
 
@@ -770,7 +770,7 @@ export default function InventoryReplenishmentPage() {
                           <div className="space-y-3 text-right">
                             <div className="text-xs text-slate-500 dark:text-slate-400">最近更新</div>
                             <div className="text-sm text-slate-700 dark:text-slate-300">{item.updated_at}</div>
-                            <Button variant="outline" size="sm" className="dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" onClick={() => router.push('/dashboard/data-analysis/shipment-management')}>
+                            <Button variant="outline" size="sm" className="dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" onClick={() => router.push('/dashboard/data-management/shipment-management')}>
                               前往发货管理
                             </Button>
                           </div>

@@ -1,0 +1,681 @@
+from __future__ import annotations
+
+from datetime import datetime
+from decimal import Decimal, ROUND_HALF_UP
+import math
+
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+from app.models import ExchangeRate, PricingCalculationRun
+from app.schemas.pricing_calculation import PricingCalculationCreateRequest, PricingCalculationReverseRequest
+
+CM_PER_INCH = Decimal('2.54')
+KG_PER_LB = Decimal('0.45359237')
+OZ_PER_LB = Decimal('16')
+DIM_DIVISOR = Decimal('139')
+CUBIC_IN_PER_CUBIC_FT = Decimal('1728')
+MONEY_QUANT = Decimal('0.01')
+METRIC_QUANT = Decimal('0.0001')
+RATE_QUANT = Decimal('0.000001')
+VOLUME_FT_QUANT = Decimal('0.000001')
+
+COMMISSION_RATE = Decimal('0.15')
+RETURN_COMMISSION_RELIEF_RATE = Decimal('0.20')
+STANDARD_STORAGE_RATE = Decimal('0.78')
+OVERSIZE_STORAGE_RATE = Decimal('0.56')
+
+PRICE_BANDS = [
+    ('lt_10', '售价 < $10'),
+    ('between_10_50', '售价 $10 ~ $50'),
+    ('gt_50', '售价 > $50'),
+]
+
+SMALL_STANDARD_FEES = [
+    (Decimal('2'), ('2.43', '3.32', '3.58'), '不超过 2 盎司'),
+    (Decimal('4'), ('2.49', '3.42', '3.68'), '2 至 4 盎司'),
+    (Decimal('6'), ('2.56', '3.45', '3.71'), '4 至 6 盎司'),
+    (Decimal('8'), ('2.66', '3.54', '3.80'), '6 至 8 盎司'),
+    (Decimal('10'), ('2.77', '3.68', '3.94'), '8 至 10 盎司'),
+    (Decimal('12'), ('2.82', '3.78', '4.04'), '10 至 12 盎司'),
+    (Decimal('14'), ('2.92', '3.91', '4.17'), '12 至 14 盎司'),
+    (Decimal('16'), ('2.95', '3.96', '4.22'), '14 至 16 盎司'),
+]
+
+LARGE_STANDARD_FIXED_FEES = [
+    (Decimal('4') / OZ_PER_LB, ('2.91', '3.73', '3.99'), '不超过 4 盎司'),
+    (Decimal('8') / OZ_PER_LB, ('3.13', '3.95', '4.21'), '4 至 8 盎司'),
+    (Decimal('12') / OZ_PER_LB, ('3.38', '4.20', '4.46'), '8 至 12 盎司'),
+    (Decimal('16') / OZ_PER_LB, ('3.78', '4.60', '4.86'), '12 至 16 盎司'),
+    (Decimal('1.25'), ('4.22', '5.04', '5.30'), '1 至 1.25 磅'),
+    (Decimal('1.5'), ('4.60', '5.42', '5.68'), '1.25 至 1.5 磅'),
+    (Decimal('1.75'), ('4.75', '5.57', '5.83'), '1.5 至 1.75 磅'),
+    (Decimal('2'), ('5.00', '5.82', '6.08'), '1.75 至 2 磅'),
+    (Decimal('2.25'), ('5.10', '5.92', '6.18'), '2 至 2.25 磅'),
+    (Decimal('2.5'), ('5.28', '6.10', '6.36'), '2.25 至 2.5 磅'),
+    (Decimal('2.75'), ('5.44', '6.26', '6.52'), '2.5 至 2.75 磅'),
+    (Decimal('3'), ('5.85', '6.67', '6.93'), '2.75 至 3 磅'),
+]
+
+SMALL_STANDARD_INBOUND_FEES = [
+    (Decimal('8'), Decimal('0.32'), '不超过 8 盎司'),
+    (Decimal('16'), Decimal('0.32'), '8 至 16 盎司'),
+]
+
+LARGE_STANDARD_INBOUND_FEES = [
+    (Decimal('12') / OZ_PER_LB, Decimal('0.40'), '不超过 12 盎司'),
+    (Decimal('1.5'), Decimal('0.50'), '12 盎司至 1.5 磅'),
+    (Decimal('3'), Decimal('0.60'), '1.5 至 3 磅'),
+    (Decimal('5'), Decimal('0.76'), '3 至 5 磅'),
+    (Decimal('7'), Decimal('0.98'), '5 至 7 磅'),
+    (Decimal('10'), Decimal('1.20'), '7 至 10 磅'),
+    (Decimal('15'), Decimal('1.50'), '10 至 15 磅'),
+    (Decimal('20'), Decimal('1.90'), '15 至 20 磅'),
+]
+
+SMALL_OVERSIZE_INBOUND_FEES = [
+    (Decimal('5'), Decimal('1.60'), '小于或等于 5 磅'),
+    (Decimal('12'), Decimal('2.40'), '5 至 12 磅'),
+    (Decimal('28'), Decimal('3.50'), '12 至 28 磅'),
+    (Decimal('42'), Decimal('4.95'), '28 至 42 磅'),
+    (Decimal('50'), Decimal('5.95'), '42 至 50 磅'),
+]
+
+LARGE_OVERSIZE_INBOUND_FEES = [
+    (Decimal('5'), Decimal('1.80'), '小于或等于 5 磅'),
+    (Decimal('12'), Decimal('2.90'), '5 至 12 磅'),
+    (Decimal('28'), Decimal('4.10'), '12 至 28 磅'),
+    (Decimal('42'), Decimal('5.60'), '28 至 42 磅'),
+    (Decimal('50'), Decimal('6.50'), '42 至 50 磅'),
+]
+
+TIER_LABELS = {
+    'small_standard': '小号标准尺寸',
+    'large_standard': '大号标准尺寸',
+    'small_oversize': '小号大件',
+    'large_oversize': '大号大件',
+    'oversize_0_50': '超大件（0 至 50 磅）',
+    'oversize_50_70': '超大件（50 至 70 磅）',
+    'oversize_70_150': '超大件（70 至 150 磅）',
+    'oversize_150_plus': '超大件（150 磅以上）',
+}
+
+
+def ensure_tables(db: Session) -> None:
+    bind = db.get_bind()
+    if bind.dialect.name != 'sqlite':
+        return
+    PricingCalculationRun.__table__.create(bind=bind, checkfirst=True)
+
+
+def create_pricing_run(db: Session, payload: PricingCalculationCreateRequest, *, operator: str | None = None) -> PricingCalculationRun:
+    ensure_tables(db)
+    computed = _compute_pricing(payload, db)
+    row = PricingCalculationRun(
+        product_name=payload.product_name.strip(),
+        package_length_cm=computed['inputs']['package_length_cm'],
+        package_width_cm=computed['inputs']['package_width_cm'],
+        package_height_cm=computed['inputs']['package_height_cm'],
+        weight_kg=computed['inputs']['weight_kg'],
+        fob_product_cost_rmb=computed['inputs']['fob_product_cost_rmb'],
+        first_leg_cost_rmb=computed['inputs']['first_leg_cost_rmb'],
+        ddp_cost_rmb=computed['profit_decimal']['ddp_cost_rmb'],
+        ddp_cost_usd=computed['profit_decimal']['ddp_cost_usd'],
+        sale_price_usd=computed['inputs']['sale_price_usd'],
+        commission_rate=COMMISSION_RATE,
+        advertising_rate=computed['inputs']['advertising_rate'],
+        return_loss_rate=computed['inputs']['return_loss_rate'],
+        storage_months=computed['inputs']['storage_months'],
+        inbound_placement_mode=computed['inputs']['inbound_placement_mode'],
+        usd_to_rmb_rate=computed['usd_to_rmb_rate'],
+        usd_to_rmb_rate_source=computed['usd_to_rmb_rate_source'],
+        size_tier=computed['size_tier'],
+        size_tier_label=computed['size_tier_label'],
+        price_band=computed['price_band'],
+        price_band_label=computed['price_band_label'],
+        longest_side_in=computed['dimensions_decimal']['longest_side_in'],
+        middle_side_in=computed['dimensions_decimal']['middle_side_in'],
+        shortest_side_in=computed['dimensions_decimal']['shortest_side_in'],
+        length_plus_girth_in=computed['dimensions_decimal']['length_plus_girth_in'],
+        volume_cubic_in=computed['dimensions_decimal']['volume_cubic_in'],
+        volume_cubic_ft=computed['dimensions_decimal']['volume_cubic_ft'],
+        product_weight_lb=computed['weights_decimal']['product_weight_lb'],
+        product_weight_oz=computed['weights_decimal']['product_weight_oz'],
+        dimensional_weight_lb=computed['weights_decimal']['dimensional_weight_lb'],
+        chargeable_weight_lb=computed['weights_decimal']['chargeable_weight_lb'],
+        chargeable_weight_oz=computed['weights_decimal']['chargeable_weight_oz'],
+        chargeable_weight_rule=computed['weights']['chargeable_weight_rule'],
+        fulfillment_fee_rule_label=computed['fulfillment_fee_rule_label'],
+        inbound_config_fee_rule_label=computed['inbound_config_fee_rule_label'],
+        storage_fee_rule_label=computed['storage_fee_rule_label'],
+        referral_fee_usd=computed['fees_decimal']['referral_fee_usd'],
+        advertising_fee_usd=computed['fees_decimal']['advertising_fee_usd'],
+        return_loss_usd=computed['fees_decimal']['return_loss_usd'],
+        fba_fulfillment_fee_usd=computed['fees_decimal']['fba_fulfillment_fee_usd'],
+        inbound_config_fee_usd=computed['fees_decimal']['inbound_config_fee_usd'],
+        storage_fee_usd=computed['fees_decimal']['storage_fee_usd'],
+        total_fee_usd=computed['fees_decimal']['total_fee_usd'],
+        payout_usd=computed['profit_decimal']['payout_usd'],
+        profit_usd=computed['profit_decimal']['profit_usd'],
+        profit_rate=computed['profit_decimal']['profit_rate'],
+        warnings_json=computed['warnings'],
+        notes='\n'.join(computed['warnings']) if computed['warnings'] else None,
+        created_by=(operator or '').strip() or None,
+    )
+    db.add(row)
+    db.flush()
+    db.refresh(row)
+    return row
+
+
+def create_pricing_reverse_run(
+    db: Session,
+    payload: PricingCalculationReverseRequest,
+    *,
+    operator: str | None = None,
+) -> PricingCalculationRun:
+    ensure_tables(db)
+    resolved_sale_price_usd = _solve_sale_price_for_profit_rate(payload, db)
+    create_payload = PricingCalculationCreateRequest(
+        product_name=payload.product_name,
+        package_length_cm=payload.package_length_cm,
+        package_width_cm=payload.package_width_cm,
+        package_height_cm=payload.package_height_cm,
+        weight_kg=payload.weight_kg,
+        fob_product_cost_rmb=payload.fob_product_cost_rmb,
+        first_leg_cost_rmb=payload.first_leg_cost_rmb,
+        sale_price_usd=float(resolved_sale_price_usd),
+        advertising_rate=payload.advertising_rate,
+        return_loss_rate=payload.return_loss_rate,
+        storage_months=payload.storage_months,
+        inbound_placement_mode=payload.inbound_placement_mode,
+        usd_to_rmb_rate=payload.usd_to_rmb_rate,
+    )
+    return create_pricing_run(db, create_payload, operator=operator)
+
+
+def list_pricing_runs(db: Session, *, page: int = 1, page_size: int = 20) -> tuple[list[PricingCalculationRun], int]:
+    ensure_tables(db)
+    safe_page = max(page, 1)
+    safe_page_size = min(max(page_size, 1), 100)
+    stmt = select(PricingCalculationRun)
+    total = int(db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one() or 0)
+    rows = db.execute(
+        stmt.order_by(PricingCalculationRun.created_at.desc(), PricingCalculationRun.id.desc())
+        .offset((safe_page - 1) * safe_page_size)
+        .limit(safe_page_size)
+    ).scalars().all()
+    return rows, total
+
+
+def serialize_pricing_run(row: PricingCalculationRun) -> dict[str, object]:
+    return {
+        'id': int(row.id),
+        'product_name': str(row.product_name),
+        'package_length_cm': float(row.package_length_cm),
+        'package_width_cm': float(row.package_width_cm),
+        'package_height_cm': float(row.package_height_cm),
+        'weight_kg': float(row.weight_kg),
+        'fob_product_cost_rmb': float(row.fob_product_cost_rmb),
+        'first_leg_cost_rmb': float(row.first_leg_cost_rmb),
+        'sale_price_usd': float(row.sale_price_usd),
+        'advertising_rate': float(row.advertising_rate),
+        'return_loss_rate': float(row.return_loss_rate),
+        'storage_months': float(row.storage_months),
+        'inbound_placement_mode': str(row.inbound_placement_mode),
+        'size_tier': str(row.size_tier),
+        'size_tier_label': str(row.size_tier_label),
+        'price_band': str(row.price_band),
+        'price_band_label': str(row.price_band_label),
+        'usd_to_rmb_rate': float(row.usd_to_rmb_rate),
+        'usd_to_rmb_rate_source': str(row.usd_to_rmb_rate_source),
+        'fulfillment_fee_rule_label': str(row.fulfillment_fee_rule_label),
+        'inbound_config_fee_rule_label': str(row.inbound_config_fee_rule_label),
+        'storage_fee_rule_label': str(row.storage_fee_rule_label),
+        'dimensions': {
+            'longest_side_in': float(row.longest_side_in),
+            'middle_side_in': float(row.middle_side_in),
+            'shortest_side_in': float(row.shortest_side_in),
+            'length_plus_girth_in': float(row.length_plus_girth_in),
+            'volume_cubic_in': float(row.volume_cubic_in),
+            'volume_cubic_ft': float(row.volume_cubic_ft),
+        },
+        'weights': {
+            'product_weight_lb': float(row.product_weight_lb),
+            'product_weight_oz': float(row.product_weight_oz),
+            'dimensional_weight_lb': float(row.dimensional_weight_lb),
+            'chargeable_weight_lb': float(row.chargeable_weight_lb),
+            'chargeable_weight_oz': float(row.chargeable_weight_oz),
+            'chargeable_weight_rule': str(row.chargeable_weight_rule),
+        },
+        'fees': {
+            'referral_fee_usd': float(row.referral_fee_usd),
+            'advertising_fee_usd': float(row.advertising_fee_usd),
+            'return_loss_usd': float(row.return_loss_usd),
+            'fba_fulfillment_fee_usd': float(row.fba_fulfillment_fee_usd),
+            'inbound_config_fee_usd': float(row.inbound_config_fee_usd),
+            'storage_fee_usd': float(row.storage_fee_usd),
+            'total_fee_usd': float(row.total_fee_usd),
+        },
+        'profit': {
+            'ddp_cost_rmb': float(row.ddp_cost_rmb),
+            'ddp_cost_usd': float(row.ddp_cost_usd),
+            'payout_usd': float(row.payout_usd),
+            'profit_usd': float(row.profit_usd),
+            'profit_rate': float(row.profit_rate),
+        },
+        'warnings': list(row.warnings_json or []),
+        'created_by': row.created_by,
+        'created_at': _to_iso(row.created_at),
+        'updated_at': _to_iso(row.updated_at),
+    }
+
+
+def _compute_pricing(payload: PricingCalculationCreateRequest, db: Session) -> dict[str, object]:
+    length_cm = _decimal(payload.package_length_cm)
+    width_cm = _decimal(payload.package_width_cm)
+    height_cm = _decimal(payload.package_height_cm)
+    weight_kg = _decimal(payload.weight_kg)
+    sale_price_usd = _money(payload.sale_price_usd)
+    fob_product_cost_rmb = _money(payload.fob_product_cost_rmb)
+    first_leg_cost_rmb = _money(payload.first_leg_cost_rmb)
+    advertising_rate = _ratio(_decimal(payload.advertising_rate))
+    return_loss_rate = _ratio(_decimal(payload.return_loss_rate))
+    storage_months = _quantize(_decimal(payload.storage_months), Decimal('0.01'))
+
+    usd_to_rmb_rate, rate_source = _resolve_usd_to_rmb_rate(db, payload.usd_to_rmb_rate)
+
+    sides_in = sorted([length_cm / CM_PER_INCH, width_cm / CM_PER_INCH, height_cm / CM_PER_INCH], reverse=True)
+    longest_side_in, middle_side_in, shortest_side_in = sides_in
+    length_plus_girth_in = longest_side_in + (middle_side_in + shortest_side_in) * 2
+    volume_cubic_in = longest_side_in * middle_side_in * shortest_side_in
+    volume_cubic_ft = volume_cubic_in / CUBIC_IN_PER_CUBIC_FT
+    product_weight_lb = weight_kg / KG_PER_LB
+    product_weight_oz = product_weight_lb * OZ_PER_LB
+    dimensional_weight_lb = volume_cubic_in / DIM_DIVISOR
+
+    size_tier, size_rule, chargeable_weight_lb = _resolve_size_tier(
+        longest_side_in=longest_side_in,
+        middle_side_in=middle_side_in,
+        shortest_side_in=shortest_side_in,
+        length_plus_girth_in=length_plus_girth_in,
+        product_weight_lb=product_weight_lb,
+        dimensional_weight_lb=dimensional_weight_lb,
+    )
+    chargeable_weight_oz = chargeable_weight_lb * OZ_PER_LB
+    price_band, price_band_label = _resolve_price_band(sale_price_usd)
+    fulfillment_fee_usd, fulfillment_rule = _resolve_fba_fee(size_tier, chargeable_weight_lb, chargeable_weight_oz, price_band)
+    inbound_fee_usd, inbound_rule, inbound_warnings = _resolve_inbound_config_fee(
+        size_tier=size_tier,
+        chargeable_weight_lb=chargeable_weight_lb,
+        chargeable_weight_oz=chargeable_weight_oz,
+        inbound_placement_mode=payload.inbound_placement_mode,
+    )
+    storage_fee_usd, storage_rule = _resolve_storage_fee(size_tier=size_tier, volume_cubic_ft=volume_cubic_ft, storage_months=storage_months)
+
+    ddp_cost_rmb = _money_decimal(fob_product_cost_rmb + first_leg_cost_rmb)
+    ddp_cost_usd = _money_decimal(ddp_cost_rmb / usd_to_rmb_rate)
+    referral_fee_usd = _money_decimal(
+        sale_price_usd * COMMISSION_RATE * (Decimal('1') - (return_loss_rate * RETURN_COMMISSION_RELIEF_RATE))
+    )
+    advertising_fee_usd = _money_decimal(sale_price_usd * advertising_rate)
+    return_loss_usd = _money_decimal(sale_price_usd * return_loss_rate)
+    total_fee_usd = _money_decimal(
+        referral_fee_usd + advertising_fee_usd + return_loss_usd + fulfillment_fee_usd + inbound_fee_usd + storage_fee_usd
+    )
+    payout_usd = _money_decimal(sale_price_usd - referral_fee_usd - fulfillment_fee_usd - inbound_fee_usd - storage_fee_usd - return_loss_usd)
+    profit_usd = _money_decimal(payout_usd - ddp_cost_usd - advertising_fee_usd)
+    profit_rate = _ratio_decimal(profit_usd / sale_price_usd) if sale_price_usd > 0 else Decimal('0')
+
+    warnings = list(inbound_warnings)
+
+    return {
+        'inputs': {
+            'package_length_cm': _quantize(length_cm, METRIC_QUANT),
+            'package_width_cm': _quantize(width_cm, METRIC_QUANT),
+            'package_height_cm': _quantize(height_cm, METRIC_QUANT),
+            'weight_kg': _quantize(weight_kg, METRIC_QUANT),
+            'fob_product_cost_rmb': fob_product_cost_rmb,
+            'first_leg_cost_rmb': first_leg_cost_rmb,
+            'sale_price_usd': sale_price_usd,
+            'advertising_rate': advertising_rate,
+            'return_loss_rate': return_loss_rate,
+            'storage_months': storage_months,
+            'inbound_placement_mode': payload.inbound_placement_mode,
+        },
+        'size_tier': size_tier,
+        'size_tier_label': TIER_LABELS[size_tier],
+        'price_band': price_band,
+        'price_band_label': price_band_label,
+        'usd_to_rmb_rate': _quantize(usd_to_rmb_rate, RATE_QUANT),
+        'usd_to_rmb_rate_source': rate_source,
+        'dimensions_decimal': {
+            'longest_side_in': _quantize(longest_side_in, METRIC_QUANT),
+            'middle_side_in': _quantize(middle_side_in, METRIC_QUANT),
+            'shortest_side_in': _quantize(shortest_side_in, METRIC_QUANT),
+            'length_plus_girth_in': _quantize(length_plus_girth_in, METRIC_QUANT),
+            'volume_cubic_in': _quantize(volume_cubic_in, METRIC_QUANT),
+            'volume_cubic_ft': _quantize(volume_cubic_ft, VOLUME_FT_QUANT),
+        },
+        'weights_decimal': {
+            'product_weight_lb': _quantize(product_weight_lb, METRIC_QUANT),
+            'product_weight_oz': _quantize(product_weight_oz, METRIC_QUANT),
+            'dimensional_weight_lb': _quantize(dimensional_weight_lb, METRIC_QUANT),
+            'chargeable_weight_lb': _quantize(chargeable_weight_lb, METRIC_QUANT),
+            'chargeable_weight_oz': _quantize(chargeable_weight_oz, METRIC_QUANT),
+        },
+        'weights': {
+            'chargeable_weight_rule': size_rule,
+        },
+        'fulfillment_fee_rule_label': fulfillment_rule,
+        'inbound_config_fee_rule_label': inbound_rule,
+        'storage_fee_rule_label': storage_rule,
+        'fees_decimal': {
+            'referral_fee_usd': referral_fee_usd,
+            'advertising_fee_usd': advertising_fee_usd,
+            'return_loss_usd': return_loss_usd,
+            'fba_fulfillment_fee_usd': fulfillment_fee_usd,
+            'inbound_config_fee_usd': inbound_fee_usd,
+            'storage_fee_usd': storage_fee_usd,
+            'total_fee_usd': total_fee_usd,
+        },
+        'profit_decimal': {
+            'ddp_cost_rmb': ddp_cost_rmb,
+            'ddp_cost_usd': ddp_cost_usd,
+            'payout_usd': payout_usd,
+            'profit_usd': profit_usd,
+            'profit_rate': profit_rate,
+        },
+        'warnings': warnings,
+    }
+
+
+def _solve_sale_price_for_profit_rate(payload: PricingCalculationReverseRequest, db: Session) -> Decimal:
+    target_profit_rate = _ratio(_decimal(payload.target_profit_rate))
+    low = Decimal('0.01')
+    high = Decimal('10')
+
+    def compute_at(price: Decimal) -> dict[str, object]:
+        candidate_payload = PricingCalculationCreateRequest(
+            product_name=payload.product_name,
+            package_length_cm=payload.package_length_cm,
+            package_width_cm=payload.package_width_cm,
+            package_height_cm=payload.package_height_cm,
+            weight_kg=payload.weight_kg,
+            fob_product_cost_rmb=payload.fob_product_cost_rmb,
+            first_leg_cost_rmb=payload.first_leg_cost_rmb,
+            sale_price_usd=float(price),
+            advertising_rate=payload.advertising_rate,
+            return_loss_rate=payload.return_loss_rate,
+            storage_months=payload.storage_months,
+            inbound_placement_mode=payload.inbound_placement_mode,
+            usd_to_rmb_rate=payload.usd_to_rmb_rate,
+        )
+        return _compute_pricing(candidate_payload, db)
+
+    high_result = compute_at(high)
+    high_profit_rate = high_result['profit_decimal']['profit_rate']
+    while high_profit_rate < target_profit_rate:
+        high *= Decimal('2')
+        if high > Decimal('1000000'):
+            raise ValueError('目标利润率过高，当前参数下无法倒算出合理售价')
+        high_result = compute_at(high)
+        high_profit_rate = high_result['profit_decimal']['profit_rate']
+
+    for _ in range(40):
+        mid = _money_decimal((low + high) / Decimal('2'))
+        result = compute_at(mid)
+        current_profit_rate = result['profit_decimal']['profit_rate']
+        if current_profit_rate >= target_profit_rate:
+            high = mid
+        else:
+            low = mid
+
+    final_price = _money_decimal(high)
+    final_result = compute_at(final_price)
+    if final_result['profit_decimal']['profit_rate'] < target_profit_rate:
+        final_price = _money_decimal(final_price + Decimal('0.01'))
+
+    return final_price
+
+
+def _resolve_usd_to_rmb_rate(db: Session, manual_rate: float | None) -> tuple[Decimal, str]:
+    if manual_rate is not None:
+        return _decimal(manual_rate), 'manual'
+    row = db.execute(
+        select(ExchangeRate)
+        .where(ExchangeRate.currency == 'USD')
+        .order_by(ExchangeRate.year_month.desc(), ExchangeRate.id.desc())
+        .limit(1)
+    ).scalars().first()
+    if row is None:
+        raise ValueError('缺少 USD 汇率，请先维护汇率信息或在请求中传入 usd_to_rmb_rate')
+    return _decimal(row.rate), f'system:{row.year_month}'
+
+
+def _resolve_price_band(sale_price_usd: Decimal) -> tuple[str, str]:
+    if sale_price_usd < Decimal('10'):
+        return PRICE_BANDS[0]
+    if sale_price_usd <= Decimal('50'):
+        return PRICE_BANDS[1]
+    return PRICE_BANDS[2]
+
+
+def _resolve_size_tier(
+    *,
+    longest_side_in: Decimal,
+    middle_side_in: Decimal,
+    shortest_side_in: Decimal,
+    length_plus_girth_in: Decimal,
+    product_weight_lb: Decimal,
+    dimensional_weight_lb: Decimal,
+) -> tuple[str, str, Decimal]:
+    if (
+        longest_side_in <= Decimal('15')
+        and middle_side_in <= Decimal('12')
+        and shortest_side_in <= Decimal('0.75')
+        and product_weight_lb <= Decimal('1')
+    ):
+        return 'small_standard', '商品重量', product_weight_lb
+
+    large_standard_weight = max(product_weight_lb, dimensional_weight_lb)
+    if (
+        longest_side_in <= Decimal('18')
+        and middle_side_in <= Decimal('14')
+        and shortest_side_in <= Decimal('8')
+        and large_standard_weight <= Decimal('20')
+    ):
+        return 'large_standard', '商品重量与体积重量取大值', large_standard_weight
+
+    small_oversize_weight = max(product_weight_lb, dimensional_weight_lb)
+    if (
+        longest_side_in <= Decimal('37')
+        and middle_side_in <= Decimal('28')
+        and shortest_side_in <= Decimal('20')
+        and length_plus_girth_in <= Decimal('130')
+        and small_oversize_weight <= Decimal('50')
+    ):
+        return 'small_oversize', '商品重量与体积重量取大值', small_oversize_weight
+
+    large_oversize_weight = max(product_weight_lb, dimensional_weight_lb)
+    if (
+        longest_side_in <= Decimal('59')
+        and middle_side_in <= Decimal('33')
+        and shortest_side_in <= Decimal('33')
+        and length_plus_girth_in <= Decimal('130')
+        and large_oversize_weight <= Decimal('50')
+    ):
+        return 'large_oversize', '商品重量与体积重量取大值', large_oversize_weight
+
+    if product_weight_lb > Decimal('150'):
+        return 'oversize_150_plus', '商品重量', product_weight_lb
+
+    oversize_weight = max(product_weight_lb, dimensional_weight_lb)
+    if oversize_weight <= Decimal('50'):
+        return 'oversize_0_50', '商品重量与体积重量取大值', oversize_weight
+    if oversize_weight <= Decimal('70'):
+        return 'oversize_50_70', '商品重量与体积重量取大值', oversize_weight
+    return 'oversize_70_150', '商品重量与体积重量取大值', oversize_weight
+
+
+def _resolve_fba_fee(size_tier: str, chargeable_weight_lb: Decimal, chargeable_weight_oz: Decimal, price_band: str) -> tuple[Decimal, str]:
+    price_band_index = {'lt_10': 0, 'between_10_50': 1, 'gt_50': 2}[price_band]
+
+    if size_tier == 'small_standard':
+        for upper_oz, fees, label in SMALL_STANDARD_FEES:
+            if chargeable_weight_oz <= upper_oz:
+                return Decimal(fees[price_band_index]), f'{TIER_LABELS[size_tier]} / {label}'
+
+    if size_tier == 'large_standard':
+        for upper_lb, fees, label in LARGE_STANDARD_FIXED_FEES:
+            if chargeable_weight_lb <= upper_lb:
+                return Decimal(fees[price_band_index]), f'{TIER_LABELS[size_tier]} / {label}'
+        base_fee = Decimal(('6.15', '6.97', '7.23')[price_band_index])
+        increments = _ceil_positive((chargeable_weight_oz - Decimal('48')) / Decimal('4'))
+        return _money_decimal(base_fee + Decimal(increments) * Decimal('0.08')), f'{TIER_LABELS[size_tier]} / 3 至 20 磅'
+
+    if size_tier == 'small_oversize':
+        return _tier_fee_with_first_pound(
+            base=Decimal(('6.78', '7.55', '7.55')[price_band_index]),
+            chargeable_weight_lb=chargeable_weight_lb,
+            increment=Decimal('0.38'),
+            tier_label=TIER_LABELS[size_tier],
+        )
+
+    if size_tier == 'large_oversize':
+        return _tier_fee_with_first_pound(
+            base=Decimal(('8.58', '9.35', '9.35')[price_band_index]),
+            chargeable_weight_lb=chargeable_weight_lb,
+            increment=Decimal('0.38'),
+            tier_label=TIER_LABELS[size_tier],
+        )
+
+    if size_tier == 'oversize_0_50':
+        return _tier_fee_with_first_pound(
+            base=Decimal(('25.56', '26.33', '26.33')[price_band_index]),
+            chargeable_weight_lb=chargeable_weight_lb,
+            increment=Decimal('0.38'),
+            tier_label=TIER_LABELS[size_tier],
+        )
+
+    if size_tier == 'oversize_50_70':
+        return _tier_fee_with_threshold(
+            base=Decimal(('36.55', '37.32', '37.32')[price_band_index]),
+            chargeable_weight_lb=chargeable_weight_lb,
+            threshold_lb=Decimal('51'),
+            increment=Decimal('0.75'),
+            tier_label=TIER_LABELS[size_tier],
+        )
+
+    if size_tier == 'oversize_70_150':
+        return _tier_fee_with_threshold(
+            base=Decimal(('50.55', '51.32', '51.32')[price_band_index]),
+            chargeable_weight_lb=chargeable_weight_lb,
+            threshold_lb=Decimal('71'),
+            increment=Decimal('0.75'),
+            tier_label=TIER_LABELS[size_tier],
+        )
+
+    return _tier_fee_with_threshold(
+        base=Decimal(('194.18', '194.95', '194.95')[price_band_index]),
+        chargeable_weight_lb=chargeable_weight_lb,
+        threshold_lb=Decimal('151'),
+        increment=Decimal('0.19'),
+        tier_label=TIER_LABELS['oversize_150_plus'],
+    )
+
+
+def _resolve_inbound_config_fee(
+    *,
+    size_tier: str,
+    chargeable_weight_lb: Decimal,
+    chargeable_weight_oz: Decimal,
+    inbound_placement_mode: str,
+) -> tuple[Decimal, str, list[str]]:
+    if inbound_placement_mode == 'amazon_optimized_split':
+        return Decimal('0.00'), '亚马逊优化的货件拆分 / 发往五个或更多地点 / 无费用', []
+
+    if size_tier == 'small_standard':
+        for upper_oz, fee, label in SMALL_STANDARD_INBOUND_FEES:
+            if chargeable_weight_oz <= upper_oz:
+                return fee, f'{TIER_LABELS[size_tier]} / 单点入仓 / {label}', []
+
+    if size_tier == 'large_standard':
+        for upper_lb, fee, label in LARGE_STANDARD_INBOUND_FEES:
+            if chargeable_weight_lb <= upper_lb:
+                return fee, f'{TIER_LABELS[size_tier]} / 单点入仓 / {label}', []
+
+    if size_tier == 'small_oversize':
+        for upper_lb, fee, label in SMALL_OVERSIZE_INBOUND_FEES:
+            if chargeable_weight_lb <= upper_lb:
+                return fee, f'{TIER_LABELS[size_tier]} / 单点入仓 / {label}', []
+
+    if size_tier == 'large_oversize':
+        for upper_lb, fee, label in LARGE_OVERSIZE_INBOUND_FEES:
+            if chargeable_weight_lb <= upper_lb:
+                return fee, f'{TIER_LABELS[size_tier]} / 单点入仓 / {label}', []
+
+    return Decimal('0.00'), f'{TIER_LABELS[size_tier]} / 当前未提供入库配置费规则，暂按 $0 计', [
+        f'{TIER_LABELS[size_tier]} 当前未提供入库配置费阶梯，系统暂按 $0 计算。',
+    ]
+
+
+def _resolve_storage_fee(*, size_tier: str, volume_cubic_ft: Decimal, storage_months: Decimal) -> tuple[Decimal, str]:
+    is_standard = size_tier in {'small_standard', 'large_standard'}
+    rate = STANDARD_STORAGE_RATE if is_standard else OVERSIZE_STORAGE_RATE
+    fee = _money_decimal(volume_cubic_ft * rate * storage_months)
+    label = '标准尺寸 / 非危险品 / 非旺季' if is_standard else '大件商品 / 非危险品 / 非旺季'
+    return fee, f'{label} / ${rate} / 立方英尺 / 月'
+
+
+def _tier_fee_with_first_pound(*, base: Decimal, chargeable_weight_lb: Decimal, increment: Decimal, tier_label: str) -> tuple[Decimal, str]:
+    increments = _ceil_positive(chargeable_weight_lb - Decimal('1'))
+    return _money_decimal(base + Decimal(increments) * increment), f'{tier_label} / 0 至 50 磅'
+
+
+def _tier_fee_with_threshold(
+    *,
+    base: Decimal,
+    chargeable_weight_lb: Decimal,
+    threshold_lb: Decimal,
+    increment: Decimal,
+    tier_label: str,
+) -> tuple[Decimal, str]:
+    increments = _ceil_positive(chargeable_weight_lb - threshold_lb)
+    return _money_decimal(base + Decimal(increments) * increment), tier_label
+
+
+def _decimal(value: object) -> Decimal:
+    return Decimal(str(value))
+
+
+def _money(value: object) -> Decimal:
+    return _money_decimal(_decimal(value))
+
+
+def _money_decimal(value: Decimal) -> Decimal:
+    return _quantize(value, MONEY_QUANT)
+
+
+def _ratio(value: Decimal) -> Decimal:
+    return _quantize(value, Decimal('0.000001'))
+
+
+def _ratio_decimal(value: Decimal) -> Decimal:
+    return _quantize(value, Decimal('0.0001'))
+
+
+def _quantize(value: Decimal, precision: Decimal) -> Decimal:
+    return value.quantize(precision, rounding=ROUND_HALF_UP)
+
+
+def _ceil_positive(value: Decimal) -> int:
+    if value <= 0:
+        return 0
+    return int(math.ceil(float(value)))
+
+
+def _to_iso(value: datetime | None) -> str:
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return ''
