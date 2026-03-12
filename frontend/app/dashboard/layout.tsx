@@ -22,6 +22,7 @@ export default function DashboardLayout({
     if (pathname.includes('/data-reporting/monthly-report')) return '财务月报'
     if (pathname.includes('/data-reporting/product-analysis')) return '产品分析'
     if (pathname.includes('/data-analysis/financial-data')) return '财务数据'
+    if (pathname.includes('/data-analysis/shipment-management')) return '发货信息管理'
     if (pathname.includes('/data-analysis/inventory-replenishment')) return '库存及补货分析'
     if (pathname.includes('/data-management/report-upload')) return '报表上传'
     if (pathname.includes('/data-management/sku-cost')) return 'SKU 成本中心'

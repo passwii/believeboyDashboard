@@ -29,5 +29,7 @@ class DailyReportTaskStatusResponse(BaseModel):
     progress: int
     message: str | None
     error_message: str | None
+    persistence_status: str | None = None
+    persistence_message: str | None = None
     created_at: datetime
     updated_at: datetime

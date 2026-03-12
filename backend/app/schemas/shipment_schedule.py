@@ -15,11 +15,8 @@ class ShipmentScheduleListItem(BaseModel):
     created_date: str | None = None
     etd_date: str | None = None
     eta_date: str | None = None
-    expected_inbound_start_date: str | None = None
-    expected_inbound_end_date: str | None = None
+    actual_inbound_date: str | None = None
     shipment_status: str
-    stat_date: str | None = None
-    forwarder_update: str | None = None
     remark: str | None = None
     sku_count: int
     total_quantity: int
@@ -54,13 +51,9 @@ class ShipmentScheduleDetail(BaseModel):
     created_date: str | None = None
     etd_date: str | None = None
     eta_date: str | None = None
-    expected_inbound_start_date: str | None = None
-    expected_inbound_end_date: str | None = None
-    booking_note: str | None = None
-    forwarder_update: str | None = None
+    actual_inbound_date: str | None = None
     remark: str | None = None
     shipment_status: str
-    stat_date: str | None = None
     sku_count: int
     total_quantity: int
     items: list[ShipmentScheduleItemRow]
@@ -77,13 +70,9 @@ class ShipmentScheduleCreate(BaseModel):
     created_date: str | None = None
     etd_date: str | None = None
     eta_date: str | None = None
-    expected_inbound_start_date: str | None = None
-    expected_inbound_end_date: str | None = None
-    booking_note: str | None = None
-    forwarder_update: str | None = None
+    actual_inbound_date: str | None = None
     remark: str | None = None
     shipment_status: str = Field(min_length=1, max_length=30)
-    stat_date: str | None = None
     source_file: str | None = None
 
 
@@ -96,13 +85,9 @@ class ShipmentScheduleUpdate(BaseModel):
     created_date: str | None = None
     etd_date: str | None = None
     eta_date: str | None = None
-    expected_inbound_start_date: str | None = None
-    expected_inbound_end_date: str | None = None
-    booking_note: str | None = None
-    forwarder_update: str | None = None
+    actual_inbound_date: str | None = None
     remark: str | None = None
     shipment_status: str = Field(min_length=1, max_length=30)
-    stat_date: str | None = None
     source_file: str | None = None
 
 

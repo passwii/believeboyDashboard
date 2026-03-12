@@ -89,8 +89,7 @@ type ShipmentItem = {
   shipping_method: string
   etd_date: string | null
   eta_date: string | null
-  expected_inbound_start_date: string | null
-  expected_inbound_end_date: string | null
+  actual_inbound_date: string | null
   tracking_no: string | null
   quantity: number
   remark: string | null
@@ -143,41 +142,41 @@ function formatDate(value: string | null | undefined): string {
 }
 
 const tableHeadClassName =
-  'h-11 whitespace-nowrap border-b border-r border-slate-200 px-3 py-2.5 text-[14px] font-bold tracking-normal text-slate-700 last:border-r-0'
+  'h-11 whitespace-nowrap border-b border-r border-slate-200 px-3 py-2.5 text-[14px] font-bold tracking-normal text-slate-700 last:border-r-0 dark:border-slate-800 dark:text-slate-300'
 
 const tableCellClassName =
-  'whitespace-nowrap border-b border-r border-slate-200 px-3 py-2 align-middle text-[13px] text-slate-700 last:border-r-0'
+  'whitespace-nowrap border-b border-r border-slate-200 px-3 py-2 align-middle text-[13px] text-slate-700 last:border-r-0 dark:border-slate-800 dark:text-slate-300'
 
 const stickyTableHeadClassName =
-  'sticky top-0 z-[15] bg-slate-50 shadow-[inset_0_-1px_0_0_rgba(148,163,184,0.22)]'
+  'sticky top-0 z-[15] bg-slate-50 shadow-[inset_0_-1px_0_0_rgba(148,163,184,0.22)] dark:bg-slate-950 dark:shadow-[inset_0_-1px_0_0_rgba(51,65,85,0.65)]'
 
 const stickySkuHeadClassName =
-  'sticky left-0 top-0 z-[16] bg-slate-50 shadow-[inset_-1px_0_0_0_rgba(148,163,184,0.22)]'
+  'sticky left-0 top-0 z-[16] bg-slate-50 shadow-[inset_-1px_0_0_0_rgba(148,163,184,0.22)] dark:bg-slate-950 dark:shadow-[inset_-1px_0_0_0_rgba(51,65,85,0.65)]'
 
 const stickySkuCellClassName =
-  'sticky left-0 z-[1] bg-white shadow-[inset_-1px_0_0_0_rgba(148,163,184,0.16)] group-hover:bg-sky-50'
+  'sticky left-0 z-[1] bg-white shadow-[inset_-1px_0_0_0_rgba(148,163,184,0.16)] group-hover:bg-sky-50 dark:bg-slate-950 dark:shadow-[inset_-1px_0_0_0_rgba(51,65,85,0.65)] dark:group-hover:bg-sky-950/40'
 
 function riskMeta(riskStatus: string): { label: string; className: string } {
   const map: Record<string, { label: string; className: string }> = {
-    断货风险: { label: '断货风险', className: 'bg-rose-100 text-rose-700 border-rose-200' },
-    未来健康: { label: '未来健康', className: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
-    滞销风险: { label: '滞销风险', className: 'bg-amber-100 text-amber-700 border-amber-200' },
-    待补数据: { label: '待补数据', className: 'bg-slate-100 text-slate-700 border-slate-200' },
+    断货风险: { label: '断货风险', className: 'border-rose-200 bg-rose-100 text-rose-700 dark:border-rose-900/80 dark:bg-rose-950/50 dark:text-rose-300' },
+    未来健康: { label: '未来健康', className: 'border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-900/80 dark:bg-emerald-950/50 dark:text-emerald-300' },
+    滞销风险: { label: '滞销风险', className: 'border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-900/80 dark:bg-amber-950/50 dark:text-amber-300' },
+    待补数据: { label: '待补数据', className: 'border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300' },
   }
-  return map[riskStatus] || { label: riskStatus, className: 'bg-slate-100 text-slate-700 border-slate-200' }
+  return map[riskStatus] || { label: riskStatus, className: 'border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300' }
 }
 
 function shipmentStatusMeta(status: string): { label: string; className: string } {
   const map: Record<string, { label: string; className: string }> = {
-    draft: { label: '草稿', className: 'bg-slate-100 text-slate-700' },
-    preparing: { label: '备货中', className: 'bg-amber-100 text-amber-700' },
-    in_transit: { label: '在途', className: 'bg-sky-100 text-sky-700' },
-    arrived_port: { label: '已到港', className: 'bg-cyan-100 text-cyan-700' },
-    inbound_processing: { label: '入仓处理中', className: 'bg-violet-100 text-violet-700' },
-    completed: { label: '完成', className: 'bg-emerald-100 text-emerald-700' },
-    cancelled: { label: '取消', className: 'bg-rose-100 text-rose-700' },
+    draft: { label: '草稿', className: 'border border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200' },
+    preparing: { label: '备货中', className: 'border border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-900/80 dark:bg-amber-950/60 dark:text-amber-300' },
+    in_transit: { label: '在途', className: 'border border-sky-200 bg-sky-100 text-sky-700 dark:border-sky-900/80 dark:bg-sky-950/60 dark:text-sky-300' },
+    arrived_port: { label: '已到港', className: 'border border-cyan-200 bg-cyan-100 text-cyan-700 dark:border-cyan-900/80 dark:bg-cyan-950/60 dark:text-cyan-300' },
+    inbound_processing: { label: '入仓处理中', className: 'border border-violet-200 bg-violet-100 text-violet-700 dark:border-violet-900/80 dark:bg-violet-950/60 dark:text-violet-300' },
+    completed: { label: '完成', className: 'border border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-900/80 dark:bg-emerald-950/60 dark:text-emerald-300' },
+    cancelled: { label: '取消', className: 'border border-rose-200 bg-rose-100 text-rose-700 dark:border-rose-900/80 dark:bg-rose-950/60 dark:text-rose-300' },
   }
-  return map[status] || { label: status, className: 'bg-slate-100 text-slate-700' }
+  return map[status] || { label: status, className: 'border border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200' }
 }
 
 function methodLabel(method: string): string {
@@ -423,56 +422,56 @@ export default function InventoryReplenishmentPage() {
       value: formatInt(summary.sku_count),
       description: '当前筛选结果',
       icon: <Boxes className="h-4 w-4" />,
-      className: 'from-slate-100 via-white to-slate-50',
+      className: 'from-slate-100 via-white to-slate-50 dark:from-slate-900 dark:via-slate-950 dark:to-slate-900/70',
     },
     {
       title: '断货风险',
       value: formatInt(summary.out_of_stock_risk_count),
       description: '需优先处理',
       icon: <CircleAlert className="h-4 w-4" />,
-      className: 'from-rose-100 via-white to-rose-50',
+      className: 'from-rose-100 via-white to-rose-50 dark:from-rose-950/50 dark:via-slate-950 dark:to-slate-900',
     },
     {
       title: '总店铺库存',
       value: formatInt(summary.total_available_inventory),
       description: '最新库存快照',
       icon: <PackageSearch className="h-4 w-4" />,
-      className: 'from-sky-100 via-white to-cyan-50',
+      className: 'from-sky-100 via-white to-cyan-50 dark:from-sky-950/50 dark:via-slate-950 dark:to-slate-900',
     },
     {
       title: '总在途库存',
       value: formatInt(summary.total_in_transit_quantity),
       description: '来自发货信息管理',
       icon: <ShipWheel className="h-4 w-4" />,
-      className: 'from-amber-100 via-white to-yellow-50',
+      className: 'from-amber-100 via-white to-yellow-50 dark:from-amber-950/50 dark:via-slate-950 dark:to-slate-900',
     },
   ]
 
   return (
-    <div className="space-y-6">
-      <section className="relative overflow-hidden rounded-[28px] border border-slate-200/80 bg-[radial-gradient(circle_at_top_left,_rgba(245,158,11,0.12),_transparent_25%),radial-gradient(circle_at_top_right,_rgba(14,165,233,0.12),_transparent_30%),linear-gradient(135deg,_rgba(248,250,252,0.98),_rgba(255,255,255,0.96))] p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.35)]">
-        <div className="absolute inset-y-0 right-0 w-1/3 bg-[linear-gradient(135deg,transparent,rgba(15,23,42,0.04))]" />
+    <div className="space-y-6 bg-[radial-gradient(circle_at_top,rgba(245,158,11,0.08),transparent_28%),linear-gradient(180deg,#fbfdff_0%,#f8fafc_50%,#ffffff_100%)] p-1 dark:bg-[radial-gradient(circle_at_top,rgba(245,158,11,0.1),transparent_26%),linear-gradient(180deg,#020617_0%,#07111f_48%,#020617_100%)]">
+      <section className="relative overflow-hidden rounded-[28px] border border-slate-200/80 bg-[radial-gradient(circle_at_top_left,_rgba(245,158,11,0.12),_transparent_25%),radial-gradient(circle_at_top_right,_rgba(14,165,233,0.12),_transparent_30%),linear-gradient(135deg,_rgba(248,250,252,0.98),_rgba(255,255,255,0.96))] p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.35)] dark:border-slate-800/80 dark:bg-[radial-gradient(circle_at_top_left,_rgba(245,158,11,0.14),_transparent_24%),radial-gradient(circle_at_top_right,_rgba(14,165,233,0.14),_transparent_28%),linear-gradient(135deg,_rgba(15,23,42,0.96),_rgba(7,18,32,0.94))] dark:shadow-[0_28px_90px_-50px_rgba(0,0,0,0.76)]">
+        <div className="absolute inset-y-0 right-0 w-1/3 bg-[linear-gradient(135deg,transparent,rgba(15,23,42,0.04))] dark:bg-[linear-gradient(135deg,transparent,rgba(148,163,184,0.05))]" />
         <div className="relative flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl space-y-2">
-            <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-3 py-1 text-xs font-medium text-slate-600">
+            <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-3 py-1 text-xs font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300">
               <Route className="h-3.5 w-3.5" />
               Inventory Replenishment Radar
             </div>
-            <h2 className="break-keep whitespace-nowrap font-serif text-3xl tracking-tight text-slate-900">
+            <h2 className="break-keep whitespace-nowrap font-serif text-3xl tracking-tight text-slate-900 dark:text-slate-50">
               库存及补货分析
             </h2>
-            <p className="break-keep text-sm leading-6 text-slate-600">
+            <p className="break-keep text-sm leading-6 text-slate-600 dark:text-slate-300">
               统一查看 SKU 库存、在途、加权 DMS 和补货时点。在途数据直接复用发货信息管理，不在本页重复维护。
             </p>
           </div>
           <div className="flex flex-wrap items-end gap-3 lg:max-w-[820px] lg:justify-end">
             <div className="w-full min-w-0 sm:w-[220px]">
-              <div className="mb-1 text-xs font-medium text-slate-500">项目名称</div>
+              <div className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">项目名称</div>
               {projectsLoading ? (
                 <Skeleton className="h-10 w-full rounded-xl" />
               ) : (
                 <Select value={projectId} onValueChange={setProjectId}>
-                  <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white/85">
+                  <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white/85 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-100">
                     <SelectValue placeholder="选择项目" />
                   </SelectTrigger>
                   <SelectContent align="start" side="bottom" sideOffset={8} collisionPadding={16}>
@@ -486,18 +485,18 @@ export default function InventoryReplenishmentPage() {
               )}
             </div>
             <div className="w-full min-w-0 sm:w-[220px]">
-              <div className="mb-1 text-xs font-medium text-slate-500">SKU / ASIN</div>
+              <div className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">SKU / ASIN</div>
               <Input
                 value={keyword}
                 onChange={(event) => setKeyword(event.target.value)}
                 placeholder="搜索 SKU 或 ASIN"
-                className="h-10 rounded-xl border-slate-200 bg-white/85"
+                className="h-10 rounded-xl border-slate-200 bg-white/85 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-100"
               />
             </div>
             <div className="w-full min-w-0 sm:w-[180px]">
-              <div className="mb-1 text-xs font-medium text-slate-500">国家站点</div>
+              <div className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">国家站点</div>
               <Select value={country} onValueChange={setCountry}>
-                <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white/85">
+                <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white/85 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-100">
                   <SelectValue placeholder="选择国家站点" />
                 </SelectTrigger>
                 <SelectContent align="start" side="bottom" sideOffset={8} collisionPadding={16}>
@@ -510,9 +509,9 @@ export default function InventoryReplenishmentPage() {
               </Select>
             </div>
             <div className="w-full min-w-0 sm:w-[180px]">
-              <div className="mb-1 text-xs font-medium text-slate-500">风险状态</div>
+              <div className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">风险状态</div>
               <Select value={riskFilter} onValueChange={setRiskFilter}>
-                <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white/85">
+                <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white/85 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-100">
                   <SelectValue placeholder="全部状态" />
                 </SelectTrigger>
                 <SelectContent align="start" side="bottom" sideOffset={8} collisionPadding={16}>
@@ -530,34 +529,34 @@ export default function InventoryReplenishmentPage() {
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {cards.map((card) => (
-          <Card key={card.title} className={`overflow-hidden border-slate-200/70 bg-gradient-to-br ${card.className}`}>
+          <Card key={card.title} className={`overflow-hidden border-slate-200/70 bg-gradient-to-br ${card.className} dark:border-slate-800`}>
             <CardHeader className="pb-2">
-              <div className="flex items-center justify-between text-slate-600">
-                <CardDescription className="text-slate-500">{card.title}</CardDescription>
+              <div className="flex items-center justify-between text-slate-600 dark:text-slate-300">
+                <CardDescription className="text-slate-500 dark:text-slate-400">{card.title}</CardDescription>
                 {card.icon}
               </div>
-              <CardTitle className="text-3xl tracking-tight text-slate-900">{card.value}</CardTitle>
+              <CardTitle className="text-3xl tracking-tight text-slate-900 dark:text-slate-50">{card.value}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-xs text-slate-500">{card.description}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{card.description}</p>
             </CardContent>
           </Card>
         ))}
       </section>
 
-      <Card className="overflow-visible border-slate-200/80">
-        <CardHeader className="border-b border-slate-100 bg-slate-50/60">
-          <CardTitle className="text-slate-900">SKU 补货主表</CardTitle>
-          <CardDescription>
+      <Card className="overflow-visible border-slate-200/80 dark:border-slate-800 dark:bg-slate-950/80">
+        <CardHeader className="border-b border-slate-100 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-900/70">
+          <CardTitle className="text-slate-900 dark:text-slate-50">SKU 补货主表</CardTitle>
+          <CardDescription className="dark:text-slate-400">
             ASIN 默认为只读；行内仅可修改生产交货时间、运输时间和加权系数。发货信息仅查看，维护入口仍在发货信息管理。
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           {error ? (
-            <div className="border-b border-rose-100 bg-rose-50 px-6 py-3 text-sm text-rose-700">{error}</div>
+            <div className="border-b border-rose-100 bg-rose-50 px-6 py-3 text-sm text-rose-700 dark:border-rose-900/70 dark:bg-rose-950/40 dark:text-rose-200">{error}</div>
           ) : null}
           {!currentProjectId && !projectsLoading ? (
-            <div className="px-6 py-16 text-center text-sm text-slate-500">请先选择项目。</div>
+            <div className="px-6 py-16 text-center text-sm text-slate-500 dark:text-slate-400">请先选择项目。</div>
           ) : loading ? (
             <div className="space-y-3 p-6">
               <Skeleton className="h-10 w-full" />
@@ -565,14 +564,14 @@ export default function InventoryReplenishmentPage() {
               <Skeleton className="h-10 w-full" />
             </div>
           ) : rows.length === 0 ? (
-            <div className="px-6 py-16 text-center text-sm text-slate-500">当前筛选条件下没有可分析的 SKU。</div>
+            <div className="px-6 py-16 text-center text-sm text-slate-500 dark:text-slate-400">当前筛选条件下没有可分析的 SKU。</div>
           ) : (
             <Table
               containerClassName="max-h-[70vh] overflow-auto"
-              className="min-w-[2050px] table-auto border-separate border-spacing-0 bg-white text-[13px]"
+              className="min-w-[2050px] table-auto border-separate border-spacing-0 bg-white text-[13px] dark:bg-slate-950"
             >
                 <TableHeader>
-                  <TableRow className="bg-slate-50">
+                  <TableRow className="bg-slate-50 dark:bg-slate-950">
                     <TableHead className={`${tableHeadClassName} ${stickySkuHeadClassName} min-w-[132px]`}>SKU</TableHead>
                     <TableHead className={`${tableHeadClassName} ${stickyTableHeadClassName} min-w-[88px]`}>国家</TableHead>
                     <TableHead className={`${tableHeadClassName} ${stickyTableHeadClassName} min-w-[152px]`}>ASIN</TableHead>
@@ -603,12 +602,12 @@ export default function InventoryReplenishmentPage() {
                     const edit = edits[key] || buildEditState(row)
                     const risk = riskMeta(row.risk_status)
                     return (
-                      <TableRow key={key} className="group align-top hover:bg-sky-50/80">
-                        <TableCell className={`${tableCellClassName} ${stickySkuCellClassName} font-medium text-slate-900`}>
+                      <TableRow key={key} className="group align-top hover:bg-sky-50/80 dark:hover:bg-sky-950/20">
+                        <TableCell className={`${tableCellClassName} ${stickySkuCellClassName} font-medium text-slate-900 dark:text-slate-100`}>
                           {row.sku}
                         </TableCell>
                         <TableCell className={tableCellClassName}>{row.country}</TableCell>
-                        <TableCell className={`${tableCellClassName} font-medium text-slate-900`}>
+                        <TableCell className={`${tableCellClassName} font-medium text-slate-900 dark:text-slate-100`}>
                           {row.asin || '--'}
                         </TableCell>
                         <TableCell className={`${tableCellClassName} text-right`}>{formatInt(row.available_inventory)}</TableCell>
@@ -617,7 +616,7 @@ export default function InventoryReplenishmentPage() {
                         <TableCell className={`${tableCellClassName} text-right`}>{formatNumber(row.dms_14)}</TableCell>
                         <TableCell className={`${tableCellClassName} text-right`}>{formatNumber(row.dms_7)}</TableCell>
                         <TableCell className={`${tableCellClassName} text-right`}>{formatNumber(row.dms_3)}</TableCell>
-                        <TableCell className={`${tableCellClassName} text-right font-medium text-slate-900`}>
+                        <TableCell className={`${tableCellClassName} text-right font-medium text-slate-900 dark:text-slate-100`}>
                           {formatNumber(row.base_dms)}
                         </TableCell>
                         <TableCell className={tableCellClassName}>
@@ -627,12 +626,12 @@ export default function InventoryReplenishmentPage() {
                             onChange={(event) =>
                               setEdits((prev) => ({ ...prev, [key]: { ...edit, safety_factor: event.target.value } }))
                             }
-                            className="h-8 w-[72px] bg-white"
+                            className="h-8 w-[72px] bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                           />
-                            <span className="text-xs text-slate-500">%</span>
+                            <span className="text-xs text-slate-500 dark:text-slate-400">%</span>
                           </div>
                         </TableCell>
-                        <TableCell className={`${tableCellClassName} text-right font-medium text-slate-900`}>
+                        <TableCell className={`${tableCellClassName} text-right font-medium text-slate-900 dark:text-slate-100`}>
                           {formatNumber(row.weighted_dms)}
                         </TableCell>
                         <TableCell className={`${tableCellClassName} text-right`}>{formatNumber(row.sellable_days)}</TableCell>
@@ -647,7 +646,7 @@ export default function InventoryReplenishmentPage() {
                                 [key]: { ...edit, production_lead_days: event.target.value },
                               }))
                             }
-                            className="h-8 w-[72px] bg-white"
+                            className="h-8 w-[72px] bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                           />
                         </TableCell>
                         <TableCell className={tableCellClassName}>
@@ -656,7 +655,7 @@ export default function InventoryReplenishmentPage() {
                             onChange={(event) =>
                               setEdits((prev) => ({ ...prev, [key]: { ...edit, shipping_days: event.target.value } }))
                             }
-                            className="h-8 w-[72px] bg-white"
+                            className="h-8 w-[72px] bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                           />
                         </TableCell>
                         <TableCell className={tableCellClassName}>{formatDate(row.replenishment_order_date)}</TableCell>
@@ -671,7 +670,7 @@ export default function InventoryReplenishmentPage() {
                           <div className="flex flex-col gap-1.5">
                             <Button
                               size="sm"
-                              className="h-8 justify-start whitespace-nowrap px-2.5 text-xs"
+                              className="h-8 justify-start whitespace-nowrap px-2.5 text-xs dark:bg-slate-100 dark:text-slate-950"
                               onClick={() => void saveRow(row)}
                               disabled={savingSku === key}
                             >
@@ -681,7 +680,7 @@ export default function InventoryReplenishmentPage() {
                             <Button
                               size="sm"
                               variant="outline"
-                              className="h-8 justify-start whitespace-nowrap px-2.5 text-xs"
+                              className="h-8 justify-start whitespace-nowrap px-2.5 text-xs dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                               onClick={() => void openShipments(row)}
                             >
                               查看发货
@@ -689,7 +688,7 @@ export default function InventoryReplenishmentPage() {
                             <Button
                               size="sm"
                               variant="outline"
-                              className="h-8 justify-start whitespace-nowrap px-2.5 text-xs"
+                              className="h-8 justify-start whitespace-nowrap px-2.5 text-xs dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                               onClick={() => router.push('/dashboard/data-analysis/shipment-management')}
                             >
                               前往发货管理
@@ -706,10 +705,10 @@ export default function InventoryReplenishmentPage() {
       </Card>
 
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-2xl">
+        <SheetContent side="right" className="w-full overflow-y-auto dark:border-slate-800 dark:bg-slate-950 sm:max-w-2xl">
           <SheetHeader>
-            <SheetTitle>{selectedRow ? `${selectedRow.sku} 发货信息` : '发货信息'}</SheetTitle>
-            <SheetDescription>
+            <SheetTitle className="dark:text-slate-100">{selectedRow ? `${selectedRow.sku} 发货信息` : '发货信息'}</SheetTitle>
+            <SheetDescription className="dark:text-slate-400">
               在途数量口径包含 `in_transit`、`arrived_port`、`inbound_processing`。本抽屉只读展示，维护请前往发货信息管理。
             </SheetDescription>
           </SheetHeader>
@@ -717,34 +716,34 @@ export default function InventoryReplenishmentPage() {
           {selectedRow ? (
             <div className="mt-6 space-y-4">
               <div className="grid gap-3 md:grid-cols-3">
-                <Card className="border-slate-200">
+                <Card className="border-slate-200 dark:border-slate-800 dark:bg-slate-900/80">
                   <CardContent className="pt-6">
-                    <div className="text-xs text-slate-500">SKU</div>
-                    <div className="mt-1 text-lg font-semibold">{selectedRow.sku}</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">SKU</div>
+                    <div className="mt-1 text-lg font-semibold dark:text-slate-100">{selectedRow.sku}</div>
                   </CardContent>
                 </Card>
-                <Card className="border-slate-200">
+                <Card className="border-slate-200 dark:border-slate-800 dark:bg-slate-900/80">
                   <CardContent className="pt-6">
-                    <div className="text-xs text-slate-500">店铺库存</div>
-                    <div className="mt-1 text-lg font-semibold">{formatInt(selectedRow.available_inventory)}</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">店铺库存</div>
+                    <div className="mt-1 text-lg font-semibold dark:text-slate-100">{formatInt(selectedRow.available_inventory)}</div>
                   </CardContent>
                 </Card>
-                <Card className="border-slate-200">
+                <Card className="border-slate-200 dark:border-slate-800 dark:bg-slate-900/80">
                   <CardContent className="pt-6">
-                    <div className="text-xs text-slate-500">在途数量</div>
-                    <div className="mt-1 text-lg font-semibold">{formatInt(selectedRow.in_transit_quantity)}</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">在途数量</div>
+                    <div className="mt-1 text-lg font-semibold dark:text-slate-100">{formatInt(selectedRow.in_transit_quantity)}</div>
                   </CardContent>
                 </Card>
               </div>
 
-              {shipmentsError ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{shipmentsError}</div> : null}
+              {shipmentsError ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900/70 dark:bg-rose-950/40 dark:text-rose-200">{shipmentsError}</div> : null}
               {shipmentsLoading ? (
                 <div className="space-y-3">
                   <Skeleton className="h-24 w-full" />
                   <Skeleton className="h-24 w-full" />
                 </div>
               ) : shipments.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500">
+                <div className="rounded-xl border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
                   当前 SKU 暂无发货记录。
                 </div>
               ) : (
@@ -752,34 +751,32 @@ export default function InventoryReplenishmentPage() {
                   {shipments.map((item) => {
                     const status = shipmentStatusMeta(item.shipment_status)
                     return (
-                      <div key={`${item.schedule_id}-${item.shipment_no}`} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                      <div key={`${item.schedule_id}-${item.shipment_no}`} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/80 dark:shadow-none">
                         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                           <div className="space-y-2">
                             <div className="flex items-center gap-2">
-                              <div className="font-semibold text-slate-900">{item.shipment_no}</div>
+                              <div className="font-semibold text-slate-900 dark:text-slate-100">{item.shipment_no}</div>
                               <Badge className={status.className}>{status.label}</Badge>
                             </div>
-                            <div className="grid gap-1 text-sm text-slate-600">
+                            <div className="grid gap-1 text-sm text-slate-600 dark:text-slate-300">
                               <div>物流方式：{methodLabel(item.shipping_method)}</div>
                               <div>数量：{formatInt(item.quantity)}</div>
                               <div>ETD：{formatDate(item.etd_date)}</div>
                               <div>ETA：{formatDate(item.eta_date)}</div>
-                              <div>
-                                预计入仓：{formatDate(item.expected_inbound_start_date)} ~ {formatDate(item.expected_inbound_end_date)}
-                              </div>
+                              <div>实际入仓：{formatDate(item.actual_inbound_date)}</div>
                               <div>追踪号：{item.tracking_no || '--'}</div>
                             </div>
                           </div>
                           <div className="space-y-3 text-right">
-                            <div className="text-xs text-slate-500">最近更新</div>
-                            <div className="text-sm text-slate-700">{item.updated_at}</div>
-                            <Button variant="outline" size="sm" onClick={() => router.push('/dashboard/data-analysis/shipment-management')}>
+                            <div className="text-xs text-slate-500 dark:text-slate-400">最近更新</div>
+                            <div className="text-sm text-slate-700 dark:text-slate-300">{item.updated_at}</div>
+                            <Button variant="outline" size="sm" className="dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" onClick={() => router.push('/dashboard/data-analysis/shipment-management')}>
                               前往发货管理
                             </Button>
                           </div>
                         </div>
                         {item.remark ? (
-                          <div className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">{item.remark}</div>
+                          <div className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:bg-slate-950 dark:text-slate-300">{item.remark}</div>
                         ) : null}
                       </div>
                     )
@@ -791,27 +788,27 @@ export default function InventoryReplenishmentPage() {
         </SheetContent>
       </Sheet>
 
-      <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 px-5 py-4 text-sm text-slate-600">
+      <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 px-5 py-4 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-300">
         <div className="flex items-start gap-3">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white text-slate-500 shadow-sm ring-1 ring-slate-200/80">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white text-slate-500 shadow-sm ring-1 ring-slate-200/80 dark:bg-slate-950 dark:text-slate-300 dark:ring-slate-800">
             <CalendarClock className="h-4 w-4" />
           </div>
           <div className="min-w-0 space-y-3">
             <div>
-              <div className="text-sm font-semibold text-slate-900">口径说明</div>
-              <div className="mt-1 text-xs leading-5 text-slate-500">用于解释风险状态与销量窗口的计算方式。</div>
+              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">口径说明</div>
+              <div className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">用于解释风险状态与销量窗口的计算方式。</div>
             </div>
             <div className="grid gap-2">
-              <div className="rounded-xl border border-slate-200/80 bg-white/80 px-3 py-2.5 leading-6">
-                <span className="mr-2 inline-flex rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">风险状态</span>
+              <div className="rounded-xl border border-slate-200/80 bg-white/80 px-3 py-2.5 leading-6 dark:border-slate-800 dark:bg-slate-950/80">
+                <span className="mr-2 inline-flex rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">风险状态</span>
                 按 <code>补货指令 - 运输时间</code> 判定；若销量数据缺失，则状态为“待补数据”。
               </div>
-              <div className="rounded-xl border border-slate-200/80 bg-white/80 px-3 py-2.5 leading-6">
-                <span className="mr-2 inline-flex rounded-md bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700">销量来源</span>
+              <div className="rounded-xl border border-slate-200/80 bg-white/80 px-3 py-2.5 leading-6 dark:border-slate-800 dark:bg-slate-950/80">
+                <span className="mr-2 inline-flex rounded-md bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-950/60 dark:text-sky-300">销量来源</span>
                 近 <code>30D / 14D / 7D</code> 销量取当前版本业务报表，近 <code>3D</code> 销量取 <code>daily_sales_order</code> 的滞后 2 天窗口。
               </div>
-              <div className="rounded-xl border border-slate-200/80 bg-white/80 px-3 py-2.5 leading-6">
-                <span className="mr-2 inline-flex rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">窗口示例</span>
+              <div className="rounded-xl border border-slate-200/80 bg-white/80 px-3 py-2.5 leading-6 dark:border-slate-800 dark:bg-slate-950/80">
+                <span className="mr-2 inline-flex rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">窗口示例</span>
                 若今天是 <code>2026-03-09</code>，则 <code>3D</code> 取 <code>2026-03-05</code> 到 <code>2026-03-07</code>。如果当前项目该窗口内没有导入、SKU 未匹配或无可计销量，则 <code>3D</code> 显示 <code>--</code>。
               </div>
             </div>

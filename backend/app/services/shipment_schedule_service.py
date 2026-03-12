@@ -242,13 +242,9 @@ def create_shipment_schedule(
         created_date=_parse_date(payload.created_date, 'created_date'),
         etd_date=_parse_date(payload.etd_date, 'etd_date'),
         eta_date=_parse_date(payload.eta_date, 'eta_date'),
-        expected_inbound_start_date=_parse_date(payload.expected_inbound_start_date, 'expected_inbound_start_date'),
-        expected_inbound_end_date=_parse_date(payload.expected_inbound_end_date, 'expected_inbound_end_date'),
-        booking_note=_normalize_text(payload.booking_note),
-        forwarder_update=_normalize_text(payload.forwarder_update),
+        actual_inbound_date=_parse_date(payload.actual_inbound_date, 'actual_inbound_date'),
         remark=_normalize_text(payload.remark),
         shipment_status=_normalize_status(payload.shipment_status),
-        stat_date=_parse_date(payload.stat_date, 'stat_date'),
         source_type='manual',
         source_file=_normalize_text(payload.source_file, max_length=255),
         created_by=_normalize_text(operator, max_length=255),
@@ -279,13 +275,9 @@ def update_shipment_schedule(
     row.created_date = _parse_date(payload.created_date, 'created_date')
     row.etd_date = _parse_date(payload.etd_date, 'etd_date')
     row.eta_date = _parse_date(payload.eta_date, 'eta_date')
-    row.expected_inbound_start_date = _parse_date(payload.expected_inbound_start_date, 'expected_inbound_start_date')
-    row.expected_inbound_end_date = _parse_date(payload.expected_inbound_end_date, 'expected_inbound_end_date')
-    row.booking_note = _normalize_text(payload.booking_note)
-    row.forwarder_update = _normalize_text(payload.forwarder_update)
+    row.actual_inbound_date = _parse_date(payload.actual_inbound_date, 'actual_inbound_date')
     row.remark = _normalize_text(payload.remark)
     row.shipment_status = _normalize_status(payload.shipment_status)
-    row.stat_date = _parse_date(payload.stat_date, 'stat_date')
     row.source_file = _normalize_text(payload.source_file, max_length=255)
     row.updated_by = _normalize_text(operator, max_length=255)
     db.flush()
@@ -475,19 +467,9 @@ def parse_shipment_schedules_csv(content: bytes) -> list[dict[str, object]]:
                 'created_date': _parse_date(_header_value(normalized, 'created_date'), f'第 {index} 行 created_date'),
                 'etd_date': _parse_date(_header_value(normalized, 'etd_date'), f'第 {index} 行 etd_date'),
                 'eta_date': _parse_date(_header_value(normalized, 'eta_date'), f'第 {index} 行 eta_date'),
-                'expected_inbound_start_date': _parse_date(
-                    _header_value(normalized, 'expected_inbound_start_date'),
-                    f'第 {index} 行 expected_inbound_start_date',
-                ),
-                'expected_inbound_end_date': _parse_date(
-                    _header_value(normalized, 'expected_inbound_end_date'),
-                    f'第 {index} 行 expected_inbound_end_date',
-                ),
-                'booking_note': _normalize_text(_header_value(normalized, 'booking_note')),
-                'forwarder_update': _normalize_text(_header_value(normalized, 'forwarder_update')),
+                'actual_inbound_date': _parse_date(_header_value(normalized, 'actual_inbound_date'), f'第 {index} 行 actual_inbound_date'),
                 'remark': _normalize_text(_header_value(normalized, 'remark')),
                 'shipment_status': _normalize_status(str(_header_value(normalized, 'shipment_status') or '')),
-                'stat_date': _parse_date(_header_value(normalized, 'stat_date'), f'第 {index} 行 stat_date'),
             }
         )
 
@@ -536,13 +518,9 @@ def import_shipment_schedules_from_csv(
             created_date=item['created_date'],
             etd_date=item['etd_date'],
             eta_date=item['eta_date'],
-            expected_inbound_start_date=item['expected_inbound_start_date'],
-            expected_inbound_end_date=item['expected_inbound_end_date'],
-            booking_note=item['booking_note'],
-            forwarder_update=item['forwarder_update'],
+            actual_inbound_date=item['actual_inbound_date'],
             remark=item['remark'],
             shipment_status=str(item['shipment_status']),
-            stat_date=item['stat_date'],
             source_type='csv_import',
             source_file=source_file,
             created_by=_normalize_text(operator, max_length=255),

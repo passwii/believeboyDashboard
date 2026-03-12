@@ -1,16 +1,16 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { DragEvent } from 'react'
 import {
   AlertCircle,
   CalendarDays,
+  DatabaseZap,
   Download,
   FileSearch,
   Loader2,
   Sparkles,
   Upload,
-  X,
 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
@@ -60,8 +60,27 @@ type SubmitState = {
   filename: string | null
 }
 
+type JobProgress = {
+  stage: string
+  progress: number
+  message: string
+}
+
+type DownloadTarget = {
+  endpoint: string | null
+  filenameHint: string | null
+  downloading: boolean
+}
+
+type PersistenceSyncState = {
+  status: 'idle' | 'running' | 'success' | 'failed'
+  message: string | null
+}
+
 const API_BASE = '/api/backend'
 const REQUIRED_TYPES: UploadType[] = ['sales_report', 'ad_report', 'inventory_report']
+const JOB_POLL_INTERVAL_MS = 1000
+const JOB_POLL_MAX_WAIT_MS = 5 * 60 * 1000
 
 const TYPE_LABEL: Record<UploadType, string> = {
   sales_report: '销售报表',
@@ -74,6 +93,8 @@ const COUNTRY_OPTIONS: Array<{ value: CountryOption; label: string }> = [
   { value: 'DE', label: '德国站' },
   { value: 'UK', label: '英国站' },
 ]
+
+const PROGRESS_STEP_LABELS = ['处理中', '汇总指标', '写入日报工作簿', '完成']
 
 function authHeaders(_operator?: string, _isAdmin = false): Record<string, string> {
   return {}
@@ -130,6 +151,31 @@ function getUploadMeta(state: UploadStateItem) {
   return { text: '未识别', dot: 'bg-slate-400', bar: 'bg-slate-300' }
 }
 
+function normalizeProgress(value: number) {
+  if (!Number.isFinite(value)) return 0
+  return Math.max(0, Math.min(100, Math.round(value)))
+}
+
+function fallbackProgressByStatus(status: 'pending' | 'running' | 'success' | 'failed'): JobProgress {
+  if (status === 'pending') return { stage: 'started', progress: 2, message: '处理中：任务排队中' }
+  if (status === 'running') return { stage: 'processing', progress: 10, message: '处理中：任务执行中' }
+  if (status === 'success') return { stage: 'completed', progress: 100, message: '处理完成：报表已生成，可下载' }
+  return { stage: 'failed', progress: 100, message: '处理失败' }
+}
+
+function resolveProgressStepIndex(stage?: string | null): number {
+  if (!stage) return 0
+  if (stage === 'completed') return 3
+  if (stage === 'aggregating_metrics') return 1
+  if (stage === 'writing_workbook' || stage === 'saving_workbook') return 2
+  return 0
+}
+
+function normalizePersistenceStatus(value: unknown): PersistenceSyncState['status'] {
+  if (value === 'running' || value === 'success' || value === 'failed') return value
+  return 'idle'
+}
+
 export default function DailyReportPage() {
   const { data: session } = useSession()
   const isAdmin = Boolean(session?.user?.isAdmin)
@@ -152,6 +198,14 @@ export default function DailyReportPage() {
   const [uploadBusy, setUploadBusy] = useState(false)
 
   const [submitState, setSubmitState] = useState<SubmitState>({ status: 'idle', message: null, filename: null })
+  const [jobProgress, setJobProgress] = useState<JobProgress | null>(null)
+  const [persistenceSync, setPersistenceSync] = useState<PersistenceSyncState>({ status: 'idle', message: null })
+  const [downloadTarget, setDownloadTarget] = useState<DownloadTarget>({
+    endpoint: null,
+    filenameHint: null,
+    downloading: false,
+  })
+  const latestTaskIdRef = useRef<number | null>(null)
 
   useEffect(() => {
     const loadProjects = async () => {
@@ -226,6 +280,23 @@ export default function DailyReportPage() {
     reportDate.length > 0 &&
     REQUIRED_TYPES.every((type) => uploadState[type].status === 'success') &&
     submitState.status !== 'submitting'
+
+  const currentProgressStep = useMemo(() => resolveProgressStepIndex(jobProgress?.stage), [jobProgress?.stage])
+  const hasProgressState = submitState.status !== 'idle' || jobProgress !== null
+
+  const generationMeta = useMemo(() => {
+    if (submitState.status === 'success') return { label: '已完成', tone: 'text-emerald-600' }
+    if (submitState.status === 'submitting') return { label: '进行中', tone: 'text-blue-600' }
+    if (submitState.status === 'error') return { label: '异常', tone: 'text-rose-600' }
+    return { label: '未开始', tone: 'text-slate-500' }
+  }, [submitState.status])
+
+  const syncMeta = useMemo(() => {
+    if (persistenceSync.status === 'success') return { label: '已同步', tone: 'text-emerald-600' }
+    if (persistenceSync.status === 'running') return { label: '同步中', tone: 'text-blue-600' }
+    if (persistenceSync.status === 'failed') return { label: '失败', tone: 'text-amber-600' }
+    return { label: '待同步', tone: 'text-slate-500' }
+  }, [persistenceSync.status])
 
   const addFiles = async (files: File[]) => {
     if (!files.length) return
@@ -382,6 +453,10 @@ export default function DailyReportPage() {
   const generateReport = async () => {
     setFormError(null)
     setSubmitState({ status: 'idle', message: null, filename: null })
+    setJobProgress(null)
+    setPersistenceSync({ status: 'idle', message: null })
+    setDownloadTarget({ endpoint: null, filenameHint: null, downloading: false })
+    latestTaskIdRef.current = null
 
     if (!projectName.trim()) {
       setFormError('项目名称不能为空。')
@@ -405,7 +480,8 @@ export default function DailyReportPage() {
       return
     }
 
-    setSubmitState({ status: 'submitting', message: '系统处理中，请稍候...', filename: null })
+    setSubmitState({ status: 'submitting', message: '处理中：正在提交任务...', filename: null })
+    setJobProgress({ stage: 'started', progress: 1, message: '处理中：正在提交任务...' })
 
     try {
       const createJobResponse = await fetch(`${API_BASE}/api/v1/daily-reports`, {
@@ -436,15 +512,18 @@ export default function DailyReportPage() {
         status?: 'pending' | 'running' | 'success' | 'failed'
       }
       const jobId = created.job_id
+      latestTaskIdRef.current = jobId
       const statusEndpoint = created.status_endpoint?.trim() || `/api/v1/daily-reports/tasks/${jobId}`
       const resultEndpoint = created.result_endpoint?.trim() || `/api/v1/daily-reports/tasks/${jobId}/result`
 
-      let attempts = 0
+      const pollStartedAt = Date.now()
       let finished = created.status === 'success'
       let failedMessage: string | null = null
+      let lastStatus: 'pending' | 'running' | 'success' | 'failed' | null = created.status ?? null
+      let lastStatusChangeTime = Date.now()
+      const MIN_STATUS_DISPLAY_MS = 1000
 
-      while (attempts < 120 && !finished) {
-        attempts += 1
+      while (!finished && Date.now() - pollStartedAt <= JOB_POLL_MAX_WAIT_MS) {
         // eslint-disable-next-line no-await-in-loop
         const statusResponse = await fetch(resolveApiUrl(statusEndpoint), {
           cache: 'no-store',
@@ -460,58 +539,110 @@ export default function DailyReportPage() {
         // eslint-disable-next-line no-await-in-loop
         const statusPayload = (await statusResponse.json()) as {
           status: 'pending' | 'running' | 'success' | 'failed'
+          stage?: string
+          progress?: number
           message?: string | null
           error_message?: string | null
-          runs?: Array<{ error_message?: string | null }>
+          persistence_status?: string
+          persistence_message?: string | null
         }
-        if (statusPayload.message?.trim()) {
-          setSubmitState({ status: 'submitting', message: statusPayload.message.trim(), filename: null })
+        if (latestTaskIdRef.current !== jobId) break
+
+        if (statusPayload.status !== lastStatus) {
+          const timeSinceLastChange = Date.now() - lastStatusChangeTime
+          const remainingDelay = MIN_STATUS_DISPLAY_MS - timeSinceLastChange
+          if (remainingDelay > 0) {
+            // eslint-disable-next-line no-await-in-loop
+            await new Promise((resolve) => setTimeout(resolve, remainingDelay))
+          }
+          lastStatus = statusPayload.status
+          lastStatusChangeTime = Date.now()
+        }
+
+        const currentProgress =
+          typeof statusPayload.stage === 'string'
+            ? {
+                stage: statusPayload.stage,
+                progress: normalizeProgress(typeof statusPayload.progress === 'number' ? statusPayload.progress : 0),
+                message: (statusPayload.message || '').trim() || fallbackProgressByStatus(statusPayload.status).message,
+              }
+            : fallbackProgressByStatus(statusPayload.status)
+        setJobProgress(currentProgress)
+
+        const persistenceStatus = normalizePersistenceStatus(statusPayload.persistence_status)
+        if (persistenceStatus !== 'idle') {
+          setPersistenceSync({
+            status: persistenceStatus,
+            message: statusPayload.persistence_message?.trim() || null,
+          })
         }
 
         if (statusPayload.status === 'failed') {
-          failedMessage =
-            statusPayload.error_message ?? statusPayload.runs?.[statusPayload.runs.length - 1]?.error_message ?? '任务执行失败。'
+          failedMessage = statusPayload.error_message ?? currentProgress.message ?? '任务执行失败。'
           finished = true
           break
         }
 
         if (statusPayload.status === 'success') {
+          setSubmitState({ status: 'submitting', message: currentProgress.message, filename: null })
           finished = true
           break
         }
 
+        setSubmitState({ status: 'submitting', message: currentProgress.message, filename: null })
+
         // eslint-disable-next-line no-await-in-loop
-        await new Promise((resolve) => setTimeout(resolve, 400))
+        await new Promise((resolve) => setTimeout(resolve, JOB_POLL_INTERVAL_MS))
       }
 
       if (failedMessage) throw new Error(failedMessage)
       if (!finished) throw new Error('任务执行超时，请稍后重试。')
 
-      const response = await fetch(resolveApiUrl(resultEndpoint), {
-        headers: authHeaders(currentOperator, isAdmin),
-      })
+      const fallbackName = `${projectName.trim()}_Daily_Report_${reportDate}.xlsx`
+      setDownloadTarget({ endpoint: resultEndpoint, filenameHint: fallbackName, downloading: false })
 
-      if (!response.ok) {
-        const message = await response.text()
-        throw new Error(message || '结果下载失败。')
+      const pollPersistenceStatus = async () => {
+        const startedAt = Date.now()
+        while (Date.now() - startedAt <= JOB_POLL_MAX_WAIT_MS) {
+          if (latestTaskIdRef.current !== jobId) break
+          const resp = await fetch(resolveApiUrl(statusEndpoint), {
+            cache: 'no-store',
+            headers: authHeaders(currentOperator, isAdmin),
+          })
+          if (!resp.ok) break
+          const payload = (await resp.json()) as {
+            persistence_status?: string
+            persistence_message?: string | null
+          }
+          const status = normalizePersistenceStatus(payload.persistence_status)
+          if (status !== 'idle') {
+            setPersistenceSync({
+              status,
+              message: payload.persistence_message?.trim() || null,
+            })
+          }
+          if (status === 'success' || status === 'failed') break
+          await new Promise((resolve) => setTimeout(resolve, 2000))
+        }
       }
 
-      const blob = await response.blob()
-      const headerName = extractFilenameFromHeader(response.headers.get('Content-Disposition'))
-      const fallbackName = `${projectName.trim()}_Daily_Report_${reportDate}.xlsx`
-      const filename = headerName || fallbackName
-
-      const downloadUrl = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = downloadUrl
-      link.download = filename
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      window.URL.revokeObjectURL(downloadUrl)
-
-      setSubmitState({ status: 'success', message: `生成成功，已下载 ${filename}`, filename })
+      try {
+        const filename = await downloadByEndpoint(resultEndpoint, fallbackName, currentOperator, isAdmin)
+        setJobProgress({ stage: 'completed', progress: 100, message: '处理完成：报表已生成，可下载' })
+        setSubmitState({ status: 'success', message: `生成成功，已下载 ${filename}`, filename })
+        setDownloadTarget((prev) => ({ ...prev, filenameHint: filename }))
+        void pollPersistenceStatus()
+      } catch (downloadError) {
+        setJobProgress({ stage: 'completed', progress: 100, message: '处理完成：报表已生成，可下载' })
+        setSubmitState({
+          status: 'error',
+          message: `报表已生成，但下载失败：${downloadError instanceof Error ? downloadError.message : '未知错误'}。可点击“下载报表”重试。`,
+          filename: fallbackName,
+        })
+        void pollPersistenceStatus()
+      }
     } catch (error) {
+      setJobProgress((prev) => prev ?? { stage: 'failed', progress: 100, message: '处理失败' })
       setSubmitState({
         status: 'error',
         message: `生成失败：${error instanceof Error ? error.message : '未知错误'}`,
@@ -520,259 +651,374 @@ export default function DailyReportPage() {
     }
   }
 
+  const retryDownload = async () => {
+    if (!downloadTarget.endpoint || downloadTarget.downloading) return
+    setDownloadTarget((prev) => ({ ...prev, downloading: true }))
+
+    try {
+      const fallbackName = downloadTarget.filenameHint || `${projectName.trim()}_Daily_Report_${reportDate}.xlsx`
+      const filename = await downloadByEndpoint(downloadTarget.endpoint, fallbackName, currentOperator, isAdmin)
+      setSubmitState({ status: 'success', message: `下载成功：${filename}`, filename })
+      setDownloadTarget((prev) => ({ ...prev, filenameHint: filename, downloading: false }))
+    } catch (error) {
+      setSubmitState({
+        status: 'error',
+        message: `下载失败：${error instanceof Error ? error.message : '未知错误'}`,
+        filename: downloadTarget.filenameHint,
+      })
+      setDownloadTarget((prev) => ({ ...prev, downloading: false }))
+    }
+  }
+
   return (
-    <div className="w-full space-y-6">
-      <div className="grid gap-6 xl:grid-cols-2">
+    <div className="grid w-full gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="space-y-6">
         <Card className="shadow-sm">
           <CardHeader>
-            <CardTitle className="text-lg">参数配置</CardTitle>
-            <CardDescription>项目名称必填，日期默认昨天。</CardDescription>
+            <CardTitle className="text-lg">控制台</CardTitle>
+            <CardDescription>项目名称必填，报表日期默认昨天，站点与处理状态在此统一查看。</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <label htmlFor="project_name" className="text-sm font-medium text-foreground">项目名称</label>
-              <Select
-                value={projectName}
-                onValueChange={setProjectName}
-                disabled={projectsLoading || projects.length === 0}
-              >
-                <SelectTrigger
-                  id="project_name"
-                  className="h-10 transition-all duration-200 data-[state=open]:ring-2 data-[state=open]:ring-blue-500/30"
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <div className="space-y-2 xl:col-span-1">
+                <label htmlFor="project_name" className="text-sm font-medium text-foreground">项目名称</label>
+                <Select
+                  value={projectName}
+                  onValueChange={setProjectName}
+                  disabled={projectsLoading || projects.length === 0}
                 >
-                  <SelectValue
-                    placeholder={projectsLoading ? '项目加载中...' : projects.length ? '请选择项目名称' : '暂无可选项目'}
-                  />
-                </SelectTrigger>
-                <SelectContent className="max-h-64 overflow-y-auto">
-                  {projects.map((project) => (
-                    <SelectItem key={project.name} value={project.name}>
-                      {project.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {!projectsLoading && projects.length === 0 ? (
-                <p className="text-xs text-muted-foreground">暂无项目，请先到“项目信息”页面新增。</p>
-              ) : null}
-              {projectLoadError ? <p className="text-xs text-destructive">{projectLoadError}</p> : null}
-            </div>
+                  <SelectTrigger
+                    id="project_name"
+                    className="h-10 transition-all duration-200 data-[state=open]:ring-2 data-[state=open]:ring-blue-500/30"
+                  >
+                    <SelectValue
+                      placeholder={projectsLoading ? '项目加载中...' : projects.length ? '请选择项目名称' : '暂无可选项目'}
+                    />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-64 overflow-y-auto">
+                    {projects.map((project) => (
+                      <SelectItem key={project.name} value={project.name}>
+                        {project.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {!projectsLoading && projects.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">暂无项目，请先到“项目信息”页面新增。</p>
+                ) : null}
+                {projectLoadError ? <p className="text-xs text-destructive">{projectLoadError}</p> : null}
+              </div>
 
-            <div className="space-y-2">
-              <label htmlFor="report_date" className="text-sm font-medium text-foreground">报表日期</label>
-              <div className="flex flex-wrap gap-2">
-                <Input
-                  id="report_date"
-                  type="date"
-                  value={reportDate}
-                  onChange={(event) => setReportDate(event.target.value)}
-                  className="max-w-xs"
-                />
-                <Button type="button" variant="secondary" onClick={() => setReportDate(yesterdayDateString())}>
-                  <CalendarDays className="mr-1 h-4 w-4" />
-                  昨天
-                </Button>
+              <div className="space-y-2">
+                <label htmlFor="report_date" className="text-sm font-medium text-foreground">报表日期</label>
+                <div className="flex gap-2">
+                  <Input
+                    id="report_date"
+                    type="date"
+                    value={reportDate}
+                    onChange={(event) => setReportDate(event.target.value)}
+                  />
+                  <Button type="button" variant="outline" onClick={() => setReportDate(yesterdayDateString())}>
+                    <CalendarDays className="mr-1 h-4 w-4" />
+                    昨天
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="country" className="text-sm font-medium text-foreground">国家站点</label>
+                <Select value={country} onValueChange={(value) => setCountry(value as CountryOption)}>
+                  <SelectTrigger id="country" className="h-10">
+                    <SelectValue placeholder="请选择国家站点" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COUNTRY_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <label htmlFor="country" className="text-sm font-medium text-foreground">国家站点</label>
-              <Select value={country} onValueChange={(value) => setCountry(value as CountryOption)}>
-                <SelectTrigger id="country" className="h-10 max-w-xs">
-                  <SelectValue placeholder="请选择国家站点" />
-                </SelectTrigger>
-                <SelectContent>
-                  {COUNTRY_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-lg border bg-muted/30 px-3 py-2">
+                <p className="text-xs text-muted-foreground">识别</p>
+                <p className="mt-1 text-sm font-semibold">{recognizedCount}/{REQUIRED_TYPES.length}</p>
+              </div>
+              <div className="rounded-lg border bg-muted/30 px-3 py-2">
+                <p className="text-xs text-muted-foreground">上传</p>
+                <p className="mt-1 text-sm font-semibold">{uploadedCount}/{REQUIRED_TYPES.length}</p>
+              </div>
+              <div className="rounded-lg border bg-muted/30 px-3 py-2">
+                <p className="text-xs text-muted-foreground">表格生成</p>
+                <p className={cn('mt-1 text-sm font-semibold', generationMeta.tone)}>{generationMeta.label}</p>
+              </div>
+              <div className="rounded-lg border bg-muted/30 px-3 py-2">
+                <p className="text-xs text-muted-foreground">数据同步</p>
+                <p className={cn('mt-1 text-sm font-semibold', syncMeta.tone)}>{syncMeta.label}</p>
+              </div>
             </div>
 
             {formError ? <p className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">{formError}</p> : null}
           </CardContent>
         </Card>
 
-        <Card className="flex min-h-[320px] flex-col shadow-sm">
+        <Card className="shadow-sm">
           <CardHeader>
-            <CardTitle className="text-lg">生成与下载</CardTitle>
-            <CardDescription>上传三份文件后生成日报并自动下载。</CardDescription>
+            <CardTitle className="text-lg">文件识别与上传</CardTitle>
+            <CardDescription>左侧投递文件，右侧三行状态栏实时展示识别与上传情况，失败时显示手动匹配。</CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-1 flex-col gap-4">
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div className="rounded-lg border bg-muted/30 p-3">
-                <p className="text-xs text-muted-foreground">识别覆盖</p>
-                <p className="mt-1 font-semibold">{recognizedCount}/3</p>
-              </div>
-              <div className="rounded-lg border bg-muted/30 p-3">
-                <p className="text-xs text-muted-foreground">上传完成</p>
-                <p className="mt-1 font-semibold">{uploadedCount}/3</p>
-              </div>
-            </div>
+          <CardContent className="space-y-5">
+            <div className="grid gap-5 xl:grid-cols-[300px_1fr]">
+              <div
+                className={cn(
+                  'flex flex-col rounded-xl border-2 border-dashed p-4 text-center transition-colors',
+                  dragActive ? 'border-blue-500 bg-blue-50/60 dark:bg-blue-900/20' : 'border-border bg-muted/30'
+                )}
+                style={{ minHeight: `${dropZoneHeight}px` }}
+                onDrop={(event) => void onDrop(event)}
+                onDragOver={(event) => {
+                  event.preventDefault()
+                  setDragActive(true)
+                }}
+                onDragLeave={(event) => {
+                  event.preventDefault()
+                  setDragActive(false)
+                }}
+              >
+                <p className="text-sm font-semibold text-foreground">拖拽文件到这里</p>
+                <p className="mt-1 text-xs text-muted-foreground">支持 txt/xlsx 批量识别</p>
 
-            {submitState.status === 'submitting' ? (
-              <div className="flex items-center gap-2 rounded-md border border-blue-300/40 bg-blue-50 px-3 py-2 text-sm text-blue-700 dark:bg-blue-900/25 dark:text-blue-200">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                {submitState.message}
+                <div className="mt-auto space-y-2 pt-4">
+                  <Button type="button" variant="outline" className="w-full" onClick={() => document.getElementById('daily-report-batch-picker')?.click()}>
+                    <FileSearch className="mr-1 h-4 w-4" />
+                    选择多个文件
+                  </Button>
+                  <Input
+                    id="daily-report-batch-picker"
+                    type="file"
+                    multiple
+                    accept=".txt,.xlsx"
+                    className="hidden"
+                    onChange={(event) => void addFiles(Array.from(event.target.files ?? []))}
+                  />
+                  <Button
+                    type="button"
+                    className="w-full"
+                    onClick={() => void uploadAllConfirmed()}
+                    disabled={uploadBusy || mappingBusy || !projectName.trim()}
+                  >
+                    {uploadBusy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Upload className="mr-1 h-4 w-4" />}
+                    一键上传已匹配文件
+                  </Button>
+                </div>
               </div>
-            ) : null}
 
-            {submitState.status === 'success' ? (
-              <div className="space-y-2 rounded-md border border-emerald-300/60 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-200">
-                {submitState.filename ? (
-                  <div className="flex items-center gap-2">
-                    <Download className="mr-1 h-3.5 w-3.5" />
-                    {submitState.filename}
+              <div className="space-y-4">
+                {REQUIRED_TYPES.map((type) => {
+                  const state = uploadState[type]
+                  const meta = getUploadMeta(state)
+                  const matched = state.status !== 'empty'
+                  return (
+                    <div key={type} className="flex min-h-[120px] flex-col rounded-lg border bg-card p-3">
+                      <div className="mb-2 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className={cn('h-2.5 w-2.5 rounded-full', meta.dot)} />
+                          <p className="text-sm font-semibold text-foreground">{TYPE_LABEL[type]}</p>
+                        </div>
+                        <span className="text-xs text-muted-foreground">{meta.text}</span>
+                      </div>
+
+                      <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+                        <div
+                          className={cn('h-full transition-all duration-200', matched ? meta.bar : 'bg-slate-300 dark:bg-slate-700')}
+                          style={{ width: matched ? '100%' : '28%' }}
+                        />
+                      </div>
+
+                      <div className="mt-auto flex items-end justify-between gap-3 pt-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-xs text-muted-foreground">{state.selectedFile?.name ?? '等待识别或手动匹配'}</p>
+                          {state.error ? <p className="mt-1 text-xs text-destructive">{state.error}</p> : null}
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void uploadType(type)}
+                          disabled={state.status === 'empty' || state.status === 'uploading' || !projectName.trim()}
+                        >
+                          {state.status === 'uploading' ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-1 h-3.5 w-3.5" />}
+                          上传
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                })}
+
+                {manualMatchRows.length > 0 ? (
+                  <div className="rounded-lg border border-blue-200/70 bg-blue-50/60 p-3 dark:border-blue-800/50 dark:bg-blue-950/20">
+                    <p className="text-sm font-semibold text-blue-800 dark:text-blue-200">手动匹配</p>
+                    <p className="mt-1 text-xs text-blue-700/80 dark:text-blue-200/80">以下文件识别失败，请手动指定类型。</p>
+
+                    <div className="mt-3 space-y-2">
+                      {manualMatchRows.map((row) => (
+                        <div key={row.id} className="grid gap-2 rounded-md border border-blue-200/70 bg-white/90 p-2 dark:border-blue-800/40 dark:bg-slate-900/60 md:grid-cols-[1fr_190px]">
+                          <div>
+                            <p className="truncate text-sm font-medium text-foreground">{row.file.name}</p>
+                            <p className="text-xs text-muted-foreground">{row.detectedReason}</p>
+                          </div>
+                          <Select value={row.assignedType} onValueChange={(value) => changeAssignedType(row.id, value as AssignedType)}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="手动选择类型" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="sales_report">销售报表</SelectItem>
+                              <SelectItem value="ad_report">广告报表</SelectItem>
+                              <SelectItem value="inventory_report">库存报告</SelectItem>
+                              <SelectItem value="skip">跳过</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ) : null}
               </div>
-            ) : null}
-
-            {submitState.status === 'error' ? (
-              <div className="flex items-center gap-2 rounded-md border border-rose-300/60 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-900/20 dark:text-rose-200">
-                <AlertCircle className="h-4 w-4" />
-                {submitState.message}
-              </div>
-            ) : null}
-
-            <Button
-              type="button"
-              className="mt-auto h-11 w-full bg-blue-600 hover:bg-blue-500"
-              onClick={() => void generateReport()}
-              disabled={!canGenerate}
-            >
-              {submitState.status === 'submitting' ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1 h-4 w-4" />}
-              生成日报
-            </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      <Card className="shadow-sm">
+      <Card className="h-fit shadow-sm xl:sticky xl:top-6">
         <CardHeader>
-          <CardTitle className="text-lg">文件识别与上传</CardTitle>
-          <CardDescription>左侧投递文件，右侧实时展示三份文件识别状态；匹配失败时出现手动匹配。</CardDescription>
+          <CardTitle className="text-lg">处理状态</CardTitle>
+          <CardDescription>默认展示全部步骤，执行时高亮当前进度，并显示后台同步状态。</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-5">
-          <div className="grid gap-5 xl:grid-cols-[300px_1fr]">
-            <div
-              className={cn(
-                'flex flex-col rounded-xl border-2 border-dashed p-4 text-center transition-colors',
-                dragActive ? 'border-blue-500 bg-blue-50/60 dark:bg-blue-900/20' : 'border-border bg-muted/30'
-              )}
-              style={{ minHeight: `${dropZoneHeight}px` }}
-              onDrop={(event) => void onDrop(event)}
-              onDragOver={(event) => {
-                event.preventDefault()
-                setDragActive(true)
-              }}
-              onDragLeave={(event) => {
-                event.preventDefault()
-                setDragActive(false)
-              }}
-            >
-              <p className="text-sm font-semibold text-foreground">拖拽文件到这里</p>
-              <p className="mt-1 text-xs text-muted-foreground">支持 txt/xlsx 批量识别</p>
-
-              <div className="mt-auto space-y-2 pt-4">
-                <Button type="button" variant="outline" className="w-full" onClick={() => document.getElementById('daily-report-batch-picker')?.click()}>
-                  <FileSearch className="mr-1 h-4 w-4" />
-                  选择多个文件
-                </Button>
-                <Input
-                  id="daily-report-batch-picker"
-                  type="file"
-                  multiple
-                  accept=".txt,.xlsx"
-                  className="hidden"
-                  onChange={(event) => void addFiles(Array.from(event.target.files ?? []))}
-                />
-                <Button
-                  type="button"
-                  className="w-full"
-                  onClick={() => void uploadAllConfirmed()}
-                  disabled={uploadBusy || mappingBusy || !projectName.trim()}
-                >
-                  {uploadBusy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Upload className="mr-1 h-4 w-4" />}
-                  一键上传已匹配文件
-                </Button>
+        <CardContent className="space-y-4">
+          <div className="space-y-3 rounded-lg border bg-slate-50/70 p-3 dark:bg-slate-950/30">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                {submitState.status === 'submitting' ? <Loader2 className="h-4 w-4 animate-spin text-blue-500" /> : <DatabaseZap className="h-4 w-4 text-slate-500" />}
+                <span>{submitState.message || '等待生成任务'}</span>
               </div>
+              <span className="text-xs font-semibold text-muted-foreground">{normalizeProgress(jobProgress?.progress ?? 0)}%</span>
             </div>
-
-            <div className="space-y-4">
-              {REQUIRED_TYPES.map((type) => {
-                const state = uploadState[type]
-                const meta = getUploadMeta(state)
-                const matched = state.status !== 'empty'
+            <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+              <div
+                className="h-full bg-blue-500 transition-all duration-300"
+                style={{ width: `${normalizeProgress(jobProgress?.progress ?? 0)}%` }}
+              />
+            </div>
+            <div className="space-y-2 text-sm">
+              {PROGRESS_STEP_LABELS.map((label, index) => {
+                const done = hasProgressState && (currentProgressStep > index || (currentProgressStep === 3 && index === 3))
+                const active = hasProgressState && currentProgressStep === index && !done
+                const isLastStep = index === 3
                 return (
-                  <div key={type} className="flex min-h-[120px] flex-col rounded-lg border bg-card p-3">
-                    <div className="mb-2 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className={cn('h-2.5 w-2.5 rounded-full', meta.dot)} />
-                        <p className="text-sm font-semibold text-foreground">{TYPE_LABEL[type]}</p>
-                      </div>
-                      <span className="text-xs text-muted-foreground">{meta.text}</span>
-                    </div>
-
-                    <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
-                      <div className={cn('h-full transition-all duration-200', matched ? meta.bar : 'bg-slate-300 dark:bg-slate-700')} style={{ width: matched ? '100%' : '28%' }} />
-                    </div>
-
-                    <div className="mt-auto flex items-end justify-between gap-3 pt-2">
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs text-muted-foreground">{state.selectedFile?.name ?? '等待识别或手动匹配'}</p>
-                        {state.error ? <p className="mt-1 text-xs text-destructive">{state.error}</p> : null}
-                      </div>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => void uploadType(type)}
-                        disabled={state.status === 'empty' || state.status === 'uploading' || !projectName.trim()}
+                  <div key={label} className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        'h-2.5 w-2.5 rounded-full transition-colors',
+                        done ? 'bg-emerald-500' : active ? 'bg-blue-500' : 'bg-slate-300 dark:bg-slate-700'
+                      )}
+                    />
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={cn(
+                          'transition-colors',
+                          done
+                            ? 'text-emerald-700 dark:text-emerald-200'
+                            : active
+                              ? 'font-medium text-blue-700 dark:text-blue-200'
+                              : 'text-muted-foreground'
+                        )}
                       >
-                        {state.status === 'uploading' ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-1 h-3.5 w-3.5" />}
-                        上传
-                      </Button>
+                        {label}
+                      </span>
+                      {isLastStep && done && submitState.filename ? (
+                        <span className="font-medium text-emerald-600 dark:text-emerald-300">：{submitState.filename}</span>
+                      ) : null}
                     </div>
                   </div>
                 )
               })}
-
-              {manualMatchRows.length > 0 ? (
-                <div className="rounded-lg border border-blue-200/70 bg-blue-50/60 p-3 dark:border-blue-800/50 dark:bg-blue-950/20">
-                  <p className="text-sm font-semibold text-blue-800 dark:text-blue-200">手动匹配</p>
-                  <p className="mt-1 text-xs text-blue-700/80 dark:text-blue-200/80">以下文件识别失败，请手动指定类型。</p>
-
-                  <div className="mt-3 space-y-2">
-                    {manualMatchRows.map((row) => (
-                      <div key={row.id} className="grid gap-2 rounded-md border border-blue-200/70 bg-white/90 p-2 dark:border-blue-800/40 dark:bg-slate-900/60 md:grid-cols-[1fr_190px]">
-                        <div>
-                          <p className="truncate text-sm font-medium text-foreground">{row.file.name}</p>
-                          <p className="text-xs text-muted-foreground">{row.detectedReason}</p>
-                        </div>
-                        <Select value={row.assignedType} onValueChange={(value) => changeAssignedType(row.id, value as AssignedType)}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="手动选择类型" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="sales_report">销售报表</SelectItem>
-                            <SelectItem value="ad_report">广告报表</SelectItem>
-                            <SelectItem value="inventory_report">库存报告</SelectItem>
-                            <SelectItem value="skip">跳过</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
             </div>
+          </div>
+
+          <div className="rounded-lg border bg-muted/30 px-3 py-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-medium">后台同步</p>
+              <p className={cn('text-sm font-semibold', syncMeta.tone)}>{syncMeta.label}</p>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">{persistenceSync.message || '报表生成完成后自动同步数据库。'}</p>
+          </div>
+
+          {submitState.status === 'success' && submitState.filename ? (
+            <div className="flex items-center gap-2 rounded-md border border-emerald-300/60 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-200">
+              <Download className="h-4 w-4" />
+              {submitState.filename}
+            </div>
+          ) : null}
+
+          {submitState.status === 'error' ? (
+            <div className="flex items-center gap-2 rounded-md border border-rose-300/60 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-900/20 dark:text-rose-200">
+              <AlertCircle className="h-4 w-4" />
+              {submitState.message}
+            </div>
+          ) : null}
+
+          <div className="space-y-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={() => void retryDownload()}
+              disabled={!downloadTarget.endpoint || downloadTarget.downloading || submitState.status === 'submitting'}
+            >
+              {downloadTarget.downloading ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Download className="mr-1 h-4 w-4" />}
+              下载报表
+            </Button>
+
+            <Button
+              type="button"
+              className="h-11 w-full bg-blue-600 hover:bg-blue-500"
+              onClick={() => void generateReport()}
+              disabled={!canGenerate}
+            >
+              {submitState.status === 'submitting' ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1 h-4 w-4" />}
+              生成销售日报
+            </Button>
           </div>
         </CardContent>
       </Card>
     </div>
   )
+}
+
+async function downloadByEndpoint(endpoint: string, fallbackName: string, operator: string, isAdmin: boolean) {
+  const downloadResponse = await fetch(resolveApiUrl(endpoint), {
+    headers: authHeaders(operator, isAdmin),
+  })
+  if (!downloadResponse.ok) {
+    const message = await downloadResponse.text()
+    throw new Error(message || '下载失败')
+  }
+
+  const blob = await downloadResponse.blob()
+  const headerName = extractFilenameFromHeader(downloadResponse.headers.get('Content-Disposition'))
+  const filename = headerName || fallbackName
+
+  const downloadUrl = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = downloadUrl
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.URL.revokeObjectURL(downloadUrl)
+
+  return filename
 }

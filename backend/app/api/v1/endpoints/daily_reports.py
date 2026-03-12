@@ -77,6 +77,8 @@ def get_daily_report_task(task_id: int) -> DailyReportTaskStatusResponse:
         progress=task.progress,
         message=task.message,
         error_message=task.error_message,
+        persistence_status=getattr(task, 'persistence_status', None),
+        persistence_message=getattr(task, 'persistence_message', None),
         created_at=task.created_at,
         updated_at=task.updated_at,
     )

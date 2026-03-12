@@ -166,8 +166,8 @@ def test_replace_shipment_schedule_items_from_csv_accepts_active_sku():
 
 def test_parse_shipment_schedules_csv_supports_excel_date_formats():
     content = (
-        'project_name,shipment_no,shipping_method,shipment_status,created_date,etd_date,eta_date\n'
-        '宝勒1店,SHP-100,sea,draft,2026/3/8,3/10/2026,2026-03-20 00:00:00\n'
+        'project_name,shipment_no,shipping_method,shipment_status,created_date,etd_date,eta_date,actual_inbound_date\n'
+        '宝勒1店,SHP-100,sea,draft,2026/3/8,3/10/2026,2026-03-20 00:00:00,2026/3/25\n'
     ).encode('utf-8-sig')
 
     rows = shipment_schedule_service.parse_shipment_schedules_csv(content)
@@ -178,6 +178,7 @@ def test_parse_shipment_schedules_csv_supports_excel_date_formats():
     assert rows[0]['created_date'].isoformat() == '2026-03-08'
     assert rows[0]['etd_date'].isoformat() == '2026-03-10'
     assert rows[0]['eta_date'].isoformat() == '2026-03-20'
+    assert rows[0]['actual_inbound_date'].isoformat() == '2026-03-25'
 
 
 def test_import_shipment_schedules_from_csv_creates_rows():
@@ -210,6 +211,7 @@ def test_import_shipment_schedules_from_csv_creates_rows():
         assert saved.source_file == 'shipment-batch.csv'
         assert saved.created_by == 'tester'
         assert saved.remark == '首批导入'
+        assert saved.actual_inbound_date is None
 
 
 def test_import_shipment_schedules_from_csv_rejects_duplicate_shipment_no():

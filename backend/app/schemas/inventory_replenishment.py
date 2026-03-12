@@ -74,8 +74,7 @@ class InventoryReplenishmentShipmentItem(BaseModel):
     shipping_method: str
     etd_date: str | None = None
     eta_date: str | None = None
-    expected_inbound_start_date: str | None = None
-    expected_inbound_end_date: str | None = None
+    actual_inbound_date: str | None = None
     tracking_no: str | None = None
     quantity: int
     remark: str | None = None

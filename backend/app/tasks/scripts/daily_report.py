@@ -230,23 +230,37 @@ def _load_template_or_create() -> Workbook:
 
 
 def run(input_path: str, output_dir: str, params: dict) -> dict:
+    callback = params.get('_progress_callback')
+
+    def report(stage: str, progress: int, message: str) -> None:
+        if not callable(callback):
+            return
+        try:
+            callback(stage, progress, message)
+        except Exception:
+            return
+
     output_root = Path(output_dir)
     output_root.mkdir(parents=True, exist_ok=True)
 
     project_name = _safe_project_name(str(params.get('project_name', 'unknown')))
     country = str(params.get('country', 'US')).strip().upper() or 'US'
     report_date = str(params.get('report_date', datetime.utcnow().date().isoformat()))
+
+    report('reading_sources', 18, '处理中：正在读取销售、广告、库存文件')
     sales_path, ad_path, inventory_path = _resolve_report_paths(input_path, params)
 
     sales_rows = _load_tsv_rows(sales_path)
     ad_rows = _load_excel_rows(ad_path)
     inventory_rows = _load_tsv_rows(inventory_path)
 
+    report('aggregating_metrics', 48, '处理中：正在汇总销售、广告、库存指标')
     sales = _aggregate_sales(sales_rows)
     ads = _aggregate_ads(ad_rows)
     inventory = _aggregate_inventory(inventory_rows)
     overview_rows = _build_overview_rows(report_date, country, sales, ads, inventory)
 
+    report('writing_workbook', 78, '处理中：正在写入日报工作簿')
     wb = _load_template_or_create()
     ws = wb.active
     for row_idx, row in enumerate(overview_rows, start=1):
@@ -256,6 +270,7 @@ def run(input_path: str, output_dir: str, params: dict) -> dict:
 
     filename = f'{project_name}_Daily_Report_{report_date}.xlsx'
     result_path = output_root / filename
+    report('saving_workbook', 92, '处理中：正在保存日报文件')
     wb.save(result_path)
 
     return {

@@ -809,8 +809,8 @@ export default function ProductAnalysisPage() {
             <CardDescription>项目名称与国家站点必填，日期支持快捷填充上周区间。</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-3">
-              <div className="space-y-2">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="w-full min-w-0 space-y-2 sm:w-auto sm:flex-[0_1_140px] sm:max-w-[160px]">
                 <label htmlFor="project_name" className="text-sm font-medium">项目名称</label>
                 <Select
                   value={projectName}
@@ -819,7 +819,7 @@ export default function ProductAnalysisPage() {
                 >
                   <SelectTrigger
                     id="project_name"
-                    className="h-10 transition-all duration-200 data-[state=open]:ring-2 data-[state=open]:ring-blue-500/30"
+                    className="h-10 max-w-full transition-all duration-200 data-[state=open]:ring-2 data-[state=open]:ring-blue-500/30"
                   >
                     <SelectValue
                       placeholder={projectsLoading ? '项目加载中...' : projects.length ? '请选择项目名称' : '暂无可选项目'}
@@ -839,10 +839,10 @@ export default function ProductAnalysisPage() {
                 {projectLoadError ? <p className="text-xs text-destructive">{projectLoadError}</p> : null}
               </div>
 
-              <div className="space-y-2">
+              <div className="w-full min-w-0 space-y-2 sm:w-auto sm:flex-[0_1_180px] sm:max-w-[220px]">
                 <label htmlFor="country" className="text-sm font-medium">国家站点</label>
                 <Select value={country} onValueChange={(value) => setCountry(value as CountryOption)}>
-                  <SelectTrigger id="country" className="h-10">
+                  <SelectTrigger id="country" className="h-10 max-w-full">
                     <SelectValue placeholder="请选择国家站点" />
                   </SelectTrigger>
                   <SelectContent>
@@ -855,7 +855,7 @@ export default function ProductAnalysisPage() {
                 </Select>
               </div>
 
-              <div className="space-y-2">
+              <div className="min-w-0 flex-1 space-y-2">
                 <label htmlFor="report_start_date" className="text-sm font-medium">日期范围</label>
                 <div className="flex flex-wrap items-center gap-2">
                   <Input
@@ -863,7 +863,7 @@ export default function ProductAnalysisPage() {
                     type="date"
                     value={startDate}
                     onChange={(event) => setStartDate(event.target.value)}
-                    className="w-[140px]"
+                    className="w-full min-w-[150px] flex-1 sm:w-auto sm:flex-none"
                   />
                   <span className="text-sm text-muted-foreground">至</span>
                   <Input
@@ -871,16 +871,20 @@ export default function ProductAnalysisPage() {
                     type="date"
                     value={endDate}
                     onChange={(event) => setEndDate(event.target.value)}
-                    className="w-[140px]"
+                    className="w-full min-w-[150px] flex-1 sm:w-auto sm:flex-none"
                   />
-                  <Button type="button" variant="secondary" onClick={applyLastWeek}>
-                    <CalendarRange className="mr-1 h-4 w-4" />
-                    上周
-                  </Button>
                 </div>
                 {startDate && endDate && startDate > endDate ? (
                   <p className="text-xs text-destructive">开始日期不能晚于结束日期</p>
                 ) : null}
+              </div>
+
+              <div className="w-full space-y-2 sm:w-auto sm:flex-none">
+                <div className="text-sm font-medium text-transparent select-none">快捷</div>
+                <Button type="button" variant="secondary" onClick={applyLastWeek} className="w-full sm:w-auto">
+                  <CalendarRange className="mr-1 h-4 w-4" />
+                  上周
+                </Button>
               </div>
             </div>
 

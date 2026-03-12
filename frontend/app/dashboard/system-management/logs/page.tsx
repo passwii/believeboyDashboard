@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Eye, Loader2, RefreshCw, Search } from 'lucide-react'
+import { Activity, Eye, FileSpreadsheet, Loader2, PackageCheck, RefreshCw, Search, ShieldCheck, Users } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 import { Badge } from '@/components/ui/badge'
@@ -39,7 +39,35 @@ type OperationAuditLogsResponse = {
   has_next: boolean
 }
 
+type OperationAuditLogModuleSummaryItem = {
+  key: string
+  label: string
+  count: number
+  success_count: number
+  failure_count: number
+}
+
+type OperationAuditLogActionSummaryItem = {
+  action: string
+  count: number
+}
+
+type OperationAuditLogsSummaryResponse = {
+  total: number
+  success_count: number
+  failure_count: number
+  unique_operator_count: number
+  modules: OperationAuditLogModuleSummaryItem[]
+  top_actions: OperationAuditLogActionSummaryItem[]
+}
+
 const API_BASE = '/api/backend'
+const MODULE_ACTION_FILTERS: Record<string, string> = {
+  commission: 'commission.',
+  shipment_schedules: 'shipment_schedules.',
+  projects: 'projects.',
+  users: 'users.',
+}
 
 function formatDateTime(value: string | null): string {
   if (!value) return '-'
@@ -70,6 +98,7 @@ export default function SystemOperationLogsPage() {
   const { data: session, status } = useSession()
 
   const [rows, setRows] = useState<OperationAuditLogItem[]>([])
+  const [summary, setSummary] = useState<OperationAuditLogsSummaryResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -107,17 +136,34 @@ export default function SystemOperationLogsPage() {
       if (targetType) params.set('target_type', targetType)
       if (result !== 'all') params.set('result', result)
 
-      const response = await fetch(`${API_BASE}/api/v1/system-management/audit-logs?${params.toString()}`, {
-        headers: buildBackendHeaders(session),
-        cache: 'no-store',
-      })
-      if (!response.ok) {
-        throw new Error(await parseError(response))
+      const headers = buildBackendHeaders(session)
+      const [logsResponse, summaryResponse] = await Promise.all([
+        fetch(`${API_BASE}/api/v1/system-management/audit-logs?${params.toString()}`, {
+          headers,
+          cache: 'no-store',
+        }),
+        fetch(`${API_BASE}/api/v1/system-management/audit-logs/summary?${params.toString()}`, {
+          headers,
+          cache: 'no-store',
+        }),
+      ])
+
+      if (!logsResponse.ok) {
+        throw new Error(await parseError(logsResponse))
       }
-      const payload = (await response.json()) as OperationAuditLogsResponse
-      setRows(payload.items || [])
-      setTotal(payload.total || 0)
-      setHasNext(Boolean(payload.has_next))
+      if (!summaryResponse.ok) {
+        throw new Error(await parseError(summaryResponse))
+      }
+
+      const [logsPayload, summaryPayload] = (await Promise.all([
+        logsResponse.json(),
+        summaryResponse.json(),
+      ])) as [OperationAuditLogsResponse, OperationAuditLogsSummaryResponse]
+
+      setRows(logsPayload.items || [])
+      setTotal(logsPayload.total || 0)
+      setHasNext(Boolean(logsPayload.has_next))
+      setSummary(summaryPayload)
     } catch (err) {
       setError(err instanceof Error ? err.message : '加载日志失败')
     } finally {
@@ -157,6 +203,62 @@ export default function SystemOperationLogsPage() {
     setResult('all')
   }, [])
 
+  const summaryCards = useMemo(() => {
+    const modules = summary?.modules ?? []
+    return [
+      {
+        key: 'total',
+        title: '全部审计日志',
+        value: summary?.total ?? 0,
+        detail: `成功 ${summary?.success_count ?? 0} / 失败 ${summary?.failure_count ?? 0}`,
+        icon: <Activity className="h-4 w-4" />,
+        accent: 'from-slate-900/90 via-slate-700/80 to-slate-500/70 text-white',
+        onClick: () => {
+          setActionInput('')
+          setPage(1)
+          setAction('')
+        },
+      },
+      {
+        key: 'commission',
+        title: '运营报表核算',
+        value: modules.find((item) => item.key === 'commission')?.count ?? 0,
+        detail: `成功 ${modules.find((item) => item.key === 'commission')?.success_count ?? 0} / 失败 ${modules.find((item) => item.key === 'commission')?.failure_count ?? 0}`,
+        icon: <FileSpreadsheet className="h-4 w-4" />,
+        accent: 'from-cyan-500 via-sky-500 to-blue-600 text-white',
+        onClick: () => {
+          setActionInput(MODULE_ACTION_FILTERS.commission)
+          setPage(1)
+          setAction(MODULE_ACTION_FILTERS.commission)
+        },
+      },
+      {
+        key: 'shipment',
+        title: '编辑发货信息管理',
+        value: modules.find((item) => item.key === 'shipment_schedules')?.count ?? 0,
+        detail: `成功 ${modules.find((item) => item.key === 'shipment_schedules')?.success_count ?? 0} / 失败 ${modules.find((item) => item.key === 'shipment_schedules')?.failure_count ?? 0}`,
+        icon: <PackageCheck className="h-4 w-4" />,
+        accent: 'from-amber-400 via-orange-500 to-rose-500 text-white',
+        onClick: () => {
+          setActionInput(MODULE_ACTION_FILTERS.shipment_schedules)
+          setPage(1)
+          setAction(MODULE_ACTION_FILTERS.shipment_schedules)
+        },
+      },
+      {
+        key: 'operators',
+        title: '活跃操作人',
+        value: summary?.unique_operator_count ?? 0,
+        detail: '当前筛选条件下的去重人数',
+        icon: <Users className="h-4 w-4" />,
+        accent: 'from-emerald-500 via-teal-500 to-cyan-500 text-white',
+        onClick: undefined,
+      },
+    ]
+  }, [summary])
+
+  const topActions = summary?.top_actions ?? []
+
   return (
     <div className="w-full space-y-6">
       <Card className="overflow-hidden border-border/80 shadow-[0_20px_45px_-24px_rgba(15,23,42,0.26)]">
@@ -176,6 +278,64 @@ export default function SystemOperationLogsPage() {
 
         <CardContent className="space-y-5 p-5 sm:p-7">
           {error ? <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">{error}</div> : null}
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {summaryCards.map((card) => (
+              <button
+                key={card.key}
+                type="button"
+                onClick={card.onClick}
+                disabled={!card.onClick}
+                className={`group rounded-2xl bg-gradient-to-br ${card.accent} p-[1px] text-left ${card.onClick ? 'transition-transform duration-200 hover:-translate-y-0.5' : 'cursor-default'}`}
+              >
+                <div className="flex h-full min-h-[138px] flex-col justify-between rounded-[calc(1rem-1px)] bg-black/10 p-4 backdrop-blur-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/72">{card.title}</p>
+                      <p className="mt-3 text-3xl font-semibold tracking-tight">{card.value}</p>
+                    </div>
+                    <div className="rounded-xl border border-white/15 bg-white/10 p-2 text-white/90">
+                      {card.icon}
+                    </div>
+                  </div>
+                  <p className="text-sm text-white/78">{card.detail}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          <Card className="border-border/70 bg-muted/20 shadow-none">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <ShieldCheck className="h-4 w-4 text-cyan-600" />
+                高频动作统计
+              </CardTitle>
+              <CardDescription>帮助快速定位最近最常见的审计动作，点击下方标签可直接带入动作筛选。</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-wrap gap-2 pt-0">
+              {topActions.length === 0 ? (
+                <span className="text-sm text-muted-foreground">当前筛选条件下暂无动作统计</span>
+              ) : (
+                topActions.map((item) => (
+                  <button
+                    key={item.action}
+                    type="button"
+                    onClick={() => {
+                      setActionInput(item.action)
+                      setPage(1)
+                      setAction(item.action)
+                    }}
+                    className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background px-3 py-1.5 text-sm transition-colors hover:border-cyan-500/40 hover:bg-cyan-500/5"
+                  >
+                    <span className="font-medium">{item.action}</span>
+                    <Badge variant="secondary" className="rounded-full px-2 py-0 text-[11px]">
+                      {item.count}
+                    </Badge>
+                  </button>
+                ))
+              )}
+            </CardContent>
+          </Card>
 
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
             <Input value={keywordInput} onChange={(event) => setKeywordInput(event.target.value)} placeholder="关键词（路径/目标ID/trace）" />

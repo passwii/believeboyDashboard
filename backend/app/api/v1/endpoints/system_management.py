@@ -6,7 +6,7 @@ import re
 from threading import Lock
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy import MetaData, Table, func, inspect, or_, select, text
+from sqlalchemy import MetaData, Table, case, func, inspect, or_, select, text
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -35,6 +35,9 @@ from app.schemas.system_management import (
     CommissionRatioSource,
     OperationAuditLogItem,
     OperationAuditLogsResponse,
+    OperationAuditLogsSummaryResponse,
+    OperationAuditLogModuleSummaryItem,
+    OperationAuditLogActionSummaryItem,
     CommissionRecordItem,
     CommissionRecordsResponse,
     CommissionYearlyMonthlySummaryItem,
@@ -326,6 +329,46 @@ def _serialize_operation_audit_log(row: OperationAuditLog) -> OperationAuditLogI
     )
 
 
+def _apply_audit_log_filters(
+    stmt,
+    *,
+    operator: str | None,
+    action: str | None,
+    target_type: str | None,
+    result: str | None,
+    keyword: str | None,
+):
+    normalized_operator = (operator or '').strip()
+    if normalized_operator:
+        stmt = stmt.where(OperationAuditLog.operator.ilike(f'%{normalized_operator}%'))
+
+    normalized_action = (action or '').strip()
+    if normalized_action:
+        stmt = stmt.where(OperationAuditLog.action.ilike(f'%{normalized_action}%'))
+
+    normalized_target_type = (target_type or '').strip()
+    if normalized_target_type:
+        stmt = stmt.where(OperationAuditLog.target_type.ilike(f'%{normalized_target_type}%'))
+
+    normalized_result = (result or '').strip().lower()
+    if normalized_result in {'success', 'failure'}:
+        stmt = stmt.where(OperationAuditLog.result == normalized_result)
+
+    normalized_keyword = (keyword or '').strip()
+    if normalized_keyword:
+        like_value = f'%{normalized_keyword}%'
+        stmt = stmt.where(
+            or_(
+                OperationAuditLog.request_path.ilike(like_value),
+                OperationAuditLog.target_id.ilike(like_value),
+                OperationAuditLog.trace_id.ilike(like_value),
+                OperationAuditLog.error_message.ilike(like_value),
+            )
+        )
+
+    return stmt
+
+
 def _ensure_data_state_table(db: Session) -> None:
     try:
         db.execute(
@@ -509,44 +552,22 @@ def list_operation_audit_logs(
     keyword: str | None = Query(default=None),
     db: Session = Depends(get_db_session),
 ) -> OperationAuditLogsResponse:
-    stmt = select(OperationAuditLog)
-    total_stmt = select(func.count(OperationAuditLog.id))
-
-    normalized_operator = (operator or '').strip()
-    if normalized_operator:
-        condition = OperationAuditLog.operator.ilike(f'%{normalized_operator}%')
-        stmt = stmt.where(condition)
-        total_stmt = total_stmt.where(condition)
-
-    normalized_action = (action or '').strip()
-    if normalized_action:
-        condition = OperationAuditLog.action.ilike(f'%{normalized_action}%')
-        stmt = stmt.where(condition)
-        total_stmt = total_stmt.where(condition)
-
-    normalized_target_type = (target_type or '').strip()
-    if normalized_target_type:
-        condition = OperationAuditLog.target_type.ilike(f'%{normalized_target_type}%')
-        stmt = stmt.where(condition)
-        total_stmt = total_stmt.where(condition)
-
-    normalized_result = (result or '').strip().lower()
-    if normalized_result in {'success', 'failure'}:
-        condition = OperationAuditLog.result == normalized_result
-        stmt = stmt.where(condition)
-        total_stmt = total_stmt.where(condition)
-
-    normalized_keyword = (keyword or '').strip()
-    if normalized_keyword:
-        like_value = f'%{normalized_keyword}%'
-        condition = or_(
-            OperationAuditLog.request_path.ilike(like_value),
-            OperationAuditLog.target_id.ilike(like_value),
-            OperationAuditLog.trace_id.ilike(like_value),
-            OperationAuditLog.error_message.ilike(like_value),
-        )
-        stmt = stmt.where(condition)
-        total_stmt = total_stmt.where(condition)
+    stmt = _apply_audit_log_filters(
+        select(OperationAuditLog),
+        operator=operator,
+        action=action,
+        target_type=target_type,
+        result=result,
+        keyword=keyword,
+    )
+    total_stmt = _apply_audit_log_filters(
+        select(func.count(OperationAuditLog.id)),
+        operator=operator,
+        action=action,
+        target_type=target_type,
+        result=result,
+        keyword=keyword,
+    )
 
     total = int(db.execute(total_stmt).scalar() or 0)
     offset = (page - 1) * page_size
@@ -561,6 +582,78 @@ def list_operation_audit_logs(
         page=page,
         page_size=page_size,
         has_next=has_next,
+    )
+
+
+@router.get('/audit-logs/summary', response_model=OperationAuditLogsSummaryResponse)
+def get_operation_audit_logs_summary(
+    operator: str | None = Query(default=None),
+    action: str | None = Query(default=None),
+    target_type: str | None = Query(default=None),
+    result: str | None = Query(default=None),
+    keyword: str | None = Query(default=None),
+    db: Session = Depends(get_db_session),
+) -> OperationAuditLogsSummaryResponse:
+    base_stmt = _apply_audit_log_filters(
+        select(OperationAuditLog),
+        operator=operator,
+        action=action,
+        target_type=target_type,
+        result=result,
+        keyword=keyword,
+    ).subquery()
+
+    total, success_count, failure_count, unique_operator_count = db.execute(
+        select(
+            func.count().label('total'),
+            func.sum(case((base_stmt.c.result == 'success', 1), else_=0)).label('success_count'),
+            func.sum(case((base_stmt.c.result == 'failure', 1), else_=0)).label('failure_count'),
+            func.count(func.distinct(base_stmt.c.operator)).label('unique_operator_count'),
+        )
+    ).one()
+
+    module_specs = (
+        ('commission', '运营报表核算', 'commission.%'),
+        ('shipment_schedules', '编辑发货信息管理', 'shipment_schedules.%'),
+        ('projects', '项目信息维护', 'projects.%'),
+        ('users', '账号权限维护', 'users.%'),
+    )
+    modules: list[OperationAuditLogModuleSummaryItem] = []
+    for key, label, action_pattern in module_specs:
+        count_value, success_value, failure_value = db.execute(
+            select(
+                func.count().label('count'),
+                func.sum(case((base_stmt.c.result == 'success', 1), else_=0)).label('success_count'),
+                func.sum(case((base_stmt.c.result == 'failure', 1), else_=0)).label('failure_count'),
+            )
+            .select_from(base_stmt)
+            .where(base_stmt.c.action.like(action_pattern))
+        ).one()
+        modules.append(
+            OperationAuditLogModuleSummaryItem(
+                key=key,
+                label=label,
+                count=int(count_value or 0),
+                success_count=int(success_value or 0),
+                failure_count=int(failure_value or 0),
+            )
+        )
+
+    top_action_rows = db.execute(
+        select(base_stmt.c.action, func.count().label('count'))
+        .select_from(base_stmt)
+        .group_by(base_stmt.c.action)
+        .order_by(func.count().desc(), base_stmt.c.action.asc())
+        .limit(6)
+    ).all()
+
+    return OperationAuditLogsSummaryResponse(
+        total=int(total or 0),
+        success_count=int(success_count or 0),
+        failure_count=int(failure_count or 0),
+        unique_operator_count=int(unique_operator_count or 0),
+        modules=modules,
+        top_actions=[OperationAuditLogActionSummaryItem(action=str(action_name), count=int(count or 0)) for action_name, count in top_action_rows],
     )
 
 

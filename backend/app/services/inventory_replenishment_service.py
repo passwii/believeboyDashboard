@@ -522,12 +522,7 @@ def list_inventory_replenishment_shipments(
                 'shipping_method': str(schedule.shipping_method),
                 'etd_date': schedule.etd_date.isoformat() if schedule.etd_date else None,
                 'eta_date': schedule.eta_date.isoformat() if schedule.eta_date else None,
-                'expected_inbound_start_date': schedule.expected_inbound_start_date.isoformat()
-                if schedule.expected_inbound_start_date
-                else None,
-                'expected_inbound_end_date': schedule.expected_inbound_end_date.isoformat()
-                if schedule.expected_inbound_end_date
-                else None,
+                'actual_inbound_date': schedule.actual_inbound_date.isoformat() if schedule.actual_inbound_date else None,
                 'tracking_no': schedule.tracking_no,
                 'quantity': int(item.quantity),
                 'remark': item.remark or schedule.remark,

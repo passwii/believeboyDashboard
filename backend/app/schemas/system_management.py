@@ -328,3 +328,25 @@ class OperationAuditLogsResponse(BaseModel):
     page: int
     page_size: int
     has_next: bool
+
+
+class OperationAuditLogModuleSummaryItem(BaseModel):
+    key: str
+    label: str
+    count: int
+    success_count: int
+    failure_count: int
+
+
+class OperationAuditLogActionSummaryItem(BaseModel):
+    action: str
+    count: int
+
+
+class OperationAuditLogsSummaryResponse(BaseModel):
+    total: int
+    success_count: int
+    failure_count: int
+    unique_operator_count: int
+    modules: list[OperationAuditLogModuleSummaryItem] = Field(default_factory=list)
+    top_actions: list[OperationAuditLogActionSummaryItem] = Field(default_factory=list)

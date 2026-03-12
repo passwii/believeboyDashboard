@@ -1,8 +1,7 @@
 'use client'
 
 import { type ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react'
-import { Package2, RefreshCcw, Route, ShipWheel, Upload, FileDown, Plus, Pencil } from 'lucide-react'
-
+import { RefreshCcw, Upload, FileDown, Plus, Pencil } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -39,11 +38,8 @@ type ShipmentScheduleListItem = {
   created_date: string | null
   etd_date: string | null
   eta_date: string | null
-  expected_inbound_start_date: string | null
-  expected_inbound_end_date: string | null
+  actual_inbound_date: string | null
   shipment_status: string
-  stat_date: string | null
-  forwarder_update: string | null
   remark: string | null
   sku_count: number
   total_quantity: number
@@ -58,10 +54,7 @@ type ShipmentScheduleItemRow = {
   remark: string | null
 }
 
-type ShipmentScheduleDetail = ShipmentScheduleListItem & {
-  booking_note: string | null
-  items: ShipmentScheduleItemRow[]
-}
+type ShipmentScheduleDetail = ShipmentScheduleListItem & { items: ShipmentScheduleItemRow[] }
 
 type ShipmentScheduleListResponse = {
   items: ShipmentScheduleListItem[]
@@ -86,13 +79,9 @@ type ScheduleFormState = {
   created_date: string
   etd_date: string
   eta_date: string
-  expected_inbound_start_date: string
-  expected_inbound_end_date: string
-  booking_note: string
-  forwarder_update: string
+  actual_inbound_date: string
   remark: string
   shipment_status: string
-  stat_date: string
 }
 
 const STATUS_OPTIONS = [
@@ -124,13 +113,9 @@ const EMPTY_FORM: ScheduleFormState = {
   created_date: '',
   etd_date: '',
   eta_date: '',
-  expected_inbound_start_date: '',
-  expected_inbound_end_date: '',
-  booking_note: '',
-  forwarder_update: '',
+  actual_inbound_date: '',
   remark: '',
   shipment_status: 'draft',
-  stat_date: '',
 }
 
 function authHeaders(): Record<string, string> {
@@ -150,12 +135,6 @@ async function parseError(response: Response): Promise<string> {
 function formatDate(value: string | null | undefined): string {
   if (!value) return '-'
   return value
-}
-
-function formatDateRange(start: string | null | undefined, end: string | null | undefined): string {
-  if (!start && !end) return '-'
-  if (start && end) return `${start} ~ ${end}`
-  return start || end || '-'
 }
 
 function formatTime(value: string): string {
@@ -186,15 +165,15 @@ function downloadCsvFile(filename: string, header: string[], rows: Array<Array<s
 
 function statusMeta(status: string): { label: string; className: string } {
   const map: Record<string, { label: string; className: string }> = {
-    draft: { label: '草稿', className: 'bg-slate-100 text-slate-700' },
-    preparing: { label: '备货中', className: 'bg-amber-100 text-amber-700' },
-    in_transit: { label: '在途', className: 'bg-sky-100 text-sky-700' },
-    arrived_port: { label: '已到港', className: 'bg-cyan-100 text-cyan-700' },
-    inbound_processing: { label: '入仓处理中', className: 'bg-violet-100 text-violet-700' },
-    completed: { label: '完成', className: 'bg-emerald-100 text-emerald-700' },
-    cancelled: { label: '已取消', className: 'bg-rose-100 text-rose-700' },
+    draft: { label: '草稿', className: 'border border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200' },
+    preparing: { label: '备货中', className: 'border border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-900/80 dark:bg-amber-950/60 dark:text-amber-300' },
+    in_transit: { label: '在途', className: 'border border-sky-200 bg-sky-100 text-sky-700 dark:border-sky-900/80 dark:bg-sky-950/60 dark:text-sky-300' },
+    arrived_port: { label: '已到港', className: 'border border-cyan-200 bg-cyan-100 text-cyan-700 dark:border-cyan-900/80 dark:bg-cyan-950/60 dark:text-cyan-300' },
+    inbound_processing: { label: '入仓处理中', className: 'border border-violet-200 bg-violet-100 text-violet-700 dark:border-violet-900/80 dark:bg-violet-950/60 dark:text-violet-300' },
+    completed: { label: '完成', className: 'border border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-900/80 dark:bg-emerald-950/60 dark:text-emerald-300' },
+    cancelled: { label: '已取消', className: 'border border-rose-200 bg-rose-100 text-rose-700 dark:border-rose-900/80 dark:bg-rose-950/60 dark:text-rose-300' },
   }
-  return map[status] || { label: status, className: 'bg-slate-100 text-slate-700' }
+  return map[status] || { label: status, className: 'border border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200' }
 }
 
 function methodLabel(method: string): string {
@@ -212,13 +191,9 @@ function buildFormFromDetail(detail: ShipmentScheduleDetail): ScheduleFormState 
     created_date: detail.created_date || '',
     etd_date: detail.etd_date || '',
     eta_date: detail.eta_date || '',
-    expected_inbound_start_date: detail.expected_inbound_start_date || '',
-    expected_inbound_end_date: detail.expected_inbound_end_date || '',
-    booking_note: detail.booking_note || '',
-    forwarder_update: detail.forwarder_update || '',
+    actual_inbound_date: detail.actual_inbound_date || '',
     remark: detail.remark || '',
     shipment_status: detail.shipment_status,
-    stat_date: detail.stat_date || '',
   }
 }
 
@@ -249,6 +224,11 @@ export default function ShipmentManagementPage() {
   const [dialogMode, setDialogMode] = useState<'create' | 'edit'>('create')
   const [form, setForm] = useState<ScheduleFormState>(EMPTY_FORM)
   const [submitting, setSubmitting] = useState(false)
+
+  const [skuDialogOpen, setSkuDialogOpen] = useState(false)
+  const [skuDialogScheduleId, setSkuDialogScheduleId] = useState<number | null>(null)
+  const [skuDialogDetail, setSkuDialogDetail] = useState<ShipmentScheduleDetail | null>(null)
+  const [skuDialogLoading, setSkuDialogLoading] = useState(false)
 
   const [importing, setImporting] = useState(false)
   const [batchImporting, setBatchImporting] = useState(false)
@@ -366,6 +346,53 @@ export default function ShipmentManagementPage() {
     setDialogOpen(true)
   }
 
+  const handleEditSchedule = async (scheduleId: number) => {
+    setSelectedId(scheduleId)
+    if (detail?.id === scheduleId) {
+      openEditDialog()
+      return
+    }
+
+    setDetailLoading(true)
+    setDetailError(null)
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/shipment-schedules/${scheduleId}`, {
+        headers: authHeaders(),
+        cache: 'no-store',
+      })
+      if (!response.ok) throw new Error(await parseError(response))
+      const payload = (await response.json()) as ShipmentScheduleDetail
+      setDetail(payload)
+      setDialogMode('edit')
+      setForm(buildFormFromDetail(payload))
+      setDialogOpen(true)
+    } catch (loadError) {
+      setDetail(null)
+      setDetailError(loadError instanceof Error ? loadError.message : '详情加载失败')
+    } finally {
+      setDetailLoading(false)
+    }
+  }
+
+  const openSkuDialog = async (scheduleId: number) => {
+    setSkuDialogScheduleId(scheduleId)
+    setSkuDialogOpen(true)
+    setSkuDialogLoading(true)
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/shipment-schedules/${scheduleId}`, {
+        headers: authHeaders(),
+        cache: 'no-store',
+      })
+      if (!response.ok) throw new Error(await parseError(response))
+      const payload = (await response.json()) as ShipmentScheduleDetail
+      setSkuDialogDetail(payload)
+    } catch (loadError) {
+      setSkuDialogDetail(null)
+    } finally {
+      setSkuDialogLoading(false)
+    }
+  }
+
   const handleFormChange = (field: keyof ScheduleFormState, value: string) => {
     setForm((current) => ({ ...current, [field]: value }))
   }
@@ -394,12 +421,8 @@ export default function ShipmentManagementPage() {
         created_date: form.created_date || null,
         etd_date: form.etd_date || null,
         eta_date: form.eta_date || null,
-        expected_inbound_start_date: form.expected_inbound_start_date || null,
-        expected_inbound_end_date: form.expected_inbound_end_date || null,
-        booking_note: form.booking_note || null,
-        forwarder_update: form.forwarder_update || null,
+        actual_inbound_date: form.actual_inbound_date || null,
         remark: form.remark || null,
-        stat_date: form.stat_date || null,
       }
 
       const url =
@@ -419,13 +442,9 @@ export default function ShipmentManagementPage() {
               created_date: payload.created_date,
               etd_date: payload.etd_date,
               eta_date: payload.eta_date,
-              expected_inbound_start_date: payload.expected_inbound_start_date,
-              expected_inbound_end_date: payload.expected_inbound_end_date,
-              booking_note: payload.booking_note,
-              forwarder_update: payload.forwarder_update,
+              actual_inbound_date: payload.actual_inbound_date,
               remark: payload.remark,
               shipment_status: payload.shipment_status,
-              stat_date: payload.stat_date,
             }
 
       const response = await fetch(url, {
@@ -455,8 +474,8 @@ export default function ShipmentManagementPage() {
     if (!detail) return
     downloadCsvFile(
       `${detail.shipment_no}-items-template.csv`,
-      ['project_name', 'shipment_no', 'date', 'SKU', 'quantity', 'remark'],
-      [[detail.project_name, detail.shipment_no, detail.created_date || '', 'SKU-DEMO', 100, '']]
+      ['project_name', 'shipment_no', 'SKU', 'quantity'],
+      [[detail.project_name, detail.shipment_no, 'SKU-DEMO', 100]]
     )
   }
 
@@ -475,11 +494,7 @@ export default function ShipmentManagementPage() {
         'created_date',
         'etd_date',
         'eta_date',
-        'expected_inbound_start_date',
-        'expected_inbound_end_date',
-        'stat_date',
-        'booking_note',
-        'forwarder_update',
+        'actual_inbound_date',
         'remark',
       ],
       [
@@ -491,14 +506,9 @@ export default function ShipmentManagementPage() {
           '',
           '',
           '',
-          '',
           '2026-03-11',
           '2026-03-15',
           '2026-04-08',
-          '2026-04-10',
-          '2026-04-12',
-          '2026-03-11',
-          '',
           '',
           '日期建议统一填 YYYY-MM-DD',
         ],
@@ -572,58 +582,37 @@ export default function ShipmentManagementPage() {
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
-      <section className="relative overflow-hidden rounded-3xl border border-sky-100 bg-[linear-gradient(135deg,rgba(240,249,255,0.96),rgba(255,255,255,0.92)),radial-gradient(circle_at_top_right,rgba(14,165,233,0.18),transparent_32%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.16),transparent_28%)] p-6 shadow-sm">
-        <div className="absolute inset-y-0 right-6 hidden w-56 rounded-full bg-sky-200/20 blur-3xl lg:block" />
-        <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-3xl space-y-3">
-            <Badge className="rounded-full bg-white/85 px-3 py-1 text-sky-700 shadow-sm">数据分析 / 发货信息管理</Badge>
+    <div className="space-y-6">
+      <Card className="dashboard-surface">
+        <CardHeader className="gap-4 pb-5">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div className="space-y-2">
-              <h1 className="text-3xl font-semibold tracking-tight text-slate-900">船期主信息与发货明细统一维护</h1>
-              <p className="max-w-2xl text-sm leading-6 text-slate-600">
-                左侧管理船期批次，右侧查看当前批次的 SKU 与数量明细。明细按 CSV 覆盖导入，避免多次维护造成重复和统计偏差。
-              </p>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primary">Shipment Console</div>
+              <CardTitle className="text-2xl tracking-tight">控制台</CardTitle>
+              <CardDescription className="max-w-2xl text-sm leading-6">集中筛选批次、导入 CSV，并快速查看当前页发货规模。</CardDescription>
+            </div>
+            <div className="grid grid-cols-3 gap-2 xl:min-w-[360px]">
+              <div className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3">
+                <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">批次</div>
+                <div className="mt-1 text-xl font-semibold">{items.length}</div>
+              </div>
+              <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
+                <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">SKU</div>
+                <div className="mt-1 text-xl font-semibold">{summary.totalSku}</div>
+              </div>
+              <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 px-4 py-3">
+                <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">数量</div>
+                <div className="mt-1 text-xl font-semibold">{summary.totalQuantity.toLocaleString()}</div>
+              </div>
             </div>
           </div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <Card className="border-white/70 bg-white/80 shadow-sm">
-              <CardContent className="flex items-center gap-3 p-4">
-                <Route className="h-5 w-5 text-sky-600" />
-                <div>
-                  <div className="text-xs text-slate-500">当前页批次</div>
-                  <div className="text-xl font-semibold text-slate-900">{items.length}</div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="border-white/70 bg-white/80 shadow-sm">
-              <CardContent className="flex items-center gap-3 p-4">
-                <Package2 className="h-5 w-5 text-emerald-600" />
-                <div>
-                  <div className="text-xs text-slate-500">SKU 种类</div>
-                  <div className="text-xl font-semibold text-slate-900">{summary.totalSku}</div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="border-white/70 bg-white/80 shadow-sm">
-              <CardContent className="flex items-center gap-3 p-4">
-                <ShipWheel className="h-5 w-5 text-amber-600" />
-                <div>
-                  <div className="text-xs text-slate-500">总数量</div>
-                  <div className="text-xl font-semibold text-slate-900">{summary.totalQuantity.toLocaleString()}</div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </section>
-
-      <Card>
-        <CardHeader className="pb-4">
-          <CardTitle>筛选条件</CardTitle>
-          <CardDescription>按项目、状态、运输方式和货件编号筛选船期批次。</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <Select value={projectFilter} onValueChange={setProjectFilter} disabled={projectsLoading}>
+        <CardContent className="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_auto] xl:gap-5">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 xl:col-span-1">
+
+          <div className="space-y-2">
+            <div className="text-xs font-medium text-muted-foreground">项目</div>
+            <Select value={projectFilter} onValueChange={setProjectFilter} disabled={projectsLoading}>
             <SelectTrigger>
               <SelectValue placeholder="全部项目" />
             </SelectTrigger>
@@ -635,9 +624,12 @@ export default function ShipmentManagementPage() {
                 </SelectItem>
               ))}
             </SelectContent>
-          </Select>
+            </Select>
+          </div>
 
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <div className="space-y-2">
+            <div className="text-xs font-medium text-muted-foreground">状态</div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger>
               <SelectValue placeholder="全部状态" />
             </SelectTrigger>
@@ -649,9 +641,12 @@ export default function ShipmentManagementPage() {
                 </SelectItem>
               ))}
             </SelectContent>
-          </Select>
+            </Select>
+          </div>
 
-          <Select value={methodFilter} onValueChange={setMethodFilter}>
+          <div className="space-y-2">
+            <div className="text-xs font-medium text-muted-foreground">运输方式</div>
+            <Select value={methodFilter} onValueChange={setMethodFilter}>
             <SelectTrigger>
               <SelectValue placeholder="全部方式" />
             </SelectTrigger>
@@ -663,50 +658,54 @@ export default function ShipmentManagementPage() {
                 </SelectItem>
               ))}
             </SelectContent>
-          </Select>
-
-          <Input value={shipmentNoFilter} onChange={(event) => setShipmentNoFilter(event.target.value)} placeholder="货件编号搜索" />
-
-          <div className="flex gap-2 xl:col-span-4">
-            <Button onClick={() => void loadList(1)} className="gap-2">
-              <RefreshCcw className="h-4 w-4" />
-              刷新
-            </Button>
-            <Button variant="outline" onClick={downloadBatchTemplate} className="gap-2">
-              <FileDown className="h-4 w-4" />
-              下载批量模板
-            </Button>
-            <Button asChild variant="outline" disabled={batchImporting} className="gap-2">
-              <label>
-                <Upload className="h-4 w-4" />
-                {batchImporting ? '导入中...' : '批量上传批次'}
-                <input type="file" accept=".csv" className="hidden" onChange={handleBatchImportFile} />
-              </label>
-            </Button>
-            <Button variant="outline" onClick={openCreateDialog} className="gap-2">
-              <Plus className="h-4 w-4" />
-              新建船期
-            </Button>
+            </Select>
           </div>
-          <div className="rounded-2xl border border-sky-100 bg-sky-50/80 px-4 py-3 text-xs leading-6 text-sky-900 md:col-span-2 xl:col-span-4">
-            批量模板必填字段：`project_name`、`shipment_no`、`shipping_method`、`shipment_status`。日期字段建议统一使用 `YYYY-MM-DD`；
-            后端同时兼容 Excel 常见格式，如 `2026/03/11`、`03/11/2026`、`2026-03-11 00:00:00`。模板下载默认带 UTF-8 BOM，导入同时兼容
-            UTF-8 和 GBK/ANSI，尽量避免中文乱码。
+
+          <div className="space-y-2">
+            <div className="text-xs font-medium text-muted-foreground">货件编号</div>
+            <Input value={shipmentNoFilter} onChange={(event) => setShipmentNoFilter(event.target.value)} placeholder="搜索 shipment no." />
+          </div>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <div className="grid grid-cols-2 gap-2">
+              <Button size="sm" onClick={() => void loadList(1)} className="h-9 gap-1.5 px-3 text-xs">
+                <RefreshCcw className="h-4 w-4" />
+                刷新
+              </Button>
+              <Button size="sm" variant="outline" onClick={openCreateDialog} className="h-9 gap-1.5 px-3 text-xs">
+                <Plus className="h-4 w-4" />
+                新建批次
+              </Button>
+              <Button size="sm" variant="outline" onClick={downloadBatchTemplate} className="h-9 gap-1.5 px-3 text-xs">
+                <FileDown className="h-4 w-4" />
+                下载模板
+              </Button>
+              <Button asChild size="sm" variant="outline" disabled={batchImporting} className="h-9 gap-1.5 px-3 text-xs">
+                <label>
+                  <Upload className="h-4 w-4" />
+                  {batchImporting ? '导入中...' : '批量导入'}
+                  <input type="file" accept=".csv" className="hidden" onChange={handleBatchImportFile} />
+                </label>
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
 
       {error ? (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900/70 dark:bg-rose-950/40 dark:text-rose-200">{error}</div>
       ) : null}
       {successMessage ? (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{successMessage}</div>
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/40 dark:text-emerald-200">{successMessage}</div>
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.95fr]">
-        <Card className="overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between gap-4">
+      <div className="grid gap-6">
+        <Card className="dashboard-surface">
+          <CardHeader className="border-b border-border/70">
+            <div className="flex flex-row items-center justify-between gap-4">
             <div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Batches</div>
               <CardTitle>船期批次</CardTitle>
               <CardDescription>
                 共 {total} 条记录，当前第 {page} / {pageCount} 页
@@ -720,16 +719,17 @@ export default function ShipmentManagementPage() {
                 下一页
               </Button>
             </div>
+            </div>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-3 p-4">
             {loading ? (
               <div className="space-y-3">
                 {Array.from({ length: 5 }).map((_, index) => (
-                  <Skeleton key={index} className="h-24 w-full rounded-2xl" />
+                  <Skeleton key={index} className="h-28 w-full rounded-[28px]" />
                 ))}
               </div>
             ) : items.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-12 text-center text-sm text-slate-500">
+              <div className="rounded-[28px] border border-dashed border-border px-4 py-14 text-center text-sm text-muted-foreground">
                 当前没有符合筛选条件的船期记录。
               </div>
             ) : (
@@ -741,38 +741,76 @@ export default function ShipmentManagementPage() {
                     key={item.id}
                     type="button"
                     onClick={() => setSelectedId(item.id)}
-                    className={`w-full rounded-2xl border p-4 text-left transition ${
+                    className={`group relative w-full overflow-hidden rounded-[28px] border p-5 text-left transition ${
                       selected
-                        ? 'border-sky-300 bg-sky-50/80 shadow-sm'
-                        : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80'
+                        ? 'border-primary/50 bg-primary/5 shadow-md dark:bg-primary/10'
+                        : 'border-border/70 bg-card/50 hover:border-border hover:bg-muted/50'
                     }`}
                   >
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <div className="text-base font-semibold text-slate-900">{item.shipment_no}</div>
-                          <Badge className={status.className}>{status.label}</Badge>
-                          <Badge variant="outline">{methodLabel(item.shipping_method)}</Badge>
+                    <div className="flex flex-col gap-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex flex-col gap-2 pl-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="text-base font-semibold">{item.project_name}</div>
+                            <Badge className={status.className}>{status.label}</Badge>
+                          </div>
+                          <div className="text-xl font-semibold tracking-tight">{item.shipment_no}</div>
+                          <div className="text-sm text-muted-foreground">
+                            创建于 {item.created_date || '待补充'}
+                          </div>
                         </div>
-                        <div className="text-sm text-slate-600">
-                          {item.project_name}
-                          {item.forwarder_name ? ` · ${item.forwarder_name}` : ''}
-                          {item.warehouse_code ? ` · 仓库 ${item.warehouse_code}` : ''}
-                        </div>
-                        <div className="flex flex-wrap gap-4 text-xs text-slate-500">
-                          <span>ETD: {formatDate(item.etd_date)}</span>
-                          <span>ETA: {formatDate(item.eta_date)}</span>
-                          <span>入仓: {formatDateRange(item.expected_inbound_start_date, item.expected_inbound_end_date)}</span>
+                        <div className="grid shrink-0 grid-cols-3 gap-2 sm:min-w-[280px]">
+                          <button
+                            type="button"
+                            className="cursor-pointer rounded-2xl border border-border/70 bg-muted/50 p-3 text-center transition hover:border-primary/50 hover:bg-primary/5 dark:bg-muted/30"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              void openSkuDialog(item.id)
+                            }}
+                          >
+                            <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">SKU</div>
+                            <div className="text-lg font-semibold text-foreground">{item.sku_count}</div>
+                          </button>
+                          <div className="rounded-2xl border border-border/70 bg-muted/50 p-3 text-center dark:bg-muted/30">
+                            <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">数量</div>
+                            <div className="text-lg font-semibold text-foreground">{item.total_quantity.toLocaleString()}</div>
+                          </div>
+                          <Button
+                            type="button"
+                            variant={selected ? 'default' : 'outline'}
+                            className="h-auto rounded-2xl"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              void handleEditSchedule(item.id)
+                            }}
+                          >
+                            <span className="flex items-center justify-center gap-2">
+                              <Pencil className="h-4 w-4" />
+                              编辑
+                            </span>
+                          </Button>
                         </div>
                       </div>
-                      <div className="grid shrink-0 grid-cols-2 gap-3 rounded-2xl bg-white/70 p-3 text-center sm:min-w-44">
-                        <div>
-                          <div className="text-xs text-slate-500">SKU</div>
-                          <div className="text-lg font-semibold text-slate-900">{item.sku_count}</div>
+                      <div className="grid gap-3 md:grid-cols-5">
+                        <div className="rounded-2xl border border-border/70 bg-muted/50 px-3 py-2 dark:bg-muted/30">
+                          <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">货代</div>
+                          <div className="mt-1 text-sm font-medium truncate">{item.forwarder_name || '待补充'}</div>
                         </div>
-                        <div>
-                          <div className="text-xs text-slate-500">数量</div>
-                          <div className="text-lg font-semibold text-slate-900">{item.total_quantity.toLocaleString()}</div>
+                        <div className="rounded-2xl border border-border/70 bg-muted/50 px-3 py-2 dark:bg-muted/30">
+                          <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">仓库</div>
+                          <div className="mt-1 text-sm font-medium truncate">{item.warehouse_code || '待补充'}</div>
+                        </div>
+                        <div className="rounded-2xl border border-border/70 bg-muted/50 px-3 py-2 dark:bg-muted/30">
+                          <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">ETD</div>
+                          <div className="mt-1 text-sm font-medium">{formatDate(item.etd_date)}</div>
+                        </div>
+                        <div className="rounded-2xl border border-border/70 bg-muted/50 px-3 py-2 dark:bg-muted/30">
+                          <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">ETA</div>
+                          <div className="mt-1 text-sm font-medium">{formatDate(item.eta_date)}</div>
+                        </div>
+                        <div className="rounded-2xl border border-border/70 bg-muted/50 px-3 py-2 dark:bg-muted/30">
+                          <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">ATA</div>
+                          <div className="mt-1 text-sm font-medium">{formatDate(item.actual_inbound_date)}</div>
                         </div>
                       </div>
                     </div>
@@ -782,150 +820,18 @@ export default function ShipmentManagementPage() {
             )}
           </CardContent>
         </Card>
-
-        <Card className="overflow-hidden">
-          <CardHeader className="flex flex-row items-start justify-between gap-4">
-            <div>
-              <CardTitle>批次详情</CardTitle>
-              <CardDescription>查看当前船期的过程信息，并维护 SKU 明细。</CardDescription>
-            </div>
-            <Button variant="outline" onClick={openEditDialog} disabled={!detail}>
-              <Pencil className="mr-2 h-4 w-4" />
-              编辑主信息
-            </Button>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {detailLoading ? (
-              <div className="space-y-3">
-                <Skeleton className="h-10 w-1/2" />
-                <Skeleton className="h-40 w-full" />
-                <Skeleton className="h-56 w-full" />
-              </div>
-            ) : detailError ? (
-              <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{detailError}</div>
-            ) : !detail ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-12 text-center text-sm text-slate-500">
-                选择一个船期批次后查看详情。
-              </div>
-            ) : (
-              <>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-2xl bg-slate-50 p-4">
-                    <div className="text-xs text-slate-500">项目 / 货件编号</div>
-                    <div className="mt-2 text-lg font-semibold text-slate-900">{detail.project_name}</div>
-                    <div className="mt-1 text-sm text-slate-600">{detail.shipment_no}</div>
-                  </div>
-                  <div className="rounded-2xl bg-slate-50 p-4">
-                    <div className="text-xs text-slate-500">更新时间</div>
-                    <div className="mt-2 text-sm font-medium text-slate-900">{formatTime(detail.updated_at)}</div>
-                    <div className="mt-1 text-sm text-slate-600">
-                      {statusMeta(detail.shipment_status).label} · {methodLabel(detail.shipping_method)}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid gap-4 rounded-2xl border border-slate-200 p-4 sm:grid-cols-2">
-                  <div className="space-y-2 text-sm">
-                    <div className="text-slate-500">追踪号</div>
-                    <div className="font-medium text-slate-900">{detail.tracking_no || '-'}</div>
-                  </div>
-                  <div className="space-y-2 text-sm">
-                    <div className="text-slate-500">货代 / 供应商</div>
-                    <div className="font-medium text-slate-900">
-                      {detail.forwarder_name || '-'}
-                    </div>
-                  </div>
-                  <div className="space-y-2 text-sm">
-                    <div className="text-slate-500">ETD / ETA</div>
-                    <div className="font-medium text-slate-900">
-                      {formatDate(detail.etd_date)} / {formatDate(detail.eta_date)}
-                    </div>
-                  </div>
-                  <div className="space-y-2 text-sm">
-                    <div className="text-slate-500">预计入仓</div>
-                    <div className="font-medium text-slate-900">
-                      {formatDateRange(detail.expected_inbound_start_date, detail.expected_inbound_end_date)}
-                    </div>
-                  </div>
-                  <div className="space-y-2 text-sm sm:col-span-2">
-                    <div className="text-slate-500">货代更新</div>
-                    <div className="rounded-xl bg-slate-50 px-3 py-2 text-slate-700">{detail.forwarder_update || '-'}</div>
-                  </div>
-                  <div className="space-y-2 text-sm sm:col-span-2">
-                    <div className="text-slate-500">备注</div>
-                    <div className="rounded-xl bg-slate-50 px-3 py-2 text-slate-700">{detail.remark || detail.booking_note || '-'}</div>
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-slate-200">
-                  <div className="flex flex-col gap-3 border-b border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">SKU 明细</div>
-                      <div className="text-xs text-slate-500">
-                        {detail.sku_count} 个 SKU，合计 {detail.total_quantity.toLocaleString()} 件
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button variant="outline" onClick={downloadTemplate} className="gap-2">
-                        <FileDown className="h-4 w-4" />
-                        下载模板
-                      </Button>
-                      <Button asChild disabled={importing} className="gap-2">
-                        <label>
-                          <Upload className="h-4 w-4" />
-                          {importing ? '导入中...' : '上传 CSV'}
-                          <input type="file" accept=".csv" className="hidden" onChange={handleImportFile} />
-                        </label>
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="max-h-[420px] overflow-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>日期</TableHead>
-                          <TableHead>SKU</TableHead>
-                          <TableHead className="text-right">数量</TableHead>
-                          <TableHead>备注</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {detail.items.length === 0 ? (
-                          <TableRow>
-                            <TableCell colSpan={4} className="py-10 text-center text-sm text-slate-500">
-                              还没有 SKU 明细，先下载模板后上传 CSV。
-                            </TableCell>
-                          </TableRow>
-                        ) : (
-                          detail.items.map((item) => (
-                            <TableRow key={item.id}>
-                              <TableCell>{formatDate(item.item_date)}</TableCell>
-                              <TableCell className="font-medium text-slate-900">{item.sku}</TableCell>
-                              <TableCell className="text-right">{item.quantity.toLocaleString()}</TableCell>
-                              <TableCell>{item.remark || '-'}</TableCell>
-                            </TableRow>
-                          ))
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-h-[90vh] overflow-auto sm:max-w-3xl">
+        <DialogContent className="max-h-[90vh] overflow-auto dark:border-slate-800 dark:bg-slate-950 sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle>{dialogMode === 'create' ? '新建船期批次' : '编辑船期批次'}</DialogTitle>
-            <DialogDescription>主表维护过程信息，SKU 与数量明细请在详情区通过 CSV 导入。</DialogDescription>
+            <DialogTitle className="dark:text-slate-100">{dialogMode === 'create' ? '新建船期批次' : '编辑船期批次'}</DialogTitle>
+            <DialogDescription className="dark:text-slate-400">主表维护过程信息，SKU 与数量明细请在详情区通过 CSV 导入。</DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 py-2 md:grid-cols-2">
             <div className="space-y-2">
-              <div className="text-sm font-medium text-slate-700">项目</div>
+              <div className="text-sm font-medium text-slate-700 dark:text-slate-200">项目</div>
               <Select value={form.project_id} onValueChange={(value) => handleFormChange('project_id', value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="选择项目" />
@@ -941,7 +847,7 @@ export default function ShipmentManagementPage() {
             </div>
 
             <div className="space-y-2">
-              <div className="text-sm font-medium text-slate-700">货件编号</div>
+              <div className="text-sm font-medium text-slate-700 dark:text-slate-200">货件编号</div>
               <Input
                 value={form.shipment_no}
                 onChange={(event) => handleFormChange('shipment_no', event.target.value)}
@@ -951,7 +857,7 @@ export default function ShipmentManagementPage() {
             </div>
 
             <div className="space-y-2">
-              <div className="text-sm font-medium text-slate-700">运输方式</div>
+              <div className="text-sm font-medium text-slate-700 dark:text-slate-200">运输方式</div>
               <Select value={form.shipping_method} onValueChange={(value) => handleFormChange('shipping_method', value)}>
                 <SelectTrigger>
                   <SelectValue />
@@ -967,7 +873,7 @@ export default function ShipmentManagementPage() {
             </div>
 
             <div className="space-y-2">
-              <div className="text-sm font-medium text-slate-700">状态</div>
+              <div className="text-sm font-medium text-slate-700 dark:text-slate-200">状态</div>
               <Select value={form.shipment_status} onValueChange={(value) => handleFormChange('shipment_status', value)}>
                 <SelectTrigger>
                   <SelectValue />
@@ -983,89 +889,177 @@ export default function ShipmentManagementPage() {
             </div>
 
             <div className="space-y-2">
-              <div className="text-sm font-medium text-slate-700">追踪号</div>
+              <div className="text-sm font-medium text-slate-700 dark:text-slate-200">追踪号</div>
               <Input value={form.tracking_no} onChange={(event) => handleFormChange('tracking_no', event.target.value)} />
             </div>
             <div className="space-y-2">
-              <div className="text-sm font-medium text-slate-700">仓库编码</div>
+              <div className="text-sm font-medium text-slate-700 dark:text-slate-200">仓库编码</div>
               <Input value={form.warehouse_code} onChange={(event) => handleFormChange('warehouse_code', event.target.value)} />
             </div>
             <div className="space-y-2">
-              <div className="text-sm font-medium text-slate-700">货代公司</div>
+              <div className="text-sm font-medium text-slate-700 dark:text-slate-200">货代公司</div>
               <Input value={form.forwarder_name} onChange={(event) => handleFormChange('forwarder_name', event.target.value)} />
             </div>
 
             <div className="space-y-2">
-              <div className="text-sm font-medium text-slate-700">创建日期</div>
+              <div className="text-sm font-medium text-slate-700 dark:text-slate-200">创建日期</div>
               <Input type="date" value={form.created_date} onChange={(event) => handleFormChange('created_date', event.target.value)} />
             </div>
             <div className="space-y-2">
-              <div className="text-sm font-medium text-slate-700">统计日期</div>
-              <Input type="date" value={form.stat_date} onChange={(event) => handleFormChange('stat_date', event.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <div className="text-sm font-medium text-slate-700">ETD</div>
+              <div className="text-sm font-medium text-slate-700 dark:text-slate-200">ETD</div>
               <Input type="date" value={form.etd_date} onChange={(event) => handleFormChange('etd_date', event.target.value)} />
             </div>
             <div className="space-y-2">
-              <div className="text-sm font-medium text-slate-700">ETA</div>
+              <div className="text-sm font-medium text-slate-700 dark:text-slate-200">ETA</div>
               <Input type="date" value={form.eta_date} onChange={(event) => handleFormChange('eta_date', event.target.value)} />
             </div>
             <div className="space-y-2">
-              <div className="text-sm font-medium text-slate-700">预计入仓开始</div>
+              <div className="text-sm font-medium text-slate-700 dark:text-slate-200">实际入仓日期</div>
               <Input
                 type="date"
-                value={form.expected_inbound_start_date}
-                onChange={(event) => handleFormChange('expected_inbound_start_date', event.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <div className="text-sm font-medium text-slate-700">预计入仓结束</div>
-              <Input
-                type="date"
-                value={form.expected_inbound_end_date}
-                onChange={(event) => handleFormChange('expected_inbound_end_date', event.target.value)}
+                value={form.actual_inbound_date}
+                onChange={(event) => handleFormChange('actual_inbound_date', event.target.value)}
               />
             </div>
 
             <div className="space-y-2 md:col-span-2">
-              <div className="text-sm font-medium text-slate-700">货代更新</div>
-              <textarea
-                value={form.forwarder_update}
-                onChange={(event) => handleFormChange('forwarder_update', event.target.value)}
-                rows={3}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
-              />
-            </div>
-
-            <div className="space-y-2 md:col-span-2">
-              <div className="text-sm font-medium text-slate-700">约仓 / 货信说明</div>
-              <textarea
-                value={form.booking_note}
-                onChange={(event) => handleFormChange('booking_note', event.target.value)}
-                rows={3}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
-              />
-            </div>
-
-            <div className="space-y-2 md:col-span-2">
-              <div className="text-sm font-medium text-slate-700">备注 / 约仓信息</div>
+              <div className="text-sm font-medium text-slate-700 dark:text-slate-200">备注</div>
               <textarea
                 value={form.remark}
                 onChange={(event) => handleFormChange('remark', event.target.value)}
                 rows={3}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               />
             </div>
           </div>
 
-          <Separator />
+          {dialogMode === 'edit' && detail && (
+            <>
+              <Separator className="dark:bg-slate-800" />
+              <div className="space-y-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <div className="text-sm font-semibold">SKU 明细</div>
+                    <div className="text-xs text-muted-foreground">
+                      {detail.sku_count} 个 SKU，合计 {detail.total_quantity.toLocaleString()} 件
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        if (detail) {
+                          downloadCsvFile(
+                            `${detail.shipment_no}-items-template.csv`,
+                            ['project_name', 'shipment_no', 'SKU', 'quantity'],
+                            [[detail.project_name, detail.shipment_no, 'SKU-DEMO', 100]]
+                          )
+                        }
+                      }}
+                      className="gap-2"
+                    >
+                      <FileDown className="h-4 w-4" />
+                      下载模板
+                    </Button>
+                  </div>
+                </div>
+                <div className="overflow-hidden rounded-[28px] border border-border/70">
+                  <div className="max-h-[300px] overflow-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>SKU</TableHead>
+                          <TableHead>数量</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {detail.items.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={2} className="py-8 text-center text-sm text-muted-foreground">
+                              还没有 SKU 明细
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          detail.items.map((item) => (
+                            <TableRow key={item.id}>
+                              <TableCell className="font-medium">{item.sku}</TableCell>
+                              <TableCell>{item.quantity.toLocaleString()}</TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          <Separator className="dark:bg-slate-800" />
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setDialogOpen(false)} className="dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
               取消
             </Button>
             <Button onClick={() => void submitForm()} disabled={submitting}>
               {submitting ? '保存中...' : dialogMode === 'create' ? '创建' : '保存'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={skuDialogOpen} onOpenChange={setSkuDialogOpen}>
+        <DialogContent className="max-h-[90vh] overflow-auto dark:border-slate-800 dark:bg-slate-950 sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="dark:text-slate-100">SKU 明细</DialogTitle>
+            <DialogDescription className="dark:text-slate-400">
+              {skuDialogDetail ? `${skuDialogDetail.shipment_no} - ${skuDialogDetail.sku_count} 个 SKU，合计 ${skuDialogDetail.total_quantity.toLocaleString()} 件` : ''}
+            </DialogDescription>
+          </DialogHeader>
+
+          {skuDialogLoading ? (
+            <div className="space-y-3">
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-12 w-full" />
+            </div>
+          ) : skuDialogDetail ? (
+            <div className="overflow-hidden rounded-[28px] border border-border/70">
+              <div className="max-h-[500px] overflow-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>SKU</TableHead>
+                      <TableHead>数量</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {skuDialogDetail.items.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={2} className="py-12 text-center text-sm text-muted-foreground">
+                          还没有 SKU 明细
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      skuDialogDetail.items.map((item) => (
+                        <TableRow key={item.id}>
+                          <TableCell className="font-medium">{item.sku}</TableCell>
+                          <TableCell>{item.quantity.toLocaleString()}</TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              加载失败
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSkuDialogOpen(false)} className="dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+              关闭
             </Button>
           </DialogFooter>
         </DialogContent>
