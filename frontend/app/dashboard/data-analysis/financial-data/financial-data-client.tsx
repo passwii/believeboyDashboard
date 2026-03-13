@@ -987,8 +987,9 @@ export default function FinancialDataClient({
         applyExcelBorder(cell, 'FFCBD5E1')
       })
 
+      const compactWidthKeys = new Set<string>(['monthLabel', 'hasSourceReport'])
       detailSheet.columns = EXPORT_DETAIL_COLUMNS.map((column) => ({
-        width: column.key === 'monthLabel' ? 14 : column.format === 'text' || column.format === 'boolean' ? 12 : 14,
+        width: column.key === 'monthLabel' ? 14 : compactWidthKeys.has(column.key) ? 12 : 14,
       }))
       autosizeExcelColumns(detailSheet)
 
