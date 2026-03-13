@@ -2,6 +2,7 @@
 
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { Boxes, CalendarClock, CircleAlert, Loader2, PackageSearch, Route, Save, ShipWheel } from 'lucide-react'
+import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 
 import { Badge } from '@/components/ui/badge'
@@ -18,6 +19,7 @@ import {
 } from '@/components/ui/sheet'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 
 const API_BASE = '/api/backend'
 
@@ -201,6 +203,7 @@ function buildEditState(row: AnalysisRow): RowEditState {
 
 export default function InventoryReplenishmentPage() {
   const router = useRouter()
+  const { data: session } = useSession()
 
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
@@ -242,9 +245,7 @@ export default function InventoryReplenishmentPage() {
     async function loadProjects() {
       setProjectsLoading(true)
       try {
-        const response = await fetch(`${API_BASE}/api/v1/projects`, { headers: authHeaders(), cache: 'no-store' })
-        if (!response.ok) throw new Error(await parseError(response))
-        const payload = (await response.json()) as ProjectOption[]
+        const payload = await fetchManagedProjectsCached<ProjectOption[]>(session)
         if (!active) return
         setProjects(payload)
         if (!projectId && payload[0]?.id) {
@@ -261,7 +262,7 @@ export default function InventoryReplenishmentPage() {
     return () => {
       active = false
     }
-  }, [projectId])
+  }, [projectId, session])
 
   useEffect(() => {
     if (!currentProjectId) {

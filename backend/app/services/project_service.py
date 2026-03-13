@@ -164,6 +164,30 @@ def list_project_items(
     return db.execute(stmt).scalars().all()
 
 
+def ensure_project_access(
+    db: Session,
+    project_id: int,
+    *,
+    operator: str | None = None,
+    is_admin: bool = True,
+) -> Project:
+    row = db.execute(select(Project).where(Project.id == project_id)).scalars().first()
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='项目不存在')
+
+    if is_admin:
+        return row
+
+    normalized_operator = (operator or '').strip()
+    if not normalized_operator:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='无权限访问该项目')
+
+    if row.project_operator == normalized_operator or row.assistant_operator == normalized_operator:
+        return row
+
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='无权限访问该项目')
+
+
 def list_project_options(db: Session) -> list[dict[str, str | int | None]]:
     rows = list_project_items(db)
     if rows:

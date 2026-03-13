@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 import { Download, Eye, EyeOff, Loader2, ShoppingCart, TrendingDown, TrendingUp } from 'lucide-react'
+import { useSession } from 'next-auth/react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -13,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { clearClientCache, getClientCache, setClientCache } from '@/lib/client-cache'
+import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 
 type ProjectOption = {
   id: number | null
@@ -66,8 +68,6 @@ type PT1DetailsResponse = {
 }
 
 const API_BASE = '/api/backend'
-const PROJECTS_CACHE_KEY = 'weekly-analysis:projects'
-const PROJECTS_CACHE_TTL_MS = 10 * 60 * 1000
 const WEEKLY_DATA_CACHE_TTL_MS = 3 * 60 * 1000
 const WEEKLY_DETAILS_CACHE_TTL_MS = 5 * 60 * 1000
 
@@ -735,6 +735,7 @@ function StatCard({ title, value, icon, color, trend, trendLabel }: StatCardProp
 }
 
 export default function WeeklyProductAnalysisPage() {
+  const { data: session } = useSession()
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
   const [projectLoadError, setProjectLoadError] = useState<string | null>(null)
@@ -769,40 +770,20 @@ export default function WeeklyProductAnalysisPage() {
   const [summaryWeekColumnWidth, setSummaryWeekColumnWidth] = useState(SUMMARY_WEEK_COLUMN_FALLBACK_WIDTH)
 
   const loadProjects = useCallback(async () => {
-    const cached = getClientCache<ProjectOption[]>(PROJECTS_CACHE_KEY, PROJECTS_CACHE_TTL_MS)
-    const hasCachedProjects = Array.isArray(cached) && cached.length > 0
-    if (hasCachedProjects) {
-      setProjects(cached)
-      if (!projectId) {
-        setProjectId(String(cached[0].id))
-      }
-      setProjectsLoading(false)
-    } else {
-      setProjectsLoading(true)
-    }
+    setProjectsLoading(true)
     setProjectLoadError(null)
     try {
-      const response = await fetch(`${API_BASE}/api/v1/projects`, {
-        cache: 'no-store',
-        headers: authHeaders(),
-      })
-      if (!response.ok) {
-        throw new Error(parseErrorBody(await response.text(), response.status))
-      }
-      const payload = (await response.json()) as ProjectOption[]
+      const payload = await fetchManagedProjectsCached<ProjectOption[]>(session)
       setProjects(payload)
-      setClientCache(PROJECTS_CACHE_KEY, payload)
       if (payload.length > 0 && !projectId) {
         setProjectId(String(payload[0].id))
       }
     } catch (loadError) {
-      if (!hasCachedProjects) {
-        setProjectLoadError(loadError instanceof Error ? loadError.message : '项目列表加载失败')
-      }
+      setProjectLoadError(loadError instanceof Error ? loadError.message : '项目列表加载失败')
     } finally {
       setProjectsLoading(false)
     }
-  }, [projectId])
+  }, [projectId, session])
 
   const loadWeeklyData = useCallback(async (options?: { force?: boolean }) => {
     const parsedProjectId = Number(projectId)
