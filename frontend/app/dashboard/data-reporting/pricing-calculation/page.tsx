@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { AlertCircle, Calculator, CheckCircle2, Loader2, Search, Trash2, X } from 'lucide-react'
+import { AlertCircle, Calculator, CheckCircle2, Download, Loader2, Search, Trash2, X } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -236,6 +236,214 @@ function getCalculationTypeMeta(calculationType: PricingCalculationRunItem['calc
   }
 }
 
+type ComparisonValueType = 'text' | 'currency_usd' | 'currency_rmb' | 'percent' | 'number'
+
+type ComparisonRow = {
+  label: string
+  getDisplayValue: (run: PricingCalculationRunItem) => string
+  getExportValue?: (run: PricingCalculationRunItem) => string | number
+  valueType?: ComparisonValueType
+}
+
+type ComparisonSection = {
+  title: string
+  rows: ComparisonRow[]
+}
+
+function getComparisonSections(): ComparisonSection[] {
+  return [
+    {
+      title: '货品数据',
+      rows: [
+        { label: '产品名称', getDisplayValue: (run) => run.product_name, getExportValue: (run) => run.product_name },
+        { label: '测算类型', getDisplayValue: (run) => getCalculationTypeMeta(run.calculation_type).label, getExportValue: (run) => getCalculationTypeMeta(run.calculation_type).label },
+        { label: '包装尺寸(cm)', getDisplayValue: (run) => `${run.package_length_cm} × ${run.package_width_cm} × ${run.package_height_cm}`, getExportValue: (run) => `${run.package_length_cm} × ${run.package_width_cm} × ${run.package_height_cm}` },
+        { label: '重量(kg)', getDisplayValue: (run) => formatMetric(run.weight_kg, 3), getExportValue: (run) => run.weight_kg, valueType: 'number' },
+      ],
+    },
+    {
+      title: 'DDP 成本',
+      rows: [
+        { label: 'FOB成本', getDisplayValue: (run) => formatRmb(run.fob_product_cost_rmb), getExportValue: (run) => run.fob_product_cost_rmb, valueType: 'currency_rmb' },
+        { label: '头程', getDisplayValue: (run) => formatRmb(run.first_leg_cost_rmb), getExportValue: (run) => run.first_leg_cost_rmb, valueType: 'currency_rmb' },
+        { label: 'DDP(RMB)', getDisplayValue: (run) => formatRmb(run.profit.ddp_cost_rmb), getExportValue: (run) => run.profit.ddp_cost_rmb, valueType: 'currency_rmb' },
+        { label: 'DDP(USD)', getDisplayValue: (run) => formatCurrency(run.profit.ddp_cost_usd), getExportValue: (run) => run.profit.ddp_cost_usd, valueType: 'currency_usd' },
+      ],
+    },
+    {
+      title: '费用支出',
+      rows: [
+        { label: '佣金', getDisplayValue: (run) => formatCurrency(run.fees.referral_fee_usd), getExportValue: (run) => run.fees.referral_fee_usd, valueType: 'currency_usd' },
+        { label: '广告费', getDisplayValue: (run) => formatCurrency(run.fees.advertising_fee_usd), getExportValue: (run) => run.fees.advertising_fee_usd, valueType: 'currency_usd' },
+        { label: '广告费率', getDisplayValue: (run) => formatPercent(run.advertising_rate), getExportValue: (run) => run.advertising_rate, valueType: 'percent' },
+        { label: '派送', getDisplayValue: (run) => formatCurrency(run.fees.fba_fulfillment_fee_usd), getExportValue: (run) => run.fees.fba_fulfillment_fee_usd, valueType: 'currency_usd' },
+        { label: '配置费', getDisplayValue: (run) => formatCurrency(run.fees.inbound_config_fee_usd), getExportValue: (run) => run.fees.inbound_config_fee_usd, valueType: 'currency_usd' },
+        { label: '仓储费', getDisplayValue: (run) => formatCurrency(run.fees.storage_fee_usd), getExportValue: (run) => run.fees.storage_fee_usd, valueType: 'currency_usd' },
+        { label: '仓储月数', getDisplayValue: (run) => `${run.storage_months} 月`, getExportValue: (run) => run.storage_months, valueType: 'number' },
+        { label: '退货损耗', getDisplayValue: (run) => formatCurrency(run.fees.return_loss_usd), getExportValue: (run) => run.fees.return_loss_usd, valueType: 'currency_usd' },
+        { label: '退货折损率', getDisplayValue: (run) => formatPercent(run.return_loss_rate), getExportValue: (run) => run.return_loss_rate, valueType: 'percent' },
+        { label: '费用合计', getDisplayValue: (run) => formatCurrency(run.fees.total_fee_usd), getExportValue: (run) => run.fees.total_fee_usd, valueType: 'currency_usd' },
+      ],
+    },
+    {
+      title: '售价与利润',
+      rows: [
+        { label: '售价', getDisplayValue: (run) => formatCurrency(run.sale_price_usd), getExportValue: (run) => run.sale_price_usd, valueType: 'currency_usd' },
+        { label: '回款', getDisplayValue: (run) => formatCurrency(run.profit.payout_usd), getExportValue: (run) => run.profit.payout_usd, valueType: 'currency_usd' },
+        { label: '利润', getDisplayValue: (run) => formatCurrency(run.profit.profit_usd), getExportValue: (run) => run.profit.profit_usd, valueType: 'currency_usd' },
+        { label: '利润率', getDisplayValue: (run) => formatPercent(run.profit.profit_rate), getExportValue: (run) => run.profit.profit_rate, valueType: 'percent' },
+      ],
+    },
+    {
+      title: '规则',
+      rows: [
+        { label: '尺寸等级', getDisplayValue: (run) => run.size_tier_label, getExportValue: (run) => run.size_tier_label },
+        { label: '售价带', getDisplayValue: (run) => run.price_band_label, getExportValue: (run) => run.price_band_label },
+        { label: '计费重(lb)', getDisplayValue: (run) => formatMetric(run.weights.chargeable_weight_lb), getExportValue: (run) => run.weights.chargeable_weight_lb, valueType: 'number' },
+        { label: '体积(ft³)', getDisplayValue: (run) => formatMetric(run.dimensions.volume_cubic_ft, 2), getExportValue: (run) => run.dimensions.volume_cubic_ft, valueType: 'number' },
+        { label: '派送规则', getDisplayValue: (run) => run.fulfillment_fee_rule_label, getExportValue: (run) => run.fulfillment_fee_rule_label },
+        { label: '入库配置', getDisplayValue: (run) => run.inbound_config_fee_rule_label, getExportValue: (run) => run.inbound_config_fee_rule_label },
+        { label: '仓储规则', getDisplayValue: (run) => run.storage_fee_rule_label, getExportValue: (run) => run.storage_fee_rule_label },
+        { label: '汇率', getDisplayValue: (run) => formatMetric(run.usd_to_rmb_rate, 4), getExportValue: (run) => run.usd_to_rmb_rate, valueType: 'number' },
+      ],
+    },
+  ]
+}
+
+async function exportComparisonMatrixToExcel(runs: PricingCalculationRunItem[]) {
+  const ExcelJS = await import('exceljs')
+  const workbook = new ExcelJS.Workbook()
+  workbook.creator = 'Codex'
+  workbook.created = new Date()
+
+  const worksheet = workbook.addWorksheet('测算对比矩阵', {
+    views: [{ state: 'frozen', ySplit: 4, xSplit: 2 }],
+  })
+
+  const title = `测算对比矩阵 (${runs.length} 个产品)`
+  const exportedAt = new Date().toLocaleString('zh-CN', { hour12: false })
+  const sections = getComparisonSections()
+  const lastColumn = runs.length + 2
+
+  worksheet.mergeCells(1, 1, 1, lastColumn)
+  worksheet.getCell(1, 1).value = title
+  worksheet.getCell(1, 1).font = { name: 'Microsoft YaHei', size: 16, bold: true, color: { argb: 'FF0F172A' } }
+  worksheet.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
+  worksheet.getCell(1, 1).alignment = { vertical: 'middle', horizontal: 'left' }
+
+  worksheet.mergeCells(2, 1, 2, lastColumn)
+  worksheet.getCell(2, 1).value = `导出时间：${exportedAt}    说明：仅导出当前已选中的对比矩阵结果`
+  worksheet.getCell(2, 1).font = { name: 'Microsoft YaHei', size: 10, color: { argb: 'FF475569' } }
+  worksheet.getCell(2, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
+  worksheet.getCell(2, 1).alignment = { vertical: 'middle', horizontal: 'left' }
+
+  const headerRow = worksheet.getRow(4)
+  headerRow.values = [
+    '指标',
+    '小类',
+    ...runs.map((run) => `${run.product_name} (#${run.id})`),
+  ]
+  headerRow.height = 24
+
+  worksheet.columns = [
+    { width: 16 },
+    { width: 18 },
+    ...runs.map(() => ({ width: 22 })),
+  ]
+
+  const palette: Record<string, { section: string; sub: string }> = {
+    '货品数据': { section: 'FFDCEEFF', sub: 'FFF4F9FF' },
+    'DDP 成本': { section: 'FFFEE7C7', sub: 'FFFFF8EB' },
+    '费用支出': { section: 'FFFFD9E2', sub: 'FFFFF1F4' },
+    '售价与利润': { section: 'FFD8F7E7', sub: 'FFEEFDF4' },
+    '规则': { section: 'FFE9DEFF', sub: 'FFF7F2FF' },
+  }
+
+  headerRow.eachCell((cell, colNumber) => {
+    cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
+    cell.alignment = { vertical: 'middle', horizontal: colNumber <= 2 ? 'center' : 'left', wrapText: true }
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
+    cell.border = {
+      top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+      left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+      bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+      right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+    }
+  })
+
+  let currentRowIndex = 5
+  sections.forEach((section) => {
+    const startRow = currentRowIndex
+    const colors = palette[section.title] ?? { section: 'FFE2E8F0', sub: 'FFF8FAFC' }
+
+    section.rows.forEach((row) => {
+      const excelRow = worksheet.getRow(currentRowIndex)
+      excelRow.getCell(2).value = row.label
+      excelRow.getCell(2).font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF334155' } }
+      excelRow.getCell(2).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colors.sub } }
+      excelRow.getCell(2).alignment = { vertical: 'middle', horizontal: 'left', wrapText: true }
+
+      runs.forEach((run, index) => {
+        const cell = excelRow.getCell(index + 3)
+        const value = row.getExportValue ? row.getExportValue(run) : row.getDisplayValue(run)
+        cell.value = value
+        cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF0F172A' } }
+        cell.alignment = { vertical: 'middle', horizontal: typeof value === 'number' ? 'right' : 'left', wrapText: true }
+
+        if (typeof value === 'number') {
+          if (row.valueType === 'currency_usd') cell.numFmt = '$#,##0.00;[Red]-$#,##0.00'
+          if (row.valueType === 'currency_rmb') cell.numFmt = '"RMB " #,##0.00;[Red]-"RMB " #,##0.00'
+          if (row.valueType === 'percent') cell.numFmt = '0.00%'
+          if (row.valueType === 'number') cell.numFmt = '0.0000'
+        }
+
+        if (row.label === '利润' && typeof value === 'number') {
+          cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: value >= 0 ? 'FF047857' : 'FFBE123C' } }
+        }
+        if (row.label === '利润率' && typeof value === 'number') {
+          cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: value >= 0 ? 'FF047857' : 'FFBE123C' } }
+        }
+      })
+
+      excelRow.eachCell((cell) => {
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        }
+      })
+
+      currentRowIndex += 1
+    })
+
+    worksheet.mergeCells(startRow, 1, currentRowIndex - 1, 1)
+    const sectionCell = worksheet.getCell(startRow, 1)
+    sectionCell.value = section.title
+    sectionCell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
+    sectionCell.alignment = { vertical: 'top', horizontal: 'center', wrapText: true }
+    sectionCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colors.section } }
+    sectionCell.border = {
+      top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+      left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+      bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+      right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+    }
+  })
+
+  const buffer = await workbook.xlsx.writeBuffer()
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  })
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  const safeTimestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+  link.href = url
+  link.download = `测算对比矩阵-${safeTimestamp}.xlsx`
+  link.click()
+  window.URL.revokeObjectURL(url)
+}
+
 export default function PricingCalculationPage() {
   const [activeBusinessTab, setActiveBusinessTab] = useState<BusinessTab>('new-product')
   const [form, setForm] = useState<FormState>(INITIAL_FORM)
@@ -244,6 +452,7 @@ export default function PricingCalculationPage() {
   const [productKeyword, setProductKeyword] = useState('')
   const [selectedRunIds, setSelectedRunIds] = useState<number[]>([])
   const [loading, setLoading] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [deletingRunId, setDeletingRunId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -461,6 +670,23 @@ export default function PricingCalculationPage() {
       setError(deleteError instanceof Error ? deleteError.message : '删除测算记录失败')
     } finally {
       setDeletingRunId(null)
+    }
+  }
+
+  async function handleExportComparisonMatrix() {
+    if (selectedRuns.length === 0) {
+      setError('请先选择至少一条测算结果，再导出对比矩阵。')
+      return
+    }
+
+    setExporting(true)
+    setError(null)
+    try {
+      await exportComparisonMatrixToExcel(selectedRuns)
+    } catch (exportError) {
+      setError(exportError instanceof Error ? exportError.message : '导出 Excel 失败')
+    } finally {
+      setExporting(false)
     }
   }
 
@@ -754,8 +980,16 @@ export default function PricingCalculationPage() {
 
           <Card className="border-slate-200 shadow-sm">
             <CardHeader className="pb-3">
-              <CardTitle className="text-lg">测算对比矩阵</CardTitle>
-              <CardDescription>只展示当前已选中的产品，方便横向比较成本、费用与利润。</CardDescription>
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div className="space-y-1">
+                  <CardTitle className="text-lg">测算对比矩阵</CardTitle>
+                  <CardDescription>只展示当前已选中的产品，方便横向比较成本、费用与利润。</CardDescription>
+                </div>
+                <Button type="button" variant="outline" onClick={() => void handleExportComparisonMatrix()} disabled={selectedRuns.length === 0 || exporting}>
+                  {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                  导出 Excel
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <ComparisonTable runs={selectedRuns} />
@@ -1063,56 +1297,7 @@ function ComparisonTable({ runs }: { runs: PricingCalculationRunItem[] }) {
     return <div className="rounded-2xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">暂无可对比的测算结果</div>
   }
 
-  const sections: Array<{ title: string; rows: Array<{ label: string; getValue: (run: PricingCalculationRunItem) => string }> }> = [
-    {
-      title: '货品数据',
-      rows: [
-        { label: '产品名称', getValue: (run) => run.product_name },
-        { label: '包装尺寸(cm)', getValue: (run) => `${run.package_length_cm} × ${run.package_width_cm} × ${run.package_height_cm}` },
-        { label: '重量(kg)', getValue: (run) => formatMetric(run.weight_kg, 3) },
-      ],
-    },
-    {
-      title: 'DDP 成本',
-      rows: [
-        { label: 'FOB成本', getValue: (run) => formatRmb(run.fob_product_cost_rmb) },
-        { label: '头程', getValue: (run) => formatRmb(run.first_leg_cost_rmb) },
-        { label: 'DDP(RMB)', getValue: (run) => formatRmb(run.profit.ddp_cost_rmb) },
-        { label: 'DDP(USD)', getValue: (run) => formatCurrency(run.profit.ddp_cost_usd) },
-      ],
-    },
-    {
-      title: '费用支出',
-      rows: [
-        { label: '佣金', getValue: (run) => formatCurrency(run.fees.referral_fee_usd) },
-        { label: '广告', getValue: (run) => `${formatCurrency(run.fees.advertising_fee_usd)} / ${formatPercent(run.advertising_rate)}` },
-        { label: '派送', getValue: (run) => formatCurrency(run.fees.fba_fulfillment_fee_usd) },
-        { label: '配置费', getValue: (run) => formatCurrency(run.fees.inbound_config_fee_usd) },
-        { label: '仓储', getValue: (run) => `${formatCurrency(run.fees.storage_fee_usd)} / ${run.storage_months}月` },
-        { label: '退货', getValue: (run) => `${formatCurrency(run.fees.return_loss_usd)} / ${formatPercent(run.return_loss_rate)}` },
-        { label: '合计', getValue: (run) => formatCurrency(run.fees.total_fee_usd) },
-      ],
-    },
-    {
-      title: '售价与利润',
-      rows: [
-        { label: '售价', getValue: (run) => formatCurrency(run.sale_price_usd) },
-        { label: '回款', getValue: (run) => formatCurrency(run.profit.payout_usd) },
-        { label: '利润', getValue: (run) => formatCurrency(run.profit.profit_usd) },
-        { label: '利润率', getValue: (run) => formatPercent(run.profit.profit_rate) },
-      ],
-    },
-    {
-      title: '规则',
-      rows: [
-        { label: '计费重', getValue: (run) => formatMetric(run.weights.chargeable_weight_lb) + ' lb' },
-        { label: '体积', getValue: (run) => formatMetric(run.dimensions.volume_cubic_ft, 2) + ' ft³' },
-        { label: '派送规则', getValue: (run) => run.fulfillment_fee_rule_label },
-        { label: '入库配置', getValue: (run) => run.inbound_config_fee_rule_label },
-        { label: '仓储规则', getValue: (run) => run.storage_fee_rule_label },
-      ],
-    },
-  ]
+  const sections = getComparisonSections()
 
   const sectionStyles: Record<string, { categoryCell: string; subCell: string }> = {
     '货品数据': {
@@ -1181,7 +1366,7 @@ function ComparisonTable({ runs }: { runs: PricingCalculationRunItem[] }) {
               </TableCell>
               {runs.map((run) => (
                 <TableCell key={`${row.label}-${run.id}`} className="border-l align-top leading-5 text-slate-900">
-                  {row.getValue(run)}
+                  {row.getDisplayValue(run)}
                 </TableCell>
               ))}
             </TableRow>

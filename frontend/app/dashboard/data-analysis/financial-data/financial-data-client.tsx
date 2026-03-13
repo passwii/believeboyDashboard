@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
-import { TrendingUp, TrendingDown, Wallet, ArrowUpRight, ArrowDownRight, Eye, EyeOff } from 'lucide-react'
+import { TrendingUp, TrendingDown, Wallet, ArrowUpRight, ArrowDownRight, Eye, EyeOff, Download, Loader2 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 import { Badge } from '@/components/ui/badge'
@@ -212,6 +212,98 @@ function formatRate(value: number): string {
   return value.toFixed(4)
 }
 
+function applyExcelBorder(cell: import('exceljs').Cell, color = 'FFE2E8F0') {
+  cell.border = {
+    top: { style: 'thin', color: { argb: color } },
+    left: { style: 'thin', color: { argb: color } },
+    bottom: { style: 'thin', color: { argb: color } },
+    right: { style: 'thin', color: { argb: color } },
+  }
+}
+
+function autosizeExcelColumns(worksheet: import('exceljs').Worksheet) {
+  worksheet.columns?.forEach((column) => {
+    let maxLength = 12
+    column.eachCell?.({ includeEmpty: true }, (cell) => {
+      const raw = cell.value
+      const text = raw === null || raw === undefined ? '' : String(raw)
+      maxLength = Math.max(maxLength, Math.min(text.length + 4, 28))
+    })
+    column.width = maxLength
+  })
+}
+
+type FinancialExportDetailRow = {
+  monthLabel: string
+  incomeSales: number
+  incomeRefund: number
+  incomeAdjustment: number
+  incomeOther: number
+  expenseSellingFee: number
+  expenseFbaFee: number
+  expenseInventoryFee: number
+  expenseServiceFee: number
+  expenseAdvertising: number
+  expenseOtherFees: number
+  incomeTotal: number
+  expenseTotal: number
+  amazonPayBack: number
+  creditCardDeductionUsd: number
+  evaluationFeeRmb: number
+  prepaymentOtherRmb: number
+  operationCommissionRmb: number | null
+  payableTotalRmb: number | null
+  exchangeRate: number
+  platformRatio: number
+  deliveryRatio: number
+  storageRatio: number
+  serviceRatio: number
+  adRatio: number
+  refundRatio: number
+  paybackRatio: number
+  hasSourceReport: boolean
+}
+
+const EXPORT_DETAIL_COLUMNS = [
+  { key: 'monthLabel', title: '年月', format: 'text', group: '基础信息' },
+  { key: 'hasSourceReport', title: '是否有源报表', format: 'boolean', group: '基础信息' },
+  { key: 'incomeSales', title: '销售额', format: 'currency_usd', group: '平台收入' },
+  { key: 'incomeRefund', title: '退款', format: 'currency_usd', group: '平台收入' },
+  { key: 'incomeAdjustment', title: '赔偿', format: 'currency_usd', group: '平台收入' },
+  { key: 'incomeOther', title: '其他收入', format: 'currency_usd', group: '平台收入' },
+  { key: 'expenseSellingFee', title: '平台费', format: 'currency_usd', group: '平台支出' },
+  { key: 'expenseFbaFee', title: '配送费', format: 'currency_usd', group: '平台支出' },
+  { key: 'expenseInventoryFee', title: '仓储费', format: 'currency_usd', group: '平台支出' },
+  { key: 'expenseServiceFee', title: '服务费', format: 'currency_usd', group: '平台支出' },
+  { key: 'expenseAdvertising', title: '广告费', format: 'currency_usd', group: '平台支出' },
+  { key: 'expenseOtherFees', title: '其他费用', format: 'currency_usd', group: '平台支出' },
+  { key: 'incomeTotal', title: '收入合计', format: 'currency_usd', group: '结果' },
+  { key: 'expenseTotal', title: '支出合计', format: 'currency_usd', group: '结果' },
+  { key: 'amazonPayBack', title: '亚马逊回款', format: 'currency_usd', group: '结果' },
+  { key: 'creditCardDeductionUsd', title: '信用卡扣款', format: 'currency_usd', group: '结果' },
+  { key: 'evaluationFeeRmb', title: '测评费用RMB', format: 'currency_rmb', group: '运营结算' },
+  { key: 'prepaymentOtherRmb', title: '垫付其他RMB', format: 'currency_rmb', group: '运营结算' },
+  { key: 'operationCommissionRmb', title: '运营佣金RMB', format: 'currency_rmb_nullable', group: '运营结算' },
+  { key: 'payableTotalRmb', title: '应付总计RMB', format: 'currency_rmb_nullable', group: '运营结算' },
+  { key: 'exchangeRate', title: '汇率', format: 'rate', group: '运营结算' },
+  { key: 'platformRatio', title: '平台占比', format: 'percent', group: '费用占比' },
+  { key: 'deliveryRatio', title: '配送占比', format: 'percent', group: '费用占比' },
+  { key: 'storageRatio', title: '仓储占比', format: 'percent', group: '费用占比' },
+  { key: 'serviceRatio', title: '服务占比', format: 'percent', group: '费用占比' },
+  { key: 'adRatio', title: '广告占比', format: 'percent', group: '费用占比' },
+  { key: 'refundRatio', title: '退款率', format: 'percent', group: '费用占比' },
+  { key: 'paybackRatio', title: '回款率', format: 'percent_signed', group: '费用占比' },
+] as const
+
+function getExcelNumFmt(format: (typeof EXPORT_DETAIL_COLUMNS)[number]['format'] | 'currency_usd' | 'currency_rmb' | 'percent' | 'percent_signed' | 'rate' | 'integer') {
+  if (format === 'currency_usd') return '$#,##0.00;[Red]-$#,##0.00'
+  if (format === 'currency_rmb' || format === 'currency_rmb_nullable') return '¥#,##0.00;[Red]-¥#,##0.00'
+  if (format === 'percent' || format === 'percent_signed') return '0.0%'
+  if (format === 'rate') return '0.0000'
+  if (format === 'integer') return '#,##0'
+  return null
+}
+
 const MONTH_STICKY_WIDTH = 128
 
 // 简化的数字格式化，用于大数值显示
@@ -327,6 +419,7 @@ export default function FinancialDataClient({
 
   const [data, setData] = useState<FinancialSeriesResponse | null>(initialData)
   const [loading, setLoading] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [exchangeRateByMonth, setExchangeRateByMonth] = useState<Record<string, number>>(initialExchangeRateByMonth)
 
@@ -612,6 +705,311 @@ export default function FinancialDataClient({
       }
     )
   }, [data, exchangeRateByMonth, commissionRate, commissionBasis])
+
+  const detailExportRows = useMemo<FinancialExportDetailRow[]>(() => {
+    const rows = data?.rows ?? []
+    return rows.map((row) => {
+      const exchangeRate = exchangeRateByMonth[row.report_month] ?? 0
+      const evaluationFeeRmb = 0
+      const prepaymentOtherRmb = 0
+      const operationCommission = resolveProjectCommissionUsd({
+        commissionBasis,
+        configuredCommissionRate: commissionRate,
+        incomeTotalUsd: row.income_total,
+        amazonPaybackUsd: row.amazon_pay_back,
+      })
+      const operationCommissionRmb = operationCommission.commissionUsd * exchangeRate
+      const payableTotalRmb = evaluationFeeRmb + prepaymentOtherRmb + operationCommissionRmb
+
+      return {
+        monthLabel: formatMonth(row.report_month),
+        incomeSales: row.income_sales,
+        incomeRefund: row.income_refund,
+        incomeAdjustment: row.income_adjustment,
+        incomeOther: row.income_other,
+        expenseSellingFee: row.expense_selling_fee,
+        expenseFbaFee: row.expense_fba_fee,
+        expenseInventoryFee: row.expense_inventory_fee,
+        expenseServiceFee: row.expense_service_fee,
+        expenseAdvertising: row.expense_advertising,
+        expenseOtherFees: row.expense_other_fees,
+        incomeTotal: row.income_total,
+        expenseTotal: row.expense_total,
+        amazonPayBack: row.amazon_pay_back,
+        creditCardDeductionUsd: row.credit_card_deduction_usd,
+        evaluationFeeRmb,
+        prepaymentOtherRmb,
+        operationCommissionRmb: disableCommission ? null : operationCommissionRmb,
+        payableTotalRmb: disableCommission ? null : payableTotalRmb,
+        exchangeRate,
+        platformRatio: toPositiveRatio(row.expense_selling_fee, row.income_total),
+        deliveryRatio: toPositiveRatio(row.expense_fba_fee, row.income_total),
+        storageRatio: toPositiveRatio(row.expense_inventory_fee, row.income_total),
+        serviceRatio: toPositiveRatio(row.expense_service_fee, row.income_total),
+        adRatio: toPositiveRatio(row.expense_advertising, row.income_total),
+        refundRatio: toPositiveRatio(row.income_refund, row.income_sales),
+        paybackRatio: toSignedRatio(row.amazon_pay_back, row.income_total),
+        hasSourceReport: row.has_source_report,
+      }
+    })
+  }, [commissionBasis, commissionRate, data?.rows, disableCommission, exchangeRateByMonth])
+
+  const exportFinancialAnalysis = useCallback(async () => {
+    if (!data || detailExportRows.length === 0) {
+      setError('当前没有可导出的月度财务数据。')
+      return
+    }
+
+    setExporting(true)
+    setError(null)
+    try {
+      const ExcelJS = await import('exceljs')
+      const workbook = new ExcelJS.Workbook()
+      workbook.creator = 'Codex'
+      workbook.created = new Date()
+
+      const summarySheet = workbook.addWorksheet('汇总', {
+        views: [{ state: 'frozen', ySplit: 4, xSplit: 1 }],
+      })
+      const detailSheet = workbook.addWorksheet('月度财务明细', {
+        views: [{ state: 'frozen', ySplit: 5, xSplit: 1 }],
+      })
+
+      const summaryLastColumn = 4
+      summarySheet.mergeCells(1, 1, 1, summaryLastColumn)
+      summarySheet.getCell(1, 1).value = '月度财务分析 - 汇总'
+      summarySheet.getCell(1, 1).font = { name: 'Microsoft YaHei', size: 16, bold: true, color: { argb: 'FF0F172A' } }
+      summarySheet.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
+
+      summarySheet.mergeCells(2, 1, 2, summaryLastColumn)
+      summarySheet.getCell(2, 1).value = `店铺：${data.project_name}    区间：${formatMonth(data.start_month)} 至 ${formatMonth(data.end_month)}`
+      summarySheet.getCell(2, 1).font = { name: 'Microsoft YaHei', size: 10, color: { argb: 'FF475569' } }
+      summarySheet.getCell(2, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
+
+      const kpiHeader = summarySheet.getRow(4)
+      kpiHeader.values = ['指标', '数值', '说明', '趋势']
+      kpiHeader.eachCell((cell) => {
+        cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
+        cell.alignment = { vertical: 'middle', horizontal: 'center' }
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
+        applyExcelBorder(cell, 'FFCBD5E1')
+      })
+
+      const summaryKpis: Array<[string, number, string, number]> = [
+        ['收入合计', data.trend.income_total_sum, '所选区间全部平台收入汇总', trends.income],
+        ['支出合计', data.trend.expense_total_sum, '所选区间全部平台支出汇总', trends.expense],
+        ['亚马逊返款', data.trend.amazon_pay_back_sum, '所选区间返款总额', trends.amazon],
+        ['净额合计', data.trend.net_amount_sum, '收入减支出后的净值', 0],
+      ]
+
+      summaryKpis.forEach((item, index) => {
+        const row = summarySheet.getRow(index + 5)
+        row.getCell(1).value = item[0]
+        row.getCell(2).value = item[1]
+        row.getCell(2).numFmt = '$#,##0.00;[Red]-$#,##0.00'
+        row.getCell(3).value = item[2]
+        row.getCell(4).value = item[3] / 100
+        row.getCell(4).numFmt = '0.0%'
+        row.eachCell((cell, col) => {
+          cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF0F172A' } }
+          cell.alignment = { vertical: 'middle', horizontal: col === 2 || col === 4 ? 'right' : 'left' }
+          applyExcelBorder(cell)
+        })
+      })
+
+      const trendStartRow = 11
+      summarySheet.mergeCells(trendStartRow, 1, trendStartRow, summaryLastColumn)
+      summarySheet.getCell(trendStartRow, 1).value = '月度趋势'
+      summarySheet.getCell(trendStartRow, 1).font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
+      summarySheet.getCell(trendStartRow, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } }
+      applyExcelBorder(summarySheet.getCell(trendStartRow, 1), 'FFCBD5E1')
+
+      const trendHeader = summarySheet.getRow(trendStartRow + 1)
+      trendHeader.values = ['月份', '收入合计', '支出合计', '亚马逊返款']
+      trendHeader.eachCell((cell) => {
+        cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
+        cell.alignment = { vertical: 'middle', horizontal: 'center' }
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
+        applyExcelBorder(cell, 'FFCBD5E1')
+      })
+
+      data.trend.points.forEach((point, index) => {
+        const row = summarySheet.getRow(trendStartRow + 2 + index)
+        row.values = [formatMonth(point.report_month), point.income_total, point.expense_total, point.amazon_pay_back]
+        row.eachCell((cell, colNumber) => {
+          cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF0F172A' } }
+          cell.alignment = { vertical: 'middle', horizontal: colNumber === 1 ? 'left' : 'right' }
+          if (colNumber > 1) cell.numFmt = '$#,##0.00;[Red]-$#,##0.00'
+          applyExcelBorder(cell)
+        })
+      })
+
+      summarySheet.columns = [{ width: 16 }, { width: 16 }, { width: 28 }, { width: 12 }]
+
+      const detailLastColumn = EXPORT_DETAIL_COLUMNS.length
+      detailSheet.mergeCells(1, 1, 1, detailLastColumn)
+      detailSheet.getCell(1, 1).value = '月度财务分析 - 月度财务明细'
+      detailSheet.getCell(1, 1).font = { name: 'Microsoft YaHei', size: 16, bold: true, color: { argb: 'FF0F172A' } }
+      detailSheet.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
+
+      detailSheet.mergeCells(2, 1, 2, detailLastColumn)
+      detailSheet.getCell(2, 1).value = `店铺：${data.project_name}    区间：${formatMonth(data.start_month)} 至 ${formatMonth(data.end_month)}`
+      detailSheet.getCell(2, 1).font = { name: 'Microsoft YaHei', size: 10, color: { argb: 'FF475569' } }
+      detailSheet.getCell(2, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
+
+      const groupColors: Record<string, string> = {
+        '基础信息': 'FFF1F5F9',
+        '平台收入': 'FFDDF7EA',
+        '平台支出': 'FFFCE7C3',
+        '结果': 'FFDCEEFF',
+        '运营结算': 'FFFDE6F2',
+        '费用占比': 'FFEADFEE',
+      }
+
+      const groupRow = detailSheet.getRow(4)
+      const headRow = detailSheet.getRow(5)
+      let currentColumn = 1
+      Array.from(new Set(EXPORT_DETAIL_COLUMNS.map((column) => column.group))).forEach((group) => {
+        const groupColumns = EXPORT_DETAIL_COLUMNS.filter((column) => column.group === group)
+        const startColumn = currentColumn
+        groupColumns.forEach((column) => {
+          headRow.getCell(currentColumn).value = column.title
+          currentColumn += 1
+        })
+        detailSheet.mergeCells(4, startColumn, 4, currentColumn - 1)
+        const groupCell = groupRow.getCell(startColumn)
+        groupCell.value = group
+        groupCell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
+        groupCell.alignment = { vertical: 'middle', horizontal: 'center' }
+        groupCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: groupColors[group] ?? 'FFE2E8F0' } }
+        applyExcelBorder(groupCell, 'FFCBD5E1')
+      })
+
+      ;[groupRow, headRow].forEach((row) => {
+        row.eachCell((cell) => {
+          cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
+          cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
+          if (!cell.fill) {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
+          }
+          applyExcelBorder(cell, 'FFCBD5E1')
+        })
+      })
+
+      detailExportRows.forEach((rowData, index) => {
+        const row = detailSheet.getRow(index + 6)
+        EXPORT_DETAIL_COLUMNS.forEach((column, columnIndex) => {
+          const cell = row.getCell(columnIndex + 1)
+          const value = rowData[column.key]
+          cell.value = column.format === 'boolean' ? (value ? '有' : '无') : value ?? '-'
+          cell.font = {
+            name: 'Microsoft YaHei',
+            color: { argb: column.key === 'monthLabel' ? 'FF0F172A' : 'FF334155' },
+            bold: column.key === 'monthLabel',
+          }
+          cell.alignment = {
+            vertical: 'middle',
+            horizontal: column.format === 'text' || column.format === 'boolean' ? 'left' : 'right',
+          }
+          const numFmt = getExcelNumFmt(column.format)
+          if (typeof value === 'number' && numFmt) cell.numFmt = numFmt
+          applyExcelBorder(cell)
+        })
+      })
+
+      const totalRow = detailSheet.getRow(detailExportRows.length + 6)
+      EXPORT_DETAIL_COLUMNS.forEach((column, columnIndex) => {
+        const cell = totalRow.getCell(columnIndex + 1)
+        if (column.key === 'monthLabel') {
+          cell.value = '合计'
+        } else if (column.key === 'hasSourceReport') {
+          cell.value = `${detailExportRows.length} 个月`
+        } else if (column.key === 'incomeSales') {
+          cell.value = totals.income_sales
+        } else if (column.key === 'incomeRefund') {
+          cell.value = totals.income_refund
+        } else if (column.key === 'incomeAdjustment') {
+          cell.value = totals.income_adjustment
+        } else if (column.key === 'incomeOther') {
+          cell.value = totals.income_other
+        } else if (column.key === 'expenseSellingFee') {
+          cell.value = totals.expense_selling_fee
+        } else if (column.key === 'expenseFbaFee') {
+          cell.value = totals.expense_fba_fee
+        } else if (column.key === 'expenseInventoryFee') {
+          cell.value = totals.expense_inventory_fee
+        } else if (column.key === 'expenseServiceFee') {
+          cell.value = totals.expense_service_fee
+        } else if (column.key === 'expenseAdvertising') {
+          cell.value = totals.expense_advertising
+        } else if (column.key === 'expenseOtherFees') {
+          cell.value = totals.expense_other_fees
+        } else if (column.key === 'incomeTotal') {
+          cell.value = totals.income_total
+        } else if (column.key === 'expenseTotal') {
+          cell.value = totals.expense_total
+        } else if (column.key === 'amazonPayBack') {
+          cell.value = totals.amazon_pay_back
+        } else if (column.key === 'creditCardDeductionUsd') {
+          cell.value = totals.credit_card_deduction_usd
+        } else if (column.key === 'evaluationFeeRmb') {
+          cell.value = totals.evaluation_fee_rmb
+        } else if (column.key === 'prepaymentOtherRmb') {
+          cell.value = totals.prepayment_other_rmb
+        } else if (column.key === 'operationCommissionRmb') {
+          cell.value = disableCommission ? '-' : totals.operation_commission_rmb
+        } else if (column.key === 'payableTotalRmb') {
+          cell.value = disableCommission ? '-' : totals.payable_total_rmb
+        } else if (column.key === 'exchangeRate') {
+          cell.value = totals.exchange_rate_count > 0 ? totals.exchange_rate_sum / totals.exchange_rate_count : 0
+        } else if (column.key === 'platformRatio') {
+          cell.value = toPositiveRatio(totals.expense_selling_fee, totals.income_total)
+        } else if (column.key === 'deliveryRatio') {
+          cell.value = toPositiveRatio(totals.expense_fba_fee, totals.income_total)
+        } else if (column.key === 'storageRatio') {
+          cell.value = toPositiveRatio(totals.expense_inventory_fee, totals.income_total)
+        } else if (column.key === 'serviceRatio') {
+          cell.value = toPositiveRatio(totals.expense_service_fee, totals.income_total)
+        } else if (column.key === 'adRatio') {
+          cell.value = toPositiveRatio(totals.expense_advertising, totals.income_total)
+        } else if (column.key === 'refundRatio') {
+          cell.value = toPositiveRatio(totals.income_refund, totals.income_sales)
+        } else if (column.key === 'paybackRatio') {
+          cell.value = toSignedRatio(totals.amazon_pay_back, totals.income_total)
+        } else {
+          cell.value = '-'
+        }
+        cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
+        cell.alignment = { vertical: 'middle', horizontal: typeof cell.value === 'number' ? 'right' : 'left' }
+        const numFmt = getExcelNumFmt(column.format)
+        if (typeof cell.value === 'number' && numFmt) cell.numFmt = numFmt
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
+        applyExcelBorder(cell, 'FFCBD5E1')
+      })
+
+      detailSheet.columns = EXPORT_DETAIL_COLUMNS.map((column) => ({
+        width: column.key === 'monthLabel' ? 14 : column.format === 'text' || column.format === 'boolean' ? 12 : 14,
+      }))
+      autosizeExcelColumns(detailSheet)
+
+      const buffer = await workbook.xlsx.writeBuffer()
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      const safeProjectName = data.project_name.replace(/[\\/:*?"<>|]/g, '-')
+      const safeTimestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+      link.href = url
+      link.download = `月度财务分析-${safeProjectName}-${safeTimestamp}.xlsx`
+      link.click()
+      window.URL.revokeObjectURL(url)
+    } catch (exportError) {
+      setError(exportError instanceof Error ? exportError.message : '导出 Excel 失败')
+    } finally {
+      setExporting(false)
+    }
+  }, [data, detailExportRows, disableCommission, totals, trends])
   const showSkeleton = loading && !data
 
   return (
@@ -818,10 +1216,18 @@ export default function FinancialDataClient({
 
           <Card className="dashboard-surface animate-enter">
             <CardHeader className="relative z-10 pb-2">
-              <CardTitle className="text-base">月度财务明细</CardTitle>
-              <CardDescription className="text-sm text-muted-foreground">
-                {data ? `${data.project_name} · ${formatMonth(data.start_month)} 至 ${formatMonth(data.end_month)}` : '按月展示收入/支出结构与返款'}
-              </CardDescription>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <CardTitle className="text-base">月度财务明细</CardTitle>
+                  <CardDescription className="text-sm text-muted-foreground">
+                    {data ? `${data.project_name} · ${formatMonth(data.start_month)} 至 ${formatMonth(data.end_month)}` : '按月展示收入/支出结构与返款'}
+                  </CardDescription>
+                </div>
+                <Button type="button" variant="outline" className="h-8" onClick={() => void exportFinancialAnalysis()} disabled={exporting || !data || detailExportRows.length === 0}>
+                  {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                  导出 Excel
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="relative z-10 min-w-0">
               {showSkeleton ? (

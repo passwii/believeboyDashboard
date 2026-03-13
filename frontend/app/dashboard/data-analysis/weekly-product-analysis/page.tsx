@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
-import { TrendingDown, TrendingUp, Eye, EyeOff, ShoppingCart } from 'lucide-react'
+import { Download, Eye, EyeOff, Loader2, ShoppingCart, TrendingDown, TrendingUp } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -420,6 +420,254 @@ function sumAnyNumericColumn(rows: Array<Record<string, unknown>>, column: strin
   return hasNumeric ? total : null
 }
 
+function getExcelNumberFormat(column: string): string | null {
+  if (SUMMARY_PERCENT_COLUMNS.has(column)) return '0.00%'
+  if (SUMMARY_CURRENCY_COLUMNS.has(column)) return '$#,##0.00;[Red]-$#,##0.00'
+  if (SUMMARY_INTEGER_COLUMNS.has(column)) return '#,##0'
+  if (column === '版本' || column === '记录数') return '#,##0'
+  return null
+}
+
+function getExcelCellValue(column: string, value: unknown): string | number {
+  if (!hasValue(value)) return '-'
+  const isNumeric = typeof value === 'number' || (typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value.replace(/,/g, ''))))
+  if ((SUMMARY_COLUMN_SET.has(column) || SUMMARY_PERCENT_COLUMNS.has(column) || SUMMARY_CURRENCY_COLUMNS.has(column) || SUMMARY_INTEGER_COLUMNS.has(column)) && isNumeric) {
+    return toNumber(value)
+  }
+  return String(value)
+}
+
+function autosizeWorksheetColumns(worksheet: import('exceljs').Worksheet) {
+  worksheet.columns?.forEach((column) => {
+    let maxLength = 12
+    column.eachCell?.({ includeEmpty: true }, (cell) => {
+      const raw = cell.value
+      const text = raw === null || raw === undefined
+        ? ''
+        : typeof raw === 'object' && 'richText' in raw
+          ? raw.richText.map((item) => item.text).join('')
+          : String(raw)
+      maxLength = Math.max(maxLength, Math.min(text.length + 4, 28))
+    })
+    column.width = maxLength
+  })
+}
+
+function applyCellBorder(cell: import('exceljs').Cell, color = 'FFE2E8F0') {
+  cell.border = {
+    top: { style: 'thin', color: { argb: color } },
+    left: { style: 'thin', color: { argb: color } },
+    bottom: { style: 'thin', color: { argb: color } },
+    right: { style: 'thin', color: { argb: color } },
+  }
+}
+
+function fillSummaryWorksheet(worksheet: import('exceljs').Worksheet, summaryRows: WeeklySummaryItem[], summaryTotals: Record<string, number>, meta: { projectName: string; country: CountryOption; startDate: string; endDate: string }) {
+  const lastColumn = SUMMARY_COLUMNS.length + 2
+  worksheet.views = [{ state: 'frozen', ySplit: 4, xSplit: 2 }]
+  worksheet.mergeCells(1, 1, 1, lastColumn)
+  worksheet.getCell(1, 1).value = '按周产品分析 - 汇总'
+  worksheet.getCell(1, 1).font = { name: 'Microsoft YaHei', size: 16, bold: true, color: { argb: 'FF0F172A' } }
+  worksheet.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
+
+  worksheet.mergeCells(2, 1, 2, lastColumn)
+  worksheet.getCell(2, 1).value = `店铺：${meta.projectName}    站点：${meta.country}    日期：${meta.startDate} 至 ${meta.endDate}`
+  worksheet.getCell(2, 1).font = { name: 'Microsoft YaHei', size: 10, color: { argb: 'FF475569' } }
+  worksheet.getCell(2, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
+
+  const groupRow = worksheet.getRow(4)
+  const headRow = worksheet.getRow(5)
+  groupRow.getCell(1).value = '周次'
+  groupRow.getCell(2).value = '日期范围'
+  worksheet.mergeCells(4, 1, 5, 1)
+  worksheet.mergeCells(4, 2, 5, 2)
+
+  let currentColumn = 3
+  SUMMARY_COLUMN_GROUPS.forEach((group) => {
+    const start = currentColumn
+    group.columns.forEach((column) => {
+      headRow.getCell(currentColumn).value = column
+      currentColumn += 1
+    })
+    worksheet.mergeCells(4, start, 4, currentColumn - 1)
+    const groupCell = groupRow.getCell(start)
+    groupCell.value = group.title
+    groupCell.alignment = { vertical: 'middle', horizontal: 'center' }
+    groupCell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
+    const color = group.title === '销售' ? 'FFDCEEFF' : group.title === '推广流量' ? 'FFFFE6D5' : group.title === '自然流量' ? 'FFDDF7EA' : group.title === '费用占比' ? 'FFFCE7C3' : 'FFEADFEE'
+    groupCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: color } }
+    applyCellBorder(groupCell)
+  })
+
+  ;[groupRow, headRow].forEach((row) => {
+    row.eachCell((cell) => {
+      cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
+      cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
+      if (!cell.fill || !('fgColor' in cell.fill)) {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
+      }
+      applyCellBorder(cell, 'FFCBD5E1')
+    })
+  })
+
+  let rowIndex = 6
+  summaryRows.forEach((item, index) => {
+    const row = worksheet.getRow(rowIndex)
+    row.getCell(1).value = `第${index + 1}周`
+    row.getCell(2).value = formatDateRange(item.row.report_start_date, item.row.report_end_date)
+    SUMMARY_COLUMNS.forEach((column, idx) => {
+      const cell = row.getCell(idx + 3)
+      const value = getExcelCellValue(column, item.summary[column])
+      cell.value = value
+      cell.alignment = { vertical: 'middle', horizontal: typeof value === 'number' ? 'right' : 'left' }
+      const numFmt = getExcelNumberFormat(column)
+      if (typeof value === 'number' && numFmt) cell.numFmt = numFmt
+      applyCellBorder(cell)
+    })
+    row.getCell(1).font = { name: 'Microsoft YaHei', bold: true }
+    row.getCell(2).font = { name: 'Microsoft YaHei' }
+    applyCellBorder(row.getCell(1))
+    applyCellBorder(row.getCell(2))
+    rowIndex += 1
+  })
+
+  const totalRow = worksheet.getRow(rowIndex)
+  totalRow.getCell(1).value = '合计'
+  totalRow.getCell(2).value = `${summaryRows.length} 周`
+  SUMMARY_COLUMNS.forEach((column, idx) => {
+    const cell = totalRow.getCell(idx + 3)
+    cell.value = summaryTotals[column] ?? 0
+    cell.alignment = { vertical: 'middle', horizontal: 'right' }
+    const numFmt = getExcelNumberFormat(column)
+    if (numFmt) cell.numFmt = numFmt
+    cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: column === '利润' || column === '利润率' ? 'FF047857' : 'FF0F172A' } }
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
+    applyCellBorder(cell, 'FFCBD5E1')
+  })
+  ;[1, 2].forEach((col) => {
+    const cell = totalRow.getCell(col)
+    cell.font = { name: 'Microsoft YaHei', bold: true }
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
+    applyCellBorder(cell, 'FFCBD5E1')
+  })
+
+  worksheet.columns = [
+    { width: 12 },
+    { width: 24 },
+    ...SUMMARY_COLUMNS.map((column) => ({ width: SUMMARY_PERCENT_COLUMNS.has(column) ? 12 : SUMMARY_CURRENCY_COLUMNS.has(column) ? 14 : 12 })),
+  ]
+}
+
+function fillDetailWorksheet(
+  worksheet: import('exceljs').Worksheet,
+  detailColumns: string[],
+  detailRows: Array<Record<string, unknown>>,
+  detailGroupMeta: { groups: Array<{ title: string; columns: string[] }>; extras: string[] },
+  detailTotals: Record<string, number>,
+  detailExtraTotals: Record<string, number | null>,
+  meta: { weekLabel: string; weekRange: string; projectName: string; country: CountryOption }
+) {
+  const lastColumn = detailColumns.length
+  worksheet.views = [{ state: 'frozen', ySplit: 4, xSplit: 2 }]
+  worksheet.mergeCells(1, 1, 1, lastColumn)
+  worksheet.getCell(1, 1).value = '按周产品分析 - SKU明细'
+  worksheet.getCell(1, 1).font = { name: 'Microsoft YaHei', size: 16, bold: true, color: { argb: 'FF0F172A' } }
+  worksheet.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
+
+  worksheet.mergeCells(2, 1, 2, lastColumn)
+  worksheet.getCell(2, 1).value = `店铺：${meta.projectName}    站点：${meta.country}    周次：${meta.weekLabel}    日期：${meta.weekRange}`
+  worksheet.getCell(2, 1).font = { name: 'Microsoft YaHei', size: 10, color: { argb: 'FF475569' } }
+  worksheet.getCell(2, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
+
+  const groupRow = worksheet.getRow(4)
+  const headRow = worksheet.getRow(5)
+  worksheet.mergeCells(4, 1, 5, 1)
+  worksheet.mergeCells(4, 2, 5, 2)
+  groupRow.getCell(1).value = '日期'
+  groupRow.getCell(2).value = 'SKU'
+
+  let currentColumn = 3
+  detailGroupMeta.groups.forEach((group) => {
+    const start = currentColumn
+    group.columns.forEach((column) => {
+      headRow.getCell(currentColumn).value = column
+      currentColumn += 1
+    })
+    worksheet.mergeCells(4, start, 4, currentColumn - 1)
+    const groupCell = groupRow.getCell(start)
+    groupCell.value = group.title
+    groupCell.alignment = { vertical: 'middle', horizontal: 'center' }
+    groupCell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
+    const color = group.title === '销售' ? 'FFDCEEFF' : group.title === '推广流量' ? 'FFFFE6D5' : group.title === '自然流量' ? 'FFDDF7EA' : group.title === '费用占比' ? 'FFFCE7C3' : 'FFEADFEE'
+    groupCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: color } }
+    applyCellBorder(groupCell)
+  })
+
+  detailGroupMeta.extras.forEach((column) => {
+    worksheet.mergeCells(4, currentColumn, 5, currentColumn)
+    const cell = groupRow.getCell(currentColumn)
+    cell.value = column
+    cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
+    cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } }
+    applyCellBorder(cell, 'FFCBD5E1')
+    currentColumn += 1
+  })
+
+  ;[groupRow, headRow].forEach((row) => {
+    row.eachCell((cell) => {
+      cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
+      cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
+      if (!cell.fill || !('fgColor' in cell.fill)) {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
+      }
+      applyCellBorder(cell, 'FFCBD5E1')
+    })
+  })
+
+  let rowIndex = 6
+  detailRows.forEach((rowData) => {
+    const row = worksheet.getRow(rowIndex)
+    detailColumns.forEach((column, idx) => {
+      const cell = row.getCell(idx + 1)
+      const value = getExcelCellValue(column, rowData[column])
+      cell.value = value
+      cell.alignment = { vertical: 'middle', horizontal: column === '日期' || column === 'SKU' || typeof value !== 'number' ? 'left' : 'right' }
+      const numFmt = getExcelNumberFormat(column)
+      if (typeof value === 'number' && numFmt) cell.numFmt = numFmt
+      applyCellBorder(cell)
+    })
+    rowIndex += 1
+  })
+
+  const totalRow = worksheet.getRow(rowIndex)
+  detailColumns.forEach((column, idx) => {
+    const cell = totalRow.getCell(idx + 1)
+    if (column === '日期') {
+      cell.value = '合计'
+    } else if (column === 'SKU') {
+      cell.value = `${detailRows.length} 行`
+    } else if (SUMMARY_COLUMN_SET.has(column)) {
+      cell.value = detailTotals[column] ?? 0
+    } else if (detailExtraTotals[column] !== null && detailExtraTotals[column] !== undefined) {
+      cell.value = detailExtraTotals[column] as number
+    } else {
+      cell.value = '-'
+    }
+    cell.font = { name: 'Microsoft YaHei', bold: true }
+    cell.alignment = { vertical: 'middle', horizontal: typeof cell.value === 'number' ? 'right' : 'left' }
+    const numFmt = getExcelNumberFormat(column)
+    if (typeof cell.value === 'number' && numFmt) cell.numFmt = numFmt
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
+    applyCellBorder(cell, 'FFCBD5E1')
+  })
+
+  worksheet.columns = detailColumns.map((column) => ({
+    width: column === '日期' ? 14 : column === 'SKU' ? 22 : SUMMARY_PERCENT_COLUMNS.has(column) ? 12 : SUMMARY_CURRENCY_COLUMNS.has(column) ? 14 : 12,
+  }))
+  autosizeWorksheetColumns(worksheet)
+}
+
 interface StatCardProps {
   title: string
   value: string
@@ -506,6 +754,7 @@ export default function WeeklyProductAnalysisPage() {
   const [detailRows, setDetailRows] = useState<Array<Record<string, unknown>>>([])
   const [recomputing, setRecomputing] = useState(false)
   const [recomputeMessage, setRecomputeMessage] = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
 
   const [visibleLines, setVisibleLines] = useState({
     sales_amount: true,
@@ -874,6 +1123,132 @@ export default function WeeklyProductAnalysisPage() {
   const showSummarySkeleton = loading && data.length === 0
   const showDetailsSkeleton = detailsLoading && detailRows.length === 0
 
+  const exportWeeklyAnalysis = useCallback(async () => {
+    const projectName = projects.find((item) => String(item.id) === projectId)?.name ?? '未命名店铺'
+    if (summaryRows.length === 0) {
+      setError('当前没有可导出的周汇总数据。')
+      return
+    }
+
+    const targetWeekId = selectedWeekId || String(summaryRows[0]?.row.id || '')
+    const targetWeek = summaryRows.find((item) => String(item.row.id) === targetWeekId) ?? summaryRows[0]
+    if (!targetWeek) {
+      setError('当前没有可导出的周次数据。')
+      return
+    }
+
+    setExporting(true)
+    setError(null)
+    setDetailsError(null)
+
+    try {
+      let exportDetailRows = detailRows
+      if (String(targetWeek.row.id) !== selectedWeekId || detailRows.length === 0) {
+        const cacheKey = weeklyDetailsCacheKey(Number(targetWeek.row.id), country)
+        const cachedRows = getClientCache<Array<Record<string, unknown>>>(cacheKey, WEEKLY_DETAILS_CACHE_TTL_MS)
+        if (cachedRows) {
+          exportDetailRows = cachedRows
+        } else {
+          const merged: Array<Record<string, unknown>> = []
+          let page = 1
+          let hasNext = true
+
+          while (hasNext) {
+            const search = new URLSearchParams({
+              page: String(page),
+              page_size: '1000',
+              country,
+            })
+            const response = await fetch(`${API_BASE}/api/v1/product-analysis/pt1/${targetWeek.row.id}/details?${search.toString()}`, {
+              cache: 'no-store',
+              headers: authHeaders(),
+            })
+            if (!response.ok) {
+              throw new Error(parseErrorBody(await response.text(), response.status))
+            }
+            const payload = (await response.json()) as PT1DetailsResponse
+            merged.push(...payload.rows.map((row) => buildDetailRow(row.raw_row)))
+            hasNext = payload.has_next
+            page += 1
+          }
+
+          exportDetailRows = merged
+          setClientCache(cacheKey, merged, { persist: false })
+        }
+      }
+
+      const exportDetailColumns = exportDetailRows.length === 0
+        ? DETAIL_BASE_COLUMNS
+        : [
+            ...DETAIL_BASE_COLUMNS,
+            ...Array.from(
+              new Set(
+                exportDetailRows.flatMap((row) =>
+                  Object.keys(row).filter((key) => key !== 'ASIN' && !DETAIL_BASE_COLUMN_SET.has(key))
+                )
+              )
+            ),
+          ]
+
+      const exportDetailColumnSet = new Set<string>(exportDetailColumns)
+      const exportGroups = DETAIL_COLUMN_GROUPS
+        .map((group) => ({
+          ...group,
+          columns: group.columns.filter((column) => exportDetailColumnSet.has(column)),
+        }))
+        .filter((group) => group.columns.length > 0)
+      const exportGroupedColumns = new Set<string>(exportGroups.flatMap((group) => group.columns))
+      const exportExtras = exportDetailColumns.filter((column) => !DETAIL_CORE_COLUMNS.includes(column as (typeof DETAIL_CORE_COLUMNS)[number]) && !exportGroupedColumns.has(column))
+      const exportDetailTotals = buildSummaryTotals(exportDetailRows)
+      const exportDetailExtraTotals = Object.fromEntries(exportExtras.map((column) => [column, sumAnyNumericColumn(exportDetailRows, column)]))
+
+      const ExcelJS = await import('exceljs')
+      const workbook = new ExcelJS.Workbook()
+      workbook.creator = 'Codex'
+      workbook.created = new Date()
+
+      const summarySheet = workbook.addWorksheet('汇总')
+      fillSummaryWorksheet(summarySheet, summaryRows, summaryTotals, {
+        projectName,
+        country,
+        startDate,
+        endDate,
+      })
+
+      const detailSheet = workbook.addWorksheet('SKU明细')
+      fillDetailWorksheet(
+        detailSheet,
+        exportDetailColumns,
+        exportDetailRows,
+        { groups: exportGroups, extras: exportExtras },
+        exportDetailTotals,
+        exportDetailExtraTotals,
+        {
+          projectName,
+          country,
+          weekLabel: `第${summaryRows.findIndex((item) => item.row.id === targetWeek.row.id) + 1}周`,
+          weekRange: formatDateRange(targetWeek.row.report_start_date, targetWeek.row.report_end_date),
+        }
+      )
+
+      const buffer = await workbook.xlsx.writeBuffer()
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      const safeTimestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+      link.href = url
+      link.download = `按周产品分析-${projectName}-${country}-${safeTimestamp}.xlsx`
+      link.click()
+      window.URL.revokeObjectURL(url)
+    } catch (exportError) {
+      setError(exportError instanceof Error ? exportError.message : '导出 Excel 失败')
+    } finally {
+      setExporting(false)
+    }
+  }, [country, detailRows, endDate, projectId, projects, selectedWeekId, startDate, summaryRows, summaryTotals])
+
   return (
     <div className="w-full space-y-6">
       <Card className="overflow-hidden border-border/80 shadow-[0_20px_40px_-22px_rgba(15,23,42,0.22)]">
@@ -1183,6 +1558,16 @@ export default function WeeklyProductAnalysisPage() {
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-8"
+                    onClick={() => void exportWeeklyAnalysis()}
+                    disabled={exporting || summaryRows.length === 0}
+                  >
+                    {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                    导出 Excel
+                  </Button>
                   <Button
                     type="button"
                     variant="outline"

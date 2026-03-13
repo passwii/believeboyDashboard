@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { usePathname } from 'next/navigation'
 import { Separator } from '@/components/ui/separator'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
@@ -10,6 +10,32 @@ import { SearchCommand } from '@/components/dashboard/search-command'
 import { Button } from '@/components/ui/button'
 import { Search } from 'lucide-react'
 
+const DASHBOARD_PAGE_TITLES: Array<{ match: string; title: string }> = [
+  { match: '/data-reporting/daily-report', title: '销售日报' },
+  { match: '/data-reporting/monthly-report', title: '财务月报' },
+  { match: '/data-reporting/product-analysis', title: '产品分析' },
+  { match: '/data-reporting/pricing-calculation', title: '定价核算' },
+  { match: '/data-analysis/financial-data', title: '月度财务分析' },
+  { match: '/data-analysis/weekly-product-analysis', title: '按周产品分析' },
+  { match: '/data-analysis/inventory-replenishment', title: '库存及补货分析' },
+  { match: '/data-management/report-upload', title: '报表上传' },
+  { match: '/data-management/shipment-management', title: '发货管理' },
+  { match: '/data-management/sku-cost', title: 'SKU 成本中心' },
+  { match: '/data-management/exchange-rate', title: '汇率信息' },
+  { match: '/system-management/project-info', title: '项目信息' },
+  { match: '/system-management/data-management', title: '数据库状态' },
+  { match: '/system-management/account-management', title: '系统账号管理' },
+  { match: '/system-management/commission-overview', title: '佣金管理' },
+  { match: '/system-management/commission-management', title: '佣金管理' },
+  { match: '/system-management/logs', title: '日志查看' },
+  { match: '/operations/site-navigation', title: '跨境平台书签导航' },
+  { match: '/operations/store-navigation', title: '店铺导航' },
+  { match: '/ai-panel/chat', title: 'AI 聊天面板' },
+  { match: '/tools/research-analysis', title: '调研分析' },
+  { match: '/change-password', title: '修改密码' },
+  { match: '/changelog', title: '更新日志' },
+]
+
 export default function DashboardLayout({
   children,
 }: {
@@ -18,27 +44,12 @@ export default function DashboardLayout({
   const pathname = usePathname()
   const pageTitle = useMemo(() => {
     if (pathname === '/dashboard') return '运营总览与关键数据面板'
-    if (pathname.includes('/data-reporting/daily-report')) return '销售日报'
-    if (pathname.includes('/data-reporting/monthly-report')) return '财务月报'
-    if (pathname.includes('/data-reporting/product-analysis')) return '产品分析'
-    if (pathname.includes('/data-analysis/financial-data')) return '财务数据'
-    if (pathname.includes('/data-management/shipment-management')) return '发货管理'
-    if (pathname.includes('/data-analysis/inventory-replenishment')) return '库存及补货分析'
-    if (pathname.includes('/data-management/report-upload')) return '报表上传'
-    if (pathname.includes('/data-management/sku-cost')) return 'SKU 成本中心'
-    if (pathname.includes('/data-management/project-info')) return '项目信息'
-    if (pathname.includes('/change-password')) return '修改密码'
-    if (pathname.includes('/system-management/data-management')) return '数据库状态'
-    if (pathname.includes('/system-management/account-management')) return '系统账号管理'
-    if (pathname.includes('/system-management/commission-overview')) return '佣金管理'
-    if (pathname.includes('/system-management/commission-management')) return '佣金管理'
-    if (pathname.includes('/system-management/logs')) return '日志查看'
-    if (pathname.includes('/operations/site-navigation')) return '跨境平台书签导航'
-    if (pathname.includes('/ai-panel/chat')) return 'AI 聊天面板'
-    if (pathname.includes('/tools/research-analysis')) return '调研分析'
-    if (pathname.includes('/changelog')) return '更新日志'
-    return 'Dashboard'
+    return DASHBOARD_PAGE_TITLES.find(({ match }) => pathname.includes(match))?.title ?? 'Dashboard'
   }, [pathname])
+
+  useEffect(() => {
+    document.title = `${pageTitle} | BelieveBoy Dashboard`
+  }, [pageTitle])
 
   return (
     <SidebarProvider>
