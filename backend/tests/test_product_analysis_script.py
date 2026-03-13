@@ -98,7 +98,7 @@ def test_product_analysis_script_generates_main_sheet_without_inventory(monkeypa
     monkeypatch.setattr(
         product_analysis,
         '_load_project_costs_df',
-        lambda project_name, country: pd.DataFrame(
+        lambda project_name, country, year_month=None: pd.DataFrame(
             [
                 {'SKU': 'SKU1', 'ASIN': 'ASIN1', '头程单价': 2.0, 'FOB单价': 3.0},
                 {'SKU': 'SKU2', 'ASIN': 'ASIN2', '头程单价': 1.5, 'FOB单价': 2.5},
@@ -154,7 +154,7 @@ def test_product_analysis_script_generates_inventory_sheet(monkeypatch, tmp_path
     monkeypatch.setattr(
         product_analysis,
         '_load_project_costs_df',
-        lambda project_name, country: pd.DataFrame(
+        lambda project_name, country, year_month=None: pd.DataFrame(
             [
                 {'SKU': 'SKU1', 'ASIN': 'ASIN1', '头程单价': 2.0, 'FOB单价': 3.0},
                 {'SKU': 'SKU2', 'ASIN': 'ASIN2', '头程单价': 1.5, 'FOB单价': 2.5},
@@ -191,7 +191,7 @@ def test_product_analysis_script_supports_payment_report_with_variable_header_ro
     monkeypatch.setattr(
         product_analysis,
         '_load_project_costs_df',
-        lambda project_name, country: pd.DataFrame(
+        lambda project_name, country, year_month=None: pd.DataFrame(
             [
                 {'SKU': 'SKU1', 'ASIN': 'ASIN1', '头程单价': 2.0, 'FOB单价': 3.0},
                 {'SKU': 'SKU2', 'ASIN': 'ASIN2', '头程单价': 1.5, 'FOB单价': 2.5},

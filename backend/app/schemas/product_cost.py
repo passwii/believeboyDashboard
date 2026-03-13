@@ -30,7 +30,7 @@ class ProductCostCreate(BaseModel):
     asin: str = Field(min_length=1)
     first_leg_unit_cost: float = 0
     fob_unit_cost: float = 0
-    currency: str = 'USD'
+    currency: str = 'CNY'
     country: str = 'US'
     sort_order: int | None = Field(default=None, ge=1)
     is_active: bool = True
@@ -42,7 +42,7 @@ class ProductCostUpdate(BaseModel):
     asin: str = Field(min_length=1)
     first_leg_unit_cost: float = 0
     fob_unit_cost: float = 0
-    currency: str = 'USD'
+    currency: str = 'CNY'
     country: str = 'US'
     sort_order: int | None = Field(default=None, ge=1)
     is_active: bool = True

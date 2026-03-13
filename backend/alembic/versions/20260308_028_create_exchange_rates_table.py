@@ -20,19 +20,20 @@ depends_on: Sequence[str] | None = None
 def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
+    now_default = sa.text('CURRENT_TIMESTAMP') if bind.dialect.name == 'sqlite' else sa.func.now()
 
     if not inspector.has_table('exchange_rates'):
         op.create_table(
             'exchange_rates',
-            sa.Column('id', sa.BigInteger(), primary_key=True, autoincrement=True),
+            sa.Column('id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), primary_key=True, autoincrement=True),
             sa.Column('currency', sa.String(length=32), nullable=False),
             sa.Column('currency_name', sa.String(length=128), nullable=True),
             sa.Column('year_month', sa.String(length=7), nullable=False),
             sa.Column('rate', sa.Numeric(18, 8), nullable=False),
             sa.Column('description', sa.String(), nullable=True),
             sa.Column('note_images', sa.JSON(), nullable=True),
-            sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-            sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+            sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=now_default),
+            sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=now_default),
             sa.CheckConstraint('rate > 0', name='exchange_rates_rate_check'),
             sa.UniqueConstraint('currency', 'year_month', name='exchange_rates_currency_year_month_key'),
         )
@@ -47,32 +48,33 @@ def upgrade() -> None:
         if 'created_at' not in existing_columns:
             op.add_column(
                 'exchange_rates',
-                sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+                sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=now_default),
             )
         if 'updated_at' not in existing_columns:
             op.add_column(
                 'exchange_rates',
-                sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+                sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=now_default),
             )
 
-        bind.execute(
-            sa.text(
-                """
-                DO $$
-                BEGIN
-                    IF NOT EXISTS (
-                        SELECT 1
-                        FROM pg_constraint
-                        WHERE conname = 'exchange_rates_rate_check'
-                    ) THEN
-                        ALTER TABLE exchange_rates
-                        ADD CONSTRAINT exchange_rates_rate_check CHECK (rate > 0);
-                    END IF;
-                END
-                $$;
-                """
+        if bind.dialect.name == 'postgresql':
+            bind.execute(
+                sa.text(
+                    """
+                    DO $$
+                    BEGIN
+                        IF NOT EXISTS (
+                            SELECT 1
+                            FROM pg_constraint
+                            WHERE conname = 'exchange_rates_rate_check'
+                        ) THEN
+                            ALTER TABLE exchange_rates
+                            ADD CONSTRAINT exchange_rates_rate_check CHECK (rate > 0);
+                        END IF;
+                    END
+                    $$;
+                    """
+                )
             )
-        )
 
     bind.execute(
         sa.text(

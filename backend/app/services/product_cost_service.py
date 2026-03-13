@@ -14,6 +14,7 @@ from app.schemas.product_cost import ProductCostCreate, ProductCostUpdate
 
 DECIMAL_ZERO = Decimal('0')
 COST_DECIMAL_QUANT = Decimal('0.01')
+RMB_CURRENCY = 'CNY'
 DEFAULT_BLF_BASIC_INFO_PATH = Path(__file__).resolve().parents[3] / 'Docs' / 'ModelFiles' / 'BLF_Basic_Info.csv'
 COUNTRY_ALIASES = {
     'US': 'US',
@@ -179,7 +180,7 @@ def _normalize_item(item: ProductCostCreate, source_file: str | None = None) -> 
         'asin': _normalize_text(item.asin, 'asin'),
         'first_leg_unit_cost': _normalize_cost(item.first_leg_unit_cost, 'first_leg_unit_cost'),
         'fob_unit_cost': _normalize_cost(item.fob_unit_cost, 'fob_unit_cost'),
-        'currency': _normalize_text(item.currency or 'USD', 'currency'),
+        'currency': RMB_CURRENCY,
         'country': _normalize_country(item.country),
         'sort_order': _normalize_sort_order(item.sort_order),
         'is_active': bool(item.is_active),
@@ -250,7 +251,6 @@ def update_product_cost_by_id(
     asin = _normalize_text(payload.asin, 'asin')
     first_leg_unit_cost = _normalize_cost(payload.first_leg_unit_cost, 'first_leg_unit_cost')
     fob_unit_cost = _normalize_cost(payload.fob_unit_cost, 'fob_unit_cost')
-    currency = _normalize_text(payload.currency or 'USD', 'currency')
     country = _normalize_country(payload.country)
     sort_order = _normalize_sort_order(payload.sort_order)
     normalized_source_file = (source_file or payload.source_file or '').strip() or None
@@ -278,7 +278,7 @@ def update_product_cost_by_id(
     row.asin = asin
     row.first_leg_unit_cost = first_leg_unit_cost
     row.fob_unit_cost = fob_unit_cost
-    row.currency = currency
+    row.currency = RMB_CURRENCY
     row.country = country
     if sort_order is not None:
         row.sort_order = sort_order
@@ -408,7 +408,7 @@ def parse_product_cost_csv(content: bytes) -> list[ProductCostCreate]:
                 asin=(normalized_row.get('ASIN') or '').strip(),
                 first_leg_unit_cost=(normalized_row.get('头程单价') or '').strip() or 0,
                 fob_unit_cost=(normalized_row.get('FOB单价') or '').strip() or 0,
-                currency='USD',
+                currency=RMB_CURRENCY,
                 country=(normalized_row.get('国家') or normalized_row.get('country') or 'US').strip() or 'US',
             )
         )

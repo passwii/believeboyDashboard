@@ -20,6 +20,7 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
+    now_default = sa.text('CURRENT_TIMESTAMP') if bind.dialect.name == 'sqlite' else sa.func.now()
     if 'pricing_calculation_runs' in inspector.get_table_names():
         return
 
@@ -75,8 +76,8 @@ def upgrade() -> None:
         sa.Column('warnings_json', sa.JSON(), nullable=True),
         sa.Column('notes', sa.Text(), nullable=True),
         sa.Column('created_by', sa.String(length=255), nullable=True),
-        sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=now_default),
+        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=now_default),
     )
     op.create_index('idx_pricing_calculation_runs_product_name', 'pricing_calculation_runs', ['product_name'], unique=False)
     op.create_index('idx_pricing_calculation_runs_size_tier', 'pricing_calculation_runs', ['size_tier'], unique=False)

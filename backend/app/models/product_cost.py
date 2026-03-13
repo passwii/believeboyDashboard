@@ -23,7 +23,7 @@ class ProductCost(Base):
     asin: Mapped[str] = mapped_column(String, nullable=False, index=True)
     first_leg_unit_cost: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     fob_unit_cost: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
-    currency: Mapped[str] = mapped_column(String, nullable=False, default='USD')
+    currency: Mapped[str] = mapped_column(String, nullable=False, default='CNY', server_default='CNY')
     country: Mapped[str] = mapped_column(String(2), nullable=False, default='US', server_default='US', index=True)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default='1', index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default='true', index=True)

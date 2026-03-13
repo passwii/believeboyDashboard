@@ -106,13 +106,13 @@ const SUMMARY_COLUMN_GROUPS = [
   },
   {
     title: '费用占比',
-    columns: ['产品FOB', '成本占比', '销售头程', '头程占比', 'FBA配送费', '配送费占比', '平台佣金', '佣金占比', '总成本', '总成本占比', '利润', '利润率'],
+    columns: ['产品FOB', '成本占比', '销售头程', '头程占比', 'FBA配送费', '配送费占比', '平台佣金', '佣金占比', '总成本', '总成本占比'],
     groupClass: 'bg-amber-500/15',
     headClass: 'bg-amber-500/10',
   },
   {
     title: '财务结算',
-    columns: ['实际销售额', '实际销售量', '实际退款额', '实际退款量', '平均售价', '退款率'],
+    columns: ['实际销售额', '实际销售量', '实际退款额', '实际退款量', '平均售价', '退款率', '利润', '利润率'],
     groupClass: 'bg-violet-500/15',
     headClass: 'bg-violet-500/10',
   },
@@ -142,13 +142,13 @@ const DETAIL_COLUMN_GROUPS = [
   },
   {
     title: '费用占比',
-    columns: ['产品FOB', '成本占比', '销售头程', '头程占比', 'FBA配送费', '配送费占比', '平台佣金', '佣金占比', '总成本', '总成本占比', '利润', '利润率'],
+    columns: ['产品FOB', '成本占比', '销售头程', '头程占比', 'FBA配送费', '配送费占比', '平台佣金', '佣金占比', '总成本', '总成本占比'],
     groupClass: 'bg-amber-500/15',
     headClass: 'bg-amber-500/10',
   },
   {
     title: '财务结算',
-    columns: ['实际销售额', '实际销售量', '实际退款额', '实际退款量', '平均售价', '退款率'],
+    columns: ['实际销售额', '实际销售量', '实际退款额', '实际退款量', '平均售价', '退款率', '利润', '利润率'],
     groupClass: 'bg-violet-500/15',
     headClass: 'bg-violet-500/10',
   },
@@ -1178,6 +1178,9 @@ export default function WeeklyProductAnalysisPage() {
                   <CardDescription className="text-sm text-muted-foreground">
                     默认显示周汇总；可切换到 SKU明细 查看每周的行级结果。
                   </CardDescription>
+                  <div className="mt-2 rounded-md border border-amber-200/70 bg-amber-50/80 px-3 py-2 text-xs text-amber-900">
+                    备注：利润 = 实际销售额 - 总成本 - 广告花费 - 实际退款额
+                  </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Button

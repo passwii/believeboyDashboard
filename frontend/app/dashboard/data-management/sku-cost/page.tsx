@@ -94,7 +94,7 @@ function downloadCsvFile(filename: string, header: string[], rows: Array<Array<s
 function downloadTemplate() {
   downloadCsvFile(
     'sku-cost-template.csv',
-    ['project_name', 'SKU', 'ASIN', '头程单价', 'FOB单价', '国家'],
+    ['project_name', 'SKU', 'ASIN', '头程单价(RMB)', 'FOB单价(RMB)', '国家'],
     [
       ['创酷', 'JDB-M35-13PCS', 'B0G1SM4P52', '0.32', '2.57', 'US'],
       ['创酷', 'JDB-M50-20PCS', 'B0G1SM4P53', '0.45', '3.20', 'US'],
@@ -147,7 +147,6 @@ export default function SkuCostPage() {
   const [editAsin, setEditAsin] = useState('')
   const [editFirstLegCost, setEditFirstLegCost] = useState('')
   const [editFobCost, setEditFobCost] = useState('')
-  const [editCurrency, setEditCurrency] = useState('USD')
   const [editCountry, setEditCountry] = useState<'US' | 'DE' | 'UK'>('US')
   const [editSortOrder, setEditSortOrder] = useState('')
   const [editIsActive, setEditIsActive] = useState(true)
@@ -285,7 +284,7 @@ export default function SkuCostPage() {
       .filter(Boolean)
 
     if (lines.length === 0) {
-      setError('请先粘贴数据（每行至少 5 列：project_name, SKU, ASIN, 头程单价, FOB单价）')
+      setError('请先粘贴数据（每行至少 5 列：project_name, SKU, ASIN, 头程单价(RMB), FOB单价(RMB)）')
       return
     }
 
@@ -295,7 +294,6 @@ export default function SkuCostPage() {
       asin: string
       first_leg_unit_cost: number
       fob_unit_cost: number
-      currency: string
       country: 'US' | 'DE' | 'UK'
     }> = []
     const parseErrors: string[] = []
@@ -320,17 +318,16 @@ export default function SkuCostPage() {
         return
       }
 
-      let currency = 'USD'
       let country: 'US' | 'DE' | 'UK' = 'US'
       if (cols.length === 6) {
         const maybeCountry = normalizeCountry(extra1 || '')
         if (maybeCountry) {
           country = maybeCountry
         } else {
-          currency = (extra1 || 'USD').trim() || 'USD'
+          parseErrors.push(`第 ${index + 1} 行第 6 列仅支持国家：US/DE/UK（或 美国站/德国站/英国站）`)
+          return
         }
       } else if (cols.length >= 7) {
-        currency = (extra1 || 'USD').trim() || 'USD'
         const parsedCountry = normalizeCountry(extra2 || '')
         if (!parsedCountry) {
           parseErrors.push(`第 ${index + 1} 行国家仅支持 US/DE/UK（或 美国站/德国站/英国站）`)
@@ -345,7 +342,6 @@ export default function SkuCostPage() {
         asin,
         first_leg_unit_cost: firstLeg,
         fob_unit_cost: fob,
-        currency,
         country,
       })
     })
@@ -436,7 +432,6 @@ export default function SkuCostPage() {
     setEditAsin(row.asin)
     setEditFirstLegCost(String(row.first_leg_unit_cost))
     setEditFobCost(String(row.fob_unit_cost))
-    setEditCurrency(row.currency || 'USD')
     setEditCountry((normalizeCountry(row.country || 'US') ?? 'US') as 'US' | 'DE' | 'UK')
     setEditSortOrder(String(row.sort_order))
     setEditIsActive(Boolean(row.is_active))
@@ -452,7 +447,6 @@ export default function SkuCostPage() {
   const onSaveEditRow = async (rowId: number) => {
     const sku = editSku.trim()
     const asin = editAsin.trim()
-    const currency = editCurrency.trim() || 'USD'
     const country = editCountry
     const isActive = Boolean(editIsActive)
     const firstLeg = Number(editFirstLegCost)
@@ -487,7 +481,6 @@ export default function SkuCostPage() {
           asin,
           first_leg_unit_cost: firstLeg,
           fob_unit_cost: fob,
-          currency,
           country,
           sort_order: sortOrder,
           is_active: isActive,
@@ -586,7 +579,7 @@ export default function SkuCostPage() {
                   <DialogHeader>
                     <DialogTitle>粘贴文本导入 SKU 成本</DialogTitle>
                     <DialogDescription>
-                      每行格式：project_name,SKU,ASIN,头程单价,FOB单价[,币种/国家][,国家]。国家可填 US/DE/UK（或美国站/德国站/英国站）；若主键已存在（project_name + sku + asin + country），会自动更新。
+                      每行格式：project_name,SKU,ASIN,头程单价(RMB),FOB单价(RMB)[,国家]。国家可填 US/DE/UK（或美国站/德国站/英国站）；系统统一按人民币存储，其他分析页面会结合汇率页自动换算。
                     </DialogDescription>
                   </DialogHeader>
                   <div className="grid gap-2">
@@ -596,7 +589,7 @@ export default function SkuCostPage() {
                     <textarea
                       id="sku-paste-input"
                       className="min-h-56 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                      placeholder="创酷,JDB-M35-13PCS,B0G1SM4P52,0.32,2.57,US"
+                      placeholder="创酷,JDB-M35-13PCS,B0G1SM4P52,2.30,18.50,US"
                       value={addText}
                       onChange={(e) => setAddText(e.target.value)}
                       disabled={addSubmitting}
@@ -621,7 +614,7 @@ export default function SkuCostPage() {
           <div className="space-y-3">
             <div className="space-y-1">
               <h2 className="text-base font-semibold text-foreground">筛选条件</h2>
-              <p className="text-sm text-muted-foreground">按项目名、SKU、ASIN、国家站点查询。</p>
+              <p className="text-sm text-muted-foreground">按项目名、SKU、ASIN、国家站点查询。SKU 成本统一维护为人民币。</p>
             </div>
             <div className="grid gap-4 md:grid-cols-7">
               <div className="grid gap-2">
@@ -750,10 +743,10 @@ export default function SkuCostPage() {
                   <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">项目名</th>
                   <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">SKU</th>
                   <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">ASIN</th>
-                  <th className="sticky top-0 z-10 h-12 bg-background px-4 text-right align-middle font-medium text-muted-foreground">头程单价</th>
-                  <th className="sticky top-0 z-10 h-12 bg-background px-4 text-right align-middle font-medium text-muted-foreground">FOB单价</th>
+                  <th className="sticky top-0 z-10 h-12 bg-background px-4 text-right align-middle font-medium text-muted-foreground">头程单价 (RMB)</th>
+                  <th className="sticky top-0 z-10 h-12 bg-background px-4 text-right align-middle font-medium text-muted-foreground">FOB单价 (RMB)</th>
                   <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">国家站点</th>
-                  <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">币种</th>
+                  <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">成本币种</th>
                   <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">状态</th>
                   <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">操作</th>
                 </tr>
@@ -874,11 +867,7 @@ export default function SkuCostPage() {
                       )}
                     </td>
                     <td className="p-4 align-middle">
-                      {editingId === row.id ? (
-                        <Input value={editCurrency} onChange={(e) => setEditCurrency(e.target.value)} className="h-8 w-16" />
-                      ) : (
-                        row.currency
-                      )}
+                      人民币 (CNY)
                     </td>
                     <td className="p-4 align-middle">
                       {editingId === row.id ? (

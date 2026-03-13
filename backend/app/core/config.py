@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     app_host: str = '0.0.0.0'
     app_port: int = 8000
 
-    database_url: str = 'sqlite:///./backend.db'
+    database_url: str = Field(min_length=1)
     api_key: str = Field(default='change-me', min_length=8)
 
     upload_root: Path = Path(__file__).resolve().parents[2] / 'storage' / 'uploads'

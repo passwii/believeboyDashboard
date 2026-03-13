@@ -21,6 +21,7 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
+    now_default = sa.text('CURRENT_TIMESTAMP') if bind.dialect.name == 'sqlite' else sa.text('now()')
     jobstatus_enum = postgresql.ENUM('pending', 'running', 'success', 'failed', name='jobstatus', create_type=False)
     if bind.dialect.name == 'postgresql':
         # Keep migration idempotent for databases where enum type already exists.
@@ -33,8 +34,8 @@ def upgrade() -> None:
             sa.Column('job_type', sa.String(length=128), nullable=False),
             sa.Column('status', jobstatus_enum, nullable=False),
             sa.Column('payload_json', sa.JSON(), nullable=False),
-            sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-            sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+            sa.Column('created_at', sa.DateTime(timezone=True), server_default=now_default, nullable=False),
+            sa.Column('updated_at', sa.DateTime(timezone=True), server_default=now_default, nullable=False),
             sa.PrimaryKeyConstraint('id'),
         )
     op.execute('create index if not exists ix_jobs_job_type on jobs (job_type)')
@@ -45,7 +46,7 @@ def upgrade() -> None:
             'job_runs',
             sa.Column('id', sa.Integer(), nullable=False),
             sa.Column('job_id', sa.Integer(), nullable=False),
-            sa.Column('started_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+            sa.Column('started_at', sa.DateTime(timezone=True), server_default=now_default, nullable=False),
             sa.Column('finished_at', sa.DateTime(timezone=True), nullable=True),
             sa.Column('log_excerpt', sa.Text(), nullable=True),
             sa.Column('error_message', sa.Text(), nullable=True),

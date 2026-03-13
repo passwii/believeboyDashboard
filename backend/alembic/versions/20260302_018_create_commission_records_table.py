@@ -24,12 +24,13 @@ def _has_table(inspector: sa.Inspector, table_name: str) -> bool:
 def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
+    now_default = sa.text('CURRENT_TIMESTAMP') if bind.dialect.name == 'sqlite' else sa.func.now()
     if _has_table(inspector, 'commission_records'):
         return
 
     op.create_table(
         'commission_records',
-        sa.Column('id', sa.BigInteger(), primary_key=True, autoincrement=True),
+        sa.Column('id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), primary_key=True, autoincrement=True),
         sa.Column('report_month', sa.String(length=7), nullable=False),
         sa.Column('project_id', sa.BigInteger(), nullable=False),
         sa.Column('project_name', sa.String(length=255), nullable=False),
@@ -44,9 +45,9 @@ def upgrade() -> None:
         sa.Column('payment_status', sa.String(length=16), nullable=False, server_default=sa.text("'unpaid'")),
         sa.Column('payment_confirmed_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('payment_confirmed_by', sa.String(length=255), nullable=True),
-        sa.Column('computed_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column('computed_at', sa.DateTime(timezone=True), nullable=False, server_default=now_default),
+        sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=now_default),
+        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=now_default),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='CASCADE'),
         sa.UniqueConstraint(
             'report_month',

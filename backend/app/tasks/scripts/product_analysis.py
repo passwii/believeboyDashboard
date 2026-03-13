@@ -15,6 +15,7 @@ from sqlalchemy import select
 
 from app.db.session import SessionLocal
 from app.models import ProductCost
+from app.services import exchange_rate_service
 
 
 COUNTRY_ALIASES = {
@@ -313,7 +314,7 @@ def _normalize_country(value: str | None) -> str:
     return mapped
 
 
-def _load_project_costs_df(project_name: str, country: str) -> pd.DataFrame:
+def _load_project_costs_df(project_name: str, country: str, year_month: str | None = None) -> pd.DataFrame:
     db = SessionLocal()
     try:
         stmt = select(ProductCost).where(
@@ -328,15 +329,29 @@ def _load_project_costs_df(project_name: str, country: str) -> pd.DataFrame:
     if not rows:
         raise ValueError(f'No active product_costs found for project_name={project_name}, country={country}')
 
-    data = [
-        {
-            'SKU': row.sku,
-            'ASIN': row.asin,
-            '头程单价': float(row.first_leg_unit_cost or 0),
-            'FOB单价': float(row.fob_unit_cost or 0),
-        }
-        for row in rows
-    ]
+    resolved_year_month = year_month or datetime.now().strftime('%Y-%m')
+    data = []
+    for row in rows:
+        first_leg_cost, _ = exchange_rate_service.convert_rmb_to_target_currency(
+            row.first_leg_unit_cost or 0,
+            country=country,
+            year_month=resolved_year_month,
+            db=db,
+        )
+        fob_cost, _ = exchange_rate_service.convert_rmb_to_target_currency(
+            row.fob_unit_cost or 0,
+            country=country,
+            year_month=resolved_year_month,
+            db=db,
+        )
+        data.append(
+            {
+                'SKU': row.sku,
+                'ASIN': row.asin,
+                '头程单价': float(first_leg_cost),
+                'FOB单价': float(fob_cost),
+            }
+        )
     return pd.DataFrame(data)
 
 
@@ -739,7 +754,7 @@ def run(input_path: str, output_dir: str, params: dict) -> dict:
 
     business_path, payment_path, ad_path, inventory_path = _resolve_report_paths(input_path, params)
 
-    df_cost = _load_project_costs_df(project_name, country)
+    df_cost = _load_project_costs_df(project_name, country, report_end_date[:7])
     df_business = _read_business_report(business_path)
     df_ad = _read_ad_report(ad_path)
     df_payment_raw = _read_payment_report(payment_path)

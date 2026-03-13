@@ -33,6 +33,8 @@ def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
     dialect = bind.dialect.name
+    if dialect == 'sqlite' and not inspector.has_table('projects'):
+        return
 
     for table_name, check_name in _TABLE_CHECKS.items():
         if not inspector.has_table(table_name):
@@ -81,6 +83,8 @@ def downgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
     dialect = bind.dialect.name
+    if dialect == 'sqlite' and not inspector.has_table('projects'):
+        return
 
     for table_name, check_name in _TABLE_CHECKS.items():
         if not inspector.has_table(table_name):

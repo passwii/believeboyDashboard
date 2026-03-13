@@ -25,6 +25,8 @@ def _has_unique_constraint(inspector, table_name: str, constraint_name: str) -> 
 def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
+    if bind.dialect.name == 'sqlite' and not inspector.has_table('projects'):
+        return
     dialect = bind.dialect.name
 
     if not inspector.has_table('monthly_reports'):
@@ -79,6 +81,8 @@ def upgrade() -> None:
 def downgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
+    if bind.dialect.name == 'sqlite' and not inspector.has_table('projects'):
+        return
 
     if not inspector.has_table('monthly_reports'):
         return

@@ -25,18 +25,20 @@ def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
     dialect = bind.dialect.name
+    has_projects = inspector.has_table('projects')
+    has_user_accounts = inspector.has_table('user_accounts')
 
-    if _has_column(inspector, 'projects', 'project_operator') is False:
+    if has_projects and _has_column(inspector, 'projects', 'project_operator') is False:
         op.add_column('projects', sa.Column('project_operator', sa.String(length=255), nullable=True))
-    if _has_column(inspector, 'projects', 'commission_basis') is False:
+    if has_projects and _has_column(inspector, 'projects', 'commission_basis') is False:
         op.add_column('projects', sa.Column('commission_basis', sa.String(length=32), nullable=True))
-    if _has_column(inspector, 'projects', 'commission_rate') is False:
+    if has_projects and _has_column(inspector, 'projects', 'commission_rate') is False:
         op.add_column('projects', sa.Column('commission_rate', sa.Numeric(7, 4), nullable=True))
 
-    if _has_column(inspector, 'user_accounts', 'operator_name_zh') is False:
+    if has_user_accounts and _has_column(inspector, 'user_accounts', 'operator_name_zh') is False:
         op.add_column('user_accounts', sa.Column('operator_name_zh', sa.Text(), nullable=True))
 
-    if dialect != 'sqlite':
+    if dialect != 'sqlite' and has_projects:
         op.execute('alter table projects drop constraint if exists projects_commission_basis_check')
         op.execute(
             "alter table projects add constraint projects_commission_basis_check "
@@ -53,17 +55,19 @@ def downgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
     dialect = bind.dialect.name
+    has_projects = inspector.has_table('projects')
+    has_user_accounts = inspector.has_table('user_accounts')
 
-    if dialect != 'sqlite':
+    if dialect != 'sqlite' and has_projects:
         op.execute('alter table projects drop constraint if exists projects_commission_rate_check')
         op.execute('alter table projects drop constraint if exists projects_commission_basis_check')
 
     inspector = sa.inspect(bind)
-    if _has_column(inspector, 'user_accounts', 'operator_name_zh'):
+    if has_user_accounts and _has_column(inspector, 'user_accounts', 'operator_name_zh'):
         op.drop_column('user_accounts', 'operator_name_zh')
-    if _has_column(inspector, 'projects', 'commission_rate'):
+    if has_projects and _has_column(inspector, 'projects', 'commission_rate'):
         op.drop_column('projects', 'commission_rate')
-    if _has_column(inspector, 'projects', 'commission_basis'):
+    if has_projects and _has_column(inspector, 'projects', 'commission_basis'):
         op.drop_column('projects', 'commission_basis')
-    if _has_column(inspector, 'projects', 'project_operator'):
+    if has_projects and _has_column(inspector, 'projects', 'project_operator'):
         op.drop_column('projects', 'project_operator')

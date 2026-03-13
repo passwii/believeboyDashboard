@@ -619,7 +619,7 @@ export default function ExchangeRatePage() {
             <DialogDescription>
               {editingRate
                 ? "修改汇率信息，保存后将立即生效"
-                : "录入新的月度汇率信息，每个月每种货币仅可录入一条"}
+                : "录入新的月度汇率信息，每个月每种货币仅可录入一条。SKU 成本页维护的是人民币成本，其他页面会按站点和月份使用这里的汇率自动换算。"}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -727,7 +727,7 @@ export default function ExchangeRatePage() {
                 placeholder="如：7.234500"
               />
               <p className="text-xs text-muted-foreground">
-                输入该月份该货币相对于基准货币的汇率值
+                输入 1 单位外币对应多少人民币，例如 USD 填 7.200000、EUR 填 7.850000、GBP 填 9.150000
               </p>
             </div>
 

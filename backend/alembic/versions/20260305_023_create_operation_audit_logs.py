@@ -28,12 +28,13 @@ def _has_index(inspector: sa.Inspector, table_name: str, index_name: str) -> boo
 def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
+    now_default = sa.text('CURRENT_TIMESTAMP') if bind.dialect.name == 'sqlite' else sa.func.now()
 
     if _has_table(inspector, 'operation_audit_logs') is False:
         op.create_table(
             'operation_audit_logs',
             sa.Column('id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), primary_key=True, autoincrement=True),
-            sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+            sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=now_default),
             sa.Column('operator', sa.String(length=255), nullable=True),
             sa.Column('action', sa.String(length=128), nullable=False),
             sa.Column('target_type', sa.String(length=64), nullable=False),

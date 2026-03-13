@@ -14,6 +14,12 @@ from app.models import ExchangeRate
 from app.schemas.exchange_rate import ExchangeRateCreate, ExchangeRateNoteImage, ExchangeRateUpdate
 
 RATE_QUANT = Decimal('0.00000001')
+RMB_CURRENCY = 'CNY'
+COUNTRY_TO_CURRENCY = {
+    'US': 'USD',
+    'DE': 'EUR',
+    'UK': 'GBP',
+}
 
 
 def normalize_year_month(*, year_month: str | None = None, year: int | None = None, month: int | None = None) -> str:
@@ -148,6 +154,78 @@ def serialize_exchange_rate(row: ExchangeRate) -> dict[str, object]:
         'created_at': row.created_at.isoformat() if isinstance(row.created_at, datetime) else str(row.created_at),
         'updated_at': row.updated_at.isoformat() if isinstance(row.updated_at, datetime) else str(row.updated_at),
     }
+
+
+def resolve_currency_for_country(country: str | None) -> str:
+    normalized = (country or '').strip().upper()
+    return COUNTRY_TO_CURRENCY.get(normalized, 'USD')
+
+
+def get_exchange_rate_by_currency_month_with_fallback(
+    db: Session,
+    *,
+    currency: str,
+    year_month: str,
+) -> ExchangeRate | None:
+    normalized_currency = currency.strip().upper()
+    normalized_year_month = normalize_year_month(year_month=year_month)
+
+    exact = get_exchange_rate_by_currency_month(db, currency=normalized_currency, year_month=normalized_year_month)
+    if exact is not None:
+        return exact
+
+    fallback = (
+        db.execute(
+            select(ExchangeRate)
+            .where(
+                ExchangeRate.currency == normalized_currency,
+                ExchangeRate.year_month <= normalized_year_month,
+            )
+            .order_by(ExchangeRate.year_month.desc(), ExchangeRate.id.desc())
+            .limit(1)
+        )
+        .scalars()
+        .first()
+    )
+    if fallback is not None:
+        return fallback
+
+    return (
+        db.execute(
+            select(ExchangeRate)
+            .where(ExchangeRate.currency == normalized_currency)
+            .order_by(ExchangeRate.year_month.desc(), ExchangeRate.id.desc())
+            .limit(1)
+        )
+        .scalars()
+        .first()
+    )
+
+
+def convert_rmb_to_target_currency(
+    amount_rmb: Decimal | float | int,
+    *,
+    country: str | None,
+    year_month: str,
+    db: Session,
+) -> tuple[Decimal, ExchangeRate | None]:
+    amount = Decimal(str(amount_rmb or 0))
+    target_currency = resolve_currency_for_country(country)
+    if target_currency == RMB_CURRENCY:
+        return amount, None
+
+    rate_row = get_exchange_rate_by_currency_month_with_fallback(
+        db,
+        currency=target_currency,
+        year_month=year_month,
+    )
+    if rate_row is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f'{target_currency} exchange rate for {year_month} not found',
+        )
+    converted = (amount / Decimal(str(rate_row.rate))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    return converted, rate_row
 
 
 def list_exchange_rates(

@@ -24,12 +24,12 @@ def _has_column(inspector: sa.Inspector, table_name: str, column_name: str) -> b
 def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
-    if _has_column(inspector, 'user_accounts', 'full_name') is False:
+    if inspector.has_table('user_accounts') and _has_column(inspector, 'user_accounts', 'full_name') is False:
         op.add_column('user_accounts', sa.Column('full_name', sa.Text(), nullable=True))
 
 
 def downgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
-    if _has_column(inspector, 'user_accounts', 'full_name'):
+    if inspector.has_table('user_accounts') and _has_column(inspector, 'user_accounts', 'full_name'):
         op.drop_column('user_accounts', 'full_name')

@@ -17,6 +17,9 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    if bind.dialect.name != 'postgresql':
+        return
     op.execute('create extension if not exists pg_trgm;')
     op.execute(
         """
@@ -33,6 +36,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    bind = op.get_bind()
+    if bind.dialect.name != 'postgresql':
+        return
     op.execute('drop index if exists public.idx_product_costs_asin_trgm;')
     op.execute('drop index if exists public.idx_product_costs_sku_trgm;')
     op.execute('drop index if exists public.idx_product_costs_project_name_trgm;')

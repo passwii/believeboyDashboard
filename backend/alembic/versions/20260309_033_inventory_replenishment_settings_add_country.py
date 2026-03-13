@@ -20,6 +20,8 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
+    if bind.dialect.name == 'sqlite' and not inspector.has_table('projects'):
+        return
     columns = {column['name'] for column in inspector.get_columns('inventory_replenishment_settings')}
 
     if 'country' not in columns:
@@ -43,6 +45,10 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if bind.dialect.name == 'sqlite' and not inspector.has_table('projects'):
+        return
     with op.batch_alter_table('inventory_replenishment_settings') as batch_op:
         batch_op.drop_index('idx_inventory_replenishment_settings_project_sku_country')
         batch_op.drop_constraint('uq_inventory_replenishment_settings_project_sku_country', type_='unique')

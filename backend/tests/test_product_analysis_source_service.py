@@ -19,10 +19,24 @@ from app.models import (
     DailySalesOrder,
     DailySourceFile,
     InventorySnapshotRow,
+    ExchangeRate,
     ProductCost,
     Project,
 )
 from app.services import product_analysis_source_service
+
+
+def _seed_exchange_rates(db: Session) -> None:
+    db.add_all(
+        [
+            ExchangeRate(currency='USD', currency_name='美元', year_month='2026-02', rate=1),
+            ExchangeRate(currency='USD', currency_name='美元', year_month='2026-03', rate=1),
+            ExchangeRate(currency='EUR', currency_name='欧元', year_month='2026-02', rate=1),
+            ExchangeRate(currency='EUR', currency_name='欧元', year_month='2026-03', rate=1),
+            ExchangeRate(currency='GBP', currency_name='英镑', year_month='2026-02', rate=1),
+            ExchangeRate(currency='GBP', currency_name='英镑', year_month='2026-03', rate=1),
+        ]
+    )
 
 
 def _write_business_csv(path: Path) -> None:
@@ -84,6 +98,7 @@ def test_persist_product_analysis_sources_versioning_and_current(tmp_path: Path)
     Base.metadata.create_all(bind=engine)
 
     with Session(engine) as db:
+        _seed_exchange_rates(db)
         db.add(Project(project_name='Demo', sort_order=1, source_file='seed.csv'))
         db.add(
             ProductCost(
@@ -169,6 +184,7 @@ def test_source_rows_scope_filter_and_inventory_status(tmp_path: Path):
     Base.metadata.create_all(bind=engine)
 
     with Session(engine) as db:
+        _seed_exchange_rates(db)
         db.add(Project(project_name='Demo', sort_order=1, source_file='seed.csv'))
         db.add(
             ProductCost(
@@ -257,6 +273,7 @@ def test_load_project_product_mapping_ignores_inactive_sku():
     Base.metadata.create_all(bind=engine)
 
     with Session(engine) as db:
+        _seed_exchange_rates(db)
         db.add(Project(project_name='Demo', sort_order=1, source_file='seed.csv'))
         db.add(
             ProductCost(
@@ -292,6 +309,7 @@ def test_persist_daily_report_sources_sales_status_rule(tmp_path: Path):
     Base.metadata.create_all(bind=engine)
 
     with Session(engine) as db:
+        _seed_exchange_rates(db)
         db.add(Project(project_name='Demo', sort_order=1, source_file='seed.csv'))
         db.commit()
 
@@ -358,6 +376,7 @@ def test_persist_daily_report_sources_separates_country_sources(tmp_path: Path):
     Base.metadata.create_all(bind=engine)
 
     with Session(engine) as db:
+        _seed_exchange_rates(db)
         db.add(Project(project_name='Demo', sort_order=1, source_file='seed.csv'))
         db.commit()
 
@@ -409,6 +428,7 @@ def test_persist_product_analysis_pt1_calculation_versioning():
     Base.metadata.create_all(bind=engine)
 
     with Session(engine) as db:
+        _seed_exchange_rates(db)
         db.add(Project(project_name='Demo', sort_order=1, source_file='seed.csv'))
         db.add_all(
             [
@@ -616,6 +636,7 @@ def test_pt1_details_sorted_by_product_cost_sort_order():
     Base.metadata.create_all(bind=engine)
 
     with Session(engine) as db:
+        _seed_exchange_rates(db)
         db.add(Project(project_name='Demo', sort_order=1, source_file='seed.csv'))
         db.add(
             ProductCost(
@@ -688,6 +709,7 @@ def test_recompute_weekly_product_analysis_from_history_uses_latest_product_cost
     Base.metadata.create_all(bind=engine)
 
     with Session(engine) as db:
+        _seed_exchange_rates(db)
         db.add(Project(project_name='Demo', sort_order=1, source_file='seed.csv'))
         db.add(
             ProductCost(

@@ -37,18 +37,19 @@ def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
     dialect = bind.dialect.name
+    now_default = sa.text('CURRENT_TIMESTAMP') if dialect == 'sqlite' else sa.func.now()
 
     if _has_table(inspector, 'project_role_assignments') is False:
         op.create_table(
             'project_role_assignments',
-            sa.Column('id', sa.BigInteger(), primary_key=True, autoincrement=True),
+            sa.Column('id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), primary_key=True, autoincrement=True),
             sa.Column('project_id', sa.BigInteger(), nullable=False),
             sa.Column('role_type', sa.String(length=16), nullable=False),
             sa.Column('person_name', sa.String(length=255), nullable=False),
             sa.Column('effective_from_month', sa.String(length=7), nullable=False),
             sa.Column('effective_to_month', sa.String(length=7), nullable=True),
-            sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-            sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+            sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=now_default),
+            sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=now_default),
             sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='CASCADE'),
             sa.UniqueConstraint(
                 'project_id',
@@ -76,7 +77,7 @@ def upgrade() -> None:
     if _has_table(inspector, 'commission_project_months') is False:
         op.create_table(
             'commission_project_months',
-            sa.Column('id', sa.BigInteger(), primary_key=True, autoincrement=True),
+            sa.Column('id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), primary_key=True, autoincrement=True),
             sa.Column('report_month', sa.String(length=7), nullable=False),
             sa.Column('project_id', sa.BigInteger(), nullable=False),
             sa.Column('project_name', sa.String(length=255), nullable=False),
@@ -90,9 +91,9 @@ def upgrade() -> None:
             sa.Column('payment_confirmed_at', sa.DateTime(timezone=True), nullable=True),
             sa.Column('payment_confirmed_by', sa.String(length=255), nullable=True),
             sa.Column('note', sa.String(length=500), nullable=True),
-            sa.Column('computed_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-            sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-            sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+            sa.Column('computed_at', sa.DateTime(timezone=True), nullable=False, server_default=now_default),
+            sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=now_default),
+            sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=now_default),
             sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='CASCADE'),
             sa.UniqueConstraint('report_month', 'project_id', name='commission_project_months_unique_month_project'),
             sa.CheckConstraint("report_month LIKE '____-__'", name='ck_commission_project_months_report_month_format'),
@@ -118,7 +119,7 @@ def upgrade() -> None:
     if _has_table(inspector, 'commission_ratio_overrides') is False:
         op.create_table(
             'commission_ratio_overrides',
-            sa.Column('id', sa.BigInteger(), primary_key=True, autoincrement=True),
+            sa.Column('id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), primary_key=True, autoincrement=True),
             sa.Column('report_month', sa.String(length=7), nullable=False),
             sa.Column('project_id', sa.BigInteger(), nullable=False),
             sa.Column('project_name', sa.String(length=255), nullable=False),
@@ -127,8 +128,8 @@ def upgrade() -> None:
             sa.Column('override_ratio', sa.Numeric(8, 6), nullable=False),
             sa.Column('reason', sa.String(length=500), nullable=True),
             sa.Column('updated_by', sa.String(length=255), nullable=True),
-            sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-            sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+            sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=now_default),
+            sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=now_default),
             sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='CASCADE'),
             sa.UniqueConstraint(
                 'report_month',

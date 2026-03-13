@@ -17,6 +17,7 @@ from sqlalchemy import Select, func, insert, or_, select, update as sa_update
 from sqlalchemy.orm import Session
 
 from app.tasks.scripts import product_analysis as product_analysis_script
+from app.services import exchange_rate_service
 from app.models import (
     AnalysisAdRow,
     AnalysisBusinessRow,
@@ -293,7 +294,6 @@ def recompute_weekly_product_analysis_from_history(
         raise ValueError('project not found')
 
     normalized_country = _normalize_country(country)
-    df_cost = _build_active_product_costs_df(db, project_name=project.project_name, country=normalized_country)
     period_sources = _list_recomputable_weekly_period_sources(
         db,
         project_id=project_id,
@@ -307,6 +307,13 @@ def recompute_weekly_product_analysis_from_history(
     for item in period_sources:
         report_start_date = item['report_start_date']
         report_end_date = item['report_end_date']
+        report_year_month = report_end_date.strftime('%Y-%m')
+        df_cost = _build_active_product_costs_df(
+            db,
+            project_name=project.project_name,
+            country=normalized_country,
+            year_month=report_year_month,
+        )
         df_business = _build_business_df_from_source(db, source_id=item['business_report_source_id'])
         df_ad = _build_ad_df_from_source(db, source_id=item['ad_report_source_id'])
         df_payment = _build_payment_df_from_source(db, source_id=item['payment_report_source_id'])
@@ -926,7 +933,7 @@ def _next_pt1_version(
     return int(value or 0) + 1
 
 
-def _build_active_product_costs_df(db: Session, *, project_name: str, country: str) -> pd.DataFrame:
+def _build_active_product_costs_df(db: Session, *, project_name: str, country: str, year_month: str) -> pd.DataFrame:
     rows = db.execute(
         select(ProductCost).where(
             ProductCost.project_name == project_name,
@@ -937,17 +944,30 @@ def _build_active_product_costs_df(db: Session, *, project_name: str, country: s
     if not rows:
         raise ValueError(f'No active product_costs found for project_name={project_name}, country={country}')
 
-    return pd.DataFrame(
-        [
+    data: list[dict[str, object]] = []
+    for row in rows:
+        first_leg_cost, _ = exchange_rate_service.convert_rmb_to_target_currency(
+            row.first_leg_unit_cost or 0,
+            country=country,
+            year_month=year_month,
+            db=db,
+        )
+        fob_cost, _ = exchange_rate_service.convert_rmb_to_target_currency(
+            row.fob_unit_cost or 0,
+            country=country,
+            year_month=year_month,
+            db=db,
+        )
+        data.append(
             {
                 'SKU': row.sku,
                 'ASIN': row.asin,
-                '头程单价': float(row.first_leg_unit_cost or 0),
-                'FOB单价': float(row.fob_unit_cost or 0),
+                '头程单价': float(first_leg_cost),
+                'FOB单价': float(fob_cost),
             }
-            for row in rows
-        ]
-    )
+        )
+
+    return pd.DataFrame(data)
 
 
 def _list_recomputable_weekly_period_sources(

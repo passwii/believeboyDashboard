@@ -61,7 +61,7 @@ const navSecondary = [
 
 const tools = [
   {
-    title: '报表核算',
+    title: '运营核算',
     icon: <Calculator className="h-4 w-4" />,
     items: [
       { title: '销售日报', url: '/dashboard/data-reporting/daily-report' },

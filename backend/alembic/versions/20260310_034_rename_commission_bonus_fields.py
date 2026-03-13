@@ -30,6 +30,8 @@ def upgrade() -> None:
     inspector = sa.inspect(bind)
     if _has_table(inspector, 'commission_records') is False:
         return
+    if bind.dialect.name == 'sqlite' and not inspector.has_table('projects'):
+        return
 
     with op.batch_alter_table('commission_records') as batch_op:
         if _has_column(inspector, 'commission_records', 'public_commission_ratio'):
@@ -66,6 +68,8 @@ def downgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
     if _has_table(inspector, 'commission_records') is False:
+        return
+    if bind.dialect.name == 'sqlite' and not inspector.has_table('projects'):
         return
 
     dialect = bind.dialect.name
