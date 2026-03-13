@@ -204,7 +204,18 @@ def test_parse_product_cost_csv_allows_empty_asin():
     assert items[0].asin == ''
 
 
-def test_import_product_costs_update_only_overwrites_filled_fields():
+def test_parse_product_cost_csv_accepts_export_headers():
+    items = product_cost_service.parse_product_cost_csv(
+        'project_name,SKU,ASIN(可留空),FNSKU(可留空),FOB单价(RMB),国家\nDemo,SKU1,ASIN1,FNSKU1,8.8,US\n'.encode('utf-8')
+    )
+
+    assert len(items) == 1
+    assert items[0].asin == 'ASIN1'
+    assert items[0].fnsku == 'FNSKU1'
+    assert items[0].fob_unit_cost == 8.8
+
+
+def test_import_product_costs_update_overwrites_all_provided_fields_using_project_sku_country_key():
     engine = create_engine('sqlite:///:memory:', future=True)
     Base.metadata.create_all(bind=engine)
 
@@ -218,6 +229,7 @@ def test_import_product_costs_update_only_overwrites_filled_fields():
                 fnsku='FNSKU1',
                 fob_unit_cost=2.5,
                 package_length_cm=10,
+                first_leg_cost_rmb=4.2,
                 country='US',
             ),
         )
@@ -232,6 +244,8 @@ def test_import_product_costs_update_only_overwrites_filled_fields():
                     asin='',
                     fnsku='',
                     fob_unit_cost=3.8,
+                    first_leg_cost_rmb=0,
+                    package_length_cm=0,
                     country='US',
                 )
             ],
@@ -245,10 +259,11 @@ def test_import_product_costs_update_only_overwrites_filled_fields():
         assert inserted == 0
         assert updated == 1
         assert skipped == 0
-        assert refreshed.asin == 'ASIN1'
-        assert refreshed.fnsku == 'FNSKU1'
+        assert refreshed.asin == ''
+        assert refreshed.fnsku is None
         assert float(refreshed.fob_unit_cost) == 3.8
-        assert float(refreshed.package_length_cm) == 10
+        assert float(refreshed.first_leg_cost_rmb) == 0
+        assert float(refreshed.package_length_cm) == 0
 
 
 def test_import_product_costs_create_skips_existing_rows():
@@ -273,3 +288,29 @@ def test_import_product_costs_create_skips_existing_rows():
         assert inserted == 0
         assert updated == 0
         assert skipped == 1
+
+
+def test_import_product_costs_create_skips_when_project_sku_country_already_exists_with_different_asin():
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        product_cost_service.upsert_product_cost(
+            db,
+            ProductCostCreate(project_name='Demo', sku='SKU1', asin='ASIN1', country='US', fob_unit_cost=2),
+        )
+        db.commit()
+
+        _, inserted, updated, skipped = product_cost_service.import_product_costs(
+            db,
+            [ProductCostCreate(project_name='Demo', sku='SKU1', asin='ASIN2', country='US', fob_unit_cost=5)],
+            import_mode='create',
+            source_file='test.csv',
+        )
+        db.commit()
+
+        rows = db.execute(select(ProductCost).where(ProductCost.project_name == 'Demo', ProductCost.sku == 'SKU1')).scalars().all()
+        assert inserted == 0
+        assert updated == 0
+        assert skipped == 1
+        assert len(rows) == 1
