@@ -1,7 +1,8 @@
 'use client'
 
 import { type ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react'
-import { RefreshCcw, Upload, FileDown, Plus, Pencil } from 'lucide-react'
+import { useSession } from 'next-auth/react'
+import { RefreshCcw, Upload, FileDown, Plus, Pencil, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
@@ -191,6 +192,8 @@ function buildFormFromDetail(detail: ShipmentScheduleDetail): ScheduleFormState 
 }
 
 export default function ShipmentManagementPage() {
+  const { data: session } = useSession()
+  const isAdmin = Boolean(session?.user?.isAdmin)
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
 
@@ -217,6 +220,8 @@ export default function ShipmentManagementPage() {
   const [dialogMode, setDialogMode] = useState<'create' | 'edit'>('create')
   const [form, setForm] = useState<ScheduleFormState>(EMPTY_FORM)
   const [submitting, setSubmitting] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const [skuDialogOpen, setSkuDialogOpen] = useState(false)
   const [skuDialogScheduleId, setSkuDialogScheduleId] = useState<number | null>(null)
@@ -225,6 +230,7 @@ export default function ShipmentManagementPage() {
 
   const [importing, setImporting] = useState(false)
   const [batchImporting, setBatchImporting] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   const summary = useMemo(() => {
@@ -572,6 +578,197 @@ export default function ShipmentManagementPage() {
     }
   }
 
+  const handleDeleteSchedule = async () => {
+    if (!isAdmin || !detail) return
+
+    setDeleting(true)
+    setError(null)
+    setSuccessMessage(null)
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/shipment-schedules/${detail.id}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      })
+      if (!response.ok) throw new Error(await parseError(response))
+
+      const deletedShipmentNo = detail.shipment_no
+      setDeleteDialogOpen(false)
+      setDialogOpen(false)
+      setDetail(null)
+      setDetailError(null)
+      setSelectedId(null)
+      setSuccessMessage(`船期批次 ${deletedShipmentNo} 已删除`)
+      await loadList(1)
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : '删除失败')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const exportOverviewToExcel = async () => {
+    if (items.length === 0) {
+      setError('当前没有可导出的船期批次数据')
+      return
+    }
+
+    setExporting(true)
+    setError(null)
+    try {
+      const ExcelJS = await import('exceljs')
+      const workbook = new ExcelJS.Workbook()
+      workbook.creator = 'Codex'
+      workbook.created = new Date()
+
+      const worksheet = workbook.addWorksheet('船期批次总览', {
+        views: [{ state: 'frozen', ySplit: 4, xSplit: 1 }],
+      })
+
+      const columns = [
+        { header: '项目', key: 'project_name', width: 18 },
+        { header: '发货时间', key: 'created_date', width: 14 },
+        { header: '货件编号', key: 'shipment_no', width: 20 },
+        { header: '状态', key: 'shipment_status', width: 12 },
+        { header: '运输方式', key: 'shipping_method', width: 12 },
+        { header: '货代', key: 'forwarder_name', width: 18 },
+        { header: '仓库', key: 'warehouse_code', width: 14 },
+        { header: 'ETD', key: 'etd_date', width: 14 },
+        { header: 'ETA', key: 'eta_date', width: 14 },
+        { header: 'ATA', key: 'actual_inbound_date', width: 14 },
+        { header: 'SKU 数', key: 'sku_count', width: 12 },
+        { header: '总数量', key: 'total_quantity', width: 14 },
+        { header: '追踪号', key: 'tracking_no', width: 22 },
+        { header: '备注', key: 'remark', width: 28 },
+        { header: '更新时间', key: 'updated_at', width: 22 },
+      ] as const
+
+      const lastColumn = columns.length
+      const exportedAt = new Date().toLocaleString('zh-CN', { hour12: false })
+
+      worksheet.mergeCells(1, 1, 1, lastColumn)
+      worksheet.getCell(1, 1).value = '船期批次总览导出'
+      worksheet.getCell(1, 1).font = { name: 'Microsoft YaHei', size: 16, bold: true, color: { argb: 'FF0F172A' } }
+      worksheet.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
+
+      worksheet.mergeCells(2, 1, 2, lastColumn)
+      worksheet.getCell(2, 1).value = `导出时间：${exportedAt}    说明：导出当前筛选条件下的本页船期批次总览数据`
+      worksheet.getCell(2, 1).font = { name: 'Microsoft YaHei', size: 10, color: { argb: 'FF475569' } }
+      worksheet.getCell(2, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
+
+      const filterText = [
+        projectFilter === 'all' ? '项目：全部' : `项目：${projects.find((project) => String(project.id) === projectFilter)?.name ?? projectFilter}`,
+        statusFilter === 'all' ? '状态：全部' : `状态：${statusMeta(statusFilter).label}`,
+        methodFilter === 'all' ? '运输方式：全部' : `运输方式：${methodLabel(methodFilter)}`,
+        shipmentNoFilter.trim() ? `货件编号：${shipmentNoFilter.trim()}` : '货件编号：全部',
+      ].join('    ')
+      worksheet.mergeCells(3, 1, 3, lastColumn)
+      worksheet.getCell(3, 1).value = filterText
+      worksheet.getCell(3, 1).font = { name: 'Microsoft YaHei', size: 10, color: { argb: 'FF64748B' } }
+      worksheet.getCell(3, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } }
+
+      worksheet.columns = columns.map((column) => ({ header: column.header, key: column.key, width: column.width }))
+
+      const headerRow = worksheet.getRow(4)
+      headerRow.values = columns.map((column) => column.header)
+      headerRow.height = 24
+      headerRow.eachCell((cell) => {
+        cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
+        cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        }
+      })
+
+      items.forEach((item, index) => {
+        const row = worksheet.getRow(index + 5)
+        row.values = [
+          item.project_name,
+          formatDate(item.created_date),
+          item.shipment_no,
+          statusMeta(item.shipment_status).label,
+          methodLabel(item.shipping_method),
+          item.forwarder_name || '-',
+          item.warehouse_code || '-',
+          formatDate(item.etd_date),
+          formatDate(item.eta_date),
+          formatDate(item.actual_inbound_date),
+          item.sku_count,
+          item.total_quantity,
+          item.tracking_no || '-',
+          item.remark || '-',
+          formatTime(item.updated_at),
+        ]
+
+        row.eachCell((cell, colNumber) => {
+          cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF0F172A' } }
+          cell.alignment = {
+            vertical: 'middle',
+            horizontal: colNumber === 11 || colNumber === 12 ? 'right' : 'left',
+            wrapText: true,
+          }
+          if (colNumber === 11 || colNumber === 12) {
+            cell.numFmt = '#,##0'
+          }
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          }
+          if (colNumber === 4) {
+            const statusColorMap: Record<string, string> = {
+              草稿: 'FFF1F5F9',
+              在途: 'FFE0F2FE',
+              已完成: 'FFDCFCE7',
+            }
+            cell.fill = {
+              type: 'pattern',
+              pattern: 'solid',
+              fgColor: { argb: statusColorMap[String(cell.value)] ?? 'FFFFFFFF' },
+            }
+          }
+        })
+      })
+
+      const totalRow = worksheet.getRow(items.length + 5)
+      totalRow.getCell(1).value = '当前页合计'
+      totalRow.getCell(11).value = summary.totalSku
+      totalRow.getCell(12).value = summary.totalQuantity
+      totalRow.eachCell((cell) => {
+        cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        }
+      })
+      totalRow.getCell(11).numFmt = '#,##0'
+      totalRow.getCell(12).numFmt = '#,##0'
+
+      const buffer = await workbook.xlsx.writeBuffer()
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      const safeTimestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+      link.href = url
+      link.download = `船期批次总览-${safeTimestamp}.xlsx`
+      link.click()
+      window.URL.revokeObjectURL(url)
+    } catch (exportError) {
+      setError(exportError instanceof Error ? exportError.message : '导出 Excel 失败')
+    } finally {
+      setExporting(false)
+    }
+  }
+
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
 
   return (
@@ -712,6 +909,10 @@ export default function ShipmentManagementPage() {
                     </CardDescription>
                   </div>
                   <div className="flex gap-2">
+                    <Button variant="outline" disabled={loading || exporting || items.length === 0} onClick={() => void exportOverviewToExcel()}>
+                      <FileDown className="h-4 w-4" />
+                      {exporting ? '导出中...' : '导出 Excel'}
+                    </Button>
                     <Button variant="outline" disabled={page <= 1 || loading} onClick={() => void loadList(page - 1)}>
                       上一页
                     </Button>
@@ -739,18 +940,18 @@ export default function ShipmentManagementPage() {
                     <Table className="w-full min-w-[1000px]">
                       <TableHeader>
                         <TableRow className="bg-muted/50">
-                          <TableHead className="w-[90px] text-sm whitespace-nowrap">项目</TableHead>
-                          <TableHead className="w-[90px] text-sm whitespace-nowrap">发货时间</TableHead>
-                          <TableHead className="w-[120px] text-sm whitespace-nowrap">货件编号</TableHead>
-                          <TableHead className="w-[70px] text-sm whitespace-nowrap">状态</TableHead>
-                          <TableHead className="w-[80px] text-sm whitespace-nowrap">货代</TableHead>
-                          <TableHead className="w-[70px] text-sm whitespace-nowrap">仓库</TableHead>
-                          <TableHead className="w-[90px] text-sm whitespace-nowrap">ETD</TableHead>
-                          <TableHead className="w-[90px] text-sm whitespace-nowrap">ETA</TableHead>
-                          <TableHead className="w-[90px] text-sm whitespace-nowrap">ATA</TableHead>
-                          <TableHead className="w-[50px] text-sm whitespace-nowrap text-right">SKU</TableHead>
-                          <TableHead className="w-[60px] text-sm whitespace-nowrap text-right">数量</TableHead>
-                          <TableHead className="w-[60px] text-sm whitespace-nowrap">操作</TableHead>
+                          <TableHead className="w-[90px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0">项目</TableHead>
+                          <TableHead className="w-[90px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0">发货时间</TableHead>
+                          <TableHead className="w-[120px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0">货件编号</TableHead>
+                          <TableHead className="w-[70px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0">状态</TableHead>
+                          <TableHead className="w-[80px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0">货代</TableHead>
+                          <TableHead className="w-[70px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0">仓库</TableHead>
+                          <TableHead className="w-[90px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0">ETD</TableHead>
+                          <TableHead className="w-[90px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0">ETA</TableHead>
+                          <TableHead className="w-[90px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0">ATA</TableHead>
+                          <TableHead className="w-[50px] whitespace-nowrap border-r border-border/70 text-right text-sm last:border-r-0">SKU</TableHead>
+                          <TableHead className="w-[60px] whitespace-nowrap border-r border-border/70 text-right text-sm last:border-r-0">数量</TableHead>
+                          <TableHead className="w-[60px] whitespace-nowrap text-sm">操作</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -758,19 +959,19 @@ export default function ShipmentManagementPage() {
                           const status = statusMeta(item.shipment_status)
                           return (
                             <TableRow key={item.id} className={item.id === selectedId ? 'bg-primary/5' : ''}>
-                              <TableCell className="text-sm font-medium">{item.project_name}</TableCell>
-                              <TableCell className="text-sm">{formatDate(item.created_date)}</TableCell>
-                              <TableCell className="text-sm font-medium">{item.shipment_no}</TableCell>
-                              <TableCell>
+                              <TableCell className="border-r border-border/60 text-sm font-medium">{item.project_name}</TableCell>
+                              <TableCell className="border-r border-border/60 text-sm">{formatDate(item.created_date)}</TableCell>
+                              <TableCell className="border-r border-border/60 text-sm font-medium">{item.shipment_no}</TableCell>
+                              <TableCell className="border-r border-border/60">
                                 <Badge className={`${status.className} text-[11px] py-0 h-5`}>{status.label}</Badge>
                               </TableCell>
-                              <TableCell className="text-sm">{item.forwarder_name || '-'}</TableCell>
-                              <TableCell className="text-sm">{item.warehouse_code || '-'}</TableCell>
-                              <TableCell className="text-sm">{formatDate(item.etd_date)}</TableCell>
-                              <TableCell className="text-sm">{formatDate(item.eta_date)}</TableCell>
-                              <TableCell className="text-sm">{formatDate(item.actual_inbound_date)}</TableCell>
-                              <TableCell className="text-sm text-right">{item.sku_count}</TableCell>
-                              <TableCell className="text-sm text-right">{item.total_quantity.toLocaleString()}</TableCell>
+                              <TableCell className="border-r border-border/60 text-sm">{item.forwarder_name || '-'}</TableCell>
+                              <TableCell className="border-r border-border/60 text-sm">{item.warehouse_code || '-'}</TableCell>
+                              <TableCell className="border-r border-border/60 text-sm">{formatDate(item.etd_date)}</TableCell>
+                              <TableCell className="border-r border-border/60 text-sm">{formatDate(item.eta_date)}</TableCell>
+                              <TableCell className="border-r border-border/60 text-sm">{formatDate(item.actual_inbound_date)}</TableCell>
+                              <TableCell className="border-r border-border/60 text-right text-sm">{item.sku_count}</TableCell>
+                              <TableCell className="border-r border-border/60 text-right text-sm">{item.total_quantity.toLocaleString()}</TableCell>
                               <TableCell>
                                 <Button
                                   variant="outline"
@@ -1106,6 +1307,17 @@ export default function ShipmentManagementPage() {
 
           <Separator className="dark:bg-slate-800" />
           <DialogFooter>
+            {dialogMode === 'edit' && isAdmin ? (
+              <Button
+                variant="destructive"
+                className="mr-auto"
+                onClick={() => setDeleteDialogOpen(true)}
+                disabled={submitting || deleting}
+              >
+                <Trash2 className="h-4 w-4" />
+                删除批次
+              </Button>
+            ) : null}
             <Button variant="outline" onClick={() => setDialogOpen(false)} className="dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
               取消
             </Button>
@@ -1169,6 +1381,25 @@ export default function ShipmentManagementPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setSkuDialogOpen(false)} className="dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
               关闭
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>确认删除批次</DialogTitle>
+            <DialogDescription>
+              {detail ? `确定删除船期批次 ${detail.shipment_no} 吗？该批次下的 SKU 明细也会一并删除，且无法恢复。` : '此操作不可恢复。'}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} disabled={deleting}>
+              取消
+            </Button>
+            <Button variant="destructive" onClick={() => void handleDeleteSchedule()} disabled={deleting}>
+              {deleting ? '删除中...' : '确认删除'}
             </Button>
           </DialogFooter>
         </DialogContent>

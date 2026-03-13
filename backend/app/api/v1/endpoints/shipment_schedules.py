@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Header, Query, Request, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, get_request_operator, protected
@@ -204,6 +204,31 @@ def update_shipment_schedule(
     )
     db.commit()
     return get_shipment_schedule_detail(schedule_id=row.id, db=db)
+
+
+@router.delete('/shipment-schedules/{schedule_id}', status_code=status.HTTP_204_NO_CONTENT)
+def delete_shipment_schedule(
+    schedule_id: int,
+    request: Request,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
+) -> Response:
+    if not is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='仅管理员可删除船期批次')
+
+    row = shipment_schedule_service.delete_shipment_schedule(db, schedule_id)
+    append_operation_audit_log(
+        db,
+        action='shipment_schedules.delete',
+        target_type='shipment_schedule',
+        target_id=row.id,
+        operator=operator,
+        before={'shipment_no': row.shipment_no, 'project_id': row.project_id, 'status': row.shipment_status},
+        request=request,
+    )
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post('/shipment-schedules/{schedule_id}/items/import-csv', response_model=ShipmentItemsImportResponse)

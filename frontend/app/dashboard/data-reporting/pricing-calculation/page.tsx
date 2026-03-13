@@ -90,13 +90,36 @@ type ProjectOption = {
   name: string
 }
 
+type ProjectManageOption = {
+  id: number
+  name: string
+  brand_name: string | null
+  store_address: string | null
+  project_operator: string | null
+  assistant_operator: string | null
+  commission_basis: string | null
+  commission_rate: number | null
+  sort_order: number
+  source_file: string | null
+}
+
 type ProductCostItem = {
   id: number
   project_name: string
   sku: string
   asin: string
-  first_leg_unit_cost: number
+  fnsku: string | null
   fob_unit_cost: number
+  first_leg_cost_rmb: number
+  package_length_cm: number
+  package_width_cm: number
+  package_height_cm: number
+  weight_kg: number
+  carton_length_cm: number
+  carton_width_cm: number
+  carton_height_cm: number
+  carton_weight_kg: number
+  units_per_carton: number
   currency: string
   country: string
   sort_order: number
@@ -111,6 +134,7 @@ type ProductCostsResponse = {
   has_next: boolean
 }
 
+
 type FormState = {
   product_name: string
   package_length_cm: string
@@ -118,7 +142,7 @@ type FormState = {
   package_height_cm: string
   weight_kg: string
   fob_product_cost_rmb: string
-  first_leg_unit_price_rmb: string
+  first_leg_cost_rmb: string
   sale_price_usd: string
   target_profit_rate: string
   advertising_rate: string
@@ -136,7 +160,7 @@ type StoreSkuDraft = {
   package_width_cm: string
   package_height_cm: string
   weight_kg: string
-  first_leg_unit_price_rmb: string
+  first_leg_cost_rmb: string
   sale_price_usd: string
   advertising_rate: string
   return_loss_rate: string
@@ -159,7 +183,7 @@ const INITIAL_FORM: FormState = {
   package_height_cm: '',
   weight_kg: '',
   fob_product_cost_rmb: '',
-  first_leg_unit_price_rmb: '6',
+  first_leg_cost_rmb: '',
   sale_price_usd: '',
   target_profit_rate: '25',
   advertising_rate: '12',
@@ -171,11 +195,11 @@ const INITIAL_FORM: FormState = {
 
 function buildInitialStoreDraft(item: ProductCostItem): StoreSkuDraft {
   return {
-    package_length_cm: '',
-    package_width_cm: '',
-    package_height_cm: '',
-    weight_kg: '',
-    first_leg_unit_price_rmb: item.first_leg_unit_cost > 0 ? String(item.first_leg_unit_cost) : '',
+    package_length_cm: item.package_length_cm > 0 ? String(item.package_length_cm) : '',
+    package_width_cm: item.package_width_cm > 0 ? String(item.package_width_cm) : '',
+    package_height_cm: item.package_height_cm > 0 ? String(item.package_height_cm) : '',
+    weight_kg: item.weight_kg > 0 ? String(item.weight_kg) : '',
+    first_leg_cost_rmb: item.first_leg_cost_rmb > 0 ? String(item.first_leg_cost_rmb) : '',
     sale_price_usd: '',
     advertising_rate: '12',
     return_loss_rate: '4',
@@ -487,15 +511,15 @@ export default function PricingCalculationPage() {
       setProjectsLoading(true)
       setProjectsError(null)
       try {
-        const response = await fetch(`${API_BASE}/api/v1/projects`, {
+        const response = await fetch(`${API_BASE}/api/v1/projects/manage`, {
           cache: 'no-store',
         })
-        const payload = (await response.json()) as ProjectOption[] | { detail?: string; message?: string }
+        const payload = (await response.json()) as ProjectManageOption[] | { detail?: string; message?: string }
         if (!response.ok) {
           const errorPayload = payload as { detail?: string; message?: string }
           throw new Error(errorPayload.detail || errorPayload.message || '项目列表加载失败')
         }
-        setProjects(payload as ProjectOption[])
+        setProjects((payload as ProjectManageOption[]).map((project) => ({ id: project.id, name: project.name })))
       } catch (loadError) {
         setProjectsError(loadError instanceof Error ? loadError.message : '项目列表加载失败')
       } finally {
@@ -526,15 +550,12 @@ export default function PricingCalculationPage() {
           page_size: '200',
           include_total: 'true',
         })
-        const response = await fetch(`${API_BASE}/api/v1/product-costs?${search.toString()}`, {
-          cache: 'no-store',
-        })
+        const response = await fetch(`${API_BASE}/api/v1/sku-info?${search.toString()}`, { cache: 'no-store' })
         const payload = (await response.json()) as ProductCostsResponse | { detail?: string; message?: string }
         if (!response.ok) {
           const errorPayload = payload as { detail?: string; message?: string }
           throw new Error(errorPayload.detail || errorPayload.message || 'SKU 列表加载失败')
         }
-
         const items = (payload as ProductCostsResponse).items
         setStoreSkus(items)
         setStoreRows((current) => {
@@ -584,8 +605,8 @@ export default function PricingCalculationPage() {
     return Math.max(toNumber(form.weight_kg), volumeWeightKg)
   }, [form.weight_kg, volumeWeightKg])
   const firstLegCostRmb = useMemo(() => {
-    return chargeableWeightKg * toNumber(form.first_leg_unit_price_rmb)
-  }, [chargeableWeightKg, form.first_leg_unit_price_rmb])
+    return toNumber(form.first_leg_cost_rmb)
+  }, [form.first_leg_cost_rmb])
   const filteredStoreSkus = useMemo(() => {
     const normalizedKeyword = skuKeyword.trim().toLowerCase()
     if (!normalizedKeyword) {
@@ -726,7 +747,6 @@ export default function PricingCalculationPage() {
       const packageWidth = Number(draft.package_width_cm)
       const packageHeight = Number(draft.package_height_cm)
       const weightKg = Number(draft.weight_kg)
-      const unitPrice = Number(draft.first_leg_unit_price_rmb)
       const volumeKg = (packageLength * packageWidth * packageHeight) / 6000
       const chargeableKg = Math.max(weightKg, volumeKg)
       const createdRun = await requestPricingCalculation({
@@ -737,7 +757,7 @@ export default function PricingCalculationPage() {
         package_height_cm: packageHeight,
         weight_kg: weightKg,
         fob_product_cost_rmb: item.fob_unit_cost,
-        first_leg_cost_rmb: chargeableKg * unitPrice,
+        first_leg_cost_rmb: Number(draft.first_leg_cost_rmb),
         sale_price_usd: Number(draft.sale_price_usd),
         target_profit_rate: 0,
         advertising_rate: Number(draft.advertising_rate) / 100,
@@ -824,19 +844,17 @@ export default function PricingCalculationPage() {
                   <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
                     <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
                       <div className="space-y-3">
-                        <Field label="头程单价(RMB/kg)">
-                          <Input type="number" step="0.01" value={form.first_leg_unit_price_rmb} onChange={(event) => updateField('first_leg_unit_price_rmb', event.target.value)} required />
+                        <Field label="头程成本(RMB)">
+                          <Input type="number" step="0.01" value={form.first_leg_cost_rmb} onChange={(event) => updateField('first_leg_cost_rmb', event.target.value)} required />
                         </Field>
                         <p className="text-xs leading-5 text-slate-500">
-                          实重 {formatMetric(toNumber(form.weight_kg), 3)} kg，体积重 {formatMetric(volumeWeightKg, 3)} kg，计费重取较大值。
+                          实重 {formatMetric(toNumber(form.weight_kg), 3)} kg，体积重 {formatMetric(volumeWeightKg, 3)} kg，计费重 {formatMetric(chargeableWeightKg, 3)} kg。
                         </p>
                       </div>
                       <div className="rounded-xl border border-slate-200 bg-white p-3">
                         <p className="text-xs text-slate-500">头程成本(RMB)</p>
                         <p className="mt-2 text-2xl font-semibold text-slate-900">{firstLegCostRmb.toFixed(2)}</p>
-                        <p className="mt-1 text-xs text-slate-500">
-                          {formatMetric(chargeableWeightKg, 3)} kg × {toNumber(form.first_leg_unit_price_rmb).toFixed(2)}
-                        </p>
+                        <p className="mt-1 text-xs text-slate-500">这里直接录入本次测算要使用的头程总成本。</p>
                       </div>
                     </div>
                   </div>
@@ -1044,7 +1062,7 @@ export default function PricingCalculationPage() {
           <Card className="border-slate-200 shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg">店铺 SKU 核算表</CardTitle>
-              <CardDescription>每行一个 SKU，FOB 取 SKU 成本档案，尺寸、重量、售价等参数由用户手动填写后逐行测算。</CardDescription>
+              <CardDescription>每行一个 SKU，FOB 取 SKU 信息档案；已维护的尺寸/重量自动带出，头程成本和售价等动态参数按需补充后逐行测算。</CardDescription>
             </CardHeader>
             <CardContent>
               {!selectedProjectName ? (
@@ -1146,7 +1164,7 @@ function StoreAccountingTable({
       <TableHeader className="bg-slate-50">
         <TableRow>
           <TableHead className="min-w-[180px]">SKU 信息</TableHead>
-          <TableHead className="min-w-[380px]">手动填写参数</TableHead>
+          <TableHead className="min-w-[380px]">测算参数</TableHead>
           <TableHead className="min-w-[240px]">费用与利润</TableHead>
           <TableHead className="min-w-[220px]">规则信息</TableHead>
           <TableHead className="min-w-[120px] text-right">操作</TableHead>
@@ -1158,7 +1176,7 @@ function StoreAccountingTable({
           const draft = rowState?.draft ?? buildInitialStoreDraft(item)
           const volumeKg = (toNumber(draft.package_length_cm) * toNumber(draft.package_width_cm) * toNumber(draft.package_height_cm)) / 6000
           const chargeableKg = Math.max(toNumber(draft.weight_kg), volumeKg)
-          const firstLegCost = chargeableKg * toNumber(draft.first_leg_unit_price_rmb)
+          const firstLegCost = toNumber(draft.first_leg_cost_rmb)
           const result = rowState?.result
 
           return (
@@ -1172,11 +1190,12 @@ function StoreAccountingTable({
                   <div className="flex flex-wrap gap-2">
                     <Badge variant="secondary">ASIN {item.asin}</Badge>
                     <Badge variant="outline">{item.country}</Badge>
+                    {item.units_per_carton > 0 ? <Badge variant="outline">装箱 {item.units_per_carton} pcs</Badge> : null}
                   </div>
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-slate-600">
                     <p>FOB: {formatRmb(item.fob_unit_cost)}</p>
-                    <p>头程单价: {draft.first_leg_unit_price_rmb || '未填'} RMB/kg</p>
-                    <p>头程成本: {firstLegCost > 0 ? formatRmb(firstLegCost) : '-'}</p>
+                    <p>头程成本: {firstLegCost > 0 ? formatRmb(firstLegCost) : '未核算'}</p>
+                    <p>尺寸资料: {item.package_length_cm > 0 && item.package_width_cm > 0 && item.package_height_cm > 0 ? '已维护' : '未维护'}</p>
                   </div>
                 </div>
               </TableCell>
@@ -1194,8 +1213,10 @@ function StoreAccountingTable({
                   <MiniField label="重量(kg)">
                     <Input type="number" step="0.001" value={draft.weight_kg} onChange={(event) => onDraftChange(item.id, 'weight_kg', event.target.value)} />
                   </MiniField>
-                  <MiniField label="头程单价">
-                    <Input type="number" step="0.01" value={draft.first_leg_unit_price_rmb} onChange={(event) => onDraftChange(item.id, 'first_leg_unit_price_rmb', event.target.value)} />
+                  <MiniField label="头程成本(RMB)">
+                    <div className="flex h-10 items-center rounded-md border border-input bg-slate-50 px-3 text-sm text-slate-600">
+                      {firstLegCost > 0 ? firstLegCost.toFixed(2) : '请先在 SKU 信息页核算'}
+                    </div>
                   </MiniField>
                   <MiniField label="售价(USD)">
                     <Input type="number" step="0.01" value={draft.sale_price_usd} onChange={(event) => onDraftChange(item.id, 'sale_price_usd', event.target.value)} />

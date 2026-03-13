@@ -946,14 +946,14 @@ def _build_active_product_costs_df(db: Session, *, project_name: str, country: s
 
     data: list[dict[str, object]] = []
     for row in rows:
-        first_leg_cost, _ = exchange_rate_service.convert_rmb_to_target_currency(
-            row.first_leg_unit_cost or 0,
+        fob_cost, _ = exchange_rate_service.convert_rmb_to_target_currency(
+            row.fob_unit_cost or 0,
             country=country,
             year_month=year_month,
             db=db,
         )
-        fob_cost, _ = exchange_rate_service.convert_rmb_to_target_currency(
-            row.fob_unit_cost or 0,
+        first_leg_cost, _ = exchange_rate_service.convert_rmb_to_target_currency(
+            row.first_leg_cost_rmb or 0,
             country=country,
             year_month=year_month,
             db=db,

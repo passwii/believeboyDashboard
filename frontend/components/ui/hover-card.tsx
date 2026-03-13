@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import * as React from "react"
 import { cn } from "@/lib/utils"
 
@@ -274,10 +275,12 @@ const UserHoverCard = React.forwardRef<HTMLDivElement, UserHoverCardProps>(
         <div className="flex items-start gap-3">
           <div className="relative">
             {avatar ? (
-              <img
+              <Image
                 src={avatar}
                 alt={username}
-                className="w-12 h-12 rounded-full object-cover"
+                width={48}
+                height={48}
+                className="h-12 w-12 rounded-full object-cover"
               />
             ) : (
               <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center text-white font-semibold text-lg">

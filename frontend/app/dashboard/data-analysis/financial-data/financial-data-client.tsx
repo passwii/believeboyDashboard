@@ -295,6 +295,14 @@ const EXPORT_DETAIL_COLUMNS = [
   { key: 'paybackRatio', title: '回款率', format: 'percent_signed', group: '费用占比' },
 ] as const
 
+const ADMIN_ONLY_EXPORT_KEYS = new Set<string>([
+  'evaluationFeeRmb',
+  'prepaymentOtherRmb',
+  'operationCommissionRmb',
+  'payableTotalRmb',
+  'exchangeRate',
+])
+
 function getExcelNumFmt(format: (typeof EXPORT_DETAIL_COLUMNS)[number]['format'] | 'currency_usd' | 'currency_rmb' | 'percent' | 'percent_signed' | 'rate' | 'integer') {
   if (format === 'currency_usd') return '$#,##0.00;[Red]-$#,##0.00'
   if (format === 'currency_rmb' || format === 'currency_rmb_nullable') return '¥#,##0.00;[Red]-¥#,##0.00'
@@ -767,6 +775,7 @@ export default function FinancialDataClient({
       const workbook = new ExcelJS.Workbook()
       workbook.creator = 'Codex'
       workbook.created = new Date()
+      const activeExportColumns = EXPORT_DETAIL_COLUMNS.filter((column) => isAdmin || !ADMIN_ONLY_EXPORT_KEYS.has(column.key))
 
       const summarySheet = workbook.addWorksheet('汇总', {
         views: [{ state: 'frozen', ySplit: 4, xSplit: 1 }],
@@ -846,7 +855,7 @@ export default function FinancialDataClient({
 
       summarySheet.columns = [{ width: 16 }, { width: 16 }, { width: 28 }, { width: 12 }]
 
-      const detailLastColumn = EXPORT_DETAIL_COLUMNS.length
+      const detailLastColumn = activeExportColumns.length
       detailSheet.mergeCells(1, 1, 1, detailLastColumn)
       detailSheet.getCell(1, 1).value = '月度财务分析 - 月度财务明细'
       detailSheet.getCell(1, 1).font = { name: 'Microsoft YaHei', size: 16, bold: true, color: { argb: 'FF0F172A' } }
@@ -869,8 +878,8 @@ export default function FinancialDataClient({
       const groupRow = detailSheet.getRow(4)
       const headRow = detailSheet.getRow(5)
       let currentColumn = 1
-      Array.from(new Set(EXPORT_DETAIL_COLUMNS.map((column) => column.group))).forEach((group) => {
-        const groupColumns = EXPORT_DETAIL_COLUMNS.filter((column) => column.group === group)
+      Array.from(new Set(activeExportColumns.map((column) => column.group))).forEach((group) => {
+        const groupColumns = activeExportColumns.filter((column) => column.group === group)
         const startColumn = currentColumn
         groupColumns.forEach((column) => {
           headRow.getCell(currentColumn).value = column.title
@@ -898,7 +907,7 @@ export default function FinancialDataClient({
 
       detailExportRows.forEach((rowData, index) => {
         const row = detailSheet.getRow(index + 6)
-        EXPORT_DETAIL_COLUMNS.forEach((column, columnIndex) => {
+        activeExportColumns.forEach((column, columnIndex) => {
           const cell = row.getCell(columnIndex + 1)
           const value = rowData[column.key]
           cell.value = column.format === 'boolean' ? (value ? '有' : '无') : value ?? '-'
@@ -918,7 +927,7 @@ export default function FinancialDataClient({
       })
 
       const totalRow = detailSheet.getRow(detailExportRows.length + 6)
-      EXPORT_DETAIL_COLUMNS.forEach((column, columnIndex) => {
+      activeExportColumns.forEach((column, columnIndex) => {
         const cell = totalRow.getCell(columnIndex + 1)
         if (column.key === 'monthLabel') {
           cell.value = '合计'
@@ -988,7 +997,7 @@ export default function FinancialDataClient({
       })
 
       const compactWidthKeys = new Set<string>(['monthLabel', 'hasSourceReport'])
-      detailSheet.columns = EXPORT_DETAIL_COLUMNS.map((column) => ({
+      detailSheet.columns = activeExportColumns.map((column) => ({
         width: column.key === 'monthLabel' ? 14 : compactWidthKeys.has(column.key) ? 12 : 14,
       }))
       autosizeExcelColumns(detailSheet)
@@ -1010,7 +1019,7 @@ export default function FinancialDataClient({
     } finally {
       setExporting(false)
     }
-  }, [data, detailExportRows, disableCommission, totals, trends])
+  }, [data, detailExportRows, disableCommission, isAdmin, totals, trends])
   const showSkeleton = loading && !data
 
   return (

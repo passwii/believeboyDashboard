@@ -105,7 +105,6 @@ def test_persist_product_analysis_sources_versioning_and_current(tmp_path: Path)
                 project_name='Demo',
                 sku='SKU1',
                 asin='ASIN1',
-                first_leg_unit_cost=1,
                 fob_unit_cost=1,
                 currency='USD',
                 source_file='seed.csv',
@@ -191,7 +190,6 @@ def test_source_rows_scope_filter_and_inventory_status(tmp_path: Path):
                 project_name='Demo',
                 sku='SKU1',
                 asin='ASIN1',
-                first_leg_unit_cost=1,
                 fob_unit_cost=1,
                 currency='USD',
                 source_file='seed.csv',
@@ -280,7 +278,6 @@ def test_load_project_product_mapping_ignores_inactive_sku():
                 project_name='Demo',
                 sku='SKU_ACTIVE',
                 asin='ASIN_ACTIVE',
-                first_leg_unit_cost=1,
                 fob_unit_cost=1,
                 currency='USD',
                 is_active=True,
@@ -291,7 +288,6 @@ def test_load_project_product_mapping_ignores_inactive_sku():
                 project_name='Demo',
                 sku='SKU_INACTIVE',
                 asin='ASIN_INACTIVE',
-                first_leg_unit_cost=1,
                 fob_unit_cost=1,
                 currency='USD',
                 is_active=False,
@@ -436,7 +432,6 @@ def test_persist_product_analysis_pt1_calculation_versioning():
                     project_name='Demo',
                     sku='SKU1',
                     asin='ASIN1',
-                    first_leg_unit_cost=1,
                     fob_unit_cost=1,
                     currency='USD',
                     is_active=True,
@@ -445,7 +440,6 @@ def test_persist_product_analysis_pt1_calculation_versioning():
                     project_name='Demo',
                     sku='SKU2',
                     asin='ASIN2',
-                    first_leg_unit_cost=1,
                     fob_unit_cost=1,
                     currency='USD',
                     is_active=True,
@@ -454,7 +448,6 @@ def test_persist_product_analysis_pt1_calculation_versioning():
                     project_name='Demo',
                     sku='SKU3',
                     asin='ASIN3',
-                    first_leg_unit_cost=1,
                     fob_unit_cost=1,
                     currency='USD',
                     is_active=True,
@@ -643,7 +636,6 @@ def test_pt1_details_sorted_by_product_cost_sort_order():
                 project_name='Demo',
                 sku='SKU_B',
                 asin='ASIN_B',
-                first_leg_unit_cost=1,
                 fob_unit_cost=1,
                 currency='USD',
                 sort_order=1,
@@ -655,7 +647,6 @@ def test_pt1_details_sorted_by_product_cost_sort_order():
                 project_name='Demo',
                 sku='SKU_A',
                 asin='ASIN_A',
-                first_leg_unit_cost=1,
                 fob_unit_cost=1,
                 currency='USD',
                 sort_order=2,
@@ -716,8 +707,8 @@ def test_recompute_weekly_product_analysis_from_history_uses_latest_product_cost
                 project_name='Demo',
                 sku='SKU1',
                 asin='ASIN1',
-                first_leg_unit_cost=1,
                 fob_unit_cost=1,
+                first_leg_cost_rmb=1,
                 currency='USD',
                 is_active=True,
                 country='US',
@@ -788,8 +779,8 @@ def test_recompute_weekly_product_analysis_from_history_uses_latest_product_cost
         db.commit()
 
         cost_row = db.execute(select(ProductCost).where(ProductCost.sku == 'SKU1')).scalars().one()
-        cost_row.first_leg_unit_cost = 2
         cost_row.fob_unit_cost = 3
+        cost_row.first_leg_cost_rmb = 2
         db.commit()
 
         payload = product_analysis_source_service.recompute_weekly_product_analysis_from_history(

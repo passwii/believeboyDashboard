@@ -14,6 +14,7 @@ from app.schemas.product_cost import ProductCostCreate, ProductCostUpdate
 
 DECIMAL_ZERO = Decimal('0')
 COST_DECIMAL_QUANT = Decimal('0.01')
+WEIGHT_DECIMAL_QUANT = Decimal('0.001')
 RMB_CURRENCY = 'CNY'
 DEFAULT_BLF_BASIC_INFO_PATH = Path(__file__).resolve().parents[3] / 'Docs' / 'ModelFiles' / 'BLF_Basic_Info.csv'
 COUNTRY_ALIASES = {
@@ -110,11 +111,28 @@ def _normalize_text(value: str | None, field_name: str) -> str:
     return normalized
 
 
+def _normalize_optional_text(value: str | None) -> str | None:
+    normalized = (value or '').strip()
+    return normalized or None
+
+
 def _normalize_cost(value: float | str | Decimal | None, field_name: str) -> Decimal:
     if value is None or value == '':
         return DECIMAL_ZERO
     try:
         dec = Decimal(str(value)).quantize(COST_DECIMAL_QUANT, rounding=ROUND_HALF_UP)
+    except (InvalidOperation, ValueError):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f'{field_name} must be numeric') from None
+    if dec < 0:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f'{field_name} must be >= 0')
+    return dec
+
+
+def _normalize_decimal_value(value: float | str | Decimal | None, field_name: str, quant: Decimal) -> Decimal:
+    if value is None or value == '':
+        return Decimal('0').quantize(quant)
+    try:
+        dec = Decimal(str(value)).quantize(quant, rounding=ROUND_HALF_UP)
     except (InvalidOperation, ValueError):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f'{field_name} must be numeric') from None
     if dec < 0:
@@ -131,6 +149,18 @@ def _normalize_sort_order(value: int | str | None) -> int | None:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='sort_order must be integer') from None
     if parsed < 1:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='sort_order must be >= 1')
+    return parsed
+
+
+def _normalize_int(value: int | str | None, field_name: str) -> int:
+    if value is None or value == '':
+        return 0
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f'{field_name} must be integer') from None
+    if parsed < 0:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f'{field_name} must be >= 0')
     return parsed
 
 
@@ -174,18 +204,117 @@ def _resolve_insert_sort_order(
 
 
 def _normalize_item(item: ProductCostCreate, source_file: str | None = None) -> dict[str, str | Decimal | bool | int | None]:
+    provided_fields = set(item.model_fields_set)
+
+    def optional_cost(field_name: str, value: float | str | Decimal | None) -> Decimal | None:
+        return _normalize_cost(value, field_name) if field_name in provided_fields else None
+
+    def optional_weight(field_name: str, value: float | str | Decimal | None) -> Decimal | None:
+        return _normalize_decimal_value(value, field_name, WEIGHT_DECIMAL_QUANT) if field_name in provided_fields else None
+
+    def optional_int(field_name: str, value: int | str | None) -> int | None:
+        return _normalize_int(value, field_name) if field_name in provided_fields else None
+
     return {
         'project_name': _normalize_text(item.project_name, 'project_name'),
         'sku': _normalize_text(item.sku, 'sku'),
         'asin': _normalize_text(item.asin, 'asin'),
-        'first_leg_unit_cost': _normalize_cost(item.first_leg_unit_cost, 'first_leg_unit_cost'),
-        'fob_unit_cost': _normalize_cost(item.fob_unit_cost, 'fob_unit_cost'),
+        'fnsku': ((item.fnsku or '').strip() or None) if 'fnsku' in provided_fields else None,
+        'fob_unit_cost': optional_cost('fob_unit_cost', item.fob_unit_cost),
+        'first_leg_cost_rmb': optional_cost('first_leg_cost_rmb', item.first_leg_cost_rmb),
+        'package_length_cm': optional_cost('package_length_cm', item.package_length_cm),
+        'package_width_cm': optional_cost('package_width_cm', item.package_width_cm),
+        'package_height_cm': optional_cost('package_height_cm', item.package_height_cm),
+        'weight_kg': optional_weight('weight_kg', item.weight_kg),
+        'carton_length_cm': optional_cost('carton_length_cm', item.carton_length_cm),
+        'carton_width_cm': optional_cost('carton_width_cm', item.carton_width_cm),
+        'carton_height_cm': optional_cost('carton_height_cm', item.carton_height_cm),
+        'carton_weight_kg': optional_weight('carton_weight_kg', item.carton_weight_kg),
+        'units_per_carton': optional_int('units_per_carton', item.units_per_carton),
         'currency': RMB_CURRENCY,
         'country': _normalize_country(item.country),
         'sort_order': _normalize_sort_order(item.sort_order),
-        'is_active': bool(item.is_active),
+        'is_active': bool(item.is_active) if 'is_active' in provided_fields else None,
         'source_file': (source_file or item.source_file or '').strip() or None,
     }
+
+
+def _normalize_item_for_import(
+    item: ProductCostCreate,
+    source_file: str | None = None,
+) -> dict[str, str | Decimal | bool | int | None]:
+    provided_fields = set(item.model_fields_set)
+
+    def optional_cost(field_name: str, value: float | str | Decimal | None) -> Decimal | None:
+        return _normalize_cost(value, field_name) if field_name in provided_fields and value not in (None, '') else None
+
+    def optional_weight(field_name: str, value: float | str | Decimal | None) -> Decimal | None:
+        return _normalize_decimal_value(value, field_name, WEIGHT_DECIMAL_QUANT) if field_name in provided_fields and value not in (None, '') else None
+
+    def optional_int(field_name: str, value: int | str | None) -> int | None:
+        return _normalize_int(value, field_name) if field_name in provided_fields and value not in (None, '') else None
+
+    return {
+        'project_name': _normalize_text(item.project_name, 'project_name'),
+        'sku': _normalize_text(item.sku, 'sku'),
+        'asin': _normalize_optional_text(item.asin) or '',
+        'fnsku': _normalize_optional_text(item.fnsku) if 'fnsku' in provided_fields else None,
+        'fob_unit_cost': optional_cost('fob_unit_cost', item.fob_unit_cost),
+        'first_leg_cost_rmb': optional_cost('first_leg_cost_rmb', item.first_leg_cost_rmb),
+        'package_length_cm': optional_cost('package_length_cm', item.package_length_cm),
+        'package_width_cm': optional_cost('package_width_cm', item.package_width_cm),
+        'package_height_cm': optional_cost('package_height_cm', item.package_height_cm),
+        'weight_kg': optional_weight('weight_kg', item.weight_kg),
+        'carton_length_cm': optional_cost('carton_length_cm', item.carton_length_cm),
+        'carton_width_cm': optional_cost('carton_width_cm', item.carton_width_cm),
+        'carton_height_cm': optional_cost('carton_height_cm', item.carton_height_cm),
+        'carton_weight_kg': optional_weight('carton_weight_kg', item.carton_weight_kg),
+        'units_per_carton': optional_int('units_per_carton', item.units_per_carton),
+        'currency': RMB_CURRENCY,
+        'country': _normalize_country(item.country),
+        'sort_order': _normalize_sort_order(item.sort_order),
+        'is_active': bool(item.is_active) if 'is_active' in provided_fields else None,
+        'source_file': (source_file or item.source_file or '').strip() or None,
+    }
+
+
+def _find_existing_for_import(db: Session, normalized: dict[str, str | Decimal | bool | int | None]) -> ProductCost | None:
+    project_name = str(normalized['project_name'])
+    sku = str(normalized['sku'])
+    country = str(normalized['country'])
+    asin = str(normalized['asin'])
+
+    if asin:
+        return (
+            db.execute(
+                select(ProductCost).where(
+                    ProductCost.project_name == project_name,
+                    ProductCost.sku == sku,
+                    ProductCost.country == country,
+                    ProductCost.asin == asin,
+                )
+            )
+            .scalars()
+            .first()
+        )
+
+    matches = (
+        db.execute(
+            select(ProductCost).where(
+                ProductCost.project_name == project_name,
+                ProductCost.sku == sku,
+                ProductCost.country == country,
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if len(matches) > 1:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f'存在多条同 project_name + SKU + 国家 的记录，请补充 ASIN 后再导入: {project_name} / {sku} / {country}',
+        )
+    return matches[0] if matches else None
 
 
 def upsert_product_cost(
@@ -211,13 +340,36 @@ def upsert_product_cost(
 
     action = 'updated'
     if existing:
-        existing.first_leg_unit_cost = normalized['first_leg_unit_cost']
-        existing.fob_unit_cost = normalized['fob_unit_cost']
+        if 'fnsku' in item.model_fields_set:
+            existing.fnsku = normalized['fnsku']
+        if normalized['fob_unit_cost'] is not None:
+            existing.fob_unit_cost = normalized['fob_unit_cost']
+        if normalized['first_leg_cost_rmb'] is not None:
+            existing.first_leg_cost_rmb = normalized['first_leg_cost_rmb']
+        if normalized['package_length_cm'] is not None:
+            existing.package_length_cm = normalized['package_length_cm']
+        if normalized['package_width_cm'] is not None:
+            existing.package_width_cm = normalized['package_width_cm']
+        if normalized['package_height_cm'] is not None:
+            existing.package_height_cm = normalized['package_height_cm']
+        if normalized['weight_kg'] is not None:
+            existing.weight_kg = normalized['weight_kg']
+        if normalized['carton_length_cm'] is not None:
+            existing.carton_length_cm = normalized['carton_length_cm']
+        if normalized['carton_width_cm'] is not None:
+            existing.carton_width_cm = normalized['carton_width_cm']
+        if normalized['carton_height_cm'] is not None:
+            existing.carton_height_cm = normalized['carton_height_cm']
+        if normalized['carton_weight_kg'] is not None:
+            existing.carton_weight_kg = normalized['carton_weight_kg']
+        if normalized['units_per_carton'] is not None:
+            existing.units_per_carton = normalized['units_per_carton']
         existing.currency = normalized['currency']
         existing.country = str(normalized['country'])
         if normalized['sort_order'] is not None:
             existing.sort_order = int(normalized['sort_order'])
-        existing.is_active = bool(normalized['is_active'])
+        if normalized['is_active'] is not None:
+            existing.is_active = bool(normalized['is_active'])
         existing.source_file = normalized['source_file']
         row = existing
     else:
@@ -231,6 +383,23 @@ def upsert_product_cost(
             # Compatibility fallback for legacy sqlite schema without auto-increment id.
             next_id = db.execute(select(func.coalesce(func.max(ProductCost.id), 0) + 1)).scalar_one()
             normalized['id'] = int(next_id)
+        for key in (
+            'fob_unit_cost',
+            'first_leg_cost_rmb',
+            'package_length_cm',
+            'package_width_cm',
+            'package_height_cm',
+            'weight_kg',
+            'carton_length_cm',
+            'carton_width_cm',
+            'carton_height_cm',
+            'carton_weight_kg',
+            'units_per_carton',
+        ):
+            if normalized[key] is None:
+                normalized[key] = 0
+        if normalized['is_active'] is None:
+            normalized['is_active'] = True
         row = ProductCost(**normalized)
         db.add(row)
         action = 'inserted'
@@ -249,8 +418,18 @@ def update_product_cost_by_id(
 
     sku = _normalize_text(payload.sku, 'sku')
     asin = _normalize_text(payload.asin, 'asin')
-    first_leg_unit_cost = _normalize_cost(payload.first_leg_unit_cost, 'first_leg_unit_cost')
-    fob_unit_cost = _normalize_cost(payload.fob_unit_cost, 'fob_unit_cost')
+    fnsku = ((payload.fnsku or '').strip() or None) if 'fnsku' in payload.model_fields_set else row.fnsku
+    fob_unit_cost = _normalize_cost(payload.fob_unit_cost, 'fob_unit_cost') if payload.fob_unit_cost is not None else row.fob_unit_cost
+    first_leg_cost_rmb = _normalize_cost(payload.first_leg_cost_rmb, 'first_leg_cost_rmb') if payload.first_leg_cost_rmb is not None else row.first_leg_cost_rmb
+    package_length_cm = _normalize_cost(payload.package_length_cm, 'package_length_cm') if payload.package_length_cm is not None else row.package_length_cm
+    package_width_cm = _normalize_cost(payload.package_width_cm, 'package_width_cm') if payload.package_width_cm is not None else row.package_width_cm
+    package_height_cm = _normalize_cost(payload.package_height_cm, 'package_height_cm') if payload.package_height_cm is not None else row.package_height_cm
+    weight_kg = _normalize_decimal_value(payload.weight_kg, 'weight_kg', WEIGHT_DECIMAL_QUANT) if payload.weight_kg is not None else row.weight_kg
+    carton_length_cm = _normalize_cost(payload.carton_length_cm, 'carton_length_cm') if payload.carton_length_cm is not None else row.carton_length_cm
+    carton_width_cm = _normalize_cost(payload.carton_width_cm, 'carton_width_cm') if payload.carton_width_cm is not None else row.carton_width_cm
+    carton_height_cm = _normalize_cost(payload.carton_height_cm, 'carton_height_cm') if payload.carton_height_cm is not None else row.carton_height_cm
+    carton_weight_kg = _normalize_decimal_value(payload.carton_weight_kg, 'carton_weight_kg', WEIGHT_DECIMAL_QUANT) if payload.carton_weight_kg is not None else row.carton_weight_kg
+    units_per_carton = _normalize_int(payload.units_per_carton, 'units_per_carton') if payload.units_per_carton is not None else row.units_per_carton
     country = _normalize_country(payload.country)
     sort_order = _normalize_sort_order(payload.sort_order)
     normalized_source_file = (source_file or payload.source_file or '').strip() or None
@@ -276,8 +455,18 @@ def update_product_cost_by_id(
 
     row.sku = sku
     row.asin = asin
-    row.first_leg_unit_cost = first_leg_unit_cost
+    row.fnsku = fnsku
     row.fob_unit_cost = fob_unit_cost
+    row.first_leg_cost_rmb = first_leg_cost_rmb
+    row.package_length_cm = package_length_cm
+    row.package_width_cm = package_width_cm
+    row.package_height_cm = package_height_cm
+    row.weight_kg = weight_kg
+    row.carton_length_cm = carton_length_cm
+    row.carton_width_cm = carton_width_cm
+    row.carton_height_cm = carton_height_cm
+    row.carton_weight_kg = carton_weight_kg
+    row.units_per_carton = units_per_carton
     row.currency = RMB_CURRENCY
     row.country = country
     if sort_order is not None:
@@ -305,6 +494,121 @@ def bulk_upsert_product_costs(
         else:
             updated += 1
     return rows, inserted, updated
+
+
+def import_product_costs(
+    db: Session,
+    items: list[ProductCostCreate],
+    *,
+    import_mode: str,
+    source_file: str | None = None,
+) -> tuple[list[ProductCost], int, int, int]:
+    normalized_mode = import_mode.strip().lower()
+    if normalized_mode not in {'create', 'update'}:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='import_mode must be create or update')
+
+    inserted = 0
+    updated = 0
+    skipped = 0
+    rows: list[ProductCost] = []
+    next_sort_order_cache: dict[str, int] = {}
+
+    for item in items:
+        normalized = _normalize_item_for_import(item, source_file)
+        existing = _find_existing_for_import(db, normalized)
+
+        if normalized_mode == 'create':
+            if existing is not None:
+                skipped += 1
+                continue
+
+            create_item = ProductCostCreate(
+                project_name=str(normalized['project_name']),
+                sku=str(normalized['sku']),
+                asin=str(normalized['asin']),
+                fnsku=normalized['fnsku'],
+                fob_unit_cost=float(normalized['fob_unit_cost']) if normalized['fob_unit_cost'] is not None else None,
+                first_leg_cost_rmb=float(normalized['first_leg_cost_rmb']) if normalized['first_leg_cost_rmb'] is not None else None,
+                package_length_cm=float(normalized['package_length_cm']) if normalized['package_length_cm'] is not None else None,
+                package_width_cm=float(normalized['package_width_cm']) if normalized['package_width_cm'] is not None else None,
+                package_height_cm=float(normalized['package_height_cm']) if normalized['package_height_cm'] is not None else None,
+                weight_kg=float(normalized['weight_kg']) if normalized['weight_kg'] is not None else None,
+                carton_length_cm=float(normalized['carton_length_cm']) if normalized['carton_length_cm'] is not None else None,
+                carton_width_cm=float(normalized['carton_width_cm']) if normalized['carton_width_cm'] is not None else None,
+                carton_height_cm=float(normalized['carton_height_cm']) if normalized['carton_height_cm'] is not None else None,
+                carton_weight_kg=float(normalized['carton_weight_kg']) if normalized['carton_weight_kg'] is not None else None,
+                units_per_carton=int(normalized['units_per_carton']) if normalized['units_per_carton'] is not None else None,
+                country=str(normalized['country']),
+                sort_order=int(normalized['sort_order']) if normalized['sort_order'] is not None else None,
+                is_active=bool(normalized['is_active']) if normalized['is_active'] is not None else True,
+                source_file=str(normalized['source_file']) if normalized['source_file'] is not None else None,
+            )
+            row, _ = upsert_product_cost(db, create_item, source_file, next_sort_order_cache=next_sort_order_cache)
+            rows.append(row)
+            inserted += 1
+            continue
+
+        if existing is None:
+            skipped += 1
+            continue
+
+        # Only overwrite fields that were explicitly provided and non-empty in the import row.
+        if normalized['asin'] and str(normalized['asin']) != existing.asin:
+            duplicate = (
+                db.execute(
+                    select(ProductCost).where(
+                        ProductCost.project_name == existing.project_name,
+                        ProductCost.sku == existing.sku,
+                        ProductCost.country == existing.country,
+                        ProductCost.asin == str(normalized['asin']),
+                        ProductCost.id != existing.id,
+                    )
+                )
+                .scalars()
+                .first()
+            )
+            if duplicate:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f'更新 ASIN 后与现有记录重复: {existing.project_name} / {existing.sku} / {existing.country} / {normalized["asin"]}',
+                )
+            existing.asin = str(normalized['asin'])
+        if 'fnsku' in item.model_fields_set and normalized['fnsku'] is not None:
+            existing.fnsku = str(normalized['fnsku'])
+        if normalized['fob_unit_cost'] is not None:
+            existing.fob_unit_cost = normalized['fob_unit_cost']
+        if normalized['first_leg_cost_rmb'] is not None:
+            existing.first_leg_cost_rmb = normalized['first_leg_cost_rmb']
+        if normalized['package_length_cm'] is not None:
+            existing.package_length_cm = normalized['package_length_cm']
+        if normalized['package_width_cm'] is not None:
+            existing.package_width_cm = normalized['package_width_cm']
+        if normalized['package_height_cm'] is not None:
+            existing.package_height_cm = normalized['package_height_cm']
+        if normalized['weight_kg'] is not None:
+            existing.weight_kg = normalized['weight_kg']
+        if normalized['carton_length_cm'] is not None:
+            existing.carton_length_cm = normalized['carton_length_cm']
+        if normalized['carton_width_cm'] is not None:
+            existing.carton_width_cm = normalized['carton_width_cm']
+        if normalized['carton_height_cm'] is not None:
+            existing.carton_height_cm = normalized['carton_height_cm']
+        if normalized['carton_weight_kg'] is not None:
+            existing.carton_weight_kg = normalized['carton_weight_kg']
+        if normalized['units_per_carton'] is not None:
+            existing.units_per_carton = int(normalized['units_per_carton'])
+        if normalized['sort_order'] is not None:
+            existing.sort_order = int(normalized['sort_order'])
+        if normalized['is_active'] is not None:
+            existing.is_active = bool(normalized['is_active'])
+        existing.currency = RMB_CURRENCY
+        existing.source_file = str(normalized['source_file']) if normalized['source_file'] is not None else existing.source_file
+        db.flush()
+        db.refresh(existing)
+        rows.append(existing)
+        updated += 1
+
+    return rows, inserted, updated, skipped
 
 
 def move_product_cost_sort_order(db: Session, product_cost_id: int, direction: str) -> ProductCost:
@@ -389,7 +693,7 @@ def parse_product_cost_csv(content: bytes) -> list[ProductCostCreate]:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='CSV 编码必须为 UTF-8') from None
 
     reader = csv.DictReader(StringIO(text))
-    required_headers = {'project_name', 'SKU', 'ASIN', '头程单价', 'FOB单价'}
+    required_headers = {'project_name', 'SKU'}
     if not reader.fieldnames:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='CSV 缺少表头')
 
@@ -406,15 +710,103 @@ def parse_product_cost_csv(content: bytes) -> list[ProductCostCreate]:
                 project_name=(normalized_row.get('project_name') or '').strip(),
                 sku=(normalized_row.get('SKU') or '').strip(),
                 asin=(normalized_row.get('ASIN') or '').strip(),
-                first_leg_unit_cost=(normalized_row.get('头程单价') or '').strip() or 0,
-                fob_unit_cost=(normalized_row.get('FOB单价') or '').strip() or 0,
+                fnsku=(normalized_row.get('FNSKU') or normalized_row.get('fnsku') or '').strip() or None,
+                **(
+                    {'first_leg_cost_rmb': (normalized_row.get('头程成本(RMB)') or normalized_row.get('头程成本') or '').strip() or 0}
+                    if '头程成本(RMB)' in normalized_row or '头程成本' in normalized_row
+                    else {}
+                ),
+                **(
+                    {'fob_unit_cost': (normalized_row.get('FOB单价') or '').strip() or 0}
+                    if 'FOB单价' in normalized_row
+                    else {}
+                ),
+                **(
+                    {'package_length_cm': (normalized_row.get('单品长(cm)') or '').strip() or 0}
+                    if '单品长(cm)' in normalized_row
+                    else {}
+                ),
+                **(
+                    {'package_width_cm': (normalized_row.get('单品宽(cm)') or '').strip() or 0}
+                    if '单品宽(cm)' in normalized_row
+                    else {}
+                ),
+                **(
+                    {'package_height_cm': (normalized_row.get('单品高(cm)') or '').strip() or 0}
+                    if '单品高(cm)' in normalized_row
+                    else {}
+                ),
+                **(
+                    {'weight_kg': (normalized_row.get('单品重量(kg)') or '').strip() or 0}
+                    if '单品重量(kg)' in normalized_row
+                    else {}
+                ),
+                **(
+                    {'carton_length_cm': (normalized_row.get('外箱长(cm)') or '').strip() or 0}
+                    if '外箱长(cm)' in normalized_row
+                    else {}
+                ),
+                **(
+                    {'carton_width_cm': (normalized_row.get('外箱宽(cm)') or '').strip() or 0}
+                    if '外箱宽(cm)' in normalized_row
+                    else {}
+                ),
+                **(
+                    {'carton_height_cm': (normalized_row.get('外箱高(cm)') or '').strip() or 0}
+                    if '外箱高(cm)' in normalized_row
+                    else {}
+                ),
+                **(
+                    {'carton_weight_kg': (normalized_row.get('外箱重量(kg)') or '').strip() or 0}
+                    if '外箱重量(kg)' in normalized_row
+                    else {}
+                ),
+                **(
+                    {'units_per_carton': (normalized_row.get('装箱数量') or '').strip() or 0}
+                    if '装箱数量' in normalized_row
+                    else {}
+                ),
                 currency=RMB_CURRENCY,
                 country=(normalized_row.get('国家') or normalized_row.get('country') or 'US').strip() or 'US',
             )
         )
 
-    valid_items = [item for item in items if item.project_name and item.sku and item.asin]
+    valid_items = [item for item in items if item.project_name and item.sku]
     if not valid_items:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='CSV 没有可导入的有效数据')
 
     return valid_items
+
+
+def recalculate_first_leg_costs(
+    db: Session,
+    *,
+    project_name: str,
+    unit_price_per_kg_rmb: float,
+    sku: str | None = None,
+    asin: str | None = None,
+    country: str | None = None,
+    is_active: bool | None = None,
+) -> int:
+    unit_price = _normalize_cost(unit_price_per_kg_rmb, 'unit_price_per_kg_rmb')
+    rows = list_product_costs_all(
+        db,
+        project_name=project_name,
+        sku=sku,
+        asin=asin,
+        country=country,
+        is_active=is_active,
+    )
+    updated = 0
+    for row in rows:
+        volume_weight = (
+            Decimal(str(row.package_length_cm or 0))
+            * Decimal(str(row.package_width_cm or 0))
+            * Decimal(str(row.package_height_cm or 0))
+        ) / Decimal('6000')
+        actual_weight = Decimal(str(row.weight_kg or 0))
+        chargeable_weight = max(actual_weight, volume_weight)
+        row.first_leg_cost_rmb = (chargeable_weight * unit_price).quantize(COST_DECIMAL_QUANT, rounding=ROUND_HALF_UP)
+        updated += 1
+    db.flush()
+    return updated

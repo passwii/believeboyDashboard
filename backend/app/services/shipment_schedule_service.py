@@ -315,6 +315,16 @@ def update_shipment_schedule(
     return row
 
 
+def delete_shipment_schedule(
+    db: Session,
+    schedule_id: int,
+) -> ShipmentSchedule:
+    row = _get_schedule_or_404(db, schedule_id)
+    db.delete(row)
+    db.flush()
+    return row
+
+
 def parse_shipment_items_csv(content: bytes) -> list[dict[str, object]]:
     text = _decode_csv_text(content)
 
@@ -413,7 +423,7 @@ def _validate_items_against_product_costs(
     raise HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
         detail=(
-            f"以下 SKU 未在 SKU Cost 中找到启用记录（项目: {schedule.project_name_snapshot}），请先在 SKU 成本页面维护后再导入："
+            f"以下 SKU 未在 SKU 信息中找到启用记录（项目: {schedule.project_name_snapshot}），请先在 SKU 信息页面维护后再导入："
             + "；".join(detail_lines)
         ),
     )

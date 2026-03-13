@@ -332,14 +332,14 @@ def _load_project_costs_df(project_name: str, country: str, year_month: str | No
     resolved_year_month = year_month or datetime.now().strftime('%Y-%m')
     data = []
     for row in rows:
-        first_leg_cost, _ = exchange_rate_service.convert_rmb_to_target_currency(
-            row.first_leg_unit_cost or 0,
+        fob_cost, _ = exchange_rate_service.convert_rmb_to_target_currency(
+            row.fob_unit_cost or 0,
             country=country,
             year_month=resolved_year_month,
             db=db,
         )
-        fob_cost, _ = exchange_rate_service.convert_rmb_to_target_currency(
-            row.fob_unit_cost or 0,
+        first_leg_cost, _ = exchange_rate_service.convert_rmb_to_target_currency(
+            row.first_leg_cost_rmb or 0,
             country=country,
             year_month=resolved_year_month,
             db=db,

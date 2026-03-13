@@ -619,7 +619,7 @@ export default function ExchangeRatePage() {
             <DialogDescription>
               {editingRate
                 ? "修改汇率信息，保存后将立即生效"
-                : "录入新的月度汇率信息，每个月每种货币仅可录入一条。SKU 成本页维护的是人民币成本，其他页面会按站点和月份使用这里的汇率自动换算。"}
+                : "录入新的月度汇率信息，每个月每种货币仅可录入一条。SKU 信息页维护的是人民币 FOB 成本，其他页面会按站点和月份使用这里的汇率自动换算。"}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">

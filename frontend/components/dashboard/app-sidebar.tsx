@@ -46,7 +46,7 @@ const navMain = [
     url: '#',
     icon: <FolderKanban className="h-4 w-4" />,
     items: [
-      { title: 'SKU 成本表', url: '#' },
+      { title: 'SKU 信息表', url: '#' },
       { title: '项目进度表', url: '#' },
       { title: '利润测算表', url: '#' },
     ],
@@ -95,7 +95,7 @@ const tools = [
     items: [
       { title: '报表上传', url: '/dashboard/data-management/report-upload' },
       { title: '发货管理', url: '/dashboard/data-management/shipment-management' },
-      { title: 'SKU成本', url: '/dashboard/data-management/sku-cost' },
+      { title: 'SKU信息', url: '/dashboard/data-management/sku-cost' },
       { title: '汇率信息', url: '/dashboard/data-management/exchange-rate' },
     ],
   },

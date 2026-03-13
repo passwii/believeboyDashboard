@@ -20,7 +20,7 @@ const DASHBOARD_PAGE_TITLES: Array<{ match: string; title: string }> = [
   { match: '/data-analysis/inventory-replenishment', title: '库存及补货分析' },
   { match: '/data-management/report-upload', title: '报表上传' },
   { match: '/data-management/shipment-management', title: '发货管理' },
-  { match: '/data-management/sku-cost', title: 'SKU 成本中心' },
+  { match: '/data-management/sku-cost', title: 'SKU 信息中心' },
   { match: '/data-management/exchange-rate', title: '汇率信息' },
   { match: '/system-management/project-info', title: '项目信息' },
   { match: '/system-management/data-management', title: '数据库状态' },

@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import Base
 from app.models import ProductCost, Project
-from app.models.shipment_schedule import ShipmentSchedule
+from app.models.shipment_schedule import ShipmentSchedule, ShipmentScheduleItem
 from app.services import shipment_schedule_service
 
 
@@ -93,7 +93,6 @@ def test_replace_shipment_schedule_items_from_csv_rejects_unknown_sku():
                 project_name='宝勒1店',
                 sku='SKU-EXISTS',
                 asin='ASIN-001',
-                first_leg_unit_cost=1,
                 fob_unit_cost=2,
                 currency='USD',
                 country='US',
@@ -112,7 +111,7 @@ def test_replace_shipment_schedule_items_from_csv_rejects_unknown_sku():
             shipment_schedule_service.replace_shipment_schedule_items_from_csv(db, schedule.id, content, filename='items.csv')
 
         assert exc_info.value.status_code == 400
-        assert 'SKU Cost' in str(exc_info.value.detail)
+        assert 'SKU 信息' in str(exc_info.value.detail)
         assert '第 2 行 SKU: SKU-MISSING' in str(exc_info.value.detail)
 
 
@@ -139,7 +138,6 @@ def test_replace_shipment_schedule_items_from_csv_accepts_active_sku():
                 project_name='宝勒1店',
                 sku='SKU-001',
                 asin='ASIN-001',
-                first_leg_unit_cost=1,
                 fob_unit_cost=2,
                 currency='USD',
                 country='US',
@@ -244,3 +242,44 @@ def test_import_shipment_schedules_from_csv_rejects_duplicate_shipment_no():
 
         assert exc_info.value.status_code == 409
         assert 'SHP-300' in str(exc_info.value.detail)
+
+
+def test_delete_shipment_schedule_removes_schedule_and_items():
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        project = Project(project_name='宝勒1店', sort_order=1, source_file='seed.csv')
+        db.add(project)
+        db.flush()
+
+        schedule = ShipmentSchedule(
+            project_id=project.id,
+            project_name_snapshot='宝勒1店',
+            shipment_no='SHP-DEL-001',
+            shipping_method='sea',
+            shipment_status='draft',
+            source_type='manual',
+        )
+        db.add(schedule)
+        db.flush()
+
+        db.add(
+            ShipmentScheduleItem(
+                shipment_schedule_id=schedule.id,
+                project_id=project.id,
+                shipment_no='SHP-DEL-001',
+                sku='SKU-001',
+                quantity=10,
+                source_type='manual',
+            )
+        )
+        db.commit()
+
+        deleted = shipment_schedule_service.delete_shipment_schedule(db, schedule.id)
+        db.commit()
+
+        assert deleted.id == schedule.id
+        assert db.get(ShipmentSchedule, schedule.id) is None
+        remaining_items = db.query(ShipmentScheduleItem).filter(ShipmentScheduleItem.shipment_schedule_id == schedule.id).all()
+        assert remaining_items == []
