@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Header, Query, Request
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, get_request_operator, protected
@@ -13,7 +13,7 @@ from app.schemas.inventory_replenishment import (
     InventoryReplenishmentShipmentResponse,
     InventoryReplenishmentSummary,
 )
-from app.services import inventory_replenishment_service
+from app.services import inventory_replenishment_service, project_service
 from app.services.audit_log_service import append_operation_audit_log
 
 router = APIRouter(dependencies=[Depends(protected)])
@@ -29,7 +29,15 @@ def list_inventory_replenishment_analysis(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
     db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> InventoryReplenishmentListResponse:
+    project_service.ensure_project_access(
+        db,
+        project_id,
+        operator=operator,
+        is_admin=bool(is_admin),
+    )
     rows, summary, total, has_next = inventory_replenishment_service.list_inventory_replenishment_analysis(
         db,
         project_id=project_id,
@@ -59,7 +67,14 @@ def update_inventory_replenishment_setting(
     country: str = Query(default='US'),
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> InventoryReplenishmentSettingItem:
+    project_service.ensure_project_access(
+        db,
+        project_id,
+        operator=operator,
+        is_admin=bool(is_admin),
+    )
     row = inventory_replenishment_service.upsert_inventory_replenishment_setting(
         db,
         project_id=project_id,
@@ -106,7 +121,15 @@ def list_inventory_replenishment_shipments(
     project_id: int = Query(gt=0),
     sku: str = Query(min_length=1),
     db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> InventoryReplenishmentShipmentResponse:
+    project_service.ensure_project_access(
+        db,
+        project_id,
+        operator=operator,
+        is_admin=bool(is_admin),
+    )
     rows = inventory_replenishment_service.list_inventory_replenishment_shipments(
         db,
         project_id=project_id,

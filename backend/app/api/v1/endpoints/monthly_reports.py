@@ -4,7 +4,7 @@ from decimal import Decimal
 from pathlib import Path
 from time import perf_counter
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -19,7 +19,7 @@ from app.schemas.monthly_report import (
     MonthlyReportResponse,
     MonthlyReportTaskStatusResponse,
 )
-from app.services import monthly_report_runtime_service, monthly_report_service, upload_service
+from app.services import monthly_report_runtime_service, monthly_report_service, project_service, upload_service
 
 router = APIRouter(dependencies=[Depends(protected)])
 
@@ -154,7 +154,15 @@ def get_monthly_financial_series(
     end_month: str | None = Query(default=None),
     fill_missing: bool = Query(default=True),
     db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> MonthlyFinancialSeriesResponse:
+    project_service.ensure_project_access(
+        db,
+        project_id,
+        operator=operator,
+        is_admin=bool(is_admin),
+    )
     payload = monthly_report_service.get_financial_series(
         db,
         project_id=project_id,

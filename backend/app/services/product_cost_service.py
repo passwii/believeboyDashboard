@@ -278,25 +278,15 @@ def _normalize_item_for_import(
     }
 
 
-def _find_existing_for_import(db: Session, normalized: dict[str, str | Decimal | bool | int | None]) -> ProductCost | None:
+def _find_existing_for_import(
+    db: Session,
+    normalized: dict[str, str | Decimal | bool | int | None],
+    *,
+    allow_multiple_matches: bool = False,
+) -> ProductCost | None:
     project_name = str(normalized['project_name'])
     sku = str(normalized['sku'])
     country = str(normalized['country'])
-    asin = str(normalized['asin'])
-
-    if asin:
-        return (
-            db.execute(
-                select(ProductCost).where(
-                    ProductCost.project_name == project_name,
-                    ProductCost.sku == sku,
-                    ProductCost.country == country,
-                    ProductCost.asin == asin,
-                )
-            )
-            .scalars()
-            .first()
-        )
 
     matches = (
         db.execute(
@@ -309,12 +299,19 @@ def _find_existing_for_import(db: Session, normalized: dict[str, str | Decimal |
         .scalars()
         .all()
     )
-    if len(matches) > 1:
+    if len(matches) > 1 and not allow_multiple_matches:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f'存在多条同 project_name + SKU + 国家 的记录，请补充 ASIN 后再导入: {project_name} / {sku} / {country}',
         )
     return matches[0] if matches else None
+
+
+def _csv_value(normalized_row: dict[str, str | None], *headers: str) -> tuple[str, bool]:
+    for header in headers:
+        if header in normalized_row:
+            return (normalized_row.get(header) or '').strip(), True
+    return '', False
 
 
 def upsert_product_cost(
@@ -515,7 +512,11 @@ def import_product_costs(
 
     for item in items:
         normalized = _normalize_item_for_import(item, source_file)
-        existing = _find_existing_for_import(db, normalized)
+        existing = _find_existing_for_import(
+            db,
+            normalized,
+            allow_multiple_matches=normalized_mode == 'create',
+        )
 
         if normalized_mode == 'create':
             if existing is not None:
@@ -552,8 +553,9 @@ def import_product_costs(
             skipped += 1
             continue
 
-        # Only overwrite fields that were explicitly provided and non-empty in the import row.
-        if normalized['asin'] and str(normalized['asin']) != existing.asin:
+        # In update mode, the import key is project_name + SKU + country.
+        # All other provided columns should overwrite the existing row, including blanks.
+        if 'asin' in item.model_fields_set and str(normalized['asin']) != existing.asin:
             duplicate = (
                 db.execute(
                     select(ProductCost).where(
@@ -573,8 +575,8 @@ def import_product_costs(
                     detail=f'更新 ASIN 后与现有记录重复: {existing.project_name} / {existing.sku} / {existing.country} / {normalized["asin"]}',
                 )
             existing.asin = str(normalized['asin'])
-        if 'fnsku' in item.model_fields_set and normalized['fnsku'] is not None:
-            existing.fnsku = str(normalized['fnsku'])
+        if 'fnsku' in item.model_fields_set:
+            existing.fnsku = str(normalized['fnsku']) if normalized['fnsku'] is not None else None
         if normalized['fob_unit_cost'] is not None:
             existing.fob_unit_cost = normalized['fob_unit_cost']
         if normalized['first_leg_cost_rmb'] is not None:
@@ -705,67 +707,36 @@ def parse_product_cost_csv(content: bytes) -> list[ProductCostCreate]:
     items: list[ProductCostCreate] = []
     for row in reader:
         normalized_row = {(key or '').strip(): value for key, value in row.items()}
+        asin_value, asin_present = _csv_value(normalized_row, 'ASIN', 'ASIN(可留空)', 'asin')
+        fnsku_value, fnsku_present = _csv_value(normalized_row, 'FNSKU', 'FNSKU(可留空)', 'fnsku')
+        first_leg_value, first_leg_present = _csv_value(normalized_row, '头程成本(RMB)', '头程成本')
+        fob_value, fob_present = _csv_value(normalized_row, 'FOB单价', 'FOB单价(RMB)')
+        package_length_value, package_length_present = _csv_value(normalized_row, '单品长(cm)')
+        package_width_value, package_width_present = _csv_value(normalized_row, '单品宽(cm)')
+        package_height_value, package_height_present = _csv_value(normalized_row, '单品高(cm)')
+        weight_value, weight_present = _csv_value(normalized_row, '单品重量(kg)')
+        carton_length_value, carton_length_present = _csv_value(normalized_row, '外箱长(cm)')
+        carton_width_value, carton_width_present = _csv_value(normalized_row, '外箱宽(cm)')
+        carton_height_value, carton_height_present = _csv_value(normalized_row, '外箱高(cm)')
+        carton_weight_value, carton_weight_present = _csv_value(normalized_row, '外箱重量(kg)')
+        units_value, units_present = _csv_value(normalized_row, '装箱数量')
         items.append(
             ProductCostCreate(
                 project_name=(normalized_row.get('project_name') or '').strip(),
                 sku=(normalized_row.get('SKU') or '').strip(),
-                asin=(normalized_row.get('ASIN') or '').strip(),
-                fnsku=(normalized_row.get('FNSKU') or normalized_row.get('fnsku') or '').strip() or None,
-                **(
-                    {'first_leg_cost_rmb': (normalized_row.get('头程成本(RMB)') or normalized_row.get('头程成本') or '').strip() or 0}
-                    if '头程成本(RMB)' in normalized_row or '头程成本' in normalized_row
-                    else {}
-                ),
-                **(
-                    {'fob_unit_cost': (normalized_row.get('FOB单价') or '').strip() or 0}
-                    if 'FOB单价' in normalized_row
-                    else {}
-                ),
-                **(
-                    {'package_length_cm': (normalized_row.get('单品长(cm)') or '').strip() or 0}
-                    if '单品长(cm)' in normalized_row
-                    else {}
-                ),
-                **(
-                    {'package_width_cm': (normalized_row.get('单品宽(cm)') or '').strip() or 0}
-                    if '单品宽(cm)' in normalized_row
-                    else {}
-                ),
-                **(
-                    {'package_height_cm': (normalized_row.get('单品高(cm)') or '').strip() or 0}
-                    if '单品高(cm)' in normalized_row
-                    else {}
-                ),
-                **(
-                    {'weight_kg': (normalized_row.get('单品重量(kg)') or '').strip() or 0}
-                    if '单品重量(kg)' in normalized_row
-                    else {}
-                ),
-                **(
-                    {'carton_length_cm': (normalized_row.get('外箱长(cm)') or '').strip() or 0}
-                    if '外箱长(cm)' in normalized_row
-                    else {}
-                ),
-                **(
-                    {'carton_width_cm': (normalized_row.get('外箱宽(cm)') or '').strip() or 0}
-                    if '外箱宽(cm)' in normalized_row
-                    else {}
-                ),
-                **(
-                    {'carton_height_cm': (normalized_row.get('外箱高(cm)') or '').strip() or 0}
-                    if '外箱高(cm)' in normalized_row
-                    else {}
-                ),
-                **(
-                    {'carton_weight_kg': (normalized_row.get('外箱重量(kg)') or '').strip() or 0}
-                    if '外箱重量(kg)' in normalized_row
-                    else {}
-                ),
-                **(
-                    {'units_per_carton': (normalized_row.get('装箱数量') or '').strip() or 0}
-                    if '装箱数量' in normalized_row
-                    else {}
-                ),
+                asin=asin_value if asin_present else '',
+                fnsku=fnsku_value or None if fnsku_present else None,
+                **({'first_leg_cost_rmb': first_leg_value or 0} if first_leg_present else {}),
+                **({'fob_unit_cost': fob_value or 0} if fob_present else {}),
+                **({'package_length_cm': package_length_value or 0} if package_length_present else {}),
+                **({'package_width_cm': package_width_value or 0} if package_width_present else {}),
+                **({'package_height_cm': package_height_value or 0} if package_height_present else {}),
+                **({'weight_kg': weight_value or 0} if weight_present else {}),
+                **({'carton_length_cm': carton_length_value or 0} if carton_length_present else {}),
+                **({'carton_width_cm': carton_width_value or 0} if carton_width_present else {}),
+                **({'carton_height_cm': carton_height_value or 0} if carton_height_present else {}),
+                **({'carton_weight_kg': carton_weight_value or 0} if carton_weight_present else {}),
+                **({'units_per_carton': units_value or 0} if units_present else {}),
                 currency=RMB_CURRENCY,
                 country=(normalized_row.get('国家') or normalized_row.get('country') or 'US').strip() or 'US',
             )

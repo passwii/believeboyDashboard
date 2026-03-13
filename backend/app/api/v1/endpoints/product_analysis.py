@@ -4,11 +4,11 @@ from collections import defaultdict
 from datetime import date
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from sqlalchemy import exists, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, protected
+from app.api.deps import get_db_session, get_request_operator, protected
 from app.models import AnalysisPT1Calculation, AnalysisPTSKUDetail, ProductCost
 from app.schemas.product_analysis_source import (
     AnalysisSourceFileItem,
@@ -16,7 +16,7 @@ from app.schemas.product_analysis_source import (
     CurrentInventorySnapshotResponse,
     ProductAnalysisWeeklyRecomputeResponse,
 )
-from app.services import product_analysis_source_service
+from app.services import product_analysis_source_service, project_service
 
 router = APIRouter(dependencies=[Depends(protected)])
 
@@ -461,7 +461,15 @@ def list_product_analysis_weekly(
     end_date: date | None = Query(default=None),
     current_only: bool = Query(default=True),
     db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ):
+    project_service.ensure_project_access(
+        db,
+        project_id,
+        operator=operator,
+        is_admin=bool(is_admin),
+    )
     normalized_country = _normalize_country(country)
     rows = product_analysis_source_service.list_weekly_product_analysis_from_details(
         db,
@@ -544,7 +552,15 @@ def recompute_product_analysis_weekly(
     end_date: date | None = Query(default=None),
     current_only: bool = Query(default=True),
     db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ):
+    project_service.ensure_project_access(
+        db,
+        project_id,
+        operator=operator,
+        is_admin=bool(is_admin),
+    )
     normalized_country = _normalize_country(country)
     try:
         payload = product_analysis_source_service.recompute_weekly_product_analysis_from_history(
