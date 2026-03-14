@@ -16,6 +16,9 @@ class PricingCalculationCreateRequest(BaseModel):
     weight_kg: float = Field(gt=0, le=1000)
     fob_product_cost_rmb: float = Field(ge=0, le=100000000)
     first_leg_cost_rmb: float = Field(ge=0, le=100000000)
+    project_id: int | None = Field(default=None, gt=0)
+    sku: str | None = Field(default=None, min_length=1, max_length=100)
+    use_historical_shipping_cost: bool = False
     sale_price_usd: float = Field(gt=0, le=100000000)
     advertising_rate: float = Field(default=0.12, ge=0, le=1)
     return_loss_rate: float = Field(default=0.04, ge=0, le=1)
@@ -32,6 +35,9 @@ class PricingCalculationReverseRequest(BaseModel):
     weight_kg: float = Field(gt=0, le=1000)
     fob_product_cost_rmb: float = Field(ge=0, le=100000000)
     first_leg_cost_rmb: float = Field(ge=0, le=100000000)
+    project_id: int | None = Field(default=None, gt=0)
+    sku: str | None = Field(default=None, min_length=1, max_length=100)
+    use_historical_shipping_cost: bool = False
     target_profit_rate: float = Field(default=0.25, ge=0, lt=1)
     advertising_rate: float = Field(default=0.12, ge=0, le=1)
     return_loss_rate: float = Field(default=0.04, ge=0, le=1)
@@ -80,6 +86,8 @@ class PricingCalculationRunItem(BaseModel):
     id: int
     product_name: str
     calculation_type: CalculationType = 'profit_calc'
+    project_id: int | None = None
+    sku: str | None = None
     package_length_cm: float
     package_width_cm: float
     package_height_cm: float

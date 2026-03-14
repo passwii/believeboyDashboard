@@ -7,7 +7,7 @@ import math
 from sqlalchemy import func, inspect, select, text
 from sqlalchemy.orm import Session
 
-from app.models import ExchangeRate, PricingCalculationRun
+from app.models import ExchangeRate, PricingCalculationRun, ShipmentSkuSummary
 from app.schemas.pricing_calculation import PricingCalculationCreateRequest, PricingCalculationReverseRequest
 
 CM_PER_INCH = Decimal('2.54')
@@ -166,6 +166,8 @@ def create_pricing_run(db: Session, payload: PricingCalculationCreateRequest, *,
         warnings_json=computed['warnings'],
         notes='\n'.join(computed['warnings']) if computed['warnings'] else None,
         created_by=(operator or '').strip() or None,
+        project_id=payload.project_id,
+        sku=payload.sku,
     )
     db.add(row)
     db.flush()
@@ -189,6 +191,9 @@ def create_pricing_reverse_run(
         weight_kg=payload.weight_kg,
         fob_product_cost_rmb=payload.fob_product_cost_rmb,
         first_leg_cost_rmb=payload.first_leg_cost_rmb,
+        project_id=payload.project_id,
+        sku=payload.sku,
+        use_historical_shipping_cost=payload.use_historical_shipping_cost,
         sale_price_usd=float(resolved_sale_price_usd),
         advertising_rate=payload.advertising_rate,
         return_loss_rate=payload.return_loss_rate,
@@ -203,11 +208,14 @@ def create_pricing_reverse_run(
     return row
 
 
-def list_pricing_runs(db: Session, *, page: int = 1, page_size: int = 20) -> tuple[list[PricingCalculationRun], int]:
+def list_pricing_runs(db: Session, *, page: int = 1, page_size: int = 20, exclude_project_id: bool = True) -> tuple[list[PricingCalculationRun], int]:
     ensure_tables(db)
     safe_page = max(page, 1)
     safe_page_size = min(max(page_size, 1), 100)
     stmt = select(PricingCalculationRun)
+    # 过滤：如果 exclude_project_id 为 True，则只返回没有 project_id 的记录（新品核算）
+    if exclude_project_id:
+        stmt = stmt.where(PricingCalculationRun.project_id.is_(None))
     total = int(db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one() or 0)
     rows = db.execute(
         stmt.order_by(PricingCalculationRun.created_at.desc(), PricingCalculationRun.id.desc())
@@ -232,6 +240,8 @@ def serialize_pricing_run(row: PricingCalculationRun) -> dict[str, object]:
         'id': int(row.id),
         'product_name': str(row.product_name),
         'calculation_type': str(getattr(row, 'calculation_type', 'profit_calc') or 'profit_calc'),
+        'project_id': getattr(row, 'project_id', None),
+        'sku': getattr(row, 'sku', None),
         'package_length_cm': float(row.package_length_cm),
         'package_width_cm': float(row.package_width_cm),
         'package_height_cm': float(row.package_height_cm),
@@ -298,7 +308,7 @@ def _compute_pricing(payload: PricingCalculationCreateRequest, db: Session) -> d
     weight_kg = _decimal(payload.weight_kg)
     sale_price_usd = _money(payload.sale_price_usd)
     fob_product_cost_rmb = _money(payload.fob_product_cost_rmb)
-    first_leg_cost_rmb = _money(payload.first_leg_cost_rmb)
+    first_leg_cost_rmb, shipping_cost_warning = _resolve_first_leg_cost_rmb(payload, db)
     advertising_rate = _ratio(_decimal(payload.advertising_rate))
     return_loss_rate = _ratio(_decimal(payload.return_loss_rate))
     storage_months = _quantize(_decimal(payload.storage_months), Decimal('0.01'))
@@ -343,11 +353,13 @@ def _compute_pricing(payload: PricingCalculationCreateRequest, db: Session) -> d
     total_fee_usd = _money_decimal(
         referral_fee_usd + advertising_fee_usd + return_loss_usd + fulfillment_fee_usd + inbound_fee_usd + storage_fee_usd
     )
-    payout_usd = _money_decimal(sale_price_usd - referral_fee_usd - fulfillment_fee_usd - inbound_fee_usd - storage_fee_usd - return_loss_usd)
-    profit_usd = _money_decimal(payout_usd - ddp_cost_usd - advertising_fee_usd)
+    payout_usd = _money_decimal(sale_price_usd - total_fee_usd)
+    profit_usd = _money_decimal(payout_usd - ddp_cost_usd)
     profit_rate = _ratio_decimal(profit_usd / sale_price_usd) if sale_price_usd > 0 else Decimal('0')
 
     warnings = list(inbound_warnings)
+    if shipping_cost_warning:
+        warnings.append(shipping_cost_warning)
 
     return {
         'inputs': {
@@ -424,6 +436,9 @@ def _solve_sale_price_for_profit_rate(payload: PricingCalculationReverseRequest,
             weight_kg=payload.weight_kg,
             fob_product_cost_rmb=payload.fob_product_cost_rmb,
             first_leg_cost_rmb=payload.first_leg_cost_rmb,
+            project_id=payload.project_id,
+            sku=payload.sku,
+            use_historical_shipping_cost=payload.use_historical_shipping_cost,
             sale_price_usd=float(price),
             advertising_rate=payload.advertising_rate,
             return_loss_rate=payload.return_loss_rate,
@@ -457,6 +472,31 @@ def _solve_sale_price_for_profit_rate(payload: PricingCalculationReverseRequest,
         final_price = _money_decimal(final_price + Decimal('0.01'))
 
     return final_price
+
+
+def _resolve_first_leg_cost_rmb(payload: PricingCalculationCreateRequest, db: Session) -> tuple[Decimal, str | None]:
+    manual_cost = _money(payload.first_leg_cost_rmb)
+    if not payload.use_historical_shipping_cost:
+        return manual_cost, None
+
+    if payload.project_id is None or not (payload.sku or '').strip():
+        return manual_cost, '历史头程成本未命中项目或 SKU，已回退到手动头程成本'
+
+    row = db.execute(
+        select(ShipmentSkuSummary.average_logistics_unit_price)
+        .where(
+            ShipmentSkuSummary.project_id == payload.project_id,
+            ShipmentSkuSummary.sku == payload.sku.strip(),
+        )
+        .limit(1)
+    ).scalar_one_or_none()
+    if row is None:
+        return manual_cost, '未找到该 SKU 的头程历史加权成本，已回退到手动头程成本'
+
+    historical_cost = _money(row)
+    if historical_cost <= 0:
+        return manual_cost, '该 SKU 的头程历史加权成本为 0，已回退到手动头程成本'
+    return historical_cost, None
 
 
 def _resolve_usd_to_rmb_rate(db: Session, manual_rate: float | None) -> tuple[Decimal, str]:

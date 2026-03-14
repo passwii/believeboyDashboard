@@ -32,7 +32,7 @@ function MetricCard({
         <div className="rounded-md bg-primary/10 p-1.5 text-primary">{icon}</div>
       </CardHeader>
       <CardContent className="relative z-10">
-        <div className="text-2xl font-semibold tracking-tight md:text-[1.7rem]">{value}</div>
+        <div className="text-[1.65rem] font-semibold tracking-tight md:text-[1.55rem] xl:text-[1.7rem]">{value}</div>
         <p className="mt-1 text-xs text-muted-foreground md:text-sm">
           <span
             className={`inline-flex items-center ${

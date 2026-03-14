@@ -20,6 +20,11 @@ class ShipmentScheduleListItem(BaseModel):
     remark: str | None = None
     sku_count: int
     total_quantity: int
+    logistics_unit_price: float
+    total_volume_m3: float
+    total_chargeable_weight_kg: float
+    logistics_total_price: float
+    include_in_history_shipping_calc: bool
     updated_at: str
 
 
@@ -37,6 +42,12 @@ class ShipmentScheduleItemRow(BaseModel):
     sku: str
     quantity: int
     remark: str | None = None
+    volume_m3: float = 0
+    actual_weight_kg: float = 0
+    volumetric_weight_kg: float = 0
+    chargeable_weight_kg: float = 0
+    estimated_logistics_cost: float = 0
+    average_logistics_unit_price: float = 0
 
 
 class ShipmentScheduleDetail(BaseModel):
@@ -56,8 +67,17 @@ class ShipmentScheduleDetail(BaseModel):
     shipment_status: str
     sku_count: int
     total_quantity: int
+    logistics_unit_price: float
+    total_volume_m3: float
+    total_chargeable_weight_kg: float
+    logistics_total_price: float
+    include_in_history_shipping_calc: bool
     items: list[ShipmentScheduleItemRow]
     updated_at: str
+
+
+class ShipmentCostCalculateRequest(BaseModel):
+    logistics_unit_price: float = Field(ge=0)
 
 
 class ShipmentScheduleCreate(BaseModel):
@@ -71,6 +91,8 @@ class ShipmentScheduleCreate(BaseModel):
     etd_date: str | None = None
     eta_date: str | None = None
     actual_inbound_date: str | None = None
+    logistics_unit_price: float = Field(default=0, ge=0)
+    include_in_history_shipping_calc: bool = True
     remark: str | None = None
     shipment_status: str = Field(min_length=1, max_length=30)
     source_file: str | None = None
@@ -86,6 +108,8 @@ class ShipmentScheduleUpdate(BaseModel):
     etd_date: str | None = None
     eta_date: str | None = None
     actual_inbound_date: str | None = None
+    logistics_unit_price: float = Field(default=0, ge=0)
+    include_in_history_shipping_calc: bool = True
     remark: str | None = None
     shipment_status: str = Field(min_length=1, max_length=30)
     source_file: str | None = None
@@ -102,3 +126,48 @@ class ShipmentItemsImportResponse(BaseModel):
 class ShipmentSchedulesImportResponse(BaseModel):
     inserted: int
     shipment_nos: list[str]
+
+
+class ShipmentSkuSummaryItem(BaseModel):
+    project_id: int
+    project_name: str
+    sku: str
+    shipment_count: int
+    total_quantity: int
+    total_chargeable_weight_kg: float
+    total_logistics_cost: float
+    average_logistics_unit_price: float
+
+
+class ShipmentSkuSummaryResponse(BaseModel):
+    items: list[ShipmentSkuSummaryItem]
+
+
+class ShipmentFbaBoxDetailItem(BaseModel):
+    warehouse_code: str | None = None
+    sku: str
+    asin: str | None = None
+    fnsku: str | None = None
+    package_length_cm: float | None = None
+    package_width_cm: float | None = None
+    package_height_cm: float | None = None
+    weight_kg: float | None = None
+    length_cm: float
+    width_cm: float
+    height_cm: float
+    carton_weight_kg: float | None = None
+    quantity: int
+    units_per_carton: int
+    carton_count: int
+    full_carton_count: int
+    partial_carton_units: int
+    outer_box_text: str
+    total_weight_kg: float
+    total_volume_m3: float
+
+
+class ShipmentFbaBoxDetailResponse(BaseModel):
+    project_id: int
+    project_name: str
+    shipment_no: str
+    items: list[ShipmentFbaBoxDetailItem]

@@ -36,7 +36,9 @@ from app.models.operation_audit_log import OperationAuditLog
 from app.models.exchange_rate import ExchangeRate
 from app.models.inventory_replenishment import InventoryReplenishmentSetting
 from app.models.pricing_calculation import PricingCalculationRun
+from app.models.store_sku_pricing_snapshot import StoreSkuPricingSnapshot
 from app.models.shipment_schedule import ShipmentSchedule, ShipmentScheduleItem
+from app.models.shipment_sku_summary import ShipmentSkuSummary
 
 __all__ = [
     'ProductCost',
@@ -54,8 +56,10 @@ __all__ = [
     'ExchangeRate',
     'InventoryReplenishmentSetting',
     'PricingCalculationRun',
+    'StoreSkuPricingSnapshot',
     'ShipmentSchedule',
     'ShipmentScheduleItem',
+    'ShipmentSkuSummary',
     'MonthlyReport',
     'MonthlyReportTransaction',
     'MonthlyReportPT3Calculation',

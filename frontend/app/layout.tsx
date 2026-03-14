@@ -1,4 +1,6 @@
 import type { Metadata } from 'next'
+import { Analytics } from '@vercel/analytics/next'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 import { Manrope, Space_Grotesk } from 'next/font/google'
 import './globals.css'
 import { GlobalLoadingProvider } from '@/components/global-loading-provider'
@@ -39,6 +41,8 @@ export default function RootLayout({
             <GlobalLoadingProvider>
               {children}
               <GlobalLoadingOverlay />
+              <Analytics />
+              <SpeedInsights />
             </GlobalLoadingProvider>
           </AuthSessionProvider>
         </ThemeProvider>

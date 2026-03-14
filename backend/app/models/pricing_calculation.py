@@ -76,6 +76,8 @@ class PricingCalculationRun(Base):
     warnings_json: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    project_id: Mapped[int | None] = mapped_column(BigInteger().with_variant(Integer, 'sqlite'), nullable=True, index=True)
+    sku: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), index=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()

@@ -56,10 +56,10 @@ export default function DashboardLayout({
       <AppSidebar />
       <SidebarInset className="min-w-0 overflow-x-clip">
         <header className="sticky top-0 z-20 border-b border-border/80 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/70">
-          <div className="flex h-[4.5rem] items-center gap-2 px-4 md:h-20 md:px-6">
+          <div className="flex h-[4.25rem] items-center gap-2 px-4 md:h-[4.5rem] md:px-5 xl:h-20 xl:px-6">
             <SidebarTrigger className="-ml-1" />
             <Separator orientation="vertical" className="mr-2 h-5" />
-            <h1 className="line-clamp-1 flex-1 text-lg font-semibold tracking-tight md:text-2xl">{pageTitle}</h1>
+            <h1 className="line-clamp-1 flex-1 text-base font-semibold tracking-tight md:text-xl xl:text-2xl">{pageTitle}</h1>
             <div className="flex items-center justify-end gap-2">
             <Button
               variant="ghost"
@@ -74,7 +74,7 @@ export default function DashboardLayout({
             </div>
           </div>
         </header>
-        <main className="dashboard-full-width relative min-w-0 flex-1 overflow-x-clip p-4 md:p-6 lg:p-8">
+        <main className="dashboard-full-width relative min-w-0 flex-1 overflow-x-clip p-4 md:p-5 lg:p-6 xl:p-8">
           {children}
         </main>
       </SidebarInset>

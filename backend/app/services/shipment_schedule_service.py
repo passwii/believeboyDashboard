@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 from datetime import date, datetime
+from decimal import Decimal, ROUND_HALF_UP
 from io import StringIO
 
 from fastapi import HTTPException, status
@@ -11,6 +12,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.models import Project
 from app.models.product_cost import ProductCost
 from app.models.shipment_schedule import ShipmentSchedule, ShipmentScheduleItem
+from app.models.shipment_sku_summary import ShipmentSkuSummary
 from app.schemas.shipment_schedule import ShipmentScheduleCreate, ShipmentScheduleUpdate
 
 ALLOWED_SHIPMENT_STATUS = {
@@ -19,6 +21,10 @@ ALLOWED_SHIPMENT_STATUS = {
     "completed",
 }
 ALLOWED_SHIPPING_METHOD = {"sea", "air", "express", "truck", "rail", "other"}
+DECIMAL_ZERO = Decimal("0")
+MONEY_QUANT = Decimal("0.01")
+WEIGHT_QUANT = Decimal("0.001")
+VOLUME_QUANT = Decimal("0.0001")
 
 
 def _decode_csv_text(content: bytes) -> str:
@@ -106,6 +112,94 @@ def _normalize_shipping_method(value: str) -> str:
             detail=f"shipping_method 必须是: {allowed}",
         )
     return normalized
+
+
+def _decimal_to_float(value: Decimal | int | float | None, quant: Decimal) -> float:
+    if value is None:
+        return float(DECIMAL_ZERO.quantize(quant))
+    return float(Decimal(str(value)).quantize(quant, rounding=ROUND_HALF_UP))
+
+
+def _normalize_non_negative_decimal(
+    value: Decimal | float | int | str, field_name: str, quant: Decimal
+) -> Decimal:
+    try:
+        normalized = Decimal(str(value)).quantize(quant, rounding=ROUND_HALF_UP)
+    except Exception as exc:  # pragma: no cover - safety net
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"{field_name} 必须是数字",
+        ) from exc
+    if normalized < 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"{field_name} 必须大于等于 0",
+        )
+    return normalized
+
+
+def refresh_shipment_sku_summary(db: Session) -> None:
+    db.execute(delete(ShipmentSkuSummary))
+    summary_rows = db.execute(
+        select(
+            ShipmentSchedule.project_id.label("project_id"),
+            ShipmentSchedule.project_name_snapshot.label("project_name"),
+            ShipmentScheduleItem.sku.label("sku"),
+            func.count(func.distinct(ShipmentScheduleItem.shipment_schedule_id)).label(
+                "shipment_count"
+            ),
+            func.coalesce(func.sum(ShipmentScheduleItem.quantity), 0).label(
+                "total_quantity"
+            ),
+            func.coalesce(func.sum(ShipmentScheduleItem.chargeable_weight_kg), 0).label(
+                "total_chargeable_weight_kg"
+            ),
+            func.coalesce(
+                func.sum(ShipmentScheduleItem.estimated_logistics_cost), 0
+            ).label("total_logistics_cost"),
+        )
+        .join(
+            ShipmentSchedule,
+            ShipmentSchedule.id == ShipmentScheduleItem.shipment_schedule_id,
+        )
+        .where(
+            ShipmentSchedule.shipment_status == "completed",
+            ShipmentSchedule.include_in_history_shipping_calc.is_(True),
+        )
+        .group_by(
+            ShipmentSchedule.project_id,
+            ShipmentSchedule.project_name_snapshot,
+            ShipmentScheduleItem.sku,
+        )
+    ).all()
+
+    for row in summary_rows:
+        total_quantity = int(row.total_quantity or 0)
+        total_logistics_cost = Decimal(str(row.total_logistics_cost or 0)).quantize(
+            MONEY_QUANT, rounding=ROUND_HALF_UP
+        )
+        average_unit_price = (
+            (total_logistics_cost / Decimal(str(total_quantity))).quantize(
+                Decimal("0.0001"), rounding=ROUND_HALF_UP
+            )
+            if total_quantity > 0
+            else DECIMAL_ZERO.quantize(Decimal("0.0001"))
+        )
+        db.add(
+            ShipmentSkuSummary(
+                project_id=int(row.project_id),
+                project_name_snapshot=str(row.project_name),
+                sku=str(row.sku),
+                shipment_count=int(row.shipment_count or 0),
+                total_quantity=total_quantity,
+                total_chargeable_weight_kg=Decimal(
+                    str(row.total_chargeable_weight_kg or 0)
+                ).quantize(WEIGHT_QUANT, rounding=ROUND_HALF_UP),
+                total_logistics_cost=total_logistics_cost,
+                average_logistics_unit_price=average_unit_price,
+            )
+        )
+    db.flush()
 
 
 def _header_value(row: dict[str, str | None], key: str) -> str | None:
@@ -231,6 +325,385 @@ def get_shipment_schedule_detail(
     return row, sku_count, total_quantity
 
 
+def list_shipment_sku_summary(
+    db: Session,
+    *,
+    project_id: int | None,
+    include_only_history_calc: bool = True,
+    shipment_status: str | None = "completed",
+) -> list[dict[str, object]]:
+    if include_only_history_calc and shipment_status == "completed":
+        existing_count_stmt = select(func.count()).select_from(ShipmentSkuSummary)
+        existing_count = int(db.execute(existing_count_stmt).scalar_one() or 0)
+        if existing_count == 0:
+            eligible_count = int(
+                db.execute(
+                    select(func.count())
+                    .select_from(ShipmentScheduleItem)
+                    .join(
+                        ShipmentSchedule,
+                        ShipmentSchedule.id
+                        == ShipmentScheduleItem.shipment_schedule_id,
+                    )
+                    .where(
+                        ShipmentSchedule.shipment_status == "completed",
+                        ShipmentSchedule.include_in_history_shipping_calc.is_(True),
+                    )
+                ).scalar_one()
+                or 0
+            )
+            if eligible_count > 0:
+                refresh_shipment_sku_summary(db)
+
+        stmt = select(ShipmentSkuSummary).order_by(
+            ShipmentSkuSummary.project_name_snapshot.asc(),
+            ShipmentSkuSummary.sku.asc(),
+        )
+        if project_id is not None:
+            stmt = stmt.where(ShipmentSkuSummary.project_id == project_id)
+        rows = db.execute(stmt).scalars().all()
+        return [
+            {
+                "project_id": int(row.project_id),
+                "project_name": str(row.project_name_snapshot),
+                "sku": str(row.sku),
+                "shipment_count": int(row.shipment_count),
+                "total_quantity": int(row.total_quantity),
+                "total_chargeable_weight_kg": _decimal_to_float(
+                    row.total_chargeable_weight_kg, WEIGHT_QUANT
+                ),
+                "total_logistics_cost": _decimal_to_float(
+                    row.total_logistics_cost, MONEY_QUANT
+                ),
+                "average_logistics_unit_price": _decimal_to_float(
+                    row.average_logistics_unit_price, Decimal("0.0001")
+                ),
+            }
+            for row in rows
+        ]
+
+    stmt = (
+        select(
+            ShipmentSchedule.project_id.label("project_id"),
+            ShipmentSchedule.project_name_snapshot.label("project_name"),
+            ShipmentScheduleItem.sku.label("sku"),
+            func.count(func.distinct(ShipmentScheduleItem.shipment_schedule_id)).label(
+                "shipment_count"
+            ),
+            func.coalesce(func.sum(ShipmentScheduleItem.quantity), 0).label(
+                "total_quantity"
+            ),
+            func.coalesce(func.sum(ShipmentScheduleItem.chargeable_weight_kg), 0).label(
+                "total_chargeable_weight_kg"
+            ),
+            func.coalesce(
+                func.sum(ShipmentScheduleItem.estimated_logistics_cost), 0
+            ).label("total_logistics_cost"),
+        )
+        .join(
+            ShipmentSchedule,
+            ShipmentSchedule.id == ShipmentScheduleItem.shipment_schedule_id,
+        )
+        .group_by(
+            ShipmentSchedule.project_id,
+            ShipmentSchedule.project_name_snapshot,
+            ShipmentScheduleItem.sku,
+        )
+        .order_by(
+            ShipmentSchedule.project_name_snapshot.asc(),
+            ShipmentScheduleItem.sku.asc(),
+        )
+    )
+    if project_id is not None:
+        stmt = stmt.where(ShipmentSchedule.project_id == project_id)
+    if include_only_history_calc:
+        stmt = stmt.where(ShipmentSchedule.include_in_history_shipping_calc.is_(True))
+    if shipment_status:
+        stmt = stmt.where(
+            ShipmentSchedule.shipment_status == _normalize_status(shipment_status)
+        )
+    rows = db.execute(stmt).all()
+    summary_items: list[dict[str, object]] = []
+    for row in rows:
+        total_quantity = int(row.total_quantity or 0)
+        total_logistics_cost = _decimal_to_float(row.total_logistics_cost, MONEY_QUANT)
+        average_unit_price = (
+            round(total_logistics_cost / total_quantity, 4)
+            if total_quantity > 0
+            else 0.0
+        )
+        summary_items.append(
+            {
+                "project_id": int(row.project_id),
+                "project_name": str(row.project_name),
+                "sku": str(row.sku),
+                "shipment_count": int(row.shipment_count or 0),
+                "total_quantity": total_quantity,
+                "total_chargeable_weight_kg": _decimal_to_float(
+                    row.total_chargeable_weight_kg, WEIGHT_QUANT
+                ),
+                "total_logistics_cost": total_logistics_cost,
+                "average_logistics_unit_price": average_unit_price,
+            }
+        )
+    return summary_items
+
+
+def list_shipment_fba_box_details(
+    db: Session,
+    *,
+    shipment_no: str,
+) -> tuple[ShipmentSchedule, list[dict[str, object]]]:
+    normalized_shipment_no = _normalize_text(shipment_no, max_length=100)
+    if normalized_shipment_no is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="shipment_no 不能为空",
+        )
+
+    row = (
+        db.execute(
+            select(ShipmentSchedule)
+            .where(ShipmentSchedule.shipment_no == normalized_shipment_no)
+            .options(selectinload(ShipmentSchedule.items))
+        )
+        .scalars()
+        .first()
+    )
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="未找到对应的 FBA 货件编号",
+        )
+
+    row.items.sort(key=lambda item: (item.item_date or date.min, item.sku, item.id))
+    sku_values = sorted({item.sku for item in row.items})
+    product_rows = (
+        db.execute(
+            select(ProductCost).where(
+                ProductCost.project_name == row.project_name_snapshot,
+                ProductCost.sku.in_(sku_values),
+                ProductCost.is_active.is_(True),
+            )
+        )
+        .scalars()
+        .all()
+        if sku_values
+        else []
+    )
+    product_map: dict[str, ProductCost] = {}
+    for product in product_rows:
+        product_map.setdefault(product.sku, product)
+
+    result: list[dict[str, object]] = []
+    for item in row.items:
+        product = product_map.get(item.sku)
+        quantity = int(item.quantity)
+        units_per_carton = (
+            int(product.units_per_carton)
+            if product and int(product.units_per_carton or 0) > 0
+            else 0
+        )
+        full_carton_count = quantity // units_per_carton if units_per_carton > 0 else 0
+        partial_carton_units = (
+            quantity % units_per_carton if units_per_carton > 0 else 0
+        )
+        carton_count = full_carton_count + (1 if partial_carton_units > 0 else 0)
+
+        has_carton_size = bool(
+            product
+            and float(product.carton_length_cm or 0) > 0
+            and float(product.carton_width_cm or 0) > 0
+            and float(product.carton_height_cm or 0) > 0
+        )
+        if has_carton_size:
+            length_cm = Decimal(str(product.carton_length_cm or 0))
+            width_cm = Decimal(str(product.carton_width_cm or 0))
+            height_cm = Decimal(str(product.carton_height_cm or 0))
+            volume_multiplier = Decimal(str(carton_count))
+        else:
+            length_cm = (
+                Decimal(str(product.package_length_cm or 0))
+                if product
+                else DECIMAL_ZERO
+            )
+            width_cm = (
+                Decimal(str(product.package_width_cm or 0)) if product else DECIMAL_ZERO
+            )
+            height_cm = (
+                Decimal(str(product.package_height_cm or 0))
+                if product
+                else DECIMAL_ZERO
+            )
+            volume_multiplier = Decimal(str(quantity))
+
+        if product and float(product.carton_weight_kg or 0) > 0 and carton_count > 0:
+            total_weight_kg = Decimal(str(product.carton_weight_kg or 0)) * Decimal(
+                str(carton_count)
+            )
+        else:
+            total_weight_kg = (
+                Decimal(str(product.weight_kg or 0)) * Decimal(str(quantity))
+                if product
+                else DECIMAL_ZERO
+            )
+
+        total_volume_m3 = (
+            length_cm * width_cm * height_cm / Decimal("1000000") * volume_multiplier
+        ).quantize(VOLUME_QUANT, rounding=ROUND_HALF_UP)
+
+        if product is None:
+            outer_box_text = "未匹配 SKU 成本资料"
+        elif units_per_carton <= 0:
+            outer_box_text = "未维护装箱率"
+        elif partial_carton_units > 0 and full_carton_count > 0:
+            outer_box_text = (
+                f"{full_carton_count} 箱整箱 + 1 箱尾箱（{partial_carton_units} 件）"
+            )
+        elif partial_carton_units > 0:
+            outer_box_text = f"1 箱尾箱（{partial_carton_units} 件）"
+        else:
+            outer_box_text = f"{carton_count} 箱整箱"
+
+        result.append(
+            {
+                "warehouse_code": row.warehouse_code,
+                "sku": item.sku,
+                "asin": str(product.asin) if product and product.asin else None,
+                "fnsku": str(product.fnsku) if product and product.fnsku else None,
+                "package_length_cm": float(product.package_length_cm)
+                if product and product.package_length_cm
+                else None,
+                "package_width_cm": float(product.package_width_cm)
+                if product and product.package_width_cm
+                else None,
+                "package_height_cm": float(product.package_height_cm)
+                if product and product.package_height_cm
+                else None,
+                "weight_kg": float(product.weight_kg)
+                if product and product.weight_kg
+                else None,
+                "length_cm": _decimal_to_float(length_cm, Decimal("0.01")),
+                "width_cm": _decimal_to_float(width_cm, Decimal("0.01")),
+                "height_cm": _decimal_to_float(height_cm, Decimal("0.01")),
+                "carton_weight_kg": float(product.carton_weight_kg)
+                if product and product.carton_weight_kg
+                else None,
+                "quantity": quantity,
+                "units_per_carton": units_per_carton,
+                "carton_count": carton_count,
+                "full_carton_count": full_carton_count,
+                "partial_carton_units": partial_carton_units,
+                "outer_box_text": outer_box_text,
+                "total_weight_kg": _decimal_to_float(total_weight_kg, WEIGHT_QUANT),
+                "total_volume_m3": _decimal_to_float(total_volume_m3, VOLUME_QUANT),
+            }
+        )
+
+    return row, result
+
+
+def calculate_shipment_schedule_costs(
+    db: Session,
+    schedule_id: int,
+    *,
+    logistics_unit_price: float | int | str,
+) -> tuple[ShipmentSchedule, int, int]:
+    row = _get_schedule_or_404(db, schedule_id)
+    unit_price = _normalize_non_negative_decimal(
+        logistics_unit_price, "logistics_unit_price", MONEY_QUANT
+    )
+
+    if not row.items:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="请先导入 SKU 明细，再执行核算",
+        )
+
+    sku_values = sorted({item.sku for item in row.items})
+    product_rows = (
+        db.execute(
+            select(ProductCost).where(
+                ProductCost.project_name == row.project_name_snapshot,
+                ProductCost.sku.in_(sku_values),
+                ProductCost.is_active.is_(True),
+            )
+        )
+        .scalars()
+        .all()
+    )
+    sku_info_map: dict[str, ProductCost] = {}
+    for product in product_rows:
+        sku_info_map.setdefault(product.sku, product)
+
+    missing_skus = [item.sku for item in row.items if item.sku not in sku_info_map]
+    if missing_skus:
+        missing_preview = "、".join(missing_skus[:20])
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"以下 SKU 未找到可用的 SKU 信息：{missing_preview}",
+        )
+
+    total_volume = DECIMAL_ZERO
+    total_chargeable_weight = DECIMAL_ZERO
+    total_price = DECIMAL_ZERO
+
+    for item in row.items:
+        sku_info = sku_info_map[item.sku]
+        quantity = Decimal(str(int(item.quantity)))
+        package_length = Decimal(str(sku_info.package_length_cm or 0))
+        package_width = Decimal(str(sku_info.package_width_cm or 0))
+        package_height = Decimal(str(sku_info.package_height_cm or 0))
+        unit_weight = Decimal(str(sku_info.weight_kg or 0))
+
+        unit_volume_m3 = (
+            package_length * package_width * package_height / Decimal("1000000")
+        )
+        volume_m3 = (unit_volume_m3 * quantity).quantize(
+            VOLUME_QUANT, rounding=ROUND_HALF_UP
+        )
+        actual_weight_kg = (unit_weight * quantity).quantize(
+            WEIGHT_QUANT, rounding=ROUND_HALF_UP
+        )
+        volumetric_weight_kg = (
+            package_length * package_width * package_height / Decimal("6000") * quantity
+        ).quantize(WEIGHT_QUANT, rounding=ROUND_HALF_UP)
+        chargeable_weight_kg = max(actual_weight_kg, volumetric_weight_kg)
+        estimated_logistics_cost = (chargeable_weight_kg * unit_price).quantize(
+            MONEY_QUANT, rounding=ROUND_HALF_UP
+        )
+        average_logistics_unit_price = (estimated_logistics_cost / quantity).quantize(
+            Decimal("0.0001"), rounding=ROUND_HALF_UP
+        )
+
+        item.volume_m3 = volume_m3
+        item.actual_weight_kg = actual_weight_kg
+        item.volumetric_weight_kg = volumetric_weight_kg
+        item.chargeable_weight_kg = chargeable_weight_kg
+        item.estimated_logistics_cost = estimated_logistics_cost
+        item.average_logistics_unit_price = average_logistics_unit_price
+
+        total_volume += volume_m3
+        total_chargeable_weight += chargeable_weight_kg
+        total_price += estimated_logistics_cost
+
+    row.logistics_unit_price = unit_price
+    row.total_volume_m3 = total_volume.quantize(VOLUME_QUANT, rounding=ROUND_HALF_UP)
+    row.total_chargeable_weight_kg = total_chargeable_weight.quantize(
+        WEIGHT_QUANT, rounding=ROUND_HALF_UP
+    )
+    row.logistics_total_price = total_price.quantize(
+        MONEY_QUANT, rounding=ROUND_HALF_UP
+    )
+    db.flush()
+    refresh_shipment_sku_summary(db)
+    db.refresh(row)
+    row.items.sort(key=lambda item: (item.item_date or date.min, item.sku, item.id))
+    sku_count = len(row.items)
+    total_quantity = sum(int(item.quantity) for item in row.items)
+    return row, sku_count, total_quantity
+
+
 def create_shipment_schedule(
     db: Session,
     payload: ShipmentScheduleCreate,
@@ -271,6 +744,10 @@ def create_shipment_schedule(
         actual_inbound_date=_parse_date(
             payload.actual_inbound_date, "actual_inbound_date"
         ),
+        logistics_unit_price=_normalize_non_negative_decimal(
+            payload.logistics_unit_price, "logistics_unit_price", MONEY_QUANT
+        ),
+        include_in_history_shipping_calc=bool(payload.include_in_history_shipping_calc),
         remark=_normalize_text(payload.remark),
         shipment_status=_normalize_status(payload.shipment_status),
         source_type="manual",
@@ -306,11 +783,18 @@ def update_shipment_schedule(
     row.actual_inbound_date = _parse_date(
         payload.actual_inbound_date, "actual_inbound_date"
     )
+    row.logistics_unit_price = _normalize_non_negative_decimal(
+        payload.logistics_unit_price, "logistics_unit_price", MONEY_QUANT
+    )
+    row.include_in_history_shipping_calc = bool(
+        payload.include_in_history_shipping_calc
+    )
     row.remark = _normalize_text(payload.remark)
     row.shipment_status = _normalize_status(payload.shipment_status)
     row.source_file = _normalize_text(payload.source_file, max_length=255)
     row.updated_by = _normalize_text(operator, max_length=255)
     db.flush()
+    refresh_shipment_sku_summary(db)
     db.refresh(row)
     return row
 
@@ -322,6 +806,7 @@ def delete_shipment_schedule(
     row = _get_schedule_or_404(db, schedule_id)
     db.delete(row)
     db.flush()
+    refresh_shipment_sku_summary(db)
     return row
 
 
@@ -479,12 +964,17 @@ def replace_shipment_schedule_items_from_csv(
                 remark=item["remark"],
                 source_type="csv_import",
                 source_file=source_file,
+                average_logistics_unit_price=DECIMAL_ZERO,
             )
         )
 
     schedule.source_type = "csv_import"
     schedule.source_file = source_file
+    schedule.total_volume_m3 = DECIMAL_ZERO
+    schedule.total_chargeable_weight_kg = DECIMAL_ZERO
+    schedule.logistics_total_price = DECIMAL_ZERO
     db.flush()
+    refresh_shipment_sku_summary(db)
     db.refresh(schedule)
     return schedule, len(items), int(replaced), total_quantity
 

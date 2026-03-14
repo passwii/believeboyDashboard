@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.db.session import Base
 from app.models import ProductCost, Project
 from app.models.shipment_schedule import ShipmentSchedule, ShipmentScheduleItem
+from app.schemas.shipment_schedule import ShipmentScheduleUpdate
 from app.services import shipment_schedule_service
 
 
@@ -242,6 +243,193 @@ def test_import_shipment_schedules_from_csv_rejects_duplicate_shipment_no():
 
         assert exc_info.value.status_code == 409
         assert 'SHP-300' in str(exc_info.value.detail)
+
+
+def test_calculate_shipment_schedule_costs_persists_schedule_and_item_metrics():
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        project = Project(project_name='宝勒1店', sort_order=1, source_file='seed.csv')
+        db.add(project)
+        db.flush()
+
+        schedule = ShipmentSchedule(
+            project_id=project.id,
+            project_name_snapshot='宝勒1店',
+            shipment_no='SHP-CAL-001',
+            shipping_method='air',
+            shipment_status='draft',
+            source_type='manual',
+        )
+        db.add(schedule)
+        db.flush()
+
+        db.add(
+            ShipmentScheduleItem(
+                shipment_schedule_id=schedule.id,
+                project_id=project.id,
+                shipment_no='SHP-CAL-001',
+                sku='SKU-001',
+                quantity=10,
+                source_type='manual',
+            )
+        )
+        db.add(
+            ProductCost(
+                project_name='宝勒1店',
+                sku='SKU-001',
+                asin='ASIN-001',
+                fob_unit_cost=2,
+                currency='CNY',
+                country='US',
+                sort_order=1,
+                is_active=True,
+                package_length_cm=20,
+                package_width_cm=10,
+                package_height_cm=6,
+                weight_kg=0.2,
+            )
+        )
+        db.commit()
+
+        row, sku_count, total_quantity = shipment_schedule_service.calculate_shipment_schedule_costs(
+            db,
+            schedule.id,
+            logistics_unit_price=8.5,
+        )
+        db.commit()
+
+        assert sku_count == 1
+        assert total_quantity == 10
+        assert float(row.logistics_unit_price) == pytest.approx(8.5)
+        assert float(row.total_volume_m3) == pytest.approx(0.012, abs=1e-4)
+        assert float(row.total_chargeable_weight_kg) == pytest.approx(2.0, abs=1e-3)
+        assert float(row.logistics_total_price) == pytest.approx(17.0, abs=1e-2)
+
+        saved_item = db.query(ShipmentScheduleItem).filter(ShipmentScheduleItem.shipment_schedule_id == schedule.id).one()
+        assert float(saved_item.volume_m3) == pytest.approx(0.012, abs=1e-4)
+        assert float(saved_item.actual_weight_kg) == pytest.approx(2.0, abs=1e-3)
+        assert float(saved_item.volumetric_weight_kg) == pytest.approx(2.0, abs=1e-3)
+        assert float(saved_item.chargeable_weight_kg) == pytest.approx(2.0, abs=1e-3)
+        assert float(saved_item.estimated_logistics_cost) == pytest.approx(17.0, abs=1e-2)
+        assert float(saved_item.average_logistics_unit_price) == pytest.approx(1.7, abs=1e-4)
+
+
+def test_update_shipment_schedule_persists_history_calc_flag():
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        project = Project(project_name='宝勒1店', sort_order=1, source_file='seed.csv')
+        db.add(project)
+        db.flush()
+
+        schedule = ShipmentSchedule(
+            project_id=project.id,
+            project_name_snapshot='宝勒1店',
+            shipment_no='SHP-HISTORY-001',
+            shipping_method='sea',
+            shipment_status='draft',
+            source_type='manual',
+            include_in_history_shipping_calc=True,
+        )
+        db.add(schedule)
+        db.commit()
+
+        payload = ShipmentScheduleUpdate(
+            project_id=project.id,
+            tracking_no=None,
+            warehouse_code=None,
+            forwarder_name=None,
+            shipping_method='sea',
+            created_date=None,
+            etd_date=None,
+            eta_date=None,
+            actual_inbound_date=None,
+            logistics_unit_price=0,
+            include_in_history_shipping_calc=False,
+            remark=None,
+            shipment_status='draft',
+            source_file=None,
+        )
+        row = shipment_schedule_service.update_shipment_schedule(db, schedule.id, payload, operator='tester')
+        db.commit()
+
+        assert row.include_in_history_shipping_calc is False
+
+
+def test_list_shipment_sku_summary_uses_completed_and_history_calc_flag():
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        project = Project(project_name='宝勒1店', sort_order=1, source_file='seed.csv')
+        db.add(project)
+        db.flush()
+
+        included = ShipmentSchedule(
+            project_id=project.id,
+            project_name_snapshot='宝勒1店',
+            shipment_no='SHP-SUM-001',
+            shipping_method='sea',
+            shipment_status='completed',
+            source_type='manual',
+            include_in_history_shipping_calc=True,
+        )
+        excluded = ShipmentSchedule(
+            project_id=project.id,
+            project_name_snapshot='宝勒1店',
+            shipment_no='SHP-SUM-002',
+            shipping_method='sea',
+            shipment_status='completed',
+            source_type='manual',
+            include_in_history_shipping_calc=False,
+        )
+        db.add_all([included, excluded])
+        db.flush()
+
+        db.add_all(
+            [
+                ShipmentScheduleItem(
+                    shipment_schedule_id=included.id,
+                    project_id=project.id,
+                    shipment_no=included.shipment_no,
+                    sku='SKU-001',
+                    quantity=10,
+                    chargeable_weight_kg=2,
+                    estimated_logistics_cost=17,
+                    average_logistics_unit_price=1.7,
+                    source_type='manual',
+                ),
+                ShipmentScheduleItem(
+                    shipment_schedule_id=excluded.id,
+                    project_id=project.id,
+                    shipment_no=excluded.shipment_no,
+                    sku='SKU-001',
+                    quantity=5,
+                    chargeable_weight_kg=1,
+                    estimated_logistics_cost=9,
+                    average_logistics_unit_price=1.8,
+                    source_type='manual',
+                ),
+            ]
+        )
+        db.commit()
+
+        rows = shipment_schedule_service.list_shipment_sku_summary(
+            db,
+            project_id=project.id,
+            include_only_history_calc=True,
+            shipment_status='completed',
+        )
+
+        assert len(rows) == 1
+        assert rows[0]['sku'] == 'SKU-001'
+        assert rows[0]['shipment_count'] == 1
+        assert rows[0]['total_quantity'] == 10
+        assert rows[0]['total_logistics_cost'] == pytest.approx(17.0)
+        assert rows[0]['average_logistics_unit_price'] == pytest.approx(1.7)
 
 
 def test_delete_shipment_schedule_removes_schedule_and_items():
