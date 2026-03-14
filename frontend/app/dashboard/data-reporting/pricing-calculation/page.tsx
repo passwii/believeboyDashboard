@@ -734,6 +734,238 @@ async function exportComparisonMatrixToExcel(runs: PricingCalculationRunItem[]) 
   window.URL.revokeObjectURL(url)
 }
 
+async function exportStoreSkuTableToExcel(
+  items: ProductCostItem[],
+  rowStates: Record<number, StoreSkuRowState>,
+  projectName: string,
+  calculationMode: 'profit-calc' | 'profit-reverse'
+) {
+  const ExcelJS = await import('exceljs')
+  const workbook = new ExcelJS.Workbook()
+  workbook.creator = 'Codex'
+  workbook.created = new Date()
+
+  const worksheet = workbook.addWorksheet('店铺SKU核算表', {
+    views: [{ state: 'frozen', ySplit: 3 }],
+  })
+
+  const title = `店铺SKU核算表 - ${projectName}`
+  const exportedAt = new Date().toLocaleString('zh-CN', { hour12: false })
+  
+  // 只导出有结果的SKU
+  const itemsWithResults = items.filter((item) => {
+    const rowState = rowStates[item.id]
+    return rowState?.result != null
+  })
+
+  worksheet.mergeCells(1, 1, 1, 30)
+  worksheet.getCell(1, 1).value = title
+  worksheet.getCell(1, 1).font = { name: 'Microsoft YaHei', size: 16, bold: true, color: { argb: 'FF0F172A' } }
+  worksheet.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
+  worksheet.getCell(1, 1).alignment = { vertical: 'middle', horizontal: 'left' }
+
+  worksheet.mergeCells(2, 1, 2, 30)
+  worksheet.getCell(2, 1).value = `导出时间：${exportedAt}    核算模式：${calculationMode === 'profit-calc' ? '利润核算' : '利润倒算'}    导出数量：${itemsWithResults.length} 条`
+  worksheet.getCell(2, 1).font = { name: 'Microsoft YaHei', size: 10, color: { argb: 'FF475569' } }
+  worksheet.getCell(2, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
+  worksheet.getCell(2, 1).alignment = { vertical: 'middle', horizontal: 'left' }
+
+  const headerRow = worksheet.getRow(3)
+  headerRow.values = [
+    '项目',
+    '国家',
+    'SKU',
+    'ASIN',
+    'FOB成本(RMB)',
+    '长(cm)',
+    '宽(cm)',
+    '高(cm)',
+    '重量(kg)',
+    '计费重(kg)',
+    '头程(RMB)',
+    'DDP(RMB)',
+    'DDP(USD)',
+    '汇率',
+    calculationMode === 'profit-calc' ? '售价(USD)' : '目标利润率(%)',
+    '广告费率(%',
+    '广告费(USD)',
+    '退货折损率(%',
+    '退货损耗(USD)',
+    '佣金(USD)',
+    '派送费(USD)',
+    '配置费(USD)',
+    '仓储月数',
+    '仓储费(USD)',
+    '费用合计(USD)',
+    '回款(USD)',
+    calculationMode === 'profit-calc' ? '利润(USD)' : '倒算售价(USD)',
+    calculationMode === 'profit-calc' ? '利润率(%)' : '-',
+    '尺寸等级',
+    '售价带',
+  ]
+  headerRow.height = 24
+
+  worksheet.columns = [
+    { width: 16 },
+    { width: 10 },
+    { width: 18 },
+    { width: 14 },
+    { width: 14 },
+    { width: 10 },
+    { width: 10 },
+    { width: 10 },
+    { width: 10 },
+    { width: 12 },
+    { width: 12 },
+    { width: 12 },
+    { width: 12 },
+    { width: 10 },
+    { width: 14 },
+    { width: 12 },
+    { width: 12 },
+    { width: 12 },
+    { width: 12 },
+    { width: 12 },
+    { width: 12 },
+    { width: 12 },
+    { width: 10 },
+    { width: 12 },
+    { width: 14 },
+    { width: 12 },
+    { width: 14 },
+    { width: 12 },
+    { width: 14 },
+    { width: 14 },
+  ]
+
+  headerRow.eachCell((cell) => {
+    cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
+    cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
+    cell.border = {
+      top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+      left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+      bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+      right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+    }
+  })
+
+  let currentRowIndex = 4
+  itemsWithResults.forEach((item) => {
+    const rowState = rowStates[item.id]
+    const result = rowState?.result
+    const draft = rowState?.draft
+
+    if (!result) return
+
+    const volumeKg = (toNumber(draft?.package_length_cm ?? '') * toNumber(draft?.package_width_cm ?? '') * toNumber(draft?.package_height_cm ?? '')) / 6000
+    const chargeableKg = Math.max(toNumber(draft?.weight_kg ?? ''), volumeKg)
+    const firstLegCost = toNumber(draft?.first_leg_cost_rmb ?? '')
+    const fobCost = item.fob_unit_cost
+    const ddpRmb = fobCost + firstLegCost
+    const exchangeRate = result.usd_to_rmb_rate
+    const ddpUsd = exchangeRate > 0 ? ddpRmb / exchangeRate : 0
+
+    const excelRow = worksheet.getRow(currentRowIndex)
+    
+    excelRow.getCell(1).value = item.project_name
+    excelRow.getCell(2).value = item.country || ''
+    excelRow.getCell(3).value = item.sku
+    excelRow.getCell(4).value = item.asin || ''
+    excelRow.getCell(5).value = fobCost
+    excelRow.getCell(5).numFmt = '#,##0.00'
+    excelRow.getCell(6).value = result.package_length_cm
+    excelRow.getCell(7).value = result.package_width_cm
+    excelRow.getCell(8).value = result.package_height_cm
+    excelRow.getCell(9).value = result.weight_kg
+    excelRow.getCell(9).numFmt = '0.000'
+    excelRow.getCell(10).value = result.weights.chargeable_weight_lb * 0.453592
+    excelRow.getCell(10).numFmt = '0.00'
+    excelRow.getCell(11).value = firstLegCost
+    excelRow.getCell(11).numFmt = '#,##0.00'
+    excelRow.getCell(12).value = ddpRmb
+    excelRow.getCell(12).numFmt = '#,##0.00'
+    excelRow.getCell(13).value = ddpUsd
+    excelRow.getCell(13).numFmt = '$#,##0.00'
+    excelRow.getCell(14).value = exchangeRate
+    excelRow.getCell(14).numFmt = '0.0000'
+    
+    if (calculationMode === 'profit-calc') {
+      excelRow.getCell(15).value = result.sale_price_usd
+      excelRow.getCell(15).numFmt = '$#,##0.00'
+    } else {
+      excelRow.getCell(15).value = draft ? toNumber(draft.target_profit_rate) : 0
+      excelRow.getCell(15).numFmt = '0.00'
+    }
+    
+    excelRow.getCell(16).value = result.advertising_rate * 100
+    excelRow.getCell(16).numFmt = '0.00'
+    excelRow.getCell(17).value = result.fees.advertising_fee_usd
+    excelRow.getCell(17).numFmt = '$#,##0.00'
+    excelRow.getCell(18).value = result.return_loss_rate * 100
+    excelRow.getCell(18).numFmt = '0.00'
+    excelRow.getCell(19).value = result.fees.return_loss_usd
+    excelRow.getCell(19).numFmt = '$#,##0.00'
+    excelRow.getCell(20).value = result.fees.referral_fee_usd
+    excelRow.getCell(20).numFmt = '$#,##0.00'
+    excelRow.getCell(21).value = result.fees.fba_fulfillment_fee_usd
+    excelRow.getCell(21).numFmt = '$#,##0.00'
+    excelRow.getCell(22).value = result.fees.inbound_config_fee_usd
+    excelRow.getCell(22).numFmt = '$#,##0.00'
+    excelRow.getCell(23).value = result.storage_months
+    excelRow.getCell(24).value = result.fees.storage_fee_usd
+    excelRow.getCell(24).numFmt = '$#,##0.00'
+    excelRow.getCell(25).value = result.fees.total_fee_usd
+    excelRow.getCell(25).numFmt = '$#,##0.00'
+    excelRow.getCell(26).value = result.profit.payout_usd
+    excelRow.getCell(26).numFmt = '$#,##0.00'
+    
+    if (calculationMode === 'profit-calc') {
+      excelRow.getCell(27).value = result.profit.profit_usd
+      excelRow.getCell(27).numFmt = '$#,##0.00'
+      // 利润颜色
+      excelRow.getCell(27).font = { color: { argb: result.profit.profit_usd >= 0 ? 'FF047857' : 'FFBE123C' } }
+      
+      excelRow.getCell(28).value = result.profit.profit_rate
+      excelRow.getCell(28).numFmt = '0.00%'
+      excelRow.getCell(28).font = { color: { argb: result.profit.profit_rate >= 0 ? 'FF047857' : 'FFBE123C' } }
+    } else {
+      excelRow.getCell(27).value = result.sale_price_usd
+      excelRow.getCell(27).numFmt = '$#,##0.00'
+      excelRow.getCell(28).value = '-'
+    }
+    
+    excelRow.getCell(29).value = result.size_tier_label
+    excelRow.getCell(30).value = result.price_band_label
+
+    // 设置单元格样式
+    excelRow.eachCell((cell, colNumber) => {
+      cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF0F172A' } }
+      cell.alignment = { vertical: 'middle', horizontal: colNumber <= 4 ? 'left' : 'right', wrapText: true }
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+      }
+    })
+
+    currentRowIndex += 1
+  })
+
+  const buffer = await workbook.xlsx.writeBuffer()
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  })
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  const safeTimestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+  link.href = url
+  link.download = `店铺SKU核算表-${projectName}-${safeTimestamp}.xlsx`
+  link.click()
+  window.URL.revokeObjectURL(url)
+}
+
 export default function PricingCalculationPage() {
   const [activeBusinessTab, setActiveBusinessTab] = useState<BusinessTab>('new-product')
   const [form, setForm] = useState<FormState>(INITIAL_FORM)
@@ -1094,6 +1326,34 @@ export default function PricingCalculationPage() {
     setError(null)
     try {
       await exportComparisonMatrixToExcel(selectedRuns)
+    } catch (exportError) {
+      setError(exportError instanceof Error ? exportError.message : '导出 Excel 失败')
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  async function handleExportStoreSkuTable() {
+    if (!selectedProjectName) {
+      setError('请先选择项目')
+      return
+    }
+
+    // 检查是否有可导出的数据
+    const itemsWithResults = filteredStoreSkus.filter((item) => {
+      const rowState = storeRows[item.id]
+      return rowState?.result != null
+    })
+
+    if (itemsWithResults.length === 0) {
+      setError('没有可导出的测算结果，请先进行测算')
+      return
+    }
+
+    setExporting(true)
+    setError(null)
+    try {
+      await exportStoreSkuTableToExcel(filteredStoreSkus, storeRows, selectedProjectName, storeCalculationMode)
     } catch (exportError) {
       setError(exportError instanceof Error ? exportError.message : '导出 Excel 失败')
     } finally {
@@ -1477,17 +1737,23 @@ export default function PricingCalculationPage() {
 
           <Card className="border-border/80 bg-card/95 shadow-sm">
             <CardHeader className="pb-3">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div className="space-y-1">
                   <CardTitle className="text-lg">店铺 SKU 核算表</CardTitle>
                   <CardDescription>每行一个 SKU，FOB 取 SKU 信息档案；已维护的尺寸/重量自动带出，头程加权成本自动读取发货汇总，售价等动态参数按需补充后逐行测算。</CardDescription>
                 </div>
-                <Tabs value={storeCalculationMode} onValueChange={(value) => setStoreCalculationMode(value as 'profit-calc' | 'profit-reverse')} className="w-auto">
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="profit-calc">利润核算</TabsTrigger>
-                    <TabsTrigger value="profit-reverse">利润倒算</TabsTrigger>
-                  </TabsList>
-                </Tabs>
+                <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+                  <Tabs value={storeCalculationMode} onValueChange={(value) => setStoreCalculationMode(value as 'profit-calc' | 'profit-reverse')} className="w-auto">
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="profit-calc">利润核算</TabsTrigger>
+                      <TabsTrigger value="profit-reverse">利润倒算</TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                  <Button type="button" variant="outline" onClick={() => void handleExportStoreSkuTable()} disabled={!selectedProjectName || exporting}>
+                    {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                    导出 Excel
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
