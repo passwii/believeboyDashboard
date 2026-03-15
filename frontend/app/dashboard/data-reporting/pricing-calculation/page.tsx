@@ -2117,13 +2117,14 @@ function ComparisonTable({ runs }: { runs: PricingCalculationRunItem[] }) {
   }
 
   return (
-    <Table className="w-max min-w-full text-xs" containerClassName="rounded-xl border border-border/70">
-      <TableHeader className="bg-muted">
-        <TableRow>
-          <TableHead className="sticky left-0 z-30 min-w-[116px] whitespace-nowrap bg-muted">分类</TableHead>
-          <TableHead className="sticky left-[116px] z-30 min-w-[150px] whitespace-nowrap border-l bg-muted">明细项</TableHead>
+    <div className="max-h-[600px] overflow-auto rounded-xl border border-border/70">
+      <table className="w-max min-w-full text-xs border-collapse">
+        <thead className="sticky top-0 z-30 bg-muted">
+          <tr>
+            <th className="sticky left-0 z-20 min-w-[116px] whitespace-nowrap bg-muted px-3 py-2 border-b border-r font-semibold text-left">分类</th>
+            <th className="sticky left-[116px] z-20 min-w-[150px] whitespace-nowrap bg-muted px-3 py-2 border-b border-l font-semibold text-left">明细项</th>
           {runs.map((run) => (
-            <TableHead key={run.id} className="min-w-[210px] whitespace-nowrap border-l align-top">
+            <th key={run.id} className="min-w-[210px] whitespace-nowrap bg-muted px-3 py-2 border-b border-l align-top">
               <div className="space-y-1 py-1">
                 <div className="flex items-center justify-between gap-2">
                   <span className="max-w-[150px] truncate font-semibold text-foreground">{run.product_name}</span>
@@ -2131,42 +2132,43 @@ function ComparisonTable({ runs }: { runs: PricingCalculationRunItem[] }) {
                 </div>
                 <div className="text-[10px] text-muted-foreground">{formatCompactDate(run.created_at)}</div>
               </div>
-            </TableHead>
+            </th>
           ))}
-        </TableRow>
-      </TableHeader>
-      <TableBody>
+        </tr>
+      </thead>
+      <tbody>
         {sections.flatMap((section) =>
           section.rows.map((row, index) => (
-            <TableRow key={`${section.title}-${row.label}`}>
+            <tr key={`${section.title}-${row.label}`} className="hover:bg-muted/30">
               {index === 0 ? (
-                <TableCell
+                <td
                   rowSpan={section.rows.length}
                   className={cn(
-                    'sticky left-0 z-20 min-w-[116px] whitespace-nowrap border-r align-top font-semibold shadow-[inset_-1px_0_0_rgba(255,255,255,0.35)] dark:shadow-[inset_-1px_0_0_rgba(15,23,42,0.45)]',
+                    'sticky left-0 z-10 min-w-[116px] whitespace-nowrap border-r border-b align-top font-semibold bg-muted p-2',
                     sectionStyles[section.title]?.categoryCell ?? 'border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100'
                   )}
                 >
                   {section.title}
-                </TableCell>
+                </td>
               ) : null}
-              <TableCell
+              <td
                 className={cn(
-                  'sticky left-[116px] z-20 min-w-[150px] whitespace-nowrap border-l font-medium text-slate-700 dark:text-slate-200',
+                  'sticky left-[116px] z-10 min-w-[150px] whitespace-nowrap border-l border-b font-medium text-slate-700 dark:text-slate-200 bg-muted/50 p-2',
                   sectionStyles[section.title]?.subCell ?? 'bg-background'
                 )}
               >
                 {row.label}
-              </TableCell>
+              </td>
               {runs.map((run) => (
-                <TableCell key={`${row.label}-${run.id}`} className="whitespace-nowrap border-l align-top leading-5 text-foreground">
+                <td key={`${row.label}-${run.id}`} className="whitespace-nowrap border-l border-b align-top leading-5 text-foreground p-2">
                   {row.getDisplayValue(run)}
-                </TableCell>
+                </td>
               ))}
-            </TableRow>
+            </tr>
           ))
         )}
-      </TableBody>
-    </Table>
+        </tbody>
+      </table>
+    </div>
   )
 }
