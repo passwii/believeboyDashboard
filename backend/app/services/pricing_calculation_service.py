@@ -127,7 +127,7 @@ def create_pricing_run(db: Session, payload: PricingCalculationCreateRequest, *,
         ddp_cost_usd=computed['profit_decimal']['ddp_cost_usd'],
         sale_price_usd=computed['inputs']['sale_price_usd'],
         calculation_type='profit_calc',
-        commission_rate=COMMISSION_RATE,
+        commission_rate=computed['inputs']['commission_rate'],
         advertising_rate=computed['inputs']['advertising_rate'],
         return_loss_rate=computed['inputs']['return_loss_rate'],
         storage_months=computed['inputs']['storage_months'],
@@ -195,6 +195,7 @@ def create_pricing_reverse_run(
         sku=payload.sku,
         use_historical_shipping_cost=payload.use_historical_shipping_cost,
         sale_price_usd=float(resolved_sale_price_usd),
+        commission_rate=payload.commission_rate,
         advertising_rate=payload.advertising_rate,
         return_loss_rate=payload.return_loss_rate,
         storage_months=payload.storage_months,
@@ -249,6 +250,7 @@ def serialize_pricing_run(row: PricingCalculationRun) -> dict[str, object]:
         'fob_product_cost_rmb': float(row.fob_product_cost_rmb),
         'first_leg_cost_rmb': float(row.first_leg_cost_rmb),
         'sale_price_usd': float(row.sale_price_usd),
+        'commission_rate': float(row.commission_rate),
         'advertising_rate': float(row.advertising_rate),
         'return_loss_rate': float(row.return_loss_rate),
         'storage_months': float(row.storage_months),
@@ -309,6 +311,7 @@ def _compute_pricing(payload: PricingCalculationCreateRequest, db: Session) -> d
     sale_price_usd = _money(payload.sale_price_usd)
     fob_product_cost_rmb = _money(payload.fob_product_cost_rmb)
     first_leg_cost_rmb, shipping_cost_warning = _resolve_first_leg_cost_rmb(payload, db)
+    commission_rate = _ratio(_decimal(payload.commission_rate))
     advertising_rate = _ratio(_decimal(payload.advertising_rate))
     return_loss_rate = _ratio(_decimal(payload.return_loss_rate))
     storage_months = _quantize(_decimal(payload.storage_months), Decimal('0.01'))
@@ -346,7 +349,7 @@ def _compute_pricing(payload: PricingCalculationCreateRequest, db: Session) -> d
     ddp_cost_rmb = _money_decimal(fob_product_cost_rmb + first_leg_cost_rmb)
     ddp_cost_usd = _money_decimal(ddp_cost_rmb / usd_to_rmb_rate)
     referral_fee_usd = _money_decimal(
-        sale_price_usd * COMMISSION_RATE * (Decimal('1') - (return_loss_rate * RETURN_COMMISSION_RELIEF_RATE))
+        sale_price_usd * commission_rate * (Decimal('1') - (return_loss_rate * RETURN_COMMISSION_RELIEF_RATE))
     )
     advertising_fee_usd = _money_decimal(sale_price_usd * advertising_rate)
     return_loss_usd = _money_decimal(sale_price_usd * return_loss_rate)
@@ -370,6 +373,7 @@ def _compute_pricing(payload: PricingCalculationCreateRequest, db: Session) -> d
             'fob_product_cost_rmb': fob_product_cost_rmb,
             'first_leg_cost_rmb': first_leg_cost_rmb,
             'sale_price_usd': sale_price_usd,
+            'commission_rate': commission_rate,
             'advertising_rate': advertising_rate,
             'return_loss_rate': return_loss_rate,
             'storage_months': storage_months,
@@ -418,6 +422,7 @@ def _compute_pricing(payload: PricingCalculationCreateRequest, db: Session) -> d
             'profit_usd': profit_usd,
             'profit_rate': profit_rate,
         },
+        'commission_rate': commission_rate,
         'warnings': warnings,
     }
 
@@ -440,6 +445,7 @@ def _solve_sale_price_for_profit_rate(payload: PricingCalculationReverseRequest,
             sku=payload.sku,
             use_historical_shipping_cost=payload.use_historical_shipping_cost,
             sale_price_usd=float(price),
+            commission_rate=payload.commission_rate,
             advertising_rate=payload.advertising_rate,
             return_loss_rate=payload.return_loss_rate,
             storage_months=payload.storage_months,

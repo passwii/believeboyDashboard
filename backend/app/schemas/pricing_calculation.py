@@ -20,6 +20,7 @@ class PricingCalculationCreateRequest(BaseModel):
     sku: str | None = Field(default=None, min_length=1, max_length=100)
     use_historical_shipping_cost: bool = False
     sale_price_usd: float = Field(gt=0, le=100000000)
+    commission_rate: float = Field(default=0.15, ge=0, le=1)
     advertising_rate: float = Field(default=0.12, ge=0, le=1)
     return_loss_rate: float = Field(default=0.04, ge=0, le=1)
     storage_months: float = Field(default=1, gt=0, le=120)
@@ -39,6 +40,7 @@ class PricingCalculationReverseRequest(BaseModel):
     sku: str | None = Field(default=None, min_length=1, max_length=100)
     use_historical_shipping_cost: bool = False
     target_profit_rate: float = Field(default=0.25, ge=0, lt=1)
+    commission_rate: float = Field(default=0.15, ge=0, le=1)
     advertising_rate: float = Field(default=0.12, ge=0, le=1)
     return_loss_rate: float = Field(default=0.04, ge=0, le=1)
     storage_months: float = Field(default=1, gt=0, le=120)
@@ -95,6 +97,7 @@ class PricingCalculationRunItem(BaseModel):
     fob_product_cost_rmb: float
     first_leg_cost_rmb: float
     sale_price_usd: float
+    commission_rate: float
     advertising_rate: float
     return_loss_rate: float
     storage_months: float

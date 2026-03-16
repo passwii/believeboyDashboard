@@ -29,6 +29,7 @@ type PricingCalculationRunItem = {
   fob_product_cost_rmb: number
   first_leg_cost_rmb: number
   sale_price_usd: number
+  commission_rate: number
   advertising_rate: number
   return_loss_rate: number
   storage_months: number
@@ -103,6 +104,7 @@ type StoreSkuPricingSnapshotItem = {
   fob_product_cost_rmb: number
   first_leg_cost_rmb: number
   sale_price_usd: number
+  commission_rate?: number
   target_profit_rate: number | null
   advertising_rate: number
   return_loss_rate: number
@@ -237,6 +239,7 @@ type FormState = {
   first_leg_unit_price_rmb: string
   sale_price_usd: string
   target_profit_rate: string
+  commission_rate: string
   advertising_rate: string
   return_loss_rate: string
   storage_months: string
@@ -279,6 +282,7 @@ const INITIAL_FORM: FormState = {
   first_leg_unit_price_rmb: '',
   sale_price_usd: '',
   target_profit_rate: '25',
+  commission_rate: '15',
   advertising_rate: '12',
   return_loss_rate: '4',
   storage_months: '1',
@@ -329,6 +333,7 @@ function buildSnapshotPayload(
     fob_product_cost_rmb: result.fob_product_cost_rmb,
     first_leg_cost_rmb: result.first_leg_cost_rmb,
     sale_price_usd: result.sale_price_usd,
+    commission_rate: result.commission_rate,
     target_profit_rate: null,
     advertising_rate: result.advertising_rate,
     return_loss_rate: result.return_loss_rate,
@@ -375,6 +380,7 @@ function convertSnapshotToResult(snapshot: StoreSkuPricingSnapshotItem): Pricing
     fob_product_cost_rmb: snapshot.fob_product_cost_rmb,
     first_leg_cost_rmb: snapshot.first_leg_cost_rmb,
     sale_price_usd: snapshot.sale_price_usd,
+    commission_rate: snapshot.commission_rate ?? 0.15,
     advertising_rate: snapshot.advertising_rate,
     return_loss_rate: snapshot.return_loss_rate,
     storage_months: snapshot.storage_months,
@@ -564,7 +570,8 @@ function getComparisonSections(): ComparisonSection[] {
     {
       title: '费用支出',
       rows: [
-        { label: '佣金', getDisplayValue: (run) => formatCurrency(run.fees.referral_fee_usd), getExportValue: (run) => run.fees.referral_fee_usd, valueType: 'currency_usd' },
+        { label: '平台佣金', getDisplayValue: (run) => formatCurrency(run.fees.referral_fee_usd), getExportValue: (run) => run.fees.referral_fee_usd, valueType: 'currency_usd' },
+        { label: '平台佣金率', getDisplayValue: (run) => formatPercent(run.commission_rate), getExportValue: (run) => run.commission_rate, valueType: 'percent' },
         { label: '广告费', getDisplayValue: (run) => formatCurrency(run.fees.advertising_fee_usd), getExportValue: (run) => run.fees.advertising_fee_usd, valueType: 'currency_usd' },
         { label: '广告费率', getDisplayValue: (run) => formatPercent(run.advertising_rate), getExportValue: (run) => run.advertising_rate, valueType: 'percent' },
         { label: '派送', getDisplayValue: (run) => formatCurrency(run.fees.fba_fulfillment_fee_usd), getExportValue: (run) => run.fees.fba_fulfillment_fee_usd, valueType: 'currency_usd' },
@@ -1233,6 +1240,7 @@ export default function PricingCalculationPage() {
         first_leg_cost_rmb: firstLegCostRmb,
         sale_price_usd: Number(form.sale_price_usd),
         target_profit_rate: Number(form.target_profit_rate) / 100,
+        commission_rate: Number(form.commission_rate) / 100,
         advertising_rate: Number(form.advertising_rate) / 100,
         return_loss_rate: Number(form.return_loss_rate) / 100,
         storage_months: Number(form.storage_months),
@@ -1418,6 +1426,7 @@ export default function PricingCalculationPage() {
         use_historical_shipping_cost: true,
         sale_price_usd: calculationMode === 'profit-calc' ? Number(draft.sale_price_usd) : 0,
         target_profit_rate: calculationMode === 'profit-reverse' ? Number(draft.target_profit_rate) / 100 : 0,
+        commission_rate: 0.15,
         advertising_rate: Number(draft.advertising_rate) / 100,
         return_loss_rate: Number(draft.return_loss_rate) / 100,
         storage_months: Number(draft.storage_months),
@@ -1536,6 +1545,9 @@ export default function PricingCalculationPage() {
                         <Input type="number" step="0.01" value={form.target_profit_rate} onChange={(event) => updateField('target_profit_rate', event.target.value)} required />
                       </Field>
                     )}
+                    <Field label="平台佣金率(%)">
+                      <Input type="number" step="0.01" value={form.commission_rate} onChange={(event) => updateField('commission_rate', event.target.value)} required />
+                    </Field>
                     <Field label="广告费率(%)">
                       <Input type="number" step="0.01" value={form.advertising_rate} onChange={(event) => updateField('advertising_rate', event.target.value)} required />
                     </Field>
@@ -1796,6 +1808,7 @@ async function requestPricingCalculation(payload: {
   use_historical_shipping_cost?: boolean
   sale_price_usd: number
   target_profit_rate: number
+  commission_rate: number
   advertising_rate: number
   return_loss_rate: number
   storage_months: number
@@ -1826,6 +1839,7 @@ async function requestPricingCalculation(payload: {
       ...(payload.calculationMode === 'profit-reverse'
         ? { target_profit_rate: payload.target_profit_rate }
         : { sale_price_usd: payload.sale_price_usd }),
+      commission_rate: payload.commission_rate,
       advertising_rate: payload.advertising_rate,
       return_loss_rate: payload.return_loss_rate,
       storage_months: payload.storage_months,
