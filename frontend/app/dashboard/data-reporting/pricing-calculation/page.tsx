@@ -669,8 +669,8 @@ async function exportComparisonMatrixToExcel(runs: PricingCalculationRunItem[]) 
     section.rows.forEach((row) => {
       const excelRow = worksheet.getRow(currentRowIndex)
       excelRow.getCell(2).value = row.label
-      excelRow.getCell(2).font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF334155' } }
-      excelRow.getCell(2).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colors.sub } }
+      excelRow.getCell(2).font = { name: 'Microsoft YaHei', bold: row.label === '售价' || row.label === '利润率', color: { argb: 'FF334155' } }
+      excelRow.getCell(2).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: row.label === '售价' || row.label === '利润率' ? 'FFFFEeba' : colors.sub } }
       excelRow.getCell(2).alignment = { vertical: 'middle', horizontal: 'left', wrapText: true }
 
       runs.forEach((run, index) => {
@@ -692,6 +692,11 @@ async function exportComparisonMatrixToExcel(runs: PricingCalculationRunItem[]) 
         }
         if (row.label === '利润率' && typeof value === 'number') {
           cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: value >= 0 ? 'FF047857' : 'FFBE123C' } }
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEeba' } }
+        }
+        if (row.label === '售价') {
+          cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEeba' } }
         }
       })
 
@@ -2139,7 +2144,13 @@ function ComparisonTable({ runs }: { runs: PricingCalculationRunItem[] }) {
       <tbody>
         {sections.flatMap((section) =>
           section.rows.map((row, index) => (
-            <tr key={`${section.title}-${row.label}`} className="hover:bg-muted/30">
+            <tr 
+              key={`${section.title}-${row.label}`} 
+              className={cn(
+                'hover:bg-muted/30',
+                row.label === '售价' || row.label === '利润率' ? 'bg-yellow-50 dark:bg-yellow-950/20' : ''
+              )}
+            >
               {index === 0 ? (
                 <td
                   rowSpan={section.rows.length}
@@ -2153,14 +2164,22 @@ function ComparisonTable({ runs }: { runs: PricingCalculationRunItem[] }) {
               ) : null}
               <td
                 className={cn(
-                  'sticky left-[116px] z-10 min-w-[150px] whitespace-nowrap border-l border-b font-medium text-slate-700 dark:text-slate-200 bg-muted/50 p-2',
+                  'sticky left-[116px] z-10 min-w-[150px] whitespace-nowrap border-l border-b font-medium p-2',
+                  row.label === '售价' || row.label === '利润率' ? 'bg-yellow-50 font-bold text-slate-900 dark:bg-yellow-950/30 dark:text-yellow-100' : 'text-slate-700 dark:text-slate-200',
                   sectionStyles[section.title]?.subCell ?? 'bg-background'
                 )}
               >
                 {row.label}
               </td>
               {runs.map((run) => (
-                <td key={`${row.label}-${run.id}`} className="whitespace-nowrap border-l border-b align-top leading-5 text-foreground p-2">
+                <td 
+                  key={`${row.label}-${run.id}`} 
+                  className={cn(
+                    'whitespace-nowrap border-l border-b align-top leading-5 p-2',
+                    row.label === '售价' && 'bg-yellow-50 font-semibold text-foreground dark:bg-yellow-950/30',
+                    row.label === '利润率' && 'bg-yellow-50 font-semibold text-foreground dark:bg-yellow-950/30'
+                  )}
+                >
                   {row.getDisplayValue(run)}
                 </td>
               ))}
