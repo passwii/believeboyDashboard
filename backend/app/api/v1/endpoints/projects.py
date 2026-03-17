@@ -70,7 +70,14 @@ def create_project(
     request: Request,
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> ProjectItem:
+    project_service.ensure_project_creation_allowed(
+        operator,
+        is_admin=bool(is_admin),
+        project_operator=payload.project_operator,
+        assistant_operator=payload.assistant_operator,
+    )
     row = project_service.create_single_project(
         db,
         payload.name,
@@ -102,10 +109,10 @@ def update_project(
     request: Request,
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> ProjectItem:
-    current_rows = project_service.list_project_items(db)
-    before_row = next((item for item in current_rows if item.id == project_id), None)
-    before = _serialize_project_item(before_row) if before_row is not None else None
+    before_row = project_service.ensure_project_access(db, project_id, operator=operator, is_admin=bool(is_admin))
+    before = _serialize_project_item(before_row)
 
     row = project_service.update_project(
         db,

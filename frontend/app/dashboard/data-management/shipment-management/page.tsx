@@ -20,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 
 const API_BASE = '/api/backend'
 
@@ -293,7 +294,7 @@ function formatDimensionText(length: number, width: number, height: number): str
 }
 
 export default function ShipmentManagementPage() {
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const isAdmin = Boolean(session?.user?.isAdmin)
   const [activeTab, setActiveTab] = useState<ShipmentPageTab>('overview')
   const [projects, setProjects] = useState<ProjectOption[]>([])
@@ -421,18 +422,20 @@ export default function ShipmentManagementPage() {
   }, [fbaBoxItems])
 
   const loadProjects = useCallback(async () => {
+    if (status === 'loading') {
+      return
+    }
+
     setProjectsLoading(true)
     try {
-      const response = await fetch(`${API_BASE}/api/v1/projects`, { headers: authHeaders(), cache: 'no-store' })
-      if (!response.ok) throw new Error(await parseError(response))
-      const payload = (await response.json()) as ProjectOption[]
+      const payload = await fetchManagedProjectsCached<ProjectOption[]>(session)
       setProjects(payload)
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : '项目列表加载失败')
     } finally {
       setProjectsLoading(false)
     }
-  }, [])
+  }, [session, status])
 
   const loadList = useCallback(async (targetPage: number) => {
     setLoading(true)

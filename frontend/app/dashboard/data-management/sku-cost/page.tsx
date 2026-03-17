@@ -1,6 +1,7 @@
 'use client'
 
 import { type ChangeEvent, useEffect, useMemo, useState } from 'react'
+import { useSession } from 'next-auth/react'
 import { FileDown, Package2, Ruler, Upload } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
@@ -12,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { fetchProjectOptionsCached } from '@/lib/project-client-cache'
+import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 
 type ProductCostItem = {
   id: number
@@ -157,6 +158,7 @@ export default function SkuInfoPage() {
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
   const [projectLoadError, setProjectLoadError] = useState<string | null>(null)
+  const { data: session, status } = useSession()
 
   const [projectFilter, setProjectFilter] = useState('')
   const [skuFilter, setSkuFilter] = useState('')
@@ -174,11 +176,15 @@ export default function SkuInfoPage() {
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize])
 
   useEffect(() => {
+    if (status === 'loading') {
+      return
+    }
+
     const loadProjects = async () => {
       setProjectsLoading(true)
       setProjectLoadError(null)
       try {
-        const data = await fetchProjectOptionsCached<ProjectOption[]>()
+        const data = await fetchManagedProjectsCached<ProjectOption[]>(session)
         setProjects(data)
       } catch (loadError) {
         setProjectLoadError(loadError instanceof Error ? loadError.message : '项目列表加载失败')
@@ -186,8 +192,9 @@ export default function SkuInfoPage() {
         setProjectsLoading(false)
       }
     }
+
     void loadProjects()
-  }, [])
+  }, [session, status])
 
   const loadData = async (
     filters?: {

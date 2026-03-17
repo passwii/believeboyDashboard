@@ -188,6 +188,28 @@ def ensure_project_access(
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='无权限访问该项目')
 
 
+def ensure_project_creation_allowed(
+    operator: str | None,
+    *,
+    is_admin: bool,
+    project_operator: str | None,
+    assistant_operator: str | None,
+) -> None:
+    if is_admin:
+        return
+
+    normalized_operator = (operator or '').strip()
+    if not normalized_operator:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='无权限创建项目')
+
+    normalized_project_operator = _normalize_optional_text(project_operator)
+    normalized_assistant_operator = _normalize_optional_text(assistant_operator)
+    if normalized_project_operator == normalized_operator or normalized_assistant_operator == normalized_operator:
+        return
+
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='无权限创建项目')
+
+
 def list_project_options(db: Session) -> list[dict[str, str | int | None]]:
     rows = list_project_items(db)
     if rows:
