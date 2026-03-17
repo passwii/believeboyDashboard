@@ -321,6 +321,19 @@ type ContextBadge = {
   value: string
 }
 
+function ResearchControlSkeleton({
+  widthClass = '',
+}: {
+  widthClass?: string
+}) {
+  return (
+    <div className={cn('space-y-2', widthClass)}>
+      <Skeleton className="h-3 w-20" />
+      <Skeleton className="h-10 w-full" />
+    </div>
+  )
+}
+
 type OverviewRadarDatum = {
   metric: string
   value: number
@@ -1975,21 +1988,25 @@ export default function CategoryResearchPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">调研关键词</p>
-                <Select value={analysisKeyword || ''} onValueChange={setAnalysisKeyword}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={keywordLoading ? '加载中...' : '选择已有调研关键词'} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableKeywords.map((item) => (
-                      <SelectItem key={item.keyword} value={item.keyword}>
-                        {`${item.keyword} · ${item.nameZh}`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {keywordLoading && availableKeywords.length === 0 ? (
+                <ResearchControlSkeleton />
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">调研关键词</p>
+                  <Select value={analysisKeyword || ''} onValueChange={setAnalysisKeyword}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="选择已有调研关键词" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableKeywords.map((item) => (
+                        <SelectItem key={item.keyword} value={item.keyword}>
+                          {`${item.keyword} · ${item.nameZh}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="flex items-end">
                 <Button variant="outline" className="w-full cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring" onClick={() => void loadKeywordOptions()} disabled={keywordLoading}>
                   {keywordLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Database className="mr-2 h-4 w-4" />}
@@ -1999,21 +2016,25 @@ export default function CategoryResearchPage() {
             </div>
 
             <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_auto_auto_auto] xl:items-end">
-              <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">版本选择</p>
-                <Select value={selectedDatasetId ? String(selectedDatasetId) : ''} onValueChange={(value) => setSelectedDatasetId(Number(value))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={datasetLoading ? '加载中...' : '请选择版本'} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {datasets.map((item) => (
-                      <SelectItem key={item.id} value={String(item.id)}>
-                        {`V${item.version} · ${item.marketplace} · ${item.category_name_zh} · ${formatDatasetDate(item)}${item.is_current ? ' (Current)' : ''}`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {datasetLoading && datasets.length === 0 ? (
+                <ResearchControlSkeleton widthClass="xl:col-span-1" />
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">版本选择</p>
+                  <Select value={selectedDatasetId ? String(selectedDatasetId) : ''} onValueChange={(value) => setSelectedDatasetId(Number(value))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="请选择版本" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {datasets.map((item) => (
+                        <SelectItem key={item.id} value={String(item.id)}>
+                          {`V${item.version} · ${item.marketplace} · ${item.category_name_zh} · ${formatDatasetDate(item)}${item.is_current ? ' (Current)' : ''}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <Button variant="outline" className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring" onClick={() => void loadDatasets(analysisKeyword)} disabled={datasetLoading || !analysisKeyword.trim()}>
                 {datasetLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Database className="mr-2 h-4 w-4" />}
                 加载版本
@@ -2056,6 +2077,12 @@ export default function CategoryResearchPage() {
 
             {formError ? <p className="text-sm text-rose-600">{formError}</p> : null}
             {formSuccess ? <p className="text-sm text-emerald-600">{formSuccess}</p> : null}
+
+            {(keywordLoading && availableKeywords.length > 0) || (datasetLoading && datasets.length > 0) || (overviewLoading && overview) || (marketTrendLoading && marketTrendPoints.length > 0) ? (
+              <div className="inline-flex rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm">
+                分析数据更新中...
+              </div>
+            ) : null}
 
             {analysisContextItems.length > 0 ? <ContextSummaryStrip items={analysisContextItems} priceBandLabel={priceBandLabel} /> : null}
           </CardContent>

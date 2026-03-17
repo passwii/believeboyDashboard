@@ -106,7 +106,7 @@ function toCommissionPoints(rate: number | null): number | null {
 }
 
 export default function StoreInfoPage() {
-  const { withGlobalLoading } = useGlobalLoading()
+  const { startGlobalLoading, endGlobalLoading } = useGlobalLoading()
   const { data: session, status } = useSession()
   const [items, setItems] = useState<ProjectItem[]>([])
   const [loading, setLoading] = useState(false)
@@ -149,19 +149,17 @@ export default function StoreInfoPage() {
     if (status === 'loading') {
       return
     }
-    await withGlobalLoading(async () => {
-      setLoading(true)
-      setError(null)
-      try {
-        const payload = await fetchManagedProjectsCached<ProjectItem[]>(session)
-        setItems(payload)
-      } catch (loadError) {
-        setError(loadError instanceof Error ? loadError.message : '加载失败')
-      } finally {
-        setLoading(false)
-      }
-    })
-  }, [session, status, withGlobalLoading])
+    setLoading(true)
+    setError(null)
+    try {
+      const payload = await fetchManagedProjectsCached<ProjectItem[]>(session)
+      setItems(payload)
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : '加载失败')
+    } finally {
+      setLoading(false)
+    }
+  }, [session, status])
 
   useEffect(() => {
     void loadProjects()
@@ -181,6 +179,7 @@ export default function StoreInfoPage() {
     setSubmitting(true)
     setError(null)
     setSuccessMessage(null)
+    startGlobalLoading('blocking')
     try {
       const response = await fetch(`${API_BASE}/api/v1/projects`, {
         method: 'POST',
@@ -215,6 +214,7 @@ export default function StoreInfoPage() {
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : '新增失败')
     } finally {
+      endGlobalLoading('blocking')
       setSubmitting(false)
     }
   }
@@ -247,6 +247,7 @@ export default function StoreInfoPage() {
     setSubmitting(true)
     setError(null)
     setSuccessMessage(null)
+    startGlobalLoading('blocking')
     try {
       const response = await fetch(`${API_BASE}/api/v1/projects/${editingItem.id}`, {
         method: 'PATCH',
@@ -281,6 +282,7 @@ export default function StoreInfoPage() {
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : '更新失败')
     } finally {
+      endGlobalLoading('blocking')
       setSubmitting(false)
     }
   }
@@ -460,6 +462,11 @@ export default function StoreInfoPage() {
 
           <div className="rounded-lg border border-border/70">
             <div className="max-h-[calc(100vh-320px)] overflow-y-auto relative">
+              {loading && items.length > 0 ? (
+                <div className="pointer-events-none absolute right-4 top-4 z-30 rounded-full border border-border/70 bg-background/95 px-3 py-1 text-xs text-muted-foreground shadow-sm">
+                  项目列表更新中...
+                </div>
+              ) : null}
               <table className="w-full caption-bottom text-sm">
                 <thead className="[&_tr]:border-b-0">
                   <tr className="border-b border-border/70 shadow-sm">

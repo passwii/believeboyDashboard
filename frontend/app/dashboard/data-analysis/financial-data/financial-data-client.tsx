@@ -407,6 +407,15 @@ type FinancialDataClientProps = {
   initialExchangeRateByMonth: Record<string, number>
 }
 
+function FinancialFilterSkeleton() {
+  return (
+    <div className="space-y-1.5">
+      <Skeleton className="h-3 w-14" />
+      <Skeleton className="h-9 w-full" />
+    </div>
+  )
+}
+
 export default function FinancialDataClient({
   initialProjects,
   initialProjectId,
@@ -1034,21 +1043,27 @@ export default function FinancialDataClient({
               <p className="text-sm text-muted-foreground">按店铺查看月度财务收入/支出数据，缺失月份自动补零展示。</p>
             </div>
             <div className="flex flex-wrap items-end gap-2">
-              <div className="min-w-[180px] space-y-1.5">
-                <label className="text-xs text-muted-foreground">店铺</label>
-                <Select value={projectId} onValueChange={setProjectId} disabled={projectsLoading}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder={projectsLoading ? '店铺加载中...' : '请选择店铺'} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {projects.map((project) => (
-                      <SelectItem key={project.id} value={String(project.id)}>
-                        {project.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {projectsLoading ? (
+                <div className="min-w-[180px]">
+                  <FinancialFilterSkeleton />
+                </div>
+              ) : (
+                <div className="min-w-[180px] space-y-1.5">
+                  <label className="text-xs text-muted-foreground">店铺</label>
+                  <Select value={projectId} onValueChange={setProjectId} disabled={projects.length === 0}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="请选择店铺" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {projects.map((project) => (
+                        <SelectItem key={project.id} value={String(project.id)}>
+                          {project.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="space-y-1.5">
                 <label htmlFor="financial_start_month" className="text-xs text-muted-foreground">开始月份</label>
                 <Input id="financial_start_month" type="month" value={startMonth} onChange={(e) => setStartMonth(e.target.value)} className="h-9 w-[170px]" />
@@ -1137,6 +1152,11 @@ export default function FinancialDataClient({
               </div>
             </CardHeader>
             <CardContent className="relative z-10 px-2 pt-4 sm:px-6 sm:pt-6">
+              {loading && data ? (
+                <div className="mb-4 inline-flex rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm">
+                  趋势图更新中...
+                </div>
+              ) : null}
               {showSkeleton ? (
                 <Skeleton className="h-[320px] w-full" />
               ) : trendPoints.length > 0 ? (
@@ -1240,6 +1260,11 @@ export default function FinancialDataClient({
               </div>
             </CardHeader>
             <CardContent className="relative z-10 min-w-0">
+              {loading && data ? (
+                <div className="mb-4 inline-flex rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm">
+                  财务明细更新中...
+                </div>
+              ) : null}
               {showSkeleton ? (
                 <div className="space-y-3">
                   {Array.from({ length: 5 }).map((_, i) => (

@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { cn } from '@/lib/utils'
 
@@ -29,6 +30,15 @@ type CountryOption = 'US' | 'DE' | 'UK'
 
 type ProjectOption = {
   name: string
+}
+
+function ReportFilterSkeleton() {
+  return (
+    <div className="space-y-2 xl:col-span-1">
+      <Skeleton className="h-4 w-20" />
+      <Skeleton className="h-10 w-full" />
+    </div>
+  )
 }
 
 type MappingRow = {
@@ -680,34 +690,38 @@ export default function DailyReportPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              <div className="space-y-2 xl:col-span-1">
-                <label htmlFor="project_name" className="text-sm font-medium text-foreground">项目名称</label>
-                <Select
-                  value={projectName}
-                  onValueChange={setProjectName}
-                  disabled={projectsLoading || projects.length === 0}
-                >
-                  <SelectTrigger
-                    id="project_name"
-                    className="h-10 transition-all duration-200 data-[state=open]:ring-2 data-[state=open]:ring-blue-500/30"
+              {projectsLoading ? (
+                <ReportFilterSkeleton />
+              ) : (
+                <div className="space-y-2 xl:col-span-1">
+                  <label htmlFor="project_name" className="text-sm font-medium text-foreground">项目名称</label>
+                  <Select
+                    value={projectName}
+                    onValueChange={setProjectName}
+                    disabled={projects.length === 0}
                   >
-                    <SelectValue
-                      placeholder={projectsLoading ? '项目加载中...' : projects.length ? '请选择项目名称' : '暂无可选项目'}
-                    />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-64 overflow-y-auto">
-                    {projects.map((project) => (
-                      <SelectItem key={project.name} value={project.name}>
-                        {project.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {!projectsLoading && projects.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">暂无项目，请先到“项目信息”页面新增。</p>
-                ) : null}
-                {projectLoadError ? <p className="text-xs text-destructive">{projectLoadError}</p> : null}
-              </div>
+                    <SelectTrigger
+                      id="project_name"
+                      className="h-10 transition-all duration-200 data-[state=open]:ring-2 data-[state=open]:ring-blue-500/30"
+                    >
+                      <SelectValue
+                        placeholder={projects.length ? '请选择项目名称' : '暂无可选项目'}
+                      />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-64 overflow-y-auto">
+                      {projects.map((project) => (
+                        <SelectItem key={project.name} value={project.name}>
+                          {project.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {!projectsLoading && projects.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">暂无项目，请先到“项目信息”页面新增。</p>
+                  ) : null}
+                  {projectLoadError ? <p className="text-xs text-destructive">{projectLoadError}</p> : null}
+                </div>
+              )}
 
               <div className="space-y-2">
                 <label htmlFor="report_date" className="text-sm font-medium text-foreground">报表日期</label>

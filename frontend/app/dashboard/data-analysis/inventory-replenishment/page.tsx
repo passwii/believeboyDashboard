@@ -529,20 +529,29 @@ export default function InventoryReplenishmentPage() {
       </section>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {cards.map((card) => (
-          <Card key={card.title} className={`overflow-hidden border-slate-200/70 bg-gradient-to-br ${card.className} dark:border-slate-800`}>
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between text-slate-600 dark:text-slate-300">
-                <CardDescription className="text-slate-500 dark:text-slate-400">{card.title}</CardDescription>
-                {card.icon}
-              </div>
-              <CardTitle className="text-3xl tracking-tight text-slate-900 dark:text-slate-50">{card.value}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-xs text-slate-500 dark:text-slate-400">{card.description}</p>
-            </CardContent>
-          </Card>
-        ))}
+        {loading && rows.length === 0 ? (
+          <>
+            <Skeleton className="h-[124px] w-full rounded-2xl" />
+            <Skeleton className="h-[124px] w-full rounded-2xl" />
+            <Skeleton className="h-[124px] w-full rounded-2xl" />
+            <Skeleton className="h-[124px] w-full rounded-2xl" />
+          </>
+        ) : (
+          cards.map((card) => (
+            <Card key={card.title} className={`overflow-hidden border-slate-200/70 bg-gradient-to-br ${card.className} dark:border-slate-800`}>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between text-slate-600 dark:text-slate-300">
+                  <CardDescription className="text-slate-500 dark:text-slate-400">{card.title}</CardDescription>
+                  {card.icon}
+                </div>
+                <CardTitle className="text-3xl tracking-tight text-slate-900 dark:text-slate-50">{card.value}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{card.description}</p>
+              </CardContent>
+            </Card>
+          ))
+        )}
       </section>
 
       <Card className="overflow-visible border-slate-200/80 dark:border-slate-800 dark:bg-slate-950/80">
@@ -558,7 +567,7 @@ export default function InventoryReplenishmentPage() {
           ) : null}
           {!currentProjectId && !projectsLoading ? (
             <div className="px-6 py-16 text-center text-sm text-slate-500 dark:text-slate-400">请先选择项目。</div>
-          ) : loading ? (
+          ) : loading && rows.length === 0 ? (
             <div className="space-y-3 p-6">
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
@@ -567,10 +576,16 @@ export default function InventoryReplenishmentPage() {
           ) : rows.length === 0 ? (
             <div className="px-6 py-16 text-center text-sm text-slate-500 dark:text-slate-400">当前筛选条件下没有可分析的 SKU。</div>
           ) : (
-            <Table
-              containerClassName="max-h-[70vh] overflow-auto"
-              className="min-w-[2050px] table-auto border-separate border-spacing-0 bg-white text-[13px] dark:bg-slate-950"
-            >
+            <div className="relative">
+              {loading && rows.length > 0 ? (
+                <div className="pointer-events-none absolute right-4 top-4 z-20 rounded-full border border-slate-200/80 bg-white/95 px-3 py-1 text-xs text-slate-500 shadow-sm dark:border-slate-700 dark:bg-slate-950/95 dark:text-slate-300">
+                  补货主表更新中...
+                </div>
+              ) : null}
+              <Table
+                containerClassName="max-h-[70vh] overflow-auto"
+                className="min-w-[2050px] table-auto border-separate border-spacing-0 bg-white text-[13px] dark:bg-slate-950"
+              >
                 <TableHeader>
                   <TableRow className="bg-slate-50 dark:bg-slate-950">
                     <TableHead className={`${tableHeadClassName} ${stickySkuHeadClassName} min-w-[132px]`}>SKU</TableHead>
@@ -701,6 +716,7 @@ export default function InventoryReplenishmentPage() {
                   })}
                 </TableBody>
               </Table>
+            </div>
           )}
         </CardContent>
       </Card>
