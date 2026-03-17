@@ -13,7 +13,11 @@ from app.models import Project
 from app.models.product_cost import ProductCost
 from app.models.shipment_schedule import ShipmentSchedule, ShipmentScheduleItem
 from app.models.shipment_sku_summary import ShipmentSkuSummary
-from app.schemas.shipment_schedule import ShipmentScheduleCreate, ShipmentScheduleUpdate
+from app.schemas.shipment_schedule import (
+    ShipmentScheduleCreate,
+    ShipmentScheduleItemInput,
+    ShipmentScheduleUpdate,
+)
 
 ALLOWED_SHIPMENT_STATUS = {
     "draft",
@@ -221,6 +225,41 @@ def _get_project_or_404(db: Session, project_id: int) -> Project:
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
     return row
+
+
+def _normalize_manual_items(
+    items: list[ShipmentScheduleItemInput] | None,
+) -> list[dict[str, object]] | None:
+    if items is None:
+        return None
+
+    normalized_items: list[dict[str, object]] = []
+    seen_skus: set[str] = set()
+    for index, item in enumerate(items, start=1):
+        sku = _normalize_text(item.sku, max_length=100)
+        if sku is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"第 {index} 行 SKU 不能为空",
+            )
+        if sku in seen_skus:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"SKU 明细中存在重复 SKU: {sku}",
+            )
+        seen_skus.add(sku)
+        normalized_items.append(
+            {
+                "row_no": index,
+                "project_name": None,
+                "shipment_no": None,
+                "item_date": _parse_date(item.item_date, f"第 {index} 行 item_date"),
+                "sku": sku,
+                "quantity": int(item.quantity),
+                "remark": _normalize_text(item.remark),
+            }
+        )
+    return normalized_items
 
 
 def _get_schedule_or_404(db: Session, schedule_id: int) -> ShipmentSchedule:
@@ -914,8 +953,20 @@ def update_shipment_schedule(
     )
     row.remark = _normalize_text(payload.remark)
     row.shipment_status = _normalize_status(payload.shipment_status)
-    row.source_file = _normalize_text(payload.source_file, max_length=255)
     row.updated_by = _normalize_text(operator, max_length=255)
+
+    manual_items = _normalize_manual_items(payload.items)
+    if manual_items is None:
+        row.source_file = _normalize_text(payload.source_file, max_length=255)
+    else:
+        _replace_shipment_schedule_items(
+            db,
+            row,
+            manual_items,
+            source_type="manual",
+            source_file=_normalize_text(payload.source_file, max_length=255),
+        )
+
     db.flush()
     refresh_shipment_sku_summary(db)
     db.refresh(row)
@@ -1037,6 +1088,48 @@ def _validate_items_against_product_costs(
     )
 
 
+def _replace_shipment_schedule_items(
+    db: Session,
+    schedule: ShipmentSchedule,
+    items: list[dict[str, object]],
+    *,
+    source_type: str,
+    source_file: str | None = None,
+) -> int:
+    _validate_items_against_product_costs(db, schedule, items)
+
+    db.execute(
+        delete(ShipmentScheduleItem).where(
+            ShipmentScheduleItem.shipment_schedule_id == schedule.id
+        )
+    )
+
+    total_quantity = 0
+    for item in items:
+        total_quantity += int(item["quantity"])
+        db.add(
+            ShipmentScheduleItem(
+                shipment_schedule_id=schedule.id,
+                project_id=schedule.project_id,
+                shipment_no=schedule.shipment_no,
+                item_date=item["item_date"],
+                sku=str(item["sku"]),
+                quantity=int(item["quantity"]),
+                remark=item["remark"],
+                source_type=source_type,
+                source_file=source_file,
+                average_logistics_unit_price=DECIMAL_ZERO,
+            )
+        )
+
+    schedule.source_type = source_type
+    schedule.source_file = source_file
+    schedule.total_volume_m3 = DECIMAL_ZERO
+    schedule.total_chargeable_weight_kg = DECIMAL_ZERO
+    schedule.logistics_total_price = DECIMAL_ZERO
+    return total_quantity
+
+
 def replace_shipment_schedule_items_from_csv(
     db: Session,
     schedule_id: int,
@@ -1059,43 +1152,19 @@ def replace_shipment_schedule_items_from_csv(
                 detail=f"CSV 中项目名称 {item['project_name']} 与当前记录项目 {schedule.project_name_snapshot} 不一致",
             )
 
-    _validate_items_against_product_costs(db, schedule, items)
-
     replaced = db.execute(
         select(func.count(ShipmentScheduleItem.id)).where(
             ShipmentScheduleItem.shipment_schedule_id == schedule_id
         )
     ).scalar_one()
-    db.execute(
-        delete(ShipmentScheduleItem).where(
-            ShipmentScheduleItem.shipment_schedule_id == schedule_id
-        )
-    )
-
-    total_quantity = 0
     source_file = _normalize_text(filename, max_length=255)
-    for item in items:
-        total_quantity += int(item["quantity"])
-        db.add(
-            ShipmentScheduleItem(
-                shipment_schedule_id=schedule.id,
-                project_id=schedule.project_id,
-                shipment_no=schedule.shipment_no,
-                item_date=item["item_date"],
-                sku=str(item["sku"]),
-                quantity=int(item["quantity"]),
-                remark=item["remark"],
-                source_type="csv_import",
-                source_file=source_file,
-                average_logistics_unit_price=DECIMAL_ZERO,
-            )
-        )
-
-    schedule.source_type = "csv_import"
-    schedule.source_file = source_file
-    schedule.total_volume_m3 = DECIMAL_ZERO
-    schedule.total_chargeable_weight_kg = DECIMAL_ZERO
-    schedule.logistics_total_price = DECIMAL_ZERO
+    total_quantity = _replace_shipment_schedule_items(
+        db,
+        schedule,
+        items,
+        source_type="csv_import",
+        source_file=source_file,
+    )
     db.flush()
     refresh_shipment_sku_summary(db)
     db.refresh(schedule)

@@ -2,7 +2,7 @@
 
 import { type ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react'
 import { useSession } from 'next-auth/react'
-import { RefreshCcw, Upload, FileDown, Plus, Pencil, Trash2 } from 'lucide-react'
+import { RefreshCcw, Upload, FileDown, Plus, Pencil, Trash2, X, ChevronsUpDown, Check } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
@@ -20,7 +20,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+import { cn } from '@/lib/utils'
 
 const API_BASE = '/api/backend'
 const HISTORY_SHIPMENT_STATUSES = ['completed', 'in_transit'] as const
@@ -149,6 +151,18 @@ type ShipmentFbaBoxDetailResponse = {
   project_name: string
   shipment_no: string
   items: ShipmentFbaBoxDetailItem[]
+}
+
+type ProjectSkuOption = {
+  sku: string
+  asin: string
+  fnsku: string | null
+}
+
+type EditableShipmentItem = {
+  tempId: string
+  sku: string
+  quantity: string
 }
 
 type ScheduleFormState = {
@@ -346,6 +360,101 @@ function buildCostPreviewRows(detail: ShipmentScheduleDetail): ShipmentCostPrevi
     }))
 }
 
+function createEmptyEditableShipmentItem(): EditableShipmentItem {
+  return {
+    tempId: `temp-${Math.random().toString(36).slice(2, 10)}`,
+    sku: '',
+    quantity: '',
+  }
+}
+
+function buildEditableItems(detail: ShipmentScheduleDetail): EditableShipmentItem[] {
+  if (detail.items.length === 0) {
+    return [createEmptyEditableShipmentItem()]
+  }
+  return detail.items.map((item) => ({
+    tempId: `item-${item.id}`,
+    sku: item.sku,
+    quantity: String(item.quantity),
+  }))
+}
+
+function editableItemsChanged(detail: ShipmentScheduleDetail | null, rows: EditableShipmentItem[]): boolean {
+  if (!detail) return false
+  const normalizedRows = rows
+    .map((item) => ({
+      sku: item.sku.trim(),
+      quantity: item.quantity.trim(),
+    }))
+    .filter((item) => item.sku || item.quantity)
+
+  if (normalizedRows.length !== detail.items.length) return true
+  return normalizedRows.some((item, index) => {
+    const source = detail.items[index]
+    return (
+      item.sku !== source.sku ||
+      item.quantity !== String(source.quantity)
+    )
+  })
+}
+
+function SearchableSkuField({
+  value,
+  options,
+  loading,
+  onChange,
+}: {
+  value: string
+  options: ProjectSkuOption[]
+  loading: boolean
+  onChange: (value: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const selectedSku = options.find((option) => option.sku === value)
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <Button
+        type="button"
+        variant="outline"
+        className="h-9 w-full justify-between px-3 font-normal"
+        onClick={() => setOpen(true)}
+      >
+        <span className="truncate text-left">
+          {selectedSku ? `${selectedSku.sku}${selectedSku.asin ? ` / ${selectedSku.asin}` : ''}` : loading ? 'SKU 加载中...' : '选择 SKU'}
+        </span>
+        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+      </Button>
+      <DialogContent className="overflow-hidden p-0 sm:max-w-xl">
+        <Command className="max-h-[70vh]">
+          <CommandInput placeholder="搜索 SKU / ASIN" />
+          <CommandList>
+            <CommandEmpty>{loading ? 'SKU 加载中...' : '没有匹配的 SKU'}</CommandEmpty>
+            {options.map((option) => (
+              <CommandItem
+                key={option.sku}
+                value={`${option.sku} ${option.asin} ${option.fnsku ?? ''}`}
+                onSelect={() => {
+                  onChange(option.sku)
+                  setOpen(false)
+                }}
+              >
+                <Check className={cn('h-4 w-4', value === option.sku ? 'opacity-100' : 'opacity-0')} />
+                <div className="flex min-w-0 flex-col">
+                  <span className="truncate">{option.sku}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {option.asin || '-'}{option.fnsku ? ` / ${option.fnsku}` : ''}
+                  </span>
+                </div>
+              </CommandItem>
+            ))}
+          </CommandList>
+        </Command>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 function formatDimensionText(length: number, width: number, height: number): string {
   if (length <= 0 || width <= 0 || height <= 0) return '-'
   return `${formatDecimal(length, 2)} × ${formatDecimal(width, 2)} × ${formatDecimal(height, 2)} cm`
@@ -394,6 +503,9 @@ export default function ShipmentManagementPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [dialogMode, setDialogMode] = useState<'create' | 'edit'>('create')
   const [form, setForm] = useState<ScheduleFormState>(() => createEmptyForm())
+  const [editableItems, setEditableItems] = useState<EditableShipmentItem[]>([])
+  const [projectSkuOptions, setProjectSkuOptions] = useState<ProjectSkuOption[]>([])
+  const [projectSkuLoading, setProjectSkuLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -445,6 +557,26 @@ export default function ShipmentManagementPage() {
       }
     )
   }, [costPreviewRows])
+
+  const editableItemStats = useMemo(() => {
+    const normalized = editableItems.filter((item) => item.sku.trim())
+    return normalized.reduce(
+      (acc, item) => {
+        acc.skuCount += 1
+        const quantity = Number(item.quantity)
+        if (Number.isFinite(quantity) && quantity > 0) {
+          acc.totalQuantity += quantity
+        }
+        return acc
+      },
+      { skuCount: 0, totalQuantity: 0 }
+    )
+  }, [editableItems])
+
+  const hasPendingItemChanges = useMemo(
+    () => editableItemsChanged(detail, editableItems),
+    [detail, editableItems]
+  )
 
   const trimmedShipmentNoFilter = shipmentNoFilter.trim()
 
@@ -509,6 +641,57 @@ export default function ShipmentManagementPage() {
       setProjectsLoading(false)
     }
   }, [isAdmin, session, status])
+
+  const loadProjectSkus = useCallback(async (projectIdText: string) => {
+    const projectId = Number(projectIdText)
+    const projectName = projects.find((project) => project.id === projectId)?.name
+    if (!projectName) {
+      setProjectSkuOptions([])
+      return
+    }
+
+    setProjectSkuLoading(true)
+    try {
+      const allItems: ProjectSkuOption[] = []
+      let nextPage = 1
+      let hasNextPage = true
+
+      while (hasNextPage) {
+        const params = new URLSearchParams({
+          project_name: projectName,
+          is_active: 'true',
+          page: String(nextPage),
+          page_size: '200',
+        })
+        const response = await fetch(`${API_BASE}/api/v1/sku-info?${params.toString()}`, {
+          headers: authHeaders(),
+          cache: 'no-store',
+        })
+        if (!response.ok) throw new Error(await parseError(response))
+
+        const payload = (await response.json()) as {
+          items: Array<{ sku: string; asin: string; fnsku: string | null }>
+          has_next: boolean
+        }
+        allItems.push(
+          ...payload.items.map((item) => ({
+            sku: item.sku,
+            asin: item.asin,
+            fnsku: item.fnsku,
+          }))
+        )
+        hasNextPage = payload.has_next
+        nextPage += 1
+      }
+
+      setProjectSkuOptions(allItems)
+    } catch (loadError) {
+      setProjectSkuOptions([])
+      setError(loadError instanceof Error ? loadError.message : '项目 SKU 列表加载失败')
+    } finally {
+      setProjectSkuLoading(false)
+    }
+  }, [projects])
 
   const loadList = useCallback(async (targetPage: number) => {
     setLoading(true)
@@ -687,9 +870,16 @@ export default function ShipmentManagementPage() {
     void loadFbaBoxDetails(trimmedShipmentNoFilter)
   }, [activeTab, loadFbaBoxDetails, trimmedShipmentNoFilter])
 
+  useEffect(() => {
+    if (!dialogOpen || dialogMode !== 'edit' || !form.project_id) return
+    void loadProjectSkus(form.project_id)
+  }, [dialogMode, dialogOpen, form.project_id, loadProjectSkus])
+
   const openCreateDialog = () => {
     setDialogMode('create')
     setForm(createEmptyForm())
+    setEditableItems([])
+    setProjectSkuOptions([])
     setLogisticsUnitPrice('')
     setCostPreviewRows([])
     setCostPreviewError(null)
@@ -700,6 +890,7 @@ export default function ShipmentManagementPage() {
     if (!detail) return
     setDialogMode('edit')
     setForm(buildFormFromDetail(detail))
+    setEditableItems(buildEditableItems(detail))
     setLogisticsUnitPrice(detail.logistics_unit_price > 0 ? String(detail.logistics_unit_price) : '')
     setCostPreviewRows(buildCostPreviewRows(detail))
     setCostPreviewError(null)
@@ -725,6 +916,7 @@ export default function ShipmentManagementPage() {
       setDetail(payload)
       setDialogMode('edit')
       setForm(buildFormFromDetail(payload))
+      setEditableItems(buildEditableItems(payload))
       setLogisticsUnitPrice(payload.logistics_unit_price > 0 ? String(payload.logistics_unit_price) : '')
       setCostPreviewRows(buildCostPreviewRows(payload))
       setCostPreviewError(null)
@@ -758,6 +950,27 @@ export default function ShipmentManagementPage() {
 
   const handleFormChange = (field: keyof ScheduleFormState, value: string) => {
     setForm((current) => ({ ...current, [field]: value }))
+  }
+
+  const handleEditableItemChange = (tempId: string, field: keyof EditableShipmentItem, value: string) => {
+    setEditableItems((current) => current.map((item) => (item.tempId === tempId ? { ...item, [field]: value } : item)))
+    setCostPreviewRows([])
+    setCostPreviewError(null)
+  }
+
+  const handleAddEditableItem = () => {
+    setEditableItems((current) => [...current, createEmptyEditableShipmentItem()])
+    setCostPreviewRows([])
+    setCostPreviewError(null)
+  }
+
+  const handleRemoveEditableItem = (tempId: string) => {
+    setEditableItems((current) => {
+      const nextItems = current.filter((item) => item.tempId !== tempId)
+      return nextItems.length > 0 ? nextItems : [createEmptyEditableShipmentItem()]
+    })
+    setCostPreviewRows([])
+    setCostPreviewError(null)
   }
 
   const handleCalculateShipmentCosts = useCallback(async (sourceDetail: ShipmentScheduleDetail) => {
@@ -824,6 +1037,40 @@ export default function ShipmentManagementPage() {
       setError('请输入货件编号')
       return
     }
+    const normalizedEditableItems =
+      dialogMode === 'edit'
+        ? editableItems
+            .map((item, index) => ({
+              index,
+              sku: item.sku.trim(),
+              quantity: item.quantity.trim(),
+            }))
+            .filter((item) => item.sku || item.quantity)
+        : []
+
+    if (dialogMode === 'edit') {
+      const seenSkus = new Set<string>()
+      for (const item of normalizedEditableItems) {
+        if (!item.sku) {
+          setError(`第 ${item.index + 1} 行请选择 SKU`)
+          return
+        }
+        if (!item.quantity) {
+          setError(`第 ${item.index + 1} 行请输入数量`)
+          return
+        }
+        const quantity = Number(item.quantity)
+        if (!Number.isInteger(quantity) || quantity <= 0) {
+          setError(`第 ${item.index + 1} 行数量必须是大于 0 的整数`)
+          return
+        }
+        if (seenSkus.has(item.sku)) {
+          setError(`SKU 明细中存在重复 SKU：${item.sku}`)
+          return
+        }
+        seenSkus.add(item.sku)
+      }
+    }
 
     setSubmitting(true)
     setError(null)
@@ -868,6 +1115,13 @@ export default function ShipmentManagementPage() {
               include_in_history_shipping_calc: payload.include_in_history_shipping_calc,
               remark: payload.remark,
               shipment_status: payload.shipment_status,
+              items:
+                dialogMode === 'edit'
+                  ? normalizedEditableItems.map((item) => ({
+                      sku: item.sku,
+                      quantity: Number(item.quantity),
+                    }))
+                  : undefined,
             }
 
       const response = await fetch(url, {
@@ -2250,7 +2504,9 @@ export default function ShipmentManagementPage() {
         <DialogContent className="max-h-[90vh] overflow-auto dark:border-slate-800 dark:bg-slate-950 sm:max-w-5xl">
           <DialogHeader>
             <DialogTitle className="dark:text-slate-100">{dialogMode === 'create' ? '新建船期批次' : '编辑船期批次'}</DialogTitle>
-            <DialogDescription className="dark:text-slate-400">主表维护过程信息，SKU 与数量明细请在详情区通过 CSV 导入。</DialogDescription>
+            <DialogDescription className="dark:text-slate-400">
+              {dialogMode === 'create' ? '先创建批次，再在编辑页维护 SKU 明细。' : '可直接在下方维护 SKU 明细，支持项目 SKU 下拉选择与手动增行。'}
+            </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 py-2 md:grid-cols-2 xl:grid-cols-4">
@@ -2390,11 +2646,15 @@ export default function ShipmentManagementPage() {
                   <div>
                     <div className="text-sm font-semibold">SKU 明细</div>
                     <div className="text-xs text-muted-foreground">
-                      {detail.sku_count} 个 SKU，合计 {detail.total_quantity.toLocaleString()} 件
+                      {editableItemStats.skuCount} 个 SKU，合计 {editableItemStats.totalQuantity.toLocaleString()} 件
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <Button className="gap-2" disabled={costPreviewLoading} onClick={() => void handleCalculateShipmentCosts(detail)}>
+                    <Button
+                      className="gap-2"
+                      disabled={costPreviewLoading || hasPendingItemChanges}
+                      onClick={() => void handleCalculateShipmentCosts(detail)}
+                    >
                       {costPreviewLoading ? '核算中...' : '核算'}
                     </Button>
                     <Button
@@ -2448,6 +2708,11 @@ export default function ShipmentManagementPage() {
                 <div className="rounded-2xl border border-dashed border-border/70 bg-muted/20 px-4 py-3 text-xs text-muted-foreground">
                   核算口径：体积按 SKU 信息中的单品长宽高换算为 m³，体积重按长 × 宽 × 高 / 6000，计费重取实际重量与体积重较大值。
                 </div>
+                {hasPendingItemChanges ? (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-200">
+                    SKU 明细已修改，先点保存，再执行核算。
+                  </div>
+                ) : null}
                 {costPreviewError ? (
                   <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900/70 dark:bg-rose-950/40 dark:text-rose-200">
                     {costPreviewError}
@@ -2466,28 +2731,60 @@ export default function ShipmentManagementPage() {
                           <TableHead className="text-right">体积(m³)</TableHead>
                           <TableHead className="text-right">发货费用</TableHead>
                           <TableHead className="text-right">平均单价</TableHead>
+                          <TableHead className="w-14 text-right">操作</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {detail.items.length === 0 ? (
+                        {editableItems.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={8} className="py-8 text-center text-sm text-muted-foreground">
+                            <TableCell colSpan={9} className="py-8 text-center text-sm text-muted-foreground">
                               还没有 SKU 明细
                             </TableCell>
                           </TableRow>
                         ) : (
-                          detail.items.map((item) => {
-                            const preview = costPreviewRows.find((row) => row.id === item.id)
+                          editableItems.map((item) => {
+                            const preview = detail.items.find((detailItem) => detailItem.sku === item.sku)
+                              ? costPreviewRows.find((row) => row.sku === item.sku)
+                              : undefined
+                            const selectedSku = projectSkuOptions.find((option) => option.sku === item.sku)
                             return (
-                              <TableRow key={item.id}>
-                                <TableCell className="font-medium">{item.sku}</TableCell>
-                                <TableCell className="text-right">{item.quantity.toLocaleString()}</TableCell>
+                              <TableRow key={item.tempId}>
+                                <TableCell className="min-w-[220px]">
+                                  <SearchableSkuField
+                                    value={item.sku}
+                                    options={projectSkuOptions}
+                                    loading={projectSkuLoading}
+                                    onChange={(value) => handleEditableItemChange(item.tempId, 'sku', value)}
+                                  />
+                                  {selectedSku?.fnsku ? (
+                                    <div className="mt-1 text-[11px] text-muted-foreground">FNSKU: {selectedSku.fnsku}</div>
+                                  ) : null}
+                                </TableCell>
+                                <TableCell className="min-w-[120px] text-right">
+                                  <Input
+                                    inputMode="numeric"
+                                    value={item.quantity}
+                                    onChange={(event) => handleEditableItemChange(item.tempId, 'quantity', event.target.value)}
+                                    className="h-9 text-right"
+                                    placeholder="数量"
+                                  />
+                                </TableCell>
                                 <TableCell className="text-right">{preview ? formatDecimal(preview.actualWeightKg) : '-'}</TableCell>
                                 <TableCell className="text-right">{preview ? formatDecimal(preview.volumetricWeightKg) : '-'}</TableCell>
                                 <TableCell className="text-right">{preview ? formatDecimal(preview.chargeableWeightKg) : '-'}</TableCell>
                                 <TableCell className="text-right">{preview ? formatDecimal(preview.volumeM3, 4) : '-'}</TableCell>
                                 <TableCell className="text-right">{preview ? `¥ ${formatDecimal(preview.estimatedCost, 2)}` : '-'}</TableCell>
                                 <TableCell className="text-right">{preview ? `¥ ${formatDecimal(preview.averageUnitPrice, 4)}` : '-'}</TableCell>
+                                <TableCell className="text-right">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleRemoveEditableItem(item.tempId)}
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </TableCell>
                               </TableRow>
                             )
                           })
@@ -2496,6 +2793,10 @@ export default function ShipmentManagementPage() {
                     </Table>
                   </div>
                 </div>
+                <Button type="button" variant="outline" className="gap-2" onClick={handleAddEditableItem}>
+                  <Plus className="h-4 w-4" />
+                  增加一行
+                </Button>
               </div>
             </>
           )}

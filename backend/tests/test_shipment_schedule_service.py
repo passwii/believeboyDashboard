@@ -1,7 +1,7 @@
 import pytest
 from datetime import date
 from fastapi import HTTPException
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from app.db.session import Base
@@ -234,6 +234,97 @@ def test_replace_shipment_schedule_items_from_csv_accepts_active_sku():
         assert inserted == 1
         assert replaced == 0
         assert total_quantity == 100
+
+
+def test_update_shipment_schedule_replaces_items_from_payload():
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        project = Project(project_name='宝勒1店', sort_order=1, source_file='seed.csv')
+        db.add(project)
+        db.flush()
+
+        schedule = ShipmentSchedule(
+            project_id=project.id,
+            project_name_snapshot='宝勒1店',
+            shipment_no='SHP-001',
+            shipping_method='sea',
+            shipment_status='draft',
+            source_type='csv_import',
+            source_file='old.csv',
+        )
+        db.add(schedule)
+        db.flush()
+        db.add(
+            ShipmentScheduleItem(
+                shipment_schedule_id=schedule.id,
+                project_id=project.id,
+                shipment_no='SHP-001',
+                sku='SKU-OLD',
+                quantity=20,
+                source_type='csv_import',
+                source_file='old.csv',
+            )
+        )
+        db.add_all([
+            ProductCost(
+                project_name='宝勒1店',
+                sku='SKU-001',
+                asin='ASIN-001',
+                fob_unit_cost=2,
+                currency='USD',
+                country='US',
+                sort_order=1,
+                is_active=True,
+            ),
+            ProductCost(
+                project_name='宝勒1店',
+                sku='SKU-002',
+                asin='ASIN-002',
+                fob_unit_cost=3,
+                currency='USD',
+                country='US',
+                sort_order=2,
+                is_active=True,
+            ),
+        ])
+        db.commit()
+
+        updated = shipment_schedule_service.update_shipment_schedule(
+            db,
+            schedule.id,
+            ShipmentScheduleUpdate(
+                project_id=project.id,
+                shipment_no='SHP-001',
+                shipping_method='sea',
+                shipment_status='draft',
+                items=[
+                    {'sku': 'SKU-001', 'quantity': 100, 'item_date': '2026-03-08', 'remark': '首批'},
+                    {'sku': 'SKU-002', 'quantity': 60},
+                ],
+            ),
+            operator='tester',
+        )
+
+        db.refresh(updated)
+        assert updated.source_type == 'manual'
+        assert updated.source_file is None
+        assert updated.total_volume_m3 == 0
+        assert updated.logistics_total_price == 0
+
+        rows = db.execute(
+            select(ShipmentScheduleItem)
+            .where(ShipmentScheduleItem.shipment_schedule_id == schedule.id)
+            .order_by(ShipmentScheduleItem.sku.asc())
+        ).scalars().all()
+
+        assert [(row.sku, row.quantity, row.source_type) for row in rows] == [
+            ('SKU-001', 100, 'manual'),
+            ('SKU-002', 60, 'manual'),
+        ]
+        assert rows[0].item_date.isoformat() == '2026-03-08'
+        assert rows[0].remark == '首批'
 
 
 def test_parse_shipment_schedules_csv_supports_excel_date_formats():

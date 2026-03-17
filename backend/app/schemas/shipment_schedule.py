@@ -58,6 +58,13 @@ class ShipmentScheduleItemRow(BaseModel):
     average_logistics_unit_price: float = 0
 
 
+class ShipmentScheduleItemInput(BaseModel):
+    sku: str = Field(min_length=1, max_length=100)
+    quantity: int = Field(gt=0)
+    item_date: str | None = None
+    remark: str | None = None
+
+
 class ShipmentScheduleDetail(BaseModel):
     id: int
     project_id: int
@@ -122,6 +129,7 @@ class ShipmentScheduleUpdate(BaseModel):
     remark: str | None = None
     shipment_status: str = Field(min_length=1, max_length=30)
     source_file: str | None = None
+    items: list[ShipmentScheduleItemInput] | None = None
 
 
 class ShipmentItemsImportResponse(BaseModel):
