@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -455,6 +456,86 @@ function SearchableSkuField({
   )
 }
 
+function SearchableShipmentNoFilter({
+  value,
+  options,
+  loading,
+  onChange,
+}: {
+  value: string
+  options: string[]
+  loading: boolean
+  onChange: (value: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+
+  const normalizedQuery = query.trim()
+  const canUseTypedValue = normalizedQuery.length > 0 && !options.some((option) => option === normalizedQuery)
+
+  return (
+    <DropdownMenu open={open} onOpenChange={(nextOpen) => {
+      setOpen(nextOpen)
+      if (!nextOpen) setQuery('')
+    }}>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" className="h-10 w-full justify-between px-3 font-normal">
+          <span className={cn('truncate text-left', value ? 'text-foreground' : 'text-muted-foreground')}>
+            {value || '全部货件'}
+          </span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[280px] p-0">
+        <Command shouldFilter className="max-h-[320px]">
+          <CommandInput placeholder="搜索货件编号" value={query} onValueChange={setQuery} />
+          <CommandList>
+            <CommandItem
+              value="__all__ 全部货件"
+              onSelect={() => {
+                onChange('')
+                setOpen(false)
+              }}
+            >
+              <Check className={cn('h-4 w-4', value === '' ? 'opacity-100' : 'opacity-0')} />
+              <span>全部货件</span>
+            </CommandItem>
+            {canUseTypedValue ? (
+              <CommandItem
+                value={`__typed__ ${normalizedQuery}`}
+                onSelect={() => {
+                  onChange(normalizedQuery)
+                  setOpen(false)
+                }}
+              >
+                <Check className="h-4 w-4 opacity-0" />
+                <div className="flex min-w-0 flex-col">
+                  <span className="truncate">{normalizedQuery}</span>
+                  <span className="text-xs text-muted-foreground">使用当前输入进行筛选</span>
+                </div>
+              </CommandItem>
+            ) : null}
+            {options.map((option) => (
+              <CommandItem
+                key={option}
+                value={option}
+                onSelect={() => {
+                  onChange(option)
+                  setOpen(false)
+                }}
+              >
+                <Check className={cn('h-4 w-4', value === option ? 'opacity-100' : 'opacity-0')} />
+                <span className="truncate">{option}</span>
+              </CommandItem>
+            ))}
+            <CommandEmpty>{loading ? '货件编号加载中...' : '没有匹配的货件编号'}</CommandEmpty>
+          </CommandList>
+        </Command>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 function formatDimensionText(length: number, width: number, height: number): string {
   if (length <= 0 || width <= 0 || height <= 0) return '-'
   return `${formatDecimal(length, 2)} × ${formatDecimal(width, 2)} × ${formatDecimal(height, 2)} cm`
@@ -492,6 +573,8 @@ export default function ShipmentManagementPage() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [methodFilter, setMethodFilter] = useState('all')
   const [shipmentNoFilter, setShipmentNoFilter] = useState('')
+  const [shipmentNoOptions, setShipmentNoOptions] = useState<string[]>([])
+  const [shipmentNoOptionsLoading, setShipmentNoOptionsLoading] = useState(false)
   const [shipmentDateFrom, setShipmentDateFrom] = useState('')
   const [shipmentDateTo, setShipmentDateTo] = useState('')
 
@@ -583,12 +666,13 @@ export default function ShipmentManagementPage() {
   const fbaBoxSummary = useMemo(() => {
     return fbaBoxItems.reduce(
       (acc, item) => {
+        acc.totalQuantity += item.quantity
         acc.totalCartons += item.carton_count
         acc.totalWeightKg += item.total_weight_kg
         acc.totalVolumeM3 += item.total_volume_m3
         return acc
       },
-      { totalCartons: 0, totalWeightKg: 0, totalVolumeM3: 0 }
+      { totalQuantity: 0, totalCartons: 0, totalWeightKg: 0, totalVolumeM3: 0 }
     )
   }, [fbaBoxItems])
 
@@ -733,6 +817,46 @@ export default function ShipmentManagementPage() {
     }
   }, [methodFilter, pageSize, projectFilter, shipmentDateFrom, shipmentDateTo, shipmentNoFilter, statusFilter])
 
+  const loadShipmentNoOptions = useCallback(async () => {
+    setShipmentNoOptionsLoading(true)
+    try {
+      const shipmentNos: string[] = []
+      let nextPage = 1
+      let hasNextPage = true
+
+      while (hasNextPage) {
+        const params = new URLSearchParams({
+          page: String(nextPage),
+          page_size: '200',
+          include_total: 'false',
+        })
+        if (projectFilter !== 'all') params.set('project_id', projectFilter)
+        if (statusFilter !== 'all') params.set('shipment_status', statusFilter)
+        if (methodFilter !== 'all') params.set('shipping_method', methodFilter)
+        if (shipmentDateFrom) params.set('created_date_from', shipmentDateFrom)
+        if (shipmentDateTo) params.set('created_date_to', shipmentDateTo)
+
+        const response = await fetch(`${API_BASE}/api/v1/shipment-schedules?${params.toString()}`, {
+          headers: authHeaders(),
+          cache: 'no-store',
+        })
+        if (!response.ok) throw new Error(await parseError(response))
+
+        const payload = (await response.json()) as ShipmentScheduleListResponse
+        shipmentNos.push(...payload.items.map((item) => item.shipment_no))
+        hasNextPage = payload.has_next
+        nextPage += 1
+      }
+
+      const uniqueShipmentNos = Array.from(new Set(shipmentNos)).sort((a, b) => a.localeCompare(b, 'zh-CN'))
+      setShipmentNoOptions(uniqueShipmentNos)
+    } catch {
+      setShipmentNoOptions([])
+    } finally {
+      setShipmentNoOptionsLoading(false)
+    }
+  }, [methodFilter, projectFilter, shipmentDateFrom, shipmentDateTo, statusFilter])
+
   const loadDetail = useCallback(async (scheduleId: number) => {
     setDetailLoading(true)
     setDetailError(null)
@@ -849,6 +973,10 @@ export default function ShipmentManagementPage() {
   useEffect(() => {
     void loadCostSummary()
   }, [loadCostSummary])
+
+  useEffect(() => {
+    void loadShipmentNoOptions()
+  }, [loadShipmentNoOptions])
 
   useEffect(() => {
     if (selectedId) {
@@ -1782,7 +1910,6 @@ export default function ShipmentManagementPage() {
         { header: '仓库 ID', key: 'warehouse_code', width: 16 },
         { header: 'SKU', key: 'sku', width: 26 },
         { header: 'ASIN', key: 'asin', width: 20 },
-        { header: 'FNSKU', key: 'fnsku', width: 20 },
         { header: '单品长(cm)', key: 'package_length', width: 13 },
         { header: '单品宽(cm)', key: 'package_width', width: 13 },
         { header: '单品高(cm)', key: 'package_height', width: 13 },
@@ -1793,6 +1920,7 @@ export default function ShipmentManagementPage() {
         { header: '外箱重量(kg)', key: 'carton_weight', width: 14 },
         { header: '装箱率', key: 'packing_rate', width: 12 },
         { header: '总箱数', key: 'carton_count', width: 10 },
+        { header: '总数量', key: 'quantity', width: 10 },
         { header: '总体积(m³)', key: 'total_volume', width: 14 },
         { header: '总重量(kg)', key: 'total_weight', width: 14 },
       ] as const
@@ -1829,7 +1957,6 @@ export default function ShipmentManagementPage() {
           item.warehouse_code || '-',
           item.sku,
           item.asin || '-',
-          item.fnsku || '-',
           item.package_length_cm ? formatDecimal(item.package_length_cm, 2) : '-',
           item.package_width_cm ? formatDecimal(item.package_width_cm, 2) : '-',
           item.package_height_cm ? formatDecimal(item.package_height_cm, 2) : '-',
@@ -1840,6 +1967,7 @@ export default function ShipmentManagementPage() {
           item.carton_weight_kg ? formatDecimal(item.carton_weight_kg, 3) : '-',
           item.units_per_carton > 0 ? `${item.units_per_carton} / 箱` : '-',
           item.carton_count > 0 ? item.carton_count : '-',
+          item.quantity > 0 ? item.quantity : '-',
           item.total_volume_m3,
           item.total_weight_kg,
         ]
@@ -1848,10 +1976,10 @@ export default function ShipmentManagementPage() {
           cell.font = { name: 'Microsoft YaHei', size: 9, color: { argb: 'FF0F172A' } }
           cell.alignment = {
             vertical: 'middle',
-            horizontal: colNumber >= 14 ? 'right' : 'left',
+            horizontal: colNumber >= 13 ? 'right' : 'left',
           }
-          if (colNumber === 15) cell.numFmt = '#,##0.0000'
-          if (colNumber === 16) cell.numFmt = '#,##0.000'
+          if (colNumber === 14) cell.numFmt = '#,##0.0000'
+          if (colNumber === 15) cell.numFmt = '#,##0.000'
           cell.border = {
             top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
             left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
@@ -1863,7 +1991,8 @@ export default function ShipmentManagementPage() {
 
       const totalRow = worksheet.getRow(fbaBoxItems.length + 4)
       totalRow.getCell(1).value = '合计'
-      totalRow.getCell(14).value = fbaBoxSummary.totalCartons
+      totalRow.getCell(13).value = fbaBoxSummary.totalCartons
+      totalRow.getCell(14).value = fbaBoxSummary.totalQuantity
       totalRow.getCell(15).value = fbaBoxSummary.totalVolumeM3
       totalRow.getCell(16).value = fbaBoxSummary.totalWeightKg
       totalRow.eachCell((cell) => {
@@ -1969,7 +2098,12 @@ export default function ShipmentManagementPage() {
 
           <div className="space-y-2">
             <div className="text-xs font-medium text-muted-foreground">货件编号</div>
-            <Input value={shipmentNoFilter} onChange={(event) => setShipmentNoFilter(event.target.value)} placeholder="搜索 shipment no." />
+            <SearchableShipmentNoFilter
+              value={shipmentNoFilter}
+              options={shipmentNoOptions}
+              loading={shipmentNoOptionsLoading}
+              onChange={setShipmentNoFilter}
+            />
           </div>
           </div>
 
@@ -2443,11 +2577,11 @@ export default function ShipmentManagementPage() {
                           <TableRow className="bg-muted/50">
                             <TableHead className="whitespace-nowrap w-[80px]">仓库 ID</TableHead>
                             <TableHead className="whitespace-nowrap w-[140px]">SKU</TableHead>
-                            <TableHead className="whitespace-nowrap w-[120px]">FNSKU</TableHead>
                             <TableHead className="whitespace-nowrap w-[180px]">单品尺寸和重量</TableHead>
                             <TableHead className="whitespace-nowrap w-[180px]">外箱尺寸和重量</TableHead>
                             <TableHead className="whitespace-nowrap w-[80px] text-right">装箱率</TableHead>
                             <TableHead className="whitespace-nowrap w-[60px] text-right">总箱数</TableHead>
+                            <TableHead className="whitespace-nowrap w-[80px] text-right">总数量</TableHead>
                             <TableHead className="whitespace-nowrap w-[80px] text-right">总体积(m³)</TableHead>
                             <TableHead className="whitespace-nowrap w-[80px] text-right">总重量(kg)</TableHead>
                           </TableRow>
@@ -2479,11 +2613,11 @@ export default function ShipmentManagementPage() {
                                   </TableCell>
                                 ) : null}
                                 <TableCell className="font-medium">{item.sku}</TableCell>
-                                <TableCell>{item.fnsku || '-'}</TableCell>
                                 <TableCell>{packageInfo}</TableCell>
                                 <TableCell>{cartonInfo}</TableCell>
                                 <TableCell className="text-right">{item.units_per_carton > 0 ? `${item.units_per_carton} / 箱` : '-'}</TableCell>
                                 <TableCell className="text-right">{item.carton_count > 0 ? item.carton_count : '-'}</TableCell>
+                                <TableCell className="text-right">{item.quantity > 0 ? item.quantity : '-'}</TableCell>
                                 <TableCell className="text-right">{formatDecimal(item.total_volume_m3, 4)}</TableCell>
                                 <TableCell className="text-right">{formatDecimal(item.total_weight_kg)}</TableCell>
                               </TableRow>
