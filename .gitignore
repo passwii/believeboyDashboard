@@ -10,6 +10,12 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# PostgreSQL upgrade logs
+pg_upgrade_*.log
+
+# SQL scripts
+update_extensions.sql
+
 # Frontend (Next.js)
 /frontend/node_modules/
 /frontend/.pnp
