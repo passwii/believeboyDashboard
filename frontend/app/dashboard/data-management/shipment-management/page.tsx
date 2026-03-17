@@ -430,12 +430,15 @@ export default function ShipmentManagementPage() {
     try {
       const payload = await fetchManagedProjectsCached<ProjectOption[]>(session)
       setProjects(payload)
+      if (!isAdmin && payload.length === 1) {
+        setProjectFilter(String(payload[0].id))
+      }
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : '项目列表加载失败')
     } finally {
       setProjectsLoading(false)
     }
-  }, [session, status])
+  }, [isAdmin, session, status])
 
   const loadList = useCallback(async (targetPage: number) => {
     setLoading(true)

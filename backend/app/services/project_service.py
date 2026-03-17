@@ -164,6 +164,17 @@ def list_project_items(
     return db.execute(stmt).scalars().all()
 
 
+def list_accessible_project_ids(
+    db: Session,
+    *,
+    operator: str | None = None,
+    is_admin: bool = True,
+) -> list[int] | None:
+    if is_admin:
+        return None
+    return [int(row.id) for row in list_project_items(db, operator=operator, is_admin=is_admin)]
+
+
 def ensure_project_access(
     db: Session,
     project_id: int,

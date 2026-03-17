@@ -234,6 +234,7 @@ def list_shipment_schedules(
     db: Session,
     *,
     project_id: int | None,
+    project_ids: list[int] | None = None,
     shipment_status: str | None,
     shipping_method: str | None,
     shipment_no: str | None,
@@ -258,6 +259,8 @@ def list_shipment_schedules(
     )
 
     filter_stmt = select(ShipmentSchedule.id)
+    if project_ids is not None:
+        filter_stmt = filter_stmt.where(ShipmentSchedule.project_id.in_(project_ids))
     if project_id is not None:
         filter_stmt = filter_stmt.where(ShipmentSchedule.project_id == project_id)
     if shipment_status:
@@ -329,6 +332,7 @@ def list_shipment_sku_summary(
     db: Session,
     *,
     project_id: int | None,
+    project_ids: list[int] | None = None,
     include_only_history_calc: bool = True,
     shipment_status: str | None = "completed",
 ) -> list[dict[str, object]]:
@@ -359,6 +363,8 @@ def list_shipment_sku_summary(
             ShipmentSkuSummary.project_name_snapshot.asc(),
             ShipmentSkuSummary.sku.asc(),
         )
+        if project_ids is not None:
+            stmt = stmt.where(ShipmentSkuSummary.project_id.in_(project_ids))
         if project_id is not None:
             stmt = stmt.where(ShipmentSkuSummary.project_id == project_id)
         rows = db.execute(stmt).scalars().all()
@@ -414,6 +420,8 @@ def list_shipment_sku_summary(
             ShipmentScheduleItem.sku.asc(),
         )
     )
+    if project_ids is not None:
+        stmt = stmt.where(ShipmentSchedule.project_id.in_(project_ids))
     if project_id is not None:
         stmt = stmt.where(ShipmentSchedule.project_id == project_id)
     if include_only_history_calc:

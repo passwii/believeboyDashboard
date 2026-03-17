@@ -21,7 +21,7 @@ from app.schemas.shipment_schedule import (
     ShipmentScheduleUpdate,
 )
 from app.services.audit_log_service import append_operation_audit_log
-from app.services import shipment_schedule_service
+from app.services import project_service, shipment_schedule_service
 
 router = APIRouter(dependencies=[Depends(protected)])
 
@@ -73,10 +73,25 @@ def list_shipment_schedules(
     page_size: int = Query(default=20, ge=1, le=200),
     include_total: bool = Query(default=False),
     db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> ShipmentScheduleListResponse:
+    if project_id is not None:
+        project_service.ensure_project_access(
+            db,
+            project_id,
+            operator=operator,
+            is_admin=bool(is_admin),
+        )
+    accessible_project_ids = project_service.list_accessible_project_ids(
+        db,
+        operator=operator,
+        is_admin=bool(is_admin),
+    )
     rows, total, has_next = shipment_schedule_service.list_shipment_schedules(
         db,
         project_id=project_id,
+        project_ids=accessible_project_ids,
         shipment_status=shipment_status,
         shipping_method=shipping_method,
         shipment_no=shipment_no,
@@ -103,10 +118,25 @@ def list_shipment_sku_summary(
     include_only_history_calc: bool = Query(default=True),
     shipment_status: str | None = Query(default='completed'),
     db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> ShipmentSkuSummaryResponse:
+    if project_id is not None:
+        project_service.ensure_project_access(
+            db,
+            project_id,
+            operator=operator,
+            is_admin=bool(is_admin),
+        )
+    accessible_project_ids = project_service.list_accessible_project_ids(
+        db,
+        operator=operator,
+        is_admin=bool(is_admin),
+    )
     rows = shipment_schedule_service.list_shipment_sku_summary(
         db,
         project_id=project_id,
+        project_ids=accessible_project_ids,
         include_only_history_calc=include_only_history_calc,
         shipment_status=shipment_status,
     )
@@ -119,10 +149,18 @@ def list_shipment_sku_summary(
 def list_shipment_fba_box_details(
     shipment_no: str = Query(..., min_length=1),
     db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> ShipmentFbaBoxDetailResponse:
     row, items = shipment_schedule_service.list_shipment_fba_box_details(
         db,
         shipment_no=shipment_no,
+    )
+    project_service.ensure_project_access(
+        db,
+        int(row.project_id),
+        operator=operator,
+        is_admin=bool(is_admin),
     )
     return ShipmentFbaBoxDetailResponse(
         project_id=int(row.project_id),
@@ -136,8 +174,16 @@ def list_shipment_fba_box_details(
 def get_shipment_schedule_detail(
     schedule_id: int,
     db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> ShipmentScheduleDetail:
     row, sku_count, total_quantity = shipment_schedule_service.get_shipment_schedule_detail(db, schedule_id)
+    project_service.ensure_project_access(
+        db,
+        int(row.project_id),
+        operator=operator,
+        is_admin=bool(is_admin),
+    )
     return ShipmentScheduleDetail(
         id=int(row.id),
         project_id=int(row.project_id),
