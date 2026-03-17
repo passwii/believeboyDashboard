@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
@@ -15,6 +16,41 @@ import { cn } from '@/lib/utils'
 const API_BASE = '/api/backend'
 const MAX_VISIBLE_RUNS = 8
 const MAX_SELECTED_RUNS = 4
+const HISTORY_SHIPMENT_STATUSES = ['completed', 'in_transit'] as const
+
+function PricingFieldSkeleton() {
+  return (
+    <div className="space-y-2">
+      <Skeleton className="h-4 w-16" />
+      <Skeleton className="h-10 w-full" />
+    </div>
+  )
+}
+
+function PricingRunCardSkeleton() {
+  return (
+    <div className="min-w-[180px] rounded-xl border border-border/70 p-3">
+      <Skeleton className="h-3 w-20" />
+      <Skeleton className="mt-3 h-4 w-28" />
+      <div className="mt-3 flex gap-2">
+        <Skeleton className="h-5 w-16" />
+        <Skeleton className="h-5 w-12" />
+      </div>
+      <Skeleton className="mt-3 h-6 w-24" />
+      <Skeleton className="mt-2 h-3 w-16" />
+    </div>
+  )
+}
+
+function PricingTableSkeleton({ rows = 6 }: { rows?: number }) {
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: rows }).map((_, index) => (
+        <Skeleton key={index} className="h-11 w-full" />
+      ))}
+    </div>
+  )
+}
 
 type PricingCalculationRunItem = {
   id: number
@@ -986,13 +1022,14 @@ export default function PricingCalculationPage() {
   const [productKeyword, setProductKeyword] = useState('')
   const [selectedRunIds, setSelectedRunIds] = useState<number[]>([])
   const [loading, setLoading] = useState(false)
+  const [runsLoading, setRunsLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
   const [deletingRunId, setDeletingRunId] = useState<number | null>(null)
   const [recalculatingRunId, setRecalculatingRunId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const [projects, setProjects] = useState<ProjectOption[]>([])
-  const [projectsLoading, setProjectsLoading] = useState(false)
+  const [projectsLoading, setProjectsLoading] = useState(true)
   const [projectsError, setProjectsError] = useState<string | null>(null)
   const [selectedProjectName, setSelectedProjectName] = useState('')
   const [skuKeyword, setSkuKeyword] = useState('')
@@ -1009,6 +1046,7 @@ export default function PricingCalculationPage() {
 
   useEffect(() => {
     async function loadRuns() {
+      setRunsLoading(true)
       try {
         const response = await fetch(`${API_BASE}/api/v1/pricing-calculation/runs?page=1&page_size=24`, {
           cache: 'no-store',
@@ -1021,6 +1059,8 @@ export default function PricingCalculationPage() {
         setRuns((payload as ListResponse).items)
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : '测算记录加载失败')
+      } finally {
+        setRunsLoading(false)
       }
     }
 
@@ -1070,7 +1110,7 @@ export default function PricingCalculationPage() {
         })
         const summarySearch = new URLSearchParams({
           include_only_history_calc: 'true',
-          shipment_status: 'completed',
+          shipment_status: HISTORY_SHIPMENT_STATUSES.join(','),
         })
         const exchangeRateSearch = new URLSearchParams({
           currency: 'USD',
@@ -1612,7 +1652,14 @@ export default function PricingCalculationPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="flex flex-wrap gap-3">
-                    {visibleRuns.length === 0 ? (
+                    {runsLoading ? (
+                      <>
+                        <PricingRunCardSkeleton />
+                        <PricingRunCardSkeleton />
+                        <PricingRunCardSkeleton />
+                        <PricingRunCardSkeleton />
+                      </>
+                    ) : visibleRuns.length === 0 ? (
                       <div className="rounded-2xl border border-dashed px-4 py-6 text-sm text-muted-foreground">
                         {runs.length === 0 ? '暂无测算记录' : '没有匹配当前筛选条件的产品'}
                       </div>
@@ -1714,22 +1761,26 @@ export default function PricingCalculationPage() {
               <CardTitle className="text-lg">项目筛选</CardTitle>
               <CardDescription>先选择项目，再按 SKU 逐行填写测算参数并生成结果；头程加权成本会自动从发货汇总带入。</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-3 lg:grid-cols-[260px_minmax(0,1fr)_140px]">
-                <Field label="项目">
-                  <select
-                    value={selectedProjectName}
-                    onChange={(event) => setSelectedProjectName(event.target.value)}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
-                  >
-                    <option value="">请选择项目</option>
-                    {projects.map((project) => (
-                      <option key={`${project.id ?? project.name}-${project.name}`} value={project.name}>
-                        {project.name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
+              <CardContent className="space-y-4">
+                <div className="grid gap-3 lg:grid-cols-[260px_minmax(0,1fr)_140px]">
+                {projectsLoading ? (
+                  <PricingFieldSkeleton />
+                ) : (
+                  <Field label="项目">
+                    <select
+                      value={selectedProjectName}
+                      onChange={(event) => setSelectedProjectName(event.target.value)}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                    >
+                      <option value="">请选择项目</option>
+                      {projects.map((project) => (
+                        <option key={`${project.id ?? project.name}-${project.name}`} value={project.name}>
+                          {project.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                )}
                 <Field label="SKU / ASIN 搜索">
                   <div className="relative">
                     <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -1738,7 +1789,7 @@ export default function PricingCalculationPage() {
                 </Field>
                 <div className="flex items-end">
                   <div className="w-full rounded-xl border border-border/70 bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-                    {projectsLoading ? '项目加载中...' : `SKU 数量 ${filteredStoreSkus.length}`}
+                    {projectsLoading ? '项目准备中...' : storeSkusLoading ? 'SKU 数据同步中...' : `SKU 数量 ${filteredStoreSkus.length}`}
                   </div>
                 </div>
               </div>
@@ -1776,15 +1827,19 @@ export default function PricingCalculationPage() {
             <CardContent>
               {!selectedProjectName ? (
                 <div className="rounded-2xl border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">请选择项目后查看对应 SKU。</div>
-              ) : storeSkusLoading ? (
-                <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  正在加载 SKU 列表...
-                </div>
+              ) : storeSkusLoading && filteredStoreSkus.length === 0 ? (
+                <PricingTableSkeleton rows={8} />
               ) : filteredStoreSkus.length === 0 ? (
                 <div className="rounded-2xl border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">当前项目下暂无匹配的 SKU。</div>
               ) : (
-                <StoreAccountingTable items={filteredStoreSkus} rowStates={storeRows} onDraftChange={updateStoreDraft} onCalculate={handleStoreSkuCalculate} systemExchangeRate={systemExchangeRate} calculationMode={storeCalculationMode} />
+                <div className="relative">
+                  {storeSkusLoading ? (
+                    <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/70 bg-background/95 px-3 py-1 text-xs text-muted-foreground shadow-sm">
+                      SKU 数据更新中...
+                    </div>
+                  ) : null}
+                  <StoreAccountingTable items={filteredStoreSkus} rowStates={storeRows} onDraftChange={updateStoreDraft} onCalculate={handleStoreSkuCalculate} systemExchangeRate={systemExchangeRate} calculationMode={storeCalculationMode} />
+                </div>
               )}
             </CardContent>
           </Card>

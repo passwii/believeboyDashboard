@@ -36,6 +36,14 @@ class ShipmentScheduleListResponse(BaseModel):
     has_next: bool
 
 
+class ShipmentScheduleCostSummary(BaseModel):
+    shipment_count: int
+    total_sku: int
+    total_quantity: int
+    total_chargeable_weight_kg: float
+    total_logistics_cost: float
+
+
 class ShipmentScheduleItemRow(BaseModel):
     id: int
     item_date: str | None = None
@@ -100,6 +108,7 @@ class ShipmentScheduleCreate(BaseModel):
 
 class ShipmentScheduleUpdate(BaseModel):
     project_id: int = Field(gt=0)
+    shipment_no: str = Field(min_length=1, max_length=100)
     tracking_no: str | None = Field(default=None, max_length=100)
     warehouse_code: str | None = Field(default=None, max_length=100)
     forwarder_name: str | None = Field(default=None, max_length=100)

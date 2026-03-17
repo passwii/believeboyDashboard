@@ -103,6 +103,13 @@ def _normalize_status(value: str) -> str:
     return normalized
 
 
+def _normalize_status_filters(value: str | None) -> list[str]:
+    normalized = _normalize_text(value)
+    if normalized is None:
+        return []
+    return [_normalize_status(part.strip()) for part in normalized.split(",") if part.strip()]
+
+
 def _normalize_shipping_method(value: str) -> str:
     normalized = (value or "").strip()
     if normalized not in ALLOWED_SHIPPING_METHOD:
@@ -238,6 +245,8 @@ def list_shipment_schedules(
     shipment_status: str | None,
     shipping_method: str | None,
     shipment_no: str | None,
+    created_date_from: str | None,
+    created_date_to: str | None,
     etd_from: str | None,
     etd_to: str | None,
     eta_from: str | None,
@@ -277,10 +286,16 @@ def list_shipment_schedules(
             ShipmentSchedule.shipment_no.ilike(f"%{shipment_no.strip()}%")
         )
 
+    created_from_date = _parse_date(created_date_from, "created_date_from")
+    created_to_date = _parse_date(created_date_to, "created_date_to")
     etd_from_date = _parse_date(etd_from, "etd_from")
     etd_to_date = _parse_date(etd_to, "etd_to")
     eta_from_date = _parse_date(eta_from, "eta_from")
     eta_to_date = _parse_date(eta_to, "eta_to")
+    if created_from_date is not None:
+        filter_stmt = filter_stmt.where(ShipmentSchedule.created_date >= created_from_date)
+    if created_to_date is not None:
+        filter_stmt = filter_stmt.where(ShipmentSchedule.created_date <= created_to_date)
     if etd_from_date is not None:
         filter_stmt = filter_stmt.where(ShipmentSchedule.etd_date >= etd_from_date)
     if etd_to_date is not None:
@@ -318,6 +333,83 @@ def list_shipment_schedules(
     return page_rows, total, has_next
 
 
+def summarize_shipment_schedule_costs(
+    db: Session,
+    *,
+    project_id: int | None,
+    project_ids: list[int] | None = None,
+    shipment_status: str | None,
+    shipping_method: str | None,
+    shipment_no: str | None,
+    created_date_from: str | None,
+    created_date_to: str | None,
+) -> dict[str, object]:
+    item_agg = (
+        select(
+            ShipmentScheduleItem.shipment_schedule_id.label("schedule_id"),
+            func.count(ShipmentScheduleItem.id).label("sku_count"),
+            func.coalesce(func.sum(ShipmentScheduleItem.quantity), 0).label(
+                "total_quantity"
+            ),
+        )
+        .group_by(ShipmentScheduleItem.shipment_schedule_id)
+        .subquery()
+    )
+
+    stmt = (
+        select(
+            func.count(ShipmentSchedule.id).label("shipment_count"),
+            func.coalesce(func.sum(item_agg.c.sku_count), 0).label("total_sku"),
+            func.coalesce(func.sum(item_agg.c.total_quantity), 0).label("total_quantity"),
+            func.coalesce(func.sum(ShipmentSchedule.total_chargeable_weight_kg), 0).label(
+                "total_chargeable_weight_kg"
+            ),
+            func.coalesce(func.sum(ShipmentSchedule.logistics_total_price), 0).label(
+                "total_logistics_cost"
+            ),
+        )
+        .select_from(ShipmentSchedule)
+        .outerjoin(item_agg, item_agg.c.schedule_id == ShipmentSchedule.id)
+    )
+
+    if project_ids is not None:
+        stmt = stmt.where(ShipmentSchedule.project_id.in_(project_ids))
+    if project_id is not None:
+        stmt = stmt.where(ShipmentSchedule.project_id == project_id)
+    if shipment_status:
+        stmt = stmt.where(
+            ShipmentSchedule.shipment_status == _normalize_status(shipment_status)
+        )
+    if shipping_method:
+        stmt = stmt.where(
+            ShipmentSchedule.shipping_method == _normalize_shipping_method(shipping_method)
+        )
+    if shipment_no:
+        stmt = stmt.where(
+            ShipmentSchedule.shipment_no.ilike(f"%{shipment_no.strip()}%")
+        )
+
+    created_from_date = _parse_date(created_date_from, "created_date_from")
+    created_to_date = _parse_date(created_date_to, "created_date_to")
+    if created_from_date is not None:
+        stmt = stmt.where(ShipmentSchedule.created_date >= created_from_date)
+    if created_to_date is not None:
+        stmt = stmt.where(ShipmentSchedule.created_date <= created_to_date)
+
+    row = db.execute(stmt).one()
+    return {
+        "shipment_count": int(row.shipment_count or 0),
+        "total_sku": int(row.total_sku or 0),
+        "total_quantity": int(row.total_quantity or 0),
+        "total_chargeable_weight_kg": _decimal_to_float(
+            row.total_chargeable_weight_kg, WEIGHT_QUANT
+        ),
+        "total_logistics_cost": _decimal_to_float(
+            row.total_logistics_cost, MONEY_QUANT
+        ),
+    }
+
+
 def get_shipment_schedule_detail(
     db: Session, schedule_id: int
 ) -> tuple[ShipmentSchedule, int, int]:
@@ -336,7 +428,10 @@ def list_shipment_sku_summary(
     include_only_history_calc: bool = True,
     shipment_status: str | None = "completed",
 ) -> list[dict[str, object]]:
-    if include_only_history_calc and shipment_status == "completed":
+    shipment_statuses = _normalize_status_filters(shipment_status)
+    use_completed_cache = shipment_statuses == ["completed"]
+
+    if include_only_history_calc and use_completed_cache:
         existing_count_stmt = select(func.count()).select_from(ShipmentSkuSummary)
         existing_count = int(db.execute(existing_count_stmt).scalar_one() or 0)
         if existing_count == 0:
@@ -426,10 +521,8 @@ def list_shipment_sku_summary(
         stmt = stmt.where(ShipmentSchedule.project_id == project_id)
     if include_only_history_calc:
         stmt = stmt.where(ShipmentSchedule.include_in_history_shipping_calc.is_(True))
-    if shipment_status:
-        stmt = stmt.where(
-            ShipmentSchedule.shipment_status == _normalize_status(shipment_status)
-        )
+    if shipment_statuses:
+        stmt = stmt.where(ShipmentSchedule.shipment_status.in_(shipment_statuses))
     rows = db.execute(stmt).all()
     summary_items: list[dict[str, object]] = []
     for row in rows:
@@ -778,9 +871,31 @@ def update_shipment_schedule(
 ) -> ShipmentSchedule:
     row = _get_schedule_or_404(db, schedule_id)
     project = _get_project_or_404(db, payload.project_id)
+    shipment_no = _normalize_text(payload.shipment_no, max_length=100)
+    if shipment_no is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="shipment_no 不能为空",
+        )
+
+    duplicate = (
+        db.execute(
+            select(ShipmentSchedule).where(
+                ShipmentSchedule.shipment_no == shipment_no,
+                ShipmentSchedule.id != schedule_id,
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if duplicate is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="货件编号已存在"
+        )
 
     row.project_id = project.id
     row.project_name_snapshot = project.project_name
+    row.shipment_no = shipment_no
     row.tracking_no = _normalize_text(payload.tracking_no, max_length=100)
     row.warehouse_code = _normalize_text(payload.warehouse_code, max_length=100)
     row.forwarder_name = _normalize_text(payload.forwarder_name, max_length=100)

@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 from fastapi import HTTPException
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
@@ -81,7 +82,28 @@ def test_upsert_product_cost_assigns_incremental_sort_order():
         assert row3.sort_order == 1
 
 
-def test_update_product_cost_by_id_updates_sort_order():
+def test_upsert_product_cost_allows_empty_asin():
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        row, action = product_cost_service.upsert_product_cost(
+            db,
+            ProductCostCreate(
+                project_name='Demo',
+                sku='SKU1',
+                asin='',
+                fob_unit_cost=2,
+                currency='USD',
+            ),
+        )
+        db.commit()
+
+        assert action == 'inserted'
+        assert row.asin == ''
+
+
+def test_update_product_cost_by_id_updates_fields_and_normalizes_sort_position():
     engine = create_engine('sqlite:///:memory:', future=True)
     Base.metadata.create_all(bind=engine)
 
@@ -122,11 +144,113 @@ def test_update_product_cost_by_id_updates_sort_order():
         )
         db.commit()
 
-        assert updated.sort_order == 10
+        assert updated.sort_order == 1
         assert float(updated.fob_unit_cost) == 2.34
         assert updated.fnsku == 'FNSKU-1'
         assert float(updated.weight_kg) == 0.876
         assert updated.units_per_carton == 12
+
+
+def test_update_product_cost_by_id_reorders_project_sort_sequence():
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        rows = []
+        for idx in range(1, 4):
+            row, _ = product_cost_service.upsert_product_cost(
+                db,
+                ProductCostCreate(
+                    project_name='Demo',
+                    sku=f'SKU{idx}',
+                    asin=f'ASIN{idx}',
+                    fob_unit_cost=2,
+                    currency='USD',
+                ),
+            )
+            rows.append(row)
+        db.commit()
+
+        updated = product_cost_service.update_product_cost_by_id(
+            db,
+            rows[2].id,
+            ProductCostUpdate(
+                sku='SKU3',
+                asin='ASIN3',
+                fob_unit_cost=2,
+                sort_order=1,
+                is_active=True,
+            ),
+        )
+        db.commit()
+
+        ordered = db.execute(
+            select(ProductCost).where(ProductCost.project_name == 'Demo').order_by(ProductCost.sort_order.asc(), ProductCost.id.asc())
+        ).scalars().all()
+
+        assert updated.sort_order == 1
+        assert [(row.sku, row.sort_order) for row in ordered] == [('SKU3', 1), ('SKU1', 2), ('SKU2', 3)]
+
+
+def test_update_product_cost_by_id_allows_clearing_asin():
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        row, _ = product_cost_service.upsert_product_cost(
+            db,
+            ProductCostCreate(
+                project_name='Demo',
+                sku='SKU1',
+                asin='ASIN1',
+                fob_unit_cost=2,
+                currency='USD',
+            ),
+        )
+        db.commit()
+
+        updated = product_cost_service.update_product_cost_by_id(
+            db,
+            row.id,
+            ProductCostUpdate(
+                sku='SKU1',
+                asin='',
+                fob_unit_cost=2.34,
+                is_active=True,
+            ),
+        )
+        db.commit()
+
+        assert updated.asin == ''
+        assert float(updated.fob_unit_cost) == 2.34
+
+
+def test_update_product_cost_by_id_rejects_empty_sku_even_if_asin_is_empty():
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        row, _ = product_cost_service.upsert_product_cost(
+            db,
+            ProductCostCreate(
+                project_name='Demo',
+                sku='SKU1',
+                asin='ASIN1',
+                fob_unit_cost=2,
+                currency='USD',
+            ),
+        )
+        db.commit()
+
+        with pytest.raises(ValidationError) as exc:
+            ProductCostUpdate(
+                sku='',
+                asin='',
+                fob_unit_cost=2.34,
+                is_active=True,
+            )
+
+        assert 'String should have at least 1 character' in str(exc.value)
 
 
 def test_move_product_cost_sort_order_swaps_with_neighbor():
@@ -266,6 +390,52 @@ def test_import_product_costs_update_overwrites_all_provided_fields_using_projec
         assert float(refreshed.package_length_cm) == 0
 
 
+def test_import_product_costs_update_reorders_project_sort_sequence():
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        for idx in range(1, 4):
+            product_cost_service.upsert_product_cost(
+                db,
+                ProductCostCreate(
+                    project_name='Demo',
+                    sku=f'SKU{idx}',
+                    asin=f'ASIN{idx}',
+                    country='US',
+                    fob_unit_cost=2,
+                ),
+            )
+        db.commit()
+
+        rows, inserted, updated, skipped = product_cost_service.import_product_costs(
+            db,
+            [
+                ProductCostCreate(
+                    project_name='Demo',
+                    sku='SKU3',
+                    asin='ASIN3',
+                    country='US',
+                    fob_unit_cost=5,
+                    sort_order=1,
+                )
+            ],
+            import_mode='update',
+            source_file='test.csv',
+        )
+        db.commit()
+
+        ordered = db.execute(
+            select(ProductCost).where(ProductCost.project_name == 'Demo').order_by(ProductCost.sort_order.asc(), ProductCost.id.asc())
+        ).scalars().all()
+
+        assert len(rows) == 1
+        assert inserted == 0
+        assert updated == 1
+        assert skipped == 0
+        assert [(row.sku, row.sort_order) for row in ordered] == [('SKU3', 1), ('SKU1', 2), ('SKU2', 3)]
+
+
 def test_import_product_costs_create_skips_existing_rows():
     engine = create_engine('sqlite:///:memory:', future=True)
     Base.metadata.create_all(bind=engine)
@@ -288,6 +458,26 @@ def test_import_product_costs_create_skips_existing_rows():
         assert inserted == 0
         assert updated == 0
         assert skipped == 1
+
+
+def test_import_product_costs_create_inserts_row_with_empty_asin():
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        rows, inserted, updated, skipped = product_cost_service.import_product_costs(
+            db,
+            [ProductCostCreate(project_name='Demo', sku='SKU1', asin='', country='US', fob_unit_cost=5)],
+            import_mode='create',
+            source_file='test.csv',
+        )
+        db.commit()
+
+        assert len(rows) == 1
+        assert inserted == 1
+        assert updated == 0
+        assert skipped == 0
+        assert rows[0].asin == ''
 
 
 def test_import_product_costs_create_skips_when_project_sku_country_already_exists_with_different_asin():

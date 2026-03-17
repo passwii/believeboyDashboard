@@ -67,6 +67,23 @@ type PT1DetailsResponse = {
   }>
 }
 
+function WeeklyFilterSkeleton({
+  width = 'w-full',
+}: {
+  width?: string
+}) {
+  return (
+    <div className={`space-y-1.5 ${width}`}>
+      <Skeleton className="h-3 w-14" />
+      <Skeleton className="h-9 w-full" />
+    </div>
+  )
+}
+
+function WeeklyStatSkeleton() {
+  return <Skeleton className="h-[132px] w-full rounded-2xl" />
+}
+
 const API_BASE = '/api/backend'
 const WEEKLY_DATA_CACHE_TTL_MS = 3 * 60 * 1000
 const WEEKLY_DETAILS_CACHE_TTL_MS = 5 * 60 * 1000
@@ -1242,21 +1259,25 @@ export default function WeeklyProductAnalysisPage() {
               <p className="text-sm text-muted-foreground">默认展示每周汇总，表头与产品分析汇总口径一致。</p>
             </div>
             <div className="flex flex-wrap items-end gap-2">
-              <div className="min-w-[180px] space-y-1.5">
-                <label className="text-xs text-muted-foreground">店铺</label>
-                <Select value={projectId} onValueChange={setProjectId} disabled={projectsLoading || projects.length === 0}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder={projectsLoading ? '店铺加载中...' : '请选择店铺'} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {projects.map((project) => (
-                      <SelectItem key={project.id} value={String(project.id)}>
-                        {project.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {projectsLoading ? (
+                <WeeklyFilterSkeleton width="min-w-[180px]" />
+              ) : (
+                <div className="min-w-[180px] space-y-1.5">
+                  <label className="text-xs text-muted-foreground">店铺</label>
+                  <Select value={projectId} onValueChange={setProjectId} disabled={projects.length === 0}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="请选择店铺" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {projects.map((project) => (
+                        <SelectItem key={project.id} value={String(project.id)}>
+                          {project.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="min-w-[170px] space-y-1.5">
                 <label className="text-xs text-muted-foreground">国家站点</label>
                 <Select value={country} onValueChange={(value) => setCountry(value as CountryOption)}>
@@ -1291,30 +1312,40 @@ export default function WeeklyProductAnalysisPage() {
           {recomputeMessage ? <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">{recomputeMessage}</div> : null}
 
           <div className="grid gap-4 md:grid-cols-3">
-            <StatCard
-              title="销售额合计"
-              value={formatCurrency(totals.sales_amount)}
-              icon={<TrendingUp className="h-5 w-5" />}
-              color="emerald"
-              trend={trends.sales}
-              trendLabel="较上周"
-            />
-            <StatCard
-              title="销量合计"
-              value={totals.units_sold.toLocaleString()}
-              icon={<ShoppingCart className="h-5 w-5" />}
-              color="sky"
-              trend={trends.units}
-              trendLabel="较上周"
-            />
-            <StatCard
-              title="广告花费合计"
-              value={formatCurrency(totals.ad_spend)}
-              icon={<TrendingDown className="h-5 w-5" />}
-              color="rose"
-              trend={trends.ad}
-              trendLabel="较上周"
-            />
+            {showSummarySkeleton ? (
+              <>
+                <WeeklyStatSkeleton />
+                <WeeklyStatSkeleton />
+                <WeeklyStatSkeleton />
+              </>
+            ) : (
+              <>
+                <StatCard
+                  title="销售额合计"
+                  value={formatCurrency(totals.sales_amount)}
+                  icon={<TrendingUp className="h-5 w-5" />}
+                  color="emerald"
+                  trend={trends.sales}
+                  trendLabel="较上周"
+                />
+                <StatCard
+                  title="销量合计"
+                  value={totals.units_sold.toLocaleString()}
+                  icon={<ShoppingCart className="h-5 w-5" />}
+                  color="sky"
+                  trend={trends.units}
+                  trendLabel="较上周"
+                />
+                <StatCard
+                  title="广告花费合计"
+                  value={formatCurrency(totals.ad_spend)}
+                  icon={<TrendingDown className="h-5 w-5" />}
+                  color="rose"
+                  trend={trends.ad}
+                  trendLabel="较上周"
+                />
+              </>
+            )}
           </div>
 
           <Card className="dashboard-surface animate-enter">
@@ -1392,6 +1423,11 @@ export default function WeeklyProductAnalysisPage() {
               </div>
             </CardHeader>
             <CardContent className="relative z-10 px-2 pt-4 sm:px-6 sm:pt-6">
+              {loading && data.length > 0 ? (
+                <div className="mb-4 inline-flex rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm">
+                  趋势数据更新中...
+                </div>
+              ) : null}
               {showSummarySkeleton ? (
                 <Skeleton className="h-[320px] w-full" />
               ) : trendPoints.length > 0 ? (
@@ -1606,6 +1642,16 @@ export default function WeeklyProductAnalysisPage() {
               ) : null}
             </CardHeader>
             <CardContent className="relative z-10 pt-4">
+              {activeTab === 'summary' && loading && summaryRows.length > 0 ? (
+                <div className="mb-4 inline-flex rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm">
+                  周汇总更新中...
+                </div>
+              ) : null}
+              {activeTab === 'details' && detailsLoading && detailRows.length > 0 ? (
+                <div className="mb-4 inline-flex rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm">
+                  SKU 明细更新中...
+                </div>
+              ) : null}
               {activeTab === 'summary' ? (
                 showSummarySkeleton ? (
                   <div className="space-y-3">

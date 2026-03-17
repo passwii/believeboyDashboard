@@ -23,6 +23,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 
 const API_BASE = '/api/backend'
+const HISTORY_SHIPMENT_STATUSES = ['completed', 'in_transit'] as const
 
 type ProjectOption = {
   id: number
@@ -76,6 +77,14 @@ type ShipmentScheduleListResponse = {
   page_size: number
   total: number | null
   has_next: boolean
+}
+
+type ShipmentScheduleCostSummary = {
+  shipment_count: number
+  total_sku: number
+  total_quantity: number
+  total_chargeable_weight_kg: number
+  total_logistics_cost: number
 }
 
 type ShipmentSchedulesImportResponse = {
@@ -173,20 +182,29 @@ const METHOD_OPTIONS = [
   { value: 'other', label: '其他' },
 ] as const
 
-const EMPTY_FORM: ScheduleFormState = {
-  project_id: '',
-  shipment_no: '',
-  tracking_no: '',
-  warehouse_code: '',
-  forwarder_name: '',
-  shipping_method: 'sea',
-  created_date: '',
-  etd_date: '',
-  eta_date: '',
-  actual_inbound_date: '',
-  include_in_history_shipping_calc: 'yes',
-  remark: '',
-  shipment_status: 'draft',
+function formatDateInputValue(value: Date): string {
+  const year = value.getFullYear()
+  const month = String(value.getMonth() + 1).padStart(2, '0')
+  const day = String(value.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function createEmptyForm(): ScheduleFormState {
+  return {
+    project_id: '',
+    shipment_no: '',
+    tracking_no: '',
+    warehouse_code: '',
+    forwarder_name: '',
+    shipping_method: 'sea',
+    created_date: formatDateInputValue(new Date()),
+    etd_date: '',
+    eta_date: '',
+    actual_inbound_date: '',
+    include_in_history_shipping_calc: 'yes',
+    remark: '',
+    shipment_status: 'draft',
+  }
 }
 
 function authHeaders(): Record<string, string> {
@@ -239,6 +257,46 @@ function downloadCsvFile(filename: string, header: string[], rows: Array<Array<s
   link.download = filename
   link.click()
   URL.revokeObjectURL(url)
+}
+
+function ShipmentControlSkeleton() {
+  return (
+    <div className="space-y-2">
+      <Skeleton className="h-4 w-14" />
+      <Skeleton className="h-10 w-full" />
+    </div>
+  )
+}
+
+function ShipmentMetricSkeleton() {
+  return (
+    <div className="rounded-2xl border border-border/60 bg-muted/30 px-4 py-3">
+      <Skeleton className="h-3 w-12" />
+      <Skeleton className="mt-3 h-7 w-20" />
+    </div>
+  )
+}
+
+function ShipmentTableSkeleton({
+  columns,
+  rows = 5,
+}: {
+  columns: number
+  rows?: number
+}) {
+  return (
+    <>
+      {Array.from({ length: rows }).map((_, rowIndex) => (
+        <TableRow key={`shipment-loading-${rowIndex}`}>
+          {Array.from({ length: columns }).map((__, cellIndex) => (
+            <TableCell key={cellIndex}>
+              <Skeleton className="h-4 w-20" />
+            </TableCell>
+          ))}
+        </TableRow>
+      ))}
+    </>
+  )
 }
 
 function statusMeta(status: string): { label: string; className: string } {
@@ -302,8 +360,16 @@ export default function ShipmentManagementPage() {
 
   const [items, setItems] = useState<ShipmentScheduleListItem[]>([])
   const [skuSummaryItems, setSkuSummaryItems] = useState<ShipmentSkuSummaryItem[]>([])
+  const [costSummary, setCostSummary] = useState<ShipmentScheduleCostSummary>({
+    shipment_count: 0,
+    total_sku: 0,
+    total_quantity: 0,
+    total_chargeable_weight_kg: 0,
+    total_logistics_cost: 0,
+  })
   const [loading, setLoading] = useState(false)
   const [skuSummaryLoading, setSkuSummaryLoading] = useState(false)
+  const [costSummaryLoading, setCostSummaryLoading] = useState(false)
   const [fbaBoxLoading, setFbaBoxLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fbaBoxError, setFbaBoxError] = useState<string | null>(null)
@@ -317,6 +383,8 @@ export default function ShipmentManagementPage() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [methodFilter, setMethodFilter] = useState('all')
   const [shipmentNoFilter, setShipmentNoFilter] = useState('')
+  const [shipmentDateFrom, setShipmentDateFrom] = useState('')
+  const [shipmentDateTo, setShipmentDateTo] = useState('')
 
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [detail, setDetail] = useState<ShipmentScheduleDetail | null>(null)
@@ -325,7 +393,7 @@ export default function ShipmentManagementPage() {
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [dialogMode, setDialogMode] = useState<'create' | 'edit'>('create')
-  const [form, setForm] = useState<ScheduleFormState>(EMPTY_FORM)
+  const [form, setForm] = useState<ScheduleFormState>(() => createEmptyForm())
   const [submitting, setSubmitting] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -342,6 +410,8 @@ export default function ShipmentManagementPage() {
   const [importing, setImporting] = useState(false)
   const [batchImporting, setBatchImporting] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [costExporting, setCostExporting] = useState(false)
+  const [skuSummaryExporting, setSkuSummaryExporting] = useState(false)
   const [fbaBoxExporting, setFbaBoxExporting] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [fbaBoxMeta, setFbaBoxMeta] = useState<{ projectName: string; shipmentNo: string } | null>(null)
@@ -453,6 +523,8 @@ export default function ShipmentManagementPage() {
       if (statusFilter !== 'all') params.set('shipment_status', statusFilter)
       if (methodFilter !== 'all') params.set('shipping_method', methodFilter)
       if (shipmentNoFilter.trim()) params.set('shipment_no', shipmentNoFilter.trim())
+      if (shipmentDateFrom) params.set('created_date_from', shipmentDateFrom)
+      if (shipmentDateTo) params.set('created_date_to', shipmentDateTo)
 
       const response = await fetch(`${API_BASE}/api/v1/shipment-schedules?${params.toString()}`, {
         headers: authHeaders(),
@@ -476,7 +548,7 @@ export default function ShipmentManagementPage() {
     } finally {
       setLoading(false)
     }
-  }, [methodFilter, pageSize, projectFilter, shipmentNoFilter, statusFilter])
+  }, [methodFilter, pageSize, projectFilter, shipmentDateFrom, shipmentDateTo, shipmentNoFilter, statusFilter])
 
   const loadDetail = useCallback(async (scheduleId: number) => {
     setDetailLoading(true)
@@ -503,7 +575,7 @@ export default function ShipmentManagementPage() {
     try {
       const params = new URLSearchParams({
         include_only_history_calc: 'true',
-        shipment_status: 'completed',
+        shipment_status: HISTORY_SHIPMENT_STATUSES.join(','),
       })
       if (projectFilter !== 'all') params.set('project_id', projectFilter)
       const response = await fetch(`${API_BASE}/api/v1/shipment-schedules/sku-summary?${params.toString()}`, {
@@ -520,6 +592,39 @@ export default function ShipmentManagementPage() {
       setSkuSummaryLoading(false)
     }
   }, [projectFilter])
+
+  const loadCostSummary = useCallback(async () => {
+    setCostSummaryLoading(true)
+    setError(null)
+    try {
+      const params = new URLSearchParams()
+      if (projectFilter !== 'all') params.set('project_id', projectFilter)
+      if (statusFilter !== 'all') params.set('shipment_status', statusFilter)
+      if (methodFilter !== 'all') params.set('shipping_method', methodFilter)
+      if (shipmentNoFilter.trim()) params.set('shipment_no', shipmentNoFilter.trim())
+      if (shipmentDateFrom) params.set('created_date_from', shipmentDateFrom)
+      if (shipmentDateTo) params.set('created_date_to', shipmentDateTo)
+
+      const response = await fetch(`${API_BASE}/api/v1/shipment-schedules/cost-summary?${params.toString()}`, {
+        headers: authHeaders(),
+        cache: 'no-store',
+      })
+      if (!response.ok) throw new Error(await parseError(response))
+      const payload = (await response.json()) as ShipmentScheduleCostSummary
+      setCostSummary(payload)
+    } catch (loadError) {
+      setCostSummary({
+        shipment_count: 0,
+        total_sku: 0,
+        total_quantity: 0,
+        total_chargeable_weight_kg: 0,
+        total_logistics_cost: 0,
+      })
+      setError(loadError instanceof Error ? loadError.message : '发货费用汇总加载失败')
+    } finally {
+      setCostSummaryLoading(false)
+    }
+  }, [methodFilter, projectFilter, shipmentDateFrom, shipmentDateTo, shipmentNoFilter, statusFilter])
 
   const loadFbaBoxDetails = useCallback(async (shipmentNo: string) => {
     setFbaBoxLoading(true)
@@ -559,6 +664,10 @@ export default function ShipmentManagementPage() {
   }, [loadSkuSummary])
 
   useEffect(() => {
+    void loadCostSummary()
+  }, [loadCostSummary])
+
+  useEffect(() => {
     if (selectedId) {
       void loadDetail(selectedId)
     } else {
@@ -580,7 +689,7 @@ export default function ShipmentManagementPage() {
 
   const openCreateDialog = () => {
     setDialogMode('create')
-    setForm(EMPTY_FORM)
+    setForm(createEmptyForm())
     setLogisticsUnitPrice('')
     setCostPreviewRows([])
     setCostPreviewError(null)
@@ -746,6 +855,7 @@ export default function ShipmentManagementPage() {
           ? payload
           : {
               project_id: payload.project_id,
+              shipment_no: payload.shipment_no,
               tracking_no: payload.tracking_no,
               warehouse_code: payload.warehouse_code,
               forwarder_name: payload.forwarder_name,
@@ -977,6 +1087,7 @@ export default function ShipmentManagementPage() {
         projectFilter === 'all' ? '项目：全部' : `项目：${projects.find((project) => String(project.id) === projectFilter)?.name ?? projectFilter}`,
         statusFilter === 'all' ? '状态：全部' : `状态：${statusMeta(statusFilter).label}`,
         methodFilter === 'all' ? '运输方式：全部' : `运输方式：${methodLabel(methodFilter)}`,
+        `发货时间：${shipmentDateFrom || '不限'} ~ ${shipmentDateTo || '不限'}`,
         shipmentNoFilter.trim() ? `货件编号：${shipmentNoFilter.trim()}` : '货件编号：全部',
       ].join('    ')
       worksheet.mergeCells(3, 1, 3, lastColumn)
@@ -1084,6 +1195,314 @@ export default function ShipmentManagementPage() {
       setError(exportError instanceof Error ? exportError.message : '导出 Excel 失败')
     } finally {
       setExporting(false)
+    }
+  }
+
+  const exportCostToExcel = async () => {
+    if (items.length === 0) {
+      setError('当前没有可导出的发货费用数据')
+      return
+    }
+
+    setCostExporting(true)
+    setError(null)
+    try {
+      const ExcelJS = await import('exceljs')
+      const workbook = new ExcelJS.Workbook()
+      workbook.creator = 'Codex'
+      workbook.created = new Date()
+
+      const worksheet = workbook.addWorksheet('发货费用', {
+        views: [{ state: 'frozen', ySplit: 4, xSplit: 1 }],
+      })
+
+      const columns = [
+        { header: '项目', key: 'project_name', width: 18 },
+        { header: '发货时间', key: 'created_date', width: 14 },
+        { header: '货件编号', key: 'shipment_no', width: 20 },
+        { header: '状态', key: 'shipment_status', width: 12 },
+        { header: '货代', key: 'forwarder_name', width: 18 },
+        { header: '总发货数量', key: 'total_quantity', width: 14 },
+        { header: '总重量(kg)', key: 'total_chargeable_weight_kg', width: 14 },
+        { header: '总体积(m³)', key: 'total_volume_m3', width: 14 },
+        { header: '物流单价', key: 'logistics_unit_price', width: 12 },
+        { header: '单品物流单价', key: 'item_unit_price', width: 14 },
+        { header: '物流总价', key: 'logistics_total_price', width: 14 },
+      ] as const
+
+      const lastColumn = columns.length
+      const exportedAt = new Date().toLocaleString('zh-CN', { hour12: false })
+      const totalWeight = items.reduce((acc, item) => acc + item.total_chargeable_weight_kg, 0)
+      const totalVolume = items.reduce((acc, item) => acc + item.total_volume_m3, 0)
+      const totalLogisticsCost = items.reduce((acc, item) => acc + item.logistics_total_price, 0)
+
+      worksheet.mergeCells(1, 1, 1, lastColumn)
+      worksheet.getCell(1, 1).value = '发货费用导出'
+      worksheet.getCell(1, 1).font = { name: 'Microsoft YaHei', size: 16, bold: true, color: { argb: 'FF0F172A' } }
+      worksheet.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
+
+      worksheet.mergeCells(2, 1, 2, lastColumn)
+      worksheet.getCell(2, 1).value = `导出时间：${exportedAt}    说明：导出当前筛选条件下的发货费用数据`
+      worksheet.getCell(2, 1).font = { name: 'Microsoft YaHei', size: 10, color: { argb: 'FF475569' } }
+      worksheet.getCell(2, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
+
+      const filterText = [
+        projectFilter === 'all' ? '项目：全部' : `项目：${projects.find((project) => String(project.id) === projectFilter)?.name ?? projectFilter}`,
+        statusFilter === 'all' ? '状态：全部' : `状态：${statusMeta(statusFilter).label}`,
+        methodFilter === 'all' ? '运输方式：全部' : `运输方式：${methodLabel(methodFilter)}`,
+        `发货时间：${shipmentDateFrom || '不限'} ~ ${shipmentDateTo || '不限'}`,
+        shipmentNoFilter.trim() ? `货件编号：${shipmentNoFilter.trim()}` : '货件编号：全部',
+      ].join('    ')
+      worksheet.mergeCells(3, 1, 3, lastColumn)
+      worksheet.getCell(3, 1).value = filterText
+      worksheet.getCell(3, 1).font = { name: 'Microsoft YaHei', size: 10, color: { argb: 'FF64748B' } }
+      worksheet.getCell(3, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } }
+
+      worksheet.columns = columns.map((column) => ({ header: column.header, key: column.key, width: column.width }))
+
+      const headerRow = worksheet.getRow(4)
+      headerRow.values = columns.map((column) => column.header)
+      headerRow.height = 24
+      headerRow.eachCell((cell) => {
+        cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
+        cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        }
+      })
+
+      items.forEach((item, index) => {
+        const row = worksheet.getRow(index + 5)
+        row.values = [
+          item.project_name,
+          formatDate(item.created_date || item.etd_date),
+          item.shipment_no,
+          statusMeta(item.shipment_status).label,
+          item.forwarder_name || '-',
+          item.total_quantity,
+          item.total_chargeable_weight_kg,
+          item.total_volume_m3,
+          item.logistics_unit_price > 0 ? item.logistics_unit_price : null,
+          item.total_quantity > 0 && item.logistics_total_price > 0 ? item.logistics_total_price / item.total_quantity : null,
+          item.logistics_total_price > 0 ? item.logistics_total_price : null,
+        ]
+
+        row.eachCell((cell, colNumber) => {
+          cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF0F172A' } }
+          cell.alignment = {
+            vertical: 'middle',
+            horizontal: colNumber >= 6 ? 'right' : 'left',
+            wrapText: true,
+          }
+          if (colNumber === 6) cell.numFmt = '#,##0'
+          if (colNumber === 7) cell.numFmt = '#,##0.000'
+          if (colNumber === 8) cell.numFmt = '#,##0.0000'
+          if (colNumber === 9 || colNumber === 11) cell.numFmt = '#,##0.00'
+          if (colNumber === 10) cell.numFmt = '#,##0.0000'
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          }
+          if (colNumber === 4) {
+            const statusColorMap: Record<string, string> = {
+              草稿: 'FFF1F5F9',
+              在途: 'FFE0F2FE',
+              已完成: 'FFDCFCE7',
+            }
+            cell.fill = {
+              type: 'pattern',
+              pattern: 'solid',
+              fgColor: { argb: statusColorMap[String(cell.value)] ?? 'FFFFFFFF' },
+            }
+          }
+        })
+      })
+
+      const totalRow = worksheet.getRow(items.length + 5)
+      totalRow.getCell(1).value = '当前页合计'
+      totalRow.getCell(6).value = summary.totalQuantity
+      totalRow.getCell(7).value = totalWeight
+      totalRow.getCell(8).value = totalVolume
+      totalRow.getCell(11).value = totalLogisticsCost
+      totalRow.eachCell((cell) => {
+        cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        }
+      })
+      totalRow.getCell(6).numFmt = '#,##0'
+      totalRow.getCell(7).numFmt = '#,##0.000'
+      totalRow.getCell(8).numFmt = '#,##0.0000'
+      totalRow.getCell(11).numFmt = '#,##0.00'
+
+      const buffer = await workbook.xlsx.writeBuffer()
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      const safeTimestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+      link.href = url
+      link.download = `发货费用-${safeTimestamp}.xlsx`
+      link.click()
+      window.URL.revokeObjectURL(url)
+    } catch (exportError) {
+      setError(exportError instanceof Error ? exportError.message : '导出 Excel 失败')
+    } finally {
+      setCostExporting(false)
+    }
+  }
+
+  const exportSkuSummaryToExcel = async () => {
+    if (skuSummaryItems.length === 0) {
+      setError('当前没有可导出的 SKU 汇总数据')
+      return
+    }
+
+    setSkuSummaryExporting(true)
+    setError(null)
+    try {
+      const ExcelJS = await import('exceljs')
+      const workbook = new ExcelJS.Workbook()
+      workbook.creator = 'Codex'
+      workbook.created = new Date()
+
+      const worksheet = workbook.addWorksheet('SKU汇总', {
+        views: [{ state: 'frozen', ySplit: 4, xSplit: 1 }],
+      })
+
+      const columns = [
+        { header: '项目', key: 'project_name', width: 18 },
+        { header: 'SKU', key: 'sku', width: 28 },
+        { header: '参与批次数', key: 'shipment_count', width: 14 },
+        { header: '总数量', key: 'total_quantity', width: 14 },
+        { header: '总计费重(kg)', key: 'total_chargeable_weight_kg', width: 16 },
+        { header: '总发货费用', key: 'total_logistics_cost', width: 16 },
+        { header: '平均发运单价', key: 'average_logistics_unit_price', width: 16 },
+      ] as const
+
+      const lastColumn = columns.length
+      const exportedAt = new Date().toLocaleString('zh-CN', { hour12: false })
+      const totalShipmentCount = skuSummaryItems.reduce((acc, item) => acc + item.shipment_count, 0)
+      const totalQuantity = skuSummaryItems.reduce((acc, item) => acc + item.total_quantity, 0)
+      const totalChargeableWeight = skuSummaryItems.reduce((acc, item) => acc + item.total_chargeable_weight_kg, 0)
+      const totalLogisticsCost = skuSummaryItems.reduce((acc, item) => acc + item.total_logistics_cost, 0)
+
+      worksheet.mergeCells(1, 1, 1, lastColumn)
+      worksheet.getCell(1, 1).value = 'SKU 汇总导出'
+      worksheet.getCell(1, 1).font = { name: 'Microsoft YaHei', size: 16, bold: true, color: { argb: 'FF0F172A' } }
+      worksheet.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
+
+      worksheet.mergeCells(2, 1, 2, lastColumn)
+      worksheet.getCell(2, 1).value = `导出时间：${exportedAt}    说明：仅统计“在途 / 已完成”且“参与历史发货核算”的批次`
+      worksheet.getCell(2, 1).font = { name: 'Microsoft YaHei', size: 10, color: { argb: 'FF475569' } }
+      worksheet.getCell(2, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
+
+      const filterText = [
+        projectFilter === 'all' ? '项目：全部' : `项目：${projects.find((project) => String(project.id) === projectFilter)?.name ?? projectFilter}`,
+        `状态：${HISTORY_SHIPMENT_STATUSES.map((status) => statusMeta(status).label).join('、')}`,
+        '口径：仅参与历史发货核算',
+      ].join('    ')
+      worksheet.mergeCells(3, 1, 3, lastColumn)
+      worksheet.getCell(3, 1).value = filterText
+      worksheet.getCell(3, 1).font = { name: 'Microsoft YaHei', size: 10, color: { argb: 'FF64748B' } }
+      worksheet.getCell(3, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } }
+
+      worksheet.columns = columns.map((column) => ({ header: column.header, key: column.key, width: column.width }))
+
+      const headerRow = worksheet.getRow(4)
+      headerRow.values = columns.map((column) => column.header)
+      headerRow.height = 24
+      headerRow.eachCell((cell) => {
+        cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
+        cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        }
+      })
+
+      skuSummaryItems.forEach((item, index) => {
+        const row = worksheet.getRow(index + 5)
+        row.values = [
+          item.project_name,
+          item.sku,
+          item.shipment_count,
+          item.total_quantity,
+          item.total_chargeable_weight_kg,
+          item.total_logistics_cost,
+          item.average_logistics_unit_price,
+        ]
+
+        row.eachCell((cell, colNumber) => {
+          cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF0F172A' } }
+          cell.alignment = {
+            vertical: 'middle',
+            horizontal: colNumber >= 3 ? 'right' : 'left',
+            wrapText: true,
+          }
+          if (colNumber === 3 || colNumber === 4) cell.numFmt = '#,##0'
+          if (colNumber === 5) cell.numFmt = '#,##0.000'
+          if (colNumber === 6) cell.numFmt = '#,##0.00'
+          if (colNumber === 7) cell.numFmt = '#,##0.0000'
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          }
+        })
+      })
+
+      const totalRow = worksheet.getRow(skuSummaryItems.length + 5)
+      totalRow.getCell(1).value = '合计'
+      totalRow.getCell(3).value = totalShipmentCount
+      totalRow.getCell(4).value = totalQuantity
+      totalRow.getCell(5).value = totalChargeableWeight
+      totalRow.getCell(6).value = totalLogisticsCost
+      totalRow.eachCell((cell) => {
+        cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        }
+      })
+      totalRow.getCell(3).numFmt = '#,##0'
+      totalRow.getCell(4).numFmt = '#,##0'
+      totalRow.getCell(5).numFmt = '#,##0.000'
+      totalRow.getCell(6).numFmt = '#,##0.00'
+
+      const buffer = await workbook.xlsx.writeBuffer()
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      const safeTimestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+      link.href = url
+      link.download = `SKU汇总-${safeTimestamp}.xlsx`
+      link.click()
+      window.URL.revokeObjectURL(url)
+    } catch (exportError) {
+      setError(exportError instanceof Error ? exportError.message : '导出 Excel 失败')
+    } finally {
+      setSkuSummaryExporting(false)
     }
   }
 
@@ -1230,47 +1649,35 @@ export default function ShipmentManagementPage() {
     <div className="space-y-6">
       <Card className="dashboard-surface">
         <CardHeader className="gap-4 pb-5">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div className="flex flex-col gap-4">
             <div className="space-y-2">
               <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primary">Shipment Console</div>
               <CardTitle className="text-2xl tracking-tight">控制台</CardTitle>
-              <CardDescription className="max-w-2xl text-sm leading-6">集中筛选批次、导入 CSV，并快速查看当前页发货规模。</CardDescription>
-            </div>
-            <div className="grid grid-cols-3 gap-2 xl:min-w-[360px]">
-              <div className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3">
-                <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">批次</div>
-                <div className="mt-1 text-xl font-semibold">{items.length}</div>
-              </div>
-              <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
-                <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">SKU</div>
-                <div className="mt-1 text-xl font-semibold">{summary.totalSku}</div>
-              </div>
-              <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 px-4 py-3">
-                <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">数量</div>
-                <div className="mt-1 text-xl font-semibold">{summary.totalQuantity.toLocaleString()}</div>
-              </div>
             </div>
           </div>
         </CardHeader>
         <CardContent className="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_auto] xl:gap-5">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 xl:col-span-1">
-
-          <div className="space-y-2">
-            <div className="text-xs font-medium text-muted-foreground">项目</div>
-            <Select value={projectFilter} onValueChange={setProjectFilter} disabled={projectsLoading}>
-            <SelectTrigger>
-              <SelectValue placeholder="全部项目" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部项目</SelectItem>
-              {projects.map((project) => (
-                <SelectItem key={project.id} value={String(project.id)}>
-                  {project.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-            </Select>
-          </div>
+          {projectsLoading ? (
+            <ShipmentControlSkeleton />
+          ) : (
+            <div className="space-y-2">
+              <div className="text-xs font-medium text-muted-foreground">项目</div>
+              <Select value={projectFilter} onValueChange={setProjectFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="全部项目" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部项目</SelectItem>
+                {projects.map((project) => (
+                  <SelectItem key={project.id} value={String(project.id)}>
+                    {project.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="space-y-2">
             <div className="text-xs font-medium text-muted-foreground">状态</div>
@@ -1380,20 +1787,17 @@ export default function ShipmentManagementPage() {
                 </div>
               </CardHeader>
               <CardContent className="p-0">
-                {loading ? (
-                  <div className="p-4">
-                    <Skeleton className="h-12 w-full" />
-                    <Skeleton className="mt-2 h-12 w-full" />
-                    <Skeleton className="mt-2 h-12 w-full" />
-                    <Skeleton className="mt-2 h-12 w-full" />
-                    <Skeleton className="mt-2 h-12 w-full" />
-                  </div>
-                ) : items.length === 0 ? (
+                {items.length === 0 && !loading ? (
                   <div className="rounded-[28px] border border-dashed border-border px-4 py-14 text-center text-sm text-muted-foreground">
                     当前没有符合筛选条件的船期记录。
                   </div>
                 ) : (
-                  <div className="overflow-auto">
+                  <div className="relative overflow-auto">
+                    {loading && items.length > 0 ? (
+                      <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/70 bg-background/95 px-3 py-1 text-xs text-muted-foreground shadow-sm">
+                        列表更新中...
+                      </div>
+                    ) : null}
                     <Table className="w-full min-w-[1000px]">
                       <TableHeader>
                         <TableRow className="bg-muted/50">
@@ -1412,6 +1816,7 @@ export default function ShipmentManagementPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
+                        {loading && items.length === 0 ? <ShipmentTableSkeleton columns={12} /> : null}
                         {items.map((item) => {
                           const status = statusMeta(item.shipment_status)
                           return (
@@ -1460,45 +1865,85 @@ export default function ShipmentManagementPage() {
                   <div>
                     <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Shipping Cost</div>
                     <CardTitle>发货费用</CardTitle>
+                    
                   </div>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    <div className="rounded-2xl border border-sky-500/15 bg-sky-500/5 px-4 py-3">
-                      <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">批次</div>
-                      <div className="mt-1 text-xl font-semibold">{items.length}</div>
-                    </div>
-                    <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/5 px-4 py-3">
-                      <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">数量</div>
-                      <div className="mt-1 text-xl font-semibold">{summary.totalQuantity.toLocaleString()}</div>
-                    </div>
-                    <div className="rounded-2xl border border-amber-500/15 bg-amber-500/5 px-4 py-3">
-                      <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">重量</div>
-                      <div className="mt-1 text-xl font-semibold">
-                        {formatDecimal(items.reduce((acc, item) => acc + item.total_chargeable_weight_kg, 0))}
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                      <div className="space-y-1">
+                        <div className="text-[11px] font-medium text-muted-foreground">开始时间</div>
+                        <Input
+                          type="date"
+                          value={shipmentDateFrom}
+                          max={shipmentDateTo || undefined}
+                          onChange={(event) => setShipmentDateFrom(event.target.value)}
+                          className="h-9 w-full min-w-[148px] sm:w-[148px]"
+                        />
                       </div>
-                    </div>
-                    <div className="rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3">
-                      <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">总运费</div>
-                      <div className="mt-1 text-xl font-semibold">
-                        ¥ {formatDecimal(items.reduce((acc, item) => acc + item.logistics_total_price, 0), 2)}
+                      <div className="space-y-1">
+                        <div className="text-[11px] font-medium text-muted-foreground">结束时间</div>
+                        <Input
+                          type="date"
+                          value={shipmentDateTo}
+                          min={shipmentDateFrom || undefined}
+                          onChange={(event) => setShipmentDateTo(event.target.value)}
+                          className="h-9 w-full min-w-[148px] sm:w-[148px]"
+                        />
                       </div>
+                      <Button variant="outline" disabled={loading || costExporting || items.length === 0} onClick={() => void exportCostToExcel()}>
+                        <FileDown className="h-4 w-4" />
+                        {costExporting ? '导出中...' : '导出 Excel'}
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      {costSummaryLoading ? (
+                        <>
+                          <ShipmentMetricSkeleton />
+                          <ShipmentMetricSkeleton />
+                          <ShipmentMetricSkeleton />
+                          <ShipmentMetricSkeleton />
+                        </>
+                      ) : (
+                        <>
+                          <div className="rounded-2xl border border-sky-500/15 bg-sky-500/5 px-4 py-3">
+                            <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">批次</div>
+                            <div className="mt-1 text-xl font-semibold">{costSummary.shipment_count}</div>
+                          </div>
+                          <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/5 px-4 py-3">
+                            <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">数量</div>
+                            <div className="mt-1 text-xl font-semibold">
+                              {costSummary.total_quantity.toLocaleString()}
+                            </div>
+                          </div>
+                          <div className="rounded-2xl border border-amber-500/15 bg-amber-500/5 px-4 py-3">
+                            <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">重量</div>
+                            <div className="mt-1 text-xl font-semibold">
+                              {formatDecimal(costSummary.total_chargeable_weight_kg)}
+                            </div>
+                          </div>
+                          <div className="rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3">
+                            <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">总运费</div>
+                            <div className="mt-1 text-xl font-semibold">
+                              {`¥ ${formatDecimal(costSummary.total_logistics_cost, 2)}`}
+                            </div>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4 p-0">
-                {loading ? (
-                  <div className="p-4">
-                    <Skeleton className="h-12 w-full" />
-                    <Skeleton className="mt-2 h-12 w-full" />
-                    <Skeleton className="mt-2 h-12 w-full" />
-                    <Skeleton className="mt-2 h-12 w-full" />
-                  </div>
-                ) : items.length === 0 ? (
+                {items.length === 0 && !loading ? (
                   <div className="px-4 py-14 text-center text-sm text-muted-foreground">
                     当前没有符合筛选条件的发货批次。
                   </div>
                 ) : (
-                  <div className="overflow-auto">
+                  <div className="relative overflow-auto">
+                    {loading && items.length > 0 ? (
+                      <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/70 bg-background/95 px-3 py-1 text-xs text-muted-foreground shadow-sm">
+                        发货费用计算中...
+                      </div>
+                    ) : null}
                     <Table className="w-full min-w-[1320px]">
                       <TableHeader>
                         <TableRow className="bg-muted/50">
@@ -1516,6 +1961,7 @@ export default function ShipmentManagementPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
+                        {loading && items.length === 0 ? <ShipmentTableSkeleton columns={11} /> : null}
                         {items.map((item) => {
                           const status = statusMeta(item.shipment_status)
                           return (
@@ -1559,50 +2005,57 @@ export default function ShipmentManagementPage() {
                   <div>
                     <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">SKU Summary</div>
                     <CardTitle>SKU 汇总</CardTitle>
-                    <CardDescription>
-                      默认只统计“已完成”且“参与历史发货核算”的批次，作为后续定价可复用的发运成本基线。
-                    </CardDescription>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    <div className="rounded-2xl border border-sky-500/15 bg-sky-500/5 px-4 py-3">
-                      <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">SKU 数</div>
-                      <div className="mt-1 text-xl font-semibold">{skuSummaryItems.length}</div>
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        disabled={skuSummaryLoading || skuSummaryExporting || skuSummaryItems.length === 0}
+                        onClick={() => void exportSkuSummaryToExcel()}
+                      >
+                        <FileDown className="h-4 w-4" />
+                        {skuSummaryExporting ? '导出中...' : '导出 Excel'}
+                      </Button>
                     </div>
-                    <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/5 px-4 py-3">
-                      <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">总数量</div>
-                      <div className="mt-1 text-xl font-semibold">
-                        {skuSummaryItems.reduce((acc, item) => acc + item.total_quantity, 0).toLocaleString()}
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      <div className="rounded-2xl border border-sky-500/15 bg-sky-500/5 px-4 py-3">
+                        <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">SKU 数</div>
+                        <div className="mt-1 text-xl font-semibold">{skuSummaryItems.length}</div>
                       </div>
-                    </div>
-                    <div className="rounded-2xl border border-amber-500/15 bg-amber-500/5 px-4 py-3">
-                      <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">总计费重</div>
-                      <div className="mt-1 text-xl font-semibold">
-                        {formatDecimal(skuSummaryItems.reduce((acc, item) => acc + item.total_chargeable_weight_kg, 0))}
+                      <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/5 px-4 py-3">
+                        <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">总数量</div>
+                        <div className="mt-1 text-xl font-semibold">
+                          {skuSummaryItems.reduce((acc, item) => acc + item.total_quantity, 0).toLocaleString()}
+                        </div>
                       </div>
-                    </div>
-                    <div className="rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3">
-                      <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">总费用</div>
-                      <div className="mt-1 text-xl font-semibold">
-                        ¥ {formatDecimal(skuSummaryItems.reduce((acc, item) => acc + item.total_logistics_cost, 0), 2)}
+                      <div className="rounded-2xl border border-amber-500/15 bg-amber-500/5 px-4 py-3">
+                        <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">总计费重</div>
+                        <div className="mt-1 text-xl font-semibold">
+                          {formatDecimal(skuSummaryItems.reduce((acc, item) => acc + item.total_chargeable_weight_kg, 0))}
+                        </div>
+                      </div>
+                      <div className="rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3">
+                        <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">总费用</div>
+                        <div className="mt-1 text-xl font-semibold">
+                          ¥ {formatDecimal(skuSummaryItems.reduce((acc, item) => acc + item.total_logistics_cost, 0), 2)}
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="p-0">
-                {skuSummaryLoading ? (
-                  <div className="p-4">
-                    <Skeleton className="h-12 w-full" />
-                    <Skeleton className="mt-2 h-12 w-full" />
-                    <Skeleton className="mt-2 h-12 w-full" />
-                    <Skeleton className="mt-2 h-12 w-full" />
-                  </div>
-                ) : skuSummaryItems.length === 0 ? (
+                {skuSummaryItems.length === 0 && !skuSummaryLoading ? (
                   <div className="px-4 py-14 text-center text-sm text-muted-foreground">
                     当前没有符合口径的 SKU 汇总数据。
                   </div>
                 ) : (
-                  <div className="overflow-auto">
+                  <div className="relative overflow-auto">
+                    {skuSummaryLoading && skuSummaryItems.length > 0 ? (
+                      <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/70 bg-background/95 px-3 py-1 text-xs text-muted-foreground shadow-sm">
+                        SKU 汇总更新中...
+                      </div>
+                    ) : null}
                     <Table className="w-full min-w-[1120px]">
                       <TableHeader>
                         <TableRow className="bg-muted/50">
@@ -1616,6 +2069,7 @@ export default function ShipmentManagementPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
+                        {skuSummaryLoading && skuSummaryItems.length === 0 ? <ShipmentTableSkeleton columns={7} /> : null}
                         {skuSummaryItems.map((item) => (
                           <TableRow key={`${item.project_id}-${item.sku}`}>
                             <TableCell className="font-medium">{item.project_name}</TableCell>
@@ -1671,54 +2125,65 @@ export default function ShipmentManagementPage() {
                   <div className="px-4 py-14 text-center text-sm text-muted-foreground">
                     请输入完整的 FBA 货件编号后再加载箱单明细。
                   </div>
-                ) : fbaBoxLoading ? (
-                  <div className="p-4">
-                    <Skeleton className="h-12 w-full" />
-                    <Skeleton className="mt-2 h-12 w-full" />
-                    <Skeleton className="mt-2 h-12 w-full" />
-                    <Skeleton className="mt-2 h-12 w-full" />
-                  </div>
-                ) : fbaBoxItems.length === 0 ? (
+                ) : fbaBoxItems.length === 0 && !fbaBoxLoading ? (
                   <div className="px-4 py-14 text-center text-sm text-muted-foreground">
                     当前货件暂无可展示的 FBA 箱单明细。
                   </div>
                 ) : (
                   <>
                     <div className="grid gap-3 px-4 pb-4 md:grid-cols-6">
-                      {fbaBoxMeta && (
+                      {fbaBoxLoading ? (
                         <>
-                          <div className="rounded-2xl border border-slate-500/15 bg-slate-500/5 px-4 py-3">
-                            <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">项目</div>
-                            <div className="mt-1 text-lg font-semibold truncate" title={fbaBoxMeta.projectName}>
-                              {fbaBoxMeta.projectName}
-                            </div>
+                          <ShipmentMetricSkeleton />
+                          <ShipmentMetricSkeleton />
+                          <ShipmentMetricSkeleton />
+                          <ShipmentMetricSkeleton />
+                          <ShipmentMetricSkeleton />
+                          <ShipmentMetricSkeleton />
+                        </>
+                      ) : (
+                        <>
+                          {fbaBoxMeta ? (
+                            <>
+                              <div className="rounded-2xl border border-slate-500/15 bg-slate-500/5 px-4 py-3">
+                                <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">项目</div>
+                                <div className="mt-1 text-lg font-semibold truncate" title={fbaBoxMeta.projectName}>
+                                  {fbaBoxMeta.projectName}
+                                </div>
+                              </div>
+                              <div className="rounded-2xl border border-slate-500/15 bg-slate-500/5 px-4 py-3">
+                                <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">货件编号</div>
+                                <div className="mt-1 text-lg font-semibold truncate" title={fbaBoxMeta.shipmentNo}>
+                                  {fbaBoxMeta.shipmentNo}
+                                </div>
+                              </div>
+                            </>
+                          ) : null}
+                          <div className="rounded-2xl border border-sky-500/15 bg-sky-500/5 px-4 py-3">
+                            <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">SKU</div>
+                            <div className="mt-1 text-xl font-semibold">{fbaBoxItems.length}</div>
                           </div>
-                          <div className="rounded-2xl border border-slate-500/15 bg-slate-500/5 px-4 py-3">
-                            <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">货件编号</div>
-                            <div className="mt-1 text-lg font-semibold truncate" title={fbaBoxMeta.shipmentNo}>
-                              {fbaBoxMeta.shipmentNo}
-                            </div>
+                          <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/5 px-4 py-3">
+                            <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">外箱数</div>
+                            <div className="mt-1 text-xl font-semibold">{fbaBoxSummary.totalCartons}</div>
+                          </div>
+                          <div className="rounded-2xl border border-amber-500/15 bg-amber-500/5 px-4 py-3">
+                            <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">总重量</div>
+                            <div className="mt-1 text-xl font-semibold">{formatDecimal(fbaBoxSummary.totalWeightKg)} kg</div>
+                          </div>
+                          <div className="rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3">
+                            <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">总体积(m³)</div>
+                            <div className="mt-1 text-xl font-semibold">{formatDecimal(fbaBoxSummary.totalVolumeM3, 4)}</div>
                           </div>
                         </>
                       )}
-                      <div className="rounded-2xl border border-sky-500/15 bg-sky-500/5 px-4 py-3">
-                        <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">SKU</div>
-                        <div className="mt-1 text-xl font-semibold">{fbaBoxItems.length}</div>
-                      </div>
-                      <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/5 px-4 py-3">
-                        <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">外箱数</div>
-                        <div className="mt-1 text-xl font-semibold">{fbaBoxSummary.totalCartons}</div>
-                      </div>
-                      <div className="rounded-2xl border border-amber-500/15 bg-amber-500/5 px-4 py-3">
-                        <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">总重量</div>
-                        <div className="mt-1 text-xl font-semibold">{formatDecimal(fbaBoxSummary.totalWeightKg)} kg</div>
-                      </div>
-                      <div className="rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3">
-                        <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">总体积(m³)</div>
-                        <div className="mt-1 text-xl font-semibold">{formatDecimal(fbaBoxSummary.totalVolumeM3, 4)}</div>
-                      </div>
                     </div>
-                    <div className="overflow-auto">
+                    <div className="relative overflow-auto">
+                      {fbaBoxLoading && fbaBoxItems.length > 0 ? (
+                        <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/70 bg-background/95 px-3 py-1 text-xs text-muted-foreground shadow-sm">
+                          箱单明细更新中...
+                        </div>
+                      ) : null}
                       <Table className="w-full min-w-[1000px]">
                         <TableHeader>
                           <TableRow className="bg-muted/50">
@@ -1734,6 +2199,7 @@ export default function ShipmentManagementPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
+                          {fbaBoxLoading && fbaBoxItems.length === 0 ? <ShipmentTableSkeleton columns={9} /> : null}
                           {fbaBoxItems.map((item, index) => {
                             const group = fbaBoxWarehouseGroups.find(
                               (g) => index >= g.startIndex && index <= g.endIndex
@@ -1809,7 +2275,6 @@ export default function ShipmentManagementPage() {
               <Input
                 value={form.shipment_no}
                 onChange={(event) => handleFormChange('shipment_no', event.target.value)}
-                disabled={dialogMode === 'edit'}
                 placeholder="如 FBA19647N7ZW"
               />
             </div>

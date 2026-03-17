@@ -7,7 +7,6 @@ import { FileDown, Package2, Ruler, Upload } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
@@ -36,6 +35,7 @@ type ProductCostItem = {
   country: string
   sort_order: number
   is_active: boolean
+  historical_first_leg_cost_rmb?: number | null
 }
 
 type ProductCostsPage = {
@@ -51,10 +51,20 @@ type ProjectOption = {
   name: string
 }
 
+type ShipmentSkuSummaryItem = {
+  sku: string
+  average_logistics_unit_price: number
+}
+
+type ShipmentSkuSummaryResponse = {
+  items: ShipmentSkuSummaryItem[]
+}
+
 type ActiveTab = 'cost' | 'dimension'
 type ImportMode = 'create' | 'update'
 
 const API_BASE = '/api/backend'
+const HISTORY_SHIPMENT_STATUSES = ['completed', 'in_transit'] as const
 const PAGE_SIZE_OPTIONS = [20, 50, 100]
 const DEFAULT_PAGE_SIZE = 20
 const COUNTRY_OPTIONS = [
@@ -144,6 +154,39 @@ const EMPTY_EDIT_ROW = {
   is_active: true,
 }
 
+function FilterFieldSkeleton() {
+  return (
+    <div className="grid gap-2">
+      <Skeleton className="h-4 w-16" />
+      <Skeleton className="h-10 w-full" />
+    </div>
+  )
+}
+
+function TableSkeletonRows({
+  columns,
+  rows = 6,
+  cellWidth = 'w-20',
+}: {
+  columns: number
+  rows?: number
+  cellWidth?: string
+}) {
+  return (
+    <>
+      {Array.from({ length: rows }).map((_, rowIndex) => (
+        <tr key={`table-skeleton-${rowIndex}`} className="border-b">
+          {Array.from({ length: columns }).map((__, cellIndex) => (
+            <td key={cellIndex} className="p-4">
+              <Skeleton className={`h-4 ${cellWidth}`} />
+            </td>
+          ))}
+        </tr>
+      ))}
+    </>
+  )
+}
+
 export default function SkuInfoPage() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('cost')
   const [items, setItems] = useState<ProductCostItem[]>([])
@@ -167,13 +210,14 @@ export default function SkuInfoPage() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
 
   const [batchImporting, setBatchImporting] = useState(false)
-  const [recalcDialogOpen, setRecalcDialogOpen] = useState(false)
-  const [recalcSubmitting, setRecalcSubmitting] = useState(false)
-  const [unitPricePerKg, setUnitPricePerKg] = useState('')
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editRow, setEditRow] = useState(EMPTY_EDIT_ROW)
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize])
+  const selectedProject = useMemo(
+    () => projects.find((project) => project.name === projectFilter) ?? null,
+    [projectFilter, projects]
+  )
 
   useEffect(() => {
     if (status === 'loading') {
@@ -238,13 +282,46 @@ export default function SkuInfoPage() {
       if (statusValue === 'active') search.set('is_active', 'true')
       if (statusValue === 'inactive') search.set('is_active', 'false')
 
-      const response = await fetch(`${API_BASE}/api/v1/sku-info?${search.toString()}`, {
-        headers: authHeaders(),
-        cache: 'no-store',
+      const summarySearch = new URLSearchParams({
+        include_only_history_calc: 'true',
+        shipment_status: HISTORY_SHIPMENT_STATUSES.join(','),
       })
+      if (selectedProject?.id) {
+        summarySearch.set('project_id', String(selectedProject.id))
+      }
+
+      const requests: Promise<Response>[] = [
+        fetch(`${API_BASE}/api/v1/sku-info?${search.toString()}`, {
+          headers: authHeaders(),
+          cache: 'no-store',
+        }),
+      ]
+      if (selectedProject?.id) {
+        requests.push(
+          fetch(`${API_BASE}/api/v1/shipment-schedules/sku-summary?${summarySearch.toString()}`, {
+            headers: authHeaders(),
+            cache: 'no-store',
+          })
+        )
+      }
+
+      const [response, summaryResponse] = await Promise.all(requests)
       if (!response.ok) throw new Error(await parseError(response))
       const payload = (await response.json()) as ProductCostsPage
-      setItems(sortProductCosts(payload.items))
+      let summaryBySku = new Map<string, number>()
+      if (summaryResponse) {
+        if (!summaryResponse.ok) throw new Error(await parseError(summaryResponse))
+        const summaryPayload = (await summaryResponse.json()) as ShipmentSkuSummaryResponse
+        summaryBySku = new Map(summaryPayload.items.map((item) => [item.sku, item.average_logistics_unit_price]))
+      }
+      setItems(
+        sortProductCosts(
+          payload.items.map((item) => ({
+            ...item,
+            historical_first_leg_cost_rmb: summaryBySku.get(item.sku) ?? item.first_leg_cost_rmb,
+          }))
+        )
+      )
       setTotal(Math.max(0, payload.total ?? 0))
       setHasNextPage(payload.has_next)
       setPage(nextPage)
@@ -259,7 +336,7 @@ export default function SkuInfoPage() {
     if (!projectFilter.trim()) return
     void loadData(undefined, { pageOverride: page, clearOnMissingProject: true })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize, projectFilter])
+  }, [page, pageSize, projectFilter, selectedProject])
 
   const onRefresh = async () => {
     setSuccessMessage(null)
@@ -384,8 +461,8 @@ export default function SkuInfoPage() {
   }
 
   const saveRow = async (rowId: number) => {
-    if (!editRow.sku.trim() || !editRow.asin.trim()) {
-      setError('SKU 和 ASIN 不能为空')
+    if (!editRow.sku.trim()) {
+      setError('SKU 不能为空')
       return
     }
     setError(null)
@@ -415,50 +492,12 @@ export default function SkuInfoPage() {
         }),
       })
       if (!response.ok) throw new Error(await parseError(response))
-      const updated = (await response.json()) as ProductCostItem
-      setItems((current) => sortProductCosts(current.map((item) => (item.id === updated.id ? updated : item))))
+      await response.json()
       setEditingId(null)
+      await loadData(undefined, { pageOverride: page, clearOnMissingProject: true })
       setSuccessMessage('该行已更新')
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : '保存失败')
-    }
-  }
-
-  const handleRecalculateFirstLegCosts = async () => {
-    if (!projectFilter.trim()) {
-      setError('请先选择项目后再核算头程成本')
-      return
-    }
-    const unitPrice = Number(unitPricePerKg)
-    if (!Number.isFinite(unitPrice) || unitPrice <= 0) {
-      setError('请输入大于 0 的 RMB/kg 单价')
-      return
-    }
-    setRecalcSubmitting(true)
-    setError(null)
-    setSuccessMessage(null)
-    try {
-      const response = await fetch(`${API_BASE}/api/v1/sku-info/recalculate-first-leg-costs`, {
-        method: 'POST',
-        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          project_name: projectFilter,
-          unit_price_per_kg_rmb: unitPrice,
-          sku: skuFilter.trim() || undefined,
-          asin: asinFilter.trim() || undefined,
-          country: countryFilter === 'all' ? undefined : countryFilter,
-          is_active: statusFilter === 'all' ? undefined : statusFilter === 'active',
-        }),
-      })
-      if (!response.ok) throw new Error(await parseError(response))
-      const payload = (await response.json()) as { updated: number; unit_price_per_kg_rmb: number }
-      setSuccessMessage(`已按 ${payload.unit_price_per_kg_rmb.toFixed(2)} RMB/kg 重算 ${payload.updated} 条头程成本`)
-      setRecalcDialogOpen(false)
-      await loadData(undefined, { pageOverride: page, clearOnMissingProject: true })
-    } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : '头程成本核算失败')
-    } finally {
-      setRecalcSubmitting(false)
     }
   }
 
@@ -485,16 +524,20 @@ export default function SkuInfoPage() {
               <p className="text-sm text-muted-foreground">两个 tab 共用同一套筛选与分页，所有字段都来自同一张 SKU 信息表。</p>
             </div>
             <div className="grid gap-4 md:grid-cols-7">
-              <div className="grid gap-2">
-                <label className="text-sm font-medium text-foreground">项目名</label>
-                <Select value={projectFilter} onValueChange={(value) => void onProjectFilterChange(value)} disabled={projectsLoading || projects.length === 0}>
-                  <SelectTrigger><SelectValue placeholder={projectsLoading ? '项目加载中...' : projects.length ? '请选择项目名' : '暂无可选项目'} /></SelectTrigger>
-                  <SelectContent className="max-h-64 overflow-y-auto">
-                    {projects.map((project) => <SelectItem key={project.name} value={project.name}>{project.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                {projectLoadError ? <p className="text-xs text-destructive">{projectLoadError}</p> : null}
-              </div>
+              {projectsLoading ? (
+                <FilterFieldSkeleton />
+              ) : (
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium text-foreground">项目名</label>
+                  <Select value={projectFilter} onValueChange={(value) => void onProjectFilterChange(value)} disabled={projects.length === 0}>
+                    <SelectTrigger><SelectValue placeholder={projects.length ? '请选择项目名' : '暂无可选项目'} /></SelectTrigger>
+                    <SelectContent className="max-h-64 overflow-y-auto">
+                      {projects.map((project) => <SelectItem key={project.name} value={project.name}>{project.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  {projectLoadError ? <p className="text-xs text-destructive">{projectLoadError}</p> : null}
+                </div>
+              )}
               <div className="grid gap-2">
                 <label className="text-sm font-medium text-foreground">SKU</label>
                 <Input placeholder="输入 SKU" value={skuFilter} onChange={(e) => setSkuFilter(e.target.value)} />
@@ -551,7 +594,9 @@ export default function SkuInfoPage() {
             <TabsTrigger value="cost" className="gap-2"><Package2 className="h-4 w-4" />成本管理</TabsTrigger>
             <TabsTrigger value="dimension" className="gap-2"><Ruler className="h-4 w-4" />尺寸管理</TabsTrigger>
           </TabsList>
-          <Badge variant="outline" className="rounded-md border-border bg-muted text-muted-foreground">第 {page} / {totalPages} 页，共 {total} 条</Badge>
+          <Badge variant="outline" className="rounded-md border-border bg-muted text-muted-foreground">
+            {loading && items.length === 0 ? '数据准备中...' : `第 ${page} / ${totalPages} 页，共 ${total} 条`}
+          </Badge>
         </div>
 
         <TabsContent value="cost">
@@ -560,30 +605,9 @@ export default function SkuInfoPage() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="space-y-1">
                   <CardTitle className="text-base font-semibold">成本管理</CardTitle>
-                  <CardDescription>批量上新时必填 project_name、SKU、FOB、国家；ASIN 和 FNSKU 可先留空，后续再维护。</CardDescription>
+                  <CardDescription>头程成本展示口径已切换为发货管理里的 SKU 历史加权平均成本；基础资料仍维护 project_name、SKU、FOB、国家等字段。</CardDescription>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Dialog open={recalcDialogOpen} onOpenChange={setRecalcDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button type="button" variant="outline">核算头程成本</Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>批量核算头程成本</DialogTitle>
-                        <DialogDescription>按当前筛选结果，用 `max(重量, 长*宽*高/6000) * RMB/kg 单价` 回写头程成本。</DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-foreground">单价 (RMB/kg)</label>
-                        <Input type="number" step="0.01" value={unitPricePerKg} onChange={(e) => setUnitPricePerKg(e.target.value)} placeholder="例如 6.80" />
-                      </div>
-                      <DialogFooter>
-                        <Button type="button" variant="outline" onClick={() => setRecalcDialogOpen(false)} disabled={recalcSubmitting}>取消</Button>
-                        <Button type="button" onClick={() => void handleRecalculateFirstLegCosts()} disabled={recalcSubmitting}>
-                          {recalcSubmitting ? '核算中...' : '开始核算'}
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
                   <ActionsBar
                     batchImporting={batchImporting}
                     onDownloadCreateTemplate={downloadCostTemplate}
@@ -594,7 +618,12 @@ export default function SkuInfoPage() {
               </div>
             </CardHeader>
             <CardContent className="pt-0">
-              <div className="max-h-[560px] overflow-auto rounded-md border border-border/60">
+              <div className="relative max-h-[560px] overflow-auto rounded-md border border-border/60">
+                {loading && items.length > 0 ? (
+                  <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/70 bg-background/95 px-3 py-1 text-xs text-muted-foreground shadow-sm">
+                    数据更新中...
+                  </div>
+                ) : null}
                 <table className="w-full text-sm">
                   <thead className="[&_tr]:border-b">
                     <tr className="border-b bg-background">
@@ -603,7 +632,7 @@ export default function SkuInfoPage() {
                       <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left">SKU</th>
                       <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left">ASIN</th>
                       <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left">FNSKU</th>
-                      <th className="sticky top-0 z-10 h-12 bg-background px-4 text-right">头程成本</th>
+                      <th className="sticky top-0 z-10 h-12 bg-background px-4 text-right">头程成本(历史加权)</th>
                       <th className="sticky top-0 z-10 h-12 bg-background px-4 text-right">FOB</th>
                       <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left">国家</th>
                       <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left">状态</th>
@@ -611,9 +640,7 @@ export default function SkuInfoPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {loading && items.length === 0 ? Array.from({ length: 6 }).map((_, index) => (
-                      <tr key={`cost-loading-${index}`} className="border-b">{Array.from({ length: 10 }).map((__, cellIndex) => <td key={cellIndex} className="p-4"><Skeleton className="h-4 w-20" /></td>)}</tr>
-                    )) : null}
+                    {loading && items.length === 0 ? <TableSkeletonRows columns={10} /> : null}
                     {items.map((row) => (
                       <tr key={row.id} className={`border-b ${editingId === row.id ? 'bg-muted/30' : ''}`}>
                         <td className="p-4">{editingId === row.id ? <Input className="h-8 w-16" value={editRow.sort_order} onChange={(e) => setEditRow((current) => ({ ...current, sort_order: e.target.value }))} /> : row.sort_order}</td>
@@ -621,7 +648,7 @@ export default function SkuInfoPage() {
                         <td className="p-4">{editingId === row.id ? <Input className="h-8 w-24" value={editRow.sku} onChange={(e) => setEditRow((current) => ({ ...current, sku: e.target.value }))} /> : row.sku}</td>
                         <td className="p-4">{editingId === row.id ? <Input className="h-8 w-28" value={editRow.asin} onChange={(e) => setEditRow((current) => ({ ...current, asin: e.target.value }))} /> : row.asin}</td>
                         <td className="p-4">{editingId === row.id ? <Input className="h-8 w-32" value={editRow.fnsku} onChange={(e) => setEditRow((current) => ({ ...current, fnsku: e.target.value }))} /> : (row.fnsku || '-')}</td>
-                        <td className="p-4 text-right">{row.first_leg_cost_rmb.toFixed(2)}</td>
+                        <td className="p-4 text-right">{(row.historical_first_leg_cost_rmb ?? row.first_leg_cost_rmb).toFixed(2)}</td>
                         <td className="p-4 text-right">{editingId === row.id ? <Input className="h-8 w-20" value={editRow.fob_unit_cost} onChange={(e) => setEditRow((current) => ({ ...current, fob_unit_cost: e.target.value }))} /> : row.fob_unit_cost.toFixed(2)}</td>
                         <td className="p-4">
                           {editingId === row.id ? (
@@ -651,6 +678,13 @@ export default function SkuInfoPage() {
                         </td>
                       </tr>
                     ))}
+                    {!loading && items.length === 0 ? (
+                      <tr>
+                        <td colSpan={10} className="py-12 text-center text-sm text-muted-foreground">
+                          {projectFilter ? '当前筛选条件下暂无 SKU 数据。' : '请选择项目后再查询 SKU 数据。'}
+                        </td>
+                      </tr>
+                    ) : null}
                   </tbody>
                 </table>
               </div>
@@ -675,7 +709,12 @@ export default function SkuInfoPage() {
               </div>
             </CardHeader>
             <CardContent className="pt-0">
-              <div className="max-h-[560px] overflow-auto rounded-md border border-border/60">
+              <div className="relative max-h-[560px] overflow-auto rounded-md border border-border/60">
+                {loading && items.length > 0 ? (
+                  <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/70 bg-background/95 px-3 py-1 text-xs text-muted-foreground shadow-sm">
+                    数据更新中...
+                  </div>
+                ) : null}
                 <table className="w-full text-sm">
                   <thead className="[&_tr]:border-b">
                     <tr className="border-b bg-background">
@@ -691,9 +730,7 @@ export default function SkuInfoPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {loading && items.length === 0 ? Array.from({ length: 6 }).map((_, index) => (
-                      <tr key={`dimension-loading-${index}`} className="border-b">{Array.from({ length: 9 }).map((__, cellIndex) => <td key={cellIndex} className="p-4"><Skeleton className="h-4 w-24" /></td>)}</tr>
-                    )) : null}
+                    {loading && items.length === 0 ? <TableSkeletonRows columns={9} cellWidth="w-24" /> : null}
                     {items.map((row) => (
                       <tr key={row.id} className={`border-b ${editingId === row.id ? 'bg-muted/30' : ''}`}>
                         <td className="p-4 font-medium">{row.project_name}</td>
@@ -737,6 +774,13 @@ export default function SkuInfoPage() {
                         </td>
                       </tr>
                     ))}
+                    {!loading && items.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="py-12 text-center text-sm text-muted-foreground">
+                          {projectFilter ? '当前筛选条件下暂无尺寸数据。' : '请选择项目后再查询尺寸数据。'}
+                        </td>
+                      </tr>
+                    ) : null}
                   </tbody>
                 </table>
               </div>

@@ -11,6 +11,7 @@ from app.schemas.shipment_schedule import (
     ShipmentFbaBoxDetailItem,
     ShipmentFbaBoxDetailResponse,
     ShipmentItemsImportResponse,
+    ShipmentScheduleCostSummary,
     ShipmentScheduleCreate,
     ShipmentScheduleDetail,
     ShipmentSkuSummaryItem,
@@ -65,6 +66,8 @@ def list_shipment_schedules(
     shipment_status: str | None = Query(default=None),
     shipping_method: str | None = Query(default=None),
     shipment_no: str | None = Query(default=None),
+    created_date_from: str | None = Query(default=None),
+    created_date_to: str | None = Query(default=None),
     etd_from: str | None = Query(default=None),
     etd_to: str | None = Query(default=None),
     eta_from: str | None = Query(default=None),
@@ -95,6 +98,8 @@ def list_shipment_schedules(
         shipment_status=shipment_status,
         shipping_method=shipping_method,
         shipment_no=shipment_no,
+        created_date_from=created_date_from,
+        created_date_to=created_date_to,
         etd_from=etd_from,
         etd_to=etd_to,
         eta_from=eta_from,
@@ -110,6 +115,43 @@ def list_shipment_schedules(
         total=total,
         has_next=has_next,
     )
+
+
+@router.get('/shipment-schedules/cost-summary', response_model=ShipmentScheduleCostSummary)
+def summarize_shipment_schedule_costs(
+    project_id: int | None = Query(default=None, gt=0),
+    shipment_status: str | None = Query(default=None),
+    shipping_method: str | None = Query(default=None),
+    shipment_no: str | None = Query(default=None),
+    created_date_from: str | None = Query(default=None),
+    created_date_to: str | None = Query(default=None),
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
+) -> ShipmentScheduleCostSummary:
+    if project_id is not None:
+        project_service.ensure_project_access(
+            db,
+            project_id,
+            operator=operator,
+            is_admin=bool(is_admin),
+        )
+    accessible_project_ids = project_service.list_accessible_project_ids(
+        db,
+        operator=operator,
+        is_admin=bool(is_admin),
+    )
+    summary = shipment_schedule_service.summarize_shipment_schedule_costs(
+        db,
+        project_id=project_id,
+        project_ids=accessible_project_ids,
+        shipment_status=shipment_status,
+        shipping_method=shipping_method,
+        shipment_no=shipment_no,
+        created_date_from=created_date_from,
+        created_date_to=created_date_to,
+    )
+    return ShipmentScheduleCostSummary(**summary)
 
 
 @router.get('/shipment-schedules/sku-summary', response_model=ShipmentSkuSummaryResponse)

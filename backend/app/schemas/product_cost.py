@@ -59,7 +59,7 @@ class ProductCostCreate(BaseModel):
 
 class ProductCostUpdate(BaseModel):
     sku: str = Field(min_length=1)
-    asin: str = Field(min_length=1)
+    asin: str = ''
     fnsku: str | None = None
     fob_unit_cost: float | None = Field(default=None, ge=0, le=100000000)
     first_leg_cost_rmb: float | None = Field(default=None, ge=0, le=100000000)

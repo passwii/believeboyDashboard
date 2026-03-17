@@ -203,6 +203,37 @@ def _resolve_insert_sort_order(
     return next_order
 
 
+def _resequence_project_sort_orders(
+    db: Session,
+    *,
+    project_name: str,
+    prioritized_row: ProductCost | None = None,
+    requested_sort_order: int | None = None,
+) -> None:
+    rows = (
+        db.execute(
+            select(ProductCost)
+            .where(ProductCost.project_name == project_name)
+            .order_by(ProductCost.sort_order.asc(), ProductCost.id.asc())
+        )
+        .scalars()
+        .all()
+    )
+    if not rows:
+        return
+
+    ordered_rows = list(rows)
+    if prioritized_row is not None and requested_sort_order is not None:
+        ordered_rows = [row for row in ordered_rows if row.id != prioritized_row.id]
+        insert_at = min(max(requested_sort_order, 1), len(ordered_rows) + 1) - 1
+        ordered_rows.insert(insert_at, prioritized_row)
+
+    for index, current in enumerate(ordered_rows, start=1):
+        current.sort_order = index
+
+    db.flush()
+
+
 def _normalize_item(item: ProductCostCreate, source_file: str | None = None) -> dict[str, str | Decimal | bool | int | None]:
     provided_fields = set(item.model_fields_set)
 
@@ -218,7 +249,7 @@ def _normalize_item(item: ProductCostCreate, source_file: str | None = None) -> 
     return {
         'project_name': _normalize_text(item.project_name, 'project_name'),
         'sku': _normalize_text(item.sku, 'sku'),
-        'asin': _normalize_text(item.asin, 'asin'),
+        'asin': _normalize_optional_text(item.asin) or '',
         'fnsku': ((item.fnsku or '').strip() or None) if 'fnsku' in provided_fields else None,
         'fob_unit_cost': optional_cost('fob_unit_cost', item.fob_unit_cost),
         'first_leg_cost_rmb': optional_cost('first_leg_cost_rmb', item.first_leg_cost_rmb),
@@ -399,6 +430,14 @@ def upsert_product_cost(
             normalized['is_active'] = True
         row = ProductCost(**normalized)
         db.add(row)
+        db.flush()
+        if isinstance(normalized['sort_order'], int):
+            _resequence_project_sort_orders(
+                db,
+                project_name=str(normalized['project_name']),
+                prioritized_row=row,
+                requested_sort_order=int(normalized['sort_order']),
+            )
         action = 'inserted'
 
     db.flush()
@@ -414,7 +453,7 @@ def update_product_cost_by_id(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='SKU 成本记录不存在')
 
     sku = _normalize_text(payload.sku, 'sku')
-    asin = _normalize_text(payload.asin, 'asin')
+    asin = _normalize_optional_text(payload.asin) or ''
     fnsku = ((payload.fnsku or '').strip() or None) if 'fnsku' in payload.model_fields_set else row.fnsku
     fob_unit_cost = _normalize_cost(payload.fob_unit_cost, 'fob_unit_cost') if payload.fob_unit_cost is not None else row.fob_unit_cost
     first_leg_cost_rmb = _normalize_cost(payload.first_leg_cost_rmb, 'first_leg_cost_rmb') if payload.first_leg_cost_rmb is not None else row.first_leg_cost_rmb
@@ -468,6 +507,12 @@ def update_product_cost_by_id(
     row.country = country
     if sort_order is not None:
         row.sort_order = sort_order
+        _resequence_project_sort_orders(
+            db,
+            project_name=row.project_name,
+            prioritized_row=row,
+            requested_sort_order=sort_order,
+        )
     row.is_active = bool(payload.is_active)
     row.source_file = normalized_source_file
 
@@ -601,6 +646,12 @@ def import_product_costs(
             existing.units_per_carton = int(normalized['units_per_carton'])
         if normalized['sort_order'] is not None:
             existing.sort_order = int(normalized['sort_order'])
+            _resequence_project_sort_orders(
+                db,
+                project_name=existing.project_name,
+                prioritized_row=existing,
+                requested_sort_order=int(normalized['sort_order']),
+            )
         if normalized['is_active'] is not None:
             existing.is_active = bool(normalized['is_active'])
         existing.currency = RMB_CURRENCY
