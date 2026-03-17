@@ -197,6 +197,9 @@ const METHOD_OPTIONS = [
   { value: 'other', label: '其他' },
 ] as const
 
+const TABLE_SCROLL_CONTAINER_CLASS =
+  'w-full max-w-full overflow-x-auto overflow-y-visible rounded-[inherit] [-webkit-overflow-scrolling:touch] touch-pan-x overscroll-x-contain'
+
 function formatDateInputValue(value: Date): string {
   const year = value.getFullYear()
   const month = String(value.getMonth() + 1).padStart(2, '0')
@@ -2029,7 +2032,7 @@ export default function ShipmentManagementPage() {
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6">
       <Card className="dashboard-surface">
         <CardHeader className="gap-4 pb-5">
           <div className="flex flex-col gap-4">
@@ -2140,19 +2143,21 @@ export default function ShipmentManagementPage() {
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/40 dark:text-emerald-200">{successMessage}</div>
       ) : null}
 
-      <div className="grid gap-6">
-        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ShipmentPageTab)} className="w-full">
-          <TabsList className="mb-4">
-            <TabsTrigger value="overview">总览</TabsTrigger>
-            <TabsTrigger value="cost">发货费用</TabsTrigger>
-            <TabsTrigger value="sku-summary">SKU汇总</TabsTrigger>
-            <TabsTrigger value="fba-box-detail">FBA 箱单明细</TabsTrigger>
-          </TabsList>
+      <div className="grid min-w-0 gap-6">
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ShipmentPageTab)} className="min-w-0 w-full">
+          <div className="mb-4 overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch] touch-pan-x">
+            <TabsList className="flex w-max min-w-full justify-start">
+              <TabsTrigger value="overview">总览</TabsTrigger>
+              <TabsTrigger value="cost">发货费用</TabsTrigger>
+              <TabsTrigger value="sku-summary">SKU汇总</TabsTrigger>
+              <TabsTrigger value="fba-box-detail">FBA 箱单明细</TabsTrigger>
+            </TabsList>
+          </div>
           
-          <TabsContent value="overview" className="mt-0">
-            <Card className="dashboard-surface">
+          <TabsContent value="overview" className="mt-0 min-w-0">
+            <Card className="dashboard-surface min-w-0">
               <CardHeader className="border-b border-border/70">
-                <div className="flex flex-row items-center justify-between gap-4">
+                <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div>
                     <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Overview</div>
                     <CardTitle>船期批次总览</CardTitle>
@@ -2160,7 +2165,7 @@ export default function ShipmentManagementPage() {
                       共 {total} 条记录，当前第 {page} / {pageCount} 页
                     </CardDescription>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Button variant="outline" disabled={loading || exporting || items.length === 0} onClick={() => void exportOverviewToExcel()}>
                       <FileDown className="h-4 w-4" />
                       {exporting ? '导出中...' : '导出 Excel'}
@@ -2180,13 +2185,13 @@ export default function ShipmentManagementPage() {
                     当前没有符合筛选条件的船期记录。
                   </div>
                 ) : (
-                  <div className="relative overflow-auto">
+                  <div className="relative">
                     {loading && items.length > 0 ? (
                       <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/70 bg-background/95 px-3 py-1 text-xs text-muted-foreground shadow-sm">
                         列表更新中...
                       </div>
                     ) : null}
-                    <Table className="w-full min-w-[1000px]">
+                    <Table containerClassName={TABLE_SCROLL_CONTAINER_CLASS} className="w-full min-w-[1000px]">
                       <TableHeader>
                         <TableRow className="bg-muted/50">
                           <TableHead className="w-[90px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0">项目</TableHead>
@@ -2246,17 +2251,17 @@ export default function ShipmentManagementPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="cost" className="mt-0">
-            <Card className="dashboard-surface">
+          <TabsContent value="cost" className="mt-0 min-w-0">
+            <Card className="dashboard-surface min-w-0">
               <CardHeader className="border-b border-border/70">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div>
+                <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                  <div className="min-w-0">
                     <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Shipping Cost</div>
                     <CardTitle>发货费用</CardTitle>
                     
                   </div>
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                  <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-center xl:justify-end">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end xl:flex-nowrap">
                       <div className="space-y-1">
                         <div className="text-[11px] font-medium text-muted-foreground">开始时间</div>
                         <Input
@@ -2282,7 +2287,7 @@ export default function ShipmentManagementPage() {
                         {costExporting ? '导出中...' : '导出 Excel'}
                       </Button>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <div className="grid min-w-0 grid-cols-2 gap-2 md:grid-cols-4 xl:shrink-0">
                       {costSummaryLoading ? (
                         <>
                           <ShipmentMetricSkeleton />
@@ -2326,13 +2331,13 @@ export default function ShipmentManagementPage() {
                     当前没有符合筛选条件的发货批次。
                   </div>
                 ) : (
-                  <div className="relative overflow-auto">
+                  <div className="relative">
                     {loading && items.length > 0 ? (
                       <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/70 bg-background/95 px-3 py-1 text-xs text-muted-foreground shadow-sm">
                         发货费用计算中...
                       </div>
                     ) : null}
-                    <Table className="w-full min-w-[1320px]">
+                    <Table containerClassName={TABLE_SCROLL_CONTAINER_CLASS} className="w-full min-w-[1320px]">
                       <TableHeader>
                         <TableRow className="bg-muted/50">
                           <TableHead className="whitespace-nowrap">项目</TableHead>
@@ -2386,15 +2391,15 @@ export default function ShipmentManagementPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="sku-summary" className="mt-0">
-            <Card className="dashboard-surface">
+          <TabsContent value="sku-summary" className="mt-0 min-w-0">
+            <Card className="dashboard-surface min-w-0">
               <CardHeader className="border-b border-border/70">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div>
+                <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                  <div className="min-w-0">
                     <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">SKU Summary</div>
                     <CardTitle>SKU 汇总</CardTitle>
                   </div>
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                  <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-center xl:justify-end">
                     <div className="flex gap-2">
                       <Button
                         variant="outline"
@@ -2405,7 +2410,7 @@ export default function ShipmentManagementPage() {
                         {skuSummaryExporting ? '导出中...' : '导出 Excel'}
                       </Button>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <div className="grid min-w-0 grid-cols-2 gap-2 md:grid-cols-4 xl:shrink-0">
                       <div className="rounded-2xl border border-sky-500/15 bg-sky-500/5 px-4 py-3">
                         <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">SKU 数</div>
                         <div className="mt-1 text-xl font-semibold">{skuSummaryItems.length}</div>
@@ -2438,13 +2443,13 @@ export default function ShipmentManagementPage() {
                     当前没有符合口径的 SKU 汇总数据。
                   </div>
                 ) : (
-                  <div className="relative overflow-auto">
+                  <div className="relative">
                     {skuSummaryLoading && skuSummaryItems.length > 0 ? (
                       <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/70 bg-background/95 px-3 py-1 text-xs text-muted-foreground shadow-sm">
                         SKU 汇总更新中...
                       </div>
                     ) : null}
-                    <Table className="w-full min-w-[1120px]">
+                    <Table containerClassName={TABLE_SCROLL_CONTAINER_CLASS} className="w-full min-w-[1120px]">
                       <TableHeader>
                         <TableRow className="bg-muted/50">
                           <TableHead className="whitespace-nowrap">项目</TableHead>
@@ -2477,15 +2482,15 @@ export default function ShipmentManagementPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="fba-box-detail" className="mt-0">
-            <Card className="dashboard-surface">
+          <TabsContent value="fba-box-detail" className="mt-0 min-w-0">
+            <Card className="dashboard-surface min-w-0">
               <CardHeader>
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div>
+                <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                  <div className="min-w-0">
                     <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">FBA Box List</div>
                     <CardTitle>FBA 箱单明细</CardTitle>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Button
                       variant="outline"
                       disabled={!trimmedShipmentNoFilter || fbaBoxLoading}
@@ -2566,13 +2571,13 @@ export default function ShipmentManagementPage() {
                         </>
                       )}
                     </div>
-                    <div className="relative overflow-auto">
+                    <div className="relative">
                       {fbaBoxLoading && fbaBoxItems.length > 0 ? (
                         <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/70 bg-background/95 px-3 py-1 text-xs text-muted-foreground shadow-sm">
                           箱单明细更新中...
                         </div>
                       ) : null}
-                      <Table className="w-full min-w-[1000px]">
+                      <Table containerClassName={TABLE_SCROLL_CONTAINER_CLASS} className="w-full min-w-[1000px]">
                         <TableHeader>
                           <TableRow className="bg-muted/50">
                             <TableHead className="whitespace-nowrap w-[80px]">仓库 ID</TableHead>

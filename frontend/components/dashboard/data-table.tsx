@@ -304,19 +304,19 @@ export function DataTable() {
   })
 
   return (
-    <div className="w-full">
-      <div className="flex flex-wrap items-center gap-2 py-4">
+    <div className="w-full space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-2 py-4">
         <Input
           placeholder="Filter documents..."
           value={(table.getColumn('header')?.getFilterValue() as string) ?? ''}
           onChange={(event) =>
             table.getColumn('header')?.setFilterValue(event.target.value)
           }
-          className="h-10 max-w-sm bg-background/80 text-sm"
+          className="h-10 max-w-sm bg-background/80 text-sm min-w-touch"
         />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="ml-auto h-10">
+            <Button variant="outline" className="h-10 min-w-touch">
               Columns <ChevronDown className="ml-2 h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -341,7 +341,7 @@ export function DataTable() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <div className="rounded-lg border border-border/80 bg-background/60">
+      <div className="rounded-lg border border-border/80 bg-background/60 overflow-x-auto">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (

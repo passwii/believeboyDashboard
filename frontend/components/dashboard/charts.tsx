@@ -72,17 +72,17 @@ export function VisitorsChart() {
   }, [timeRange])
 
   return (
-    <Card className="col-span-4 dashboard-surface hover-lift animate-enter">
-      <CardHeader className="relative z-10 flex items-center gap-2 space-y-0 border-b border-border/70 py-5 sm:flex-row">
+    <Card className="col-span-1 lg:col-span-4 dashboard-surface hover-lift animate-enter">
+      <CardHeader className="relative z-10 flex flex-col gap-3 space-y-0 border-b border-border/70 py-4 sm:flex-row sm:items-center sm:gap-2 sm:py-5">
         <div className="grid flex-1 gap-1 text-center sm:text-left">
-          <CardTitle className="text-xl">Visitors Overview</CardTitle>
-          <CardDescription className="text-sm md:text-[15px]">
+          <CardTitle className="text-lg sm:text-xl">Visitors Overview</CardTitle>
+          <CardDescription className="text-xs sm:text-sm md:text-[15px]">
             Showing total visitors and page views for the selected period
           </CardDescription>
         </div>
         <Select value={timeRange} onValueChange={setTimeRange}>
           <SelectTrigger
-            className="h-9 w-[170px] rounded-lg border-border/80 bg-background/70 text-sm sm:ml-auto"
+            className="h-9 w-full min-w-touch sm:w-[170px] rounded-lg border-border/80 bg-background/70 text-sm"
             aria-label="Select a time range"
           >
             <SelectValue placeholder="Last 30 days" />
@@ -103,7 +103,7 @@ export function VisitorsChart() {
       <CardContent className="relative z-10 px-2 pt-4 sm:px-6 sm:pt-6">
         <ChartContainer
           config={chartConfig}
-          className="aspect-auto h-[300px] w-full"
+          className="aspect-auto h-[250px] sm:h-[300px] w-full"
         >
           <AreaChart accessibilityLayer data={filteredData}>
             <defs>

@@ -95,12 +95,16 @@
       radial-gradient(circle at 100% 0%, hsl(var(--primary) / 0.08), transparent 40%),
       radial-gradient(circle at 0% 100%, hsl(var(--chart-2) / 0.08), transparent 36%);
     background-attachment: fixed;
+    -webkit-overflow-scrolling: touch;
   }
 
   html {
     font-size: 17px;
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
   }
 
+  /* Mobile-first responsive typography */
   @media (max-width: 1440px) {
     html {
       font-size: 16px;
@@ -117,6 +121,16 @@
     html {
       font-size: 16px;
     }
+    
+    body {
+      @apply text-sm;
+    }
+  }
+
+  @media (max-width: 480px) {
+    html {
+      font-size: 15px;
+    }
   }
 
   h1,
@@ -125,6 +139,110 @@
   h4 {
     font-family: var(--font-display), var(--font-sans), sans-serif;
     letter-spacing: -0.02em;
+  }
+  
+  /* Better touch scrolling on mobile */
+  @media (pointer: coarse) {
+    body {
+      overflow-x: hidden;
+    }
+    
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    
+    ::-webkit-scrollbar-thumb {
+      background: hsl(var(--muted-foreground) / 0.3);
+      border-radius: 3px;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+      background: hsl(var(--muted-foreground) / 0.5);
+    }
+  }
+
+  /* Tablet specific styles (768px - 1024px) */
+  @media (min-width: 768px) and (max-width: 1024px) {
+    html {
+      font-size: 15px;
+    }
+
+    body {
+      @apply text-sm;
+    }
+
+    /* Better tablet scrolling */
+    body {
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+    }
+
+    /* Tablet-specific scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: hsl(var(--muted) / 0.5);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: hsl(var(--muted-foreground) / 0.4);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: hsl(var(--muted-foreground) / 0.6);
+    }
+
+    /* Improved tablet selection */
+    ::selection {
+      background: hsl(var(--primary) / 0.3);
+    }
+  }
+
+  /* Laptop specific styles (1280px+) */
+  @media (min-width: 1280px) {
+    html {
+      font-size: 16px;
+    }
+
+    body {
+      @apply text-base;
+    }
+
+    /* Laptop-specific scrollbar - more subtle */
+    ::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: hsl(var(--muted-foreground) / 0.25);
+      border-radius: 5px;
+      border: 2px solid transparent;
+      background-clip: content-box;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: hsl(var(--muted-foreground) / 0.4);
+      background-clip: content-box;
+    }
+
+    /* Improved laptop selection */
+    ::selection {
+      background: hsl(var(--primary) / 0.25);
+    }
   }
 }
 
