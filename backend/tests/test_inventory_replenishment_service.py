@@ -1,4 +1,4 @@
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import create_engine
@@ -24,6 +24,8 @@ def test_inventory_replenishment_analysis_aggregates_sources():
     Base.metadata.create_all(bind=engine)
 
     with Session(engine) as db:
+        today = date.today()
+        daily_window_end = today - timedelta(days=2)
         project = Project(project_name='宝勒1店', sort_order=1, source_file='seed.csv')
         db.add(project)
         db.flush()
@@ -115,7 +117,7 @@ def test_inventory_replenishment_analysis_aggregates_sources():
         daily_source = DailySourceFile(
             project_id=project.id,
             report_type='sales_report',
-            report_date=date(2026, 3, 7),
+            report_date=daily_window_end,
             version=1,
             is_current=True,
             upload_file_id='daily-1',
@@ -180,9 +182,9 @@ def test_inventory_replenishment_analysis_aggregates_sources():
                     source_file_id=daily_source.id,
                     source_row_no=1,
                     amazon_order_id='ORDER-1',
-                    purchase_at_utc=datetime(2026, 3, 7, tzinfo=UTC),
-                    purchase_at_pt=datetime(2026, 3, 7, 8, 0, 0),
-                    purchase_date_pt=date(2026, 3, 7),
+                    purchase_at_utc=datetime.combine(daily_window_end, datetime.min.time(), tzinfo=UTC),
+                    purchase_at_pt=datetime.combine(daily_window_end, datetime.min.time()),
+                    purchase_date_pt=daily_window_end,
                     order_status='Shipped',
                     sku='SKU-001',
                     asin='ASIN-001',
@@ -458,6 +460,8 @@ def test_inventory_replenishment_analysis_filters_sources_by_country():
     Base.metadata.create_all(bind=engine)
 
     with Session(engine) as db:
+        today = date.today()
+        daily_window_end = today - timedelta(days=2)
         project = Project(project_name='Country Source Demo', sort_order=1, source_file='seed.csv')
         db.add(project)
         db.flush()
@@ -507,7 +511,7 @@ def test_inventory_replenishment_analysis_filters_sources_by_country():
             project_id=project.id,
             report_type='sales_report',
             country='US',
-            report_date=date(2026, 3, 8),
+            report_date=daily_window_end,
             version=1,
             is_current=True,
             upload_file_id='daily-us',
@@ -522,7 +526,7 @@ def test_inventory_replenishment_analysis_filters_sources_by_country():
             project_id=project.id,
             report_type='sales_report',
             country='DE',
-            report_date=date(2026, 3, 8),
+            report_date=daily_window_end,
             version=1,
             is_current=True,
             upload_file_id='daily-de',
@@ -574,9 +578,9 @@ def test_inventory_replenishment_analysis_filters_sources_by_country():
                     source_file_id=daily_source_us.id,
                     source_row_no=1,
                     amazon_order_id='ORDER-US',
-                    purchase_at_utc=datetime(2026, 3, 7, tzinfo=UTC),
-                    purchase_at_pt=datetime(2026, 3, 7, 8, 0, 0),
-                    purchase_date_pt=date(2026, 3, 7),
+                    purchase_at_utc=datetime.combine(daily_window_end, datetime.min.time(), tzinfo=UTC),
+                    purchase_at_pt=datetime.combine(daily_window_end, datetime.min.time()),
+                    purchase_date_pt=daily_window_end,
                     order_status='Shipped',
                     sku='SKU-DE',
                     asin='ASIN-DE',
@@ -591,9 +595,9 @@ def test_inventory_replenishment_analysis_filters_sources_by_country():
                     source_file_id=daily_source_de.id,
                     source_row_no=1,
                     amazon_order_id='ORDER-DE',
-                    purchase_at_utc=datetime(2026, 3, 7, tzinfo=UTC),
-                    purchase_at_pt=datetime(2026, 3, 7, 8, 0, 0),
-                    purchase_date_pt=date(2026, 3, 7),
+                    purchase_at_utc=datetime.combine(daily_window_end, datetime.min.time(), tzinfo=UTC),
+                    purchase_at_pt=datetime.combine(daily_window_end, datetime.min.time()),
+                    purchase_date_pt=daily_window_end,
                     order_status='Shipped',
                     sku='SKU-DE',
                     asin='ASIN-DE',
@@ -664,7 +668,7 @@ def test_upsert_inventory_replenishment_setting_separates_country_rows():
         assert de_row.country == 'DE'
 
 
-def test_normalize_weighted_dms_keeps_missing_windows_unscaled():
+def test_normalize_weighted_dms_rebalances_when_window_missing():
     result = inventory_replenishment_service._normalize_weighted_dms(
         Decimal('3'),
         Decimal('4'),
@@ -672,7 +676,132 @@ def test_normalize_weighted_dms_keeps_missing_windows_unscaled():
         None,
     )
 
-    assert result == Decimal('3.0')
+    assert result is not None
+    assert result.quantize(Decimal('0.0001')) == Decimal('4.2857')
+
+
+def test_inventory_replenishment_analysis_counts_draft_as_in_transit():
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        project = Project(project_name='Draft Transit Demo', sort_order=1, source_file='seed.csv')
+        db.add(project)
+        db.flush()
+
+        db.add(ProductCost(
+            project_name='Draft Transit Demo',
+            sku='SKU-001',
+            asin='ASIN-001',
+            fob_unit_cost=2,
+            currency='USD',
+            country='US',
+            sort_order=1,
+            is_active=True,
+        ))
+        db.flush()
+
+        schedule = ShipmentSchedule(
+            project_id=project.id,
+            project_name_snapshot='Draft Transit Demo',
+            shipment_no='SHP-DRAFT',
+            shipping_method='sea',
+            shipment_status='draft',
+            source_type='manual',
+        )
+        db.add(schedule)
+        db.flush()
+        db.add(
+            ShipmentScheduleItem(
+                shipment_schedule_id=schedule.id,
+                project_id=project.id,
+                shipment_no='SHP-DRAFT',
+                item_date=date(2026, 3, 8),
+                sku='SKU-001',
+                quantity=18,
+                source_type='manual',
+            )
+        )
+        db.commit()
+
+        items, summary, total, has_next = inventory_replenishment_service.list_inventory_replenishment_analysis(
+            db,
+            project_id=project.id,
+            country='US',
+            keyword=None,
+            risk_status=None,
+            in_transit_only=False,
+            page=1,
+            page_size=20,
+        )
+
+        assert has_next is False
+        assert total == 1
+        assert summary['total_in_transit_quantity'] == 18
+        assert items[0]['in_transit_quantity'] == 18
+
+
+def test_inventory_replenishment_shipments_sorted_by_latest_shipment_date():
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        project = Project(project_name='Shipment Sort Demo', sort_order=1, source_file='seed.csv')
+        db.add(project)
+        db.flush()
+
+        old_schedule = ShipmentSchedule(
+            project_id=project.id,
+            project_name_snapshot='Shipment Sort Demo',
+            shipment_no='SHP-OLD',
+            shipping_method='sea',
+            shipment_status='in_transit',
+            created_date=date(2026, 3, 1),
+            source_type='manual',
+        )
+        new_schedule = ShipmentSchedule(
+            project_id=project.id,
+            project_name_snapshot='Shipment Sort Demo',
+            shipment_no='SHP-NEW',
+            shipping_method='sea',
+            shipment_status='in_transit',
+            created_date=date(2026, 3, 10),
+            source_type='manual',
+        )
+        db.add_all([old_schedule, new_schedule])
+        db.flush()
+
+        db.add_all(
+            [
+                ShipmentScheduleItem(
+                    shipment_schedule_id=old_schedule.id,
+                    project_id=project.id,
+                    shipment_no='SHP-OLD',
+                    item_date=date(2026, 3, 1),
+                    sku='SKU-001',
+                    quantity=5,
+                    source_type='manual',
+                ),
+                ShipmentScheduleItem(
+                    shipment_schedule_id=new_schedule.id,
+                    project_id=project.id,
+                    shipment_no='SHP-NEW',
+                    item_date=date(2026, 3, 10),
+                    sku='SKU-001',
+                    quantity=7,
+                    source_type='manual',
+                ),
+            ]
+        )
+        db.commit()
+
+        rows = inventory_replenishment_service.list_inventory_replenishment_shipments(
+            db,
+            project_id=project.id,
+            sku='SKU-001',
+        )
+
+        assert [row['shipment_no'] for row in rows] == ['SHP-NEW', 'SHP-OLD']
 
 
 def test_load_daily_dms_map_uses_lagged_three_day_window():

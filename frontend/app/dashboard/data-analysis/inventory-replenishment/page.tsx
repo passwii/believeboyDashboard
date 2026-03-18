@@ -1,7 +1,7 @@
 'use client'
 
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
-import { Boxes, CalendarClock, CircleAlert, Loader2, PackageSearch, Save, ShipWheel } from 'lucide-react'
+import { Boxes, CalendarClock, CircleAlert, FileDown, Loader2, PackageSearch, Save, ShipWheel } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 
@@ -144,19 +144,19 @@ function formatDate(value: string | null | undefined): string {
 }
 
 const tableHeadClassName =
-  'h-11 whitespace-nowrap border-b border-r border-slate-200 px-3 py-2.5 text-[14px] font-bold tracking-normal text-slate-700 last:border-r-0 dark:border-slate-800 dark:text-slate-300'
+  'h-11 whitespace-nowrap border-b border-r border-slate-200/80 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-600 last:border-r-0 dark:border-slate-800/80 dark:text-slate-300'
 
 const tableCellClassName =
-  'whitespace-nowrap border-b border-r border-slate-200 px-3 py-2 align-middle text-[13px] text-slate-700 last:border-r-0 dark:border-slate-800 dark:text-slate-300'
+  'whitespace-nowrap border-b border-r border-slate-200/70 px-3 py-2.5 align-middle text-[13px] text-slate-700 last:border-r-0 dark:border-slate-800/80 dark:text-slate-300'
 
 const stickyTableHeadClassName =
-  'sticky top-0 z-[15] bg-slate-50 shadow-[inset_0_-1px_0_0_rgba(148,163,184,0.22)] dark:bg-slate-950 dark:shadow-[inset_0_-1px_0_0_rgba(51,65,85,0.65)]'
+  'sticky top-0 z-[15] bg-[linear-gradient(180deg,rgba(248,250,252,0.98),rgba(248,250,252,0.94))] backdrop-blur-sm shadow-[inset_0_-1px_0_0_rgba(148,163,184,0.22)] dark:bg-[linear-gradient(180deg,rgba(2,6,23,0.98),rgba(2,6,23,0.94))] dark:shadow-[inset_0_-1px_0_0_rgba(51,65,85,0.65)]'
 
 const stickySkuHeadClassName =
-  'sticky left-0 top-0 z-[16] bg-slate-50 shadow-[inset_-1px_0_0_0_rgba(148,163,184,0.22)] dark:bg-slate-950 dark:shadow-[inset_-1px_0_0_0_rgba(51,65,85,0.65)]'
+  'sticky left-0 top-0 z-[16] bg-[linear-gradient(180deg,rgba(248,250,252,0.99),rgba(248,250,252,0.95))] backdrop-blur-sm shadow-[inset_-1px_0_0_0_rgba(148,163,184,0.26)] dark:bg-[linear-gradient(180deg,rgba(2,6,23,0.99),rgba(2,6,23,0.95))] dark:shadow-[inset_-1px_0_0_0_rgba(51,65,85,0.7)]'
 
 const stickySkuCellClassName =
-  'sticky left-0 z-[1] bg-white shadow-[inset_-1px_0_0_0_rgba(148,163,184,0.16)] group-hover:bg-sky-50 dark:bg-slate-950 dark:shadow-[inset_-1px_0_0_0_rgba(51,65,85,0.65)] dark:group-hover:bg-sky-950/40'
+  'sticky left-0 z-[1] bg-[linear-gradient(90deg,rgba(255,255,255,0.99),rgba(255,255,255,0.95))] shadow-[inset_-1px_0_0_0_rgba(148,163,184,0.16)] group-hover:bg-sky-50/90 dark:bg-[linear-gradient(90deg,rgba(2,6,23,0.99),rgba(2,6,23,0.95))] dark:shadow-[inset_-1px_0_0_0_rgba(51,65,85,0.65)] dark:group-hover:bg-sky-950/40'
 
 function riskMeta(riskStatus: string): { label: string; className: string } {
   const map: Record<string, { label: string; className: string }> = {
@@ -225,6 +225,7 @@ export default function InventoryReplenishmentPage() {
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
 
   const [edits, setEdits] = useState<Record<string, RowEditState>>({})
   const [savingSku, setSavingSku] = useState<string | null>(null)
@@ -417,6 +418,186 @@ export default function InventoryReplenishmentPage() {
     }
   }
 
+  async function exportToExcel() {
+    if (rows.length === 0) {
+      setError('当前没有可导出的补货分析数据')
+      return
+    }
+
+    setExporting(true)
+    setError(null)
+    try {
+      const ExcelJS = await import('exceljs')
+      const workbook = new ExcelJS.Workbook()
+      workbook.creator = 'Codex'
+      workbook.created = new Date()
+
+      const worksheet = workbook.addWorksheet('补货分析', {
+        views: [{ state: 'frozen', ySplit: 4, xSplit: 1 }],
+      })
+
+      const columns = [
+        { header: '项目', key: 'project_name', width: 16 },
+        { header: '国家', key: 'country', width: 10 },
+        { header: 'SKU', key: 'sku', width: 18 },
+        { header: 'ASIN', key: 'asin', width: 18 },
+        { header: '店铺库存', key: 'available_inventory', width: 12 },
+        { header: '在途', key: 'in_transit_quantity', width: 10 },
+        { header: '30D', key: 'dms_30', width: 10 },
+        { header: '14D', key: 'dms_14', width: 10 },
+        { header: '7D', key: 'dms_7', width: 10 },
+        { header: '3D', key: 'dms_3', width: 10 },
+        { header: 'DMS', key: 'base_dms', width: 10 },
+        { header: '加权系数', key: 'safety_factor', width: 12 },
+        { header: '加权DMS', key: 'weighted_dms', width: 12 },
+        { header: '可售天数', key: 'sellable_days', width: 12 },
+        { header: '售卖截止', key: 'sellout_date', width: 14 },
+        { header: '含在途截止', key: 'sellout_date_with_transit', width: 14 },
+        { header: '生产交货', key: 'production_lead_days', width: 10 },
+        { header: '运输时间', key: 'shipping_days', width: 10 },
+        { header: '补货指令', key: 'replenishment_order_date', width: 14 },
+        { header: '建仓指令', key: 'warehouse_entry_date', width: 14 },
+        { header: '发货指令', key: 'shipment_order_date', width: 14 },
+        { header: '风险状态', key: 'risk_status', width: 12 },
+      ] as const
+
+      const exportedAt = new Date().toLocaleString('zh-CN', { hour12: false })
+      const lastColumn = columns.length
+      const selectedProjectName = projects.find((project) => String(project.id) === projectId)?.name ?? '全部项目'
+
+      worksheet.mergeCells(1, 1, 1, lastColumn)
+      worksheet.getCell(1, 1).value = '补货核算分析'
+      worksheet.getCell(1, 1).font = { name: 'Microsoft YaHei', size: 16, bold: true, color: { argb: 'FF0F172A' } }
+      worksheet.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
+
+      worksheet.mergeCells(2, 1, 2, lastColumn)
+      worksheet.getCell(2, 1).value = `导出时间：${exportedAt}    说明：导出当前筛选条件下的补货主表数据`
+      worksheet.getCell(2, 1).font = { name: 'Microsoft YaHei', size: 10, color: { argb: 'FF475569' } }
+      worksheet.getCell(2, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
+
+      const filterText = [
+        `项目：${selectedProjectName}`,
+        `国家：${COUNTRY_OPTIONS.find((option) => option.value === country)?.label ?? country}`,
+        keyword.trim() ? `关键词：${keyword.trim()}` : '关键词：全部',
+        riskFilter === 'all' ? '风险状态：全部' : `风险状态：${riskFilter}`,
+      ].join('    ')
+      worksheet.mergeCells(3, 1, 3, lastColumn)
+      worksheet.getCell(3, 1).value = filterText
+      worksheet.getCell(3, 1).font = { name: 'Microsoft YaHei', size: 10, color: { argb: 'FF64748B' } }
+      worksheet.getCell(3, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } }
+
+      worksheet.columns = columns.map((column) => ({ key: column.key, width: column.width }))
+
+      const headerRow = worksheet.getRow(4)
+      headerRow.values = columns.map((column) => column.header)
+      headerRow.height = 24
+      headerRow.eachCell((cell) => {
+        cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
+        cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        }
+      })
+
+      rows.forEach((row, index) => {
+        const sheetRow = worksheet.getRow(index + 5)
+        sheetRow.values = [
+          row.project_name,
+          row.country,
+          row.sku,
+          row.asin || '-',
+          row.available_inventory,
+          row.in_transit_quantity,
+          row.dms_30,
+          row.dms_14,
+          row.dms_7,
+          row.dms_3,
+          row.base_dms,
+          row.safety_factor,
+          row.weighted_dms,
+          row.sellable_days,
+          row.sellout_date || '-',
+          row.sellout_date_with_transit || '-',
+          row.production_lead_days,
+          row.shipping_days,
+          row.replenishment_order_date || '-',
+          row.warehouse_entry_date || '-',
+          row.shipment_order_date || '-',
+          row.risk_status,
+        ]
+
+        sheetRow.eachCell((cell, colNumber) => {
+          cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF0F172A' } }
+          cell.alignment = {
+            vertical: 'middle',
+            horizontal: colNumber >= 5 && colNumber <= 18 ? 'right' : 'left',
+            wrapText: true,
+          }
+          if (colNumber === 22) {
+            const riskStatus = row.risk_status
+            if (riskStatus === '断货风险') {
+              cell.font = { name: 'Microsoft YaHei', color: { argb: 'FFDC2626' }, bold: true }
+            } else if (riskStatus === '未来健康') {
+              cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF059669' }, bold: true }
+            } else if (riskStatus === '滞销风险') {
+              cell.font = { name: 'Microsoft YaHei', color: { argb: 'FFD97706' }, bold: true }
+            } else if (riskStatus === '待补数据') {
+              cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF64748B' } }
+            }
+          }
+          if (colNumber === 5 || colNumber === 6 || colNumber === 17 || colNumber === 18) cell.numFmt = '#,##0'
+          if (colNumber >= 7 && colNumber <= 11) cell.numFmt = '0.0000'
+          if (colNumber === 12) cell.numFmt = '0.00%'
+          if (colNumber === 13 || colNumber === 14) cell.numFmt = '0.00'
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          }
+        })
+      })
+
+      const totalRow = worksheet.getRow(rows.length + 5)
+      totalRow.getCell(1).value = '筛选结果合计'
+      totalRow.getCell(5).value = summary.total_available_inventory
+      totalRow.getCell(6).value = summary.total_in_transit_quantity
+      totalRow.getCell(22).value = `SKU: ${summary.sku_count}`
+      totalRow.eachCell((cell) => {
+        cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        }
+      })
+      totalRow.getCell(5).numFmt = '#,##0'
+      totalRow.getCell(6).numFmt = '#,##0'
+
+      const buffer = await workbook.xlsx.writeBuffer()
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      const safeTimestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+      link.href = url
+      link.download = `补货分析-${safeTimestamp}.xlsx`
+      link.click()
+      window.URL.revokeObjectURL(url)
+    } catch (exportError) {
+      setError(exportError instanceof Error ? exportError.message : '导出 Excel 失败')
+    } finally {
+      setExporting(false)
+    }
+  }
+
   const cards = [
     {
       title: 'SKU 总数',
@@ -555,10 +736,23 @@ export default function InventoryReplenishmentPage() {
 
       <Card className="overflow-visible border-slate-200/80 dark:border-slate-800 dark:bg-slate-950/80">
         <CardHeader className="border-b border-slate-100 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-900/70">
-          <CardTitle className="text-slate-900 dark:text-slate-50">SKU 补货主表</CardTitle>
-          <CardDescription className="dark:text-slate-400">
-            ASIN 默认为只读；行内仅可修改生产交货时间、运输时间和加权系数。发货信息仅查看，维护入口仍在发货管理。
-          </CardDescription>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle className="text-slate-900 dark:text-slate-50">SKU 补货主表</CardTitle>
+              <CardDescription className="dark:text-slate-400">
+                ASIN 默认为只读；行内仅可修改生产交货时间、运输时间和加权系数。发货信息仅查看，维护入口仍在发货管理。
+              </CardDescription>
+            </div>
+            <Button
+              variant="outline"
+              className="h-8 gap-1.5 text-xs dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              disabled={loading || exporting || rows.length === 0}
+              onClick={() => void exportToExcel()}
+            >
+              <FileDown className="h-3.5 w-3.5" />
+              {exporting ? '导出中...' : '导出 Excel'}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           {error ? (
@@ -582,11 +776,11 @@ export default function InventoryReplenishmentPage() {
                 </div>
               ) : null}
               <Table
-                containerClassName="max-h-[70vh] overflow-auto"
-                className="min-w-[2050px] table-auto border-separate border-spacing-0 bg-white text-[13px] dark:bg-slate-950"
+                containerClassName="max-h-[72vh] overflow-auto rounded-b-2xl border-t border-slate-200/70 bg-white/70 backdrop-blur-sm dark:border-slate-800/70 dark:bg-slate-950/70"
+                className="min-w-[2050px] table-auto border-separate border-spacing-0 bg-transparent text-[13px]"
               >
                 <TableHeader>
-                  <TableRow className="bg-slate-50 dark:bg-slate-950">
+                  <TableRow className="bg-transparent">
                     <TableHead className={`${tableHeadClassName} ${stickySkuHeadClassName} min-w-[132px]`}>SKU</TableHead>
                     <TableHead className={`${tableHeadClassName} ${stickyTableHeadClassName} min-w-[88px]`}>国家</TableHead>
                     <TableHead className={`${tableHeadClassName} ${stickyTableHeadClassName} min-w-[152px]`}>ASIN</TableHead>
@@ -617,7 +811,7 @@ export default function InventoryReplenishmentPage() {
                     const edit = edits[key] || buildEditState(row)
                     const risk = riskMeta(row.risk_status)
                     return (
-                      <TableRow key={key} className="group align-top hover:bg-sky-50/80 dark:hover:bg-sky-950/20">
+                      <TableRow key={key} className="group align-top odd:bg-white even:bg-slate-50/55 hover:bg-sky-50/80 dark:odd:bg-slate-950 dark:even:bg-slate-900/70 dark:hover:bg-sky-950/20">
                         <TableCell className={`${tableCellClassName} ${stickySkuCellClassName} font-medium text-slate-900 dark:text-slate-100`}>
                           {row.sku}
                         </TableCell>
@@ -700,14 +894,6 @@ export default function InventoryReplenishmentPage() {
                             >
                               查看发货
                             </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-8 justify-start whitespace-nowrap px-2.5 text-xs dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                              onClick={() => router.push('/dashboard/data-management/shipment-management')}
-                            >
-                              前往发货管理
-                            </Button>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -725,7 +911,7 @@ export default function InventoryReplenishmentPage() {
           <SheetHeader>
             <SheetTitle className="dark:text-slate-100">{selectedRow ? `${selectedRow.sku} 发货信息` : '发货信息'}</SheetTitle>
             <SheetDescription className="dark:text-slate-400">
-              在途数量口径包含 `in_transit`、`arrived_port`、`inbound_processing`。本抽屉只读展示，维护请前往发货管理。
+              在途数量口径包含 `in_transit`、`draft`。本抽屉只读展示，维护请前往发货管理。
             </SheetDescription>
           </SheetHeader>
 

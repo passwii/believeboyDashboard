@@ -5,6 +5,9 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, get_request_operator, protected
 from app.schemas.inventory_replenishment import (
+    InventoryAnalysisItem,
+    InventoryAnalysisResponse,
+    InventoryAnalysisSummary,
     InventoryReplenishmentListItem,
     InventoryReplenishmentListResponse,
     InventoryReplenishmentSettingItem,
@@ -13,10 +16,40 @@ from app.schemas.inventory_replenishment import (
     InventoryReplenishmentShipmentResponse,
     InventoryReplenishmentSummary,
 )
-from app.services import inventory_replenishment_service, project_service
+from app.services import inventory_analysis_service, inventory_replenishment_service, project_service
 from app.services.audit_log_service import append_operation_audit_log
 
 router = APIRouter(dependencies=[Depends(protected)])
+
+
+@router.get('/inventory-analysis', response_model=InventoryAnalysisResponse)
+def get_inventory_analysis(
+    project_id: int = Query(gt=0),
+    country: str = Query(default='US'),
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
+) -> InventoryAnalysisResponse:
+    project_service.ensure_project_access(
+        db,
+        project_id,
+        operator=operator,
+        is_admin=bool(is_admin),
+    )
+    payload = inventory_analysis_service.list_inventory_analysis(
+        db,
+        project_id=project_id,
+        country=country,
+    )
+    return InventoryAnalysisResponse(
+        project_id=int(payload['project_id']),
+        project_name=str(payload['project_name']),
+        country=str(payload['country']),
+        snapshot_at=payload['snapshot_at'],
+        summary=InventoryAnalysisSummary(**payload['summary']),
+        action_options=[str(item) for item in payload['action_options']],
+        items=[InventoryAnalysisItem(**item) for item in payload['items']],
+    )
 
 
 @router.get('/inventory-replenishment-analysis', response_model=InventoryReplenishmentListResponse)

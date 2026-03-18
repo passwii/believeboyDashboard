@@ -43,7 +43,7 @@ DEFAULT_SHIPPING_DAYS = 25
 DEFAULT_SAFETY_FACTOR = Decimal("0.20")
 DAILY_SALES_LAG_DAYS = 2
 DAILY_SALES_WINDOW_DAYS = 3
-IN_TRANSIT_STATUSES = ("in_transit",)
+IN_TRANSIT_STATUSES = ("in_transit", "draft")
 RISK_OUT_OF_STOCK = "断货风险"
 RISK_HEALTHY = "未来健康"
 RISK_SLOW_MOVING = "滞销风险"
@@ -351,7 +351,11 @@ def _normalize_weighted_dms(
     ]
     if not available:
         return None
-    return sum((value * weight for value, weight in available), Decimal("0"))
+    total_weight = sum((weight for _, weight in available), Decimal("0"))
+    if total_weight <= 0:
+        return None
+    weighted_sum = sum((value * weight for value, weight in available), Decimal("0"))
+    return weighted_sum / total_weight
 
 
 def _add_days(base_date: date, days_value: Decimal | None) -> str | None:
@@ -632,7 +636,15 @@ def list_inventory_replenishment_shipments(
             ShipmentSchedule.project_id == project_id,
             ShipmentScheduleItem.sku == normalized_sku,
         )
-        .order_by(ShipmentSchedule.updated_at.desc(), ShipmentSchedule.id.desc())
+        .order_by(
+            func.coalesce(
+                ShipmentSchedule.created_date,
+                ShipmentSchedule.etd_date,
+            ).desc(),
+            ShipmentSchedule.created_date.desc(),
+            ShipmentSchedule.etd_date.desc(),
+            ShipmentSchedule.id.desc(),
+        )
     ).all()
 
     payload: list[dict[str, object]] = []

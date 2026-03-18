@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from pydantic import BaseModel, Field
 
 
@@ -85,3 +87,45 @@ class InventoryReplenishmentShipmentResponse(BaseModel):
     project_id: int
     sku: str
     items: list[InventoryReplenishmentShipmentItem]
+
+
+class InventoryAnalysisSummary(BaseModel):
+    sku_count: int
+    out_of_stock_count: int
+    aging_sku_count: int
+    over_aged_sku_count: int
+    total_available_qty: int
+    total_age_0_90_qty: int
+    total_age_91_180_qty: int
+    total_age_181_270_qty: int
+    total_age_271_365_qty: int
+    total_age_365_plus_qty: int
+    action_type_count: int
+
+
+class InventoryAnalysisItem(BaseModel):
+    project_id: int
+    project_name: str
+    country: str
+    sku: str
+    asin: str | None = None
+    available_qty: int
+    age_0_90_qty: int
+    age_91_180_qty: int
+    age_181_270_qty: int
+    age_271_365_qty: int
+    age_365_plus_qty: int
+    recommended_action: str | None = None
+    recommended_action_label: str
+    stock_status: str
+    aging_status: str
+
+
+class InventoryAnalysisResponse(BaseModel):
+    project_id: int
+    project_name: str
+    country: str
+    snapshot_at: datetime | None = None
+    summary: InventoryAnalysisSummary
+    action_options: list[str]
+    items: list[InventoryAnalysisItem]

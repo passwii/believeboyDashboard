@@ -3,6 +3,7 @@ from app.services import (
     ai_chat_service,
     category_research_service,
     exchange_rate_service,
+    inventory_analysis_service,
     inventory_replenishment_service,
     job_service,
     monthly_report_service,
@@ -27,5 +28,6 @@ __all__ = [
     'ai_chat_service',
     'category_research_service',
     'exchange_rate_service',
+    'inventory_analysis_service',
     'inventory_replenishment_service',
 ]
