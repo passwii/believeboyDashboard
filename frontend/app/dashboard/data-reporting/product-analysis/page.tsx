@@ -91,6 +91,38 @@ function resolveApiUrl(path: string) {
   return `${base}${path}`
 }
 
+async function parseApiError(response: Response, fallback: string) {
+  try {
+    const payload = (await response.json()) as { detail?: unknown; message?: unknown }
+    if (typeof payload.detail === 'string' && payload.detail.trim()) return payload.detail
+    if (typeof payload.message === 'string' && payload.message.trim()) return payload.message
+  } catch {
+    const text = await response.text()
+    if (text.trim()) return text
+  }
+  return fallback
+}
+
+function translateProductAnalysisError(message: string) {
+  const text = message.trim()
+  if (!text) return '未知错误'
+
+  if (
+    text.includes('Inventory report validation failed:')
+    && text.includes('matched active SKU info')
+  ) {
+    const ratioMatch = text.match(/match rate\s+(\d+%)/i)
+    const rowsMatch = text.match(/(\d+)\/(\d+)\s+rows matched/i)
+    const sampleMatch = text.match(/Unmatched sample:\s*(.+)$/i)
+    const ratioText = ratioMatch?.[1] ? `，匹配率 ${ratioMatch[1]}` : ''
+    const rowsText = rowsMatch?.[1] && rowsMatch?.[2] ? `已匹配 ${rowsMatch[1]}/${rowsMatch[2]} 行` : '库存表匹配率异常'
+    const sampleText = sampleMatch?.[1] && sampleMatch[1] !== 'N/A' ? `。未匹配示例：${sampleMatch[1]}` : ''
+    return `库存报告与当前项目的 active SKU 信息匹配率过低，疑似上传到了错误项目。${rowsText}${ratioText}。请确认项目、站点与库存文件是否一致后重新上传${sampleText}`
+  }
+
+  return text
+}
+
 const FILE_CONFIG: FileConfig[] = [
   { key: 'business_report', title: '业务报告', accept: '.csv,text/csv', required: true },
   { key: 'payment_report', title: '付款报告', accept: '.csv,text/csv', required: true },
@@ -678,8 +710,8 @@ export default function ProductAnalysisPage() {
       })
 
       if (!createJobResponse.ok) {
-        const message = await createJobResponse.text()
-        throw new Error(message || '生成失败，请重试')
+        const message = await parseApiError(createJobResponse, '生成失败，请重试')
+        throw new Error(translateProductAnalysisError(message))
       }
 
       const created = (await createJobResponse.json()) as {
@@ -709,8 +741,8 @@ export default function ProductAnalysisPage() {
 
         if (!statusResponse.ok) {
           // eslint-disable-next-line no-await-in-loop
-          const msg = await statusResponse.text()
-          throw new Error(msg || '任务状态查询失败')
+          const msg = await parseApiError(statusResponse, '任务状态查询失败')
+          throw new Error(translateProductAnalysisError(msg))
         }
 
         // eslint-disable-next-line no-await-in-loop
@@ -746,6 +778,7 @@ export default function ProductAnalysisPage() {
         if (statusPayload.status === 'failed') {
           failedMessage =
             statusPayload.error_message ?? statusPayload.runs?.[statusPayload.runs.length - 1]?.error_message ?? '任务执行失败'
+          failedMessage = translateProductAnalysisError(failedMessage)
           finished = true
           break
         }
@@ -767,8 +800,8 @@ export default function ProductAnalysisPage() {
       })
 
       if (!response.ok) {
-        const message = await response.text()
-        throw new Error(message || '结果下载失败')
+        const message = await parseApiError(response, '结果下载失败')
+        throw new Error(translateProductAnalysisError(message))
       }
 
       const blob = await response.blob()

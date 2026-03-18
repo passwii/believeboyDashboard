@@ -82,6 +82,18 @@ def _write_inventory_txt(path: Path) -> None:
     )
 
 
+def _write_inventory_txt_wrong_project(path: Path) -> None:
+    path.write_text(
+        'sku\tasin\tavailable\tinv-age-0-to-90-days\tinv-age-91-to-180-days\tinv-age-181-to-270-days\tinv-age-271-to-365-days\tinv-age-365-plus-days\trecommended-action\n'
+        'OTHER1\tB000OTHER1\t10\t8\t1\t1\t0\t0\tCreateShippingPlan\n'
+        'OTHER2\tB000OTHER2\t12\t9\t2\t1\t0\t0\tAdvertise listing\n'
+        'OTHER3\tB000OTHER3\t14\t10\t2\t1\t1\t0\tLower price\n'
+        'OTHER4\tB000OTHER4\t16\t11\t2\t2\t1\t0\tCreate Outlet deal\n'
+        'OTHER5\tB000OTHER5\t18\t12\t3\t2\t1\t0\tEdit listing\n',
+        encoding='utf-8',
+    )
+
+
 def _write_sales_txt(path: Path) -> None:
     path.write_text(
         'amazon-order-id\tpurchase-date\torder-status\tsku\tasin\tquantity\tcurrency\titem-price\n'
@@ -258,12 +270,72 @@ def test_source_rows_scope_filter_and_inventory_status(tmp_path: Path):
         assert inventory_rows[0]['stock_status'] == 'out_of_stock'
         assert inventory_rows[0]['aging_status'] == 'over_aged'
 
+
+def test_inventory_report_rejects_low_project_match_ratio(tmp_path: Path):
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        _seed_exchange_rates(db)
+        db.add(Project(project_name='Demo', sort_order=1, source_file='seed.csv'))
+        db.add(
+            ProductCost(
+                project_name='Demo',
+                sku='SKU1',
+                asin='ASIN1',
+                fob_unit_cost=1,
+                currency='USD',
+                source_file='seed.csv',
+            )
+        )
+        db.commit()
+
+        business = tmp_path / 'business.csv'
+        payment = tmp_path / 'payment.csv'
+        ad = tmp_path / 'ad.xlsx'
+        inventory = tmp_path / 'inventory-wrong.txt'
+        _write_business_csv(business)
+        _write_payment_csv(payment)
+        _write_ad_xlsx(ad)
+        _write_inventory_txt_wrong_project(inventory)
+
+        outcomes = product_analysis_source_service.persist_product_analysis_sources(
+            db,
+            project_name='Demo',
+            report_start_date='2026-02-01',
+            report_end_date='2026-02-07',
+            file_ids={
+                'business_report': 'business.csv',
+                'payment_report': 'payment.csv',
+                'ad_report': 'ad.xlsx',
+                'inventory_report': 'inventory-wrong.txt',
+            },
+            resolved_file_paths={
+                'business_report': str(business),
+                'payment_report': str(payment),
+                'ad_report': str(ad),
+                'inventory_report': str(inventory),
+            },
+        )
+
+        inventory_outcome = next(item for item in outcomes if item.report_type == 'inventory_report')
+        assert inventory_outcome.success is False
+        assert inventory_outcome.error_message is not None
+        assert 'matched active SKU info' in inventory_outcome.error_message
+
+        inventory_source = db.execute(
+            select(AnalysisSourceFile).where(AnalysisSourceFile.report_type == 'inventory_report')
+        ).scalars().first()
+        assert inventory_source is not None
+        assert inventory_source.ingestion_status == 'failed'
+        assert inventory_source.is_current is False
+
         payment_rows = db.execute(select(AnalysisPaymentRow)).scalars().all()
         assert len(payment_rows) == 3
         ad_rows = db.execute(select(AnalysisAdRow)).scalars().all()
         assert len(ad_rows) == 2
         inventory_db_rows = db.execute(select(InventorySnapshotRow)).scalars().all()
-        assert len(inventory_db_rows) == 1
+        assert len(inventory_db_rows) == 0
 
 
 def test_load_project_product_mapping_ignores_inactive_sku():

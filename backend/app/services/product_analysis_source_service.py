@@ -40,6 +40,8 @@ SCOPE_INCLUDED = 'included_product'
 SCOPE_EXCLUDED_STORE = 'excluded_store_level'
 SCOPE_EXCLUDED_UNMAPPED = 'excluded_unmapped'
 OPENPYXL_MISSING_DEFAULT_STYLE_WARNING = r"Workbook contains no default style, apply openpyxl's default"
+INVENTORY_PROJECT_MATCH_MIN_ROWS = 5
+INVENTORY_PROJECT_MATCH_MIN_RATIO = 0.6
 
 _SQLITE_TABLES_READY = False
 _SQLITE_TABLES_LOCK = Lock()
@@ -704,6 +706,13 @@ def _persist_one_source_file(
                 db.execute(insert(AnalysisSalesOrderRow), rows)
         else:
             rows, total, included = _parse_inventory_rows(path, source.id)
+            _validate_inventory_rows_against_project_mapping(
+                rows,
+                project_name=project.project_name,
+                country=country,
+                known_skus=known_skus,
+                known_asins=known_asins,
+            )
             if rows:
                 db.execute(insert(InventorySnapshotRow), rows)
 
@@ -1326,6 +1335,53 @@ def _parse_inventory_rows(path: Path, source_file_id: int) -> tuple[list[dict[st
         )
     total = len(payloads)
     return payloads, total, total
+
+
+def _validate_inventory_rows_against_project_mapping(
+    rows: list[dict[str, Any]],
+    *,
+    project_name: str,
+    country: str,
+    known_skus: set[str],
+    known_asins: set[str],
+) -> None:
+    if not known_skus and not known_asins:
+        return
+
+    identifiable_rows = 0
+    matched_rows = 0
+    sample_unmatched: list[str] = []
+
+    for row in rows:
+        sku = _normalize_identity(row.get('sku'))
+        asin = _normalize_identity(row.get('asin'))
+        if not sku and not asin:
+            continue
+        identifiable_rows += 1
+        if sku in known_skus or asin in known_asins:
+            matched_rows += 1
+            continue
+        if len(sample_unmatched) < 5:
+            sample_unmatched.append(str(row.get('sku') or row.get('asin') or 'UNKNOWN'))
+
+    if identifiable_rows == 0:
+        raise ValueError(
+            f'Inventory report validation failed: no identifiable SKU/ASIN rows found for project {project_name} ({country})'
+        )
+
+    match_ratio = matched_rows / identifiable_rows
+    if matched_rows == 0 or (
+        identifiable_rows >= INVENTORY_PROJECT_MATCH_MIN_ROWS
+        and match_ratio < INVENTORY_PROJECT_MATCH_MIN_RATIO
+    ):
+        sample_text = ', '.join(sample_unmatched) if sample_unmatched else 'N/A'
+        raise ValueError(
+            'Inventory report validation failed: '
+            f'{matched_rows}/{identifiable_rows} rows matched active SKU info for project {project_name} ({country}), '
+            f'match rate {match_ratio:.0%}. '
+            f'Please confirm the inventory file belongs to the selected project. '
+            f'Unmatched sample: {sample_text}'
+        )
 
 
 def _parse_sales_rows(
