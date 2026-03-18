@@ -905,12 +905,23 @@ export default function ShipmentManagementPage() {
       if (!response.ok) throw new Error(await parseError(response))
       const payload = (await response.json()) as ShipmentScheduleDetail
       setDetail(payload)
+      return payload
     } catch (loadError) {
       setDetail(null)
       setDetailError(loadError instanceof Error ? loadError.message : '详情加载失败')
+      return null
     } finally {
       setDetailLoading(false)
     }
+  }, [])
+
+  const syncEditDialogFromDetail = useCallback((payload: ShipmentScheduleDetail) => {
+    setDetail(payload)
+    setForm(buildFormFromDetail(payload))
+    setEditableItems(buildEditableItems(payload))
+    setLogisticsUnitPrice(payload.logistics_unit_price > 0 ? String(payload.logistics_unit_price) : '')
+    setCostPreviewRows(buildCostPreviewRows(payload))
+    setCostPreviewError(null)
   }, [])
 
   const loadSkuSummary = useCallback(async () => {
@@ -1056,11 +1067,7 @@ export default function ShipmentManagementPage() {
   const openEditDialog = () => {
     if (!detail) return
     setDialogMode('edit')
-    setForm(buildFormFromDetail(detail))
-    setEditableItems(buildEditableItems(detail))
-    setLogisticsUnitPrice(detail.logistics_unit_price > 0 ? String(detail.logistics_unit_price) : '')
-    setCostPreviewRows(buildCostPreviewRows(detail))
-    setCostPreviewError(null)
+    syncEditDialogFromDetail(detail)
     setDialogOpen(true)
   }
 
@@ -1080,13 +1087,8 @@ export default function ShipmentManagementPage() {
       })
       if (!response.ok) throw new Error(await parseError(response))
       const payload = (await response.json()) as ShipmentScheduleDetail
-      setDetail(payload)
       setDialogMode('edit')
-      setForm(buildFormFromDetail(payload))
-      setEditableItems(buildEditableItems(payload))
-      setLogisticsUnitPrice(payload.logistics_unit_price > 0 ? String(payload.logistics_unit_price) : '')
-      setCostPreviewRows(buildCostPreviewRows(payload))
-      setCostPreviewError(null)
+      syncEditDialogFromDetail(payload)
       setDialogOpen(true)
     } catch (loadError) {
       setDetail(null)
@@ -1391,7 +1393,10 @@ export default function ShipmentManagementPage() {
       setSuccessMessage(`明细导入完成：新增 ${payload.inserted} 行，替换旧数据 ${payload.replaced} 行，总数量 ${payload.total_quantity}`)
       await loadList(page)
       await loadSkuSummary()
-      await loadDetail(selectedId)
+      const refreshedDetail = await loadDetail(selectedId)
+      if (refreshedDetail) {
+        syncEditDialogFromDetail(refreshedDetail)
+      }
     } catch (importError) {
       setError(importError instanceof Error ? importError.message : 'CSV 导入失败')
     } finally {
@@ -1956,6 +1961,7 @@ export default function ShipmentManagementPage() {
         { header: '仓库 ID', key: 'warehouse_code', width: 16 },
         { header: 'SKU', key: 'sku', width: 26 },
         { header: 'ASIN', key: 'asin', width: 20 },
+        { header: 'FNSKU', key: 'fnsku', width: 20 },
         { header: '单品长(cm)', key: 'package_length', width: 13 },
         { header: '单品宽(cm)', key: 'package_width', width: 13 },
         { header: '单品高(cm)', key: 'package_height', width: 13 },
@@ -2003,6 +2009,7 @@ export default function ShipmentManagementPage() {
           item.warehouse_code || '-',
           item.sku,
           item.asin || '-',
+          item.fnsku || '-',
           item.package_length_cm ? formatDecimal(item.package_length_cm, 2) : '-',
           item.package_width_cm ? formatDecimal(item.package_width_cm, 2) : '-',
           item.package_height_cm ? formatDecimal(item.package_height_cm, 2) : '-',
@@ -2022,10 +2029,10 @@ export default function ShipmentManagementPage() {
           cell.font = { name: 'Microsoft YaHei', size: 9, color: { argb: 'FF0F172A' } }
           cell.alignment = {
             vertical: 'middle',
-            horizontal: colNumber >= 13 ? 'right' : 'left',
+            horizontal: colNumber >= 14 ? 'right' : 'left',
           }
-          if (colNumber === 14) cell.numFmt = '#,##0.0000'
-          if (colNumber === 15) cell.numFmt = '#,##0.000'
+          if (colNumber === 15) cell.numFmt = '#,##0.0000'
+          if (colNumber === 16) cell.numFmt = '#,##0.000'
           cell.border = {
             top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
             left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
@@ -2037,10 +2044,10 @@ export default function ShipmentManagementPage() {
 
       const totalRow = worksheet.getRow(fbaBoxItems.length + 4)
       totalRow.getCell(1).value = '合计'
-      totalRow.getCell(13).value = fbaBoxSummary.totalCartons
-      totalRow.getCell(14).value = fbaBoxSummary.totalQuantity
-      totalRow.getCell(15).value = fbaBoxSummary.totalVolumeM3
-      totalRow.getCell(16).value = fbaBoxSummary.totalWeightKg
+      totalRow.getCell(14).value = fbaBoxSummary.totalCartons
+      totalRow.getCell(15).value = fbaBoxSummary.totalQuantity
+      totalRow.getCell(16).value = fbaBoxSummary.totalVolumeM3
+      totalRow.getCell(17).value = fbaBoxSummary.totalWeightKg
       totalRow.eachCell((cell) => {
         cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
@@ -2051,8 +2058,8 @@ export default function ShipmentManagementPage() {
           right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
         }
       })
-      totalRow.getCell(15).numFmt = '#,##0.0000'
-      totalRow.getCell(16).numFmt = '#,##0.000'
+      totalRow.getCell(16).numFmt = '#,##0.0000'
+      totalRow.getCell(17).numFmt = '#,##0.000'
 
       const buffer = await workbook.xlsx.writeBuffer()
       const blob = new Blob([buffer], {

@@ -333,6 +333,46 @@ def test_update_shipment_schedule_replaces_items_from_payload():
         assert rows[0].remark == '首批'
 
 
+def test_update_shipment_schedule_rejects_empty_items_payload():
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        project = Project(project_name='宝勒1店', sort_order=1, source_file='seed.csv')
+        db.add(project)
+        db.flush()
+
+        schedule = ShipmentSchedule(
+            project_id=project.id,
+            country='DE',
+            project_name_snapshot='宝勒1店',
+            shipment_no='SHP-EMPTY',
+            shipping_method='sea',
+            shipment_status='draft',
+            source_type='manual',
+        )
+        db.add(schedule)
+        db.commit()
+
+        with pytest.raises(HTTPException) as exc_info:
+            shipment_schedule_service.update_shipment_schedule(
+                db,
+                schedule.id,
+                ShipmentScheduleUpdate(
+                    project_id=project.id,
+                    country='DE',
+                    shipment_no='SHP-EMPTY',
+                    shipping_method='sea',
+                    shipment_status='draft',
+                    items=[],
+                ),
+                operator='tester',
+            )
+
+        assert exc_info.value.status_code == 422
+        assert 'SKU 明细不能为空' in str(exc_info.value.detail)
+
+
 def test_parse_shipment_schedules_csv_supports_excel_date_formats():
     content = (
         'project_name,country,shipment_no,shipping_method,shipment_status,created_date,etd_date,eta_date,actual_inbound_date\n'

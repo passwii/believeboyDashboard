@@ -247,6 +247,11 @@ def _normalize_manual_items(
 ) -> list[dict[str, object]] | None:
     if items is None:
         return None
+    if len(items) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="SKU 明细不能为空，请至少保留一行有效明细",
+        )
 
     normalized_items: list[dict[str, object]] = []
     seen_skus: set[str] = set()
