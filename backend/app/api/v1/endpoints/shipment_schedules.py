@@ -38,6 +38,7 @@ def _serialize_schedule_list_item(row: object, sku_count: int, total_quantity: i
         id=int(row.id),
         project_id=int(row.project_id),
         project_name=str(row.project_name_snapshot),
+        country=str(row.country),
         shipment_no=str(row.shipment_no),
         tracking_no=row.tracking_no,
         warehouse_code=row.warehouse_code,
@@ -63,6 +64,7 @@ def _serialize_schedule_list_item(row: object, sku_count: int, total_quantity: i
 @router.get('/shipment-schedules', response_model=ShipmentScheduleListResponse)
 def list_shipment_schedules(
     project_id: int | None = Query(default=None, gt=0),
+    country: str | None = Query(default=None),
     shipment_status: str | None = Query(default=None),
     shipping_method: str | None = Query(default=None),
     shipment_no: str | None = Query(default=None),
@@ -95,6 +97,7 @@ def list_shipment_schedules(
         db,
         project_id=project_id,
         project_ids=accessible_project_ids,
+        country=country,
         shipment_status=shipment_status,
         shipping_method=shipping_method,
         shipment_no=shipment_no,
@@ -120,6 +123,7 @@ def list_shipment_schedules(
 @router.get('/shipment-schedules/cost-summary', response_model=ShipmentScheduleCostSummary)
 def summarize_shipment_schedule_costs(
     project_id: int | None = Query(default=None, gt=0),
+    country: str | None = Query(default=None),
     shipment_status: str | None = Query(default=None),
     shipping_method: str | None = Query(default=None),
     shipment_no: str | None = Query(default=None),
@@ -145,6 +149,7 @@ def summarize_shipment_schedule_costs(
         db,
         project_id=project_id,
         project_ids=accessible_project_ids,
+        country=country,
         shipment_status=shipment_status,
         shipping_method=shipping_method,
         shipment_no=shipment_no,
@@ -157,6 +162,7 @@ def summarize_shipment_schedule_costs(
 @router.get('/shipment-schedules/sku-summary', response_model=ShipmentSkuSummaryResponse)
 def list_shipment_sku_summary(
     project_id: int | None = Query(default=None, gt=0),
+    country: str | None = Query(default=None),
     include_only_history_calc: bool = Query(default=True),
     shipment_status: str | None = Query(default='completed'),
     db: Session = Depends(get_db_session),
@@ -179,6 +185,7 @@ def list_shipment_sku_summary(
         db,
         project_id=project_id,
         project_ids=accessible_project_ids,
+        country=country,
         include_only_history_calc=include_only_history_calc,
         shipment_status=shipment_status,
     )
@@ -207,6 +214,7 @@ def list_shipment_fba_box_details(
     return ShipmentFbaBoxDetailResponse(
         project_id=int(row.project_id),
         project_name=str(row.project_name_snapshot),
+        country=str(row.country),
         shipment_no=str(row.shipment_no),
         items=[ShipmentFbaBoxDetailItem(**item) for item in items],
     )
@@ -230,6 +238,7 @@ def get_shipment_schedule_detail(
         id=int(row.id),
         project_id=int(row.project_id),
         project_name=str(row.project_name_snapshot),
+        country=str(row.country),
         shipment_no=str(row.shipment_no),
         tracking_no=row.tracking_no,
         warehouse_code=row.warehouse_code,

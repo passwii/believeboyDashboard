@@ -22,6 +22,7 @@ def test_summarize_shipment_schedule_costs_ignores_history_calc_flag():
 
         schedule_included = ShipmentSchedule(
             project_id=project.id,
+            country='US',
             project_name_snapshot='宝勒1店',
             shipment_no='SHP-001',
             shipping_method='sea',
@@ -34,6 +35,7 @@ def test_summarize_shipment_schedule_costs_ignores_history_calc_flag():
         )
         schedule_excluded = ShipmentSchedule(
             project_id=project.id,
+            country='US',
             project_name_snapshot='宝勒1店',
             shipment_no='SHP-002',
             shipping_method='sea',
@@ -155,6 +157,7 @@ def test_replace_shipment_schedule_items_from_csv_rejects_unknown_sku():
 
         schedule = ShipmentSchedule(
             project_id=project.id,
+            country='US',
             project_name_snapshot='宝勒1店',
             shipment_no='SHP-001',
             shipping_method='sea',
@@ -200,6 +203,7 @@ def test_replace_shipment_schedule_items_from_csv_accepts_active_sku():
 
         schedule = ShipmentSchedule(
             project_id=project.id,
+            country='US',
             project_name_snapshot='宝勒1店',
             shipment_no='SHP-001',
             shipping_method='sea',
@@ -247,6 +251,7 @@ def test_update_shipment_schedule_replaces_items_from_payload():
 
         schedule = ShipmentSchedule(
             project_id=project.id,
+            country='DE',
             project_name_snapshot='宝勒1店',
             shipment_no='SHP-001',
             shipping_method='sea',
@@ -274,7 +279,7 @@ def test_update_shipment_schedule_replaces_items_from_payload():
                 asin='ASIN-001',
                 fob_unit_cost=2,
                 currency='USD',
-                country='US',
+                country='DE',
                 sort_order=1,
                 is_active=True,
             ),
@@ -284,7 +289,7 @@ def test_update_shipment_schedule_replaces_items_from_payload():
                 asin='ASIN-002',
                 fob_unit_cost=3,
                 currency='USD',
-                country='US',
+                country='DE',
                 sort_order=2,
                 is_active=True,
             ),
@@ -296,6 +301,7 @@ def test_update_shipment_schedule_replaces_items_from_payload():
             schedule.id,
             ShipmentScheduleUpdate(
                 project_id=project.id,
+                country='DE',
                 shipment_no='SHP-001',
                 shipping_method='sea',
                 shipment_status='draft',
@@ -329,14 +335,15 @@ def test_update_shipment_schedule_replaces_items_from_payload():
 
 def test_parse_shipment_schedules_csv_supports_excel_date_formats():
     content = (
-        'project_name,shipment_no,shipping_method,shipment_status,created_date,etd_date,eta_date,actual_inbound_date\n'
-        '宝勒1店,SHP-100,sea,draft,2026/3/8,3/10/2026,2026-03-20 00:00:00,2026/3/25\n'
+        'project_name,country,shipment_no,shipping_method,shipment_status,created_date,etd_date,eta_date,actual_inbound_date\n'
+        '宝勒1店,US,SHP-100,sea,draft,2026/3/8,3/10/2026,2026-03-20 00:00:00,2026/3/25\n'
     ).encode('utf-8-sig')
 
     rows = shipment_schedule_service.parse_shipment_schedules_csv(content)
 
     assert len(rows) == 1
     assert rows[0]['project_name'] == '宝勒1店'
+    assert rows[0]['country'] == 'US'
     assert rows[0]['shipment_no'] == 'SHP-100'
     assert rows[0]['created_date'].isoformat() == '2026-03-08'
     assert rows[0]['etd_date'].isoformat() == '2026-03-10'
@@ -353,8 +360,8 @@ def test_import_shipment_schedules_from_csv_creates_rows():
         db.commit()
 
         content = (
-            'project_name,shipment_no,shipping_method,shipment_status,created_date,remark\n'
-            '宝勒1店,SHP-200,sea,draft,2026-03-08,首批导入\n'
+            'project_name,country,shipment_no,shipping_method,shipment_status,created_date,remark\n'
+            '宝勒1店,DE,SHP-200,sea,draft,2026-03-08,首批导入\n'
         ).encode('gb18030')
 
         rows = shipment_schedule_service.import_shipment_schedules_from_csv(
@@ -368,6 +375,7 @@ def test_import_shipment_schedules_from_csv_creates_rows():
         saved = db.query(ShipmentSchedule).filter(ShipmentSchedule.shipment_no == 'SHP-200').one()
         assert len(rows) == 1
         assert saved.project_name_snapshot == '宝勒1店'
+        assert saved.country == 'DE'
         assert saved.shipping_method == 'sea'
         assert saved.shipment_status == 'draft'
         assert saved.source_type == 'csv_import'
@@ -388,6 +396,7 @@ def test_import_shipment_schedules_from_csv_rejects_duplicate_shipment_no():
         db.add(
             ShipmentSchedule(
                 project_id=project.id,
+                country='US',
                 project_name_snapshot=project.project_name,
                 shipment_no='SHP-300',
                 shipping_method='sea',
@@ -398,8 +407,8 @@ def test_import_shipment_schedules_from_csv_rejects_duplicate_shipment_no():
         db.commit()
 
         content = (
-            'project_name,shipment_no,shipping_method,shipment_status\n'
-            '宝勒1店,SHP-300,sea,draft\n'
+            'project_name,country,shipment_no,shipping_method,shipment_status\n'
+            '宝勒1店,US,SHP-300,sea,draft\n'
         ).encode('utf-8')
 
         with pytest.raises(HTTPException) as exc_info:
@@ -420,6 +429,7 @@ def test_calculate_shipment_schedule_costs_persists_schedule_and_item_metrics():
 
         schedule = ShipmentSchedule(
             project_id=project.id,
+            country='US',
             project_name_snapshot='宝勒1店',
             shipment_no='SHP-CAL-001',
             shipping_method='air',
@@ -491,6 +501,7 @@ def test_update_shipment_schedule_persists_history_calc_flag():
 
         schedule = ShipmentSchedule(
             project_id=project.id,
+            country='US',
             project_name_snapshot='宝勒1店',
             shipment_no='SHP-HISTORY-001',
             shipping_method='sea',
@@ -503,6 +514,7 @@ def test_update_shipment_schedule_persists_history_calc_flag():
 
         payload = ShipmentScheduleUpdate(
             project_id=project.id,
+            country='US',
             shipment_no='SHP-HISTORY-001-UPDATED',
             tracking_no=None,
             warehouse_code=None,
@@ -536,6 +548,7 @@ def test_list_shipment_sku_summary_uses_completed_and_history_calc_flag():
 
         included = ShipmentSchedule(
             project_id=project.id,
+            country='US',
             project_name_snapshot='宝勒1店',
             shipment_no='SHP-SUM-001',
             shipping_method='sea',
@@ -545,6 +558,7 @@ def test_list_shipment_sku_summary_uses_completed_and_history_calc_flag():
         )
         excluded = ShipmentSchedule(
             project_id=project.id,
+            country='US',
             project_name_snapshot='宝勒1店',
             shipment_no='SHP-SUM-002',
             shipping_method='sea',
@@ -591,6 +605,7 @@ def test_list_shipment_sku_summary_uses_completed_and_history_calc_flag():
         )
 
         assert len(rows) == 1
+        assert rows[0]['country'] == 'US'
         assert rows[0]['sku'] == 'SKU-001'
         assert rows[0]['shipment_count'] == 1
         assert rows[0]['total_quantity'] == 10
@@ -609,6 +624,7 @@ def test_delete_shipment_schedule_removes_schedule_and_items():
 
         schedule = ShipmentSchedule(
             project_id=project.id,
+            country='US',
             project_name_snapshot='宝勒1店',
             shipment_no='SHP-DEL-001',
             shipping_method='sea',
@@ -650,6 +666,7 @@ def test_list_shipment_sku_summary_supports_multiple_status_filters():
 
         completed = ShipmentSchedule(
             project_id=project.id,
+            country='US',
             project_name_snapshot='宝勒1店',
             shipment_no='SHP-COMPLETED-001',
             shipping_method='sea',
@@ -659,6 +676,7 @@ def test_list_shipment_sku_summary_supports_multiple_status_filters():
         )
         in_transit = ShipmentSchedule(
             project_id=project.id,
+            country='US',
             project_name_snapshot='宝勒1店',
             shipment_no='SHP-TRANSIT-001',
             shipping_method='sea',
@@ -668,6 +686,7 @@ def test_list_shipment_sku_summary_supports_multiple_status_filters():
         )
         draft = ShipmentSchedule(
             project_id=project.id,
+            country='US',
             project_name_snapshot='宝勒1店',
             shipment_no='SHP-DRAFT-001',
             shipping_method='sea',
@@ -725,6 +744,7 @@ def test_list_shipment_sku_summary_supports_multiple_status_filters():
         )
 
         assert len(rows) == 1
+        assert rows[0]['country'] == 'US'
         assert rows[0]['sku'] == 'SKU-001'
         assert rows[0]['shipment_count'] == 2
         assert rows[0]['total_quantity'] == 30

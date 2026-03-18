@@ -51,6 +51,7 @@ class ShipmentSchedule(Base):
             name="ck_shipment_schedules_logistics_total_price_non_negative",
         ),
         Index("idx_shipment_schedules_project_status", "project_id", "shipment_status"),
+        Index("idx_shipment_schedules_project_country", "project_id", "country"),
         Index("idx_shipment_schedules_etd", "etd_date"),
         Index("idx_shipment_schedules_eta", "eta_date"),
     )
@@ -66,6 +67,7 @@ class ShipmentSchedule(Base):
         nullable=False,
         index=True,
     )
+    country: Mapped[str] = mapped_column(String(2), nullable=False, default="US", server_default="US")
     project_name_snapshot: Mapped[str] = mapped_column(String(255), nullable=False)
     shipment_no: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     tracking_no: Mapped[str | None] = mapped_column(String(100), nullable=True)

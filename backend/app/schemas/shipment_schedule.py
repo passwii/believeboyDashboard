@@ -7,6 +7,7 @@ class ShipmentScheduleListItem(BaseModel):
     id: int
     project_id: int
     project_name: str
+    country: str
     shipment_no: str
     tracking_no: str | None = None
     warehouse_code: str | None = None
@@ -69,6 +70,7 @@ class ShipmentScheduleDetail(BaseModel):
     id: int
     project_id: int
     project_name: str
+    country: str
     shipment_no: str
     tracking_no: str | None = None
     warehouse_code: str | None = None
@@ -97,6 +99,7 @@ class ShipmentCostCalculateRequest(BaseModel):
 
 class ShipmentScheduleCreate(BaseModel):
     project_id: int = Field(gt=0)
+    country: str = Field(default='US', min_length=2, max_length=8)
     shipment_no: str = Field(min_length=1, max_length=100)
     tracking_no: str | None = Field(default=None, max_length=100)
     warehouse_code: str | None = Field(default=None, max_length=100)
@@ -115,6 +118,7 @@ class ShipmentScheduleCreate(BaseModel):
 
 class ShipmentScheduleUpdate(BaseModel):
     project_id: int = Field(gt=0)
+    country: str = Field(default='US', min_length=2, max_length=8)
     shipment_no: str = Field(min_length=1, max_length=100)
     tracking_no: str | None = Field(default=None, max_length=100)
     warehouse_code: str | None = Field(default=None, max_length=100)
@@ -148,6 +152,7 @@ class ShipmentSchedulesImportResponse(BaseModel):
 class ShipmentSkuSummaryItem(BaseModel):
     project_id: int
     project_name: str
+    country: str
     sku: str
     shipment_count: int
     total_quantity: int
@@ -186,5 +191,6 @@ class ShipmentFbaBoxDetailItem(BaseModel):
 class ShipmentFbaBoxDetailResponse(BaseModel):
     project_id: int
     project_name: str
+    country: str
     shipment_no: str
     items: list[ShipmentFbaBoxDetailItem]

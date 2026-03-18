@@ -29,6 +29,7 @@ DECIMAL_ZERO = Decimal("0")
 MONEY_QUANT = Decimal("0.01")
 WEIGHT_QUANT = Decimal("0.001")
 VOLUME_QUANT = Decimal("0.0001")
+ALLOWED_COUNTRIES = {"US", "UK", "DE"}
 
 
 def _decode_csv_text(content: bytes) -> str:
@@ -51,6 +52,17 @@ def _normalize_text(value: str | None, *, max_length: int | None = None) -> str 
         return None
     if max_length is not None:
         return normalized[:max_length]
+    return normalized
+
+
+def _normalize_country(value: str | None) -> str:
+    normalized = (value or "").strip().upper()
+    if normalized not in ALLOWED_COUNTRIES:
+        allowed = ", ".join(sorted(ALLOWED_COUNTRIES))
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"country 必须是: {allowed}",
+        )
     return normalized
 
 
@@ -155,6 +167,7 @@ def refresh_shipment_sku_summary(db: Session) -> None:
         select(
             ShipmentSchedule.project_id.label("project_id"),
             ShipmentSchedule.project_name_snapshot.label("project_name"),
+            ShipmentSchedule.country.label("country"),
             ShipmentScheduleItem.sku.label("sku"),
             func.count(func.distinct(ShipmentScheduleItem.shipment_schedule_id)).label(
                 "shipment_count"
@@ -180,6 +193,7 @@ def refresh_shipment_sku_summary(db: Session) -> None:
         .group_by(
             ShipmentSchedule.project_id,
             ShipmentSchedule.project_name_snapshot,
+            ShipmentSchedule.country,
             ShipmentScheduleItem.sku,
         )
     ).all()
@@ -200,6 +214,7 @@ def refresh_shipment_sku_summary(db: Session) -> None:
             ShipmentSkuSummary(
                 project_id=int(row.project_id),
                 project_name_snapshot=str(row.project_name),
+                country=str(row.country),
                 sku=str(row.sku),
                 shipment_count=int(row.shipment_count or 0),
                 total_quantity=total_quantity,
@@ -281,6 +296,7 @@ def list_shipment_schedules(
     *,
     project_id: int | None,
     project_ids: list[int] | None = None,
+    country: str | None,
     shipment_status: str | None,
     shipping_method: str | None,
     shipment_no: str | None,
@@ -311,6 +327,10 @@ def list_shipment_schedules(
         filter_stmt = filter_stmt.where(ShipmentSchedule.project_id.in_(project_ids))
     if project_id is not None:
         filter_stmt = filter_stmt.where(ShipmentSchedule.project_id == project_id)
+    if country:
+        filter_stmt = filter_stmt.where(
+            ShipmentSchedule.country == _normalize_country(country)
+        )
     if shipment_status:
         filter_stmt = filter_stmt.where(
             ShipmentSchedule.shipment_status == _normalize_status(shipment_status)
@@ -377,6 +397,7 @@ def summarize_shipment_schedule_costs(
     *,
     project_id: int | None,
     project_ids: list[int] | None = None,
+    country: str | None,
     shipment_status: str | None,
     shipping_method: str | None,
     shipment_no: str | None,
@@ -415,6 +436,8 @@ def summarize_shipment_schedule_costs(
         stmt = stmt.where(ShipmentSchedule.project_id.in_(project_ids))
     if project_id is not None:
         stmt = stmt.where(ShipmentSchedule.project_id == project_id)
+    if country:
+        stmt = stmt.where(ShipmentSchedule.country == _normalize_country(country))
     if shipment_status:
         stmt = stmt.where(
             ShipmentSchedule.shipment_status == _normalize_status(shipment_status)
@@ -464,6 +487,7 @@ def list_shipment_sku_summary(
     *,
     project_id: int | None,
     project_ids: list[int] | None = None,
+    country: str | None = None,
     include_only_history_calc: bool = True,
     shipment_status: str | None = "completed",
 ) -> list[dict[str, object]]:
@@ -501,11 +525,14 @@ def list_shipment_sku_summary(
             stmt = stmt.where(ShipmentSkuSummary.project_id.in_(project_ids))
         if project_id is not None:
             stmt = stmt.where(ShipmentSkuSummary.project_id == project_id)
+        if country:
+            stmt = stmt.where(ShipmentSkuSummary.country == _normalize_country(country))
         rows = db.execute(stmt).scalars().all()
         return [
             {
                 "project_id": int(row.project_id),
                 "project_name": str(row.project_name_snapshot),
+                "country": str(row.country),
                 "sku": str(row.sku),
                 "shipment_count": int(row.shipment_count),
                 "total_quantity": int(row.total_quantity),
@@ -526,6 +553,7 @@ def list_shipment_sku_summary(
         select(
             ShipmentSchedule.project_id.label("project_id"),
             ShipmentSchedule.project_name_snapshot.label("project_name"),
+            ShipmentSchedule.country.label("country"),
             ShipmentScheduleItem.sku.label("sku"),
             func.count(func.distinct(ShipmentScheduleItem.shipment_schedule_id)).label(
                 "shipment_count"
@@ -547,6 +575,7 @@ def list_shipment_sku_summary(
         .group_by(
             ShipmentSchedule.project_id,
             ShipmentSchedule.project_name_snapshot,
+            ShipmentSchedule.country,
             ShipmentScheduleItem.sku,
         )
         .order_by(
@@ -558,6 +587,8 @@ def list_shipment_sku_summary(
         stmt = stmt.where(ShipmentSchedule.project_id.in_(project_ids))
     if project_id is not None:
         stmt = stmt.where(ShipmentSchedule.project_id == project_id)
+    if country:
+        stmt = stmt.where(ShipmentSchedule.country == _normalize_country(country))
     if include_only_history_calc:
         stmt = stmt.where(ShipmentSchedule.include_in_history_shipping_calc.is_(True))
     if shipment_statuses:
@@ -576,6 +607,7 @@ def list_shipment_sku_summary(
             {
                 "project_id": int(row.project_id),
                 "project_name": str(row.project_name),
+                "country": str(row.country),
                 "sku": str(row.sku),
                 "shipment_count": int(row.shipment_count or 0),
                 "total_quantity": total_quantity,
@@ -623,6 +655,7 @@ def list_shipment_fba_box_details(
             select(ProductCost).where(
                 ProductCost.project_name == row.project_name_snapshot,
                 ProductCost.sku.in_(sku_values),
+                ProductCost.country == row.country,
             )
         )
         .scalars()
@@ -765,6 +798,7 @@ def calculate_shipment_schedule_costs(
             select(ProductCost).where(
                 ProductCost.project_name == row.project_name_snapshot,
                 ProductCost.sku.in_(sku_values),
+                ProductCost.country == row.country,
             )
         )
         .scalars()
@@ -870,6 +904,7 @@ def create_shipment_schedule(
 
     row = ShipmentSchedule(
         project_id=project.id,
+        country=_normalize_country(payload.country),
         project_name_snapshot=project.project_name,
         shipment_no=shipment_no,
         tracking_no=_normalize_text(payload.tracking_no, max_length=100),
@@ -931,6 +966,7 @@ def update_shipment_schedule(
         )
 
     row.project_id = project.id
+    row.country = _normalize_country(payload.country)
     row.project_name_snapshot = project.project_name
     row.shipment_no = shipment_no
     row.tracking_no = _normalize_text(payload.tracking_no, max_length=100)
@@ -957,13 +993,18 @@ def update_shipment_schedule(
     if manual_items is None:
         row.source_file = _normalize_text(payload.source_file, max_length=255)
     else:
-        _replace_shipment_schedule_items(
-            db,
-            row,
-            manual_items,
-            source_type="manual",
-            source_file=_normalize_text(payload.source_file, max_length=255),
-        )
+        source_file = _normalize_text(payload.source_file, max_length=255)
+        if _manual_items_match_existing(row, manual_items):
+            row.source_type = "manual"
+            row.source_file = source_file
+        else:
+            _replace_shipment_schedule_items(
+                db,
+                row,
+                manual_items,
+                source_type="manual",
+                source_file=source_file,
+            )
 
     db.flush()
     refresh_shipment_sku_summary(db)
@@ -1061,6 +1102,7 @@ def _validate_items_against_product_costs(
             select(ProductCost.sku).where(
                 ProductCost.project_name == schedule.project_name_snapshot,
                 ProductCost.sku.in_(sku_values),
+                ProductCost.country == schedule.country,
             )
         ).all()
     }
@@ -1079,7 +1121,7 @@ def _validate_items_against_product_costs(
     raise HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
         detail=(
-            f"以下 SKU 未在 SKU 信息中找到记录（项目: {schedule.project_name_snapshot}），请先在 SKU 信息页面维护后再导入："
+            f"以下 SKU 未在 SKU 信息中找到记录（项目: {schedule.project_name_snapshot}，国家: {schedule.country}），请先在 SKU 信息页面维护后再导入："
             + "；".join(detail_lines)
         ),
     )
@@ -1125,6 +1167,41 @@ def _replace_shipment_schedule_items(
     schedule.total_chargeable_weight_kg = DECIMAL_ZERO
     schedule.logistics_total_price = DECIMAL_ZERO
     return total_quantity
+
+
+def _manual_items_match_existing(
+    schedule: ShipmentSchedule,
+    items: list[dict[str, object]],
+) -> bool:
+    existing_items = sorted(
+        schedule.items,
+        key=lambda item: (
+            item.item_date or date.min,
+            item.sku,
+            int(item.quantity),
+            item.remark or "",
+        ),
+    )
+    normalized_items = sorted(
+        items,
+        key=lambda item: (
+            item["item_date"] or date.min,
+            str(item["sku"]),
+            int(item["quantity"]),
+            str(item["remark"] or ""),
+        ),
+    )
+
+    if len(existing_items) != len(normalized_items):
+        return False
+
+    return all(
+        existing.item_date == incoming["item_date"]
+        and existing.sku == str(incoming["sku"])
+        and int(existing.quantity) == int(incoming["quantity"])
+        and (existing.remark or None) == incoming["remark"]
+        for existing, incoming in zip(existing_items, normalized_items)
+    )
 
 
 def replace_shipment_schedule_items_from_csv(
@@ -1180,6 +1257,7 @@ def parse_shipment_schedules_csv(content: bytes) -> list[dict[str, object]]:
     available_headers = {str(name).strip() for name in reader.fieldnames if name}
     required_headers = {
         "project_name",
+        "country",
         "shipment_no",
         "shipping_method",
         "shipment_status",
@@ -1223,6 +1301,9 @@ def parse_shipment_schedules_csv(content: bytes) -> list[dict[str, object]]:
             {
                 "row_no": index,
                 "project_name": project_name,
+                "country": _normalize_country(
+                    _header_value(normalized, "country")
+                ),
                 "shipment_no": shipment_no,
                 "tracking_no": _normalize_text(
                     _header_value(normalized, "tracking_no"), max_length=100
@@ -1313,6 +1394,7 @@ def import_shipment_schedules_from_csv(
         project = projects[str(item["project_name"])]
         row = ShipmentSchedule(
             project_id=project.id,
+            country=str(item["country"]),
             project_name_snapshot=project.project_name,
             shipment_no=str(item["shipment_no"]),
             tracking_no=item["tracking_no"],
