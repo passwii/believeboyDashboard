@@ -73,7 +73,8 @@ const tools = [
     items: [
       { title: '月度财务分析', url: '/dashboard/data-analysis/financial-data' },
       { title: '按周产品分析', url: '/dashboard/data-analysis/weekly-product-analysis' },
-      { title: '库存及补货分析', url: '/dashboard/data-analysis/inventory-replenishment' },
+      { title: '库存分析', url: '/dashboard/data-analysis/inventory-analysis' },
+      { title: '补货分析', url: '/dashboard/data-analysis/inventory-replenishment' },
     ],
   },
   {
