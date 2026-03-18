@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { Bot, Calculator, ChartColumnBig, ClipboardList, Command, Database, FolderKanban, HelpCircle, LayoutDashboard, Search, ShieldUser, SquareTerminal, Wrench } from 'lucide-react'
+import { Bot, Calculator, ChartColumnBig, ClipboardList, Command, Database, FolderKanban, HelpCircle, LayoutDashboard, ShieldUser, Wrench } from 'lucide-react'
 import { signOut, useSession } from 'next-auth/react'
 
 import { NavAdmin } from '@/components/dashboard/nav-admin'
@@ -28,7 +28,6 @@ const navMain = [
     icon: <LayoutDashboard className="h-4 w-4" />,
     isActive: true,
     items: [
-      { title: '运营总览', url: '/dashboard' },
       { title: '站点导航', url: '/dashboard/operations/site-navigation' },
       { title: '店铺导航', url: '/dashboard/operations/store-navigation' },
     ],
@@ -54,9 +53,7 @@ const navMain = [
 ]
 
 const navSecondary = [
-  { title: '运营总览', url: '#', icon: <SquareTerminal className="h-4 w-4" /> },
   { title: '更新日志', url: '/dashboard/changelog', icon: <HelpCircle className="h-4 w-4" /> },
-  { title: '全局搜索', url: '#', icon: <Search className="h-4 w-4" /> },
 ]
 
 const tools = [

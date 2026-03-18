@@ -746,7 +746,6 @@ export default function ShipmentManagementPage() {
       while (hasNextPage) {
         const params = new URLSearchParams({
           project_name: projectName,
-          is_active: 'true',
           page: String(nextPage),
           page_size: '200',
         })

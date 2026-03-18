@@ -623,7 +623,6 @@ def list_shipment_fba_box_details(
             select(ProductCost).where(
                 ProductCost.project_name == row.project_name_snapshot,
                 ProductCost.sku.in_(sku_values),
-                ProductCost.is_active.is_(True),
             )
         )
         .scalars()
@@ -766,7 +765,6 @@ def calculate_shipment_schedule_costs(
             select(ProductCost).where(
                 ProductCost.project_name == row.project_name_snapshot,
                 ProductCost.sku.in_(sku_values),
-                ProductCost.is_active.is_(True),
             )
         )
         .scalars()
@@ -1063,7 +1061,6 @@ def _validate_items_against_product_costs(
             select(ProductCost.sku).where(
                 ProductCost.project_name == schedule.project_name_snapshot,
                 ProductCost.sku.in_(sku_values),
-                ProductCost.is_active.is_(True),
             )
         ).all()
     }
@@ -1082,7 +1079,7 @@ def _validate_items_against_product_costs(
     raise HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
         detail=(
-            f"以下 SKU 未在 SKU 信息中找到启用记录（项目: {schedule.project_name_snapshot}），请先在 SKU 信息页面维护后再导入："
+            f"以下 SKU 未在 SKU 信息中找到记录（项目: {schedule.project_name_snapshot}），请先在 SKU 信息页面维护后再导入："
             + "；".join(detail_lines)
         ),
     )
