@@ -121,7 +121,7 @@ def upgrade() -> None:
         sa.text(
             """
             delete from analysis_source_files
-            where id = any(:delete_ids)
+            where id in :delete_ids
             """
         ).bindparams(sa.bindparam('delete_ids', expanding=True)),
         {'delete_ids': delete_ids},
