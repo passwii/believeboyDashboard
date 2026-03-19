@@ -88,6 +88,8 @@ class MonthlyFinancialSeriesRow(BaseModel):
     expense_total: float
     amazon_pay_back: float
     credit_card_deduction_usd: float = 0.0
+    fob_cost_rmb: float = 0.0
+    first_leg_cost_rmb: float = 0.0
     has_source_report: bool
 
 

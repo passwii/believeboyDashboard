@@ -6,7 +6,7 @@ from app.models.monthly_report import (
     MonthlyReportTransaction,
 )
 from app.models.product_analysis_source import (
-    AnalysisAdRow,
+    AnalysisAdProductRow,
     AnalysisBusinessRow,
     AnalysisPT1Calculation,
     AnalysisPTSKUDetail,
@@ -14,11 +14,6 @@ from app.models.product_analysis_source import (
     AnalysisSalesOrderRow,
     AnalysisSourceFile,
     InventorySnapshotRow,
-)
-from app.models.daily_report_source import (
-    DailyAdProduct,
-    DailySalesOrder,
-    DailySourceFile,
 )
 from app.models.category_research import (
     CategoryResearchDataset,
@@ -39,6 +34,7 @@ from app.models.pricing_calculation import PricingCalculationRun
 from app.models.store_sku_pricing_snapshot import StoreSkuPricingSnapshot
 from app.models.shipment_schedule import ShipmentSchedule, ShipmentScheduleItem
 from app.models.shipment_sku_summary import ShipmentSkuSummary
+from app.models.report_upload_status import ReportUploadStatus
 
 __all__ = [
     'ProductCost',
@@ -60,6 +56,7 @@ __all__ = [
     'ShipmentSchedule',
     'ShipmentScheduleItem',
     'ShipmentSkuSummary',
+    'ReportUploadStatus',
     'MonthlyReport',
     'MonthlyReportTransaction',
     'MonthlyReportPT3Calculation',
@@ -70,11 +67,8 @@ __all__ = [
     'AnalysisPTSKUDetail',
     'AnalysisPaymentRow',
     'AnalysisSalesOrderRow',
-    'AnalysisAdRow',
+    'AnalysisAdProductRow',
     'InventorySnapshotRow',
-    'DailySourceFile',
-    'DailySalesOrder',
-    'DailyAdProduct',
     'CategoryResearchDataset',
     'CategoryResearchProductDetail',
     'CategoryResearchSalesTrend',

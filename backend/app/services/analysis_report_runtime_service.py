@@ -202,7 +202,7 @@ def _run_task(task_id: int, payload: dict[str, Any]) -> None:
         elif report_type == 'daily_report':
             set_persistence_state(task_id, status='running', message='后台同步中：正在写入数据库')
             persist_thread = Thread(
-                target=_persist_daily_report_sources,
+                target=_persist_single_date_report_sources,
                 args=(task_id, params),
                 daemon=True,
                 name=f'daily-report-persist-{task_id}',
@@ -262,7 +262,7 @@ def _persist_product_analysis_sources(task_id: int, params: dict[str, Any], resu
         db.close()
 
 
-def _persist_daily_report_sources(task_id: int, params: dict[str, Any]) -> None:
+def _persist_single_date_report_sources(task_id: int, params: dict[str, Any]) -> None:
     db = SessionLocal()
     try:
         report_date = str(params.get('report_date') or '').strip()
@@ -272,7 +272,7 @@ def _persist_daily_report_sources(task_id: int, params: dict[str, Any]) -> None:
         resolved_file_paths = params.get('resolved_file_paths') if isinstance(params.get('resolved_file_paths'), dict) else {}
         created_by = str(params.get('operator') or '').strip() or None
 
-        outcomes = product_analysis_source_service.persist_daily_report_sources(
+        outcomes = product_analysis_source_service.persist_single_date_report_sources(
             db,
             project_name=project_name,
             report_date=report_date,
@@ -292,7 +292,7 @@ def _persist_daily_report_sources(task_id: int, params: dict[str, Any]) -> None:
         set_persistence_state(task_id, status='success', message='后台同步完成：数据库已更新')
     except Exception as exc:  # noqa: BLE001
         db.rollback()
-        logger.exception('daily report persistence failed: %s', exc)
+        logger.exception('single-date report persistence failed: %s', exc)
         set_persistence_state(task_id, status='failed', message=f'后台同步失败：{exc}')
     finally:
         db.close()

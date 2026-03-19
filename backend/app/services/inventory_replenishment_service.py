@@ -9,10 +9,9 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import (
+    AnalysisSalesOrderRow,
     AnalysisBusinessRow,
     AnalysisSourceFile,
-    DailySalesOrder,
-    DailySourceFile,
     InventoryReplenishmentSetting,
     InventorySnapshotRow,
     ProductCost,
@@ -41,8 +40,8 @@ ALLOWED_COUNTRIES = {"US", "DE", "UK"}
 DEFAULT_PRODUCTION_LEAD_DAYS = 20
 DEFAULT_SHIPPING_DAYS = 25
 DEFAULT_SAFETY_FACTOR = Decimal("0.20")
-DAILY_SALES_LAG_DAYS = 2
-DAILY_SALES_WINDOW_DAYS = 3
+RECENT_SALES_LAG_DAYS = 2
+RECENT_SALES_WINDOW_DAYS = 3
 IN_TRANSIT_STATUSES = ("in_transit", "draft")
 RISK_OUT_OF_STOCK = "断货风险"
 RISK_HEALTHY = "未来健康"
@@ -301,26 +300,27 @@ def _load_business_dms_map(
     return result
 
 
-def _load_daily_dms_map(
+def _load_recent_sales_dms_map(
     db: Session, project_id: int, country: str, today: date
 ) -> dict[str, Decimal]:
-    window_end = today - timedelta(days=DAILY_SALES_LAG_DAYS)
-    since = window_end - timedelta(days=DAILY_SALES_WINDOW_DAYS - 1)
+    window_end = today - timedelta(days=RECENT_SALES_LAG_DAYS)
+    since = window_end - timedelta(days=RECENT_SALES_WINDOW_DAYS - 1)
     rows = db.execute(
         select(
-            DailySalesOrder.sku, func.coalesce(func.sum(DailySalesOrder.quantity), 0)
+            AnalysisSalesOrderRow.sku,
+            func.coalesce(func.sum(AnalysisSalesOrderRow.quantity), 0),
         )
-        .join(DailySourceFile, DailySourceFile.id == DailySalesOrder.source_file_id)
+        .join(AnalysisSourceFile, AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id)
         .where(
-            DailySourceFile.project_id == project_id,
-            DailySourceFile.report_type == "sales_report",
-            DailySourceFile.country == country,
-            DailySourceFile.is_current.is_(True),
-            DailySalesOrder.is_counted_sales.is_(True),
-            DailySalesOrder.purchase_date_pt >= since,
-            DailySalesOrder.purchase_date_pt <= window_end,
+            AnalysisSourceFile.project_id == project_id,
+            AnalysisSourceFile.report_type == "sales_report",
+            AnalysisSourceFile.country == country,
+            AnalysisSourceFile.is_current.is_(True),
+            AnalysisSalesOrderRow.is_counted_sales.is_(True),
+            AnalysisSalesOrderRow.purchase_date_pt >= since,
+            AnalysisSalesOrderRow.purchase_date_pt <= window_end,
         )
-        .group_by(DailySalesOrder.sku)
+        .group_by(AnalysisSalesOrderRow.sku)
     ).all()
 
     result: dict[str, Decimal] = {}
@@ -329,7 +329,7 @@ def _load_daily_dms_map(
         if normalized_sku is None:
             continue
         result[normalized_sku] = Decimal(int(quantity or 0)) / Decimal(
-            DAILY_SALES_WINDOW_DAYS
+            RECENT_SALES_WINDOW_DAYS
         )
     return result
 
@@ -413,7 +413,7 @@ def list_inventory_replenishment_analysis(
     dms_7_map = _load_business_dms_map(
         db, project.id, normalized_country, 7, today, asin_to_skus
     )
-    dms_3_map = _load_daily_dms_map(db, project.id, normalized_country, today)
+    dms_3_map = _load_recent_sales_dms_map(db, project.id, normalized_country, today)
 
     keyword_text = (keyword or "").strip().lower()
     normalized_risk = (risk_status or "").strip()

@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { cn } from '@/lib/utils'
+import { cn, formatLocalTimestampForFilename } from '@/lib/utils'
 
 const API_BASE = '/api/backend'
 const MAX_VISIBLE_RUNS = 8
@@ -775,7 +775,7 @@ async function exportComparisonMatrixToExcel(runs: PricingCalculationRunItem[]) 
   })
   const url = window.URL.createObjectURL(blob)
   const link = document.createElement('a')
-  const safeTimestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+  const safeTimestamp = formatLocalTimestampForFilename()
   link.href = url
   link.download = `测算对比矩阵-${safeTimestamp}.xlsx`
   link.click()
@@ -1007,7 +1007,7 @@ async function exportStoreSkuTableToExcel(
   })
   const url = window.URL.createObjectURL(blob)
   const link = document.createElement('a')
-  const safeTimestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+  const safeTimestamp = formatLocalTimestampForFilename()
   link.href = url
   link.download = `店铺SKU核算表-${projectName}-${safeTimestamp}.xlsx`
   link.click()

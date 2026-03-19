@@ -1,20 +1,24 @@
 from pathlib import Path
 import re
+import shutil
 import uuid
 
 from fastapi import HTTPException, UploadFile, status
 from slugify import slugify
 
 from app.core.config import Settings
+from app.services.report_type_service import legacy_report_types_for, normalize_report_type
 
 TYPE_ALLOWED_EXTENSIONS: dict[str, set[str]] = {
     'business_report': {'.csv'},
     'sales_report': {'.txt'},
     'inventory_report': {'.txt'},
-    'ad_report': {'.xlsx'},
+    'ad_product_report': {'.xlsx'},
     'payment_report': {'.csv'},
     'monthly_summary_pdf': {'.pdf'},
     'category_research_xlsx': {'.xlsx'},
+    'ad_search_term_report': {'.xlsx'},
+    'report_upload_temp': {'.txt', '.csv', '.xlsx'},
 }
 
 
@@ -42,8 +46,9 @@ def save_upload_file(file: UploadFile, settings: Settings, project_name: str, fi
     if not file.filename:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Missing filename')
 
+    normalized_file_type = normalize_report_type(file_type)
     ext = Path(file.filename).suffix.lower()
-    allowed_extensions = TYPE_ALLOWED_EXTENSIONS.get(file_type, settings.allowed_upload_extensions)
+    allowed_extensions = TYPE_ALLOWED_EXTENSIONS.get(normalized_file_type, settings.allowed_upload_extensions)
     if ext not in allowed_extensions:
         expected = ', '.join(sorted(allowed_extensions))
         raise HTTPException(
@@ -56,7 +61,7 @@ def save_upload_file(file: UploadFile, settings: Settings, project_name: str, fi
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f'Unsupported MIME type: {content_type}')
 
     project_slug = _safe_project_folder_name(project_name)
-    type_slug = slugify(file_type)[:50] or 'file'
+    type_slug = slugify(normalized_file_type)[:50] or 'file'
     folder = settings.upload_root / project_slug / type_slug
     folder.mkdir(parents=True, exist_ok=True)
 
@@ -86,13 +91,109 @@ def save_upload_file(file: UploadFile, settings: Settings, project_name: str, fi
     }
 
 
+def save_report_upload_temp_file(file: UploadFile, settings: Settings) -> dict:
+    if not file.filename:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Missing filename')
+
+    ext = Path(file.filename).suffix.lower()
+    allowed_extensions = TYPE_ALLOWED_EXTENSIONS['report_upload_temp']
+    if ext not in allowed_extensions:
+        expected = ', '.join(sorted(allowed_extensions))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f'Unsupported extension: {ext} (expected: {expected})',
+        )
+
+    folder = settings.upload_root / '_report_upload_tmp'
+    folder.mkdir(parents=True, exist_ok=True)
+
+    temp_id = uuid.uuid4().hex
+    safe_name = _safe_name(file.filename)
+    stored_name = f'{temp_id}_{safe_name}'
+    path = folder / stored_name
+
+    size = 0
+    with path.open('wb') as target:
+        while True:
+            chunk = file.file.read(1024 * 1024)
+            if not chunk:
+                break
+            size += len(chunk)
+            if size > settings.max_upload_bytes:
+                path.unlink(missing_ok=True)
+                raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail='File too large')
+            target.write(chunk)
+
+    return {
+        'temp_file_id': stored_name,
+        'file_path': str(path.resolve()),
+        'original_filename': file.filename,
+        'size': size,
+    }
+
+
+def resolve_report_upload_temp_file_path(settings: Settings, temp_file_id: str) -> Path:
+    path = settings.upload_root / '_report_upload_tmp' / temp_file_id
+    if path.exists() and path.is_file():
+        return path
+    raise FileNotFoundError(f'temp_file_id not found: {temp_file_id}')
+
+
+def finalize_report_upload_temp_file(
+    settings: Settings,
+    *,
+    temp_file_id: str,
+    original_filename: str,
+    project_name: str,
+    file_type: str,
+) -> dict:
+    normalized_file_type = normalize_report_type(file_type)
+    source = resolve_report_upload_temp_file_path(settings, temp_file_id)
+    ext = source.suffix.lower()
+    allowed_extensions = TYPE_ALLOWED_EXTENSIONS.get(normalized_file_type, settings.allowed_upload_extensions)
+    if ext not in allowed_extensions:
+        expected = ', '.join(sorted(allowed_extensions))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f'Unsupported extension: {ext} (expected: {expected})',
+        )
+
+    project_slug = _safe_project_folder_name(project_name)
+    type_slug = slugify(normalized_file_type)[:50] or 'file'
+    folder = settings.upload_root / project_slug / type_slug
+    folder.mkdir(parents=True, exist_ok=True)
+
+    unique_id = uuid.uuid4().hex
+    safe_name = _safe_name(original_filename or source.name)
+    stored_name = f'{unique_id}_{safe_name}'
+    destination = folder / stored_name
+    shutil.copy2(source, destination)
+
+    return {
+        'file_id': stored_name,
+        'file_path': str(destination.resolve()),
+        'filename': stored_name,
+        'original_filename': original_filename or source.name,
+        'size': destination.stat().st_size,
+    }
+
+
 def build_upload_file_path(settings: Settings, project_name: str, file_type: str, file_id: str) -> Path:
     if not file_id:
         raise FileNotFoundError('file_id not found: ')
 
     project_slug = _safe_project_folder_name(project_name)
-    type_slug = slugify(file_type)[:50] or 'file'
-    return settings.upload_root / project_slug / type_slug / file_id
+    normalized_file_type = normalize_report_type(file_type)
+    normalized_path = settings.upload_root / project_slug / (slugify(normalized_file_type)[:50] or 'file') / file_id
+    if normalized_path.exists():
+        return normalized_path
+
+    for legacy_type in legacy_report_types_for(normalized_file_type):
+        legacy_path = settings.upload_root / project_slug / (slugify(legacy_type)[:50] or 'file') / file_id
+        if legacy_path.exists():
+            return legacy_path
+
+    return normalized_path
 
 
 def resolve_upload_file_path(settings: Settings, project_name: str, file_type: str, file_id: str) -> Path:

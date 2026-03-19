@@ -17,6 +17,7 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
+  useSidebar,
 } from '@/components/ui/sidebar'
 import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
 
@@ -37,6 +38,13 @@ interface NavMainProps {
 
 export function NavMain({ items }: NavMainProps) {
   const pathname = usePathname()
+  const { setOpen, state } = useSidebar()
+
+  const handleTriggerClick = () => {
+    if (state === 'collapsed') {
+      setOpen(true)
+    }
+  }
 
   return (
     <SidebarGroup>
@@ -53,7 +61,10 @@ export function NavMain({ items }: NavMainProps) {
               {item.items ? (
                 <>
                   <CollapsibleTrigger asChild>
-                    <SidebarMenuButton tooltip={item.title}>
+                    <SidebarMenuButton 
+                      tooltip={item.title}
+                      onClick={handleTriggerClick}
+                    >
                       {item.icon}
                       <span>{item.title}</span>
                       <ChevronRight className="ml-auto transition-transform duration-300 ease-out group-data-[state=open]/collapsible:rotate-90" />

@@ -9,13 +9,14 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart'
-import { Input } from '@/components/ui/input'
+import { MonthPicker, formatMonthInputValue, parseMonthInputValue } from '@/components/ui/date-picker'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { getClientCache, setClientCache } from '@/lib/client-cache'
 import { resolveProjectCommissionUsd } from '@/lib/commission'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+import { formatLocalTimestampForFilename } from '@/lib/utils'
 
 export type ProjectOption = {
   id: number | null
@@ -40,6 +41,8 @@ type FinancialSeriesRow = {
   expense_total: number
   amazon_pay_back: number
   credit_card_deduction_usd: number
+  fob_cost_rmb: number
+  first_leg_cost_rmb: number
   has_source_report: boolean
 }
 
@@ -185,7 +188,7 @@ function formatRmb(value: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })
-  return `¥${text}`
+  return `${value < 0 ? '-' : ''}¥${text}`
 }
 
 function toPositiveRatio(numerator: number, denominator: number): number {
@@ -249,6 +252,10 @@ type FinancialExportDetailRow = {
   expenseTotal: number
   amazonPayBack: number
   creditCardDeductionUsd: number
+  fobCostRmb: number
+  firstLegCostRmb: number
+  netProfitRmb: number
+  netProfitUsd: number
   evaluationFeeRmb: number
   prepaymentOtherRmb: number
   operationCommissionRmb: number | null
@@ -293,6 +300,10 @@ const EXPORT_DETAIL_COLUMNS = [
   { key: 'adRatio', title: '广告占比', format: 'percent', group: '费用占比' },
   { key: 'refundRatio', title: '退款率', format: 'percent', group: '费用占比' },
   { key: 'paybackRatio', title: '回款率', format: 'percent_signed', group: '费用占比' },
+  { key: 'fobCostRmb', title: 'FOB成本RMB', format: 'currency_rmb', group: '成本核算' },
+  { key: 'firstLegCostRmb', title: '头程成本RMB', format: 'currency_rmb', group: '成本核算' },
+  { key: 'netProfitRmb', title: '净利润RMB', format: 'currency_rmb', group: '成本核算' },
+  { key: 'netProfitUsd', title: '净利润USD', format: 'currency_usd', group: '成本核算' },
 ] as const
 
 const ADMIN_ONLY_EXPORT_KEYS = new Set<string>([
@@ -674,6 +685,9 @@ export default function FinancialDataClient({
         })
         const operationCommissionRmb = operationCommission.commissionUsd * exchangeRate
         const payableTotalRmb = evaluationFeeRmb + prepaymentOtherRmb + operationCommissionRmb
+        const netProfitRmb = row.amazon_pay_back * exchangeRate - row.fob_cost_rmb - row.first_leg_cost_rmb
+        const totalCostUsd = exchangeRate > 0 ? (row.fob_cost_rmb + row.first_leg_cost_rmb) / exchangeRate : 0
+        const netProfitUsd = row.amazon_pay_back - totalCostUsd
 
         return {
           income_sales: acc.income_sales + row.income_sales,
@@ -690,6 +704,10 @@ export default function FinancialDataClient({
           expense_total: acc.expense_total + row.expense_total,
           amazon_pay_back: acc.amazon_pay_back + row.amazon_pay_back,
           credit_card_deduction_usd: acc.credit_card_deduction_usd + creditCardUsd,
+          fob_cost_rmb: acc.fob_cost_rmb + row.fob_cost_rmb,
+          first_leg_cost_rmb: acc.first_leg_cost_rmb + row.first_leg_cost_rmb,
+          net_profit_rmb: acc.net_profit_rmb + netProfitRmb,
+          net_profit_usd: acc.net_profit_usd + netProfitUsd,
           evaluation_fee_rmb: acc.evaluation_fee_rmb + evaluationFeeRmb,
           prepayment_other_rmb: acc.prepayment_other_rmb + prepaymentOtherRmb,
           operation_commission_rmb: acc.operation_commission_rmb + operationCommissionRmb,
@@ -713,6 +731,10 @@ export default function FinancialDataClient({
         expense_total: 0,
         amazon_pay_back: 0,
         credit_card_deduction_usd: 0,
+        fob_cost_rmb: 0,
+        first_leg_cost_rmb: 0,
+        net_profit_rmb: 0,
+        net_profit_usd: 0,
         evaluation_fee_rmb: 0,
         prepayment_other_rmb: 0,
         operation_commission_rmb: 0,
@@ -737,6 +759,9 @@ export default function FinancialDataClient({
       })
       const operationCommissionRmb = operationCommission.commissionUsd * exchangeRate
       const payableTotalRmb = evaluationFeeRmb + prepaymentOtherRmb + operationCommissionRmb
+      const netProfitRmb = row.amazon_pay_back * exchangeRate - row.fob_cost_rmb - row.first_leg_cost_rmb
+      const totalCostUsd = exchangeRate > 0 ? (row.fob_cost_rmb + row.first_leg_cost_rmb) / exchangeRate : 0
+      const netProfitUsd = row.amazon_pay_back - totalCostUsd
 
       return {
         monthLabel: formatMonth(row.report_month),
@@ -754,6 +779,10 @@ export default function FinancialDataClient({
         expenseTotal: row.expense_total,
         amazonPayBack: row.amazon_pay_back,
         creditCardDeductionUsd: row.credit_card_deduction_usd,
+        fobCostRmb: row.fob_cost_rmb,
+        firstLegCostRmb: row.first_leg_cost_rmb,
+        netProfitRmb,
+        netProfitUsd,
         evaluationFeeRmb,
         prepaymentOtherRmb,
         operationCommissionRmb: disableCommission ? null : operationCommissionRmb,
@@ -880,6 +909,7 @@ export default function FinancialDataClient({
         '平台收入': 'FFDDF7EA',
         '平台支出': 'FFFCE7C3',
         '结果': 'FFDCEEFF',
+        '成本核算': 'FFFDE68A',
         '运营结算': 'FFFDE6F2',
         '费用占比': 'FFEADFEE',
       }
@@ -970,6 +1000,14 @@ export default function FinancialDataClient({
           cell.value = totals.amazon_pay_back
         } else if (column.key === 'creditCardDeductionUsd') {
           cell.value = totals.credit_card_deduction_usd
+        } else if (column.key === 'fobCostRmb') {
+          cell.value = totals.fob_cost_rmb
+        } else if (column.key === 'firstLegCostRmb') {
+          cell.value = totals.first_leg_cost_rmb
+        } else if (column.key === 'netProfitRmb') {
+          cell.value = totals.net_profit_rmb
+        } else if (column.key === 'netProfitUsd') {
+          cell.value = totals.net_profit_usd
         } else if (column.key === 'evaluationFeeRmb') {
           cell.value = totals.evaluation_fee_rmb
         } else if (column.key === 'prepaymentOtherRmb') {
@@ -1018,7 +1056,7 @@ export default function FinancialDataClient({
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       const safeProjectName = data.project_name.replace(/[\\/:*?"<>|]/g, '-')
-      const safeTimestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+      const safeTimestamp = formatLocalTimestampForFilename()
       link.href = url
       link.download = `月度财务分析-${safeProjectName}-${safeTimestamp}.xlsx`
       link.click()
@@ -1066,11 +1104,19 @@ export default function FinancialDataClient({
               )}
               <div className="space-y-1.5">
                 <label htmlFor="financial_start_month" className="text-xs text-muted-foreground">开始月份</label>
-                <Input id="financial_start_month" type="month" value={startMonth} onChange={(e) => setStartMonth(e.target.value)} className="h-9 w-[170px]" />
+                <MonthPicker
+                  value={parseMonthInputValue(startMonth)}
+                  onChange={(date) => setStartMonth(formatMonthInputValue(date))}
+                  className="h-9 w-[170px]"
+                />
               </div>
               <div className="space-y-1.5">
                 <label htmlFor="financial_end_month" className="text-xs text-muted-foreground">结束月份</label>
-                <Input id="financial_end_month" type="month" value={endMonth} onChange={(e) => setEndMonth(e.target.value)} className="h-9 w-[170px]" />
+                <MonthPicker
+                  value={parseMonthInputValue(endMonth)}
+                  onChange={(date) => setEndMonth(formatMonthInputValue(date))}
+                  className="h-9 w-[170px]"
+                />
               </div>
               <Button type="button" variant="outline" className="h-9" onClick={() => void loadFinancialSeries({ force: true })} disabled={loading || !projectId}>
                 {loading ? '刷新中...' : '刷新数据'}
@@ -1273,7 +1319,7 @@ export default function FinancialDataClient({
                 </div>
               ) : data && data.rows.length > 0 ? (
                 <div className="w-full max-w-full overflow-x-auto rounded-md border">
-                <Table className={`w-max ${isAdmin ? 'min-w-[2200px]' : 'min-w-[1800px]'} table-fixed text-xs`}>
+                <Table className={`w-max ${isAdmin ? 'min-w-[2500px]' : 'min-w-[2100px]'} table-fixed text-xs`}>
                     <TableHeader>
                       <TableRow className="bg-muted/30 hover:bg-muted/30">
                         <TableHead
@@ -1309,7 +1355,11 @@ export default function FinancialDataClient({
                         <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">服务占比</TableHead>
                         <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">广告占比</TableHead>
                         <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">退款率</TableHead>
-                        <TableHead rowSpan={2} className="px-2 py-2 text-center">回款率</TableHead>
+                        <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">回款率</TableHead>
+                        <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">FOB成本</TableHead>
+                        <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">头程成本</TableHead>
+                        <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">净利润RMB</TableHead>
+                        <TableHead rowSpan={2} className="px-2 py-2 text-center">净利润USD</TableHead>
                       </TableRow>
                       <TableRow className="bg-muted/20 hover:bg-muted/20">
                         <TableHead className="border-r bg-emerald-100 px-2 py-1.5 text-center dark:bg-emerald-900">
@@ -1346,6 +1396,9 @@ export default function FinancialDataClient({
                         })
                         const operationCommissionRmb = operationCommission.commissionUsd * exchangeRate
                         const payableTotalRmb = evaluationFeeRmb + prepaymentOtherRmb + operationCommissionRmb
+                        const netProfitRmb = row.amazon_pay_back * exchangeRate - row.fob_cost_rmb - row.first_leg_cost_rmb
+                        const totalCostUsd = exchangeRate > 0 ? (row.fob_cost_rmb + row.first_leg_cost_rmb) / exchangeRate : 0
+                        const netProfitUsd = row.amazon_pay_back - totalCostUsd
                         const rowBg = !row.has_source_report ? 'bg-muted' : 'bg-background'
                         const platformRatio = toPositiveRatio(row.expense_selling_fee, row.income_total)
                         const deliveryRatio = toPositiveRatio(row.expense_fba_fee, row.income_total)
@@ -1410,7 +1463,11 @@ export default function FinancialDataClient({
                           <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">{formatRatio(serviceRatio)}</TableCell>
                           <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">{formatRatio(adRatio)}</TableCell>
                           <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">{formatRatio(refundRatio)}</TableCell>
-                          <TableCell className="px-2 py-1.5 text-right tabular-nums">{formatSignedRatio(paybackRatio)}</TableCell>
+                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">{formatSignedRatio(paybackRatio)}</TableCell>
+                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">{formatRmb(row.fob_cost_rmb)}</TableCell>
+                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">{formatRmb(row.first_leg_cost_rmb)}</TableCell>
+                          <TableCell className="border-r px-2 py-1.5 text-right font-semibold tabular-nums">{formatRmb(netProfitRmb)}</TableCell>
+                          <TableCell className="px-2 py-1.5 text-right font-semibold tabular-nums">{formatCurrency(netProfitUsd)}</TableCell>
                         </TableRow>
                       )})}
                     </TableBody>
@@ -1459,7 +1516,11 @@ export default function FinancialDataClient({
                         <TableCell className="border-r px-2 py-2 text-right tabular-nums">{formatRatio(toPositiveRatio(totals.expense_service_fee, totals.income_total))}</TableCell>
                         <TableCell className="border-r px-2 py-2 text-right tabular-nums">{formatRatio(toPositiveRatio(totals.expense_advertising, totals.income_total))}</TableCell>
                         <TableCell className="border-r px-2 py-2 text-right tabular-nums">{formatRatio(toPositiveRatio(totals.income_refund, totals.income_sales))}</TableCell>
-                        <TableCell className="px-2 py-2 text-right tabular-nums">{formatSignedRatio(toSignedRatio(totals.amazon_pay_back, totals.income_total))}</TableCell>
+                        <TableCell className="border-r px-2 py-2 text-right tabular-nums">{formatSignedRatio(toSignedRatio(totals.amazon_pay_back, totals.income_total))}</TableCell>
+                        <TableCell className="border-r px-2 py-2 text-right tabular-nums">{formatRmb(totals.fob_cost_rmb)}</TableCell>
+                        <TableCell className="border-r px-2 py-2 text-right tabular-nums">{formatRmb(totals.first_leg_cost_rmb)}</TableCell>
+                        <TableCell className="border-r px-2 py-2 text-right tabular-nums">{formatRmb(totals.net_profit_rmb)}</TableCell>
+                        <TableCell className="px-2 py-2 text-right tabular-nums">{formatCurrency(totals.net_profit_usd)}</TableCell>
                       </TableRow>
                     </TableFooter>
                   </Table>

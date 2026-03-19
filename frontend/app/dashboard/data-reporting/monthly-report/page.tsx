@@ -8,6 +8,7 @@ import { useSession } from 'next-auth/react'
 import type { RecognizedFileType } from '@/lib/file-recognition'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { MonthPicker, formatMonthInputValue, parseMonthInputValue } from '@/components/ui/date-picker'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -772,11 +773,10 @@ export default function MonthlyReportPage() {
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
-                  <Input
-                    id="report_month"
-                    type="month"
-                    value={reportMonth}
-                    onChange={(event) => setReportMonth(event.target.value)}
+                  <MonthPicker
+                    value={parseMonthInputValue(reportMonth)}
+                    onChange={(date) => setReportMonth(formatMonthInputValue(date))}
+                    className="min-w-[180px]"
                   />
                   <Button
                     type="button"

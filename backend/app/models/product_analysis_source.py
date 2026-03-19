@@ -41,7 +41,7 @@ class AnalysisSourceFile(Base):
             name='analysis_sources_period_version_key',
         ),
         CheckConstraint(
-            "report_type in ('business_report', 'payment_report', 'ad_report', 'sales_report', 'inventory_report')",
+            "report_type in ('business_report', 'payment_report', 'ad_product_report', 'sales_report', 'inventory_report')",
             name='ck_analysis_sources_report_type',
         ),
         CheckConstraint('version >= 1', name='ck_analysis_sources_version_positive'),
@@ -51,7 +51,7 @@ class AnalysisSourceFile(Base):
         ),
         CheckConstraint(
             "("
-            "report_type in ('business_report', 'payment_report', 'ad_report', 'sales_report') "
+            "report_type in ('business_report', 'payment_report', 'ad_product_report', 'sales_report') "
             'and period_start_date is not null '
             'and period_end_date is not null '
             'and period_start_date <= period_end_date '
@@ -69,6 +69,13 @@ class AnalysisSourceFile(Base):
         Index('idx_analysis_sources_country', 'country'),
         Index('idx_analysis_sources_is_current', 'is_current'),
         Index('idx_analysis_sources_ingestion_status', 'ingestion_status'),
+        Index(
+            'idx_analysis_sources_project_type_country_report_date',
+            'project_id',
+            'report_type',
+            'country',
+            'report_date',
+        ),
         Index(
             'idx_analysis_sources_project_type_country_period',
             'project_id',
@@ -91,6 +98,7 @@ class AnalysisSourceFile(Base):
     )
     report_type: Mapped[str] = mapped_column(String(32), nullable=False)
     country: Mapped[str] = mapped_column(String(2), nullable=False, default='US', server_default='US')
+    report_date: Mapped[date | None] = mapped_column(Date(), nullable=True)
     period_start_date: Mapped[date | None] = mapped_column(Date(), nullable=True)
     period_end_date: Mapped[date | None] = mapped_column(Date(), nullable=True)
     snapshot_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -129,7 +137,7 @@ class AnalysisSourceFile(Base):
         back_populates='source_file',
         cascade='all, delete-orphan',
     )
-    ad_rows: Mapped[list['AnalysisAdRow']] = relationship(
+    ad_rows: Mapped[list['AnalysisAdProductRow']] = relationship(
         back_populates='source_file',
         cascade='all, delete-orphan',
     )
@@ -220,17 +228,17 @@ class AnalysisPaymentRow(Base):
     source_file: Mapped[AnalysisSourceFile] = relationship(back_populates='payment_rows')
 
 
-class AnalysisAdRow(Base):
-    __tablename__ = 'analysis_ad_rows'
+class AnalysisAdProductRow(Base):
+    __tablename__ = 'analysis_ad_product_rows'
     __table_args__ = (
-        UniqueConstraint('source_file_id', 'source_row_no', name='analysis_ad_rows_source_row_key'),
+        UniqueConstraint('source_file_id', 'source_row_no', name='analysis_ad_product_rows_source_row_key'),
         CheckConstraint(
             "scope_status in ('included_product', 'excluded_store_level', 'excluded_unmapped')",
-            name='ck_analysis_ad_scope_status',
+            name='ck_analysis_ad_product_scope_status',
         ),
-        Index('idx_analysis_ad_source_id', 'source_file_id'),
-        Index('idx_analysis_ad_source_sku', 'source_file_id', 'sku'),
-        Index('idx_analysis_ad_scope', 'source_file_id', 'scope_status'),
+        Index('idx_analysis_ad_product_source_id', 'source_file_id'),
+        Index('idx_analysis_ad_product_source_sku', 'source_file_id', 'sku'),
+        Index('idx_analysis_ad_product_scope', 'source_file_id', 'scope_status'),
     )
 
     id: Mapped[int] = mapped_column(

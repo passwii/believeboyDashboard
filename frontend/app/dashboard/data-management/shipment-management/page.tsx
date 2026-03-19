@@ -15,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { DateRangePicker, SingleDatePicker, formatDateInputValue as formatPickerDateInputValue, parseDateInputValue, parseDateRangeInputValue } from '@/components/ui/date-picker'
 import { Input } from '@/components/ui/input'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -23,7 +24,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
-import { cn } from '@/lib/utils'
+import { cn, formatLocalTimestampForFilename } from '@/lib/utils'
 
 const API_BASE = '/api/backend'
 const HISTORY_SHIPMENT_STATUSES = ['completed', 'in_transit'] as const
@@ -1616,7 +1617,7 @@ export default function ShipmentManagementPage() {
       })
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
-      const safeTimestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+      const safeTimestamp = formatLocalTimestampForFilename()
       link.href = url
       link.download = `船期批次总览-${safeTimestamp}.xlsx`
       link.click()
@@ -1781,7 +1782,7 @@ export default function ShipmentManagementPage() {
       })
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
-      const safeTimestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+      const safeTimestamp = formatLocalTimestampForFilename()
       link.href = url
       link.download = `发货费用-${safeTimestamp}.xlsx`
       link.click()
@@ -1927,7 +1928,7 @@ export default function ShipmentManagementPage() {
       })
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
-      const safeTimestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+      const safeTimestamp = formatLocalTimestampForFilename()
       link.href = url
       link.download = `SKU汇总-${safeTimestamp}.xlsx`
       link.click()
@@ -2067,7 +2068,7 @@ export default function ShipmentManagementPage() {
       })
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
-      const safeTimestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+      const safeTimestamp = formatLocalTimestampForFilename()
       link.href = url
       link.download = `FBA箱单明细-${fbaBoxMeta.shipmentNo}-${safeTimestamp}.xlsx`
       link.click()
@@ -2317,24 +2318,15 @@ export default function ShipmentManagementPage() {
                   </div>
                   <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-center xl:justify-end">
                     <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end xl:flex-nowrap">
-                      <div className="space-y-1">
-                        <div className="text-[11px] font-medium text-muted-foreground">开始时间</div>
-                        <Input
-                          type="date"
-                          value={shipmentDateFrom}
-                          max={shipmentDateTo || undefined}
-                          onChange={(event) => setShipmentDateFrom(event.target.value)}
-                          className="h-9 w-full min-w-[148px] sm:w-[148px]"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <div className="text-[11px] font-medium text-muted-foreground">结束时间</div>
-                        <Input
-                          type="date"
-                          value={shipmentDateTo}
-                          min={shipmentDateFrom || undefined}
-                          onChange={(event) => setShipmentDateTo(event.target.value)}
-                          className="h-9 w-full min-w-[148px] sm:w-[148px]"
+                      <div className="min-w-[220px] space-y-1">
+                        <div className="text-[11px] font-medium text-muted-foreground">日期范围</div>
+                        <DateRangePicker
+                          value={parseDateRangeInputValue(shipmentDateFrom, shipmentDateTo)}
+                          onChange={(range) => {
+                            setShipmentDateFrom(formatPickerDateInputValue(range?.from))
+                            setShipmentDateTo(formatPickerDateInputValue(range?.to))
+                          }}
+                          className="h-9 w-full"
                         />
                       </div>
                       <Button variant="outline" disabled={loading || costExporting || items.length === 0} onClick={() => void exportCostToExcel()}>
@@ -2815,23 +2807,19 @@ export default function ShipmentManagementPage() {
 
             <div className="space-y-2">
               <div className="text-sm font-medium text-slate-700 dark:text-slate-200">发货时间</div>
-              <Input type="date" value={form.created_date} onChange={(event) => handleFormChange('created_date', event.target.value)} />
+              <SingleDatePicker value={parseDateInputValue(form.created_date)} onChange={(date) => handleFormChange('created_date', formatPickerDateInputValue(date))} />
             </div>
             <div className="space-y-2">
               <div className="text-sm font-medium text-slate-700 dark:text-slate-200">ETD</div>
-              <Input type="date" value={form.etd_date} onChange={(event) => handleFormChange('etd_date', event.target.value)} />
+              <SingleDatePicker value={parseDateInputValue(form.etd_date)} onChange={(date) => handleFormChange('etd_date', formatPickerDateInputValue(date))} />
             </div>
             <div className="space-y-2">
               <div className="text-sm font-medium text-slate-700 dark:text-slate-200">ETA</div>
-              <Input type="date" value={form.eta_date} onChange={(event) => handleFormChange('eta_date', event.target.value)} />
+              <SingleDatePicker value={parseDateInputValue(form.eta_date)} onChange={(date) => handleFormChange('eta_date', formatPickerDateInputValue(date))} />
             </div>
             <div className="space-y-2">
               <div className="text-sm font-medium text-slate-700 dark:text-slate-200">实际入仓日期</div>
-              <Input
-                type="date"
-                value={form.actual_inbound_date}
-                onChange={(event) => handleFormChange('actual_inbound_date', event.target.value)}
-              />
+              <SingleDatePicker value={parseDateInputValue(form.actual_inbound_date)} onChange={(date) => handleFormChange('actual_inbound_date', formatPickerDateInputValue(date))} />
             </div>
 
             <div className="space-y-2">

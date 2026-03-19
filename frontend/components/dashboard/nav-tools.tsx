@@ -18,6 +18,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from '@/components/ui/sidebar'
 
 interface ToolGroup {
@@ -35,6 +36,13 @@ interface NavToolsProps {
 
 export function NavTools({ tools }: NavToolsProps) {
   const pathname = usePathname()
+  const { setOpen, state } = useSidebar()
+
+  const handleTriggerClick = () => {
+    if (state === 'collapsed') {
+      setOpen(true)
+    }
+  }
 
   return (
     <SidebarGroup className="group-data-[collapsible=offcanvas]:hidden">
@@ -49,7 +57,10 @@ export function NavTools({ tools }: NavToolsProps) {
           >
             <SidebarMenuItem>
               <CollapsibleTrigger asChild>
-                <SidebarMenuButton tooltip={tool.title}>
+                <SidebarMenuButton 
+                  tooltip={tool.title}
+                  onClick={handleTriggerClick}
+                >
                   {tool.icon}
                   <span>{tool.title}</span>
                   <ChevronRight className="ml-auto transition-transform duration-300 ease-out group-data-[state=open]/collapsible:rotate-90" />

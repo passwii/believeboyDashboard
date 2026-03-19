@@ -10,6 +10,7 @@ class AnalysisSourceFileItem(BaseModel):
     id: int
     project_id: int
     report_type: str
+    report_date: date | None
     period_start_date: date | None
     period_end_date: date | None
     snapshot_at: datetime | None

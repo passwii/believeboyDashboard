@@ -7,9 +7,8 @@ from sqlalchemy.orm import Session
 from app.db.session import Base
 from app.models import (
     AnalysisBusinessRow,
+    AnalysisSalesOrderRow,
     AnalysisSourceFile,
-    DailySalesOrder,
-    DailySourceFile,
     InventorySnapshotRow,
     ProductCost,
     Project,
@@ -114,10 +113,12 @@ def test_inventory_replenishment_analysis_aggregates_sources():
             original_filename='business7.csv',
             ingestion_status='success',
         )
-        daily_source = DailySourceFile(
+        daily_source = AnalysisSourceFile(
             project_id=project.id,
             report_type='sales_report',
             report_date=daily_window_end,
+            period_start_date=daily_window_end,
+            period_end_date=daily_window_end,
             version=1,
             is_current=True,
             upload_file_id='daily-1',
@@ -178,7 +179,7 @@ def test_inventory_replenishment_analysis_aggregates_sources():
                     ordered_sales_amount=0,
                     raw_row={},
                 ),
-                DailySalesOrder(
+                AnalysisSalesOrderRow(
                     source_file_id=daily_source.id,
                     source_row_no=1,
                     amazon_order_id='ORDER-1',
@@ -507,11 +508,13 @@ def test_inventory_replenishment_analysis_filters_sources_by_country():
             original_filename='inventory-de.txt',
             ingestion_status='success',
         )
-        daily_source_us = DailySourceFile(
+        daily_source_us = AnalysisSourceFile(
             project_id=project.id,
             report_type='sales_report',
             country='US',
             report_date=daily_window_end,
+            period_start_date=daily_window_end,
+            period_end_date=daily_window_end,
             version=1,
             is_current=True,
             upload_file_id='daily-us',
@@ -522,11 +525,13 @@ def test_inventory_replenishment_analysis_filters_sources_by_country():
             original_filename='daily-us.txt',
             ingestion_status='success',
         )
-        daily_source_de = DailySourceFile(
+        daily_source_de = AnalysisSourceFile(
             project_id=project.id,
             report_type='sales_report',
             country='DE',
             report_date=daily_window_end,
+            period_start_date=daily_window_end,
+            period_end_date=daily_window_end,
             version=1,
             is_current=True,
             upload_file_id='daily-de',
@@ -574,7 +579,7 @@ def test_inventory_replenishment_analysis_filters_sources_by_country():
                     aging_status='fresh',
                     raw_row={},
                 ),
-                DailySalesOrder(
+                AnalysisSalesOrderRow(
                     source_file_id=daily_source_us.id,
                     source_row_no=1,
                     amazon_order_id='ORDER-US',
@@ -591,7 +596,7 @@ def test_inventory_replenishment_analysis_filters_sources_by_country():
                     status_rule_version=1,
                     raw_row={},
                 ),
-                DailySalesOrder(
+                AnalysisSalesOrderRow(
                     source_file_id=daily_source_de.id,
                     source_row_no=1,
                     amazon_order_id='ORDER-DE',
@@ -804,7 +809,7 @@ def test_inventory_replenishment_shipments_sorted_by_latest_shipment_date():
         assert [row['shipment_no'] for row in rows] == ['SHP-NEW', 'SHP-OLD']
 
 
-def test_load_daily_dms_map_uses_lagged_three_day_window():
+def test_load_recent_sales_dms_map_uses_lagged_three_day_window():
     engine = create_engine('sqlite:///:memory:', future=True)
     Base.metadata.create_all(bind=engine)
 
@@ -813,10 +818,12 @@ def test_load_daily_dms_map_uses_lagged_three_day_window():
         db.add(project)
         db.flush()
 
-        source = DailySourceFile(
+        source = AnalysisSourceFile(
             project_id=project.id,
             report_type='sales_report',
             report_date=date(2026, 3, 8),
+            period_start_date=date(2026, 3, 8),
+            period_end_date=date(2026, 3, 8),
             version=1,
             is_current=True,
             upload_file_id='daily-lag',
@@ -832,7 +839,7 @@ def test_load_daily_dms_map_uses_lagged_three_day_window():
 
         db.add_all(
             [
-                DailySalesOrder(
+                AnalysisSalesOrderRow(
                     source_file_id=source.id,
                     source_row_no=1,
                     amazon_order_id='ORDER-IN',
@@ -849,7 +856,7 @@ def test_load_daily_dms_map_uses_lagged_three_day_window():
                     status_rule_version=1,
                     raw_row={},
                 ),
-                DailySalesOrder(
+                AnalysisSalesOrderRow(
                     source_file_id=source.id,
                     source_row_no=2,
                     amazon_order_id='ORDER-OUT',
@@ -870,6 +877,8 @@ def test_load_daily_dms_map_uses_lagged_three_day_window():
         )
         db.commit()
 
-        dms_map = inventory_replenishment_service._load_daily_dms_map(db, project.id, 'US', date(2026, 3, 9))
+        dms_map = inventory_replenishment_service._load_recent_sales_dms_map(
+            db, project.id, 'US', date(2026, 3, 9)
+        )
 
         assert dms_map['SKU-001'] == Decimal('2')

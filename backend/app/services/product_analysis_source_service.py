@@ -17,24 +17,22 @@ from sqlalchemy import Select, func, insert, or_, select, update as sa_update
 from sqlalchemy.orm import Session
 
 from app.tasks.scripts import product_analysis as product_analysis_script
+from app.services.report_type_service import AD_PRODUCT_REPORT, legacy_report_types_for, normalize_report_type
 from app.services import exchange_rate_service
 from app.models import (
-    AnalysisAdRow,
+    AnalysisAdProductRow,
     AnalysisBusinessRow,
     AnalysisPT1Calculation,
     AnalysisPTSKUDetail,
     AnalysisPaymentRow,
     AnalysisSalesOrderRow,
     AnalysisSourceFile,
-    DailyAdProduct,
-    DailySalesOrder,
-    DailySourceFile,
     InventorySnapshotRow,
     ProductCost,
     Project,
 )
 
-PERIODIC_REPORT_TYPES = {'business_report', 'payment_report', 'ad_report', 'sales_report'}
+PERIODIC_REPORT_TYPES = {'business_report', 'payment_report', AD_PRODUCT_REPORT, 'sales_report'}
 ALL_REPORT_TYPES = PERIODIC_REPORT_TYPES | {'inventory_report'}
 SCOPE_INCLUDED = 'included_product'
 SCOPE_EXCLUDED_STORE = 'excluded_store_level'
@@ -45,8 +43,6 @@ INVENTORY_PROJECT_MATCH_MIN_RATIO = 0.6
 
 _SQLITE_TABLES_READY = False
 _SQLITE_TABLES_LOCK = Lock()
-_SQLITE_DAILY_TABLES_READY = False
-_SQLITE_DAILY_TABLES_LOCK = Lock()
 PT_TIMEZONE = ZoneInfo('America/Los_Angeles')
 COUNTRY_ALIASES = {
     'US': 'US',
@@ -94,7 +90,7 @@ def ensure_tables(db: Session) -> None:
             AnalysisSourceFile.__table__,
             AnalysisBusinessRow.__table__,
             AnalysisPaymentRow.__table__,
-            AnalysisAdRow.__table__,
+            AnalysisAdProductRow.__table__,
             InventorySnapshotRow.__table__,
             AnalysisSalesOrderRow.__table__,
             AnalysisPT1Calculation.__table__,
@@ -102,27 +98,6 @@ def ensure_tables(db: Session) -> None:
         ):
             table.create(bind=bind, checkfirst=True)
         _SQLITE_TABLES_READY = True
-
-
-def ensure_daily_tables(db: Session) -> None:
-    global _SQLITE_DAILY_TABLES_READY
-    bind = db.get_bind()
-    if bind.dialect.name != 'sqlite':
-        return
-    if _SQLITE_DAILY_TABLES_READY:
-        return
-
-    with _SQLITE_DAILY_TABLES_LOCK:
-        if _SQLITE_DAILY_TABLES_READY:
-            return
-        for table in (
-            DailySourceFile.__table__,
-            DailySalesOrder.__table__,
-            DailyAdProduct.__table__,
-        ):
-            table.create(bind=bind, checkfirst=True)
-        _SQLITE_DAILY_TABLES_READY = True
-
 
 def persist_product_analysis_pt1_calculation(
     db: Session,
@@ -389,11 +364,11 @@ def persist_product_analysis_sources(
     normalized_country = _normalize_country(country)
     known_skus, known_asins = _load_project_product_mapping(db, project.project_name, normalized_country)
     outcomes: list[SourcePersistOutcome] = []
-    ordered_types = ['business_report', 'payment_report', 'ad_report', 'inventory_report']
+    ordered_types = ['business_report', 'payment_report', AD_PRODUCT_REPORT, 'inventory_report']
 
     for report_type in ordered_types:
-        file_id = str(file_ids.get(report_type) or '').strip()
-        file_path = str(resolved_file_paths.get(report_type) or '').strip()
+        file_id = _lookup_report_mapping_value(file_ids, report_type)
+        file_path = _lookup_report_mapping_value(resolved_file_paths, report_type)
         if not file_id and not file_path:
             if report_type == 'inventory_report':
                 continue
@@ -412,6 +387,7 @@ def persist_product_analysis_sources(
             project=project,
             report_type=report_type,
             country=normalized_country,
+            report_date=None,
             period_start_date=start_date if report_type in PERIODIC_REPORT_TYPES else None,
             period_end_date=end_date if report_type in PERIODIC_REPORT_TYPES else None,
             upload_file_id=file_id or Path(file_path).name,
@@ -426,7 +402,7 @@ def persist_product_analysis_sources(
     return outcomes
 
 
-def persist_daily_report_sources(
+def persist_single_date_report_sources(
     db: Session,
     *,
     project_name: str,
@@ -437,7 +413,6 @@ def persist_daily_report_sources(
     created_by: str | None = None,
 ) -> list[SourcePersistOutcome]:
     ensure_tables(db)
-    ensure_daily_tables(db)
     if not isinstance(file_ids, dict) or not isinstance(resolved_file_paths, dict):
         raise ValueError('file_ids and resolved_file_paths are required')
 
@@ -446,9 +421,9 @@ def persist_daily_report_sources(
     normalized_country = _normalize_country(country)
     known_skus, known_asins = _load_project_product_mapping(db, project.project_name, normalized_country)
     outcomes: list[SourcePersistOutcome] = []
-    for report_type in ('sales_report', 'ad_report'):
-        file_id = str(file_ids.get(report_type) or '').strip()
-        file_path = str(resolved_file_paths.get(report_type) or '').strip()
+    for report_type in ('sales_report', AD_PRODUCT_REPORT):
+        file_id = _lookup_report_mapping_value(file_ids, report_type)
+        file_path = _lookup_report_mapping_value(resolved_file_paths, report_type)
         if not file_id and not file_path:
             outcomes.append(
                 SourcePersistOutcome(
@@ -460,18 +435,37 @@ def persist_daily_report_sources(
             )
             continue
 
-        outcome = _persist_one_daily_source_file(
-            db,
-            project=project,
-            report_type=report_type,
-            report_date=target_date,
-            country=normalized_country,
-            upload_file_id=file_id or Path(file_path).name,
-            upload_file_path=file_path or file_id,
-            known_skus=known_skus,
-            known_asins=known_asins,
-            created_by=created_by,
-        )
+        if report_type == 'sales_report':
+            outcome = _persist_one_source_file(
+                db,
+                project=project,
+                report_type=report_type,
+                country=normalized_country,
+                report_date=target_date,
+                period_start_date=target_date,
+                period_end_date=target_date,
+                upload_file_id=file_id or Path(file_path).name,
+                upload_file_path=file_path or file_id,
+                known_skus=known_skus,
+                known_asins=known_asins,
+                created_by=created_by,
+                sales_count_as_of_date=target_date,
+            )
+        else:
+            outcome = _persist_one_source_file(
+                db,
+                project=project,
+                report_type=report_type,
+                country=normalized_country,
+                report_date=target_date,
+                period_start_date=target_date,
+                period_end_date=target_date,
+                upload_file_id=file_id or Path(file_path).name,
+                upload_file_path=file_path or file_id,
+                known_skus=known_skus,
+                known_asins=known_asins,
+                created_by=created_by,
+            )
         outcomes.append(outcome)
         db.commit()
 
@@ -494,6 +488,7 @@ def persist_daily_report_sources(
             project=project,
             report_type='inventory_report',
             country=normalized_country,
+            report_date=None,
             period_start_date=None,
             period_end_date=None,
             upload_file_id=inventory_file_id or Path(inventory_file_path).name,
@@ -508,6 +503,192 @@ def persist_daily_report_sources(
     return outcomes
 
 
+def persist_single_analysis_source(
+    db: Session,
+    *,
+    project_name: str,
+    report_type: str,
+    country: str = 'US',
+    upload_file_id: str,
+    upload_file_path: str,
+    report_date: str | None = None,
+    report_start_date: str | None = None,
+    report_end_date: str | None = None,
+    created_by: str | None = None,
+) -> SourcePersistOutcome:
+    ensure_tables(db)
+    report_type = normalize_report_type(report_type)
+    project = _get_project_by_name(db, project_name)
+    normalized_country = _normalize_country(country)
+    known_skus, known_asins = _load_project_product_mapping(db, project.project_name, normalized_country)
+
+    normalized_report_date = _parse_yyyy_mm_dd(report_date, 'report_date') if report_date else None
+    start_date = _parse_yyyy_mm_dd(report_start_date, 'report_start_date') if report_start_date else None
+    end_date = _parse_yyyy_mm_dd(report_end_date, 'report_end_date') if report_end_date else None
+    if report_type != 'inventory_report':
+        if start_date is None or end_date is None:
+            raise ValueError('report_start_date and report_end_date are required')
+        if start_date > end_date:
+            raise ValueError('report_start_date cannot be greater than report_end_date')
+    if report_type == 'business_report':
+        if normalized_report_date is None:
+            if start_date is None or end_date is None:
+                raise ValueError('report_date is required')
+            if start_date != end_date:
+                raise ValueError('business_report requires a single-day period')
+            normalized_report_date = start_date
+        if start_date is not None and normalized_report_date != start_date:
+            raise ValueError('business_report report_date must equal report_start_date')
+        if end_date is not None and normalized_report_date != end_date:
+            raise ValueError('business_report report_date must equal report_end_date')
+
+    outcome = _persist_one_source_file(
+        db,
+        project=project,
+        report_type=report_type,
+        country=normalized_country,
+        report_date=normalized_report_date,
+        period_start_date=start_date,
+        period_end_date=end_date,
+        upload_file_id=upload_file_id,
+        upload_file_path=upload_file_path,
+        known_skus=known_skus,
+        known_asins=known_asins,
+        created_by=created_by,
+    )
+    db.commit()
+    return outcome
+
+
+def persist_sales_report_by_purchase_date(
+    db: Session,
+    *,
+    project_name: str,
+    upload_file_id: str,
+    upload_file_path: str,
+    country: str = 'US',
+    created_by: str | None = None,
+) -> dict[str, Any]:
+    ensure_tables(db)
+    project = _get_project_by_name(db, project_name)
+    normalized_country = _normalize_country(country)
+    path = Path(upload_file_path)
+    if not path.exists() or not path.is_file():
+        raise FileNotFoundError(f'File not found: {upload_file_path}')
+
+    rows, total, _ = _parse_sales_rows(path, 0, None)
+    grouped_rows: dict[date, list[dict[str, Any]]] = {}
+    for row in rows:
+        purchase_date_pt = row.get('purchase_date_pt')
+        if not isinstance(purchase_date_pt, date):
+            continue
+        grouped_rows.setdefault(purchase_date_pt, []).append(row)
+
+    if not grouped_rows:
+        raise ValueError('Sales report has no valid purchase-date rows')
+
+    file_size_bytes = path.stat().st_size
+    file_sha256 = _sha256_file(path)
+    extension = (path.suffix or Path(upload_file_id).suffix or '').lower()
+    project_slug = _project_slug(project.project_name)
+
+    latest_source_id: int | None = None
+    latest_report_date: date | None = None
+
+    for report_date in sorted(grouped_rows):
+        version = _next_version(
+            db,
+            project_id=project.id,
+            report_type='sales_report',
+            country=normalized_country,
+            period_start_date=report_date,
+            period_end_date=report_date,
+        )
+        now = datetime.now(UTC)
+        source = AnalysisSourceFile(
+            project_id=project.id,
+            report_type='sales_report',
+            country=normalized_country,
+            report_date=report_date,
+            period_start_date=report_date,
+            period_end_date=report_date,
+            snapshot_at=None,
+            version=version,
+            is_current=False,
+            superseded_at=None,
+            upload_file_id=upload_file_id,
+            upload_file_path=upload_file_path,
+            original_filename=_restore_original_filename(upload_file_id),
+            stored_filename=upload_file_id,
+            logical_filename=_build_logical_filename(
+                project_slug=project_slug,
+                report_type='sales_report',
+                period_start_date=report_date,
+                period_end_date=report_date,
+                snapshot_at=now,
+                version=version,
+                extension=extension,
+            ),
+            storage_key=_build_storage_key(
+                project_slug=project_slug,
+                report_type='sales_report',
+                period_start_date=report_date,
+                period_end_date=report_date,
+                snapshot_at=now,
+                version=version,
+                upload_file_id=upload_file_id,
+            ),
+            file_size_bytes=file_size_bytes,
+            file_sha256=file_sha256,
+            ingestion_status='running',
+            ingestion_error=None,
+            row_count_total=0,
+            row_count_included=0,
+            created_by=(created_by or '').strip()[:255] or None,
+        )
+        db.add(source)
+        db.flush()
+
+        daily_rows = grouped_rows[report_date]
+        included = 0
+        payloads: list[dict[str, Any]] = []
+        for row in daily_rows:
+            item = dict(row)
+            item['source_file_id'] = source.id
+            if item.get('is_counted_sales'):
+                included += 1
+            payloads.append(item)
+        if payloads:
+            db.execute(insert(AnalysisSalesOrderRow), payloads)
+
+        source.row_count_total = len(payloads)
+        source.row_count_included = included
+        source.ingestion_status = 'success'
+        source.ingestion_error = None
+
+        _replace_current_pointer(db, source)
+        source.is_current = True
+        source.superseded_at = None
+        db.flush()
+
+        latest_source_id = source.id
+        latest_report_date = report_date
+
+    db.commit()
+    report_dates = sorted(grouped_rows)
+    return {
+        'success': True,
+        'latest_source_id': latest_source_id,
+        'report_start_date': report_dates[0].isoformat(),
+        'report_end_date': report_dates[-1].isoformat(),
+        'report_dates': [item.isoformat() for item in report_dates],
+        'days_persisted': len(report_dates),
+        'row_count_total': total,
+        'message': (
+            f'销售报表已按购买日期自动拆分为 {len(report_dates)} 个报表日期，'
+            f'范围 {report_dates[0].isoformat()} ~ {report_dates[-1].isoformat()}'
+        ),
+    }
 def list_sources(
     db: Session,
     *,
@@ -524,7 +705,7 @@ def list_sources(
     if project_id is not None:
         stmt = stmt.where(AnalysisSourceFile.project_id == project_id)
     if report_type:
-        normalized = report_type.strip()
+        normalized = normalize_report_type(report_type)
         if normalized not in ALL_REPORT_TYPES:
             raise ValueError(f'Unsupported report_type: {report_type}')
         stmt = stmt.where(AnalysisSourceFile.report_type == normalized)
@@ -569,7 +750,7 @@ def get_source_rows(
 
     model = _get_row_model(source.report_type)
     stmt: Select = select(model).where(model.source_file_id == source_id).order_by(model.source_row_no.asc())
-    if source.report_type in {'payment_report', 'ad_report'} and not include_excluded:
+    if source.report_type in {'payment_report', AD_PRODUCT_REPORT} and not include_excluded:
         stmt = stmt.where(model.scope_status == SCOPE_INCLUDED)
 
     rows = db.execute(stmt.offset((page - 1) * page_size).limit(page_size + 1)).scalars().all()
@@ -605,12 +786,25 @@ def get_current_inventory_snapshot(
     return source, [_serialize_row('inventory_report', row) for row in rows]
 
 
+def _lookup_report_mapping_value(mapping: dict[str, str], report_type: str) -> str:
+    normalized = normalize_report_type(report_type)
+    value = str(mapping.get(normalized) or '').strip()
+    if value:
+        return value
+    for legacy_type in legacy_report_types_for(normalized):
+        value = str(mapping.get(legacy_type) or '').strip()
+        if value:
+            return value
+    return ''
+
+
 def _persist_one_source_file(
     db: Session,
     *,
     project: Project,
     report_type: str,
     country: str,
+    report_date: date | None,
     period_start_date: date | None,
     period_end_date: date | None,
     upload_file_id: str,
@@ -620,6 +814,7 @@ def _persist_one_source_file(
     created_by: str | None,
     sales_count_as_of_date: date | None = None,
 ) -> SourcePersistOutcome:
+    report_type = normalize_report_type(report_type)
     if report_type not in ALL_REPORT_TYPES:
         raise ValueError(f'Unsupported report_type: {report_type}')
 
@@ -658,6 +853,7 @@ def _persist_one_source_file(
         project_id=project.id,
         report_type=report_type,
         country=country,
+        report_date=report_date,
         period_start_date=period_start_date,
         period_end_date=period_end_date,
         snapshot_at=now if report_type == 'inventory_report' else None,
@@ -696,10 +892,10 @@ def _persist_one_source_file(
             rows, total, included = _parse_payment_rows(path, source.id, known_skus, known_asins)
             if rows:
                 db.execute(insert(AnalysisPaymentRow), rows)
-        elif report_type == 'ad_report':
+        elif report_type == AD_PRODUCT_REPORT:
             rows, total, included = _parse_ad_rows(path, source.id, known_skus, known_asins)
             if rows:
-                db.execute(insert(AnalysisAdRow), rows)
+                db.execute(insert(AnalysisAdProductRow), rows)
         elif report_type == 'sales_report':
             rows, total, included = _parse_sales_rows(path, source.id, sales_count_as_of_date)
             if rows:
@@ -733,112 +929,6 @@ def _persist_one_source_file(
         source.superseded_at = None
         db.flush()
         return SourcePersistOutcome(report_type=report_type, source_id=source.id, success=False, error_message=str(exc))
-
-
-def _persist_one_daily_source_file(
-    db: Session,
-    *,
-    project: Project,
-    report_type: str,
-    report_date: date,
-    country: str,
-    upload_file_id: str,
-    upload_file_path: str,
-    known_skus: set[str],
-    known_asins: set[str],
-    created_by: str | None,
-) -> SourcePersistOutcome:
-    if report_type not in {'sales_report', 'ad_report'}:
-        raise ValueError(f'Unsupported daily report_type: {report_type}')
-
-    now = datetime.now(UTC)
-    path = Path(upload_file_path)
-    extension = (path.suffix or Path(upload_file_id).suffix or '').lower()
-    version = _next_daily_version(
-        db,
-        project_id=project.id,
-        report_type=report_type,
-        country=country,
-        report_date=report_date,
-    )
-    project_slug = _project_slug(project.project_name)
-    logical_filename = _build_logical_filename(
-        project_slug=project_slug,
-        report_type=report_type,
-        period_start_date=report_date,
-        period_end_date=report_date,
-        snapshot_at=now,
-        version=version,
-        extension=extension,
-    )
-    storage_key = _build_daily_storage_key(
-        project_slug=project_slug,
-        report_type=report_type,
-        report_date=report_date,
-        version=version,
-        upload_file_id=upload_file_id,
-    )
-
-    source = DailySourceFile(
-        project_id=project.id,
-        report_type=report_type,
-        country=country,
-        report_date=report_date,
-        version=version,
-        is_current=False,
-        superseded_at=None,
-        upload_file_id=upload_file_id,
-        upload_file_path=upload_file_path,
-        original_filename=_restore_original_filename(upload_file_id),
-        stored_filename=upload_file_id,
-        logical_filename=logical_filename,
-        storage_key=storage_key,
-        file_size_bytes=None,
-        file_sha256=None,
-        ingestion_status='running',
-        ingestion_error=None,
-        row_count_total=0,
-        row_count_included=0,
-        created_by=(created_by or '').strip()[:255] or None,
-    )
-    db.add(source)
-    db.flush()
-
-    try:
-        if not path.exists() or not path.is_file():
-            raise FileNotFoundError(f'File not found: {upload_file_path}')
-
-        source.file_size_bytes = path.stat().st_size
-        source.file_sha256 = _sha256_file(path)
-
-        if report_type == 'sales_report':
-            rows, total, included = _parse_sales_rows(path, source.id, report_date)
-            if rows:
-                db.execute(insert(DailySalesOrder), rows)
-        else:
-            rows, total, included = _parse_ad_rows(path, source.id, known_skus, known_asins)
-            if rows:
-                db.execute(insert(DailyAdProduct), rows)
-
-        source.row_count_total = total
-        source.row_count_included = included
-        source.ingestion_status = 'success'
-        source.ingestion_error = None
-
-        _replace_current_daily_pointer(db, source)
-        source.is_current = True
-        source.superseded_at = None
-        db.flush()
-        return SourcePersistOutcome(report_type=report_type, source_id=source.id, success=True, error_message=None)
-    except Exception as exc:  # noqa: BLE001
-        source.ingestion_status = 'failed'
-        source.ingestion_error = str(exc)[:4000]
-        source.is_current = False
-        source.superseded_at = None
-        db.flush()
-        return SourcePersistOutcome(report_type=report_type, source_id=source.id, success=False, error_message=str(exc))
-
-
 def _replace_current_pointer(db: Session, source: AnalysisSourceFile) -> None:
     conditions = [
         AnalysisSourceFile.project_id == source.project_id,
@@ -862,26 +952,6 @@ def _replace_current_pointer(db: Session, source: AnalysisSourceFile) -> None:
             superseded_at=datetime.now(UTC),
         )
     )
-
-
-def _replace_current_daily_pointer(db: Session, source: DailySourceFile) -> None:
-    db.execute(
-        sa_update(DailySourceFile)
-        .where(
-            DailySourceFile.project_id == source.project_id,
-            DailySourceFile.report_type == source.report_type,
-            DailySourceFile.country == source.country,
-            DailySourceFile.report_date == source.report_date,
-            DailySourceFile.id != source.id,
-            DailySourceFile.is_current.is_(True),
-        )
-        .values(
-            is_current=False,
-            superseded_at=datetime.now(UTC),
-        )
-    )
-
-
 def _next_version(
     db: Session,
     *,
@@ -903,26 +973,6 @@ def _next_version(
         )
     value = db.execute(stmt).scalar_one_or_none()
     return int(value or 0) + 1
-
-
-def _next_daily_version(
-    db: Session,
-    *,
-    project_id: int,
-    report_type: str,
-    country: str,
-    report_date: date,
-) -> int:
-    stmt = select(func.max(DailySourceFile.version)).where(
-        DailySourceFile.project_id == project_id,
-        DailySourceFile.report_type == report_type,
-        DailySourceFile.country == country,
-        DailySourceFile.report_date == report_date,
-    )
-    value = db.execute(stmt).scalar_one_or_none()
-    return int(value or 0) + 1
-
-
 def _next_pt1_version(
     db: Session,
     *,
@@ -990,7 +1040,7 @@ def _list_recomputable_weekly_period_sources(
 ) -> list[dict[str, Any]]:
     stmt = select(AnalysisSourceFile).where(
         AnalysisSourceFile.project_id == project_id,
-        AnalysisSourceFile.report_type.in_(('business_report', 'ad_report', 'payment_report')),
+        AnalysisSourceFile.report_type.in_(('business_report', AD_PRODUCT_REPORT, 'payment_report')),
         AnalysisSourceFile.country == country,
     )
     if current_only:
@@ -1020,14 +1070,14 @@ def _list_recomputable_weekly_period_sources(
 
     periods: list[dict[str, Any]] = []
     for (period_start_date, period_end_date), source_map in sorted(by_period.items()):
-        if {'business_report', 'ad_report', 'payment_report'} - set(source_map.keys()):
+        if {'business_report', AD_PRODUCT_REPORT, 'payment_report'} - set(source_map.keys()):
             continue
         periods.append(
             {
                 'report_start_date': period_start_date,
                 'report_end_date': period_end_date,
                 'business_report_source_id': int(source_map['business_report'].id),
-                'ad_report_source_id': int(source_map['ad_report'].id),
+                'ad_report_source_id': int(source_map[AD_PRODUCT_REPORT].id),
                 'payment_report_source_id': int(source_map['payment_report'].id),
             }
         )
@@ -1054,7 +1104,9 @@ def _build_business_df_from_source(db: Session, *, source_id: int) -> pd.DataFra
 
 def _build_ad_df_from_source(db: Session, *, source_id: int) -> pd.DataFrame:
     rows = db.execute(
-        select(AnalysisAdRow).where(AnalysisAdRow.source_file_id == source_id).order_by(AnalysisAdRow.source_row_no.asc())
+        select(AnalysisAdProductRow)
+        .where(AnalysisAdProductRow.source_file_id == source_id)
+        .order_by(AnalysisAdProductRow.source_row_no.asc())
     ).scalars().all()
     return pd.DataFrame(
         [
@@ -1442,7 +1494,7 @@ def _is_counted_sales_status(status: str, purchase_date_pt: date, as_of_date_pt:
     if normalized in {'cancelled', 'canceled'}:
         return False
     age_days = (as_of_date_pt - purchase_date_pt).days
-    if age_days <= 1:
+    if age_days <= 2:
         return normalized in {'pending', 'unshipped', 'shipped'}
     return normalized == 'shipped'
 
@@ -1566,17 +1618,6 @@ def _build_storage_key(
             raise ValueError(f'Missing period for {report_type}')
         period_or_snapshot = f'{period_start_date.strftime("%Y%m%d")}_{period_end_date.strftime("%Y%m%d")}'
     return f'analysis/{project_slug}/{report_type}/{period_or_snapshot}/v{version}/{upload_file_id}'
-
-
-def _build_daily_storage_key(
-    *,
-    project_slug: str,
-    report_type: str,
-    report_date: date,
-    version: int,
-    upload_file_id: str,
-) -> str:
-    return f'daily/{project_slug}/{report_type}/{report_date.strftime("%Y%m%d")}/v{version}/{upload_file_id}'
 
 
 def _sha256_file(path: Path) -> str:
@@ -1735,8 +1776,8 @@ def _get_row_model(report_type: str):
         return AnalysisBusinessRow
     if report_type == 'payment_report':
         return AnalysisPaymentRow
-    if report_type == 'ad_report':
-        return AnalysisAdRow
+    if report_type == AD_PRODUCT_REPORT:
+        return AnalysisAdProductRow
     if report_type == 'inventory_report':
         return InventorySnapshotRow
     if report_type == 'sales_report':
@@ -1775,7 +1816,7 @@ def _serialize_row(report_type: str, row: Any) -> dict[str, Any]:
             'scope_reason': row.scope_reason,
             'raw_row': row.raw_row,
         }
-    if report_type == 'ad_report':
+    if report_type == AD_PRODUCT_REPORT:
         return {
             'source_row_no': row.source_row_no,
             'sku': row.sku,

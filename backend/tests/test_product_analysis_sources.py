@@ -15,6 +15,7 @@ def _source_row(source_id: int = 1, report_type: str = 'payment_report') -> Simp
         id=source_id,
         project_id=11,
         report_type=report_type,
+        report_date=date(2026, 2, 7) if report_type == 'business_report' else None,
         period_start_date=date(2026, 2, 1) if report_type != 'inventory_report' else None,
         period_end_date=date(2026, 2, 7) if report_type != 'inventory_report' else None,
         snapshot_at=now if report_type == 'inventory_report' else None,
@@ -121,6 +122,10 @@ def test_product_analysis_current_inventory_api(monkeypatch):
 
 
 def test_product_analysis_weekly_recompute_api(monkeypatch):
+    monkeypatch.setattr(
+        'app.api.v1.endpoints.product_analysis.project_service.ensure_project_access',
+        lambda db, project_id, operator, is_admin: None,  # noqa: ARG005
+    )
     monkeypatch.setattr(
         'app.api.v1.endpoints.product_analysis.product_analysis_source_service.recompute_weekly_product_analysis_from_history',
         lambda db, project_id, country, start_date, end_date, current_only: {  # noqa: ARG005

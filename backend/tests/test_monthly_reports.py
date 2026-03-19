@@ -277,6 +277,10 @@ def test_monthly_report_task_result(monkeypatch):
 
 def test_monthly_report_financial_series_api(monkeypatch):
     monkeypatch.setattr(
+        'app.api.v1.endpoints.monthly_reports.project_service.ensure_project_access',
+        lambda db, project_id, operator, is_admin: None,  # noqa: ARG005
+    )
+    monkeypatch.setattr(
         'app.api.v1.endpoints.monthly_reports.monthly_report_service.get_financial_series',
         lambda db, project_id, start_month, end_month, fill_missing: {  # noqa: ARG005
             'project_id': project_id,
@@ -359,10 +363,11 @@ def test_financial_series_fill_missing_rows_and_zero_values(monkeypatch):
                 expense_total=-46.0,
                 amazon_pay_back=69.0,
             )
-            report = SimpleNamespace(report_month='2025-07')
+            report = SimpleNamespace(id=1, report_month='2025-07')
             return FakeQueryResult([(report, pt4)])
 
     monkeypatch.setattr(monthly_report_service, 'ensure_tables', lambda db: None)
+    monkeypatch.setattr(monthly_report_service, '_load_monthly_cost_totals', lambda *args, **kwargs: {})
     payload = monthly_report_service.get_financial_series(
         FakeDB(),
         project_id=11,
@@ -373,6 +378,8 @@ def test_financial_series_fill_missing_rows_and_zero_values(monkeypatch):
     assert [row['report_month'] for row in payload['rows']] == ['2025-07', '2025-08', '2025-09']
     assert payload['rows'][1]['income_total'] == 0.0
     assert payload['rows'][1]['has_source_report'] is False
+    assert payload['rows'][1]['fob_cost_rmb'] == 0.0
+    assert payload['rows'][1]['first_leg_cost_rmb'] == 0.0
 
 
 def test_financial_series_filters_current_reports_in_query(monkeypatch):
@@ -392,6 +399,7 @@ def test_financial_series_filters_current_reports_in_query(monkeypatch):
 
     fake_db = FakeDB()
     monkeypatch.setattr(monthly_report_service, 'ensure_tables', lambda db: None)
+    monkeypatch.setattr(monthly_report_service, '_load_monthly_cost_totals', lambda *args, **kwargs: {})
     monthly_report_service.get_financial_series(fake_db, project_id=11, fill_missing=False)
     assert 'monthly_reports.is_current' in fake_db.last_stmt
 

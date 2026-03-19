@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+import { formatLocalTimestampForFilename } from '@/lib/utils'
 
 const API_BASE = '/api/backend/api/v1'
 
@@ -369,7 +370,7 @@ export default function InventoryAnalysisPage() {
       })
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
-      const safeTimestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+      const safeTimestamp = formatLocalTimestampForFilename()
       link.href = url
       link.download = `库存分析-${safeTimestamp}.xlsx`
       link.click()
@@ -382,7 +383,7 @@ export default function InventoryAnalysisPage() {
   }
 
   return (
-    <div className="space-y-4 p-4 md:p-6">
+    <div className="space-y-6">
       <Card>
         <CardHeader className="pb-3">
           <CardTitle>库存分析</CardTitle>

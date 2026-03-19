@@ -17,6 +17,7 @@ import { useSession } from 'next-auth/react'
 import { recognizeDataFile, type RecognizedFileType } from '@/lib/file-recognition'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { SingleDatePicker, formatDateInputValue, parseDateInputValue } from '@/components/ui/date-picker'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -726,11 +727,9 @@ export default function DailyReportPage() {
               <div className="space-y-2">
                 <label htmlFor="report_date" className="text-sm font-medium text-foreground">报表日期</label>
                 <div className="flex gap-2">
-                  <Input
-                    id="report_date"
-                    type="date"
-                    value={reportDate}
-                    onChange={(event) => setReportDate(event.target.value)}
+                  <SingleDatePicker
+                    value={parseDateInputValue(reportDate)}
+                    onChange={(date) => setReportDate(formatDateInputValue(date))}
                   />
                   <Button type="button" variant="outline" onClick={() => setReportDate(yesterdayDateString())}>
                     <CalendarDays className="mr-1 h-4 w-4" />

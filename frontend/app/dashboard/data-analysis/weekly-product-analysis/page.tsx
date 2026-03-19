@@ -9,12 +9,13 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart'
-import { Input } from '@/components/ui/input'
+import { DateRangePicker, formatDateInputValue, parseDateRangeInputValue } from '@/components/ui/date-picker'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { clearClientCache, getClientCache, setClientCache } from '@/lib/client-cache'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+import { formatLocalTimestampForFilename } from '@/lib/utils'
 
 type ProjectOption = {
   id: number | null
@@ -1235,7 +1236,7 @@ export default function WeeklyProductAnalysisPage() {
       })
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
-      const safeTimestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+      const safeTimestamp = formatLocalTimestampForFilename()
       link.href = url
       link.download = `按周产品分析-${projectName}-${country}-${safeTimestamp}.xlsx`
       link.click()
@@ -1293,13 +1294,16 @@ export default function WeeklyProductAnalysisPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1.5">
-                <label htmlFor="weekly_start_date" className="text-xs text-muted-foreground">开始日期</label>
-                <Input id="weekly_start_date" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-9 w-[170px]" />
-              </div>
-              <div className="space-y-1.5">
-                <label htmlFor="weekly_end_date" className="text-xs text-muted-foreground">结束日期</label>
-                <Input id="weekly_end_date" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-9 w-[170px]" />
+              <div className="min-w-[260px] space-y-1.5">
+                <label className="text-xs text-muted-foreground">日期范围</label>
+                <DateRangePicker
+                  value={parseDateRangeInputValue(startDate, endDate)}
+                  onChange={(range) => {
+                    setStartDate(formatDateInputValue(range?.from))
+                    setEndDate(formatDateInputValue(range?.to))
+                  }}
+                  className="h-9"
+                />
               </div>
               <Button type="button" variant="outline" className="h-9" onClick={() => void loadWeeklyData({ force: true })} disabled={loading || !projectId}>
                 {loading ? '刷新中...' : '刷新数据'}

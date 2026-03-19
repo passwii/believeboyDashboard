@@ -8,7 +8,7 @@ from app.db.session import Base
 from app.models import (  # noqa: F401
     AIConversation,
     AIMessage,
-    AnalysisAdRow,
+    AnalysisAdProductRow,
     AnalysisBusinessRow,
     AnalysisPT1Calculation,
     AnalysisPaymentRow,

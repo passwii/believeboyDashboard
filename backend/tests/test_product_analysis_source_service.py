@@ -10,14 +10,12 @@ from sqlalchemy.orm import Session
 from app.api.v1.endpoints.product_analysis import list_product_analysis_pt1_details
 from app.db.session import Base
 from app.models import (
-    AnalysisAdRow,
+    AnalysisAdProductRow,
     AnalysisPaymentRow,
     AnalysisPT1Calculation,
     AnalysisPTSKUDetail,
+    AnalysisSalesOrderRow,
     AnalysisSourceFile,
-    DailyAdProduct,
-    DailySalesOrder,
-    DailySourceFile,
     InventorySnapshotRow,
     ExchangeRate,
     ProductCost,
@@ -168,7 +166,7 @@ def test_persist_product_analysis_sources_versioning_and_current(tmp_path: Path)
         )
         assert all(item.success for item in outcomes2)
 
-        periodic_types = {'business_report', 'payment_report', 'ad_report'}
+        periodic_types = {'business_report', 'payment_report', 'ad_product_report'}
         for report_type in periodic_types:
             rows = db.execute(
                 select(AnalysisSourceFile)
@@ -332,7 +330,7 @@ def test_inventory_report_rejects_low_project_match_ratio(tmp_path: Path):
 
         payment_rows = db.execute(select(AnalysisPaymentRow)).scalars().all()
         assert len(payment_rows) == 3
-        ad_rows = db.execute(select(AnalysisAdRow)).scalars().all()
+        ad_rows = db.execute(select(AnalysisAdProductRow)).scalars().all()
         assert len(ad_rows) == 2
         inventory_db_rows = db.execute(select(InventorySnapshotRow)).scalars().all()
         assert len(inventory_db_rows) == 0
@@ -372,7 +370,7 @@ def test_load_project_product_mapping_ignores_inactive_sku():
         assert known_asins == {'ASIN_ACTIVE'}
 
 
-def test_persist_daily_report_sources_sales_status_rule(tmp_path: Path):
+def test_persist_single_date_report_sources_sales_status_rule(tmp_path: Path):
     engine = create_engine('sqlite:///:memory:', future=True)
     Base.metadata.create_all(bind=engine)
 
@@ -388,7 +386,7 @@ def test_persist_daily_report_sources_sales_status_rule(tmp_path: Path):
         _write_ad_xlsx(ad)
         _write_inventory_txt(inventory)
 
-        outcomes = product_analysis_source_service.persist_daily_report_sources(
+        outcomes = product_analysis_source_service.persist_single_date_report_sources(
             db,
             project_name='Demo',
             report_date='2026-02-25',
@@ -407,28 +405,32 @@ def test_persist_daily_report_sources_sales_status_rule(tmp_path: Path):
         assert all(item.success for item in outcomes)
 
         sales_source = db.execute(
-            select(DailySourceFile).where(DailySourceFile.report_type == 'sales_report')
+            select(AnalysisSourceFile).where(AnalysisSourceFile.report_type == 'sales_report')
         ).scalars().first()
         assert sales_source is not None
         assert sales_source.report_date.isoformat() == '2026-02-25'
+        assert sales_source.period_start_date.isoformat() == '2026-02-25'
+        assert sales_source.period_end_date.isoformat() == '2026-02-25'
 
         sales_rows = db.execute(
-            select(DailySalesOrder).order_by(DailySalesOrder.amazon_order_id.asc())
+            select(AnalysisSalesOrderRow).order_by(AnalysisSalesOrderRow.amazon_order_id.asc())
         ).scalars().all()
         assert len(sales_rows) == 4
         counted_by_order = {row.amazon_order_id: row.is_counted_sales for row in sales_rows}
         assert counted_by_order['111-1'] is True
-        assert counted_by_order['111-2'] is False
+        assert counted_by_order['111-2'] is True
         assert counted_by_order['111-3'] is True
         assert counted_by_order['111-4'] is False
 
         ad_source = db.execute(
-            select(DailySourceFile).where(DailySourceFile.report_type == 'ad_report')
+            select(AnalysisSourceFile).where(AnalysisSourceFile.report_type == 'ad_product_report')
         ).scalars().first()
         assert ad_source is not None
         assert ad_source.report_date.isoformat() == '2026-02-25'
+        assert ad_source.period_start_date.isoformat() == '2026-02-25'
+        assert ad_source.period_end_date.isoformat() == '2026-02-25'
 
-        ad_rows = db.execute(select(DailyAdProduct)).scalars().all()
+        ad_rows = db.execute(select(AnalysisAdProductRow)).scalars().all()
         assert len(ad_rows) == 2
 
         inventory_source = db.execute(
@@ -439,7 +441,146 @@ def test_persist_daily_report_sources_sales_status_rule(tmp_path: Path):
         assert len(inventory_rows) == 1
 
 
-def test_persist_daily_report_sources_separates_country_sources(tmp_path: Path):
+def test_persist_single_business_source_sets_report_date(tmp_path: Path):
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        _seed_exchange_rates(db)
+        db.add(Project(project_name='Demo', sort_order=1, source_file='seed.csv'))
+        db.add(
+            ProductCost(
+                project_name='Demo',
+                sku='SKU1',
+                asin='ASIN1',
+                fob_unit_cost=1,
+                currency='USD',
+                source_file='seed.csv',
+            )
+        )
+        db.commit()
+
+        business = tmp_path / 'business.csv'
+        _write_business_csv(business)
+
+        outcome = product_analysis_source_service.persist_single_analysis_source(
+            db,
+            project_name='Demo',
+            report_type='business_report',
+            upload_file_id='business.csv',
+            upload_file_path=str(business),
+            report_date='2026-02-25',
+            report_start_date='2026-02-25',
+            report_end_date='2026-02-25',
+            created_by='operator@example.com',
+        )
+
+        assert outcome.success is True
+        source = db.execute(
+            select(AnalysisSourceFile).where(AnalysisSourceFile.report_type == 'business_report')
+        ).scalars().one()
+        assert source.report_date == date(2026, 2, 25)
+        assert source.period_start_date == date(2026, 2, 25)
+        assert source.period_end_date == date(2026, 2, 25)
+
+
+def test_persist_single_inventory_source_sets_report_date(tmp_path: Path):
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        _seed_exchange_rates(db)
+        db.add(Project(project_name='Demo', sort_order=1, source_file='seed.csv'))
+        db.add(
+            ProductCost(
+                project_name='Demo',
+                sku='SKU1',
+                asin='ASIN1',
+                fob_unit_cost=1,
+                currency='USD',
+                source_file='seed.csv',
+            )
+        )
+        db.commit()
+
+        inventory = tmp_path / 'inventory.txt'
+        _write_inventory_txt(inventory)
+
+        outcome = product_analysis_source_service.persist_single_analysis_source(
+            db,
+            project_name='Demo',
+            report_type='inventory_report',
+            upload_file_id='inventory.txt',
+            upload_file_path=str(inventory),
+            report_date='2026-03-17',
+            created_by='operator@example.com',
+        )
+
+        assert outcome.success is True
+        source = db.execute(
+            select(AnalysisSourceFile).where(AnalysisSourceFile.report_type == 'inventory_report')
+        ).scalars().one()
+        assert source.report_date == date(2026, 3, 17)
+
+
+def test_persist_sales_report_by_purchase_date_splits_into_multiple_report_dates(tmp_path: Path):
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        _seed_exchange_rates(db)
+        db.add(Project(project_name='Demo', sort_order=1, source_file='seed.csv'))
+        db.add(
+            ProductCost(
+                project_name='Demo',
+                sku='SKU1',
+                asin='ASIN1',
+                fob_unit_cost=1,
+                currency='USD',
+                source_file='seed.csv',
+            )
+        )
+        db.commit()
+
+        sales = tmp_path / 'sales.txt'
+        _write_sales_txt(sales)
+
+        outcome = product_analysis_source_service.persist_sales_report_by_purchase_date(
+            db,
+            project_name='Demo',
+            upload_file_id='sales.txt',
+            upload_file_path=str(sales),
+            created_by='operator@example.com',
+        )
+
+        assert outcome['success'] is True
+        assert outcome['report_start_date'] == '2026-02-23'
+        assert outcome['report_end_date'] == '2026-02-25'
+        assert outcome['days_persisted'] == 3
+
+        sales_sources = db.execute(
+            select(AnalysisSourceFile)
+            .where(AnalysisSourceFile.report_type == 'sales_report')
+            .order_by(AnalysisSourceFile.report_date.asc())
+        ).scalars().all()
+        assert [row.report_date.isoformat() for row in sales_sources] == ['2026-02-23', '2026-02-24', '2026-02-25']
+        assert all(row.period_start_date == row.report_date for row in sales_sources)
+        assert all(row.period_end_date == row.report_date for row in sales_sources)
+        assert [row.row_count_total for row in sales_sources] == [2, 1, 1]
+        assert [row.row_count_included for row in sales_sources] == [1, 0, 0]
+
+        sales_rows = db.execute(
+            select(AnalysisSalesOrderRow).order_by(AnalysisSalesOrderRow.amazon_order_id.asc())
+        ).scalars().all()
+        assert len(sales_rows) == 4
+        counted_by_order = {row.amazon_order_id: row.is_counted_sales for row in sales_rows}
+        assert counted_by_order['111-1'] is False
+        assert counted_by_order['111-2'] is False
+        assert counted_by_order['111-3'] is True
+        assert counted_by_order['111-4'] is False
+
+
+def test_persist_single_date_report_sources_separates_country_sources(tmp_path: Path):
     engine = create_engine('sqlite:///:memory:', future=True)
     Base.metadata.create_all(bind=engine)
 
@@ -456,7 +597,7 @@ def test_persist_daily_report_sources_separates_country_sources(tmp_path: Path):
         _write_inventory_txt(inventory)
 
         for country in ('US', 'DE'):
-            outcomes = product_analysis_source_service.persist_daily_report_sources(
+            outcomes = product_analysis_source_service.persist_single_date_report_sources(
                 db,
                 project_name='Demo',
                 report_date='2026-02-25',
@@ -475,12 +616,20 @@ def test_persist_daily_report_sources_separates_country_sources(tmp_path: Path):
             assert all(item.success for item in outcomes)
 
         sales_sources = db.execute(
-            select(DailySourceFile)
-            .where(DailySourceFile.report_type == 'sales_report')
-            .order_by(DailySourceFile.country.asc(), DailySourceFile.id.asc())
+            select(AnalysisSourceFile)
+            .where(AnalysisSourceFile.report_type == 'sales_report')
+            .order_by(AnalysisSourceFile.country.asc(), AnalysisSourceFile.id.asc())
         ).scalars().all()
         assert [row.country for row in sales_sources] == ['DE', 'US']
         assert all(row.is_current is True for row in sales_sources)
+
+        ad_sources = db.execute(
+            select(AnalysisSourceFile)
+            .where(AnalysisSourceFile.report_type == 'ad_product_report')
+            .order_by(AnalysisSourceFile.country.asc(), AnalysisSourceFile.id.asc())
+        ).scalars().all()
+        assert [row.country for row in ad_sources] == ['DE', 'US']
+        assert all(row.is_current is True for row in ad_sources)
 
         inventory_sources = db.execute(
             select(AnalysisSourceFile)

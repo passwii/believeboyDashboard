@@ -15,6 +15,7 @@ from app.models import (
     MonthlyReportPT3Calculation,
     MonthlyReportPT4Calculation,
     MonthlyReportTransaction,
+    ProductCost,
     Project,
 )
 from app.models.job import JobStatus
@@ -328,15 +329,25 @@ def get_financial_series(
         .order_by(MonthlyReport.report_month.asc())
     ).all()
 
+    report_ids = [int(row[0].id) for row in query_rows if row and row[0] is not None]
+    cost_totals_by_report = _load_monthly_cost_totals(
+        db,
+        report_ids=report_ids,
+        project_name=project.project_name,
+    )
+
     month_to_row: dict[str, dict[str, Any]] = {}
     for row in query_rows:
         report = row[0]
         pt4 = row[1] if len(row) > 1 else None
         credit_card_deduction_usd = row[2] if len(row) > 2 else None
+        cost_totals = cost_totals_by_report.get(int(report.id), {})
         month_to_row[report.report_month] = _build_financial_row(
             report.report_month,
             pt4,
             credit_card_deduction_usd=credit_card_deduction_usd,
+            fob_cost_rmb=cost_totals.get('fob_cost_rmb', 0),
+            first_leg_cost_rmb=cost_totals.get('first_leg_cost_rmb', 0),
         )
 
     start_date, end_date = _resolve_financial_range(
@@ -574,9 +585,16 @@ def _build_financial_row(
     pt4: MonthlyReportPT4Calculation | None,
     *,
     credit_card_deduction_usd: Decimal | float | int | None = None,
+    fob_cost_rmb: Decimal | float | int | None = None,
+    first_leg_cost_rmb: Decimal | float | int | None = None,
 ) -> dict[str, Any]:
     if pt4 is None:
-        return _empty_financial_row(report_month, credit_card_deduction_usd=credit_card_deduction_usd)
+        return _empty_financial_row(
+            report_month,
+            credit_card_deduction_usd=credit_card_deduction_usd,
+            fob_cost_rmb=fob_cost_rmb,
+            first_leg_cost_rmb=first_leg_cost_rmb,
+        )
     stored_credit_card = getattr(pt4, 'credit_card_deduction_usd', None)
     resolved_credit_card = stored_credit_card if stored_credit_card is not None else credit_card_deduction_usd
     return {
@@ -595,6 +613,8 @@ def _build_financial_row(
         'expense_total': _to_float(pt4.expense_total),
         'amazon_pay_back': _to_float(pt4.amazon_pay_back),
         'credit_card_deduction_usd': _to_float(resolved_credit_card),
+        'fob_cost_rmb': _to_float(fob_cost_rmb),
+        'first_leg_cost_rmb': _to_float(first_leg_cost_rmb),
         'has_source_report': True,
     }
 
@@ -603,6 +623,8 @@ def _empty_financial_row(
     report_month: str,
     *,
     credit_card_deduction_usd: Decimal | float | int | None = None,
+    fob_cost_rmb: Decimal | float | int | None = None,
+    first_leg_cost_rmb: Decimal | float | int | None = None,
 ) -> dict[str, Any]:
     return {
         'report_month': report_month,
@@ -620,7 +642,89 @@ def _empty_financial_row(
         'expense_total': 0.0,
         'amazon_pay_back': 0.0,
         'credit_card_deduction_usd': _to_float(credit_card_deduction_usd),
+        'fob_cost_rmb': _to_float(fob_cost_rmb),
+        'first_leg_cost_rmb': _to_float(first_leg_cost_rmb),
         'has_source_report': False,
+    }
+
+
+def _normalize_key(value: str | None) -> str:
+    return (value or '').strip().lower()
+
+
+def _load_monthly_cost_totals(
+    db: Session,
+    *,
+    report_ids: list[int],
+    project_name: str,
+) -> dict[int, dict[str, float]]:
+    if not report_ids:
+        return {}
+
+    cost_rows = db.execute(
+        select(ProductCost)
+        .where(
+            ProductCost.project_name == project_name,
+            ProductCost.is_active.is_(True),
+        )
+        .order_by(ProductCost.updated_at.desc(), ProductCost.id.desc())
+    ).scalars().all()
+
+    cost_by_sku: dict[str, tuple[Decimal, Decimal]] = {}
+    for row in cost_rows:
+        sku_key = _normalize_key(row.sku)
+        if not sku_key or sku_key in cost_by_sku:
+            continue
+        cost_by_sku[sku_key] = (
+            _to_decimal(row.fob_unit_cost),
+            _to_decimal(row.first_leg_cost_rmb),
+        )
+    if not cost_by_sku:
+        return {}
+
+    quantity_rows = db.execute(
+        select(
+            MonthlyReportTransaction.report_id.label('report_id'),
+            MonthlyReportTransaction.sku.label('sku'),
+            func.lower(func.trim(MonthlyReportTransaction.transaction_type)).label('transaction_type'),
+            func.coalesce(func.sum(MonthlyReportTransaction.quantity), 0).label('total_quantity'),
+        )
+        .where(
+            MonthlyReportTransaction.report_id.in_(report_ids),
+            MonthlyReportTransaction.sku.is_not(None),
+            func.lower(func.trim(MonthlyReportTransaction.transaction_type)).in_(('order', 'refund')),
+        )
+        .group_by(
+            MonthlyReportTransaction.report_id,
+            MonthlyReportTransaction.sku,
+            func.lower(func.trim(MonthlyReportTransaction.transaction_type)),
+        )
+    ).all()
+
+    totals_by_report: dict[int, dict[str, Decimal]] = {}
+    for row in quantity_rows:
+        cost_pair = cost_by_sku.get(_normalize_key(row.sku))
+        if cost_pair is None:
+            continue
+        quantity = _to_decimal(row.total_quantity)
+        if row.transaction_type == 'refund':
+            quantity = -quantity
+        report_totals = totals_by_report.setdefault(
+            int(row.report_id),
+            {
+                'fob_cost_rmb': Decimal('0'),
+                'first_leg_cost_rmb': Decimal('0'),
+            },
+        )
+        report_totals['fob_cost_rmb'] += quantity * cost_pair[0]
+        report_totals['first_leg_cost_rmb'] += quantity * cost_pair[1]
+
+    return {
+        report_id: {
+            'fob_cost_rmb': float(values['fob_cost_rmb'].quantize(TWO_DP, rounding=ROUND_HALF_UP)),
+            'first_leg_cost_rmb': float(values['first_leg_cost_rmb'].quantize(TWO_DP, rounding=ROUND_HALF_UP)),
+        }
+        for report_id, values in totals_by_report.items()
     }
 
 

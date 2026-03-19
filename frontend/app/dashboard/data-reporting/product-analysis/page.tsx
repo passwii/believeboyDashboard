@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { DateRangePicker, formatDateInputValue, parseDateRangeInputValue } from '@/components/ui/date-picker'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
@@ -890,23 +891,14 @@ export default function ProductAnalysisPage() {
 
               <div className="min-w-0 flex-1 space-y-2">
                 <label htmlFor="report_start_date" className="text-sm font-medium">日期范围</label>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Input
-                    id="report_start_date"
-                    type="date"
-                    value={startDate}
-                    onChange={(event) => setStartDate(event.target.value)}
-                    className="w-full min-w-[150px] flex-1 sm:w-auto sm:flex-none"
-                  />
-                  <span className="text-sm text-muted-foreground">至</span>
-                  <Input
-                    id="report_end_date"
-                    type="date"
-                    value={endDate}
-                    onChange={(event) => setEndDate(event.target.value)}
-                    className="w-full min-w-[150px] flex-1 sm:w-auto sm:flex-none"
-                  />
-                </div>
+                <DateRangePicker
+                  value={parseDateRangeInputValue(startDate, endDate)}
+                  onChange={(range) => {
+                    setStartDate(formatDateInputValue(range?.from))
+                    setEndDate(formatDateInputValue(range?.to))
+                  }}
+                  className="w-full"
+                />
                 {startDate && endDate && startDate > endDate ? (
                   <p className="text-xs text-destructive">开始日期不能晚于结束日期</p>
                 ) : null}

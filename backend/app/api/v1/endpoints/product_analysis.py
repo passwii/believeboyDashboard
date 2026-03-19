@@ -271,7 +271,7 @@ def _load_weekly_summary_map(db: Session, row_ids: list[int]) -> dict[int, dict[
 @router.get('/product-analysis/sources', response_model=list[AnalysisSourceFileItem])
 def list_product_analysis_sources(
     project_id: int | None = Query(default=None, gt=0),
-    report_type: Literal['business_report', 'payment_report', 'ad_report', 'sales_report', 'inventory_report']
+    report_type: Literal['business_report', 'payment_report', 'ad_product_report', 'ad_report', 'sales_report', 'inventory_report']
     | None = Query(default=None),
     period_start_date: date | None = Query(default=None),
     period_end_date: date | None = Query(default=None),
@@ -589,6 +589,7 @@ def _to_source_item(row) -> AnalysisSourceFileItem:
         id=row.id,
         project_id=row.project_id,
         report_type=row.report_type,
+        report_date=row.report_date,
         period_start_date=row.period_start_date,
         period_end_date=row.period_end_date,
         snapshot_at=row.snapshot_at,

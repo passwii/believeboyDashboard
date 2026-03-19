@@ -1,7 +1,7 @@
 'use client'
 
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
-import { Boxes, CalendarClock, CircleAlert, FileDown, Loader2, PackageSearch, Save, ShipWheel } from 'lucide-react'
+import { Boxes, CalendarClock, CircleAlert, FileDown, Loader2, PackageSearch, RefreshCw, Save, ShipWheel } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 
@@ -20,6 +20,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+import { formatLocalTimestampForFilename } from '@/lib/utils'
 
 const API_BASE = '/api/backend'
 
@@ -108,6 +109,16 @@ type RowEditState = {
   production_lead_days: string
   shipping_days: string
   safety_factor: string
+}
+
+const EMPTY_SUMMARY: Summary = {
+  sku_count: 0,
+  out_of_stock_risk_count: 0,
+  healthy_count: 0,
+  slow_moving_count: 0,
+  pending_data_count: 0,
+  total_available_inventory: 0,
+  total_in_transit_quantity: 0,
 }
 
 function authHeaders(): Record<string, string> {
@@ -214,18 +225,11 @@ export default function InventoryReplenishmentPage() {
   const deferredKeyword = useDeferredValue(keyword)
 
   const [rows, setRows] = useState<AnalysisRow[]>([])
-  const [summary, setSummary] = useState<Summary>({
-    sku_count: 0,
-    out_of_stock_risk_count: 0,
-    healthy_count: 0,
-    slow_moving_count: 0,
-    pending_data_count: 0,
-    total_available_inventory: 0,
-    total_in_transit_quantity: 0,
-  })
+  const [summary, setSummary] = useState<Summary>(EMPTY_SUMMARY)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
+  const [refreshNonce, setRefreshNonce] = useState(0)
 
   const [edits, setEdits] = useState<Record<string, RowEditState>>({})
   const [savingSku, setSavingSku] = useState<string | null>(null)
@@ -268,6 +272,7 @@ export default function InventoryReplenishmentPage() {
   useEffect(() => {
     if (!currentProjectId) {
       setRows([])
+      setSummary(EMPTY_SUMMARY)
       return
     }
     let active = true
@@ -304,15 +309,7 @@ export default function InventoryReplenishmentPage() {
       } catch (loadError) {
         if (!active) return
         setRows([])
-        setSummary({
-          sku_count: 0,
-          out_of_stock_risk_count: 0,
-          healthy_count: 0,
-          slow_moving_count: 0,
-          pending_data_count: 0,
-          total_available_inventory: 0,
-          total_in_transit_quantity: 0,
-        })
+        setSummary(EMPTY_SUMMARY)
         setError(loadError instanceof Error ? loadError.message : '分析数据加载失败')
       } finally {
         if (active) setLoading(false)
@@ -322,7 +319,7 @@ export default function InventoryReplenishmentPage() {
     return () => {
       active = false
     }
-  }, [country, currentProjectId, deferredKeyword, riskFilter])
+  }, [country, currentProjectId, deferredKeyword, refreshNonce, riskFilter])
 
   async function openShipments(row: AnalysisRow) {
     setSelectedRow(row)
@@ -586,7 +583,7 @@ export default function InventoryReplenishmentPage() {
       })
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
-      const safeTimestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+      const safeTimestamp = formatLocalTimestampForFilename()
       link.href = url
       link.download = `补货分析-${safeTimestamp}.xlsx`
       link.click()
@@ -705,29 +702,54 @@ export default function InventoryReplenishmentPage() {
 
           {/* 右侧：标签卡片 */}
           <div className="flex items-center">
-            <div className="grid grid-cols-2 gap-3 lg:w-[480px] lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 lg:w-[600px] lg:grid-cols-5">
             {loading && rows.length === 0 ? (
               <>
                 <Skeleton className="h-[100px] w-full rounded-2xl" />
                 <Skeleton className="h-[100px] w-full rounded-2xl" />
                 <Skeleton className="h-[100px] w-full rounded-2xl" />
                 <Skeleton className="h-[100px] w-full rounded-2xl" />
+                <Skeleton className="h-[100px] w-full rounded-2xl" />
               </>
             ) : (
-              cards.map((card) => (
-                <div
-                  key={card.title}
-                  className={`flex flex-col items-center justify-center rounded-2xl border border-slate-200/70 bg-gradient-to-br p-4 dark:border-slate-800 ${card.className}`}
-                >
-                  <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
-                    {card.icon}
-                    <span className="text-xs font-medium">{card.title}</span>
+              <>
+                {cards.map((card) => (
+                  <div
+                    key={card.title}
+                    className={`flex flex-col items-center justify-center rounded-2xl border border-slate-200/70 bg-gradient-to-br p-4 dark:border-slate-800 ${card.className}`}
+                  >
+                    <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                      {card.icon}
+                      <span className="text-xs font-medium">{card.title}</span>
+                    </div>
+                    <div className="mt-1 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
+                      {card.value}
+                    </div>
+                    <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                      {card.description}
+                    </div>
                   </div>
-                  <div className="mt-1 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
-                    {card.value}
+                ))}
+                <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-200/70 bg-gradient-to-br from-violet-100 via-white to-sky-50 p-4 dark:border-slate-800 dark:from-slate-900 dark:via-slate-950 dark:to-sky-950/40">
+                  <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                    <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                    <span className="text-xs font-medium">刷新重算</span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-3 h-8 rounded-xl border-slate-200 bg-white/85 px-3 text-xs dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-100"
+                    disabled={!currentProjectId || loading}
+                    onClick={() => setRefreshNonce((value) => value + 1)}
+                  >
+                    {loading ? '重算中...' : '立即刷新'}
+                  </Button>
+                  <div className="mt-2 text-center text-[11px] text-slate-500 dark:text-slate-400">
+                    重新拉取当前筛选结果
                   </div>
                 </div>
-              ))
+              </>
             )}
             </div>
           </div>
@@ -1007,7 +1029,7 @@ export default function InventoryReplenishmentPage() {
               </div>
               <div className="rounded-xl border border-slate-200/80 bg-white/80 px-3 py-2.5 leading-6 dark:border-slate-800 dark:bg-slate-950/80">
                 <span className="mr-2 inline-flex rounded-md bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-950/60 dark:text-sky-300">销量来源</span>
-                近 <code>30D / 14D / 7D</code> 销量取当前版本业务报表，近 <code>3D</code> 销量取 <code>daily_sales_order</code> 的滞后 2 天窗口。
+                近 <code>30D / 14D / 7D</code> 销量取当前版本业务报表，近 <code>3D</code> 销量取分析销售源明细的滞后 2 天窗口。
               </div>
               <div className="rounded-xl border border-slate-200/80 bg-white/80 px-3 py-2.5 leading-6 dark:border-slate-800 dark:bg-slate-950/80">
                 <span className="mr-2 inline-flex rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">窗口示例</span>

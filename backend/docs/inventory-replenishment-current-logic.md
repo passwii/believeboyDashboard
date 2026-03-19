@@ -248,14 +248,14 @@
 
 来源：
 
-- `daily_sales_order`
+- `analysis_sales_order_rows`
 
 当前窗口并不是“最近 3 天”，而是“滞后 2 天的 3 天窗口”。
 
 当前常量：
 
-- `DAILY_SALES_LAG_DAYS = 2`
-- `DAILY_SALES_WINDOW_DAYS = 3`
+- `RECENT_SALES_LAG_DAYS = 2`
+- `RECENT_SALES_WINDOW_DAYS = 3`
 
 当前计算方式：
 

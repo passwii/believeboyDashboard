@@ -41,6 +41,41 @@ def list_projects(db: Session) -> list[dict[str, str]]:
     return [{'name': name} for name in names]
 
 
+def match_projects_by_identifiers(
+    db: Session,
+    *,
+    identifiers: list[str],
+    match_by: str,
+    country: str = 'US',
+) -> dict[str, list[str]]:
+    normalized_values = sorted({value.strip().upper() for value in identifiers if (value or '').strip()})
+    if not normalized_values:
+        return {}
+
+    normalized_country = _normalize_country(country)
+    if match_by == 'sku':
+        column = ProductCost.sku
+    elif match_by == 'asin':
+        column = ProductCost.asin
+    else:
+        raise ValueError(f'Unsupported match_by: {match_by}')
+
+    stmt = (
+        select(ProductCost.project_name, column)
+        .where(func.upper(column).in_(normalized_values))
+        .where(ProductCost.country == normalized_country)
+        .where(ProductCost.is_active.is_(True))
+    )
+
+    matched: dict[str, set[str]] = {value: set() for value in normalized_values}
+    for project_name, identifier in db.execute(stmt).all():
+        key = (identifier or '').strip().upper()
+        if key:
+            matched.setdefault(key, set()).add(str(project_name))
+
+    return {key: sorted(values) for key, values in matched.items()}
+
+
 def list_product_costs(
     db: Session,
     project_name: str | None,

@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { MonthPicker, formatMonthInputValue, parseMonthInputValue } from '@/components/ui/date-picker'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -681,12 +682,10 @@ export default function CommissionOverviewPage() {
                       >
                         <ChevronLeft className="h-4 w-4" />
                       </Button>
-                      <input
-                        id="commission_month"
-                        type="month"
-                        value={month}
-                        onChange={(event) => setMonth(event.target.value)}
-                        className="h-10 w-[190px] rounded-md border border-input bg-background px-3 text-sm"
+                      <MonthPicker
+                        value={parseMonthInputValue(month)}
+                        onChange={(date) => setMonth(formatMonthInputValue(date))}
+                        className="w-[190px]"
                       />
                       <Button
                         type="button"

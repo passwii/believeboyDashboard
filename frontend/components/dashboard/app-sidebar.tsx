@@ -71,6 +71,7 @@ const tools = [
     title: '数据分析',
     icon: <ChartColumnBig className="h-4 w-4" />,
     items: [
+      { title: '日报分析', url: '/dashboard/data-analysis/daily-analysis' },
       { title: '月度财务分析', url: '/dashboard/data-analysis/financial-data' },
       { title: '按周产品分析', url: '/dashboard/data-analysis/weekly-product-analysis' },
       { title: '库存分析', url: '/dashboard/data-analysis/inventory-analysis' },
