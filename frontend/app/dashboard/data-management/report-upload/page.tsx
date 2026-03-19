@@ -19,7 +19,6 @@ import type {
   ReportUploadCountry,
   UploadQueueItem,
 } from '@/components/report-upload/types'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { SingleDatePicker, formatDateInputValue, parseDateInputValue } from '@/components/ui/date-picker'
@@ -613,25 +612,18 @@ export default function ReportUploadPage() {
                 <Button type="button" variant="secondary" onClick={() => setStatusDate(toLocalDateInputValue())}>
                   今天
                 </Button>
-                <div className="flex items-center gap-2 rounded-xl border border-border/60 bg-background px-2 py-1.5">
-                  <span className="text-xs font-medium text-muted-foreground">国家地区</span>
-                  <Select value={selectedCountry} onValueChange={(value) => setSelectedCountry(value as ReportUploadCountry)}>
-                    <SelectTrigger className="h-9 w-[150px] rounded-lg border-border/70 bg-background">
-                      <SelectValue placeholder="选择站点" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {REPORT_UPLOAD_COUNTRY_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <span className="text-sm text-muted-foreground">当前查看日期：{statusDate}</span>
-                <Badge variant="outline" className="rounded-full px-3 py-1 text-xs font-medium">
-                  {getReportUploadCountryLabel(selectedCountry)}
-                </Badge>
+                <Select value={selectedCountry} onValueChange={(value) => setSelectedCountry(value as ReportUploadCountry)}>
+                  <SelectTrigger className="h-10 w-[160px] rounded-xl border-border/70 bg-background">
+                    <SelectValue placeholder="选择站点" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {REPORT_UPLOAD_COUNTRY_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               {statusLoading ? (
                 <div className="space-y-3">

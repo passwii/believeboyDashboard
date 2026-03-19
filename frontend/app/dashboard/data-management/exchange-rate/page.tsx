@@ -41,6 +41,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Pencil, Trash2, Plus, RotateCcw, ImagePlus, Loader2 } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 // 预定义货币选项
 const CURRENCY_OPTIONS = [
@@ -99,6 +100,34 @@ interface Filters {
   currency: string
   year: string
   month: string
+}
+
+const getCurrencyBadgeMeta = (currency: string) => {
+  const normalizedCurrency = currency.trim().toUpperCase()
+
+  switch (normalizedCurrency) {
+    case "USD":
+      return {
+        symbol: "$",
+        accent: "美元",
+        className:
+          "border-emerald-300 bg-gradient-to-r from-emerald-50 via-emerald-100 to-lime-100 text-emerald-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-emerald-800 dark:from-emerald-950 dark:via-emerald-900 dark:to-lime-950 dark:text-emerald-100",
+      }
+    case "EUR":
+      return {
+        symbol: "€",
+        accent: "欧元",
+        className:
+          "border-blue-300 bg-gradient-to-r from-sky-50 via-blue-100 to-indigo-100 text-blue-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-blue-800 dark:from-sky-950 dark:via-blue-950 dark:to-indigo-950 dark:text-blue-100",
+      }
+    default:
+      return {
+        symbol: "¤",
+        accent: "其他货币",
+        className:
+          "border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200",
+      }
+  }
 }
 
 export default function ExchangeRatePage() {
@@ -466,7 +495,7 @@ export default function ExchangeRatePage() {
                   handleFilterChange("month", value === ALL_FILTER_VALUE ? "" : value)
                 }
               >
-                <SelectTrigger className="w-[100px]">
+                <SelectTrigger className="w-[112px]">
                   <SelectValue placeholder="全部月份" />
                 </SelectTrigger>
                 <SelectContent>
@@ -520,7 +549,23 @@ export default function ExchangeRatePage() {
                   rates.map((rate) => (
                     <TableRow key={rate.id}>
                       <TableCell>
-                        <Badge variant="secondary">{rate.currency}</Badge>
+                        {(() => {
+                          const badgeMeta = getCurrencyBadgeMeta(rate.currency)
+
+                          return (
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "gap-1.5 rounded-full px-3 py-1 font-mono text-[11px] font-bold tracking-[0.18em]",
+                                badgeMeta.className
+                              )}
+                              title={`${rate.currency} - ${badgeMeta.accent}`}
+                            >
+                              <span className="text-sm leading-none">{badgeMeta.symbol}</span>
+                              <span>{rate.currency}</span>
+                            </Badge>
+                          )
+                        })()}
                       </TableCell>
                       <TableCell>{rate.currencyName}</TableCell>
                       <TableCell>{rate.year}</TableCell>
@@ -698,7 +743,7 @@ export default function ExchangeRatePage() {
                   }
                   disabled={!!editingRate}
                 >
-                  <SelectTrigger id="month">
+                  <SelectTrigger id="month" className="w-[112px]">
                     <SelectValue placeholder="选择月份" />
                   </SelectTrigger>
                   <SelectContent>
