@@ -530,17 +530,17 @@ def persist_single_analysis_source(
             raise ValueError('report_start_date and report_end_date are required')
         if start_date > end_date:
             raise ValueError('report_start_date cannot be greater than report_end_date')
-    if report_type == 'business_report':
+    if report_type in {'business_report', AD_PRODUCT_REPORT}:
         if normalized_report_date is None:
             if start_date is None or end_date is None:
                 raise ValueError('report_date is required')
             if start_date != end_date:
-                raise ValueError('business_report requires a single-day period')
+                raise ValueError(f'{report_type} requires a single-day period')
             normalized_report_date = start_date
         if start_date is not None and normalized_report_date != start_date:
-            raise ValueError('business_report report_date must equal report_start_date')
+            raise ValueError(f'{report_type} report_date must equal report_start_date')
         if end_date is not None and normalized_report_date != end_date:
-            raise ValueError('business_report report_date must equal report_end_date')
+            raise ValueError(f'{report_type} report_date must equal report_end_date')
 
     outcome = _persist_one_source_file(
         db,

@@ -484,6 +484,48 @@ def test_persist_single_business_source_sets_report_date(tmp_path: Path):
         assert source.period_end_date == date(2026, 2, 25)
 
 
+def test_persist_single_ad_product_source_sets_report_date_for_single_day_period(tmp_path: Path):
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        _seed_exchange_rates(db)
+        db.add(Project(project_name='Demo', sort_order=1, source_file='seed.csv'))
+        db.add(
+            ProductCost(
+                project_name='Demo',
+                sku='SKU1',
+                asin='ASIN1',
+                fob_unit_cost=1,
+                currency='USD',
+                source_file='seed.csv',
+            )
+        )
+        db.commit()
+
+        ad = tmp_path / 'ad.xlsx'
+        _write_ad_xlsx(ad)
+
+        outcome = product_analysis_source_service.persist_single_analysis_source(
+            db,
+            project_name='Demo',
+            report_type='ad_product_report',
+            upload_file_id='ad.xlsx',
+            upload_file_path=str(ad),
+            report_start_date='2026-02-25',
+            report_end_date='2026-02-25',
+            created_by='operator@example.com',
+        )
+
+        assert outcome.success is True
+        source = db.execute(
+            select(AnalysisSourceFile).where(AnalysisSourceFile.report_type == 'ad_product_report')
+        ).scalars().one()
+        assert source.report_date == date(2026, 2, 25)
+        assert source.period_start_date == date(2026, 2, 25)
+        assert source.period_end_date == date(2026, 2, 25)
+
+
 def test_persist_single_inventory_source_sets_report_date(tmp_path: Path):
     engine = create_engine('sqlite:///:memory:', future=True)
     Base.metadata.create_all(bind=engine)
