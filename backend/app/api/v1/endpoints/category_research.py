@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from urllib.parse import quote
+
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, get_request_operator, protected
@@ -10,6 +13,8 @@ from app.schemas.category_research import (
     CategoryResearchManualDimensionUpsertResponse,
     CategoryResearchBatchRecomputeResponse,
     CategoryResearchDatasetItem,
+    CategoryResearchExportItem,
+    CategoryResearchExportListResponse,
     CategoryResearchImportResponse,
     CategoryResearchMarketTrendPoint,
     CategoryResearchMarketTrendResponse,
@@ -266,6 +271,61 @@ def get_category_research_market_trend(
     )
 
 
+@router.get('/category-research/datasets/{dataset_id:int}/exports', response_model=CategoryResearchExportListResponse)
+def list_category_research_exports(
+    dataset_id: int,
+    db: Session = Depends(get_db_session),
+    settings: Settings = Depends(get_settings),
+) -> CategoryResearchExportListResponse:
+    try:
+        items = category_research_service.list_available_exports(
+            db,
+            settings=settings,
+            dataset_id=dataset_id,
+        )
+    except ValueError as exc:
+        if str(exc) == 'Dataset not found':
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return CategoryResearchExportListResponse(
+        dataset_id=dataset_id,
+        items=[CategoryResearchExportItem(**item) for item in items],
+    )
+
+
+@router.get('/category-research/datasets/{dataset_id:int}/exports/{export_key}')
+def download_category_research_export(
+    dataset_id: int,
+    export_key: str,
+    price_band_standard: str | None = Query(default='default'),
+    price_band_breaks: str | None = Query(default=None),
+    db: Session = Depends(get_db_session),
+    settings: Settings = Depends(get_settings),
+):
+    try:
+        payload = category_research_service.build_export_payload(
+            db,
+            settings=settings,
+            dataset_id=dataset_id,
+            export_key=export_key,
+            price_band_standard=price_band_standard,
+            price_band_breaks=price_band_breaks,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        if str(exc) == 'Dataset not found':
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if payload.file_path is not None:
+        return FileResponse(path=str(payload.file_path), filename=payload.filename, media_type=payload.media_type)
+
+    headers = {'Content-Disposition': _content_disposition(payload.filename)}
+    return Response(content=payload.content or b'', media_type=payload.media_type, headers=headers)
+
+
 def _to_dataset_item(row) -> CategoryResearchDatasetItem:
     data_date = row.data_date
     return CategoryResearchDatasetItem(
@@ -330,3 +390,8 @@ def _to_product_row(row) -> CategoryResearchProductRow:
         manual_dimensions=manual_dimensions,
         effective_dimensions=effective_dimensions,
     )
+
+
+def _content_disposition(filename: str) -> str:
+    safe = filename.replace('"', '')
+    return f"attachment; filename={safe}; filename*=UTF-8''{quote(filename)}"

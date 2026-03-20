@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, ReactNode } from 'react'
 import {
   Area,
@@ -26,7 +26,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { ArrowRight, ChevronDown, Database, Lightbulb, Loader2, RefreshCw, ShieldAlert, Sparkles, TrendingUp, Upload } from 'lucide-react'
+import { ArrowRight, ChevronDown, Database, FileImage, FileSpreadsheet, FileText, Lightbulb, Loader2, RefreshCw, ShieldAlert, Sparkles, TrendingUp, Upload } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 import { Badge } from '@/components/ui/badge'
@@ -80,6 +80,12 @@ type CategoryResearchDataset = {
   row_count_trends: number
   quality_warnings: Record<string, number>
   created_at: string | null
+}
+
+type CapturedCanvas = {
+  canvas: HTMLCanvasElement
+  width: number
+  height: number
 }
 
 type CategoryResearchOverview = {
@@ -471,6 +477,37 @@ function parseErrorBody(text: string, status: number): string {
   } catch {
     return text
   }
+}
+
+function extractFilenameFromHeader(contentDisposition: string | null) {
+  if (!contentDisposition) return null
+  const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i)
+  if (utf8Match?.[1]) return decodeURIComponent(utf8Match[1])
+  const basicMatch = contentDisposition.match(/filename="?([^"]+)"?/i)
+  return basicMatch?.[1] ?? null
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const downloadUrl = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = downloadUrl
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.URL.revokeObjectURL(downloadUrl)
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement, type = 'image/png', quality?: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) {
+        resolve(blob)
+        return
+      }
+      reject(new Error('画布导出失败'))
+    }, type, quality)
+  })
 }
 
 function clamp(value: number, min = 0, max = 100) {
@@ -1482,6 +1519,8 @@ export default function CategoryResearchPage() {
   const [overviewLoading, setOverviewLoading] = useState(false)
   const [marketTrendPoints, setMarketTrendPoints] = useState<Array<{ year_month: string; monthly_sales: number }>>([])
   const [marketTrendLoading, setMarketTrendLoading] = useState(false)
+  const [exportingKey, setExportingKey] = useState<'analysis_workbook' | 'summary_pdf' | 'full_report_png' | null>(null)
+  const analysisExportRef = useRef<HTMLDivElement | null>(null)
 
   const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>('research')
   const [analysisKeyword, setAnalysisKeyword] = useState('')
@@ -1878,6 +1917,74 @@ export default function CategoryResearchPage() {
     node.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [])
 
+  const captureAnalysisCanvas = useCallback(async (): Promise<CapturedCanvas> => {
+    const node = analysisExportRef.current
+    if (!node) {
+      throw new Error('分析内容尚未渲染完成，请稍后重试')
+    }
+
+    const [{ toCanvas }] = await Promise.all([
+      import('html-to-image'),
+      document.fonts?.ready ?? Promise.resolve(),
+      new Promise((resolve) => window.requestAnimationFrame(() => resolve(true))),
+    ])
+
+    const canvas = await toCanvas(node, {
+      cacheBust: true,
+      pixelRatio: 2,
+      backgroundColor: '#ffffff',
+      skipAutoScale: true,
+    })
+
+    return {
+      canvas,
+      width: canvas.width,
+      height: canvas.height,
+    }
+  }, [])
+
+  const downloadFullReportPng = useCallback(async () => {
+    if (!overview) return
+    setFormError(null)
+    setExportingKey('full_report_png')
+    try {
+      const captured = await captureAnalysisCanvas()
+      downloadBlob(await canvasToBlob(captured.canvas), `research-analysis-${overview.dataset.category_keyword_en}-full-report.png`)
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : '长图导出失败')
+    } finally {
+      setExportingKey(null)
+    }
+  }, [captureAnalysisCanvas, overview])
+
+  const downloadBackendExport = useCallback(async (exportKey: 'analysis_workbook' | 'summary_pdf') => {
+    if (!selectedDatasetId) return
+    setFormError(null)
+    setExportingKey(exportKey)
+    try {
+      const params = new URLSearchParams()
+      appendPriceBandParams(params, priceBandStandard, priceBandBreaksText)
+      const query = params.toString()
+      const endpoint = `/api/v1/category-research/datasets/${selectedDatasetId}/exports/${exportKey}${query ? `?${query}` : ''}`
+      const response = await fetch(resolveApiUrl(endpoint), {
+        headers: authHeaders(currentOperator, isAdmin),
+      })
+      if (!response.ok) {
+        const text = await response.text()
+        throw new Error(parseErrorBody(text, response.status))
+      }
+
+      const blob = await response.blob()
+      const fallbackName = exportKey === 'analysis_workbook' ? 'analysis.xlsx' : 'summary.pdf'
+      const filename = extractFilenameFromHeader(response.headers.get('Content-Disposition')) || fallbackName
+      downloadBlob(blob, filename)
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : '文件下载失败')
+    } finally {
+      setExportingKey(null)
+    }
+  }, [currentOperator, isAdmin, priceBandBreaksText, priceBandStandard, selectedDatasetId])
+
   return (
     <Tabs
       value={workspaceTab}
@@ -2085,6 +2192,30 @@ export default function CategoryResearchPage() {
             ) : null}
 
             {analysisContextItems.length > 0 ? <ContextSummaryStrip items={analysisContextItems} priceBandLabel={priceBandLabel} /> : null}
+
+            <div className="space-y-4 rounded-2xl border border-border/70 bg-background/80 p-4 shadow-sm">
+              <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">导出区域</p>
+                  <p className="text-xs text-muted-foreground">统一保留 3 个导出结果：分析结果 Excel、摘要 PDF、分析总览长图。</p>
+                </div>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-3">
+                <Button type="button" variant="outline" className="h-11" disabled={!overview || exportingKey !== null} onClick={() => void downloadBackendExport('analysis_workbook')}>
+                  {exportingKey === 'analysis_workbook' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileSpreadsheet className="mr-2 h-4 w-4" />}
+                  分析结果 Excel
+                </Button>
+                <Button type="button" variant="outline" className="h-11" disabled={!overview || exportingKey !== null} onClick={() => void downloadBackendExport('summary_pdf')}>
+                  {exportingKey === 'summary_pdf' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
+                  摘要 PDF
+                </Button>
+                <Button type="button" variant="outline" className="h-11" disabled={!overview || exportingKey !== null} onClick={() => void downloadFullReportPng()}>
+                  {exportingKey === 'full_report_png' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileImage className="mr-2 h-4 w-4" />}
+                  分析总览
+                </Button>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
@@ -2098,78 +2229,79 @@ export default function CategoryResearchPage() {
           <div className="space-y-6">
             <AnalysisSectionNav activeSection={activeSection} onSelect={scrollToSection} />
 
-            <section id="analysis-section-overview" className="scroll-mt-32 space-y-6">
-              <AnalysisSectionHeader section={ANALYSIS_SECTIONS[0]} />
-              <div className="grid gap-4 xl:grid-cols-3">
-                {summaryCards.map((item) => (
-                  <DecisionSummaryCard key={item.key} item={item} />
-                ))}
-              </div>
-              <MetricGridCard title="总览结论板" description="把增长、季节性、新品窗口、供给复杂度、数据质量和样本跨度放在同一屏做决策扫描。" items={overviewModels.metrics} />
-
-              <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
-                <InsightChartCard
-                  title="高优先风险 / 机会"
-                  description="先看最影响 go / no-go 判断的三个结论，再决定要不要继续展开图表。"
-                  contentClassName="grid gap-3"
-                >
-                  {overviewModels.radialRisks.map((item, index) => (
-                    <div key={item.label} className="rounded-xl border border-border/70 bg-muted/[0.12] p-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold text-foreground">{item.label}</p>
-                          <p className="mt-1 text-sm text-muted-foreground">{item.detail}</p>
-                        </div>
-                        <Badge variant="outline" className={alertBadgeClass(index === 2 ? 'medium' : normalizeRiskLevel(item.text.includes('高风险') ? 'high' : item.text.includes('中风险') ? 'medium' : 'low'))}>
-                          {item.text}
-                        </Badge>
-                      </div>
-                    </div>
+            <div ref={analysisExportRef} className="space-y-6 bg-white">
+              <section id="analysis-section-overview" className="scroll-mt-32 space-y-6">
+                <AnalysisSectionHeader section={ANALYSIS_SECTIONS[0]} />
+                <div className="grid gap-4 xl:grid-cols-3">
+                  {summaryCards.map((item) => (
+                    <DecisionSummaryCard key={item.key} item={item} />
                   ))}
-                </InsightChartCard>
+                </div>
+                <MetricGridCard title="总览结论板" description="把增长、季节性、新品窗口、供给复杂度、数据质量和样本跨度放在同一屏做决策扫描。" items={overviewModels.metrics} />
 
-                <InsightChartCard
-                  title="行动建议"
-                  description="把当前最值得先验证的动作排出来，避免分析停在结论描述。"
-                >
-                  <div className="space-y-3">
-                    {overviewModels.actions.length > 0 ? (
-                      overviewModels.actions.map((item) => (
-                        <div key={`${item.priority}-${item.action}`} className="rounded-xl border border-border/70 bg-muted/[0.12] p-4">
-                          <div className="flex items-center justify-between gap-3">
-                            <p className="font-medium text-foreground">{item.action}</p>
-                            <Badge variant="outline" className={alertBadgeClass(normalizeRiskLevel(item.priority))}>
-                              {item.priority.toUpperCase()}
-                            </Badge>
+                <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+                  <InsightChartCard
+                    title="高优先风险 / 机会"
+                    description="先看最影响 go / no-go 判断的三个结论，再决定要不要继续展开图表。"
+                    contentClassName="grid gap-3"
+                  >
+                    {overviewModels.radialRisks.map((item, index) => (
+                      <div key={item.label} className="rounded-xl border border-border/70 bg-muted/[0.12] p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-foreground">{item.label}</p>
+                            <p className="mt-1 text-sm text-muted-foreground">{item.detail}</p>
                           </div>
-                          <p className="mt-2 text-sm text-muted-foreground">{item.why}</p>
-                          {item.rule_basis && item.rule_basis.length > 0 ? (
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {item.rule_basis.map((rule) => (
-                                <Badge key={rule} variant="secondary" className="bg-muted/60 text-muted-foreground">
-                                  {rule}
-                                </Badge>
-                              ))}
-                            </div>
-                          ) : null}
-                          {item.required_validation.length > 0 ? (
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {item.required_validation.map((rule) => (
-                                <Badge key={rule} variant="outline" className="inline-flex items-center gap-1">
-                                  <ArrowRight className="h-3 w-3" />
-                                  {rule}
-                                </Badge>
-                              ))}
-                            </div>
-                          ) : null}
+                          <Badge variant="outline" className={alertBadgeClass(index === 2 ? 'medium' : normalizeRiskLevel(item.text.includes('高风险') ? 'high' : item.text.includes('中风险') ? 'medium' : 'low'))}>
+                            {item.text}
+                          </Badge>
                         </div>
-                      ))
-                    ) : (
-                      <EmptyChartState message="暂无行动建议" height="h-[300px]" />
-                    )}
-                  </div>
-                </InsightChartCard>
-              </div>
+                      </div>
+                    ))}
+                  </InsightChartCard>
+
+                  <InsightChartCard
+                    title="行动建议"
+                    description="把当前最值得先验证的动作排出来，避免分析停在结论描述。"
+                  >
+                    <div className="space-y-3">
+                      {overviewModels.actions.length > 0 ? (
+                        overviewModels.actions.map((item) => (
+                          <div key={`${item.priority}-${item.action}`} className="rounded-xl border border-border/70 bg-muted/[0.12] p-4">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="font-medium text-foreground">{item.action}</p>
+                              <Badge variant="outline" className={alertBadgeClass(normalizeRiskLevel(item.priority))}>
+                                {item.priority.toUpperCase()}
+                              </Badge>
+                            </div>
+                            <p className="mt-2 text-sm text-muted-foreground">{item.why}</p>
+                            {item.rule_basis && item.rule_basis.length > 0 ? (
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                {item.rule_basis.map((rule) => (
+                                  <Badge key={rule} variant="secondary" className="bg-muted/60 text-muted-foreground">
+                                    {rule}
+                                  </Badge>
+                                ))}
+                              </div>
+                            ) : null}
+                            {item.required_validation.length > 0 ? (
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                {item.required_validation.map((rule) => (
+                                  <Badge key={rule} variant="outline" className="inline-flex items-center gap-1">
+                                    <ArrowRight className="h-3 w-3" />
+                                    {rule}
+                                  </Badge>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                        ))
+                      ) : (
+                        <EmptyChartState message="暂无行动建议" height="h-[300px]" />
+                      )}
+                    </div>
+                  </InsightChartCard>
+                </div>
 
               <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
                 <InsightChartCard
@@ -2272,9 +2404,9 @@ export default function CategoryResearchPage() {
                   </div>
                 ))}
               </InsightChartCard>
-            </section>
+              </section>
 
-            <section id="analysis-section-market" className="scroll-mt-32 space-y-6">
+              <section id="analysis-section-market" className="scroll-mt-32 space-y-6">
               <AnalysisSectionHeader section={ANALYSIS_SECTIONS[1]} />
               <MetricGridCard title="市场节奏总览" description="先看增长斜率、峰值位置和同比环比，再判断这个市场是在扩张、波动还是回落。" items={marketModels.trendMetrics} />
 
@@ -2447,9 +2579,9 @@ export default function CategoryResearchPage() {
                   <EmptyChartState message="暂无上架分段数据" />
                 )}
               </InsightChartCard>
-            </section>
+              </section>
 
-            <section id="analysis-section-brand" className="scroll-mt-32 space-y-6">
+              <section id="analysis-section-brand" className="scroll-mt-32 space-y-6">
               <AnalysisSectionHeader section={ANALYSIS_SECTIONS[2]} />
               <MetricGridCard title="品牌竞争总览" description="先看品牌集中度，再看头部品牌覆盖力和价格带控制力。 " items={brandModels.metrics} />
 
@@ -2630,9 +2762,9 @@ export default function CategoryResearchPage() {
                   </Table>
                 </div>
               </InsightChartCard>
-            </section>
+              </section>
 
-            <section id="analysis-section-seller" className="scroll-mt-32 space-y-6">
+              <section id="analysis-section-seller" className="scroll-mt-32 space-y-6">
               <AnalysisSectionHeader section={ANALYSIS_SECTIONS[3]} />
               <MetricGridCard title="卖家结构总览" description="把国籍、自营、履约和渠道集中度放在一起，看第三方卖家有没有空间。 " items={sellerModels.metrics} />
 
@@ -2757,9 +2889,9 @@ export default function CategoryResearchPage() {
                   <EmptyChartState message="暂无物流方式数据" />
                 )}
               </InsightChartCard>
-            </section>
+              </section>
 
-            <section id="analysis-section-review" className="scroll-mt-32 space-y-6">
+              <section id="analysis-section-review" className="scroll-mt-32 space-y-6">
               <AnalysisSectionHeader section={ANALYSIS_SECTIONS[4]} />
               <MetricGridCard title="评论门槛总览" description="重点回答两个问题：评论门槛高不高，低评论产品还有没有拿量机会。 " items={reviewModels.metrics} />
 
@@ -2897,9 +3029,9 @@ export default function CategoryResearchPage() {
                 </div>
                 </div>
               </InsightChartCard>
-            </section>
+              </section>
 
-            <section id="analysis-section-price" className="scroll-mt-32 space-y-6">
+              <section id="analysis-section-price" className="scroll-mt-32 space-y-6">
               <AnalysisSectionHeader section={ANALYSIS_SECTIONS[5]} />
               <MetricGridCard title="价格结构总览" description="先看主力价格带，再看价格和销量到底是强绑定还是弱绑定。 " items={priceModels.metrics} />
 
@@ -3059,7 +3191,8 @@ export default function CategoryResearchPage() {
                   </Table>
                 </div>
               </InsightChartCard>
-            </section>
+              </section>
+            </div>
           </div>
         ) : (
           <Card className="border-dashed">

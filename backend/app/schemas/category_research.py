@@ -450,3 +450,17 @@ class CategoryResearchManualDimensionUpsertRequest(BaseModel):
 class CategoryResearchManualDimensionUpsertResponse(BaseModel):
     dataset_id: int
     updated_count: int
+
+
+class CategoryResearchExportItem(BaseModel):
+    key: str
+    label: str
+    description: str
+    filename: str
+    format: str
+    available: bool = True
+
+
+class CategoryResearchExportListResponse(BaseModel):
+    dataset_id: int
+    items: list[CategoryResearchExportItem] = Field(default_factory=list)

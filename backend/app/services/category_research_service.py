@@ -1,27 +1,32 @@
 from __future__ import annotations
 
 from collections import Counter
+import csv
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import Decimal, InvalidOperation
 import hashlib
+from io import BytesIO, StringIO
+import json
 from pathlib import Path
 import re
 from threading import Lock
 from typing import Any
+import zipfile
 
 import numpy as np
 import pandas as pd
-from openpyxl import load_workbook
+from openpyxl import Workbook, load_workbook
 from sqlalchemy import Select, func, insert, select, update as sa_update
 from sqlalchemy.orm import Session
+from slugify import slugify
 
 from app.models import (
     CategoryResearchDataset,
     CategoryResearchProductDetail,
     CategoryResearchSalesTrend,
 )
-from app.services.upload_service import save_upload_file
+from app.services.upload_service import resolve_upload_file_path, save_upload_file
 
 _SQLITE_TABLES_READY = False
 _SQLITE_TABLES_LOCK = Lock()
@@ -55,6 +60,44 @@ _PRICE_BAND_PRESETS: dict[str, list[float]] = {
     'value': [30.0, 60.0, 100.0, 150.0],
     'premium': [100.0, 150.0, 200.0, 300.0],
 }
+_EXPORT_ITEMS: tuple[dict[str, str], ...] = (
+    {
+        'key': 'raw_xlsx',
+        'label': '原始上传文件',
+        'description': '下载最初上传的类目调研工作簿，适合复核源数据。',
+        'format': 'xlsx',
+    },
+    {
+        'key': 'summary_pdf',
+        'label': '摘要 PDF',
+        'description': '面向汇报场景的调研摘要，包含结论、风险、机会与建议动作。',
+        'format': 'pdf',
+    },
+    {
+        'key': 'analysis_workbook',
+        'label': '分析结果 Excel',
+        'description': '包含摘要、品牌、价格带、产品明细、趋势明细和指标定义。',
+        'format': 'xlsx',
+    },
+    {
+        'key': 'product_details_csv',
+        'label': '产品明细 CSV',
+        'description': '导出结构化产品明细，方便二次筛选和脚本分析。',
+        'format': 'csv',
+    },
+    {
+        'key': 'trend_details_csv',
+        'label': '趋势明细 CSV',
+        'description': '导出 ASIN 月销量趋势明细，适合做时间序列分析。',
+        'format': 'csv',
+    },
+    {
+        'key': 'export_bundle_zip',
+        'label': '导出打包 ZIP',
+        'description': '打包原始文件、摘要 PDF、分析结果 Excel 和两份 CSV，适合直接交付。',
+        'format': 'zip',
+    },
+)
 
 
 @dataclass
@@ -62,6 +105,14 @@ class ParsedWorkbookPayload:
     product_rows: list[dict[str, Any]]
     trend_rows: list[dict[str, Any]]
     quality_warnings: dict[str, Any]
+
+
+@dataclass
+class CategoryResearchExportPayload:
+    filename: str
+    media_type: str
+    content: bytes | None = None
+    file_path: Path | None = None
 
 
 def ensure_tables(db: Session) -> None:
@@ -299,6 +350,112 @@ def effective_dimensions(row: CategoryResearchProductDetail) -> dict[str, str]:
 def get_dataset_or_none(db: Session, dataset_id: int) -> CategoryResearchDataset | None:
     ensure_tables(db)
     return db.get(CategoryResearchDataset, dataset_id)
+
+
+def list_available_exports(
+    db: Session,
+    *,
+    settings: Any,
+    dataset_id: int,
+) -> list[dict[str, Any]]:
+    dataset = get_dataset_or_none(db, dataset_id)
+    if dataset is None:
+        raise ValueError('Dataset not found')
+
+    items: list[dict[str, Any]] = []
+    for item in _EXPORT_ITEMS:
+        export_key = str(item['key'])
+        items.append(
+            {
+                **item,
+                'available': _export_is_available(settings, dataset, export_key),
+                'filename': _export_filename(dataset, export_key),
+            }
+        )
+    return items
+
+
+def build_export_payload(
+    db: Session,
+    *,
+    settings: Any,
+    dataset_id: int,
+    export_key: str,
+    price_band_standard: str | None = None,
+    price_band_breaks: str | None = None,
+) -> CategoryResearchExportPayload:
+    dataset = get_dataset_or_none(db, dataset_id)
+    if dataset is None:
+        raise ValueError('Dataset not found')
+
+    normalized_key = (export_key or '').strip()
+    if normalized_key == 'raw_xlsx':
+        raw_path = _resolve_dataset_raw_file_path(settings, dataset)
+        return CategoryResearchExportPayload(
+            filename=_export_filename(dataset, normalized_key, original_filename=dataset.original_filename),
+            media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            file_path=raw_path,
+        )
+
+    products = _list_all_dataset_products(db, dataset_id=dataset_id)
+    trends = _list_all_dataset_trends(db, dataset_id=dataset_id)
+    overview = get_dataset_overview(
+        db,
+        dataset_id,
+        price_band_standard=price_band_standard,
+        price_band_breaks=price_band_breaks,
+    )
+
+    if normalized_key == 'analysis_workbook':
+        return CategoryResearchExportPayload(
+            filename=_export_filename(dataset, normalized_key),
+            media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            content=_build_analysis_workbook_bytes(
+                dataset=dataset,
+                overview=overview,
+                products=products,
+                trends=trends,
+            ),
+        )
+
+    if normalized_key == 'summary_pdf':
+        return CategoryResearchExportPayload(
+            filename=_export_filename(dataset, normalized_key),
+            media_type='application/pdf',
+            content=_build_summary_pdf_bytes(
+                dataset=dataset,
+                overview=overview,
+            ),
+        )
+
+    if normalized_key == 'product_details_csv':
+        return CategoryResearchExportPayload(
+            filename=_export_filename(dataset, normalized_key),
+            media_type='text/csv; charset=utf-8',
+            content=_build_product_csv_bytes(products),
+        )
+
+    if normalized_key == 'trend_details_csv':
+        return CategoryResearchExportPayload(
+            filename=_export_filename(dataset, normalized_key),
+            media_type='text/csv; charset=utf-8',
+            content=_build_trend_csv_bytes(trends),
+        )
+
+    if normalized_key == 'export_bundle_zip':
+        return CategoryResearchExportPayload(
+            filename=_export_filename(dataset, normalized_key),
+            media_type='application/zip',
+            content=_build_export_bundle_zip_bytes(
+                settings=settings,
+                dataset=dataset,
+                overview=overview,
+                products=products,
+                trends=trends,
+            ),
+        )
+
+    raise ValueError('Unsupported export type')
 
 
 def get_dataset_overview(
@@ -590,6 +747,590 @@ def get_dataset_market_trend_points(
         )
         current = _shift_month(current, 1)
     return points
+
+
+def _export_is_available(settings: Any, dataset: CategoryResearchDataset, export_key: str) -> bool:
+    if export_key in {'summary_pdf', 'export_bundle_zip'} and not _has_reportlab():
+        return False
+    if export_key != 'raw_xlsx':
+        return True
+    try:
+        raw_path = _resolve_dataset_raw_file_path(settings, dataset)
+    except FileNotFoundError:
+        return False
+    return raw_path.exists() and raw_path.is_file()
+
+
+def _resolve_dataset_raw_file_path(settings: Any, dataset: CategoryResearchDataset) -> Path:
+    file_path = Path(str(dataset.upload_file_path or '')).expanduser()
+    if file_path.exists() and file_path.is_file():
+        return file_path
+    folder_name = f'category-research-{dataset.marketplace}-{dataset.category_keyword_en}'
+    return resolve_upload_file_path(settings, folder_name, 'category_research_xlsx', str(dataset.upload_file_id))
+
+
+def _dataset_base_slug(dataset: CategoryResearchDataset) -> str:
+    keyword_slug = slugify(dataset.category_keyword_en or '')[:60] or 'category-research'
+    return f'category-research-{dataset.marketplace.lower()}-{keyword_slug}-v{int(dataset.version)}'
+
+
+def _export_filename(
+    dataset: CategoryResearchDataset,
+    export_key: str,
+    *,
+    original_filename: str | None = None,
+) -> str:
+    base = _dataset_base_slug(dataset)
+    if export_key == 'raw_xlsx':
+        original = Path(original_filename or '').name
+        if original:
+            return original
+        return f'{base}-raw.xlsx'
+    if export_key == 'summary_pdf':
+        return f'{base}-summary.pdf'
+    if export_key == 'analysis_workbook':
+        return f'{base}-analysis.xlsx'
+    if export_key == 'product_details_csv':
+        return f'{base}-products.csv'
+    if export_key == 'trend_details_csv':
+        return f'{base}-trends.csv'
+    if export_key == 'export_bundle_zip':
+        return f'{base}-bundle.zip'
+    return f'{base}-{slugify(export_key) or "export"}.bin'
+
+
+def _list_all_dataset_products(db: Session, *, dataset_id: int) -> list[CategoryResearchProductDetail]:
+    return list(
+        db.execute(
+            select(CategoryResearchProductDetail)
+            .where(CategoryResearchProductDetail.dataset_id == dataset_id)
+            .order_by(
+                CategoryResearchProductDetail.monthly_sales.desc(),
+                CategoryResearchProductDetail.id.asc(),
+            )
+        ).scalars().all()
+    )
+
+
+def _list_all_dataset_trends(db: Session, *, dataset_id: int) -> list[CategoryResearchSalesTrend]:
+    return list(
+        db.execute(
+            select(CategoryResearchSalesTrend)
+            .where(CategoryResearchSalesTrend.dataset_id == dataset_id)
+            .order_by(
+                CategoryResearchSalesTrend.asin.asc(),
+                CategoryResearchSalesTrend.year_month.asc(),
+                CategoryResearchSalesTrend.id.asc(),
+            )
+        ).scalars().all()
+    )
+
+
+def _stringify_json(value: Any) -> str:
+    if value is None:
+        return ''
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False)
+    return str(value)
+
+
+def _csv_bytes(headers: list[str], rows: list[list[Any]]) -> bytes:
+    stream = StringIO()
+    writer = csv.writer(stream)
+    writer.writerow(headers)
+    writer.writerows(rows)
+    return stream.getvalue().encode('utf-8-sig')
+
+
+def _build_product_csv_bytes(products: list[CategoryResearchProductDetail]) -> bytes:
+    headers = [
+        'product_row_id',
+        'source_row_no',
+        'asin',
+        'parent_asin',
+        'product_name',
+        'brand',
+        'seller',
+        'price_usd',
+        'monthly_sales',
+        'monthly_revenue_usd',
+        'rating',
+        'review_count',
+        'launch_date',
+        'listing_age_days',
+        'fba_fee_usd',
+        'fulfillment_method',
+        'bbx_seller_attribute',
+        'variant_count',
+        'has_main_image_video',
+        'is_climate_pledge_friendly',
+        'has_brand_store',
+        'seller_country_region',
+        'is_amazon',
+        'is_new_90d',
+        'extracted_dimensions',
+        'manual_dimensions',
+        'effective_dimensions',
+    ]
+    rows = [
+        [
+            int(item.id),
+            int(item.source_row_no),
+            item.asin or '',
+            item.parent_asin or '',
+            item.product_name or '',
+            item.brand or '',
+            item.seller or '',
+            float(item.price_usd) if item.price_usd is not None else '',
+            int(item.monthly_sales or 0),
+            float(item.monthly_revenue_usd) if item.monthly_revenue_usd is not None else '',
+            float(item.rating) if item.rating is not None else '',
+            int(item.review_count or 0),
+            item.launch_date.isoformat() if item.launch_date else '',
+            int(item.listing_age_days) if item.listing_age_days is not None else '',
+            float(item.fba_fee_usd) if item.fba_fee_usd is not None else '',
+            item.fulfillment_method or '',
+            item.bbx_seller_attribute or '',
+            int(item.variant_count) if item.variant_count is not None else '',
+            bool(item.has_main_image_video) if item.has_main_image_video is not None else '',
+            bool(item.is_climate_pledge_friendly) if item.is_climate_pledge_friendly is not None else '',
+            bool(item.has_brand_store) if item.has_brand_store is not None else '',
+            item.seller_country_region or '',
+            bool(item.is_amazon),
+            bool(item.is_new_90d),
+            _stringify_json(item.extracted_dimensions),
+            _stringify_json(item.manual_dimensions),
+            _stringify_json(_effective_dimensions(item)),
+        ]
+        for item in products
+    ]
+    return _csv_bytes(headers, rows)
+
+
+def _build_trend_csv_bytes(trends: list[CategoryResearchSalesTrend]) -> bytes:
+    headers = ['trend_row_id', 'asin', 'parent_asin', 'year_month', 'monthly_sales']
+    rows = [
+        [
+            int(item.id),
+            item.asin,
+            item.parent_asin or '',
+            item.year_month,
+            int(item.monthly_sales or 0),
+        ]
+        for item in trends
+    ]
+    return _csv_bytes(headers, rows)
+
+
+def _append_sheet_rows(worksheet: Any, headers: list[str], rows: list[list[Any]]) -> None:
+    worksheet.append(headers)
+    for row in rows:
+        worksheet.append(row)
+
+
+def _require_reportlab():
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+        from reportlab.pdfbase.pdfmetrics import registerFont
+        from reportlab.pdfgen import canvas
+    except ImportError as exc:
+        raise ValueError('PDF 导出依赖未安装，请先在 backend 环境安装 reportlab==4.4.1') from exc
+    return A4, UnicodeCIDFont, registerFont, canvas
+
+
+def _has_reportlab() -> bool:
+    try:
+        _require_reportlab()
+    except ValueError:
+        return False
+    return True
+
+
+def _pdf_text_lines(
+    dataset: CategoryResearchDataset,
+    overview: dict[str, Any],
+) -> list[str]:
+    metrics = overview['advanced_metrics']
+    growth = metrics['market_growth']
+    seasonality = metrics['seasonality']
+    brand_monopoly = metrics['brand_monopoly']
+    seller_monopoly = metrics['seller_monopoly']
+    china = metrics['china_seller_competition']
+    new_product = metrics['new_product_opportunity']
+    quality = metrics['data_quality']
+
+    lines: list[str] = [
+        f"调研分析摘要 | {dataset.category_name_zh} | {dataset.marketplace} | V{int(dataset.version)}",
+        f"关键词: {dataset.category_keyword_en}",
+        f"数据日期: {dataset.data_date.isoformat() if dataset.data_date else '-'}",
+        f"样本产品: {int(dataset.row_count_products or 0)} | 趋势样本: {int(dataset.row_count_trends or 0)}",
+        "",
+        "一、核心指标",
+        f"样本数: {int(overview['kpis']['sample_count'])}",
+        f"品牌数: {int(overview['kpis']['brand_count'])}",
+        f"平均价格: ${float(overview['kpis']['average_price_usd']):.2f}",
+        f"总月销量: {int(overview['kpis']['total_monthly_sales'])}",
+        f"总月销售额: ${float(overview['kpis']['total_monthly_revenue_usd']):.2f}",
+        f"Amazon 占比: {float(overview['kpis']['amazon_share']) * 100:.1f}%",
+        "",
+        "二、进入判断",
+        f"增长层级: {growth.get('growth_tier', growth.get('growth_level', '-'))} | 最近 12M vs 前 12M: {float(growth['last12_vs_prev12_growth']) * 100:.1f}%",
+        f"季节性层级: {seasonality.get('seasonality_tier', seasonality.get('seasonality_level', '-'))} | 旺季前三月销量占比: {float(seasonality['peak3_month_sales_share']) * 100:.1f}%",
+        f"建议入场月: {', '.join(seasonality.get('recommended_entry_months', [])) or '-'}",
+        f"新品机会: {new_product.get('opportunity_level', '-')} | 新品销量占比: {float(new_product['new_product_sales_share']) * 100:.1f}%",
+        "",
+        "三、竞争与风险",
+        f"品牌集中度: CR3 {float(brand_monopoly['brand_cr3']) * 100:.1f}% | 风险 {brand_monopoly.get('risk_level', '-')}",
+        f"卖家集中度: CR3 {float(seller_monopoly['seller_cr3']) * 100:.1f}% | 风险 {seller_monopoly.get('risk_level', '-')}",
+        f"中国卖家销量占比: {float(china['china_seller_sales_share']) * 100:.1f}% | 风险 {china.get('risk_level', '-')}",
+        f"价格-销量相关系数: {float(overview['price_sales_correlation']):.4f}",
+        f"数据质量分: {float(quality['score']):.1f} | 综述: {quality.get('summary', '') or '-'}",
+        "",
+        "四、建议动作",
+    ]
+
+    actions = metrics.get('action_recommendations', [])[:5]
+    if actions:
+        for index, item in enumerate(actions, start=1):
+            validations = ', '.join(item.get('required_validation', [])) or '-'
+            lines.append(f"{index}. [{item.get('priority', '-')}] {item.get('action', '')}")
+            lines.append(f"   原因: {item.get('why', '')}")
+            lines.append(f"   先验证: {validations}")
+    else:
+        lines.append("1. 当前无自动建议动作，请结合市场节奏、品牌集中度和价格带机会手动判断。")
+
+    lines.extend([
+        "",
+        "五、补充说明",
+        f"价格带方法: {metrics.get('price_band_method_description', '') or '-'}",
+    ])
+
+    top_bands = metrics.get('price_band_opportunities', [])[:3]
+    if top_bands:
+        for item in top_bands:
+            lines.append(
+                f"机会价格带 {item.get('label', '-')}: 月销量 {int(item.get('monthly_sales', 0))} | 销量占比 {float(item.get('sales_share', 0.0)) * 100:.1f}%"
+            )
+
+    top_brands = overview.get('brand_sales_share', [])[:3]
+    if top_brands:
+        lines.append("头部品牌:")
+        for item in top_brands:
+            lines.append(
+                f"- {item.get('brand', '-')}: 月销量 {int(item.get('monthly_sales', 0))} | 占比 {float(item.get('share', 0.0)) * 100:.1f}%"
+            )
+
+    return lines
+
+
+def _build_summary_pdf_bytes(
+    *,
+    dataset: CategoryResearchDataset,
+    overview: dict[str, Any],
+) -> bytes:
+    A4, UnicodeCIDFont, registerFont, canvas = _require_reportlab()
+    registerFont(UnicodeCIDFont('STSong-Light'))
+
+    buffer = BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=A4)
+    pdf.setAuthor('BelieveBoy Dashboard')
+    pdf.setTitle(_export_filename(dataset, 'summary_pdf'))
+
+    width, height = A4
+    left_margin = 40
+    top = height - 46
+    bottom = 48
+    line_height = 16
+    y = top
+
+    pdf.setFont('STSong-Light', 16)
+    pdf.drawString(left_margin, y, '调研分析摘要 PDF')
+    y -= 24
+
+    pdf.setFont('STSong-Light', 10)
+    for line in _pdf_text_lines(dataset, overview):
+        if y <= bottom:
+            pdf.showPage()
+            pdf.setFont('STSong-Light', 10)
+            y = top
+        if not line:
+            y -= line_height
+            continue
+        wrapped = _wrap_pdf_line(line, max_chars=46)
+        for segment in wrapped:
+            if y <= bottom:
+                pdf.showPage()
+                pdf.setFont('STSong-Light', 10)
+                y = top
+            pdf.drawString(left_margin, y, segment)
+            y -= line_height
+
+    pdf.save()
+    return buffer.getvalue()
+
+
+def _wrap_pdf_line(text: str, *, max_chars: int) -> list[str]:
+    normalized = str(text or '')
+    if len(normalized) <= max_chars:
+        return [normalized]
+    lines: list[str] = []
+    current = ''
+    for char in normalized:
+        current += char
+        if len(current) >= max_chars:
+            lines.append(current)
+            current = ''
+    if current:
+        lines.append(current)
+    return lines
+
+
+def _build_analysis_workbook_bytes(
+    *,
+    dataset: CategoryResearchDataset,
+    overview: dict[str, Any],
+    products: list[CategoryResearchProductDetail],
+    trends: list[CategoryResearchSalesTrend],
+) -> bytes:
+    workbook = Workbook()
+    summary_sheet = workbook.active
+    summary_sheet.title = 'Summary'
+
+    dataset_meta_rows = [
+        ['dataset_id', int(dataset.id)],
+        ['marketplace', dataset.marketplace],
+        ['category_keyword_en', dataset.category_keyword_en],
+        ['category_name_zh', dataset.category_name_zh],
+        ['version', int(dataset.version)],
+        ['is_current', bool(dataset.is_current)],
+        ['data_date', dataset.data_date.isoformat() if dataset.data_date else ''],
+        ['row_count_products', int(dataset.row_count_products or 0)],
+        ['row_count_trends', int(dataset.row_count_trends or 0)],
+        ['original_filename', dataset.original_filename or ''],
+        ['created_at', dataset.created_at.isoformat() if dataset.created_at else ''],
+        ['price_band_standard', overview['advanced_metrics'].get('price_band_standard', '')],
+        ['price_band_method', overview['advanced_metrics'].get('price_band_method', '')],
+        ['price_band_breaks', ', '.join(str(item) for item in overview['advanced_metrics'].get('price_band_breaks', []))],
+    ]
+    _append_sheet_rows(summary_sheet, ['field', 'value'], dataset_meta_rows)
+
+    kpi_sheet = workbook.create_sheet('KPIs')
+    _append_sheet_rows(
+        kpi_sheet,
+        ['metric', 'value'],
+        [
+            ['sample_count', int(overview['kpis']['sample_count'])],
+            ['brand_count', int(overview['kpis']['brand_count'])],
+            ['average_price_usd', float(overview['kpis']['average_price_usd'])],
+            ['total_monthly_sales', int(overview['kpis']['total_monthly_sales'])],
+            ['total_monthly_revenue_usd', float(overview['kpis']['total_monthly_revenue_usd'])],
+            ['amazon_share', float(overview['kpis']['amazon_share'])],
+            ['price_sales_correlation', float(overview['price_sales_correlation'])],
+            ['brand_cr3', float(overview['advanced_metrics']['brand_monopoly']['brand_cr3'])],
+            ['seller_cr3', float(overview['advanced_metrics']['seller_monopoly']['seller_cr3'])],
+            ['china_seller_sales_share', float(overview['advanced_metrics']['china_seller_competition']['china_seller_sales_share'])],
+            ['market_growth_last12_vs_prev12', float(overview['advanced_metrics']['market_growth']['last12_vs_prev12_growth'])],
+            ['seasonality_peak3_month_sales_share', float(overview['advanced_metrics']['seasonality']['peak3_month_sales_share'])],
+            ['new_product_sales_share', float(overview['advanced_metrics']['new_product_opportunity']['new_product_sales_share'])],
+            ['data_quality_score', float(overview['advanced_metrics']['data_quality']['score'])],
+        ],
+    )
+
+    brand_sheet = workbook.create_sheet('BrandShare')
+    _append_sheet_rows(
+        brand_sheet,
+        ['brand', 'monthly_sales', 'share'],
+        [
+            [item['brand'], int(item['monthly_sales']), float(item['share'])]
+            for item in overview['brand_sales_share']
+        ],
+    )
+
+    opportunity_sheet = workbook.create_sheet('PriceBands')
+    _append_sheet_rows(
+        opportunity_sheet,
+        [
+            'label',
+            'count',
+            'monthly_sales',
+            'monthly_revenue_usd',
+            'sales_share',
+            'revenue_share',
+            'average_rating',
+            'average_review_count',
+        ],
+        [
+            [
+                item['label'],
+                int(item['count']),
+                int(item['monthly_sales']),
+                float(item['monthly_revenue_usd']),
+                float(item['sales_share']),
+                float(item['revenue_share']),
+                float(item['average_rating']),
+                float(item['average_review_count']),
+            ]
+            for item in overview['advanced_metrics'].get('price_band_opportunities', [])
+        ],
+    )
+
+    definitions_sheet = workbook.create_sheet('Definitions')
+    _append_sheet_rows(
+        definitions_sheet,
+        ['key', 'name', 'formula_text', 'thresholds', 'interpretation_template', 'pitfall', 'action_hint'],
+        [
+            [
+                item.get('key', ''),
+                item.get('name', ''),
+                item.get('formula_text', ''),
+                ' | '.join(item.get('thresholds', [])),
+                item.get('interpretation_template', ''),
+                item.get('pitfall', ''),
+                item.get('action_hint', ''),
+            ]
+            for item in overview['advanced_metrics'].get('metric_definitions', [])
+        ],
+    )
+
+    actions_sheet = workbook.create_sheet('Actions')
+    _append_sheet_rows(
+        actions_sheet,
+        ['priority', 'action', 'why', 'required_validation', 'linked_dimension', 'rule_basis'],
+        [
+            [
+                item.get('priority', ''),
+                item.get('action', ''),
+                item.get('why', ''),
+                ' | '.join(item.get('required_validation', [])),
+                item.get('linked_dimension', ''),
+                ' | '.join(item.get('rule_basis', [])),
+            ]
+            for item in overview['advanced_metrics'].get('action_recommendations', [])
+        ],
+    )
+
+    products_sheet = workbook.create_sheet('Products')
+    _append_sheet_rows(
+        products_sheet,
+        [
+            'product_row_id',
+            'source_row_no',
+            'asin',
+            'parent_asin',
+            'product_name',
+            'brand',
+            'seller',
+            'price_usd',
+            'monthly_sales',
+            'monthly_revenue_usd',
+            'rating',
+            'review_count',
+            'launch_date',
+            'listing_age_days',
+            'fba_fee_usd',
+            'fulfillment_method',
+            'bbx_seller_attribute',
+            'variant_count',
+            'has_main_image_video',
+            'is_climate_pledge_friendly',
+            'has_brand_store',
+            'seller_country_region',
+            'is_amazon',
+            'is_new_90d',
+            'extracted_dimensions',
+            'manual_dimensions',
+            'effective_dimensions',
+        ],
+        [
+            [
+                int(item.id),
+                int(item.source_row_no),
+                item.asin or '',
+                item.parent_asin or '',
+                item.product_name or '',
+                item.brand or '',
+                item.seller or '',
+                float(item.price_usd) if item.price_usd is not None else None,
+                int(item.monthly_sales or 0),
+                float(item.monthly_revenue_usd) if item.monthly_revenue_usd is not None else None,
+                float(item.rating) if item.rating is not None else None,
+                int(item.review_count or 0),
+                item.launch_date.isoformat() if item.launch_date else '',
+                int(item.listing_age_days) if item.listing_age_days is not None else None,
+                float(item.fba_fee_usd) if item.fba_fee_usd is not None else None,
+                item.fulfillment_method or '',
+                item.bbx_seller_attribute or '',
+                int(item.variant_count) if item.variant_count is not None else None,
+                bool(item.has_main_image_video) if item.has_main_image_video is not None else None,
+                bool(item.is_climate_pledge_friendly) if item.is_climate_pledge_friendly is not None else None,
+                bool(item.has_brand_store) if item.has_brand_store is not None else None,
+                item.seller_country_region or '',
+                bool(item.is_amazon),
+                bool(item.is_new_90d),
+                _stringify_json(item.extracted_dimensions),
+                _stringify_json(item.manual_dimensions),
+                _stringify_json(_effective_dimensions(item)),
+            ]
+            for item in products
+        ],
+    )
+
+    trends_sheet = workbook.create_sheet('Trends')
+    _append_sheet_rows(
+        trends_sheet,
+        ['trend_row_id', 'asin', 'parent_asin', 'year_month', 'monthly_sales'],
+        [
+            [int(item.id), item.asin, item.parent_asin or '', item.year_month, int(item.monthly_sales or 0)]
+            for item in trends
+        ],
+    )
+
+    for worksheet in workbook.worksheets:
+        for column_cells in worksheet.columns:
+            values = [len(str(cell.value)) for cell in column_cells if cell.value is not None]
+            width = min(max(values, default=8) + 2, 48)
+            worksheet.column_dimensions[column_cells[0].column_letter].width = width
+
+    buffer = BytesIO()
+    workbook.save(buffer)
+    return buffer.getvalue()
+
+
+def _build_export_bundle_zip_bytes(
+    *,
+    settings: Any,
+    dataset: CategoryResearchDataset,
+    overview: dict[str, Any],
+    products: list[CategoryResearchProductDetail],
+    trends: list[CategoryResearchSalesTrend],
+) -> bytes:
+    summary_pdf_bytes = _build_summary_pdf_bytes(
+        dataset=dataset,
+        overview=overview,
+    )
+    workbook_bytes = _build_analysis_workbook_bytes(
+        dataset=dataset,
+        overview=overview,
+        products=products,
+        trends=trends,
+    )
+    product_csv_bytes = _build_product_csv_bytes(products)
+    trend_csv_bytes = _build_trend_csv_bytes(trends)
+
+    buffer = BytesIO()
+    with zipfile.ZipFile(buffer, mode='w', compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr(_export_filename(dataset, 'summary_pdf'), summary_pdf_bytes)
+        archive.writestr(_export_filename(dataset, 'analysis_workbook'), workbook_bytes)
+        archive.writestr(_export_filename(dataset, 'product_details_csv'), product_csv_bytes)
+        archive.writestr(_export_filename(dataset, 'trend_details_csv'), trend_csv_bytes)
+        try:
+            raw_path = _resolve_dataset_raw_file_path(settings, dataset)
+        except FileNotFoundError:
+            raw_path = None
+        if raw_path and raw_path.exists() and raw_path.is_file():
+            archive.write(raw_path, arcname=_export_filename(dataset, 'raw_xlsx', original_filename=dataset.original_filename))
+    return buffer.getvalue()
 
 
 def _next_version(db: Session, *, marketplace: str, category_keyword_en: str) -> int:

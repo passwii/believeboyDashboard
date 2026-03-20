@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+import { cn } from '@/lib/utils'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
 
 type CountryOption = 'US' | 'DE' | 'UK'
@@ -63,6 +64,14 @@ type DailyAnalysisResponse = {
   summary_rows: DailyAnalysisRow[]
   detail_rows: DailyAnalysisDetailRow[]
   available_dates: Record<string, string[]>
+}
+
+type DetailDisplayRow = {
+  row: DailyAnalysisDetailRow
+  rowKey: string
+  showDate: boolean
+  rowSpan: number
+  isTintedGroup: boolean
 }
 
 const API_BASE = '/api/backend'
@@ -422,6 +431,39 @@ export default function DailyAnalysisPage() {
   const summaryRows = data?.summary_rows ?? []
   const detailRows = data?.detail_rows ?? []
   const consoleData = data?.console ?? null
+  const detailDisplayRows = useMemo<DetailDisplayRow[]>(() => {
+    const groupedRows: DetailDisplayRow[] = []
+    let index = 0
+    let groupIndex = 0
+
+    while (index < detailRows.length) {
+      const groupDate = detailRows[index].date
+      let endIndex = index + 1
+
+      while (endIndex < detailRows.length && detailRows[endIndex].date === groupDate) {
+        endIndex += 1
+      }
+
+      const rowSpan = endIndex - index
+      const isTintedGroup = groupIndex % 2 === 0
+
+      for (let currentIndex = index; currentIndex < endIndex; currentIndex += 1) {
+        const row = detailRows[currentIndex]
+        groupedRows.push({
+          row,
+          rowKey: `${row.date}-${row.sku}-${row.asin ?? 'no-asin'}-${currentIndex}`,
+          showDate: currentIndex === index,
+          rowSpan: currentIndex === index ? rowSpan : 0,
+          isTintedGroup,
+        })
+      }
+
+      index = endIndex
+      groupIndex += 1
+    }
+
+    return groupedRows
+  }, [detailRows])
 
   const selectedProjectName = useMemo(
     () => projects.find((p) => String(p.id) === projectId)?.name ?? '',
@@ -610,10 +652,26 @@ export default function DailyAnalysisPage() {
                           ))}
                         </TableRow>
                       ))
-                    ) : detailRows.length ? (
-                      detailRows.map((row) => (
-                        <TableRow key={`${row.date}-${row.sku}`}>
-                          <TableCell className="font-medium">{row.date}</TableCell>
+                    ) : detailDisplayRows.length ? (
+                      detailDisplayRows.map(({ row, rowKey, showDate, rowSpan, isTintedGroup }) => (
+                        <TableRow
+                          key={rowKey}
+                          className={cn(
+                            'transition-colors',
+                            isTintedGroup && 'bg-slate-50/80'
+                          )}
+                        >
+                          {showDate ? (
+                            <TableCell
+                              rowSpan={rowSpan}
+                              className={cn(
+                                'align-middle text-center font-semibold text-slate-900',
+                                isTintedGroup && 'bg-slate-100/90'
+                              )}
+                            >
+                              {row.date}
+                            </TableCell>
+                          ) : null}
                           <TableCell>{row.sku}</TableCell>
                           <TableCell>{row.asin || '--'}</TableCell>
                           <TableCell>{row.order_qty.toLocaleString('zh-CN')}</TableCell>

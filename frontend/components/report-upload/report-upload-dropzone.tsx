@@ -49,21 +49,18 @@ export function ReportUploadDropzone({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle className="text-xl">统一上传区</CardTitle>
           <div className="flex flex-wrap items-center gap-3 sm:justify-end">
-            <div className="flex items-center gap-2 rounded-xl border border-border/60 bg-muted/20 px-2 py-1.5">
-              <span className="text-xs font-medium text-muted-foreground">国家地区</span>
-              <Select value={country} onValueChange={onCountryChange}>
-                <SelectTrigger className="h-9 w-[150px] rounded-lg border-border/70 bg-background">
-                  <SelectValue placeholder="选择站点" />
-                </SelectTrigger>
-                <SelectContent>
-                  {REPORT_UPLOAD_COUNTRY_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <Select value={country} onValueChange={onCountryChange}>
+              <SelectTrigger className="h-10 w-[160px] rounded-xl border-border/70 bg-background">
+                <SelectValue placeholder="选择站点" />
+              </SelectTrigger>
+              <SelectContent>
+                {REPORT_UPLOAD_COUNTRY_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button onClick={onUploadReady} disabled={readyCount === 0 || uploadingAny}>
               {uploadingAny ? '上传中...' : `上传全部 (${readyCount})`}
             </Button>
