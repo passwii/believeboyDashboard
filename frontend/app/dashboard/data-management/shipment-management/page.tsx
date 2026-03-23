@@ -1607,9 +1607,9 @@ export default function ShipmentManagementPage() {
       })
 
       const totalRow = worksheet.getRow(items.length + 5)
-      totalRow.getCell(1).value = '当前页合计'
-      totalRow.getCell(10).value = summary.totalSku
-      totalRow.getCell(11).value = summary.totalQuantity
+      totalRow.getCell(2).value = '当前页合计'
+      totalRow.getCell(11).value = summary.totalSku
+      totalRow.getCell(12).value = summary.totalQuantity
       totalRow.eachCell((cell) => {
         cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
@@ -1620,8 +1620,8 @@ export default function ShipmentManagementPage() {
           right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
         }
       })
-      totalRow.getCell(10).numFmt = '#,##0'
       totalRow.getCell(11).numFmt = '#,##0'
+      totalRow.getCell(12).numFmt = '#,##0'
 
       const buffer = await workbook.xlsx.writeBuffer()
       const blob = new Blob([buffer], {
@@ -1768,7 +1768,7 @@ export default function ShipmentManagementPage() {
       })
 
       const totalRow = worksheet.getRow(items.length + 5)
-      totalRow.getCell(1).value = '当前页合计'
+      totalRow.getCell(2).value = '当前页合计'
       totalRow.getCell(6).value = summary.totalQuantity
       totalRow.getCell(7).value = totalWeight
       totalRow.getCell(8).value = totalVolume
