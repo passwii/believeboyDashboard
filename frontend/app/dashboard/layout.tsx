@@ -138,8 +138,8 @@ export default function DashboardLayout({
             </div>
           </div>
         </header>
-        <main className="dashboard-full-width relative min-w-0 flex-1 overflow-x-clip px-3 pb-6 pt-4 md:px-5 md:pb-8 lg:px-6 xl:px-8">
-          <div className="dashboard-page-shell min-h-[calc(100vh-8.5rem)] px-1 py-1 md:px-2 md:py-2">
+        <main className="dashboard-full-width relative min-w-0 flex-1 overflow-x-clip px-1 pb-6 pt-4 md:px-2 md:pb-8 lg:px-3 xl:px-4">
+          <div className="dashboard-page-shell min-h-[calc(100vh-8.5rem)] px-0 py-1">
             {children}
           </div>
         </main>

@@ -510,7 +510,7 @@ export default function SkuInfoPage() {
               <Badge variant="outline" className="w-fit rounded-md border-sky-500/30 bg-sky-500/10 text-sky-700">数据管理</Badge>
               <div>
                 <h2 className="text-xl font-semibold text-foreground">SKU信息</h2>
-                <p className="text-sm text-muted-foreground">一张主表维护 SKU、ASIN、FNSKU、成本、包装与装箱数据。</p>
+                
               </div>
             </div>
             <Button type="button" onClick={() => void onRefresh()} disabled={loading}>{loading ? '刷新中...' : '刷新数据'}</Button>
@@ -521,7 +521,7 @@ export default function SkuInfoPage() {
           <div className="space-y-3">
             <div className="space-y-1">
               <h3 className="text-base font-semibold text-foreground">筛选条件</h3>
-              <p className="text-sm text-muted-foreground">两个 tab 共用同一套筛选与分页，所有字段都来自同一张 SKU 信息表。</p>
+              
             </div>
             <div className="grid gap-4 md:grid-cols-7">
               {projectsLoading ? (
@@ -605,7 +605,7 @@ export default function SkuInfoPage() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="space-y-1">
                   <CardTitle className="text-base font-semibold">成本管理</CardTitle>
-                  <CardDescription>头程成本展示口径已切换为发货管理里的 SKU 历史加权平均成本；基础资料仍维护 project_name、SKU、FOB、国家等字段。</CardDescription>
+                  
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <ActionsBar

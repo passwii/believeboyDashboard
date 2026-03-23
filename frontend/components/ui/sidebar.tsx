@@ -249,8 +249,10 @@ const Sidebar = React.forwardRef<
               ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
               : "right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
             // Adjust the padding for floating and inset variants.
-            variant === "floating" || variant === "inset"
+            variant === "floating"
               ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)_+_theme(spacing.4)_+2px)]"
+              : variant === "inset"
+                ? "p-0 group-data-[collapsible=icon]:w-[--sidebar-width-icon]"
               : "px-3 py-3 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)_+_theme(spacing.6))]",
             className
           )}
@@ -333,7 +335,7 @@ const SidebarInset = React.forwardRef<
       ref={ref}
       className={cn(
         "relative flex w-full min-w-0 flex-1 flex-col overflow-x-clip bg-background",
-  "md:peer-data-[variant=inset]:mb-2 md:peer-data-[variant=inset]:mr-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[state=collapsed]:peer-data-[variant=inset]:ml-2 md:peer-data-[variant=inset]:rounded-[1.35rem] md:peer-data-[variant=inset]:rounded-t-none",
+        "md:peer-data-[variant=inset]:mb-0 md:peer-data-[variant=inset]:mr-0 md:peer-data-[variant=inset]:ml-0 md:peer-data-[state=collapsed]:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-none",
         className
       )}
       {...props}

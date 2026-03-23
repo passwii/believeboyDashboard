@@ -34,7 +34,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8 md:space-y-10">
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_22rem]">
-        <div className="dashboard-surface animate-enter px-5 py-6 md:px-7 md:py-7">
+        <div className="dashboard-surface animate-enter px-3 py-5 md:px-5 md:py-6">
           <div className="relative z-10 flex flex-wrap items-start justify-between gap-5">
             <div className="max-w-3xl space-y-4">
               <Badge variant="secondary" className="inline-flex h-8 items-center rounded-full bg-secondary/10 px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-secondary">
@@ -62,7 +62,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <aside className="dashboard-surface animate-enter px-5 py-6 md:px-6">
+        <aside className="dashboard-surface animate-enter px-3 py-5 md:px-4">
           <div className="relative z-10 space-y-5">
             <div className="flex items-center justify-between">
               <div>

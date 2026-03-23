@@ -720,9 +720,7 @@ export default function InventoryReplenishmentPage() {
       <section className={islandSectionClassName}>
         <div className={islandHeaderClassName}>
           <div className={islandTitleWrapClassName}>
-            <div className={islandEyebrowClassName}>Console</div>
             <h2 className="break-keep whitespace-nowrap font-serif text-3xl tracking-tight text-slate-900 dark:text-slate-50">控制台</h2>
-            <p className={islandDescriptionClassName}>按项目、SKU、国家站点与风险状态快速缩小补货分析范围。</p>
           </div>
           <div className="flex items-center">
             <Button
@@ -838,11 +836,8 @@ export default function InventoryReplenishmentPage() {
       <section className={islandSectionClassName}>
         <div className={islandHeaderClassName}>
           <div className={islandTitleWrapClassName}>
-            <div className={islandEyebrowClassName}>Table</div>
             <h3 className={islandTitleClassName}>SKU 补货主表</h3>
-            <p className={islandDescriptionClassName}>
-              ASIN 默认为只读；行内仅可修改生产交货时间、运输时间和加权系数。发货信息仅查看，维护入口仍在发货管理。
-            </p>
+            
           </div>
           <Button
             variant="outline"
@@ -1118,7 +1113,7 @@ export default function InventoryReplenishmentPage() {
           <div className="min-w-0 space-y-3">
             <div>
               <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">口径说明</div>
-              <div className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">用于解释风险状态与销量窗口的计算方式。</div>
+              
             </div>
             <div className="grid gap-2">
               <div className="rounded-xl border border-slate-200/80 bg-white/80 px-3 py-2.5 leading-6 dark:border-slate-800 dark:bg-slate-950/80">

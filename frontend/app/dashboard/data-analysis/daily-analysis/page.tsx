@@ -692,16 +692,10 @@ export default function DailyAnalysisPage() {
         <CardHeader className="pb-4">
           <div className="flex flex-col gap-4">
             <div className="space-y-3">
-              <div className="space-y-2">
-                <Badge variant="outline" className="w-fit border-primary/15 bg-primary/5 px-3 py-1 text-[0.68rem] uppercase tracking-[0.24em] text-primary">
-                  Editorial Data Architecture
-                </Badge>
-              </div>
+              
               <div className="space-y-2">
                 <CardTitle className="text-2xl md:text-[2.2rem]">销售数据策展台</CardTitle>
-                <CardDescription className="max-w-3xl text-sm leading-6 text-muted-foreground">
-                  用更清晰的层次组织订单、销售额、流量与广告花费，让运营判断建立在有节奏的数据对比之上。
-                </CardDescription>
+                
               </div>
             </div>
 
@@ -797,7 +791,7 @@ export default function DailyAnalysisPage() {
                 </div>
                 <div>
                   <CardTitle className="text-2xl">趋势与绩效对比</CardTitle>
-                  <CardDescription>以更清晰的层级比较当前周期与上一个周期的变化走势</CardDescription>
+                  
                 </div>
               </div>
             </div>
@@ -1049,7 +1043,7 @@ export default function DailyAnalysisPage() {
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <CardTitle className="text-2xl">销售数据工作区</CardTitle>
-                <CardDescription>在每日汇总与 SKU 明细之间切换，完成导出与下钻查看。</CardDescription>
+                
               </div>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <Button

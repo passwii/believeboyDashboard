@@ -2100,7 +2100,7 @@ export default function ShipmentManagementPage() {
         <CardHeader className="gap-4 pb-5">
           <div className="flex flex-col gap-4">
             <div className="space-y-2">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primary">Shipment Console</div>
+              
               <CardTitle className="text-2xl tracking-tight">控制台</CardTitle>
             </div>
           </div>
@@ -2222,7 +2222,7 @@ export default function ShipmentManagementPage() {
               <CardHeader className="border-b border-border/70">
                 <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div>
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Overview</div>
+                    
                     <CardTitle>船期批次总览</CardTitle>
                     <CardDescription>
                       共 {total} 条记录，当前第 {page} / {pageCount} 页

@@ -341,7 +341,7 @@ export function DataTable() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <div className="overflow-x-auto rounded-[1.15rem] bg-[hsl(var(--surface-low))] p-2">
+      <div className="overflow-x-auto rounded-[1.15rem] bg-[hsl(var(--surface-low))] py-2 px-0.5">
         <Table className="rounded-[0.95rem] bg-white">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -370,7 +370,7 @@ export function DataTable() {
                   className="rounded-lg transition-colors hover:bg-[hsl(var(--surface-low))]"
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className="py-4">
+                    <TableCell key={cell.id} className="py-3 px-2">
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext()

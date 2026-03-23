@@ -387,7 +387,7 @@ export default function InventoryAnalysisPage() {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle>库存分析</CardTitle>
-          <CardDescription>筛选项目与国家站点，查看库存结构与操作建议</CardDescription>
+          
         </CardHeader>
         <CardContent className="grid gap-4 lg:grid-cols-2">
           <div className="grid gap-3 sm:grid-cols-2">
@@ -426,8 +426,8 @@ export default function InventoryAnalysisPage() {
               </Select>
             </div>
             <Card className="border-dashed bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 sm:col-span-2">
-              <CardContent className="flex items-center justify-between p-4">
-                <div>
+              <CardContent className="flex h-[88px] items-center justify-between py-6">
+                <div className="flex h-full flex-col justify-center">
                   <div className="flex items-center gap-2 text-sm font-medium text-blue-700 dark:text-blue-300">
                     <Clock4 className="h-4 w-4" />
                     当前快照时间
@@ -444,8 +444,8 @@ export default function InventoryAnalysisPage() {
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <Card className="border-dashed">
-              <CardContent className="flex items-center justify-between p-3">
-                <div>
+              <CardContent className="flex h-[88px] items-center justify-between py-6">
+                <div className="flex h-full flex-col justify-center">
                   <div className="text-xs text-muted-foreground">SKU 总数</div>
                   <div className="mt-1 text-lg font-semibold">{formatInt(summary.sku_count)}</div>
                 </div>
@@ -453,8 +453,8 @@ export default function InventoryAnalysisPage() {
               </CardContent>
             </Card>
             <Card className="border-dashed">
-              <CardContent className="flex items-center justify-between p-3">
-                <div>
+              <CardContent className="flex h-[88px] items-center justify-between py-6">
+                <div className="flex h-full flex-col justify-center">
                   <div className="text-xs text-muted-foreground">可售库存总量</div>
                   <div className="mt-1 text-lg font-semibold">{formatInt(summary.total_available_qty)}</div>
                 </div>
@@ -462,8 +462,8 @@ export default function InventoryAnalysisPage() {
               </CardContent>
             </Card>
             <Card className="border-dashed">
-              <CardContent className="flex items-center justify-between p-3">
-                <div>
+              <CardContent className="flex h-[88px] items-center justify-between py-6">
+                <div className="flex h-full flex-col justify-center">
                   <div className="text-xs text-muted-foreground">缺货 SKU</div>
                   <div className="mt-1 text-lg font-semibold text-rose-600">{formatInt(summary.out_of_stock_count)}</div>
                 </div>
@@ -471,8 +471,8 @@ export default function InventoryAnalysisPage() {
               </CardContent>
             </Card>
             <Card className="border-dashed">
-              <CardContent className="flex items-center justify-between p-3">
-                <div>
+              <CardContent className="flex h-[88px] items-center justify-between py-6">
+                <div className="flex h-full flex-col justify-center">
                   <div className="text-xs text-muted-foreground">365+ 库龄库存</div>
                   <div className="mt-1 text-lg font-semibold text-amber-600">{formatInt(summary.total_age_365_plus_qty)}</div>
                 </div>
@@ -487,7 +487,6 @@ export default function InventoryAnalysisPage() {
         <CardHeader className="flex flex-row items-start justify-between gap-3 pb-3">
           <div>
             <CardTitle>库存明细表</CardTitle>
-            <CardDescription>展示当前项目站点库存分段与建议操作（英文状态已映射为中文）</CardDescription>
           </div>
           <Button
             type="button"
