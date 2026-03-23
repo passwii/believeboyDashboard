@@ -312,11 +312,11 @@ export function DataTable() {
           onChange={(event) =>
             table.getColumn('header')?.setFilterValue(event.target.value)
           }
-          className="h-11 max-w-sm rounded-2xl border-0 bg-[hsl(var(--surface-low))] text-sm shadow-none min-w-touch"
+          className="h-11 max-w-sm rounded-lg border-0 bg-[hsl(var(--surface-low))] text-sm shadow-none min-w-touch"
         />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="h-11 min-w-touch rounded-2xl border-0 bg-[hsl(var(--surface-low))] shadow-none">
+            <Button variant="outline" className="h-11 min-w-touch rounded-lg border-0 bg-[hsl(var(--surface-low))] shadow-none">
               视图列 <ChevronDown className="ml-2 h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -341,8 +341,8 @@ export function DataTable() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <div className="overflow-x-auto rounded-[1.6rem] bg-[hsl(var(--surface-low))] p-2">
-        <Table className="rounded-[1.2rem] bg-white">
+      <div className="overflow-x-auto rounded-[1.15rem] bg-[hsl(var(--surface-low))] p-2">
+        <Table className="rounded-[0.95rem] bg-white">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
@@ -367,7 +367,7 @@ export function DataTable() {
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && 'selected'}
-                  className="rounded-2xl transition-colors hover:bg-[hsl(var(--surface-low))]"
+                  className="rounded-lg transition-colors hover:bg-[hsl(var(--surface-low))]"
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id} className="py-4">

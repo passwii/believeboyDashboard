@@ -51,10 +51,14 @@ export function NavMain({ items }: NavMainProps) {
       <SidebarGroupLabel>工作面板</SidebarGroupLabel>
       <SidebarMenu>
         {items.map((item) => (
+          (() => {
+            const hasActiveChild = item.items?.some((subItem) => pathname === subItem.url) ?? false
+
+            return (
           <Collapsible
             key={item.title}
             asChild
-            defaultOpen={item.isActive}
+            defaultOpen={item.isActive || hasActiveChild}
             className="group/collapsible"
           >
             <SidebarMenuItem>
@@ -63,6 +67,7 @@ export function NavMain({ items }: NavMainProps) {
                   <CollapsibleTrigger asChild>
                     <SidebarMenuButton 
                       tooltip={item.title}
+                      isActive={hasActiveChild}
                       onClick={handleTriggerClick}
                     >
                       {item.icon}
@@ -101,6 +106,8 @@ export function NavMain({ items }: NavMainProps) {
               )}
             </SidebarMenuItem>
           </Collapsible>
+            )
+          })()
         ))}
       </SidebarMenu>
     </SidebarGroup>

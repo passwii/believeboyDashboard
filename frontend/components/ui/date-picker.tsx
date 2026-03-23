@@ -213,7 +213,7 @@ export function DatePicker(props: DatePickerProps) {
       </PopoverTrigger>
       <PopoverContent
         className={cn(
-          "rounded-2xl border border-border/70 bg-background/95 p-4 shadow-xl backdrop-blur-sm",
+          "rounded-xl border border-border/70 bg-background/95 p-4 shadow-xl backdrop-blur-sm",
           mode === "range" ? "w-[380px]" : "w-[320px]",
         )}
         align="start"
@@ -221,7 +221,7 @@ export function DatePicker(props: DatePickerProps) {
         <div className="space-y-3">
           <div className={cn("grid gap-3", mode === "month" ? "grid-cols-1" : "grid-cols-2")}>
             <Select value={year.toString()} onValueChange={(nextValue) => setYear(Number(nextValue))}>
-              <SelectTrigger className="h-10 w-full rounded-xl border-border/70 bg-muted/20">
+              <SelectTrigger className="h-10 w-full rounded-lg border-border/70 bg-muted/20">
                 <SelectValue placeholder="Year" />
               </SelectTrigger>
               <SelectContent>
@@ -235,7 +235,7 @@ export function DatePicker(props: DatePickerProps) {
 
             {mode !== "month" ? (
               <Select value={month.toString()} onValueChange={(nextValue) => setMonth(Number(nextValue))}>
-                <SelectTrigger className="h-10 w-full rounded-xl border-border/70 bg-muted/20">
+                <SelectTrigger className="h-10 w-full rounded-lg border-border/70 bg-muted/20">
                   <SelectValue placeholder="Month" />
                 </SelectTrigger>
                 <SelectContent>
@@ -250,7 +250,7 @@ export function DatePicker(props: DatePickerProps) {
           </div>
 
           {mode === "month" ? (
-            <div className="grid grid-cols-3 gap-2 rounded-2xl border border-border/70 bg-muted/10 p-3">
+            <div className="grid grid-cols-3 gap-2 rounded-xl border border-border/70 bg-muted/10 p-3">
               {Array.from({ length: 12 }, (_, index) => {
                 const candidate = new Date(year, index, 1)
                 const isSelected =
@@ -267,7 +267,7 @@ export function DatePicker(props: DatePickerProps) {
                     type="button"
                     variant={isSelected ? "default" : "outline"}
                     className={cn(
-                      "h-11 rounded-xl border-border/70 px-0",
+                      "h-11 rounded-lg border-border/70 px-0",
                       !isSelected && "bg-background/80 hover:bg-accent",
                     )}
                     disabled={Boolean(isDisabled)}
@@ -293,7 +293,7 @@ export function DatePicker(props: DatePickerProps) {
               onSelect={handleRangeSelect}
               fromDate={fromDate}
               toDate={toDate}
-              className="w-full min-w-0 rounded-2xl border border-border/70 bg-muted/10 p-3"
+              className="w-full min-w-0 rounded-xl border border-border/70 bg-muted/10 p-3"
               classNames={calendarClassNames}
             />
           ) : (
@@ -308,7 +308,7 @@ export function DatePicker(props: DatePickerProps) {
               onSelect={handleSingleSelect}
               fromDate={fromDate}
               toDate={toDate}
-              className="w-full min-w-0 rounded-2xl border border-border/70 bg-muted/10 p-3"
+              className="w-full min-w-0 rounded-xl border border-border/70 bg-muted/10 p-3"
               classNames={calendarClassNames}
             />
           )}

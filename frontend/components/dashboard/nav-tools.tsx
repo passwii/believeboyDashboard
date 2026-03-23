@@ -49,16 +49,21 @@ export function NavTools({ tools }: NavToolsProps) {
       <SidebarGroupLabel>运营工具</SidebarGroupLabel>
       <SidebarMenu>
         {tools.map((tool) => (
+          (() => {
+            const hasActiveChild = tool.items.some((subItem) => pathname === subItem.url)
+
+            return (
           <Collapsible
             key={tool.title}
             asChild
-            defaultOpen={tool.items.some((subItem) => subItem.url === pathname)}
+            defaultOpen={hasActiveChild}
             className="group/collapsible"
           >
             <SidebarMenuItem>
               <CollapsibleTrigger asChild>
                 <SidebarMenuButton 
                   tooltip={tool.title}
+                  isActive={hasActiveChild}
                   onClick={handleTriggerClick}
                 >
                   {tool.icon}
@@ -84,6 +89,8 @@ export function NavTools({ tools }: NavToolsProps) {
               </CollapsibleContent>
             </SidebarMenuItem>
           </Collapsible>
+            )
+          })()
         ))}
       </SidebarMenu>
     </SidebarGroup>

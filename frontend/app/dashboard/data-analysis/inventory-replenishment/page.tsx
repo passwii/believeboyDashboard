@@ -6,7 +6,7 @@ import { useSession } from 'next-auth/react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
@@ -168,6 +168,28 @@ const stickySkuHeadClassName =
 
 const stickySkuCellClassName =
   'sticky left-0 z-[1] bg-[linear-gradient(90deg,rgba(255,255,255,0.99),rgba(255,255,255,0.95))] shadow-[inset_-1px_0_0_0_rgba(148,163,184,0.16)] group-hover:bg-sky-50/90 dark:bg-[linear-gradient(90deg,rgba(2,6,23,0.99),rgba(2,6,23,0.95))] dark:shadow-[inset_-1px_0_0_0_rgba(51,65,85,0.65)] dark:group-hover:bg-sky-950/40'
+
+const islandSectionClassName =
+  'space-y-4 rounded-[24px] border border-slate-200/80 bg-white/88 p-5 shadow-[0_18px_50px_-38px_rgba(15,23,42,0.32)] backdrop-blur-sm dark:border-slate-800/80 dark:bg-slate-950/78 dark:shadow-[0_20px_60px_-42px_rgba(0,0,0,0.72)]'
+
+const islandHeaderClassName =
+  'flex flex-col gap-3 border-b border-slate-200/80 pb-4 sm:flex-row sm:items-start sm:justify-between dark:border-slate-800'
+
+const islandTitleWrapClassName = 'space-y-1'
+
+const islandEyebrowClassName = 'text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500'
+
+const islandTitleClassName = 'text-lg font-semibold text-slate-900 dark:text-slate-50'
+
+const islandDescriptionClassName = 'text-sm text-slate-500 dark:text-slate-400'
+
+const toolbarButtonClassName =
+  'h-9 rounded-xl border-slate-200 bg-white/85 px-4 text-xs dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-100'
+
+const filterFieldClassName = 'w-full min-w-0'
+
+const statCardClassName =
+  'flex min-h-[112px] flex-col justify-center rounded-2xl border border-slate-200/70 p-4 dark:border-slate-800'
 
 function riskMeta(riskStatus: string): { label: string; className: string } {
   const map: Record<string, { label: string; className: string }> = {
@@ -694,159 +716,146 @@ export default function InventoryReplenishmentPage() {
   ]
 
   return (
-    <div className="space-y-6 bg-[radial-gradient(circle_at_top,rgba(245,158,11,0.08),transparent_28%),linear-gradient(180deg,#fbfdff_0%,#f8fafc_50%,#ffffff_100%)] p-1 dark:bg-[radial-gradient(circle_at_top,rgba(245,158,11,0.1),transparent_26%),linear-gradient(180deg,#020617_0%,#07111f_48%,#020617_100%)]">
-      <section className="relative overflow-hidden rounded-[28px] border border-slate-200/80 bg-[radial-gradient(circle_at_top_left,_rgba(245,158,11,0.12),_transparent_25%),radial-gradient(circle_at_top_right,_rgba(14,165,233,0.12),_transparent_30%),linear-gradient(135deg,_rgba(248,250,252,0.98),_rgba(255,255,255,0.96))] p-6 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.35)] dark:border-slate-800/80 dark:bg-[radial-gradient(circle_at_top_left,_rgba(245,158,11,0.14),_transparent_24%),radial-gradient(circle_at_top_right,_rgba(14,165,233,0.14),_transparent_28%),linear-gradient(135deg,_rgba(15,23,42,0.96),_rgba(7,18,32,0.94))] dark:shadow-[0_28px_90px_-50px_rgba(0,0,0,0.76)]">
-        <div className="absolute inset-y-0 right-0 w-1/3 bg-[linear-gradient(135deg,transparent,rgba(15,23,42,0.04))] dark:bg-[linear-gradient(135deg,transparent,rgba(148,163,184,0.05))]" />
-        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-          {/* 左侧：标题和4个筛选区域 */}
-          <div className="flex-1">
-            <div className="mb-4">
-              <h2 className="break-keep whitespace-nowrap font-serif text-3xl tracking-tight text-slate-900 dark:text-slate-50">
-                控制台
-              </h2>
-            </div>
-            <div className="flex flex-wrap items-end gap-2 lg:max-w-[720px]">
-              <div className="w-full min-w-0 sm:w-[160px]">
-                <div className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">项目名称</div>
-                {projectsLoading ? (
-                  <Skeleton className="h-10 w-full rounded-xl" />
-                ) : (
-                  <Select value={projectId} onValueChange={setProjectId}>
-                    <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white/85 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-100">
-                      <SelectValue placeholder="选择项目" />
-                    </SelectTrigger>
-                    <SelectContent align="start" side="bottom" sideOffset={8} collisionPadding={16}>
-                      {projects.map((project) => (
-                        <SelectItem key={project.id} value={String(project.id)}>
-                          {project.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-              <div className="w-full min-w-0 sm:w-[160px]">
-                <div className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">SKU / ASIN</div>
-                <Input
-                  value={keyword}
-                  onChange={(event) => setKeyword(event.target.value)}
-                  placeholder="搜索 SKU 或 ASIN"
-                  className="h-10 rounded-xl border-slate-200 bg-white/85 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-100"
-                />
-              </div>
-              <div className="w-full min-w-0 sm:w-[140px]">
-                <div className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">国家站点</div>
-                <Select value={country} onValueChange={setCountry}>
-                  <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white/85 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-100">
-                    <SelectValue placeholder="选择国家站点" />
+    <div className="w-full space-y-6">
+      <section className={islandSectionClassName}>
+        <div className={islandHeaderClassName}>
+          <div className={islandTitleWrapClassName}>
+            <div className={islandEyebrowClassName}>Console</div>
+            <h2 className="break-keep whitespace-nowrap font-serif text-3xl tracking-tight text-slate-900 dark:text-slate-50">控制台</h2>
+            <p className={islandDescriptionClassName}>按项目、SKU、国家站点与风险状态快速缩小补货分析范围。</p>
+          </div>
+          <div className="flex items-center">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={toolbarButtonClassName}
+              disabled={!currentProjectId || loading || refreshingAll}
+              onClick={() => void refreshWithSave()}
+            >
+              <RefreshCw className={`mr-1.5 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              {loading || refreshingAll ? '重算中...' : '刷新重算'}
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2">
+            <div className={filterFieldClassName}>
+              {projectsLoading ? (
+                <Skeleton className="h-9 w-full rounded-lg" />
+              ) : (
+                <Select value={projectId} onValueChange={setProjectId}>
+                  <SelectTrigger className="h-9 rounded-lg border-slate-200 bg-white/85 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-100">
+                    <SelectValue placeholder="选择项目" />
                   </SelectTrigger>
                   <SelectContent align="start" side="bottom" sideOffset={8} collisionPadding={16}>
-                    {COUNTRY_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
+                    {projects.map((project) => (
+                      <SelectItem key={project.id} value={String(project.id)}>
+                        {project.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="w-full min-w-0 sm:w-[140px]">
-                <div className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">风险状态</div>
-                <Select value={riskFilter} onValueChange={setRiskFilter}>
-                  <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white/85 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-100">
-                    <SelectValue placeholder="全部状态" />
-                  </SelectTrigger>
-                    <SelectContent align="start" side="bottom" sideOffset={8} collisionPadding={16}>
-                      <SelectItem value="all">全部状态</SelectItem>
-                      <SelectItem value="长期断货">长期断货</SelectItem>
-                      <SelectItem value="短期断货">短期断货</SelectItem>
-                      <SelectItem value="断货风险">断货风险</SelectItem>
-                      <SelectItem value="健康库存">健康库存</SelectItem>
-                      <SelectItem value="滞销">滞销</SelectItem>
-                      <SelectItem value="严重滞销">严重滞销</SelectItem>
-                      <SelectItem value="待补数据">待补数据</SelectItem>
-                    </SelectContent>
-                  </Select>
-              </div>
+              )}
+            </div>
+            <div className={filterFieldClassName}>
+              <Input
+                value={keyword}
+                onChange={(event) => setKeyword(event.target.value)}
+                placeholder="搜索 SKU / ASIN"
+                className="h-9 rounded-lg border-slate-200 bg-white/85 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-100"
+              />
+            </div>
+            <div className={filterFieldClassName}>
+              <Select value={country} onValueChange={setCountry}>
+                <SelectTrigger className="h-9 rounded-lg border-slate-200 bg-white/85 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-100">
+                  <SelectValue placeholder="国家站点" />
+                </SelectTrigger>
+                <SelectContent align="start" side="bottom" sideOffset={8} collisionPadding={16}>
+                  {COUNTRY_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className={filterFieldClassName}>
+              <Select value={riskFilter} onValueChange={setRiskFilter}>
+                <SelectTrigger className="h-9 rounded-lg border-slate-200 bg-white/85 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-100">
+                  <SelectValue placeholder="风险状态" />
+                </SelectTrigger>
+                <SelectContent align="start" side="bottom" sideOffset={8} collisionPadding={16}>
+                  <SelectItem value="all">全部状态</SelectItem>
+                  <SelectItem value="长期断货">长期断货</SelectItem>
+                  <SelectItem value="短期断货">短期断货</SelectItem>
+                  <SelectItem value="断货风险">断货风险</SelectItem>
+                  <SelectItem value="健康库存">健康库存</SelectItem>
+                  <SelectItem value="滞销">滞销</SelectItem>
+                  <SelectItem value="严重滞销">严重滞销</SelectItem>
+                  <SelectItem value="待补数据">待补数据</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
-
-          {/* 右侧：标签卡片 */}
-          <div className="flex items-center">
-            <div className="grid grid-cols-2 gap-3 lg:w-[600px] lg:grid-cols-5">
+          <div className="grid grid-cols-5 gap-2">
             {loading && rows.length === 0 ? (
               <>
-                <Skeleton className="h-[100px] w-full rounded-2xl" />
-                <Skeleton className="h-[100px] w-full rounded-2xl" />
-                <Skeleton className="h-[100px] w-full rounded-2xl" />
-                <Skeleton className="h-[100px] w-full rounded-2xl" />
-                <Skeleton className="h-[100px] w-full rounded-2xl" />
+                <Skeleton className="h-16 w-full rounded-xl" />
+                <Skeleton className="h-16 w-full rounded-xl" />
+                <Skeleton className="h-16 w-full rounded-xl" />
+                <Skeleton className="h-16 w-full rounded-xl" />
+                <Skeleton className="h-16 w-full rounded-xl" />
               </>
             ) : (
               <>
                 {cards.map((card) => (
                   <div
                     key={card.title}
-                    className={`flex flex-col items-center justify-center rounded-2xl border border-slate-200/70 bg-gradient-to-br p-4 dark:border-slate-800 ${card.className}`}
+                    className={`flex min-h-[64px] flex-col justify-center rounded-xl border border-slate-200/70 p-2.5 bg-gradient-to-br ${card.className}`}
                   >
-                    <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                    <div className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
                       {card.icon}
-                      <span className="text-xs font-medium">{card.title}</span>
+                      <span className="text-[11px] font-medium">{card.title}</span>
                     </div>
-                    <div className="mt-1 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
-                      {card.value}
-                    </div>
-                    <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-                      {card.description}
-                    </div>
+                    <div className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-50">{card.value}</div>
                   </div>
                 ))}
-                <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-200/70 bg-gradient-to-br from-violet-100 via-white to-sky-50 p-4 dark:border-slate-800 dark:from-slate-900 dark:via-slate-950 dark:to-sky-950/40">
-                  <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
-                    <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-                    <span className="text-xs font-medium">刷新重算</span>
+                <div className={`flex min-h-[64px] flex-col justify-center rounded-xl border border-slate-200/70 p-2.5 bg-gradient-to-br from-violet-100 via-white to-sky-50 dark:from-slate-900 dark:via-slate-950 dark:to-sky-950/40`}>
+                  <div className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
+                    <CalendarClock className="h-4 w-4" />
+                    <span className="text-[11px] font-medium">分析状态</span>
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="mt-3 h-8 rounded-xl border-slate-200 bg-white/85 px-3 text-xs dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-100"
-                    disabled={!currentProjectId || loading || refreshingAll}
-                    onClick={() => void refreshWithSave()}
-                  >
-                    {loading || refreshingAll ? '重算中...' : '立即刷新'}
-                  </Button>
-                  <div className="mt-2 text-center text-[11px] text-slate-500 dark:text-slate-400">
-                    重新拉取当前筛选结果
-                  </div>
+                  <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">{loading ? '刷新中' : '已就绪'}</div>
                 </div>
               </>
             )}
-            </div>
           </div>
         </div>
-        </section>
+      </section>
 
-      <Card className="overflow-visible border-slate-200/80 dark:border-slate-800 dark:bg-slate-950/80">
-        <CardHeader className="border-b border-slate-100 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-900/70">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <CardTitle className="text-slate-900 dark:text-slate-50">SKU 补货主表</CardTitle>
-              <CardDescription className="dark:text-slate-400">
-                ASIN 默认为只读；行内仅可修改生产交货时间、运输时间和加权系数。发货信息仅查看，维护入口仍在发货管理。
-              </CardDescription>
-            </div>
-            <Button
-              variant="outline"
-              className="h-8 gap-1.5 text-xs dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-              disabled={loading || exporting || rows.length === 0}
-              onClick={() => void exportToExcel()}
-            >
-              <FileDown className="h-3.5 w-3.5" />
-              {exporting ? '导出中...' : '导出 Excel'}
-            </Button>
+      <section className={islandSectionClassName}>
+        <div className={islandHeaderClassName}>
+          <div className={islandTitleWrapClassName}>
+            <div className={islandEyebrowClassName}>Table</div>
+            <h3 className={islandTitleClassName}>SKU 补货主表</h3>
+            <p className={islandDescriptionClassName}>
+              ASIN 默认为只读；行内仅可修改生产交货时间、运输时间和加权系数。发货信息仅查看，维护入口仍在发货管理。
+            </p>
           </div>
-        </CardHeader>
-        <CardContent className="p-0">
+          <Button
+            variant="outline"
+            className={toolbarButtonClassName}
+            disabled={loading || exporting || rows.length === 0}
+            onClick={() => void exportToExcel()}
+          >
+            <FileDown className="h-3.5 w-3.5" />
+            {exporting ? '导出中...' : '导出 Excel'}
+          </Button>
+        </div>
+
+        <div className="p-0">
           {error ? (
             <div className="border-b border-rose-100 bg-rose-50 px-6 py-3 text-sm text-rose-700 dark:border-rose-900/70 dark:bg-rose-950/40 dark:text-rose-200">{error}</div>
           ) : null}
@@ -868,7 +877,7 @@ export default function InventoryReplenishmentPage() {
                 </div>
               ) : null}
               <Table
-                containerClassName="max-h-[72vh] overflow-auto rounded-b-2xl border-t border-slate-200/70 bg-white/70 backdrop-blur-sm dark:border-slate-800/70 dark:bg-slate-950/70"
+                containerClassName="max-h-[72vh] overflow-auto border-t border-slate-200/70 bg-transparent dark:border-slate-800/70"
                 className="min-w-[2050px] table-auto border-separate border-spacing-0 bg-transparent text-[13px]"
               >
                 <TableHeader>
@@ -925,11 +934,11 @@ export default function InventoryReplenishmentPage() {
                           <div className="flex items-center gap-2">
                             <Input
                               value={edit.safety_factor}
-                            onChange={(event) =>
-                              setEdits((prev) => ({ ...prev, [key]: { ...edit, safety_factor: event.target.value } }))
-                            }
-                            className="h-8 w-[72px] bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                          />
+                              onChange={(event) =>
+                                setEdits((prev) => ({ ...prev, [key]: { ...edit, safety_factor: event.target.value } }))
+                              }
+                              className="h-8 w-[72px] bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                            />
                             <span className="text-xs text-slate-500 dark:text-slate-400">%</span>
                           </div>
                         </TableCell>
@@ -974,24 +983,24 @@ export default function InventoryReplenishmentPage() {
                         <TableCell className={tableCellClassName}>
                           <div className="flex flex-col gap-1.5">
                             <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              className="h-8 gap-1.5 whitespace-nowrap px-2.5 text-xs dark:bg-slate-100 dark:text-slate-950"
-                              onClick={() => void saveRow(row)}
-                              disabled={savingSku === key}
-                            >
-                              {savingSku === key ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-1.5 h-3.5 w-3.5" />}
-                              保存
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-8 gap-1.5 whitespace-nowrap px-2.5 text-xs dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                              onClick={() => void openShipments(row)}
-                            >
-                              <Send className="h-3.5 w-3.5" />
-                              查看发货
-                            </Button>
+                              <Button
+                                size="sm"
+                                className="h-8 gap-1.5 whitespace-nowrap px-2.5 text-xs dark:bg-slate-100 dark:text-slate-950"
+                                onClick={() => void saveRow(row)}
+                                disabled={savingSku === key}
+                              >
+                                {savingSku === key ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-1.5 h-3.5 w-3.5" />}
+                                保存
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 gap-1.5 whitespace-nowrap px-2.5 text-xs dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                                onClick={() => void openShipments(row)}
+                              >
+                                <Send className="h-3.5 w-3.5" />
+                                查看发货
+                              </Button>
                             </div>
                           </div>
                         </TableCell>
@@ -1002,8 +1011,8 @@ export default function InventoryReplenishmentPage() {
               </Table>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent side="right" className="w-full overflow-y-auto dark:border-slate-800 dark:bg-slate-950 sm:max-w-2xl">

@@ -4,7 +4,7 @@
 
 @layer base {
   :root {
-    --background: 210 33% 98%;
+    --background: 210 24% 97%;
     --foreground: 210 12% 11%;
     --card: 0 0% 100%;
     --card-foreground: 210 12% 11%;
@@ -23,13 +23,13 @@
     --border: 220 25% 83%;
     --input: 220 25% 83%;
     --ring: 216 100% 40%;
-    --radius: 1.15rem;
+    --radius: 0.95rem;
     --chart-1: 213 100% 38%;
     --chart-2: 176 100% 21%;
     --chart-3: 38 96% 36%;
     --chart-4: 215 58% 75%;
     --chart-5: 0 75% 42%;
-    --sidebar-background: 210 28% 96%;
+    --sidebar-background: 210 18% 94%;
     --sidebar-foreground: 214 20% 18%;
     --sidebar-primary: 213 100% 38%;
     --sidebar-primary-foreground: 210 40% 98%;
@@ -38,9 +38,9 @@
     --sidebar-border: 215 26% 88%;
     --sidebar-ring: 213 100% 38%;
     --surface-strong: 0 0% 100%;
-    --surface-soft: 210 20% 95%;
-    --surface-low: 210 26% 96%;
-    --surface-high: 210 18% 90%;
+    --surface-soft: 210 18% 95%;
+    --surface-low: 210 16% 96%;
+    --surface-high: 210 14% 91%;
     --success: 176 100% 21%;
     --surface-outline: 220 18% 78%;
   }
@@ -101,10 +101,9 @@
     font-family: var(--font-sans), sans-serif;
     @apply bg-background text-foreground text-base leading-relaxed;
     background-image:
-      radial-gradient(circle at top left, hsl(var(--primary) / 0.14), transparent 28%),
-      radial-gradient(circle at 85% 18%, hsl(var(--chart-2) / 0.08), transparent 22%),
-      radial-gradient(circle at bottom right, hsl(var(--chart-3) / 0.08), transparent 26%),
-      linear-gradient(180deg, hsl(var(--background)) 0%, hsl(var(--surface-soft)) 48%, hsl(var(--background)) 100%);
+      radial-gradient(circle at top left, hsl(var(--primary) / 0.08), transparent 26%),
+      radial-gradient(circle at 85% 18%, hsl(var(--chart-2) / 0.05), transparent 20%),
+      linear-gradient(180deg, hsl(var(--background)) 0%, hsl(var(--surface-soft)) 52%, hsl(var(--background)) 100%);
     background-attachment: fixed;
     -webkit-overflow-scrolling: touch;
   }
@@ -297,7 +296,7 @@
   }
 
   .dashboard-surface {
-    @apply relative overflow-hidden rounded-[1.6rem] bg-card text-card-foreground;
+    @apply relative overflow-hidden rounded-[1.2rem] bg-card text-card-foreground;
     box-shadow: 0 8px 32px rgba(25, 28, 30, 0.04);
   }
 
@@ -317,7 +316,7 @@
   }
 
   .dashboard-panel {
-    @apply rounded-[2rem] bg-[hsl(var(--surface-low))] p-3 md:p-4;
+    @apply rounded-[1.4rem] bg-[hsl(var(--surface-low))] p-3 md:p-4;
   }
 
   .dashboard-glass {

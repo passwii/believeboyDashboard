@@ -83,7 +83,7 @@ export function VisitorsChart() {
         </div>
         <Select value={timeRange} onValueChange={setTimeRange}>
           <SelectTrigger
-            className="h-10 w-full min-w-touch rounded-2xl border-0 bg-[hsl(var(--surface-low))] text-sm shadow-none sm:w-[170px]"
+            className="h-10 w-full min-w-touch rounded-lg border-0 bg-[hsl(var(--surface-low))] text-sm shadow-none sm:w-[170px]"
             aria-label="Select a time range"
           >
             <SelectValue placeholder="Last 30 days" />
@@ -117,7 +117,7 @@ export function VisitorsChart() {
         </div>
         <ChartContainer
           config={chartConfig}
-          className="aspect-auto h-[260px] w-full rounded-[1.4rem] bg-[hsl(var(--surface-low))] px-2 py-4 sm:h-[320px] sm:px-4"
+          className="aspect-auto h-[260px] w-full rounded-[1rem] bg-[hsl(var(--surface-low))] px-2 py-4 sm:h-[320px] sm:px-4"
         >
           <AreaChart accessibilityLayer data={filteredData}>
             <defs>

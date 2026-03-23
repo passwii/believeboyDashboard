@@ -41,15 +41,19 @@ export function NavAdmin({ adminTools }: NavAdminProps) {
       <SidebarGroupLabel>管理员</SidebarGroupLabel>
       <SidebarMenu>
         {adminTools.map((tool) => (
+          (() => {
+            const hasActiveChild = tool.items.some((subItem) => subItem.url === pathname)
+
+            return (
           <Collapsible
             key={tool.title}
             asChild
-            defaultOpen={tool.items.some((subItem) => subItem.url === pathname)}
+            defaultOpen={hasActiveChild}
             className="group/collapsible"
           >
             <SidebarMenuItem>
               <CollapsibleTrigger asChild>
-                <SidebarMenuButton tooltip={tool.title}>
+                <SidebarMenuButton tooltip={tool.title} isActive={hasActiveChild}>
                   {tool.icon}
                   <span>{tool.title}</span>
                   <ChevronRight className="ml-auto transition-transform duration-300 ease-out group-data-[state=open]/collapsible:rotate-90" />
@@ -73,6 +77,8 @@ export function NavAdmin({ adminTools }: NavAdminProps) {
               </CollapsibleContent>
             </SidebarMenuItem>
           </Collapsible>
+            )
+          })()
         ))}
       </SidebarMenu>
     </SidebarGroup>

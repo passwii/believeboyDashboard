@@ -129,7 +129,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        <div className="flex items-center gap-3 overflow-hidden rounded-[1.6rem] bg-white/70 px-4 py-4 shadow-[0_8px_32px_rgba(25,28,30,0.04)] group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:px-2">
+        <div className="flex items-center gap-3 overflow-hidden rounded-[1.6rem] border border-sidebar-border/70 bg-white/68 px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)] group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:border-transparent group-data-[collapsible=icon]:px-2">
           <div className="flex aspect-square size-11 shrink-0 items-center justify-center rounded-[1.35rem] bg-[linear-gradient(135deg,hsl(var(--primary)),hsl(213_100%_47%))] text-sidebar-primary-foreground shadow-[0_18px_34px_-18px_hsl(var(--sidebar-primary)/0.8)]">
             <Command className="size-[18px]" />
           </div>

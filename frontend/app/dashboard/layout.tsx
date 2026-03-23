@@ -68,8 +68,8 @@ export default function DashboardLayout({
   return (
     <SidebarProvider>
       <AppSidebar variant="inset" />
-      <SidebarInset className="min-w-0 overflow-x-clip bg-transparent">
-        <header className="sticky top-0 z-20 border-b border-border/45 bg-white/88 backdrop-blur-md">
+      <SidebarInset className="min-w-0 overflow-x-clip bg-[hsl(var(--surface-low))]">
+        <header className="sticky top-0 z-20 bg-white shadow-[0_1px_0_rgba(148,163,184,0.14),0_10px_22px_-22px_rgba(15,23,42,0.26)]">
           <div className="flex min-h-[4.5rem] items-center gap-4 px-3 md:px-5 lg:px-6 xl:px-8">
             <SidebarTrigger className="h-10 w-10 rounded-2xl bg-transparent text-secondary shadow-none hover:bg-[hsl(var(--surface-low))]" />
             <div className="min-w-0 flex-1">
@@ -138,8 +138,8 @@ export default function DashboardLayout({
             </div>
           </div>
         </header>
-        <main className="dashboard-full-width dashboard-page-shell relative min-w-0 flex-1 overflow-x-clip px-3 pb-6 pt-4 md:px-5 md:pb-8 lg:px-6 xl:px-8">
-          <div className="min-h-[calc(100vh-8.5rem)]">
+        <main className="dashboard-full-width relative min-w-0 flex-1 overflow-x-clip px-3 pb-6 pt-4 md:px-5 md:pb-8 lg:px-6 xl:px-8">
+          <div className="dashboard-page-shell min-h-[calc(100vh-8.5rem)] px-1 py-1 md:px-2 md:py-2">
             {children}
           </div>
         </main>
