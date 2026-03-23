@@ -43,9 +43,12 @@ DEFAULT_SAFETY_FACTOR = Decimal("0.20")
 RECENT_SALES_LAG_DAYS = 2
 RECENT_SALES_WINDOW_DAYS = 3
 IN_TRANSIT_STATUSES = ("in_transit", "draft")
+RISK_LONG_TERM_OUT_OF_STOCK = "长期断货"
+RISK_SHORT_TERM_OUT_OF_STOCK = "短期断货"
 RISK_OUT_OF_STOCK = "断货风险"
-RISK_HEALTHY = "未来健康"
-RISK_SLOW_MOVING = "滞销风险"
+RISK_HEALTHY = "健康库存"
+RISK_SLOW_MOVING = "滞销"
+RISK_SEVERE_SLOW_MOVING = "严重滞销"
 RISK_PENDING = "待补数据"
 
 
@@ -95,6 +98,10 @@ def _decimal_to_float(value: Decimal | None, digits: int = 4) -> float | None:
 def _round_decimal(value: Decimal, digits: int = 4) -> Decimal:
     quant = Decimal("1").scaleb(-digits)
     return value.quantize(quant, rounding=ROUND_HALF_UP)
+
+
+def _round_decimal_to_int(value: Decimal) -> int:
+    return int(value.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
 
 def _get_project_or_404(db: Session, project_id: int) -> Project:
@@ -233,7 +240,7 @@ def _load_inventory_map(db: Session, project_id: int, country: str) -> dict[str,
     }
 
 
-def _load_in_transit_map(db: Session, project_id: int) -> dict[str, int]:
+def _load_in_transit_map(db: Session, project_id: int, country: str) -> dict[str, int]:
     rows = db.execute(
         select(
             ShipmentScheduleItem.sku,
@@ -245,6 +252,7 @@ def _load_in_transit_map(db: Session, project_id: int) -> dict[str, int]:
         )
         .where(
             ShipmentSchedule.project_id == project_id,
+            ShipmentSchedule.country == country,
             ShipmentSchedule.shipment_status.in_(IN_TRANSIT_STATUSES),
         )
         .group_by(ShipmentScheduleItem.sku)
@@ -300,11 +308,16 @@ def _load_business_dms_map(
     return result
 
 
-def _load_recent_sales_dms_map(
-    db: Session, project_id: int, country: str, today: date
+def _load_sales_dms_map(
+    db: Session,
+    project_id: int,
+    country: str,
+    today: date,
+    window_days: int,
+    lag_days: int = 0,
 ) -> dict[str, Decimal]:
-    window_end = today - timedelta(days=RECENT_SALES_LAG_DAYS)
-    since = window_end - timedelta(days=RECENT_SALES_WINDOW_DAYS - 1)
+    window_end = today - timedelta(days=lag_days)
+    since = window_end - timedelta(days=window_days - 1)
     rows = db.execute(
         select(
             AnalysisSalesOrderRow.sku,
@@ -328,10 +341,21 @@ def _load_recent_sales_dms_map(
         normalized_sku = _normalize_text(sku, max_length=128)
         if normalized_sku is None:
             continue
-        result[normalized_sku] = Decimal(int(quantity or 0)) / Decimal(
-            RECENT_SALES_WINDOW_DAYS
-        )
+        result[normalized_sku] = Decimal(int(quantity or 0)) / Decimal(window_days)
     return result
+
+
+def _load_recent_sales_dms_map(
+    db: Session, project_id: int, country: str, today: date
+) -> dict[str, Decimal]:
+    return _load_sales_dms_map(
+        db,
+        project_id,
+        country,
+        today,
+        RECENT_SALES_WINDOW_DAYS,
+        lag_days=RECENT_SALES_LAG_DAYS,
+    )
 
 
 def _normalize_weighted_dms(
@@ -340,10 +364,11 @@ def _normalize_weighted_dms(
     dms_7: Decimal | None,
     dms_3: Decimal | None,
 ) -> Decimal | None:
+    # Business rule: if 3D is missing, its weight is fully transferred to 7D.
     weighted_windows = [
         (dms_30, Decimal("0.10")),
         (dms_14, Decimal("0.30")),
-        (dms_7, Decimal("0.30")),
+        (dms_7, Decimal("0.60") if dms_3 is None else Decimal("0.30")),
         (dms_3, Decimal("0.30")),
     ]
     available = [
@@ -378,11 +403,18 @@ def _classify_risk(
     if weighted_dms is None or weighted_dms <= 0 or risk_anchor_date_text is None:
         return RISK_PENDING
     risk_anchor_date = date.fromisoformat(risk_anchor_date_text)
-    if risk_anchor_date < today:
+    days_diff = (risk_anchor_date - today).days
+    if days_diff < 0:
+        return RISK_LONG_TERM_OUT_OF_STOCK
+    if days_diff < 25:
+        return RISK_SHORT_TERM_OUT_OF_STOCK
+    if days_diff < 45:
         return RISK_OUT_OF_STOCK
-    if risk_anchor_date <= today + timedelta(days=90):
+    if days_diff <= 90:
         return RISK_HEALTHY
-    return RISK_SLOW_MOVING
+    if days_diff <= 120:
+        return RISK_SLOW_MOVING
+    return RISK_SEVERE_SLOW_MOVING
 
 
 def list_inventory_replenishment_analysis(
@@ -402,18 +434,18 @@ def list_inventory_replenishment_analysis(
     base_rows = _load_base_skus(db, project, normalized_country)
     settings_map = _load_settings_map(db, project.id, normalized_country)
     inventory_map = _load_inventory_map(db, project.id, normalized_country)
-    in_transit_map = _load_in_transit_map(db, project.id)
-    asin_to_skus = _load_asin_to_skus_map(base_rows)
-    dms_30_map = _load_business_dms_map(
-        db, project.id, normalized_country, 30, today, asin_to_skus
+    in_transit_map = _load_in_transit_map(db, project.id, normalized_country)
+    dms_30_map = _load_sales_dms_map(db, project.id, normalized_country, today, 30)
+    dms_14_map = _load_sales_dms_map(db, project.id, normalized_country, today, 14)
+    dms_7_map = _load_sales_dms_map(db, project.id, normalized_country, today, 7)
+    dms_3_map = _load_sales_dms_map(
+        db,
+        project.id,
+        normalized_country,
+        today,
+        RECENT_SALES_WINDOW_DAYS,
+        lag_days=RECENT_SALES_LAG_DAYS,
     )
-    dms_14_map = _load_business_dms_map(
-        db, project.id, normalized_country, 14, today, asin_to_skus
-    )
-    dms_7_map = _load_business_dms_map(
-        db, project.id, normalized_country, 7, today, asin_to_skus
-    )
-    dms_3_map = _load_recent_sales_dms_map(db, project.id, normalized_country, today)
 
     keyword_text = (keyword or "").strip().lower()
     normalized_risk = (risk_status or "").strip()
@@ -482,8 +514,16 @@ def list_inventory_replenishment_analysis(
                     + timedelta(days=production_lead_days)
                 ).isoformat()
             )
-            risk_anchor_date = _subtract_days(replenishment_order_date, shipping_days)
+            risk_anchor_date = sellout_date_with_transit
         risk = _classify_risk(today, risk_anchor_date, weighted_dms)
+        estimated_replenishment_quantity = (
+            _round_decimal_to_int(
+                Decimal(production_lead_days + shipping_days) * weighted_dms
+            )
+            if weighted_dms is not None
+            and risk not in {RISK_SLOW_MOVING, RISK_SEVERE_SLOW_MOVING}
+            else None
+        )
 
         if (
             keyword_text
@@ -524,6 +564,7 @@ def list_inventory_replenishment_analysis(
                 "replenishment_order_date": replenishment_order_date,
                 "warehouse_entry_date": warehouse_entry_date,
                 "shipment_order_date": shipment_order_date,
+                "estimated_replenishment_quantity": estimated_replenishment_quantity,
                 "risk_status": risk,
                 "risk_anchor_date": risk_anchor_date,
             }
@@ -532,11 +573,20 @@ def list_inventory_replenishment_analysis(
     summary = {
         "sku_count": len(rows),
         "out_of_stock_risk_count": sum(
-            1 for item in rows if item["risk_status"] == RISK_OUT_OF_STOCK
+            1
+            for item in rows
+            if item["risk_status"]
+            in {
+                RISK_OUT_OF_STOCK,
+                RISK_SHORT_TERM_OUT_OF_STOCK,
+                RISK_LONG_TERM_OUT_OF_STOCK,
+            }
         ),
         "healthy_count": sum(1 for item in rows if item["risk_status"] == RISK_HEALTHY),
         "slow_moving_count": sum(
-            1 for item in rows if item["risk_status"] == RISK_SLOW_MOVING
+            1
+            for item in rows
+            if item["risk_status"] in {RISK_SLOW_MOVING, RISK_SEVERE_SLOW_MOVING}
         ),
         "pending_data_count": sum(
             1 for item in rows if item["risk_status"] == RISK_PENDING

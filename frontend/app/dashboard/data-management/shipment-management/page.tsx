@@ -2,6 +2,7 @@
 
 import { type ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react'
 import { useSession } from 'next-auth/react'
+import { useSearchParams } from 'next/navigation'
 import { RefreshCcw, Upload, FileDown, Plus, Pencil, Trash2, X, ChevronsUpDown, Check } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -581,6 +582,7 @@ function formatDimensionText(length: number, width: number, height: number): str
 
 export default function ShipmentManagementPage() {
   const { data: session, status } = useSession()
+  const searchParams = useSearchParams()
   const isAdmin = Boolean(session?.user?.isAdmin)
   const [activeTab, setActiveTab] = useState<ShipmentPageTab>('overview')
   const [projects, setProjects] = useState<ProjectOption[]>([])
@@ -700,6 +702,8 @@ export default function ShipmentManagementPage() {
   )
 
   const trimmedShipmentNoFilter = shipmentNoFilter.trim()
+  const shipmentNoParam = searchParams.get('shipment_no')?.trim() || ''
+  const requestedTab = searchParams.get('tab')
 
   const fbaBoxSummary = useMemo(() => {
     return fbaBoxItems.reduce(
@@ -1012,6 +1016,14 @@ export default function ShipmentManagementPage() {
   useEffect(() => {
     void loadProjects()
   }, [loadProjects])
+
+  useEffect(() => {
+    if (!shipmentNoParam) return
+    setShipmentNoFilter((current) => (current === shipmentNoParam ? current : shipmentNoParam))
+    if (requestedTab === 'fba-box-detail') {
+      setActiveTab('fba-box-detail')
+    }
+  }, [requestedTab, shipmentNoParam])
 
   useEffect(() => {
     void loadList(1)

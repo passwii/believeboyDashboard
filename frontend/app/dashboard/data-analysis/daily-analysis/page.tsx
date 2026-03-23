@@ -2,11 +2,14 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { DateRange } from 'react-day-picker'
-import { FileDown, Loader2, RefreshCcw, TableProperties } from 'lucide-react'
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, BarChart3, FileDown, Loader2, RefreshCcw } from 'lucide-react'
 import { useSession } from 'next-auth/react'
+import { Bar, CartesianGrid, ComposedChart, Line, XAxis, YAxis } from 'recharts'
 
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart'
 import { DateRangePicker } from '@/components/ui/date-picker'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -74,6 +77,11 @@ type DetailDisplayRow = {
   isTintedGroup: boolean
 }
 
+type ChartMetricKey = keyof Pick<
+  DailyAnalysisRow,
+  'order_qty' | 'sales_amount' | 'impressions' | 'clicks' | 'cpc' | 'ad_spend' | 'ad_orders'
+>
+
 const API_BASE = '/api/backend'
 const COUNTRY_OPTIONS: Array<{ value: CountryOption; label: string }> = [
   { value: 'US', label: '美国站 (US)' },
@@ -81,12 +89,138 @@ const COUNTRY_OPTIONS: Array<{ value: CountryOption; label: string }> = [
   { value: 'UK', label: '英国站 (UK)' },
 ]
 
+const CHART_METRICS: Array<{ key: ChartMetricKey; label: string }> = [
+  { key: 'order_qty', label: '订单' },
+  { key: 'sales_amount', label: '销售额' },
+  { key: 'impressions', label: '曝光量' },
+  { key: 'clicks', label: '点击量' },
+  { key: 'cpc', label: 'CPC' },
+  { key: 'ad_spend', label: '广告花费' },
+  { key: 'ad_orders', label: '广告订单' },
+]
+
+const SINGLE_METRIC_CHART_CONFIG = {
+  order_qty: { label: '订单', color: 'hsl(221 83% 53%)' },
+  sales_amount: { label: '销售额', color: 'hsl(173 58% 39%)' },
+  impressions: { label: '曝光量', color: 'hsl(39 92% 50%)' },
+  clicks: { label: '点击量', color: 'hsl(262 83% 58%)' },
+  cpc: { label: 'CPC', color: 'hsl(0 84% 60%)' },
+  ad_spend: { label: '广告花费', color: 'hsl(197 87% 47%)' },
+  ad_orders: { label: '广告订单', color: 'hsl(142 71% 45%)' },
+} satisfies ChartConfig
+
+const EMPTY_SUMMARY_ROWS: DailyAnalysisRow[] = []
+const EMPTY_DETAIL_ROWS: DailyAnalysisDetailRow[] = []
+const METRIC_PAGE_SIZE = 4
+
 function authHeaders(): Record<string, string> {
   return {}
 }
 
 function formatMoney(value: number) {
   return value.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function addDays(date: Date, amount: number) {
+  const next = new Date(date)
+  next.setDate(next.getDate() + amount)
+  return next
+}
+
+function normalizeDateRange(range?: DateRange) {
+  if (!range?.from || !range?.to) return undefined
+  const from = new Date(range.from)
+  const to = new Date(range.to)
+  from.setHours(0, 0, 0, 0)
+  to.setHours(0, 0, 0, 0)
+  return { from, to }
+}
+
+function getRangeDayCount(range?: DateRange) {
+  if (!range?.from || !range?.to) return 0
+  const diff = range.to.getTime() - range.from.getTime()
+  return Math.floor(diff / 86400000) + 1
+}
+
+function getPreviousPeriodRange(range?: DateRange): DateRange | undefined {
+  const normalized = normalizeDateRange(range)
+  if (!normalized) return undefined
+  const dayCount = getRangeDayCount(normalized)
+  return {
+    from: addDays(normalized.from, -dayCount),
+    to: addDays(normalized.from, -1),
+  }
+}
+
+function getYesterdayRange(): DateRange {
+  const yesterday = addDays(new Date(), -1)
+  yesterday.setHours(0, 0, 0, 0)
+  return { from: yesterday, to: yesterday }
+}
+
+function getLastWeekRange(): DateRange {
+  const end = addDays(new Date(), -1)
+  end.setHours(0, 0, 0, 0)
+  return { from: addDays(end, -6), to: end }
+}
+
+function formatMetricValue(metric: ChartMetricKey, value: number) {
+  if (metric === 'sales_amount' || metric === 'cpc' || metric === 'ad_spend') {
+    return formatMoney(value)
+  }
+  return value.toLocaleString('zh-CN')
+}
+
+function formatMetricCardValue(metric: ChartMetricKey, value: number) {
+  if (metric === 'sales_amount' || metric === 'ad_spend') {
+    if (Math.abs(value) >= 1000) return `$${(value / 1000).toFixed(2)}k`
+    return `$${formatMoney(value)}`
+  }
+  if (metric === 'cpc') {
+    return `$${formatMoney(value)}`
+  }
+  return value.toLocaleString('zh-CN')
+}
+
+function formatAxisValue(metric: ChartMetricKey, value: number) {
+  if (metric === 'cpc') {
+    return value.toFixed(2)
+  }
+  if (metric === 'sales_amount' || metric === 'ad_spend') {
+    if (Math.abs(value) >= 1000) {
+      return `$${(value / 1000).toFixed(1)}k`
+    }
+    return `$${value.toFixed(0)}`
+  }
+  if (Math.abs(value) >= 10000) {
+    return `${(value / 10000).toFixed(1)}w`
+  }
+  return value.toFixed(0)
+}
+
+function metricIncreaseIsGood(metric: ChartMetricKey) {
+  return metric !== 'cpc' && metric !== 'ad_spend'
+}
+
+function isBarMetric(metric: ChartMetricKey) {
+  return metric === 'order_qty' || metric === 'ad_orders' || metric === 'sales_amount'
+}
+
+function aggregateMetric(rows: DailyAnalysisRow[], metric: ChartMetricKey) {
+  if (!rows.length) return 0
+  if (metric === 'cpc') {
+    const totalClicks = rows.reduce((sum, row) => sum + row.clicks, 0)
+    if (totalClicks <= 0) return 0
+    const totalAdSpend = rows.reduce((sum, row) => sum + row.ad_spend, 0)
+    return totalAdSpend / totalClicks
+  }
+  return rows.reduce((sum, row) => sum + row[metric], 0)
+}
+
+function formatRangeLabel(range?: DateRange) {
+  const normalized = normalizeDateRange(range)
+  if (!normalized?.from || !normalized?.to) return '--'
+  return `${formatYMD(normalized.from)} ~ ${formatYMD(normalized.to)}`
 }
 
 async function exportDailyAnalysisToExcel(
@@ -124,7 +258,7 @@ async function exportDailyAnalysisToExcel(
   summarySheet.columns = summaryCols
 
   summarySheet.mergeCells(1, 1, 1, summaryCols.length)
-  summarySheet.getCell(1, 1).value = `日报分析汇总 - ${projectName} - ${country}`
+  summarySheet.getCell(1, 1).value = `销售数据汇总 - ${projectName} - ${country}`
   summarySheet.getCell(1, 1).font = { name: 'Microsoft YaHei', size: 16, bold: true, color: { argb: 'FF0F172A' } }
   summarySheet.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
   summarySheet.getCell(1, 1).alignment = { vertical: 'middle', horizontal: 'left' }
@@ -199,7 +333,7 @@ async function exportDailyAnalysisToExcel(
   detailSheet.columns = detailCols
 
   detailSheet.mergeCells(1, 1, 1, detailCols.length)
-  detailSheet.getCell(1, 1).value = `日报分析SKU明细 - ${projectName} - ${country}`
+  detailSheet.getCell(1, 1).value = `销售数据SKU明细 - ${projectName} - ${country}`
   detailSheet.getCell(1, 1).font = { name: 'Microsoft YaHei', size: 16, bold: true, color: { argb: 'FF0F172A' } }
   detailSheet.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
   detailSheet.getCell(1, 1).alignment = { vertical: 'middle', horizontal: 'left' }
@@ -315,7 +449,7 @@ async function exportDailyAnalysisToExcel(
   const url = window.URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = `日报分析-${projectName}-${country}-${safeTimestamp}.xlsx`
+  link.download = `销售数据-${projectName}-${country}-${safeTimestamp}.xlsx`
   link.click()
   window.URL.revokeObjectURL(url)
 }
@@ -355,8 +489,11 @@ export default function DailyAnalysisPage() {
   const [country, setCountry] = useState<CountryOption>('US')
   const [dateRange, setDateRange] = useState<DateRange | undefined>(defaultRange)
   const [activeTab, setActiveTab] = useState<ViewTab>('summary')
+  const [activeChartMetric, setActiveChartMetric] = useState<ChartMetricKey>('order_qty')
+  const [metricPage, setMetricPage] = useState(0)
 
   const [data, setData] = useState<DailyAnalysisResponse | null>(null)
+  const [comparisonSummaryRows, setComparisonSummaryRows] = useState<DailyAnalysisRow[]>(EMPTY_SUMMARY_ROWS)
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -383,18 +520,20 @@ export default function DailyAnalysisPage() {
     if (first?.id != null) setProjectId(String(first.id))
   }, [projectId, projects])
 
-  const loadData = async () => {
+  const loadData = async (rangeOverride?: DateRange) => {
     if (!projectId) {
       setError('请先选择项目')
       return
     }
-    if (!dateRange?.from || !dateRange?.to) {
+    const effectiveRange = normalizeDateRange(rangeOverride ?? dateRange)
+    if (!effectiveRange?.from || !effectiveRange?.to) {
       setError('请选择开始和结束日期')
       return
     }
 
-    const startDate = formatYMD(dateRange.from)
-    const endDate = formatYMD(dateRange.to)
+    const startDate = formatYMD(effectiveRange.from)
+    const endDate = formatYMD(effectiveRange.to)
+    const previousRange = getPreviousPeriodRange(effectiveRange)
 
     setLoading(true)
     setError(null)
@@ -405,19 +544,44 @@ export default function DailyAnalysisPage() {
         start_date: startDate,
         end_date: endDate,
       })
-      const response = await fetch(`${API_BASE}/api/v1/daily-analysis?${search.toString()}`, {
-        headers: authHeaders(),
-        cache: 'no-store',
-      })
+      const compareSearch = previousRange
+        ? new URLSearchParams({
+            project_id: projectId,
+            country,
+            start_date: formatYMD(previousRange.from!),
+            end_date: formatYMD(previousRange.to!),
+          })
+        : null
+
+      const [response, compareResponse] = await Promise.all([
+        fetch(`${API_BASE}/api/v1/daily-analysis?${search.toString()}`, {
+          headers: authHeaders(),
+          cache: 'no-store',
+        }),
+        compareSearch
+          ? fetch(`${API_BASE}/api/v1/daily-analysis?${compareSearch.toString()}`, {
+              headers: authHeaders(),
+              cache: 'no-store',
+            })
+          : Promise.resolve(null),
+      ])
       if (!response.ok) {
         const payload = await response.json().catch(() => null)
-        throw new Error(payload?.detail || '日报分析加载失败')
+        throw new Error(payload?.detail || '销售数据加载失败')
       }
+      if (compareResponse && !compareResponse.ok) {
+        const payload = await compareResponse.json().catch(() => null)
+        throw new Error(payload?.detail || '销售数据对比加载失败')
+      }
+
       const payload = (await response.json()) as DailyAnalysisResponse
+      const comparePayload = compareResponse ? ((await compareResponse.json()) as DailyAnalysisResponse) : null
       setData(payload)
+      setComparisonSummaryRows(comparePayload?.summary_rows ?? EMPTY_SUMMARY_ROWS)
     } catch (fetchError) {
-      setError(fetchError instanceof Error ? fetchError.message : '日报分析加载失败')
+      setError(fetchError instanceof Error ? fetchError.message : '销售数据加载失败')
       setData(null)
+      setComparisonSummaryRows(EMPTY_SUMMARY_ROWS)
     } finally {
       setLoading(false)
     }
@@ -428,8 +592,15 @@ export default function DailyAnalysisPage() {
     void loadData()
   }, [projectId, country]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const summaryRows = data?.summary_rows ?? []
-  const detailRows = data?.detail_rows ?? []
+  useEffect(() => {
+    const visibleMetricKeys = CHART_METRICS.slice(metricPage * METRIC_PAGE_SIZE, (metricPage + 1) * METRIC_PAGE_SIZE).map((item) => item.key)
+    if (visibleMetricKeys.length && !visibleMetricKeys.includes(activeChartMetric)) {
+      setActiveChartMetric(visibleMetricKeys[0])
+    }
+  }, [metricPage, activeChartMetric])
+
+  const summaryRows = data?.summary_rows ?? EMPTY_SUMMARY_ROWS
+  const detailRows = data?.detail_rows ?? EMPTY_DETAIL_ROWS
   const consoleData = data?.console ?? null
   const detailDisplayRows = useMemo<DetailDisplayRow[]>(() => {
     const groupedRows: DetailDisplayRow[] = []
@@ -469,8 +640,35 @@ export default function DailyAnalysisPage() {
     () => projects.find((p) => String(p.id) === projectId)?.name ?? '',
     [projects, projectId]
   )
-  const dateRangeDisplay = consoleData ? `${consoleData.start_date} ~ ${consoleData.end_date}` : (dateRange ? `${formatYMD(dateRange.from!)}${' ~ ' + formatYMD(dateRange.to!)}` : '')
+  const activeChartMetricLabel = CHART_METRICS.find((item) => item.key === activeChartMetric)?.label ?? '订单'
+  const metricCards = useMemo(() => {
+    return CHART_METRICS.map((metric) => {
+      const currentValue = aggregateMetric(summaryRows, metric.key)
+      const previousValue = aggregateMetric(comparisonSummaryRows, metric.key)
+      const diff = currentValue - previousValue
+      const percentChange = previousValue === 0 ? null : (diff / previousValue) * 100
+      const isPositiveDirection = percentChange === null ? true : (metricIncreaseIsGood(metric.key) ? percentChange >= 0 : percentChange <= 0)
 
+      return {
+        ...metric,
+        currentValue,
+        previousValue,
+        percentChange,
+        isPositiveDirection,
+      }
+    })
+  }, [summaryRows, comparisonSummaryRows])
+  const metricPageCount = Math.ceil(metricCards.length / METRIC_PAGE_SIZE)
+  const visibleMetricCards = metricCards.slice(metricPage * METRIC_PAGE_SIZE, (metricPage + 1) * METRIC_PAGE_SIZE)
+  const comparisonRange = useMemo(() => getPreviousPeriodRange(dateRange), [dateRange])
+  const hasComparisonData = comparisonSummaryRows.length > 0
+  const chartRows = useMemo(() => {
+    return summaryRows.map((row, index) => ({
+      ...row,
+      compareMetricValue: comparisonSummaryRows[index]?.[activeChartMetric] ?? null,
+    }))
+  }, [summaryRows, comparisonSummaryRows, activeChartMetric])
+  const dateRangeDisplay = consoleData ? `${consoleData.start_date} ~ ${consoleData.end_date}` : (dateRange ? `${formatYMD(dateRange.from!)}${' ~ ' + formatYMD(dateRange.to!)}` : '')
   const handleExportExcel = async () => {
     if (!data) return
     setExporting(true)
@@ -483,102 +681,401 @@ export default function DailyAnalysisPage() {
     }
   }
 
+  const handleQuickRange = async (nextRange: DateRange) => {
+    setDateRange(nextRange)
+    await loadData(nextRange)
+  }
+
   return (
-    <div className="space-y-6">
-      <Card className="border-slate-200/80 bg-[linear-gradient(135deg,rgba(241,245,249,0.9),rgba(255,255,255,0.98))] shadow-sm">
+    <div className="space-y-6 lg:space-y-7">
+      <Card className="dashboard-surface border-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.88),rgba(241,244,247,0.96))]">
         <CardHeader className="pb-4">
-          <CardTitle className="text-xl">日报分析控制台</CardTitle>
+          <div className="flex flex-col gap-4">
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Badge variant="outline" className="w-fit border-primary/15 bg-primary/5 px-3 py-1 text-[0.68rem] uppercase tracking-[0.24em] text-primary">
+                  Editorial Data Architecture
+                </Badge>
+              </div>
+              <div className="space-y-2">
+                <CardTitle className="text-2xl md:text-[2.2rem]">销售数据策展台</CardTitle>
+                <CardDescription className="max-w-3xl text-sm leading-6 text-muted-foreground">
+                  用更清晰的层次组织订单、销售额、流量与广告花费，让运营判断建立在有节奏的数据对比之上。
+                </CardDescription>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="outline" className="border-border/60 bg-background/80 px-3 py-1 text-foreground">
+                项目：{selectedProjectName || '未选择'}
+              </Badge>
+              <Badge variant="outline" className="border-border/60 bg-background/80 px-3 py-1 text-foreground">
+                站点：{country}
+              </Badge>
+              <Badge variant="outline" className="border-border/60 bg-background/80 px-3 py-1 text-foreground">
+                周期：{dateRangeDisplay || '--'}
+              </Badge>
+            </div>
+          </div>
         </CardHeader>
-        <CardContent className="space-y-5">
-          <div className="flex gap-3 flex-wrap">
-            <div className="flex flex-1 gap-3 flex-wrap min-w-0">
-              <div className="space-y-1.5 min-w-[140px] flex-1">
-                <div className="text-xs font-medium text-slate-500">项目</div>
-                <Select value={projectId} onValueChange={setProjectId}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="选择项目" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {projects.map((item) => (
-                      <SelectItem key={item.id} value={String(item.id)}>
-                        {item.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5 min-w-[140px] flex-1">
-                <div className="text-xs font-medium text-slate-500">国家站点</div>
-                <Select value={country} onValueChange={(value) => setCountry(value as CountryOption)}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="国家站点" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {COUNTRY_OPTIONS.map((item) => (
-                      <SelectItem key={item.value} value={item.value}>
-                        {item.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5 min-w-[220px] flex-1">
-                <div className="text-xs font-medium text-slate-500">日期范围</div>
+
+        <CardContent className="space-y-4 pt-0">
+          <div className="grid gap-3 rounded-[1.5rem] bg-[hsl(var(--surface-soft))]/88 p-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)_auto] xl:items-end">
+            <div className="space-y-2">
+              <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">项目</div>
+              <Select value={projectId} onValueChange={setProjectId}>
+                <SelectTrigger className="h-11 rounded-xl border-0 bg-background/90 shadow-none">
+                  <SelectValue placeholder="选择项目" />
+                </SelectTrigger>
+                <SelectContent>
+                  {projects.map((item) => (
+                    <SelectItem key={item.id} value={String(item.id)}>
+                      {item.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">国家站点</div>
+              <Select value={country} onValueChange={(value) => setCountry(value as CountryOption)}>
+                <SelectTrigger className="h-11 rounded-xl border-0 bg-background/90 shadow-none">
+                  <SelectValue placeholder="国家站点" />
+                </SelectTrigger>
+                <SelectContent>
+                  {COUNTRY_OPTIONS.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">日期范围</div>
+              <div className="flex flex-wrap gap-2">
                 <DateRangePicker
                   value={dateRange}
                   onChange={setDateRange}
-                  className="h-9"
+                  className="h-11 flex-1 min-w-[220px]"
                   onApply={() => void loadData()}
                 />
+                <Button type="button" variant="secondary" className="h-11 px-4" onClick={() => void handleQuickRange(getYesterdayRange())}>
+                  昨天
+                </Button>
+                <Button type="button" variant="secondary" className="h-11 px-4" onClick={() => void handleQuickRange(getLastWeekRange())}>
+                  上周
+                </Button>
               </div>
             </div>
-            <div className="space-y-1.5">
-              <div className="text-xs font-medium text-slate-500">&nbsp;</div>
-              <Button type="button" variant="outline" onClick={() => void loadData()} disabled={loading || projectsLoading} className="h-9 px-3 shrink-0">
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
-                <span className="ml-1.5">刷新</span>
-              </Button>
-            </div>
+
+            <Button
+              type="button"
+              onClick={() => void loadData()}
+              disabled={loading || projectsLoading}
+              className="h-11 px-5"
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+              刷新视图
+            </Button>
           </div>
 
-          {projectsError ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">{projectsError}</div> : null}
-          {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">{error}</div> : null}
+          {projectsError ? <div className="rounded-2xl bg-destructive/10 px-4 py-3 text-sm text-destructive">{projectsError}</div> : null}
+          {error ? <div className="rounded-2xl bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div> : null}
         </CardContent>
       </Card>
 
-      <Card className="overflow-hidden border-slate-200/80">
-        <CardHeader className="border-b border-slate-200/80 bg-slate-50/70">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <CardTitle className="text-lg">日报明细表格</CardTitle>
+      <Card className="dashboard-surface overflow-hidden border-0">
+        <CardHeader className="pb-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                  <BarChart3 className="h-5 w-5" />
+                </div>
+                <div>
+                  <CardTitle className="text-2xl">趋势与绩效对比</CardTitle>
+                  <CardDescription>以更清晰的层级比较当前周期与上一个周期的变化走势</CardDescription>
+                </div>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => void handleExportExcel()}
-                disabled={exporting || !data}
-              >
-                {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileDown className="mr-2 h-4 w-4" />}
-                导出 Excel
-              </Button>
-              <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ViewTab)} className="w-full lg:w-auto">
-                <TabsList className="grid w-full grid-cols-2 lg:w-[260px]">
-                  <TabsTrigger value="summary">每日汇总</TabsTrigger>
-                  <TabsTrigger value="details">SKU 明细</TabsTrigger>
-                </TabsList>
-              </Tabs>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="outline" className="border-border/60 bg-background/85 px-3 py-1 text-foreground">
+                对比区间：{formatRangeLabel(comparisonRange)}
+              </Badge>
+              {metricPageCount > 1 ? (
+                <div className="flex items-center gap-2 rounded-full bg-[hsl(var(--surface-soft))]/90 px-2 py-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setMetricPage((page) => Math.max(0, page - 1))}
+                    disabled={metricPage === 0}
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {metricPage + 1} / {metricPageCount}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setMetricPage((page) => Math.min(metricPageCount - 1, page + 1))}
+                    disabled={metricPage >= metricPageCount - 1}
+                  >
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : null}
             </div>
           </div>
         </CardHeader>
-        <CardContent className="p-0">
-          <Tabs value={activeTab} className="w-full">
+
+        <CardContent className="space-y-5">
+          {summaryRows.length ? (
+            <>
+              <div className="grid gap-3 xl:grid-cols-4">
+                {visibleMetricCards.map((metric) => {
+                  const isActive = metric.key === activeChartMetric
+                  const showIncrease = metric.percentChange === null ? true : metric.percentChange >= 0
+                  const usePositiveColor = metric.percentChange === null ? true : metric.isPositiveDirection
+
+                  return (
+                    <button
+                      key={metric.key}
+                      type="button"
+                      onClick={() => setActiveChartMetric(metric.key)}
+                      className={cn(
+                        'rounded-[1.6rem] px-5 py-5 text-left transition-all duration-200',
+                        isActive
+                          ? 'bg-primary text-primary-foreground shadow-[0_18px_38px_-24px_hsl(var(--primary)/0.72)]'
+                          : 'bg-[hsl(var(--surface-soft))]/86 text-foreground hover:-translate-y-0.5 hover:bg-background'
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className={cn('text-sm font-semibold tracking-tight', isActive ? 'text-primary-foreground/88' : 'text-muted-foreground')}>
+                          {metric.label}
+                        </div>
+                        <div
+                          className={cn(
+                            'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold',
+                            isActive
+                              ? 'bg-white/14 text-primary-foreground'
+                              : usePositiveColor
+                                ? 'bg-[hsl(var(--success))/0.12] text-[hsl(var(--success))]'
+                                : 'bg-destructive/12 text-destructive'
+                          )}
+                        >
+                          {showIncrease ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />}
+                          {metric.percentChange === null ? '--' : `${Math.abs(metric.percentChange).toFixed(1)}%`}
+                        </div>
+                      </div>
+
+                      <div className="mt-7 space-y-1">
+                        <div className={cn('text-[1.9rem] font-semibold tracking-tight', isActive ? 'text-primary-foreground' : 'text-foreground')}>
+                          {formatMetricCardValue(metric.key, metric.currentValue)}
+                        </div>
+                        <div className={cn('text-sm', isActive ? 'text-primary-foreground/72' : 'text-muted-foreground')}>
+                          对比 {formatMetricCardValue(metric.key, metric.previousValue)}
+                        </div>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+
+              <div className="rounded-[1.9rem] bg-[hsl(var(--surface-soft))]/82 p-4 md:p-5">
+                <div className="mb-4 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+                  <div className="inline-flex items-center gap-2 rounded-full bg-background/72 px-3 py-1.5">
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: SINGLE_METRIC_CHART_CONFIG[activeChartMetric].color }} />
+                    当前周期
+                  </div>
+                  {hasComparisonData ? (
+                    isBarMetric(activeChartMetric) ? (
+                      <div className="inline-flex items-center gap-2 rounded-full bg-background/72 px-3 py-1.5">
+                        <span className="h-3 w-3 rounded-[4px] border border-slate-300" style={{ backgroundColor: 'rgba(148,163,184,0.28)' }} />
+                        上一个周期
+                      </div>
+                    ) : (
+                      <div className="inline-flex items-center gap-2 rounded-full bg-background/72 px-3 py-1.5">
+                        <span className="w-5 border-t-2 border-dashed border-slate-300" />
+                        上一个周期
+                      </div>
+                    )
+                  ) : null}
+                </div>
+
+                <ChartContainer
+                  config={SINGLE_METRIC_CHART_CONFIG}
+                  className="h-[360px] w-full md:h-[420px]"
+                >
+                  <ComposedChart
+                    key={activeChartMetric}
+                    data={chartRows}
+                    margin={{ top: 28, right: 24, left: 8, bottom: 18 }}
+                  >
+                    <defs>
+                      <linearGradient id={`salesDataLine-${activeChartMetric}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={`var(--color-${activeChartMetric})`} stopOpacity={0.28} />
+                        <stop offset="100%" stopColor={`var(--color-${activeChartMetric})`} stopOpacity={0.04} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid vertical={false} stroke="rgba(148,163,184,0.18)" strokeDasharray="0" />
+                    <XAxis
+                      dataKey="date"
+                      axisLine={false}
+                      tickLine={false}
+                      tickMargin={18}
+                      tick={{ fontSize: 12, fill: '#71717a' }}
+                      tickFormatter={(value) => {
+                        const [, month, day] = String(value).split('-')
+                        return `${month}月${day}日`
+                      }}
+                    />
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
+                      tickMargin={16}
+                      tick={{ fontSize: 12, fill: '#71717a' }}
+                      tickFormatter={(value) => formatAxisValue(activeChartMetric, Number(value))}
+                    />
+                    <ChartTooltip
+                      itemSorter={(item) => (item.dataKey === activeChartMetric ? -1 : 1)}
+                      cursor={{ stroke: 'rgba(15,23,42,0.18)', strokeDasharray: '4 4' }}
+                      content={
+                        <ChartTooltipContent
+                          indicator="line"
+                          labelFormatter={(_, payload) => {
+                            const date = payload?.[0]?.payload?.date
+                            return typeof date === 'string' ? date : ''
+                          }}
+                          formatter={(value, name, item) => (
+                            <div className="flex w-full items-center justify-between gap-4">
+                              <span className="font-medium" style={{ color: item.color || undefined }}>
+                                {typeof name === 'string' ? name : activeChartMetricLabel}
+                              </span>
+                              <span className="font-mono font-medium text-foreground">
+                                {typeof value === 'number' ? formatMetricValue(activeChartMetric, value) : String(value ?? '')}
+                              </span>
+                            </div>
+                          )}
+                        />
+                      }
+                    />
+                    {isBarMetric(activeChartMetric) ? (
+                      <>
+                        {hasComparisonData ? (
+                          <Bar
+                            dataKey="compareMetricValue"
+                            name="上一个周期"
+                            fill="rgba(148,163,184,0.28)"
+                            radius={[10, 10, 0, 0]}
+                            barSize={16}
+                            isAnimationActive
+                            animationDuration={320}
+                            animationEasing="ease-out"
+                          />
+                        ) : null}
+                        <Bar
+                          dataKey={activeChartMetric}
+                          name={activeChartMetricLabel}
+                          fill={`var(--color-${activeChartMetric})`}
+                          radius={[10, 10, 0, 0]}
+                          barSize={16}
+                          isAnimationActive
+                          animationDuration={360}
+                          animationEasing="ease-out"
+                        />
+                      </>
+                    ) : (
+                      <>
+                        {hasComparisonData ? (
+                          <Line
+                            type="monotone"
+                            dataKey="compareMetricValue"
+                            name="上一个周期"
+                            stroke="rgba(148,163,184,0.9)"
+                            strokeWidth={2.5}
+                            strokeDasharray="6 6"
+                            dot={false}
+                            isAnimationActive
+                            animationDuration={320}
+                            animationEasing="ease-out"
+                          />
+                        ) : null}
+                        <Line
+                          type="monotone"
+                          dataKey={activeChartMetric}
+                          name={activeChartMetricLabel}
+                          stroke={`var(--color-${activeChartMetric})`}
+                          strokeWidth={4}
+                          dot={false}
+                          isAnimationActive
+                          animationDuration={360}
+                          animationEasing="ease-out"
+                          activeDot={{
+                            r: 6,
+                            fill: `var(--color-${activeChartMetric})`,
+                            stroke: '#fff',
+                            strokeWidth: 2,
+                          }}
+                        />
+                      </>
+                    )}
+                  </ComposedChart>
+                </ChartContainer>
+              </div>
+            </>
+          ) : (
+            <div className="flex min-h-[320px] items-center justify-center rounded-[1.8rem] bg-[hsl(var(--surface-soft))]/82 px-6 text-center">
+              <div className="space-y-2">
+                <div className="text-base font-semibold text-foreground">图表区域暂时没有内容</div>
+                <div className="text-sm text-muted-foreground">当前筛选范围内暂无可用于绘图的数据</div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ViewTab)} className="w-full">
+        <Card className="dashboard-surface overflow-hidden border-0">
+          <CardHeader className="pb-4">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <CardTitle className="text-2xl">销售数据工作区</CardTitle>
+                <CardDescription>在每日汇总与 SKU 明细之间切换，完成导出与下钻查看。</CardDescription>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void handleExportExcel()}
+                  disabled={exporting || !data}
+                  className="h-10 px-4"
+                >
+                  {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileDown className="mr-2 h-4 w-4" />}
+                  导出 Excel
+                </Button>
+                <TabsList className="grid h-auto w-full grid-cols-2 rounded-2xl bg-[hsl(var(--surface-soft))]/90 p-1 sm:w-[260px]">
+                  <TabsTrigger value="summary" className="rounded-xl py-2.5">每日汇总</TabsTrigger>
+                  <TabsTrigger value="details" className="rounded-xl py-2.5">SKU 明细</TabsTrigger>
+                </TabsList>
+              </div>
+            </div>
+          </CardHeader>
+
+          <CardContent className="p-0">
             <TabsContent value="summary" className="m-0">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-slate-50/70">
+              <Table containerClassName="rounded-b-[1.5rem]">
+                  <TableHeader className="bg-[hsl(var(--surface-soft))]/75">
+                    <TableRow className="border-0 hover:bg-transparent">
                       <TableHead className="min-w-[120px]">日期</TableHead>
                       <TableHead>订单量</TableHead>
                       <TableHead>销售额</TableHead>
@@ -593,16 +1090,18 @@ export default function DailyAnalysisPage() {
                   <TableBody>
                     {loading ? (
                       Array.from({ length: 6 }).map((_, index) => (
-                        <TableRow key={`summary-skeleton-${index}`}>
+                        <TableRow key={`summary-skeleton-${index}`} className="border-0">
                           {Array.from({ length: 9 }).map((__, cellIndex) => (
-                            <TableCell key={cellIndex}><Skeleton className="h-4 w-full max-w-[90px]" /></TableCell>
+                            <TableCell key={cellIndex}>
+                              <Skeleton className="h-4 w-full max-w-[90px]" />
+                            </TableCell>
                           ))}
                         </TableRow>
                       ))
                     ) : summaryRows.length ? (
-                      summaryRows.map((row) => (
-                        <TableRow key={row.date}>
-                          <TableCell className="font-medium">{row.date}</TableCell>
+                      summaryRows.map((row, index) => (
+                        <TableRow key={`${row.date}-${index}`} className={cn(index % 2 === 0 && 'bg-[hsl(var(--surface-soft))]/45')}>
+                          <TableCell className="font-medium text-foreground">{row.date}</TableCell>
                           <TableCell>{row.order_qty.toLocaleString('zh-CN')}</TableCell>
                           <TableCell>{formatMoney(row.sales_amount)}</TableCell>
                           <TableCell>{row.impressions.toLocaleString('zh-CN')}</TableCell>
@@ -614,33 +1113,31 @@ export default function DailyAnalysisPage() {
                         </TableRow>
                       ))
                     ) : (
-                      <TableRow>
-                        <TableCell colSpan={9} className="h-32 text-center text-sm text-slate-500">
-                          当前筛选范围内还没有可展示的日报汇总数据。
+                      <TableRow className="border-0">
+                        <TableCell colSpan={9} className="h-32 text-center text-sm text-muted-foreground">
+                          当前筛选范围内还没有可展示的销售数据汇总。
                         </TableCell>
                       </TableRow>
                     )}
                   </TableBody>
-                </Table>
-              </div>
+              </Table>
             </TabsContent>
 
             <TabsContent value="details" className="m-0">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-slate-50/70">
-                      <TableHead className="min-w-[120px]">日期</TableHead>
-                      <TableHead className="min-w-[140px]">SKU</TableHead>
-                      <TableHead className="min-w-[140px]">ASIN</TableHead>
-                      <TableHead>订单量</TableHead>
-                      <TableHead>销售额</TableHead>
-                      <TableHead>曝光量</TableHead>
-                      <TableHead>点击量</TableHead>
-                      <TableHead>CPC</TableHead>
-                      <TableHead>广告花费</TableHead>
-                      <TableHead>广告订单</TableHead>
-                      <TableHead>可售库存</TableHead>
+              <Table containerClassName="rounded-b-[1.5rem] border border-border/80 bg-background">
+                  <TableHeader className="bg-[hsl(var(--surface-soft))]/88">
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="min-w-[120px] border-b border-r border-border/80 bg-[hsl(var(--surface-soft))]/95">日期</TableHead>
+                      <TableHead className="min-w-[140px] border-b border-r border-border/80 bg-[hsl(var(--surface-soft))]/95">SKU</TableHead>
+                      <TableHead className="min-w-[140px] border-b border-r border-border/80 bg-[hsl(var(--surface-soft))]/95">ASIN</TableHead>
+                      <TableHead className="border-b border-r border-border/80 bg-[hsl(var(--surface-soft))]/95">订单量</TableHead>
+                      <TableHead className="border-b border-r border-border/80 bg-[hsl(var(--surface-soft))]/95">销售额</TableHead>
+                      <TableHead className="border-b border-r border-border/80 bg-[hsl(var(--surface-soft))]/95">曝光量</TableHead>
+                      <TableHead className="border-b border-r border-border/80 bg-[hsl(var(--surface-soft))]/95">点击量</TableHead>
+                      <TableHead className="border-b border-r border-border/80 bg-[hsl(var(--surface-soft))]/95">CPC</TableHead>
+                      <TableHead className="border-b border-r border-border/80 bg-[hsl(var(--surface-soft))]/95">广告花费</TableHead>
+                      <TableHead className="border-b border-r border-border/80 bg-[hsl(var(--surface-soft))]/95">广告订单</TableHead>
+                      <TableHead className="border-b border-border/80 bg-[hsl(var(--surface-soft))]/95">可售库存</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -648,7 +1145,9 @@ export default function DailyAnalysisPage() {
                       Array.from({ length: 8 }).map((_, index) => (
                         <TableRow key={`detail-skeleton-${index}`}>
                           {Array.from({ length: 11 }).map((__, cellIndex) => (
-                            <TableCell key={cellIndex}><Skeleton className="h-4 w-full max-w-[90px]" /></TableCell>
+                            <TableCell key={cellIndex} className="border-r border-b border-border/70 last:border-r-0">
+                              <Skeleton className="h-4 w-full max-w-[90px]" />
+                            </TableCell>
                           ))}
                         </TableRow>
                       ))
@@ -658,59 +1157,49 @@ export default function DailyAnalysisPage() {
                           key={rowKey}
                           className={cn(
                             'transition-colors',
-                            isTintedGroup && 'bg-slate-50/80'
+                            isTintedGroup
+                              ? 'bg-[hsl(var(--primary))]/[0.045] hover:bg-[hsl(var(--primary))]/[0.075]'
+                              : 'bg-background hover:bg-[hsl(var(--surface-soft))]/40'
                           )}
                         >
                           {showDate ? (
                             <TableCell
                               rowSpan={rowSpan}
                               className={cn(
-                                'align-middle text-center font-semibold text-slate-900',
-                                isTintedGroup && 'bg-slate-100/90'
+                                'border-r border-b border-border/80 align-middle text-center font-semibold text-foreground',
+                                isTintedGroup
+                                  ? 'bg-[hsl(var(--primary))]/[0.1]'
+                                  : 'bg-[hsl(var(--surface-soft))]/0'
                               )}
                             >
                               {row.date}
                             </TableCell>
                           ) : null}
-                          <TableCell>{row.sku}</TableCell>
-                          <TableCell>{row.asin || '--'}</TableCell>
-                          <TableCell>{row.order_qty.toLocaleString('zh-CN')}</TableCell>
-                          <TableCell>{formatMoney(row.sales_amount)}</TableCell>
-                          <TableCell>{row.impressions.toLocaleString('zh-CN')}</TableCell>
-                          <TableCell>{row.clicks.toLocaleString('zh-CN')}</TableCell>
-                          <TableCell>{formatMoney(row.cpc)}</TableCell>
-                          <TableCell>{formatMoney(row.ad_spend)}</TableCell>
-                          <TableCell>{row.ad_orders.toLocaleString('zh-CN')}</TableCell>
-                          <TableCell>{row.available_qty.toLocaleString('zh-CN')}</TableCell>
+                          <TableCell className="border-r border-b border-border/70 last:border-r-0">{row.sku}</TableCell>
+                          <TableCell className="border-r border-b border-border/70 last:border-r-0">{row.asin || '--'}</TableCell>
+                          <TableCell className="border-r border-b border-border/70 last:border-r-0">{row.order_qty.toLocaleString('zh-CN')}</TableCell>
+                          <TableCell className="border-r border-b border-border/70 last:border-r-0">{formatMoney(row.sales_amount)}</TableCell>
+                          <TableCell className="border-r border-b border-border/70 last:border-r-0">{row.impressions.toLocaleString('zh-CN')}</TableCell>
+                          <TableCell className="border-r border-b border-border/70 last:border-r-0">{row.clicks.toLocaleString('zh-CN')}</TableCell>
+                          <TableCell className="border-r border-b border-border/70 last:border-r-0">{formatMoney(row.cpc)}</TableCell>
+                          <TableCell className="border-r border-b border-border/70 last:border-r-0">{formatMoney(row.ad_spend)}</TableCell>
+                          <TableCell className="border-r border-b border-border/70 last:border-r-0">{row.ad_orders.toLocaleString('zh-CN')}</TableCell>
+                          <TableCell className="border-b border-border/70">{row.available_qty.toLocaleString('zh-CN')}</TableCell>
                         </TableRow>
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={11} className="h-32 text-center text-sm text-slate-500">
-                          当前筛选范围内还没有可展示的 SKU 日报明细。
+                        <TableCell colSpan={11} className="h-32 border-b border-border/70 text-center text-sm text-muted-foreground">
+                          当前筛选范围内还没有可展示的 SKU 销售数据明细。
                         </TableCell>
                       </TableRow>
                     )}
                   </TableBody>
-                </Table>
-              </div>
+              </Table>
             </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
-
-      {consoleData ? (
-        <Card className="border-dashed border-slate-300 bg-slate-50/60">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base"><TableProperties className="h-4 w-4" />数据可用性</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-3 md:grid-cols-3">
-            <div className="rounded-xl bg-white px-4 py-3 text-sm text-slate-600">最新销售日报：<span className="font-medium text-slate-900">{consoleData.latest_sales_date || '--'}</span></div>
-            <div className="rounded-xl bg-white px-4 py-3 text-sm text-slate-600">最新广告日报：<span className="font-medium text-slate-900">{consoleData.latest_ad_date || '--'}</span></div>
-            <div className="rounded-xl bg-white px-4 py-3 text-sm text-slate-600">最新库存快照：<span className="font-medium text-slate-900">{consoleData.latest_inventory_date || '--'}</span></div>
           </CardContent>
         </Card>
-      ) : null}
+      </Tabs>
     </div>
   )
 }

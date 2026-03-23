@@ -42,7 +42,7 @@ export type Document = {
   id: string
   header: string
   sectionType: string
-  status: 'Done' | 'In Process' | 'Draft'
+  status: '已完成' | '处理中' | '待补充'
   target: string
   limit: string
   reviewer: string
@@ -51,100 +51,100 @@ export type Document = {
 const data: Document[] = [
   {
     id: '1',
-    header: 'Introduction to React',
-    sectionType: 'Tutorial',
-    status: 'Done',
-    target: '1000',
-    limit: '2000',
-    reviewer: 'John Doe',
+    header: '北美站点周度投放复盘',
+    sectionType: '广告分析',
+    status: '已完成',
+    target: '92',
+    limit: '100',
+    reviewer: 'Ariel',
   },
   {
     id: '2',
-    header: 'Advanced TypeScript',
-    sectionType: 'Guide',
-    status: 'In Process',
-    target: '500',
-    limit: '1000',
-    reviewer: 'Jane Smith',
+    header: 'Q2 补货节奏校准方案',
+    sectionType: '补货分析',
+    status: '处理中',
+    target: '68',
+    limit: '100',
+    reviewer: 'Lina',
   },
   {
     id: '3',
-    header: 'Next.js Best Practices',
-    sectionType: 'Article',
-    status: 'Draft',
-    target: '800',
-    limit: '1500',
-    reviewer: 'Bob Johnson',
+    header: '英国店铺 SKU 成本核对',
+    sectionType: 'SKU 信息',
+    status: '待补充',
+    target: '44',
+    limit: '100',
+    reviewer: 'Carter',
   },
   {
     id: '4',
-    header: 'Tailwind CSS Tips',
-    sectionType: 'Tutorial',
-    status: 'Done',
-    target: '600',
-    limit: '1200',
-    reviewer: 'Alice Brown',
+    header: '三月月报利润异常追踪',
+    sectionType: '财务月报',
+    status: '已完成',
+    target: '97',
+    limit: '100',
+    reviewer: 'Faye',
   },
   {
     id: '5',
-    header: 'API Design Patterns',
-    sectionType: 'Guide',
-    status: 'In Process',
-    target: '400',
-    limit: '800',
-    reviewer: 'Charlie Wilson',
+    header: '新品关键词调研卡片',
+    sectionType: '调研分析',
+    status: '处理中',
+    target: '56',
+    limit: '100',
+    reviewer: 'Nora',
   },
   {
     id: '6',
-    header: 'Database Optimization',
-    sectionType: 'Article',
-    status: 'Done',
-    target: '700',
-    limit: '1400',
-    reviewer: 'Diana Lee',
+    header: '站点导航资源清单',
+    sectionType: '运营导航',
+    status: '已完成',
+    target: '88',
+    limit: '100',
+    reviewer: 'Dean',
   },
   {
     id: '7',
-    header: 'Security Best Practices',
-    sectionType: 'Guide',
-    status: 'Draft',
-    target: '900',
-    limit: '1800',
-    reviewer: 'Eve Davis',
+    header: '异常退款订单排查',
+    sectionType: '销售日报',
+    status: '待补充',
+    target: '39',
+    limit: '100',
+    reviewer: 'Mika',
   },
   {
     id: '8',
-    header: 'Performance Monitoring',
-    sectionType: 'Tutorial',
-    status: 'In Process',
-    target: '550',
-    limit: '1100',
-    reviewer: 'Frank Miller',
+    header: '广告流量质量对照看板',
+    sectionType: '流量分析',
+    status: '处理中',
+    target: '71',
+    limit: '100',
+    reviewer: 'Sean',
   },
   {
     id: '9',
-    header: 'CI/CD Pipeline Setup',
-    sectionType: 'Article',
-    status: 'Done',
-    target: '650',
-    limit: '1300',
-    reviewer: 'Grace Taylor',
+    header: '店铺导航快捷入口整理',
+    sectionType: '店铺导航',
+    status: '已完成',
+    target: '81',
+    limit: '100',
+    reviewer: 'Ivy',
   },
   {
     id: '10',
-    header: 'Testing Strategies',
-    sectionType: 'Guide',
-    status: 'Draft',
-    target: '750',
-    limit: '1500',
-    reviewer: 'Henry Anderson',
+    header: '项目佣金归档复核',
+    sectionType: '佣金管理',
+    status: '待补充',
+    target: '52',
+    limit: '100',
+    reviewer: 'Yuna',
   },
 ]
 
 const statusStyles = {
-  Done: 'bg-green-500/10 text-green-500 hover:bg-green-500/20',
-  'In Process': 'bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20',
-  Draft: 'bg-gray-500/10 text-gray-500 hover:bg-gray-500/20',
+  已完成: 'bg-secondary/10 text-secondary hover:bg-secondary/15',
+  处理中: 'bg-primary/10 text-primary hover:bg-primary/15',
+  待补充: 'bg-destructive/10 text-destructive hover:bg-destructive/15',
 }
 
 export const columns: ColumnDef<Document>[] = [
@@ -178,7 +178,7 @@ export const columns: ColumnDef<Document>[] = [
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
         >
-          Header
+          条目
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       )
@@ -193,7 +193,7 @@ export const columns: ColumnDef<Document>[] = [
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
         >
-          Section Type
+          类型
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       )
@@ -224,7 +224,7 @@ export const columns: ColumnDef<Document>[] = [
   },
   {
     accessorKey: 'target',
-    header: () => <div className="text-right">Target</div>,
+    header: () => <div className="text-right">进度</div>,
     cell: ({ row }) => {
       const amount = parseFloat(row.getValue('target'))
       return <div className="text-right font-medium">{amount.toLocaleString()}</div>
@@ -232,7 +232,7 @@ export const columns: ColumnDef<Document>[] = [
   },
   {
     accessorKey: 'limit',
-    header: () => <div className="text-right">Limit</div>,
+    header: () => <div className="text-right">目标</div>,
     cell: ({ row }) => {
       const amount = parseFloat(row.getValue('limit'))
       return <div className="text-right font-medium">{amount.toLocaleString()}</div>
@@ -240,7 +240,7 @@ export const columns: ColumnDef<Document>[] = [
   },
   {
     accessorKey: 'reviewer',
-    header: 'Reviewer',
+    header: '负责人',
     cell: ({ row }) => <div>{row.getValue('reviewer')}</div>,
   },
   {
@@ -262,14 +262,14 @@ export const columns: ColumnDef<Document>[] = [
             <DropdownMenuItem
               onClick={() => navigator.clipboard.writeText(document.id)}
             >
-              Copy document ID
+              复制任务 ID
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>View details</DropdownMenuItem>
-            <DropdownMenuItem>Edit document</DropdownMenuItem>
+            <DropdownMenuItem>查看详情</DropdownMenuItem>
+            <DropdownMenuItem>编辑条目</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-red-600">
-              Delete
+              删除
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -307,17 +307,17 @@ export function DataTable() {
     <div className="w-full space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-2 py-4">
         <Input
-          placeholder="Filter documents..."
+          placeholder="筛选任务、报表或条目..."
           value={(table.getColumn('header')?.getFilterValue() as string) ?? ''}
           onChange={(event) =>
             table.getColumn('header')?.setFilterValue(event.target.value)
           }
-          className="h-10 max-w-sm bg-background/80 text-sm min-w-touch"
+          className="h-11 max-w-sm rounded-2xl border-0 bg-[hsl(var(--surface-low))] text-sm shadow-none min-w-touch"
         />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="h-10 min-w-touch">
-              Columns <ChevronDown className="ml-2 h-4 w-4" />
+            <Button variant="outline" className="h-11 min-w-touch rounded-2xl border-0 bg-[hsl(var(--surface-low))] shadow-none">
+              视图列 <ChevronDown className="ml-2 h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
@@ -341,14 +341,14 @@ export function DataTable() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <div className="rounded-lg border border-border/80 bg-background/60 overflow-x-auto">
-        <Table>
+      <div className="overflow-x-auto rounded-[1.6rem] bg-[hsl(var(--surface-low))] p-2">
+        <Table className="rounded-[1.2rem] bg-white">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   return (
-                    <TableHead key={header.id} className="h-11 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    <TableHead key={header.id}>
                       {header.isPlaceholder
                         ? null
                         : flexRender(
@@ -367,10 +367,10 @@ export function DataTable() {
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && 'selected'}
-                  className="transition-colors hover:bg-muted/50"
+                  className="rounded-2xl transition-colors hover:bg-[hsl(var(--surface-low))]"
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className="py-3.5 text-sm">
+                    <TableCell key={cell.id} className="py-4">
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext()
@@ -385,7 +385,7 @@ export function DataTable() {
                   colSpan={columns.length}
                   className="h-24 text-center"
                 >
-                  No results.
+                  暂无结果。
                 </TableCell>
               </TableRow>
             )}
@@ -394,8 +394,7 @@ export function DataTable() {
       </div>
       <div className="flex items-center justify-end space-x-2 py-4">
         <div className="flex-1 text-sm text-muted-foreground">
-          {table.getFilteredSelectedRowModel().rows.length} of{' '}
-          {table.getFilteredRowModel().rows.length} row(s) selected.
+          已选择 {table.getFilteredSelectedRowModel().rows.length} / {table.getFilteredRowModel().rows.length} 条。
         </div>
         <div className="space-x-2">
           <Button
@@ -404,7 +403,7 @@ export function DataTable() {
             onClick={() => table.previousPage()}
             disabled={!table.getCanPreviousPage()}
           >
-            Previous
+            上一页
           </Button>
           <Button
             variant="outline"
@@ -412,7 +411,7 @@ export function DataTable() {
             onClick={() => table.nextPage()}
             disabled={!table.getCanNextPage()}
           >
-            Next
+            下一页
           </Button>
         </div>
       </div>

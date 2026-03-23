@@ -1,9 +1,8 @@
 'use client'
 
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
-import { Boxes, CalendarClock, CircleAlert, FileDown, Loader2, PackageSearch, RefreshCw, Save, ShipWheel } from 'lucide-react'
+import { Boxes, CalendarClock, CircleAlert, FileDown, Loader2, PackageSearch, RefreshCw, Save, Send, ShipWheel } from 'lucide-react'
 import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -62,6 +61,7 @@ type AnalysisRow = {
   replenishment_order_date: string | null
   warehouse_entry_date: string | null
   shipment_order_date: string | null
+  estimated_replenishment_quantity: number | null
   risk_status: string
   risk_anchor_date: string | null
 }
@@ -171,9 +171,12 @@ const stickySkuCellClassName =
 
 function riskMeta(riskStatus: string): { label: string; className: string } {
   const map: Record<string, { label: string; className: string }> = {
+    长期断货: { label: '长期断货', className: 'border-rose-300 bg-rose-200 text-rose-800 dark:border-rose-900 dark:bg-rose-950/70 dark:text-rose-200' },
+    短期断货: { label: '短期断货', className: 'border-orange-200 bg-orange-100 text-orange-700 dark:border-orange-900/80 dark:bg-orange-950/50 dark:text-orange-300' },
     断货风险: { label: '断货风险', className: 'border-rose-200 bg-rose-100 text-rose-700 dark:border-rose-900/80 dark:bg-rose-950/50 dark:text-rose-300' },
-    未来健康: { label: '未来健康', className: 'border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-900/80 dark:bg-emerald-950/50 dark:text-emerald-300' },
-    滞销风险: { label: '滞销风险', className: 'border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-900/80 dark:bg-amber-950/50 dark:text-amber-300' },
+    健康库存: { label: '健康库存', className: 'border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-900/80 dark:bg-emerald-950/50 dark:text-emerald-300' },
+    滞销: { label: '滞销', className: 'border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-900/80 dark:bg-amber-950/50 dark:text-amber-300' },
+    严重滞销: { label: '严重滞销', className: 'border-fuchsia-200 bg-fuchsia-100 text-fuchsia-700 dark:border-fuchsia-900/80 dark:bg-fuchsia-950/50 dark:text-fuchsia-300' },
     待补数据: { label: '待补数据', className: 'border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300' },
   }
   return map[riskStatus] || { label: riskStatus, className: 'border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300' }
@@ -213,7 +216,6 @@ function buildEditState(row: AnalysisRow): RowEditState {
 }
 
 export default function InventoryReplenishmentPage() {
-  const router = useRouter()
   const { data: session } = useSession()
 
   const [projects, setProjects] = useState<ProjectOption[]>([])
@@ -229,6 +231,7 @@ export default function InventoryReplenishmentPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
+  const [refreshingAll, setRefreshingAll] = useState(false)
   const [refreshNonce, setRefreshNonce] = useState(0)
 
   const [edits, setEdits] = useState<Record<string, RowEditState>>({})
@@ -346,72 +349,121 @@ export default function InventoryReplenishmentPage() {
     }
   }
 
-  async function saveRow(row: AnalysisRow) {
-    const key = rowKey(row)
-    const edit = edits[key] || buildEditState(row)
+  function parseRowEdit(row: AnalysisRow, edit: RowEditState): {
+    productionLeadDays: number
+    shippingDays: number
+    safetyFactorPercent: number
+  } {
     const productionLeadDays = Number(edit.production_lead_days)
     const shippingDays = Number(edit.shipping_days)
     const safetyFactorPercent = Number(edit.safety_factor)
 
     if (!Number.isFinite(productionLeadDays) || productionLeadDays < 0) {
-      setError(`SKU ${row.sku} 的生产交货时间无效`)
-      return
+      throw new Error(`SKU ${row.sku} 的生产交货时间无效`)
     }
     if (!Number.isFinite(shippingDays) || shippingDays < 0) {
-      setError(`SKU ${row.sku} 的运输时间无效`)
-      return
+      throw new Error(`SKU ${row.sku} 的运输时间无效`)
     }
     if (!Number.isFinite(safetyFactorPercent) || safetyFactorPercent < 0) {
-      setError(`SKU ${row.sku} 的加权系数无效`)
-      return
+      throw new Error(`SKU ${row.sku} 的加权系数无效`)
     }
+
+    return {
+      productionLeadDays,
+      shippingDays,
+      safetyFactorPercent,
+    }
+  }
+
+  async function persistRowSettings(row: AnalysisRow, edit: RowEditState) {
+    const { productionLeadDays, shippingDays, safetyFactorPercent } = parseRowEdit(row, edit)
+    const requestParams = new URLSearchParams({ country: row.country })
+    const response = await fetch(`${API_BASE}/api/v1/inventory-replenishment-settings/${row.project_id}/${encodeURIComponent(row.sku)}?${requestParams.toString()}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders(),
+      },
+      body: JSON.stringify({
+        asin: row.asin,
+        production_lead_days: productionLeadDays,
+        shipping_days: shippingDays,
+        safety_factor: safetyFactorPercent / 100,
+      }),
+    })
+    if (!response.ok) throw new Error(await parseError(response))
+  }
+
+  async function reloadAnalysis() {
+    if (!currentProjectId) return
+    const params = new URLSearchParams({
+      project_id: String(currentProjectId),
+      country,
+      page: '1',
+      page_size: '200',
+    })
+    if (deferredKeyword.trim()) params.set('keyword', deferredKeyword.trim())
+    if (riskFilter !== 'all') params.set('risk_status', riskFilter)
+    const response = await fetch(`${API_BASE}/api/v1/inventory-replenishment-analysis?${params.toString()}`, {
+      headers: authHeaders(),
+      cache: 'no-store',
+    })
+    if (!response.ok) throw new Error(await parseError(response))
+    const refreshed = (await response.json()) as AnalysisResponse
+    setRows(refreshed.items)
+    setSummary(refreshed.summary)
+    setEdits((prev) => {
+      const next = { ...prev }
+      refreshed.items.forEach((item) => {
+        next[rowKey(item)] = buildEditState(item)
+      })
+      return next
+    })
+  }
+
+  async function saveRow(row: AnalysisRow) {
+    const key = rowKey(row)
+    const edit = edits[key] || buildEditState(row)
 
     setSavingSku(key)
     setError(null)
     try {
-      const requestParams = new URLSearchParams({ country: row.country })
-      const response = await fetch(`${API_BASE}/api/v1/inventory-replenishment-settings/${row.project_id}/${encodeURIComponent(row.sku)}?${requestParams.toString()}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders(),
-        },
-        body: JSON.stringify({
-          asin: row.asin,
-          production_lead_days: productionLeadDays,
-          shipping_days: shippingDays,
-          safety_factor: safetyFactorPercent / 100,
-        }),
-      })
-      if (!response.ok) throw new Error(await parseError(response))
-
-      const params = new URLSearchParams({
-        project_id: String(row.project_id),
-        country,
-        page: '1',
-        page_size: '200',
-      })
-      if (deferredKeyword.trim()) params.set('keyword', deferredKeyword.trim())
-      if (riskFilter !== 'all') params.set('risk_status', riskFilter)
-      const refreshResponse = await fetch(`${API_BASE}/api/v1/inventory-replenishment-analysis?${params.toString()}`, {
-        headers: authHeaders(),
-        cache: 'no-store',
-      })
-      if (!refreshResponse.ok) throw new Error(await parseError(refreshResponse))
-      const refreshed = (await refreshResponse.json()) as AnalysisResponse
-      setRows(refreshed.items)
-      setSummary(refreshed.summary)
-      setEdits((prev) => {
-        const next = { ...prev }
-        refreshed.items.forEach((item) => {
-          next[rowKey(item)] = buildEditState(item)
-        })
-        return next
-      })
+      await persistRowSettings(row, edit)
+      await reloadAnalysis()
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : '保存失败')
     } finally {
       setSavingSku(null)
+    }
+  }
+
+  async function refreshWithSave() {
+    if (!currentProjectId || loading || refreshingAll) return
+    setRefreshingAll(true)
+    setError(null)
+    try {
+      const changedRows = rows.filter((row) => {
+        const edit = edits[rowKey(row)] || buildEditState(row)
+        return (
+          edit.production_lead_days !== String(row.production_lead_days)
+          || edit.shipping_days !== String(row.shipping_days)
+          || edit.safety_factor !== String(Math.round(row.safety_factor * 100))
+        )
+      })
+
+      for (const row of changedRows) {
+        const key = rowKey(row)
+        setSavingSku(key)
+        await persistRowSettings(row, edits[key] || buildEditState(row))
+      }
+
+      setSavingSku(null)
+      await reloadAnalysis()
+    } catch (refreshError) {
+      setError(refreshError instanceof Error ? refreshError.message : '刷新失败')
+    } finally {
+      setSavingSku(null)
+      setRefreshingAll(false)
     }
   }
 
@@ -455,12 +507,17 @@ export default function InventoryReplenishmentPage() {
         { header: '补货指令', key: 'replenishment_order_date', width: 14 },
         { header: '建仓指令', key: 'warehouse_entry_date', width: 14 },
         { header: '发货指令', key: 'shipment_order_date', width: 14 },
+        { header: '预计数量', key: 'estimated_replenishment_quantity', width: 12 },
         { header: '风险状态', key: 'risk_status', width: 12 },
       ] as const
 
       const exportedAt = new Date().toLocaleString('zh-CN', { hour12: false })
       const lastColumn = columns.length
       const selectedProjectName = projects.find((project) => String(project.id) === projectId)?.name ?? '全部项目'
+      const totalEstimatedReplenishmentQuantity = rows.reduce(
+        (acc, row) => acc + (row.estimated_replenishment_quantity ?? 0),
+        0,
+      )
 
       worksheet.mergeCells(1, 1, 1, lastColumn)
       worksheet.getCell(1, 1).value = '补货核算分析'
@@ -524,6 +581,7 @@ export default function InventoryReplenishmentPage() {
           row.replenishment_order_date || '-',
           row.warehouse_entry_date || '-',
           row.shipment_order_date || '-',
+          row.estimated_replenishment_quantity,
           row.risk_status,
         ]
 
@@ -534,14 +592,20 @@ export default function InventoryReplenishmentPage() {
             horizontal: colNumber >= 5 && colNumber <= 18 ? 'right' : 'left',
             wrapText: true,
           }
-          if (colNumber === 22) {
+          if (colNumber === 23) {
             const riskStatus = row.risk_status
             if (riskStatus === '断货风险') {
               cell.font = { name: 'Microsoft YaHei', color: { argb: 'FFDC2626' }, bold: true }
-            } else if (riskStatus === '未来健康') {
+            } else if (riskStatus === '长期断货') {
+              cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF9F1239' }, bold: true }
+            } else if (riskStatus === '短期断货') {
+              cell.font = { name: 'Microsoft YaHei', color: { argb: 'FFEA580C' }, bold: true }
+            } else if (riskStatus === '健康库存') {
               cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF059669' }, bold: true }
-            } else if (riskStatus === '滞销风险') {
+            } else if (riskStatus === '滞销') {
               cell.font = { name: 'Microsoft YaHei', color: { argb: 'FFD97706' }, bold: true }
+            } else if (riskStatus === '严重滞销') {
+              cell.font = { name: 'Microsoft YaHei', color: { argb: 'FFC026D3' }, bold: true }
             } else if (riskStatus === '待补数据') {
               cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF64748B' } }
             }
@@ -550,6 +614,7 @@ export default function InventoryReplenishmentPage() {
           if (colNumber >= 7 && colNumber <= 11) cell.numFmt = '0.0000'
           if (colNumber === 12) cell.numFmt = '0.00%'
           if (colNumber === 13 || colNumber === 14) cell.numFmt = '0.00'
+          if (colNumber === 22) cell.numFmt = '#,##0'
           cell.border = {
             top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
             left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
@@ -563,7 +628,8 @@ export default function InventoryReplenishmentPage() {
       totalRow.getCell(1).value = '筛选结果合计'
       totalRow.getCell(5).value = summary.total_available_inventory
       totalRow.getCell(6).value = summary.total_in_transit_quantity
-      totalRow.getCell(22).value = `SKU: ${summary.sku_count}`
+      totalRow.getCell(22).value = totalEstimatedReplenishmentQuantity
+      totalRow.getCell(23).value = `SKU: ${summary.sku_count}`
       totalRow.eachCell((cell) => {
         cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
@@ -576,6 +642,7 @@ export default function InventoryReplenishmentPage() {
       })
       totalRow.getCell(5).numFmt = '#,##0'
       totalRow.getCell(6).numFmt = '#,##0'
+      totalRow.getCell(22).numFmt = '#,##0'
 
       const buffer = await workbook.xlsx.writeBuffer()
       const blob = new Blob([buffer], {
@@ -688,14 +755,17 @@ export default function InventoryReplenishmentPage() {
                   <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white/85 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-100">
                     <SelectValue placeholder="全部状态" />
                   </SelectTrigger>
-                  <SelectContent align="start" side="bottom" sideOffset={8} collisionPadding={16}>
-                    <SelectItem value="all">全部状态</SelectItem>
-                    <SelectItem value="断货风险">断货风险</SelectItem>
-                    <SelectItem value="未来健康">未来健康</SelectItem>
-                    <SelectItem value="滞销风险">滞销风险</SelectItem>
-                    <SelectItem value="待补数据">待补数据</SelectItem>
-                  </SelectContent>
-                </Select>
+                    <SelectContent align="start" side="bottom" sideOffset={8} collisionPadding={16}>
+                      <SelectItem value="all">全部状态</SelectItem>
+                      <SelectItem value="长期断货">长期断货</SelectItem>
+                      <SelectItem value="短期断货">短期断货</SelectItem>
+                      <SelectItem value="断货风险">断货风险</SelectItem>
+                      <SelectItem value="健康库存">健康库存</SelectItem>
+                      <SelectItem value="滞销">滞销</SelectItem>
+                      <SelectItem value="严重滞销">严重滞销</SelectItem>
+                      <SelectItem value="待补数据">待补数据</SelectItem>
+                    </SelectContent>
+                  </Select>
               </div>
             </div>
           </div>
@@ -740,10 +810,10 @@ export default function InventoryReplenishmentPage() {
                     variant="outline"
                     size="sm"
                     className="mt-3 h-8 rounded-xl border-slate-200 bg-white/85 px-3 text-xs dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-100"
-                    disabled={!currentProjectId || loading}
-                    onClick={() => setRefreshNonce((value) => value + 1)}
+                    disabled={!currentProjectId || loading || refreshingAll}
+                    onClick={() => void refreshWithSave()}
                   >
-                    {loading ? '重算中...' : '立即刷新'}
+                    {loading || refreshingAll ? '重算中...' : '立即刷新'}
                   </Button>
                   <div className="mt-2 text-center text-[11px] text-slate-500 dark:text-slate-400">
                     重新拉取当前筛选结果
@@ -823,6 +893,7 @@ export default function InventoryReplenishmentPage() {
                     <TableHead className={`${tableHeadClassName} ${stickyTableHeadClassName} min-w-[116px]`}>补货指令</TableHead>
                     <TableHead className={`${tableHeadClassName} ${stickyTableHeadClassName} min-w-[116px]`}>建仓指令</TableHead>
                     <TableHead className={`${tableHeadClassName} ${stickyTableHeadClassName} min-w-[116px]`}>发货指令</TableHead>
+                    <TableHead className={`${tableHeadClassName} ${stickyTableHeadClassName} min-w-[104px] text-right`}>预计数量</TableHead>
                     <TableHead className={`${tableHeadClassName} ${stickyTableHeadClassName} min-w-[104px]`}>风险状态</TableHead>
                     <TableHead className={`${tableHeadClassName} ${stickyTableHeadClassName} min-w-[154px]`}>操作</TableHead>
                   </TableRow>
@@ -892,6 +963,9 @@ export default function InventoryReplenishmentPage() {
                         <TableCell className={tableCellClassName}>{formatDate(row.replenishment_order_date)}</TableCell>
                         <TableCell className={tableCellClassName}>{formatDate(row.warehouse_entry_date)}</TableCell>
                         <TableCell className={tableCellClassName}>{formatDate(row.shipment_order_date)}</TableCell>
+                        <TableCell className={`${tableCellClassName} text-right font-medium text-slate-900 dark:text-slate-100`}>
+                          {formatInt(row.estimated_replenishment_quantity)}
+                        </TableCell>
                         <TableCell className={tableCellClassName}>
                           <Badge variant="outline" className={risk.className}>
                             {risk.label}
@@ -899,23 +973,26 @@ export default function InventoryReplenishmentPage() {
                         </TableCell>
                         <TableCell className={tableCellClassName}>
                           <div className="flex flex-col gap-1.5">
+                            <div className="flex items-center gap-2">
                             <Button
                               size="sm"
-                              className="h-8 justify-start whitespace-nowrap px-2.5 text-xs dark:bg-slate-100 dark:text-slate-950"
+                              className="h-8 gap-1.5 whitespace-nowrap px-2.5 text-xs dark:bg-slate-100 dark:text-slate-950"
                               onClick={() => void saveRow(row)}
                               disabled={savingSku === key}
                             >
                               {savingSku === key ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-1.5 h-3.5 w-3.5" />}
-                              保存参数
+                              保存
                             </Button>
                             <Button
                               size="sm"
                               variant="outline"
-                              className="h-8 justify-start whitespace-nowrap px-2.5 text-xs dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                              className="h-8 gap-1.5 whitespace-nowrap px-2.5 text-xs dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                               onClick={() => void openShipments(row)}
                             >
+                              <Send className="h-3.5 w-3.5" />
                               查看发货
                             </Button>
+                            </div>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -994,8 +1071,20 @@ export default function InventoryReplenishmentPage() {
                           <div className="space-y-3 text-right">
                             <div className="text-xs text-slate-500 dark:text-slate-400">最近更新</div>
                             <div className="text-sm text-slate-700 dark:text-slate-300">{item.updated_at}</div>
-                            <Button variant="outline" size="sm" className="dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" onClick={() => router.push('/dashboard/data-management/shipment-management')}>
-                              前往发货管理
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                              onClick={() => {
+                                const params = new URLSearchParams({
+                                  shipment_no: item.shipment_no,
+                                  tab: 'fba-box-detail',
+                                })
+                                window.open(`/dashboard/data-management/shipment-management?${params.toString()}`, '_blank', 'noopener,noreferrer')
+                              }}
+                            >
+                              <Send className="mr-1.5 h-3.5 w-3.5" />
+                              去管理
                             </Button>
                           </div>
                         </div>
@@ -1025,11 +1114,19 @@ export default function InventoryReplenishmentPage() {
             <div className="grid gap-2">
               <div className="rounded-xl border border-slate-200/80 bg-white/80 px-3 py-2.5 leading-6 dark:border-slate-800 dark:bg-slate-950/80">
                 <span className="mr-2 inline-flex rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">风险状态</span>
-                按 <code>补货指令 - 运输时间</code> 判定；若销量数据缺失，则状态为“待补数据”。
+                按 <code>含在途截止 - today</code> 判定；若销量数据缺失，则状态为“待补数据”。
+              </div>
+              <div className="rounded-xl border border-slate-200/80 bg-white/80 px-3 py-2.5 leading-6 dark:border-slate-800 dark:bg-slate-950/80">
+                <span className="mr-2 inline-flex rounded-md bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-950/60 dark:text-violet-300">预计数量</span>
+                按 <code>(生产交货时间 + 运输时间) × 加权DMS</code> 计算；滞销与严重滞销状态不显示预计补货数量，其余状态在存在有效 <code>加权DMS</code> 时显示。
               </div>
               <div className="rounded-xl border border-slate-200/80 bg-white/80 px-3 py-2.5 leading-6 dark:border-slate-800 dark:bg-slate-950/80">
                 <span className="mr-2 inline-flex rounded-md bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-950/60 dark:text-sky-300">销量来源</span>
-                近 <code>30D / 14D / 7D</code> 销量取当前版本业务报表，近 <code>3D</code> 销量取分析销售源明细的滞后 2 天窗口。
+                近 <code>30D / 14D / 7D / 3D</code> 全部改为取 <code>sales_report</code> 明细，其中 <code>3D</code> 使用滞后 2 天窗口。
+              </div>
+              <div className="rounded-xl border border-slate-200/80 bg-white/80 px-3 py-2.5 leading-6 dark:border-slate-800 dark:bg-slate-950/80">
+                <span className="mr-2 inline-flex rounded-md bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">权重规则</span>
+                默认按 <code>30D 10%</code>、<code>14D 30%</code>、<code>7D 30%</code>、<code>3D 30%</code> 计算；若 <code>3D</code> 缺失，则其 <code>30%</code> 权重全部并给 <code>7D</code>。
               </div>
               <div className="rounded-xl border border-slate-200/80 bg-white/80 px-3 py-2.5 leading-6 dark:border-slate-800 dark:bg-slate-950/80">
                 <span className="mr-2 inline-flex rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">窗口示例</span>

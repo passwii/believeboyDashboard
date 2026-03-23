@@ -38,6 +38,7 @@ class InventoryReplenishmentListItem(BaseModel):
     replenishment_order_date: str | None = None
     warehouse_entry_date: str | None = None
     shipment_order_date: str | None = None
+    estimated_replenishment_quantity: int | None = None
     risk_status: str
     risk_anchor_date: str | None = None
 

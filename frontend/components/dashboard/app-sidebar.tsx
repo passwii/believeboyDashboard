@@ -71,7 +71,8 @@ const tools = [
     title: '数据分析',
     icon: <ChartColumnBig className="h-4 w-4" />,
     items: [
-      { title: '日报分析', url: '/dashboard/data-analysis/daily-analysis' },
+      { title: '销售数据', url: '/dashboard/data-analysis/daily-analysis' },
+      { title: '广告分析', url: '/dashboard/data-analysis/ad-analysis/overview' },
       { title: '月度财务分析', url: '/dashboard/data-analysis/financial-data' },
       { title: '按周产品分析', url: '/dashboard/data-analysis/weekly-product-analysis' },
       { title: '库存分析', url: '/dashboard/data-analysis/inventory-analysis' },
@@ -128,13 +129,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        <div className="flex items-center gap-2 overflow-hidden px-4 py-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:px-2">
-          <div className="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-            <Command className="size-4" />
+        <div className="flex items-center gap-3 overflow-hidden rounded-[1.6rem] bg-white/70 px-4 py-4 shadow-[0_8px_32px_rgba(25,28,30,0.04)] group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:px-2">
+          <div className="flex aspect-square size-11 shrink-0 items-center justify-center rounded-[1.35rem] bg-[linear-gradient(135deg,hsl(var(--primary)),hsl(213_100%_47%))] text-sidebar-primary-foreground shadow-[0_18px_34px_-18px_hsl(var(--sidebar-primary)/0.8)]">
+            <Command className="size-[18px]" />
           </div>
-          <div className="flex min-w-0 flex-col gap-0.5 leading-none transition-opacity duration-200 group-data-[collapsible=icon]:w-0 group-data-[collapsible=icon]:opacity-0">
-            <span className="text-base font-semibold tracking-tight">BelieveBoy</span>
-            <span className="text-xs font-medium text-muted-foreground/90">Dashboard v1.0</span>
+          <div className="flex min-w-0 flex-col gap-1 leading-none transition-opacity duration-200 group-data-[collapsible=icon]:w-0 group-data-[collapsible=icon]:opacity-0">
+            <span className="text-base font-semibold tracking-tight text-sidebar-foreground">BLF 工作台</span>
+            
           </div>
         </div>
       </SidebarHeader>
@@ -144,7 +145,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         {displayUser.isAdmin ? <NavAdmin adminTools={adminTools} /> : null}
         <NavSecondary items={navSecondary} />
       </SidebarContent>
-      <SidebarFooter>
+      <SidebarFooter className="px-3 pb-4 pt-1">
         <NavUser
           user={displayUser}
           onLogout={() => {

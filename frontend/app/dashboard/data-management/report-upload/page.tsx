@@ -60,13 +60,6 @@ const REPORT_CARD_CONFIGS: ReportCardConfig[] = [
     projectHint: '默认根据 SKU 自动匹配项目。',
   },
   {
-    type: 'ad_search_term_report',
-    title: '广告 - 商品推广搜索词',
-    subtitle: '识别字段：开始日期 / 结束日期',
-    dateHint: '默认取识别到的结束日期作为报表日期。',
-    projectHint: '该报表项目需要手动选择。',
-  },
-  {
     type: 'payment_report',
     title: '付款报告',
     subtitle: '识别字段：sku',
@@ -632,8 +625,8 @@ export default function ReportUploadPage() {
                 </div>
               ) : (
                 <ScrollArea className="w-full">
-                  <div className="min-w-[1040px] space-y-3">
-                    <div className="grid grid-cols-[160px_repeat(6,minmax(110px,1fr))] gap-2 px-2 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground">
+                  <div className="min-w-[920px] space-y-3">
+                    <div className="grid grid-cols-[160px_repeat(5,minmax(110px,1fr))] gap-2 px-2 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground">
                       <div>项目</div>
                       {REPORT_TYPES.map((type) => (
                         <div key={type}>{statusLabelByType[type]}</div>
@@ -650,7 +643,7 @@ export default function ReportUploadPage() {
                     {statusRows.map((row) => (
                       <div
                         key={row.project_id}
-                        className="grid grid-cols-[160px_repeat(6,minmax(110px,1fr))] gap-2 rounded-3xl border border-border/60 bg-muted/20 p-2.5"
+                        className="grid grid-cols-[160px_repeat(5,minmax(110px,1fr))] gap-2 rounded-3xl border border-border/60 bg-muted/20 p-2.5"
                       >
                         <div className="rounded-2xl bg-background px-3 py-2.5">
                           <p className="text-sm font-semibold">{row.project_name}</p>

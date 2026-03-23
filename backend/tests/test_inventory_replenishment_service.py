@@ -202,6 +202,7 @@ def test_inventory_replenishment_analysis_aggregates_sources():
         schedule = ShipmentSchedule(
             project_id=project.id,
             project_name_snapshot='宝勒1店',
+            country='US',
             shipment_no='SHP-001',
             shipping_method='sea',
             shipment_status='in_transit',
@@ -239,13 +240,13 @@ def test_inventory_replenishment_analysis_aggregates_sources():
         row = next(item for item in items if item['sku'] == 'SKU-001')
         assert row['available_inventory'] == 120
         assert row['in_transit_quantity'] == 60
-        assert row['dms_30'] == 3.0
-        assert row['dms_14'] == 4.0
-        assert row['dms_7'] == 5.0
+        assert row['dms_30'] == 0.3
+        assert row['dms_14'] == 0.6429
+        assert row['dms_7'] == 1.2857
         assert row['dms_3'] == 3.0
-        assert row['base_dms'] == 3.9
-        assert row['weighted_dms'] == 4.68
-        assert row['risk_status'] in {'未来健康', '滞销风险', '断货风险'}
+        assert row['base_dms'] == 1.5086
+        assert row['weighted_dms'] == 1.8103
+        assert row['risk_status'] in {'长期断货', '短期断货', '断货风险', '健康库存', '滞销', '严重滞销'}
 
 
 def test_upsert_inventory_replenishment_setting_updates_row():
@@ -682,7 +683,7 @@ def test_normalize_weighted_dms_rebalances_when_window_missing():
     )
 
     assert result is not None
-    assert result.quantize(Decimal('0.0001')) == Decimal('4.2857')
+    assert result.quantize(Decimal('0.0001')) == Decimal('4.5000')
 
 
 def test_inventory_replenishment_analysis_counts_draft_as_in_transit():
@@ -709,6 +710,7 @@ def test_inventory_replenishment_analysis_counts_draft_as_in_transit():
         schedule = ShipmentSchedule(
             project_id=project.id,
             project_name_snapshot='Draft Transit Demo',
+            country='US',
             shipment_no='SHP-DRAFT',
             shipping_method='sea',
             shipment_status='draft',
@@ -758,6 +760,7 @@ def test_inventory_replenishment_shipments_sorted_by_latest_shipment_date():
         old_schedule = ShipmentSchedule(
             project_id=project.id,
             project_name_snapshot='Shipment Sort Demo',
+            country='US',
             shipment_no='SHP-OLD',
             shipping_method='sea',
             shipment_status='in_transit',
@@ -767,6 +770,7 @@ def test_inventory_replenishment_shipments_sorted_by_latest_shipment_date():
         new_schedule = ShipmentSchedule(
             project_id=project.id,
             project_name_snapshot='Shipment Sort Demo',
+            country='US',
             shipment_no='SHP-NEW',
             shipping_method='sea',
             shipment_status='in_transit',

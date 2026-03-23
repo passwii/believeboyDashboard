@@ -72,17 +72,18 @@ export function VisitorsChart() {
   }, [timeRange])
 
   return (
-    <Card className="col-span-1 lg:col-span-4 dashboard-surface hover-lift animate-enter">
-      <CardHeader className="relative z-10 flex flex-col gap-3 space-y-0 border-b border-border/70 py-4 sm:flex-row sm:items-center sm:gap-2 sm:py-5">
+    <Card className="col-span-1 lg:col-span-4 hover-lift animate-enter">
+      <CardHeader className="relative z-10 flex flex-col gap-4 space-y-0 pb-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="grid flex-1 gap-1 text-center sm:text-left">
-          <CardTitle className="text-lg sm:text-xl">Visitors Overview</CardTitle>
+          <p className="dashboard-kicker">Sales Trajectory</p>
+          <CardTitle className="text-lg sm:text-[1.25rem]">Daily Sales vs Last Period</CardTitle>
           <CardDescription className="text-xs sm:text-sm md:text-[15px]">
-            Showing total visitors and page views for the selected period
+            把当前周期与对照周期放进同一条叙事曲线里，快速识别增长和异常回撤。
           </CardDescription>
         </div>
         <Select value={timeRange} onValueChange={setTimeRange}>
           <SelectTrigger
-            className="h-9 w-full min-w-touch sm:w-[170px] rounded-lg border-border/80 bg-background/70 text-sm"
+            className="h-10 w-full min-w-touch rounded-2xl border-0 bg-[hsl(var(--surface-low))] text-sm shadow-none sm:w-[170px]"
             aria-label="Select a time range"
           >
             <SelectValue placeholder="Last 30 days" />
@@ -100,10 +101,23 @@ export function VisitorsChart() {
           </SelectContent>
         </Select>
       </CardHeader>
-      <CardContent className="relative z-10 px-2 pt-4 sm:px-6 sm:pt-6">
+      <CardContent className="relative z-10 px-2 pt-2 sm:px-6 sm:pt-2">
+        <div className="mb-5 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+          <div className="inline-flex items-center gap-2 rounded-full bg-primary/8 px-3 py-1.5 text-primary">
+            <span className="h-2 w-2 rounded-full bg-primary" />
+            Current: $1,240,492
+          </div>
+          <div className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--surface-low))] px-3 py-1.5">
+            <span className="h-2 w-2 rounded-full bg-[hsl(var(--surface-outline))]" />
+            Previous: $1,082,100
+          </div>
+          <div className="inline-flex items-center gap-2 rounded-full bg-secondary/10 px-3 py-1.5 font-semibold text-secondary">
+            +14.6% Growth
+          </div>
+        </div>
         <ChartContainer
           config={chartConfig}
-          className="aspect-auto h-[250px] sm:h-[300px] w-full"
+          className="aspect-auto h-[260px] w-full rounded-[1.4rem] bg-[hsl(var(--surface-low))] px-2 py-4 sm:h-[320px] sm:px-4"
         >
           <AreaChart accessibilityLayer data={filteredData}>
             <defs>
@@ -132,7 +146,7 @@ export function VisitorsChart() {
                 />
               </linearGradient>
             </defs>
-            <CartesianGrid vertical={false} />
+            <CartesianGrid vertical={false} stroke="hsl(var(--border) / 0.22)" />
             <XAxis
               dataKey="date"
               tickLine={false}
@@ -172,14 +186,15 @@ export function VisitorsChart() {
               type="natural"
               fill="url(#fillPageViews)"
               stroke="var(--color-pageViews)"
-              stackId="a"
+              strokeDasharray="5 5"
+              strokeWidth={2}
             />
             <Area
               dataKey="visitors"
               type="natural"
               fill="url(#fillVisitors)"
               stroke="var(--color-visitors)"
-              stackId="a"
+              strokeWidth={3}
             />
             <ChartLegend content={<ChartLegendContent />} />
           </AreaChart>
