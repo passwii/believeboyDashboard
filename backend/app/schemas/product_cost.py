@@ -9,6 +9,7 @@ class ProductCostItem(BaseModel):
     sku: str
     asin: str
     fnsku: str | None = None
+    product_name: str | None = None
     fob_unit_cost: float
     first_leg_cost_rmb: float
     package_length_cm: float
@@ -37,8 +38,9 @@ class ProductCostsPage(BaseModel):
 class ProductCostCreate(BaseModel):
     project_name: str = Field(min_length=1)
     sku: str = Field(min_length=1)
-    asin: str = ''
+    asin: str = ""
     fnsku: str | None = None
+    product_name: str | None = None
     fob_unit_cost: float | None = Field(default=None, ge=0, le=100000000)
     first_leg_cost_rmb: float | None = Field(default=None, ge=0, le=100000000)
     package_length_cm: float | None = Field(default=None, ge=0, le=100000)
@@ -50,8 +52,8 @@ class ProductCostCreate(BaseModel):
     carton_height_cm: float | None = Field(default=None, ge=0, le=100000)
     carton_weight_kg: float | None = Field(default=None, ge=0, le=100000)
     units_per_carton: int | None = Field(default=None, ge=0, le=100000000)
-    currency: str = 'CNY'
-    country: str = 'US'
+    currency: str = "CNY"
+    country: str = "US"
     sort_order: int | None = Field(default=None, ge=1)
     is_active: bool = True
     source_file: str | None = None
@@ -59,8 +61,9 @@ class ProductCostCreate(BaseModel):
 
 class ProductCostUpdate(BaseModel):
     sku: str = Field(min_length=1)
-    asin: str = ''
+    asin: str = ""
     fnsku: str | None = None
+    product_name: str | None = None
     fob_unit_cost: float | None = Field(default=None, ge=0, le=100000000)
     first_leg_cost_rmb: float | None = Field(default=None, ge=0, le=100000000)
     package_length_cm: float | None = Field(default=None, ge=0, le=100000)
@@ -72,15 +75,15 @@ class ProductCostUpdate(BaseModel):
     carton_height_cm: float | None = Field(default=None, ge=0, le=100000)
     carton_weight_kg: float | None = Field(default=None, ge=0, le=100000)
     units_per_carton: int | None = Field(default=None, ge=0, le=100000000)
-    currency: str = 'CNY'
-    country: str = 'US'
+    currency: str = "CNY"
+    country: str = "US"
     sort_order: int | None = Field(default=None, ge=1)
     is_active: bool = True
     source_file: str | None = None
 
 
 class ProductCostSortMove(BaseModel):
-    direction: Literal['up', 'down']
+    direction: Literal["up", "down"]
 
 
 class ProductCostBulkCreate(BaseModel):

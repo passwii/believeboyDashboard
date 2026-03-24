@@ -20,6 +20,7 @@ type ProductCostItem = {
   sku: string
   asin: string
   fnsku: string | null
+  product_name: string | null
   fob_unit_cost: number
   first_leg_cost_rmb: number
   package_length_cm: number
@@ -107,16 +108,16 @@ function downloadCsvFile(filename: string, header: string[], rows: Array<Array<s
 function downloadCostTemplate() {
   downloadCsvFile(
     'sku-info-base-template.csv',
-    ['project_name', 'SKU', 'ASIN(可留空，后续维护)', 'FNSKU(可留空，后续维护)', 'FOB单价(RMB)', '国家'],
-    [['创酷', 'JDB-M35-13PCS', '', '', '2.57', 'US']]
+    ['project_name', 'SKU', 'ASIN(可留空，后续维护)', 'FNSKU(可留空，后续维护)', '品名(可留空)', 'FOB单价(RMB)', '国家'],
+    [['创酷', 'JDB-M35-13PCS', '', '', '', '2.57', 'US']]
   )
 }
 
 function downloadDimensionTemplate() {
   downloadCsvFile(
     'sku-info-dimension-template.csv',
-    ['project_name', 'SKU', 'ASIN(可留空，后续维护)', 'FNSKU(可留空，后续维护)', '国家', '单品长(cm)', '单品宽(cm)', '单品高(cm)', '单品重量(kg)', '外箱长(cm)', '外箱宽(cm)', '外箱高(cm)', '外箱重量(kg)', '装箱数量'],
-    [['创酷', 'JDB-M35-13PCS', '', '', 'US', '18.5', '12.0', '5.2', '0.68', '42', '28', '30', '9.2', '12']]
+    ['project_name', 'SKU', 'ASIN(可留空，后续维护)', 'FNSKU(可留空，后续维护)', '品名(可留空)', '国家', '单品长(cm)', '单品宽(cm)', '单品高(cm)', '单品重量(kg)', '外箱长(cm)', '外箱宽(cm)', '外箱高(cm)', '外箱重量(kg)', '装箱数量'],
+    [['创酷', 'JDB-M35-13PCS', '', '', '', 'US', '18.5', '12.0', '5.2', '0.68', '42', '28', '30', '9.2', '12']]
   )
 }
 
@@ -138,6 +139,7 @@ const EMPTY_EDIT_ROW = {
   sku: '',
   asin: '',
   fnsku: '',
+  product_name: '',
   fob_unit_cost: '0',
   first_leg_cost_rmb: '0',
   package_length_cm: '0',
@@ -443,6 +445,7 @@ export default function SkuInfoPage() {
       sku: row.sku,
       asin: row.asin,
       fnsku: row.fnsku || '',
+      product_name: row.product_name || '',
       fob_unit_cost: String(row.fob_unit_cost),
       first_leg_cost_rmb: String(row.first_leg_cost_rmb),
       package_length_cm: String(row.package_length_cm),
@@ -474,6 +477,7 @@ export default function SkuInfoPage() {
           sku: editRow.sku.trim(),
           asin: editRow.asin.trim(),
           fnsku: editRow.fnsku.trim() || null,
+          product_name: editRow.product_name.trim() || null,
           fob_unit_cost: Number(editRow.fob_unit_cost),
           first_leg_cost_rmb: Number(editRow.first_leg_cost_rmb),
           package_length_cm: Number(editRow.package_length_cm),
@@ -629,9 +633,8 @@ export default function SkuInfoPage() {
                     <tr className="border-b bg-background">
                       <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left">排序</th>
                       <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left">项目名</th>
-                      <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left">SKU</th>
-                      <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left">ASIN</th>
-                      <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left">FNSKU</th>
+                      <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left">SKU / ASIN / FNSKU</th>
+                      <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left">品名</th>
                       <th className="sticky top-0 z-10 h-12 bg-background px-4 text-right">头程成本(历史加权)</th>
                       <th className="sticky top-0 z-10 h-12 bg-background px-4 text-right">FOB</th>
                       <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left">国家</th>
@@ -640,14 +643,19 @@ export default function SkuInfoPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {loading && items.length === 0 ? <TableSkeletonRows columns={10} /> : null}
+                    {loading && items.length === 0 ? <TableSkeletonRows columns={9} /> : null}
                     {items.map((row) => (
                       <tr key={row.id} className={`border-b ${editingId === row.id ? 'bg-muted/30' : ''}`}>
                         <td className="p-4">{editingId === row.id ? <Input className="h-8 w-16" value={editRow.sort_order} onChange={(e) => setEditRow((current) => ({ ...current, sort_order: e.target.value }))} /> : row.sort_order}</td>
                         <td className="p-4 font-medium">{row.project_name}</td>
-                        <td className="p-4">{editingId === row.id ? <Input className="h-8 w-24" value={editRow.sku} onChange={(e) => setEditRow((current) => ({ ...current, sku: e.target.value }))} /> : row.sku}</td>
-                        <td className="p-4">{editingId === row.id ? <Input className="h-8 w-28" value={editRow.asin} onChange={(e) => setEditRow((current) => ({ ...current, asin: e.target.value }))} /> : row.asin}</td>
-                        <td className="p-4">{editingId === row.id ? <Input className="h-8 w-32" value={editRow.fnsku} onChange={(e) => setEditRow((current) => ({ ...current, fnsku: e.target.value }))} /> : (row.fnsku || '-')}</td>
+                        <td className="p-4">
+                          <div className="space-y-1">
+                            <div className="font-medium">{editingId === row.id ? <Input className="h-8 w-24" value={editRow.sku} onChange={(e) => setEditRow((current) => ({ ...current, sku: e.target.value }))} /> : row.sku}</div>
+                            <div>{editingId === row.id ? <Input className="h-8 w-28" value={editRow.asin} onChange={(e) => setEditRow((current) => ({ ...current, asin: e.target.value }))} /> : row.asin}</div>
+                            <div>{editingId === row.id ? <Input className="h-8 w-32" value={editRow.fnsku} onChange={(e) => setEditRow((current) => ({ ...current, fnsku: e.target.value }))} /> : (row.fnsku || '-')}</div>
+                          </div>
+                        </td>
+                        <td className="p-4">{editingId === row.id ? <Input className="h-8 w-28" value={editRow.product_name} onChange={(e) => setEditRow((current) => ({ ...current, product_name: e.target.value }))} placeholder="品名" /> : (row.product_name || '-')}</td>
                         <td className="p-4 text-right">{(row.historical_first_leg_cost_rmb ?? row.first_leg_cost_rmb).toFixed(2)}</td>
                         <td className="p-4 text-right">{editingId === row.id ? <Input className="h-8 w-20" value={editRow.fob_unit_cost} onChange={(e) => setEditRow((current) => ({ ...current, fob_unit_cost: e.target.value }))} /> : row.fob_unit_cost.toFixed(2)}</td>
                         <td className="p-4">
@@ -680,7 +688,7 @@ export default function SkuInfoPage() {
                     ))}
                     {!loading && items.length === 0 ? (
                       <tr>
-                        <td colSpan={10} className="py-12 text-center text-sm text-muted-foreground">
+                        <td colSpan={9} className="py-12 text-center text-sm text-muted-foreground">
                           {projectFilter ? '当前筛选条件下暂无 SKU 数据。' : '请选择项目后再查询 SKU 数据。'}
                         </td>
                       </tr>
@@ -698,7 +706,7 @@ export default function SkuInfoPage() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="space-y-1">
                   <CardTitle className="text-base font-semibold">尺寸管理</CardTitle>
-                  <CardDescription>尺寸模板保留 ASIN、FNSKU 列但都可留空；批量修改时未填写字段不会覆盖现有值。</CardDescription>
+                  
                 </div>
                 <ActionsBar
                   batchImporting={batchImporting}
