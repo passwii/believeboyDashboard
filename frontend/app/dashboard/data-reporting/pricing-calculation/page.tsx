@@ -806,13 +806,13 @@ async function exportStoreSkuTableToExcel(
     return rowState?.result != null
   })
 
-  worksheet.mergeCells(1, 1, 1, 28)
+  worksheet.mergeCells(1, 1, 1, 29)
   worksheet.getCell(1, 1).value = title
   worksheet.getCell(1, 1).font = { name: 'Microsoft YaHei', size: 16, bold: true, color: { argb: 'FF0F172A' } }
   worksheet.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
   worksheet.getCell(1, 1).alignment = { vertical: 'middle', horizontal: 'left' }
 
-  worksheet.mergeCells(2, 1, 2, 28)
+  worksheet.mergeCells(2, 1, 2, 29)
   worksheet.getCell(2, 1).value = `导出时间：${exportedAt} 核算模式：${calculationMode === 'profit-calc' ? '利润核算' : '利润倒算'} 导出数量：${itemsWithResults.length} 条`
   worksheet.getCell(2, 1).font = { name: 'Microsoft YaHei', size: 10, color: { argb: 'FF475569' } }
   worksheet.getCell(2, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
@@ -829,7 +829,7 @@ async function exportStoreSkuTableToExcel(
     { name: 'DDP 成本', startCol: 9, span: 4, headerColor: 'FFF59E0B', subColor: 'FFFEF3C7' },
     { name: '费用支出', startCol: 13, span: 11, headerColor: 'FFF43F5E', subColor: 'FFFDE8E8' },
     { name: '利润核算', startCol: 24, span: 3, headerColor: 'FF10B981', subColor: 'FFD1FAE5' },
-    { name: '产品核定', startCol: 27, span: 2, headerColor: 'FF8B5CF6', subColor: 'FFEDE9FE' },
+    { name: '产品核定', startCol: 27, span: 3, headerColor: 'FF8B5CF6', subColor: 'FFEDE9FE' },
   ]
 
   // 设置分组表头（合并单元格）
@@ -880,6 +880,7 @@ async function exportStoreSkuTableToExcel(
     calculationMode === 'profit-calc' ? '利润率(%)' : '-',
     '尺寸等级',
     '售价带',
+    '规则',
   ]
   headerRow.height = 24
 
@@ -911,6 +912,8 @@ async function exportStoreSkuTableToExcel(
     { width: 12 },
     { width: 14 },
     { width: 14 },
+    { width: 14 },
+    { width: 32 },
   ]
 
   // 细分表头颜色映射（与分组保持一致）
@@ -943,6 +946,7 @@ async function exportStoreSkuTableToExcel(
     '26': { bg: 'FFD1FAE5' },
     '27': { bg: 'FFEDE9FE' },
     '28': { bg: 'FFEDE9FE' },
+    '29': { bg: 'FFEDE9FE' },
   }
 
   headerRow.eachCell((cell, colNumber) => {
@@ -1043,19 +1047,27 @@ async function exportStoreSkuTableToExcel(
     excelRow.getCell(27).value = result.size_tier_label
     excelRow.getCell(28).value = result.price_band_label
 
+    // 规则列：派送规则、入库配置、仓储规则
+    const ruleLines = [
+      `派送: ${result.fulfillment_fee_rule_label}`,
+      `配置: ${result.inbound_config_fee_rule_label}`,
+      `仓储: ${result.storage_fee_rule_label}`,
+    ].join('\n')
+    excelRow.getCell(29).value = ruleLines
+
     const colorMap: Record<string, { header: string; sub: string }> = {
       '1': { header: 'FFDCEEFF', sub: 'FFF0F5FF' },
       '2': { header: 'FFDCEEFF', sub: 'FFF0F5FF' },
-      '3': { header: 'FFFEE7C7', sub: 'FFFFF8EB' },
-      '4': { header: 'FFFEE7C7', sub: 'FFFFF8EB' },
-      '5': { header: 'FFFEE7C7', sub: 'FFFFF8EB' },
-      '6': { header: 'FFFEE7C7', sub: 'FFFFF8EB' },
-      '7': { header: 'FFFEE7C7', sub: 'FFFFF8EB' },
-      '8': { header: 'FFFEE7C7', sub: 'FFFFF8EB' },
-      '9': { header: 'FFEFDECD', sub: 'FFFDF5E6' },
-      '10': { header: 'FFEFDECD', sub: 'FFFDF5E6' },
-      '11': { header: 'FFEFDECD', sub: 'FFFDF5E6' },
-      '12': { header: 'FFEFDECD', sub: 'FFFDF5E6' },
+      '3': { header: 'FFDCEEFF', sub: 'FFF0F5FF' },
+      '4': { header: 'FFDCEEFF', sub: 'FFF0F5FF' },
+      '5': { header: 'FFDCEEFF', sub: 'FFF0F5FF' },
+      '6': { header: 'FFDCEEFF', sub: 'FFF0F5FF' },
+      '7': { header: 'FFDCEEFF', sub: 'FFF0F5FF' },
+      '8': { header: 'FFDCEEFF', sub: 'FFF0F5FF' },
+      '9': { header: 'FFFEE7C7', sub: 'FFFEF3C7' },
+      '10': { header: 'FFFEE7C7', sub: 'FFFEF3C7' },
+      '11': { header: 'FFFEE7C7', sub: 'FFFEF3C7' },
+      '12': { header: 'FFFEE7C7', sub: 'FFFEF3C7' },
       '13': { header: 'FFFFD9E2', sub: 'FFFFF1F4' },
       '14': { header: 'FFFFD9E2', sub: 'FFFFF1F4' },
       '15': { header: 'FFFFD9E2', sub: 'FFFFF1F4' },
@@ -1072,6 +1084,7 @@ async function exportStoreSkuTableToExcel(
       '26': { header: 'FFD8F7E7', sub: 'FFEEFDF4' },
       '27': { header: 'FFE9D5F9', sub: 'FFF5EEFD' },
       '28': { header: 'FFE9D5F9', sub: 'FFF5EEFD' },
+      '29': { header: 'FFE9D5F9', sub: 'FFF5EEFD' },
     }
 
     excelRow.eachCell((cell, colNumber) => {
