@@ -85,7 +85,12 @@ class StoreSkuPricingSnapshotItem(BaseModel):
     size_tier_label: str
     price_band: str
     price_band_label: str
-    
+
+    # 费用规则标签
+    fulfillment_fee_rule_label: str
+    inbound_config_fee_rule_label: str
+    storage_fee_rule_label: str
+
     # 尺寸详情
     dimensions: StoreSkuPricingDimensions
     # 重量详情

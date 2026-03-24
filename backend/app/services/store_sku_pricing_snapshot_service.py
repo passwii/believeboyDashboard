@@ -43,6 +43,9 @@ def _to_item(row: StoreSkuPricingSnapshot) -> StoreSkuPricingSnapshotItem:
         size_tier_label=row.size_tier_label,
         price_band=row.price_band,
         price_band_label=row.price_band_label,
+        fulfillment_fee_rule_label=row.fulfillment_fee_rule_label,
+        inbound_config_fee_rule_label=row.inbound_config_fee_rule_label,
+        storage_fee_rule_label=row.storage_fee_rule_label,
         dimensions={
             'longest_side_in': float(row.longest_side_in),
             'middle_side_in': float(row.middle_side_in),
