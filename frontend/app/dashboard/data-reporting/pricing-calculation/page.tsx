@@ -794,7 +794,7 @@ async function exportStoreSkuTableToExcel(
   workbook.created = new Date()
 
   const worksheet = workbook.addWorksheet('店铺SKU核算表', {
-    views: [{ state: 'frozen', ySplit: 3 }],
+    views: [{ state: 'frozen', xSplit: 2, ySplit: 4 }],
   })
 
   const title = `店铺SKU核算表 - ${projectName}`
@@ -806,24 +806,54 @@ async function exportStoreSkuTableToExcel(
     return rowState?.result != null
   })
 
-  worksheet.mergeCells(1, 1, 1, 30)
+  worksheet.mergeCells(1, 1, 1, 28)
   worksheet.getCell(1, 1).value = title
   worksheet.getCell(1, 1).font = { name: 'Microsoft YaHei', size: 16, bold: true, color: { argb: 'FF0F172A' } }
   worksheet.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
   worksheet.getCell(1, 1).alignment = { vertical: 'middle', horizontal: 'left' }
 
-  worksheet.mergeCells(2, 1, 2, 30)
-  worksheet.getCell(2, 1).value = `导出时间：${exportedAt}    核算模式：${calculationMode === 'profit-calc' ? '利润核算' : '利润倒算'}    导出数量：${itemsWithResults.length} 条`
+  worksheet.mergeCells(2, 1, 2, 28)
+  worksheet.getCell(2, 1).value = `导出时间：${exportedAt} 核算模式：${calculationMode === 'profit-calc' ? '利润核算' : '利润倒算'} 导出数量：${itemsWithResults.length} 条`
   worksheet.getCell(2, 1).font = { name: 'Microsoft YaHei', size: 10, color: { argb: 'FF475569' } }
   worksheet.getCell(2, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
   worksheet.getCell(2, 1).alignment = { vertical: 'middle', horizontal: 'left' }
 
-  const headerRow = worksheet.getRow(3)
+  // 大分组表头（第3行）- 类似前端的分组效果
+  const groupHeaderRow = worksheet.getRow(3)
+  groupHeaderRow.height = 28
+
+  // 定义分组配置：名称、起始列、跨列数、颜色
+  const groupConfigs = [
+    { name: '店铺产品', startCol: 1, span: 2, headerColor: 'FF6366F1', subColor: 'FFE0E7FF' },
+    { name: '货品数据', startCol: 3, span: 6, headerColor: 'FF0EA5E9', subColor: 'FFE0F2FE' },
+    { name: 'DDP 成本', startCol: 9, span: 4, headerColor: 'FFF59E0B', subColor: 'FFFEF3C7' },
+    { name: '费用支出', startCol: 13, span: 11, headerColor: 'FFF43F5E', subColor: 'FFFDE8E8' },
+    { name: '利润核算', startCol: 24, span: 3, headerColor: 'FF10B981', subColor: 'FFD1FAE5' },
+    { name: '产品核定', startCol: 27, span: 2, headerColor: 'FF8B5CF6', subColor: 'FFEDE9FE' },
+  ]
+
+  // 设置分组表头（合并单元格）
+  groupConfigs.forEach((group) => {
+    const endCol = group.startCol + group.span - 1
+    worksheet.mergeCells(3, group.startCol, 3, endCol)
+    const cell = worksheet.getCell(3, group.startCol)
+    cell.value = group.name
+    cell.font = { name: 'Microsoft YaHei', size: 12, bold: true, color: { argb: group.name === '店铺产品' ? 'FFFFFFFF' : 'FF0F172A' } }
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: group.headerColor } }
+    cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
+    cell.border = {
+      top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+      left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+      bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+      right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+    }
+  })
+
+  // 细分表头（第4行）
+  const headerRow = worksheet.getRow(4)
   headerRow.values = [
-    '项目',
-    '国家',
     'SKU',
-    'ASIN',
+    '项目',
     'FOB成本(RMB)',
     '长(cm)',
     '宽(cm)',
@@ -835,9 +865,9 @@ async function exportStoreSkuTableToExcel(
     'DDP(USD)',
     '汇率',
     calculationMode === 'profit-calc' ? '售价(USD)' : '目标利润率(%)',
-    '广告费率(%',
+    '广告费率(%)',
     '广告费(USD)',
-    '退货折损率(%',
+    '退货折损率(%)',
     '退货损耗(USD)',
     '佣金(USD)',
     '派送费(USD)',
@@ -854,8 +884,6 @@ async function exportStoreSkuTableToExcel(
   headerRow.height = 24
 
   worksheet.columns = [
-    { width: 16 },
-    { width: 10 },
     { width: 18 },
     { width: 14 },
     { width: 14 },
@@ -875,7 +903,6 @@ async function exportStoreSkuTableToExcel(
     { width: 12 },
     { width: 12 },
     { width: 12 },
-    { width: 12 },
     { width: 10 },
     { width: 12 },
     { width: 14 },
@@ -886,10 +913,43 @@ async function exportStoreSkuTableToExcel(
     { width: 14 },
   ]
 
-  headerRow.eachCell((cell) => {
+  // 细分表头颜色映射（与分组保持一致）
+  const subHeaderColorMap: Record<string, { bg: string }> = {
+    '1': { bg: 'FFE0E7FF' },
+    '2': { bg: 'FFE0E7FF' },
+    '3': { bg: 'FFE0F2FE' },
+    '4': { bg: 'FFE0F2FE' },
+    '5': { bg: 'FFE0F2FE' },
+    '6': { bg: 'FFE0F2FE' },
+    '7': { bg: 'FFE0F2FE' },
+    '8': { bg: 'FFE0F2FE' },
+    '9': { bg: 'FFFEF3C7' },
+    '10': { bg: 'FFFEF3C7' },
+    '11': { bg: 'FFFEF3C7' },
+    '12': { bg: 'FFFEF3C7' },
+    '13': { bg: 'FFFDE8E8' },
+    '14': { bg: 'FFFDE8E8' },
+    '15': { bg: 'FFFDE8E8' },
+    '16': { bg: 'FFFDE8E8' },
+    '17': { bg: 'FFFDE8E8' },
+    '18': { bg: 'FFFDE8E8' },
+    '19': { bg: 'FFFDE8E8' },
+    '20': { bg: 'FFFDE8E8' },
+    '21': { bg: 'FFFDE8E8' },
+    '22': { bg: 'FFFDE8E8' },
+    '23': { bg: 'FFFDE8E8' },
+    '24': { bg: 'FFD1FAE5' },
+    '25': { bg: 'FFD1FAE5' },
+    '26': { bg: 'FFD1FAE5' },
+    '27': { bg: 'FFEDE9FE' },
+    '28': { bg: 'FFEDE9FE' },
+  }
+
+  headerRow.eachCell((cell, colNumber) => {
+    const colorGroup = subHeaderColorMap[colNumber.toString()] || { bg: 'FFE2E8F0' }
     cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
     cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colorGroup.bg } }
     cell.border = {
       top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
       left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
@@ -898,7 +958,7 @@ async function exportStoreSkuTableToExcel(
     }
   })
 
-  let currentRowIndex = 4
+  let currentRowIndex = 5
   itemsWithResults.forEach((item) => {
     const rowState = rowStates[item.id]
     const result = rowState?.result
@@ -916,80 +976,109 @@ async function exportStoreSkuTableToExcel(
 
     const excelRow = worksheet.getRow(currentRowIndex)
     
-    excelRow.getCell(1).value = item.project_name
-    excelRow.getCell(2).value = item.country || ''
-    excelRow.getCell(3).value = item.sku
-    excelRow.getCell(4).value = item.asin || ''
-    excelRow.getCell(5).value = fobCost
-    excelRow.getCell(5).numFmt = '#,##0.00'
-    excelRow.getCell(6).value = result.package_length_cm
-    excelRow.getCell(7).value = result.package_width_cm
-    excelRow.getCell(8).value = result.package_height_cm
-    excelRow.getCell(9).value = result.weight_kg
-    excelRow.getCell(9).numFmt = '0.000'
-    excelRow.getCell(10).value = result.weights.chargeable_weight_lb * 0.453592
-    excelRow.getCell(10).numFmt = '0.00'
-    excelRow.getCell(11).value = firstLegCost
-    excelRow.getCell(11).numFmt = '#,##0.00'
-    excelRow.getCell(12).value = ddpRmb
-    excelRow.getCell(12).numFmt = '#,##0.00'
-    excelRow.getCell(13).value = ddpUsd
-    excelRow.getCell(13).numFmt = '$#,##0.00'
-    excelRow.getCell(14).value = exchangeRate
-    excelRow.getCell(14).numFmt = '0.0000'
+    excelRow.getCell(1).value = item.sku
+    excelRow.getCell(2).value = item.project_name
+    excelRow.getCell(3).value = fobCost
+    excelRow.getCell(3).numFmt = '#,##0.00'
+    excelRow.getCell(4).value = result.package_length_cm
+    excelRow.getCell(5).value = result.package_width_cm
+    excelRow.getCell(6).value = result.package_height_cm
+    excelRow.getCell(7).value = result.weight_kg
+    excelRow.getCell(7).numFmt = '0.000'
+    excelRow.getCell(8).value = result.weights.chargeable_weight_lb * 0.453592
+    excelRow.getCell(8).numFmt = '0.00'
+    excelRow.getCell(9).value = firstLegCost
+    excelRow.getCell(9).numFmt = '#,##0.00'
+    excelRow.getCell(10).value = ddpRmb
+    excelRow.getCell(10).numFmt = '#,##0.00'
+    excelRow.getCell(11).value = ddpUsd
+    excelRow.getCell(11).numFmt = '$#,##0.00'
+    excelRow.getCell(12).value = exchangeRate
+    excelRow.getCell(12).numFmt = '0.0000'
     
     if (calculationMode === 'profit-calc') {
-      excelRow.getCell(15).value = result.sale_price_usd
-      excelRow.getCell(15).numFmt = '$#,##0.00'
+      excelRow.getCell(13).value = result.sale_price_usd
+      excelRow.getCell(13).numFmt = '$#,##0.00'
     } else {
-      excelRow.getCell(15).value = draft ? toNumber(draft.target_profit_rate) : 0
-      excelRow.getCell(15).numFmt = '0.00'
+      excelRow.getCell(13).value = draft ? toNumber(draft.target_profit_rate) : 0
+      excelRow.getCell(13).numFmt = '0.00'
     }
     
-    excelRow.getCell(16).value = result.advertising_rate * 100
+    excelRow.getCell(14).value = result.advertising_rate * 100
+    excelRow.getCell(14).numFmt = '0.00'
+    excelRow.getCell(15).value = result.fees.advertising_fee_usd
+    excelRow.getCell(15).numFmt = '$#,##0.00'
+    excelRow.getCell(16).value = result.return_loss_rate * 100
     excelRow.getCell(16).numFmt = '0.00'
-    excelRow.getCell(17).value = result.fees.advertising_fee_usd
+    excelRow.getCell(17).value = result.fees.return_loss_usd
     excelRow.getCell(17).numFmt = '$#,##0.00'
-    excelRow.getCell(18).value = result.return_loss_rate * 100
-    excelRow.getCell(18).numFmt = '0.00'
-    excelRow.getCell(19).value = result.fees.return_loss_usd
+    excelRow.getCell(18).value = result.fees.referral_fee_usd
+    excelRow.getCell(18).numFmt = '$#,##0.00'
+    excelRow.getCell(19).value = result.fees.fba_fulfillment_fee_usd
     excelRow.getCell(19).numFmt = '$#,##0.00'
-    excelRow.getCell(20).value = result.fees.referral_fee_usd
+    excelRow.getCell(20).value = result.fees.inbound_config_fee_usd
     excelRow.getCell(20).numFmt = '$#,##0.00'
-    excelRow.getCell(21).value = result.fees.fba_fulfillment_fee_usd
-    excelRow.getCell(21).numFmt = '$#,##0.00'
-    excelRow.getCell(22).value = result.fees.inbound_config_fee_usd
+    excelRow.getCell(21).value = result.storage_months
+    excelRow.getCell(22).value = result.fees.storage_fee_usd
     excelRow.getCell(22).numFmt = '$#,##0.00'
-    excelRow.getCell(23).value = result.storage_months
-    excelRow.getCell(24).value = result.fees.storage_fee_usd
+    excelRow.getCell(23).value = result.fees.total_fee_usd
+    excelRow.getCell(23).numFmt = '$#,##0.00'
+    excelRow.getCell(24).value = result.profit.payout_usd
     excelRow.getCell(24).numFmt = '$#,##0.00'
-    excelRow.getCell(25).value = result.fees.total_fee_usd
-    excelRow.getCell(25).numFmt = '$#,##0.00'
-    excelRow.getCell(26).value = result.profit.payout_usd
-    excelRow.getCell(26).numFmt = '$#,##0.00'
     
     if (calculationMode === 'profit-calc') {
-      excelRow.getCell(27).value = result.profit.profit_usd
-      excelRow.getCell(27).numFmt = '$#,##0.00'
-      // 利润颜色
-      excelRow.getCell(27).font = { color: { argb: result.profit.profit_usd >= 0 ? 'FF047857' : 'FFBE123C' } }
+      excelRow.getCell(25).value = result.profit.profit_usd
+      excelRow.getCell(25).numFmt = '$#,##0.00'
+      excelRow.getCell(25).font = { color: { argb: result.profit.profit_usd >= 0 ? 'FF047857' : 'FFBE123C' } }
       
-      excelRow.getCell(28).value = result.profit.profit_rate
-      excelRow.getCell(28).numFmt = '0.00%'
-      excelRow.getCell(28).font = { color: { argb: result.profit.profit_rate >= 0 ? 'FF047857' : 'FFBE123C' } }
+      excelRow.getCell(26).value = result.profit.profit_rate
+      excelRow.getCell(26).numFmt = '0.00%'
+      excelRow.getCell(26).font = { color: { argb: result.profit.profit_rate >= 0 ? 'FF047857' : 'FFBE123C' } }
     } else {
-      excelRow.getCell(27).value = result.sale_price_usd
-      excelRow.getCell(27).numFmt = '$#,##0.00'
-      excelRow.getCell(28).value = '-'
+      excelRow.getCell(25).value = result.sale_price_usd
+      excelRow.getCell(25).numFmt = '$#,##0.00'
+      excelRow.getCell(26).value = '-'
     }
     
-    excelRow.getCell(29).value = result.size_tier_label
-    excelRow.getCell(30).value = result.price_band_label
+    excelRow.getCell(27).value = result.size_tier_label
+    excelRow.getCell(28).value = result.price_band_label
 
-    // 设置单元格样式
+    const colorMap: Record<string, { header: string; sub: string }> = {
+      '1': { header: 'FFDCEEFF', sub: 'FFF0F5FF' },
+      '2': { header: 'FFDCEEFF', sub: 'FFF0F5FF' },
+      '3': { header: 'FFFEE7C7', sub: 'FFFFF8EB' },
+      '4': { header: 'FFFEE7C7', sub: 'FFFFF8EB' },
+      '5': { header: 'FFFEE7C7', sub: 'FFFFF8EB' },
+      '6': { header: 'FFFEE7C7', sub: 'FFFFF8EB' },
+      '7': { header: 'FFFEE7C7', sub: 'FFFFF8EB' },
+      '8': { header: 'FFFEE7C7', sub: 'FFFFF8EB' },
+      '9': { header: 'FFEFDECD', sub: 'FFFDF5E6' },
+      '10': { header: 'FFEFDECD', sub: 'FFFDF5E6' },
+      '11': { header: 'FFEFDECD', sub: 'FFFDF5E6' },
+      '12': { header: 'FFEFDECD', sub: 'FFFDF5E6' },
+      '13': { header: 'FFFFD9E2', sub: 'FFFFF1F4' },
+      '14': { header: 'FFFFD9E2', sub: 'FFFFF1F4' },
+      '15': { header: 'FFFFD9E2', sub: 'FFFFF1F4' },
+      '16': { header: 'FFFFD9E2', sub: 'FFFFF1F4' },
+      '17': { header: 'FFFFD9E2', sub: 'FFFFF1F4' },
+      '18': { header: 'FFFFD9E2', sub: 'FFFFF1F4' },
+      '19': { header: 'FFFFD9E2', sub: 'FFFFF1F4' },
+      '20': { header: 'FFFFD9E2', sub: 'FFFFF1F4' },
+      '21': { header: 'FFFFD9E2', sub: 'FFFFF1F4' },
+      '22': { header: 'FFFFD9E2', sub: 'FFFFF1F4' },
+      '23': { header: 'FFFFD9E2', sub: 'FFFFF1F4' },
+      '24': { header: 'FFD8F7E7', sub: 'FFEEFDF4' },
+      '25': { header: 'FFD8F7E7', sub: 'FFEEFDF4' },
+      '26': { header: 'FFD8F7E7', sub: 'FFEEFDF4' },
+      '27': { header: 'FFE9D5F9', sub: 'FFF5EEFD' },
+      '28': { header: 'FFE9D5F9', sub: 'FFF5EEFD' },
+    }
+
     excelRow.eachCell((cell, colNumber) => {
+      const colorGroup = colorMap[colNumber.toString()] || { header: 'FFE2E8F0', sub: 'FFF8FAFC' }
       cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF0F172A' } }
-      cell.alignment = { vertical: 'middle', horizontal: colNumber <= 4 ? 'left' : 'right', wrapText: true }
+      cell.alignment = { vertical: 'middle', horizontal: colNumber <= 2 ? 'left' : 'right', wrapText: true }
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colorGroup.sub } }
       cell.border = {
         top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
         left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
@@ -1808,7 +1897,6 @@ export default function PricingCalculationPage() {
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div className="space-y-1">
                   <CardTitle className="text-lg">店铺 SKU 核算表</CardTitle>
-                  <CardDescription>每行一个 SKU，FOB 取 SKU 信息档案；已维护的尺寸/重量自动带出，头程加权成本自动读取发货汇总，售价等动态参数按需补充后逐行测算。</CardDescription>
                 </div>
                 <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
                   <Tabs value={storeCalculationMode} onValueChange={(value) => setStoreCalculationMode(value as 'profit-calc' | 'profit-reverse')} className="w-auto">
@@ -1973,7 +2061,7 @@ function StoreAccountingTable({
     <Table className="w-max min-w-full text-xs" containerClassName="rounded-xl border border-border/70">
       <TableHeader className="bg-muted">
         <TableRow className="hover:bg-transparent">
-          <TableHead colSpan={2} className={cn('sticky left-0 z-50 border-r px-3 py-2 text-center font-semibold', groupStyles['店铺产品'].header)}>店铺产品</TableHead>
+          <TableHead colSpan={1} className={cn('sticky left-0 z-50 border-r px-3 py-2 text-center font-semibold', groupStyles['店铺产品'].header)}>店铺产品</TableHead>
           <TableHead colSpan={6} className={cn('border-r px-3 py-2 text-center font-semibold', groupStyles['货品数据'].header)}>货品数据</TableHead>
           <TableHead colSpan={4} className={cn('border-r px-3 py-2 text-center font-semibold', groupStyles['DDP 成本'].header)}>DDP 成本</TableHead>
           <TableHead colSpan={10} className={cn('border-r px-3 py-2 text-center font-semibold', groupStyles['费用支出'].header)}>费用支出</TableHead>
@@ -1983,7 +2071,6 @@ function StoreAccountingTable({
         </TableRow>
         <TableRow>
           <TableHead className={cn('sticky left-0 z-40 min-w-[160px] whitespace-nowrap border-r px-3 py-2', groupStyles['店铺产品'].subHeader)}>SKU / 项目</TableHead>
-          <TableHead className={cn('sticky left-[160px] z-40 min-w-[140px] whitespace-nowrap border-r px-3 py-2', groupStyles['店铺产品'].subHeader)}>ASIN / 国家</TableHead>
           <TableHead className={cn('min-w-[86px] whitespace-nowrap border-r px-3 py-2 text-right', groupStyles['货品数据'].subHeader)}>FOB(RMB)</TableHead>
           <TableHead className={cn('min-w-[84px] whitespace-nowrap border-r px-3 py-2', groupStyles['货品数据'].subHeader)}>长(cm)</TableHead>
           <TableHead className={cn('min-w-[84px] whitespace-nowrap border-r px-3 py-2', groupStyles['货品数据'].subHeader)}>宽(cm)</TableHead>
@@ -2042,12 +2129,6 @@ function StoreAccountingTable({
                 <div className="min-w-[136px]">
                   <p className="truncate font-semibold text-foreground">{item.sku}</p>
                   <p className="truncate text-[11px] text-muted-foreground">{item.project_name}</p>
-                </div>
-              </TableCell>
-              <TableCell className={cn('sticky left-[160px] z-20 whitespace-nowrap border-r px-3 py-2', groupStyles['店铺产品'].subHeader)}>
-                <div className="min-w-[116px]">
-                  <p className="truncate font-medium text-foreground">{item.asin || '-'}</p>
-                  <p className="text-[11px] text-muted-foreground">{item.country}</p>
                 </div>
               </TableCell>
               <TableCell className="whitespace-nowrap border-r px-3 py-2 text-right font-medium tabular-nums">{item.fob_unit_cost.toFixed(2)}</TableCell>
