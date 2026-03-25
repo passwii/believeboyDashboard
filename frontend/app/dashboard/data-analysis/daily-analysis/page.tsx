@@ -11,16 +11,19 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart'
 import { DateRangePicker } from '@/components/ui/date-picker'
+import { EmptyTableState } from '@/components/ui/empty-state'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { DirectionalTabTransition, SlidingTabsTrigger, TabsMotionGroup } from '@/components/ui/tab-motion'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { cn } from '@/lib/utils'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
 
 type CountryOption = 'US' | 'DE' | 'UK'
 type ViewTab = 'summary' | 'details'
+const VIEW_TAB_ORDER: ViewTab[] = ['summary', 'details']
 
 type ProjectOption = {
   id: number | null
@@ -100,13 +103,13 @@ const CHART_METRICS: Array<{ key: ChartMetricKey; label: string }> = [
 ]
 
 const SINGLE_METRIC_CHART_CONFIG = {
-  order_qty: { label: '订单', color: 'hsl(221 83% 53%)' },
-  sales_amount: { label: '销售额', color: 'hsl(173 58% 39%)' },
-  impressions: { label: '曝光量', color: 'hsl(39 92% 50%)' },
-  clicks: { label: '点击量', color: 'hsl(262 83% 58%)' },
-  cpc: { label: 'CPC', color: 'hsl(0 84% 60%)' },
-  ad_spend: { label: '广告花费', color: 'hsl(197 87% 47%)' },
-  ad_orders: { label: '广告订单', color: 'hsl(142 71% 45%)' },
+  order_qty: { label: '订单', color: 'hsl(var(--chart-1))' },
+  sales_amount: { label: '销售额', color: 'hsl(var(--chart-2))' },
+  impressions: { label: '曝光量', color: 'hsl(var(--chart-3))' },
+  clicks: { label: '点击量', color: 'hsl(var(--chart-4))' },
+  cpc: { label: 'CPC', color: 'hsl(var(--chart-5))' },
+  ad_spend: { label: '广告花费', color: 'hsl(var(--chart-4))' },
+  ad_orders: { label: '广告订单', color: 'hsl(var(--chart-2))' },
 } satisfies ChartConfig
 
 const EMPTY_SUMMARY_ROWS: DailyAnalysisRow[] = []
@@ -688,12 +691,13 @@ export default function DailyAnalysisPage() {
 
   return (
     <div className="space-y-6 lg:space-y-7">
-      <Card className="dashboard-surface border-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.88),rgba(241,244,247,0.96))]">
+      <Card className="dashboard-surface overflow-hidden">
         <CardHeader className="pb-4">
           <div className="flex flex-col gap-4">
             <div className="space-y-3">
               
               <div className="space-y-2">
+                <p className="dashboard-kicker">Analysis Console</p>
                 <CardTitle className="text-2xl md:text-[2.2rem]">销售数据策展台</CardTitle>
                 
               </div>
@@ -714,11 +718,11 @@ export default function DailyAnalysisPage() {
         </CardHeader>
 
         <CardContent className="space-y-4 pt-0">
-          <div className="grid gap-3 rounded-[1.5rem] bg-[hsl(var(--surface-soft))]/88 p-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)_auto] xl:items-end">
+          <div className="dashboard-toolbar grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)_auto] xl:items-end">
             <div className="space-y-2">
               <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">项目</div>
               <Select value={projectId} onValueChange={setProjectId}>
-                <SelectTrigger className="h-11 rounded-xl border-0 bg-background/90 shadow-none">
+                <SelectTrigger className="h-11 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
                   <SelectValue placeholder="选择项目" />
                 </SelectTrigger>
                 <SelectContent>
@@ -734,7 +738,7 @@ export default function DailyAnalysisPage() {
             <div className="space-y-2">
               <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">国家站点</div>
               <Select value={country} onValueChange={(value) => setCountry(value as CountryOption)}>
-                <SelectTrigger className="h-11 rounded-xl border-0 bg-background/90 shadow-none">
+                <SelectTrigger className="h-11 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
                   <SelectValue placeholder="国家站点" />
                 </SelectTrigger>
                 <SelectContent>
@@ -776,8 +780,8 @@ export default function DailyAnalysisPage() {
             </Button>
           </div>
 
-          {projectsError ? <div className="rounded-2xl bg-destructive/10 px-4 py-3 text-sm text-destructive">{projectsError}</div> : null}
-          {error ? <div className="rounded-2xl bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div> : null}
+          {projectsError ? <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">{projectsError}</div> : null}
+          {error ? <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div> : null}
         </CardContent>
       </Card>
 
@@ -786,7 +790,7 @@ export default function DailyAnalysisPage() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="space-y-2">
               <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                <div className="flex h-11 w-11 items-center justify-center rounded-md bg-primary/10 text-primary">
                   <BarChart3 className="h-5 w-5" />
                 </div>
                 <div>
@@ -801,7 +805,7 @@ export default function DailyAnalysisPage() {
                 对比区间：{formatRangeLabel(comparisonRange)}
               </Badge>
               {metricPageCount > 1 ? (
-                <div className="flex items-center gap-2 rounded-full bg-[hsl(var(--surface-soft))]/90 px-2 py-1">
+                <div className="flex items-center gap-2 rounded-md bg-[hsl(var(--surface-soft))]/90 px-2 py-1">
                   <Button
                     type="button"
                     variant="ghost"
@@ -846,7 +850,7 @@ export default function DailyAnalysisPage() {
                       type="button"
                       onClick={() => setActiveChartMetric(metric.key)}
                       className={cn(
-                        'rounded-[1.6rem] px-5 py-5 text-left transition-all duration-200',
+                        'rounded-lg px-5 py-5 text-left transition-all duration-200',
                         isActive
                           ? 'bg-primary text-primary-foreground shadow-[0_18px_38px_-24px_hsl(var(--primary)/0.72)]'
                           : 'bg-[hsl(var(--surface-soft))]/86 text-foreground hover:-translate-y-0.5 hover:bg-background'
@@ -860,7 +864,7 @@ export default function DailyAnalysisPage() {
                           className={cn(
                             'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold',
                             isActive
-                              ? 'bg-white/14 text-primary-foreground'
+                              ? 'bg-[hsl(var(--surface-overlay)/0.72)] text-primary-foreground shadow-sm'
                               : usePositiveColor
                                 ? 'bg-[hsl(var(--success))/0.12] text-[hsl(var(--success))]'
                                 : 'bg-destructive/12 text-destructive'
@@ -884,7 +888,7 @@ export default function DailyAnalysisPage() {
                 })}
               </div>
 
-              <div className="rounded-[1.9rem] bg-[hsl(var(--surface-soft))]/82 p-4 md:p-5">
+              <div className="rounded-lg bg-[hsl(var(--surface-soft))]/82 p-4 md:p-5">
                 <div className="mb-4 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
                   <div className="inline-flex items-center gap-2 rounded-full bg-background/72 px-3 py-1.5">
                     <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: SINGLE_METRIC_CHART_CONFIG[activeChartMetric].color }} />
@@ -892,13 +896,13 @@ export default function DailyAnalysisPage() {
                   </div>
                   {hasComparisonData ? (
                     isBarMetric(activeChartMetric) ? (
-                      <div className="inline-flex items-center gap-2 rounded-full bg-background/72 px-3 py-1.5">
-                        <span className="h-3 w-3 rounded-[4px] border border-slate-300" style={{ backgroundColor: 'rgba(148,163,184,0.28)' }} />
+            <div className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--surface-soft))] px-3 py-1.5 dark:bg-[hsl(var(--surface-strong))]">
+                    <span className="h-3 w-3 rounded-sm border border-border/70" style={{ backgroundColor: 'rgba(148,163,184,0.28)' }} />
                         上一个周期
                       </div>
                     ) : (
-                      <div className="inline-flex items-center gap-2 rounded-full bg-background/72 px-3 py-1.5">
-                        <span className="w-5 border-t-2 border-dashed border-slate-300" />
+                      <div className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--surface-soft))] px-3 py-1.5 dark:bg-[hsl(var(--surface-strong))]">
+                        <span className="w-5 border-t-2 border-dashed border-border/70" />
                         上一个周期
                       </div>
                     )
@@ -1027,7 +1031,7 @@ export default function DailyAnalysisPage() {
               </div>
             </>
           ) : (
-            <div className="flex min-h-[320px] items-center justify-center rounded-[1.8rem] bg-[hsl(var(--surface-soft))]/82 px-6 text-center">
+            <div className="flex min-h-[320px] items-center justify-center rounded-lg bg-[hsl(var(--surface-soft))]/82 px-6 text-center">
               <div className="space-y-2">
                 <div className="text-base font-semibold text-foreground">图表区域暂时没有内容</div>
                 <div className="text-sm text-muted-foreground">当前筛选范围内暂无可用于绘图的数据</div>
@@ -1038,10 +1042,11 @@ export default function DailyAnalysisPage() {
       </Card>
 
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ViewTab)} className="w-full">
-        <Card className="dashboard-surface overflow-hidden border-0">
+        <Card className="dashboard-surface overflow-hidden">
           <CardHeader className="pb-4">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
+                <p className="dashboard-kicker">Operational Ledger</p>
                 <CardTitle className="text-2xl">销售数据工作区</CardTitle>
                 
               </div>
@@ -1057,18 +1062,22 @@ export default function DailyAnalysisPage() {
                   {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileDown className="mr-2 h-4 w-4" />}
                   导出 Excel
                 </Button>
-                <TabsList className="grid h-auto w-full grid-cols-2 rounded-2xl bg-[hsl(var(--surface-soft))]/90 p-1 sm:w-[260px]">
-                  <TabsTrigger value="summary" className="rounded-xl py-2.5">每日汇总</TabsTrigger>
-                  <TabsTrigger value="details" className="rounded-xl py-2.5">SKU 明细</TabsTrigger>
-                </TabsList>
+                <TabsMotionGroup id="daily-analysis-tabs">
+                  <TabsList className="grid h-auto w-full grid-cols-2 border border-border/70 bg-[hsl(var(--surface-soft))]/90 p-1 sm:w-[260px] dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]">
+                    <SlidingTabsTrigger value="summary" activeValue={activeTab} layoutId="daily-analysis-tab-indicator" className="py-2.5">每日汇总</SlidingTabsTrigger>
+                    <SlidingTabsTrigger value="details" activeValue={activeTab} layoutId="daily-analysis-tab-indicator" className="py-2.5">SKU 明细</SlidingTabsTrigger>
+                  </TabsList>
+                </TabsMotionGroup>
               </div>
             </div>
           </CardHeader>
 
           <CardContent className="p-0">
-            <TabsContent value="summary" className="m-0">
-              <Table containerClassName="rounded-b-[1.5rem]">
-                  <TableHeader className="bg-[hsl(var(--surface-soft))]/75">
+            <DirectionalTabTransition value={activeTab} order={VIEW_TAB_ORDER}>
+            <TabsContent forceMount value={activeTab} className="m-0">
+            {activeTab === 'summary' ? (
+                  <Table containerClassName="rounded-b-lg border border-border/70 bg-[hsl(var(--surface-panel))]/94 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]/96">
+                  <TableHeader className="bg-[hsl(var(--surface-soft))]/72 dark:bg-[hsl(var(--surface-strong))]">
                     <TableRow className="border-0 hover:bg-transparent">
                       <TableHead className="min-w-[120px]">日期</TableHead>
                       <TableHead>订单量</TableHead>
@@ -1094,7 +1103,7 @@ export default function DailyAnalysisPage() {
                       ))
                     ) : summaryRows.length ? (
                       summaryRows.map((row, index) => (
-                        <TableRow key={`${row.date}-${index}`} className={cn(index % 2 === 0 && 'bg-[hsl(var(--surface-soft))]/45')}>
+                      <TableRow key={`${row.date}-${index}`} className={cn(index % 2 === 0 && 'bg-[hsl(var(--surface-soft))]/45 dark:bg-[hsl(var(--surface-strong))]/70')}>
                           <TableCell className="font-medium text-foreground">{row.date}</TableCell>
                           <TableCell>{row.order_qty.toLocaleString('zh-CN')}</TableCell>
                           <TableCell>{formatMoney(row.sales_amount)}</TableCell>
@@ -1107,31 +1116,25 @@ export default function DailyAnalysisPage() {
                         </TableRow>
                       ))
                     ) : (
-                      <TableRow className="border-0">
-                        <TableCell colSpan={9} className="h-32 text-center text-sm text-muted-foreground">
-                          当前筛选范围内还没有可展示的销售数据汇总。
-                        </TableCell>
-                      </TableRow>
+                      <EmptyTableState colSpan={9} message="当前筛选范围内还没有可展示的销售数据汇总。" />
                     )}
                   </TableBody>
               </Table>
-            </TabsContent>
-
-            <TabsContent value="details" className="m-0">
-              <Table containerClassName="rounded-b-[1.5rem] border border-border/80 bg-background">
-                  <TableHeader className="bg-[hsl(var(--surface-soft))]/88">
+            ) : (
+                  <Table containerClassName="rounded-b-lg border border-border/70 bg-[hsl(var(--surface-panel))]/96 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]/98">
+                  <TableHeader className="bg-[hsl(var(--surface-soft))]/82 dark:bg-[hsl(var(--surface-strong))]">
                     <TableRow className="hover:bg-transparent">
-                      <TableHead className="min-w-[120px] border-b border-r border-border/80 bg-[hsl(var(--surface-soft))]/95">日期</TableHead>
-                      <TableHead className="min-w-[140px] border-b border-r border-border/80 bg-[hsl(var(--surface-soft))]/95">SKU</TableHead>
-                      <TableHead className="min-w-[140px] border-b border-r border-border/80 bg-[hsl(var(--surface-soft))]/95">ASIN</TableHead>
-                      <TableHead className="border-b border-r border-border/80 bg-[hsl(var(--surface-soft))]/95">订单量</TableHead>
-                      <TableHead className="border-b border-r border-border/80 bg-[hsl(var(--surface-soft))]/95">销售额</TableHead>
-                      <TableHead className="border-b border-r border-border/80 bg-[hsl(var(--surface-soft))]/95">曝光量</TableHead>
-                      <TableHead className="border-b border-r border-border/80 bg-[hsl(var(--surface-soft))]/95">点击量</TableHead>
-                      <TableHead className="border-b border-r border-border/80 bg-[hsl(var(--surface-soft))]/95">CPC</TableHead>
-                      <TableHead className="border-b border-r border-border/80 bg-[hsl(var(--surface-soft))]/95">广告花费</TableHead>
-                      <TableHead className="border-b border-r border-border/80 bg-[hsl(var(--surface-soft))]/95">广告订单</TableHead>
-                      <TableHead className="border-b border-border/80 bg-[hsl(var(--surface-soft))]/95">可售库存</TableHead>
+                      <TableHead className="min-w-[120px] bg-[hsl(var(--surface-soft))]/9 dark:bg-[hsl(var(--surface-strong))]">日期</TableHead>
+                      <TableHead className="min-w-[140px]">SKU</TableHead>
+                      <TableHead className="min-w-[140px]">ASIN</TableHead>
+                      <TableHead>订单量</TableHead>
+                      <TableHead>销售额</TableHead>
+                      <TableHead>曝光量</TableHead>
+                      <TableHead>点击量</TableHead>
+                      <TableHead>CPC</TableHead>
+                      <TableHead>广告花费</TableHead>
+                      <TableHead>广告订单</TableHead>
+                      <TableHead>可售库存</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1139,7 +1142,7 @@ export default function DailyAnalysisPage() {
                       Array.from({ length: 8 }).map((_, index) => (
                         <TableRow key={`detail-skeleton-${index}`}>
                           {Array.from({ length: 11 }).map((__, cellIndex) => (
-                            <TableCell key={cellIndex} className="border-r border-b border-border/70 last:border-r-0">
+                            <TableCell key={cellIndex}>
                               <Skeleton className="h-4 w-full max-w-[90px]" />
                             </TableCell>
                           ))}
@@ -1153,14 +1156,14 @@ export default function DailyAnalysisPage() {
                             'transition-colors',
                             isTintedGroup
                               ? 'bg-[hsl(var(--primary))]/[0.045] hover:bg-[hsl(var(--primary))]/[0.075]'
-                              : 'bg-background hover:bg-[hsl(var(--surface-soft))]/40'
+                              : 'bg-background hover:bg-[hsl(var(--surface-subtle))]/40'
                           )}
                         >
                           {showDate ? (
                             <TableCell
                               rowSpan={rowSpan}
                               className={cn(
-                                'border-r border-b border-border/80 align-middle text-center font-semibold text-foreground',
+                                'align-middle text-center font-semibold text-foreground',
                                 isTintedGroup
                                   ? 'bg-[hsl(var(--primary))]/[0.1]'
                                   : 'bg-[hsl(var(--surface-soft))]/0'
@@ -1169,28 +1172,26 @@ export default function DailyAnalysisPage() {
                               {row.date}
                             </TableCell>
                           ) : null}
-                          <TableCell className="border-r border-b border-border/70 last:border-r-0">{row.sku}</TableCell>
-                          <TableCell className="border-r border-b border-border/70 last:border-r-0">{row.asin || '--'}</TableCell>
-                          <TableCell className="border-r border-b border-border/70 last:border-r-0">{row.order_qty.toLocaleString('zh-CN')}</TableCell>
-                          <TableCell className="border-r border-b border-border/70 last:border-r-0">{formatMoney(row.sales_amount)}</TableCell>
-                          <TableCell className="border-r border-b border-border/70 last:border-r-0">{row.impressions.toLocaleString('zh-CN')}</TableCell>
-                          <TableCell className="border-r border-b border-border/70 last:border-r-0">{row.clicks.toLocaleString('zh-CN')}</TableCell>
-                          <TableCell className="border-r border-b border-border/70 last:border-r-0">{formatMoney(row.cpc)}</TableCell>
-                          <TableCell className="border-r border-b border-border/70 last:border-r-0">{formatMoney(row.ad_spend)}</TableCell>
-                          <TableCell className="border-r border-b border-border/70 last:border-r-0">{row.ad_orders.toLocaleString('zh-CN')}</TableCell>
-                          <TableCell className="border-b border-border/70">{row.available_qty.toLocaleString('zh-CN')}</TableCell>
+                          <TableCell>{row.sku}</TableCell>
+                          <TableCell>{row.asin || '--'}</TableCell>
+                          <TableCell>{row.order_qty.toLocaleString('zh-CN')}</TableCell>
+                          <TableCell>{formatMoney(row.sales_amount)}</TableCell>
+                          <TableCell>{row.impressions.toLocaleString('zh-CN')}</TableCell>
+                          <TableCell>{row.clicks.toLocaleString('zh-CN')}</TableCell>
+                          <TableCell>{formatMoney(row.cpc)}</TableCell>
+                          <TableCell>{formatMoney(row.ad_spend)}</TableCell>
+                          <TableCell>{row.ad_orders.toLocaleString('zh-CN')}</TableCell>
+                          <TableCell>{row.available_qty.toLocaleString('zh-CN')}</TableCell>
                         </TableRow>
                       ))
                     ) : (
-                      <TableRow>
-                        <TableCell colSpan={11} className="h-32 border-b border-border/70 text-center text-sm text-muted-foreground">
-                          当前筛选范围内还没有可展示的 SKU 销售数据明细。
-                        </TableCell>
-                      </TableRow>
+                      <EmptyTableState colSpan={11} message="当前筛选范围内还没有可展示的 SKU 销售数据明细。" />
                     )}
                   </TableBody>
               </Table>
+            )}
             </TabsContent>
+            </DirectionalTabTransition>
           </CardContent>
         </Card>
       </Tabs>

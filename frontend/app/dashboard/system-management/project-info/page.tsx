@@ -16,6 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import { EmptyState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -289,14 +290,14 @@ export default function StoreInfoPage() {
 
   return (
     <div className="w-full space-y-6">
-      <Card className="overflow-hidden border-border/80 shadow-[0_20px_40px_-22px_rgba(15,23,42,0.22)]">
+      <Card className="overflow-hidden border-border/80 shadow-[0_20px_40px_-22px_rgba(15,23,42,0.22)] dark:border-border/80 dark:bg-[hsl(var(--surface-panel))] dark:shadow-[0_24px_50px_-30px_rgba(0,0,0,0.45)]">
         <CardContent className="space-y-6 p-6 md:p-8">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="space-y-2">
               <Badge variant="outline" className="w-fit rounded-md">
                 数据管理
               </Badge>
-              <p className="text-sm text-muted-foreground">维护项目主数据，支持单个新增与项目信息编辑。</p>
+              <p className="text-sm text-muted-foreground dark:text-muted-foreground/80">维护项目主数据，支持单个新增与项目信息编辑。</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Button type="button" variant="outline" onClick={() => void loadProjects()} disabled={loading || submitting}>
@@ -309,7 +310,7 @@ export default function StoreInfoPage() {
                     单个新增
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
                   <DialogHeader>
                     <DialogTitle>新增项目</DialogTitle>
                     <DialogDescription>一次仅新增一个项目名称，不支持批量导入。</DialogDescription>
@@ -453,63 +454,59 @@ export default function StoreInfoPage() {
             </div>
           </div>
 
-          {error ? <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div> : null}
+          {error ? <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive dark:border-destructive/30 dark:bg-destructive/12">{error}</div> : null}
           {successMessage ? (
-            <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
+            <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/12 dark:text-emerald-300">
               {successMessage}
             </div>
           ) : null}
 
-          <div className="rounded-lg border border-border/70">
+          <div className="rounded-lg border border-border/70 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
             <div className="max-h-[calc(100vh-320px)] overflow-y-auto relative">
               {loading && items.length > 0 ? (
-                <div className="pointer-events-none absolute right-4 top-4 z-30 rounded-full border border-border/70 bg-background/95 px-3 py-1 text-xs text-muted-foreground shadow-sm">
+                <div className="pointer-events-none absolute right-4 top-4 z-30 rounded-full border border-border/70 bg-background/95 px-3 py-1 text-xs text-muted-foreground shadow-sm dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
                   项目列表更新中...
                 </div>
               ) : null}
-              <table className="w-full caption-bottom text-sm">
+              <table className="w-full border-separate border-spacing-0 caption-bottom text-sm">
                 <thead className="[&_tr]:border-b-0">
                   <tr className="border-b border-border/70 shadow-sm">
-                    <th className="sticky top-0 z-20 h-12 w-[80px] bg-background px-4 text-left align-middle font-medium text-muted-foreground">ID</th>
-                    <th className="sticky top-0 z-20 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">项目名称</th>
-                    <th className="sticky top-0 z-20 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">品牌名称</th>
-                    <th className="sticky top-0 z-20 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">运营</th>
-                    <th className="sticky top-0 z-20 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">助理运营</th>
-                    <th className="sticky top-0 z-20 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">佣金方式</th>
-                    <th className="sticky top-0 z-20 h-12 bg-background px-4 text-left align-middle font-medium text-muted-foreground">佣金点数</th>
-                    <th className="sticky top-0 z-20 h-12 w-[120px] bg-background px-4 text-left align-middle font-medium text-muted-foreground">店铺地址</th>
-                    <th className="sticky top-0 z-20 h-12 w-[100px] bg-background px-4 text-right align-middle font-medium text-muted-foreground">操作</th>
+                    <th className="sticky top-0 z-20 h-12 w-[80px] border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">ID</th>
+                    <th className="sticky top-0 z-20 h-12 border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">项目名称</th>
+                    <th className="sticky top-0 z-20 h-12 border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">品牌名称</th>
+                    <th className="sticky top-0 z-20 h-12 border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">运营</th>
+                    <th className="sticky top-0 z-20 h-12 border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">助理运营</th>
+                    <th className="sticky top-0 z-20 h-12 border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">佣金方式</th>
+                    <th className="sticky top-0 z-20 h-12 border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">佣金点数</th>
+                    <th className="sticky top-0 z-20 h-12 w-[120px] border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">店铺地址</th>
+                    <th className="sticky top-0 z-20 h-12 w-[100px] border-b border-border/60 bg-background px-4 text-right align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">操作</th>
                   </tr>
                 </thead>
                 <tbody className="[&_tr:last-child]:border-0">
                 {loading ? (
                   Array.from({ length: 6 }).map((_, index) => (
-                    <tr key={`skeleton-${index}`} className="border-b transition-colors hover:bg-muted/50">
+                    <tr key={`skeleton-${index}`} className="border-b transition-colors hover:bg-muted/50 dark:hover:bg-[hsl(var(--surface-strong)/0.35)]">
                       <td colSpan={10} className="p-4 align-middle">
                         <Skeleton className="h-6 w-full" />
                       </td>
                     </tr>
                   ))
                 ) : items.length === 0 ? (
-                  <tr className="border-b transition-colors hover:bg-muted/50">
-                    <td colSpan={10} className="py-10 text-center text-sm text-muted-foreground">
-                      暂无项目数据，请先新增一个项目。
-                    </td>
-                  </tr>
+                  <EmptyState colSpan={10} message="暂无项目数据，请先新增一个项目。" />
                 ) : (
                   items.map((item) => (
-                    <tr key={item.id} className="border-b transition-colors hover:bg-muted/50">
-                      <td className="p-4 align-middle text-muted-foreground">{item.id}</td>
-                      <td className="p-4 align-middle font-medium text-foreground">{item.name}</td>
-                      <td className="p-4 align-middle">{item.brand_name || '-'}</td>
-                      <td className="p-4 align-middle">{item.project_operator || '-'}</td>
-                      <td className="p-4 align-middle">{item.assistant_operator || '-'}</td>
-                      <td className="p-4 align-middle">{item.commission_basis ? COMMISSION_BASIS_LABEL[item.commission_basis] ?? item.commission_basis : '-'}</td>
-                      <td className="p-4 align-middle">{item.commission_basis === 'cash_received' ? '阶梯(7/10/13/15%)' : (toCommissionPoints(item.commission_rate) ?? '-')}</td>
-                      <td className="p-4 align-middle max-w-[120px] truncate" title={item.store_address || ''}>
+                    <tr key={item.id} className="border-b transition-colors hover:bg-muted/50 dark:hover:bg-[hsl(var(--surface-strong)/0.35)]">
+                      <td className="border-b border-r border-border/60 p-4 align-middle text-muted-foreground">{item.id}</td>
+                      <td className="border-b border-r border-border/60 p-4 align-middle font-medium text-foreground">{item.name}</td>
+                      <td className="border-b border-r border-border/60 p-4 align-middle">{item.brand_name || '-'}</td>
+                      <td className="border-b border-r border-border/60 p-4 align-middle">{item.project_operator || '-'}</td>
+                      <td className="border-b border-r border-border/60 p-4 align-middle">{item.assistant_operator || '-'}</td>
+                      <td className="border-b border-r border-border/60 p-4 align-middle">{item.commission_basis ? COMMISSION_BASIS_LABEL[item.commission_basis] ?? item.commission_basis : '-'}</td>
+                      <td className="border-b border-r border-border/60 p-4 align-middle">{item.commission_basis === 'cash_received' ? '阶梯(7/10/13/15%)' : (toCommissionPoints(item.commission_rate) ?? '-')}</td>
+                      <td className="border-b border-r border-border/60 p-4 align-middle max-w-[120px] truncate" title={item.store_address || ''}>
                         {item.store_address ? `${item.store_address.slice(0, 15)}...` : '-'}
                       </td>
-                      <td className="p-4 align-middle text-right">
+                      <td className="border-b border-border/60 p-4 align-middle text-right">
                         <div className="flex justify-end">
                           <Button
                             type="button"
@@ -535,7 +532,7 @@ export default function StoreInfoPage() {
       </Card>
 
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent>
+        <DialogContent className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
           <DialogHeader>
             <DialogTitle>编辑项目信息</DialogTitle>
             <DialogDescription>可修改项目名称、品牌名称、运营、助理运营、佣金方式、佣金点数与店铺地址，不调整排序。</DialogDescription>

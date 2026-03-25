@@ -64,9 +64,10 @@ export default function ChangePasswordPage() {
 
   return (
     <div className="mx-auto max-w-[780px]">
-      <Card className="border-border/80 shadow-[0_20px_40px_-22px_rgba(15,23,42,0.22)]">
+      <Card className="dashboard-surface border-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.9),rgba(241,244,247,0.96))] dark:border-border/80 dark:bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))]">
         <CardHeader className="space-y-3">
-          <Badge variant="outline" className="w-fit rounded-md border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300">
+          <p className="dashboard-kicker">Configuration Workspace</p>
+          <Badge variant="outline" className="w-fit border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300">
             账号安全
           </Badge>
           <CardTitle className="flex items-center gap-2">
@@ -99,7 +100,7 @@ export default function ChangePasswordPage() {
                 onChange={(event) => setNewPassword(event.target.value)}
                 disabled={submitting}
               />
-              <p className="text-xs text-muted-foreground">建议至少 8 位，包含字母、数字与符号。</p>
+              <p className="text-xs text-muted-foreground dark:text-muted-foreground/80">建议至少 8 位，包含字母、数字与符号。</p>
             </div>
 
             <div className="space-y-2">
@@ -115,12 +116,12 @@ export default function ChangePasswordPage() {
             </div>
 
             {error ? (
-              <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive dark:border-destructive/30 dark:bg-destructive/12">
                 {error}
               </div>
             ) : null}
             {success ? (
-              <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
+              <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/12 dark:text-emerald-300">
                 {success}
               </div>
             ) : null}

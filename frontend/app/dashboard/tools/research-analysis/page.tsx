@@ -40,22 +40,24 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from '@/components/ui/chart'
+import { EmptyChartState, EmptyTableState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { DirectionalTabTransition, SlidingTabsTrigger, TabsMotionGroup } from '@/components/ui/tab-motion'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 
 const API_BASE = '/api/backend'
 const DASHBOARD_PALETTE = {
-  blue: 'hsl(217 91% 60%)',
-  blueDeep: 'hsl(224 76% 48%)',
-  blueSoft: 'hsl(210 98% 78%)',
-  cyan: 'hsl(191 91% 42%)',
-  indigo: 'hsl(234 89% 74%)',
-  gold: 'hsl(43 89% 58%)',
-  rose: 'hsl(343 82% 64%)',
+  blue: 'hsl(var(--chart-1))',
+  blueDeep: 'hsl(var(--chart-1))',
+  blueSoft: 'hsl(var(--chart-1) / 0.35)',
+  cyan: 'hsl(var(--chart-4))',
+  indigo: 'hsl(var(--chart-1))',
+  gold: 'hsl(var(--chart-3))',
+  rose: 'hsl(var(--chart-5))',
 }
 const PIE_COLORS = [
   DASHBOARD_PALETTE.blue,
@@ -64,6 +66,7 @@ const PIE_COLORS = [
   DASHBOARD_PALETTE.gold,
   DASHBOARD_PALETTE.rose,
 ]
+const WORKSPACE_TAB_ORDER: WorkspaceTab[] = ['research', 'analysis']
 
 type CategoryResearchDataset = {
   id: number
@@ -915,7 +918,7 @@ function buildMarketChartModels(
           {
             name: '其他月份',
             value: 100 - normalizeToPercent(overview.advanced_metrics.seasonality.peak3_month_sales_share),
-            fill: 'hsl(210 20% 90%)',
+            fill: 'hsl(var(--muted))',
             description: '除旺季外的其余月份销量占比。',
           },
         ],
@@ -935,7 +938,7 @@ function buildMarketChartModels(
           {
             name: '剩余区间',
             value: 100 - clamp((overview.advanced_metrics.market_growth.last12_vs_prev12_growth + 1) * 50),
-            fill: 'hsl(210 20% 90%)',
+            fill: 'hsl(var(--muted))',
             description: '距离满分区间的剩余部分，用于直观看增长强弱。',
           },
         ],
@@ -1335,14 +1338,6 @@ function PieLegendNotes({
           {item.description ? <p className="mt-1 text-xs text-muted-foreground">{item.description}</p> : null}
         </div>
       ))}
-    </div>
-  )
-}
-
-function EmptyChartState({ message, height = 'h-[280px]' }: { message: string; height?: string }) {
-  return (
-    <div className={cn('flex items-center justify-center rounded-xl border border-dashed border-border/70 bg-muted/10 text-sm text-muted-foreground', height)}>
-      {message}
     </div>
   )
 }
@@ -1923,23 +1918,34 @@ export default function CategoryResearchPage() {
       throw new Error('分析内容尚未渲染完成，请稍后重试')
     }
 
-    const [{ toCanvas }] = await Promise.all([
-      import('html-to-image'),
-      document.fonts?.ready ?? Promise.resolve(),
-      new Promise((resolve) => window.requestAnimationFrame(() => resolve(true))),
-    ])
+    const html = document.documentElement
+    const previousClassName = html.className
+    const previousColorScheme = html.style.colorScheme
 
-    const canvas = await toCanvas(node, {
-      cacheBust: true,
-      pixelRatio: 2,
-      backgroundColor: '#ffffff',
-      skipAutoScale: true,
-    })
+    html.classList.remove('dark')
+    html.style.colorScheme = 'light'
 
-    return {
-      canvas,
-      width: canvas.width,
-      height: canvas.height,
+    try {
+      const [{ toCanvas }] = await Promise.all([
+        import('html-to-image'),
+        document.fonts?.ready ?? Promise.resolve(),
+        new Promise((resolve) => window.requestAnimationFrame(() => resolve(true))),
+      ])
+
+      const canvas = await toCanvas(node, {
+        cacheBust: true,
+        pixelRatio: 2,
+        skipAutoScale: true,
+      })
+
+      return {
+        canvas,
+        width: canvas.width,
+        height: canvas.height,
+      }
+    } finally {
+      html.className = previousClassName
+      html.style.colorScheme = previousColorScheme
     }
   }, [])
 
@@ -1992,13 +1998,18 @@ export default function CategoryResearchPage() {
       className="w-full space-y-6"
     >
       <div className="flex items-center justify-between">
-        <TabsList className="grid h-11 w-full max-w-[320px] grid-cols-2">
-          <TabsTrigger value="research">调研</TabsTrigger>
-          <TabsTrigger value="analysis">分析</TabsTrigger>
-        </TabsList>
+        <TabsMotionGroup id="research-analysis-tabs">
+          <TabsList className="grid h-11 w-full max-w-[320px] grid-cols-2">
+            <SlidingTabsTrigger value="research" activeValue={workspaceTab} layoutId="research-analysis-tab-indicator">调研</SlidingTabsTrigger>
+            <SlidingTabsTrigger value="analysis" activeValue={workspaceTab} layoutId="research-analysis-tab-indicator">分析</SlidingTabsTrigger>
+          </TabsList>
+        </TabsMotionGroup>
       </div>
 
-      <TabsContent value="research" className="space-y-6">
+      <DirectionalTabTransition value={workspaceTab} order={WORKSPACE_TAB_ORDER}>
+      <TabsContent forceMount value={workspaceTab} className="space-y-6">
+      {workspaceTab === 'research' ? (
+        <>
         <Card className="overflow-hidden border-border/80 shadow-[0_20px_45px_-24px_rgba(15,23,42,0.3)]">
           <CardHeader className="border-b bg-gradient-to-r from-cyan-500/10 via-sky-500/5 to-transparent">
             <CardTitle className="flex items-center gap-2 text-xl">
@@ -2068,9 +2079,9 @@ export default function CategoryResearchPage() {
             ))}
           </CardContent>
         </Card>
-      </TabsContent>
-
-      <TabsContent value="analysis" className="space-y-6">
+        </>
+      ) : (
+        <>
         <Card className="overflow-hidden border-border/80 shadow-[0_20px_45px_-24px_rgba(15,23,42,0.3)]">
           <CardHeader className="border-b bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-transparent">
             <CardTitle className="flex items-center gap-2 text-xl">
@@ -2229,7 +2240,7 @@ export default function CategoryResearchPage() {
           <div className="space-y-6">
             <AnalysisSectionNav activeSection={activeSection} onSelect={scrollToSection} />
 
-            <div ref={analysisExportRef} className="space-y-6 bg-white">
+            <div ref={analysisExportRef} className="space-y-6">
               <section id="analysis-section-overview" className="scroll-mt-32 space-y-6">
                 <AnalysisSectionHeader section={ANALYSIS_SECTIONS[0]} />
                 <div className="grid gap-4 xl:grid-cols-3">
@@ -2754,9 +2765,7 @@ export default function CategoryResearchPage() {
                           <TableCell>{item.covered_bands.join(', ') || '-'}</TableCell>
                         </TableRow>
                       )) : (
-                        <TableRow>
-                          <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">暂无数据</TableCell>
-                        </TableRow>
+                        <EmptyTableState colSpan={5} />
                       )}
                     </TableBody>
                   </Table>
@@ -3020,9 +3029,7 @@ export default function CategoryResearchPage() {
                           <TableCell className="text-right">{compactPercentLabel(item.cumulative_share_pct)}</TableCell>
                         </TableRow>
                       )) : (
-                        <TableRow>
-                          <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">暂无数据</TableCell>
-                        </TableRow>
+                        <EmptyTableState colSpan={5} />
                       )}
                     </TableBody>
                   </Table>
@@ -3183,9 +3190,7 @@ export default function CategoryResearchPage() {
                           <TableCell className="text-right">{formatNumber(item.count)}</TableCell>
                         </TableRow>
                       )) : (
-                        <TableRow>
-                          <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">暂无数据</TableCell>
-                        </TableRow>
+                        <EmptyTableState colSpan={4} />
                       )}
                     </TableBody>
                   </Table>
@@ -3202,7 +3207,10 @@ export default function CategoryResearchPage() {
             </CardContent>
           </Card>
         )}
+        </>
+      )}
       </TabsContent>
+      </DirectionalTabTransition>
     </Tabs>
   )
 }

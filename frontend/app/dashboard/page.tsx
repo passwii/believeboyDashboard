@@ -34,10 +34,10 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8 md:space-y-10">
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_22rem]">
-        <div className="dashboard-surface animate-enter px-3 py-5 md:px-5 md:py-6">
+        <div className="dashboard-surface animate-enter px-3 py-5 md:px-5 md:py-6 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
           <div className="relative z-10 flex flex-wrap items-start justify-between gap-5">
             <div className="max-w-3xl space-y-4">
-              <Badge variant="secondary" className="inline-flex h-8 items-center rounded-full bg-secondary/10 px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-secondary">
+              <Badge variant="secondary" className="inline-flex h-8 items-center rounded-md bg-secondary/10 px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-secondary">
                 Workbench Intelligence
               </Badge>
               <div className="space-y-3">
@@ -50,11 +50,11 @@ export default function DashboardPage() {
               </div>
             </div>
             <div className="flex flex-wrap gap-3">
-              <Button variant="outline" className="rounded-2xl border-0 bg-[hsl(var(--surface-low))] shadow-none">
+              <Button variant="outline" className="rounded-md border-white/45 bg-[hsl(var(--surface-subtle))] shadow-none dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
                 <CalendarDays className="h-4 w-4" />
                 最近 24 小时
               </Button>
-              <Button className="rounded-2xl bg-[linear-gradient(135deg,hsl(var(--primary)),hsl(213_100%_47%))]">
+              <Button className="rounded-md bg-[linear-gradient(135deg,hsl(var(--primary)),hsl(213_100%_47%))]">
                 <Download className="h-4 w-4" />
                 导出经营快照
               </Button>
@@ -62,20 +62,20 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <aside className="dashboard-surface animate-enter px-3 py-5 md:px-4">
+        <aside className="dashboard-surface animate-enter px-3 py-5 md:px-4 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
           <div className="relative z-10 space-y-5">
             <div className="flex items-center justify-between">
               <div>
                 <p className="dashboard-kicker">Live Signal</p>
                 <h3 className="mt-1 text-lg font-semibold tracking-tight">今日信号摘要</h3>
               </div>
-              <div className="rounded-[1.1rem] bg-primary/10 p-2 text-primary">
+              <div className="rounded-md bg-primary/10 p-2 text-primary">
                 <Sparkles className="h-4 w-4" />
               </div>
             </div>
             <div className="space-y-3">
               {focusSignals.map((signal) => (
-                <div key={signal.title} className="rounded-[1.35rem] bg-[hsl(var(--surface-low))] p-4">
+                <div key={signal.title} className="rounded-md bg-[hsl(var(--surface-subtle))] p-4 dark:border dark:border-border/70 dark:bg-[hsl(var(--surface-soft))]">
                   <div className="mb-2 flex items-start gap-3">
                     <div className={`mt-0.5 h-2.5 w-2.5 rounded-full ${signal.tone === 'positive' ? 'bg-secondary' : signal.tone === 'alert' ? 'bg-destructive' : 'bg-primary'}`} />
                     <p className="text-sm font-semibold leading-6 text-foreground">{signal.title}</p>
@@ -93,7 +93,7 @@ export default function DashboardPage() {
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_22rem]">
         <VisitorsChart />
 
-        <Card className="hover-lift animate-enter">
+        <Card className="hover-lift animate-enter dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
           <CardHeader className="relative z-10 pb-4">
             <p className="dashboard-kicker">Action Queue</p>
             <CardTitle>待推进事项</CardTitle>
@@ -103,7 +103,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="relative z-10 space-y-3">
             {actionQueue.map((item) => (
-              <div key={item.label} className="rounded-[1.3rem] bg-[hsl(var(--surface-low))] p-4">
+              <div key={item.label} className="rounded-md bg-[hsl(var(--surface-subtle))] p-4 dark:border dark:border-border/70 dark:bg-[hsl(var(--surface-soft))]">
                 <div className="mb-2 flex items-center justify-between gap-3">
                   <p className="text-sm font-semibold text-foreground">{item.label}</p>
                   <Badge
@@ -126,7 +126,7 @@ export default function DashboardPage() {
               </div>
             ))}
 
-            <div className="rounded-[1.35rem] bg-[linear-gradient(135deg,hsl(var(--secondary)/0.12),hsl(var(--primary)/0.08))] p-4">
+            <div className="rounded-lg bg-[linear-gradient(135deg,hsl(var(--secondary)/0.12),hsl(var(--primary)/0.08))] p-4 dark:border dark:border-border/70 dark:bg-[linear-gradient(135deg,hsl(var(--surface-soft)),hsl(var(--surface-strong)/0.65))]">
               <div className="mb-2 flex items-center gap-2 text-secondary">
                 <TriangleAlert className="h-4 w-4" />
                 <span className="text-sm font-semibold">异常提醒</span>
@@ -143,7 +143,7 @@ export default function DashboardPage() {
         </Card>
       </section>
 
-      <Card className="animate-enter">
+      <Card className="animate-enter dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
         <CardHeader className="relative z-10 pb-4">
           <p className="dashboard-kicker">Operational Ledger</p>
           <CardTitle>运营工具与当前进度</CardTitle>

@@ -83,19 +83,19 @@ export function VisitorsChart() {
         </div>
         <Select value={timeRange} onValueChange={setTimeRange}>
           <SelectTrigger
-            className="h-10 w-full min-w-touch rounded-lg border-0 bg-[hsl(var(--surface-low))] text-sm shadow-none sm:w-[170px]"
+            className="h-10 w-full min-w-touch rounded-md border-white/45 bg-[hsl(var(--surface-subtle))] text-sm shadow-none sm:w-[170px]"
             aria-label="Select a time range"
           >
             <SelectValue placeholder="Last 30 days" />
           </SelectTrigger>
-          <SelectContent className="rounded-xl">
-            <SelectItem value="7d" className="rounded-lg">
+          <SelectContent className="rounded-lg">
+            <SelectItem value="7d" className="rounded-md">
               Last 7 days
             </SelectItem>
-            <SelectItem value="30d" className="rounded-lg">
+            <SelectItem value="30d" className="rounded-md">
               Last 30 days
             </SelectItem>
-            <SelectItem value="90d" className="rounded-lg">
+            <SelectItem value="90d" className="rounded-md">
               Last 3 months
             </SelectItem>
           </SelectContent>
@@ -103,21 +103,21 @@ export function VisitorsChart() {
       </CardHeader>
       <CardContent className="relative z-10 px-2 pt-2 sm:px-6 sm:pt-2">
         <div className="mb-5 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-          <div className="inline-flex items-center gap-2 rounded-full bg-primary/8 px-3 py-1.5 text-primary">
+          <div className="inline-flex items-center gap-2 rounded-md bg-primary/8 px-3 py-1.5 text-primary">
             <span className="h-2 w-2 rounded-full bg-primary" />
             Current: $1,240,492
           </div>
-          <div className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--surface-low))] px-3 py-1.5">
+          <div className="inline-flex items-center gap-2 rounded-md bg-[hsl(var(--surface-subtle))] px-3 py-1.5">
             <span className="h-2 w-2 rounded-full bg-[hsl(var(--surface-outline))]" />
             Previous: $1,082,100
           </div>
-          <div className="inline-flex items-center gap-2 rounded-full bg-secondary/10 px-3 py-1.5 font-semibold text-secondary">
+          <div className="inline-flex items-center gap-2 rounded-md bg-secondary/10 px-3 py-1.5 font-semibold text-secondary">
             +14.6% Growth
           </div>
         </div>
         <ChartContainer
           config={chartConfig}
-          className="aspect-auto h-[260px] w-full rounded-[1rem] bg-[hsl(var(--surface-low))] px-2 py-4 sm:h-[320px] sm:px-4"
+          className="aspect-auto h-[260px] w-full rounded-lg bg-[hsl(var(--surface-subtle))] px-2 py-4 sm:h-[320px] sm:px-4"
         >
           <AreaChart accessibilityLayer data={filteredData}>
             <defs>

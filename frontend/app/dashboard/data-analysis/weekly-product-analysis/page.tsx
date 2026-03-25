@@ -82,7 +82,7 @@ function WeeklyFilterSkeleton({
 }
 
 function WeeklyStatSkeleton() {
-  return <Skeleton className="h-[132px] w-full rounded-2xl" />
+  return <Skeleton className="h-[132px] w-full rounded-lg" />
 }
 
 const API_BASE = '/api/backend'
@@ -731,7 +731,7 @@ function StatCard({ title, value, icon, color, trend, trendLabel }: StatCardProp
 
   return (
     <Card className={`dashboard-surface hover-lift animate-enter border ${colors.border} relative overflow-hidden`}>
-      <div className={`absolute inset-0 bg-gradient-to-br ${colors.gradient} via-transparent to-transparent opacity-60`} />
+      <div className={`absolute inset-0 bg-gradient-to-br ${colors.gradient} via-transparent to-transparent opacity-60 dark:opacity-35`} />
       <CardHeader className="relative z-10 flex flex-row items-start justify-between space-y-0 pb-3">
         <CardTitle className="text-[13px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{title}</CardTitle>
         <div className={`rounded-lg ${colors.bg} p-2 ${colors.icon}`}>{icon}</div>
@@ -1250,23 +1250,24 @@ export default function WeeklyProductAnalysisPage() {
 
   return (
     <div className="w-full space-y-6">
-      <Card className="overflow-hidden border-border/80 shadow-[0_20px_40px_-22px_rgba(15,23,42,0.22)]">
+      <Card className="dashboard-surface overflow-hidden">
         <CardContent className="space-y-6 p-6 md:p-8">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="space-y-2">
-              <Badge variant="outline" className="w-fit rounded-md border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-300">
-                数据分析
+              <p className="dashboard-kicker">Analysis Console</p>
+              <Badge variant="outline" className="w-fit border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-300">
+                按周产品分析
               </Badge>
-              <p className="text-sm text-muted-foreground">默认展示每周汇总，表头与产品分析汇总口径一致。</p>
+              <p className="max-w-3xl text-sm leading-7 text-muted-foreground">默认展示周汇总，支持切换到 SKU 明细，观察销售、流量、费用和利润在每周维度上的变化。</p>
             </div>
-            <div className="flex flex-wrap items-end gap-2">
+            <div className="dashboard-toolbar flex flex-wrap items-end gap-2">
               {projectsLoading ? (
                 <WeeklyFilterSkeleton width="min-w-[180px]" />
               ) : (
                 <div className="min-w-[180px] space-y-1.5">
                   <label className="text-xs text-muted-foreground">店铺</label>
                   <Select value={projectId} onValueChange={setProjectId} disabled={projects.length === 0}>
-                    <SelectTrigger className="h-9">
+                    <SelectTrigger className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
                       <SelectValue placeholder="请选择店铺" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1282,7 +1283,7 @@ export default function WeeklyProductAnalysisPage() {
               <div className="min-w-[170px] space-y-1.5">
                 <label className="text-xs text-muted-foreground">国家站点</label>
                 <Select value={country} onValueChange={(value) => setCountry(value as CountryOption)}>
-                  <SelectTrigger className="h-9">
+                  <SelectTrigger className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
                     <SelectValue placeholder="请选择国家站点" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1305,15 +1306,15 @@ export default function WeeklyProductAnalysisPage() {
                   className="h-9"
                 />
               </div>
-              <Button type="button" variant="outline" className="h-9" onClick={() => void loadWeeklyData({ force: true })} disabled={loading || !projectId}>
+              <Button type="button" variant="outline" className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]" onClick={() => void loadWeeklyData({ force: true })} disabled={loading || !projectId}>
                 {loading ? '刷新中...' : '刷新数据'}
               </Button>
             </div>
           </div>
 
-          {projectLoadError ? <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{projectLoadError}</div> : null}
-          {error ? <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div> : null}
-          {recomputeMessage ? <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">{recomputeMessage}</div> : null}
+          {projectLoadError ? <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{projectLoadError}</div> : null}
+          {error ? <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div> : null}
+          {recomputeMessage ? <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">{recomputeMessage}</div> : null}
 
           <div className="grid gap-4 md:grid-cols-3">
             {showSummarySkeleton ? (
@@ -1353,8 +1354,9 @@ export default function WeeklyProductAnalysisPage() {
           </div>
 
           <Card className="dashboard-surface animate-enter">
-            <CardHeader className="relative z-10 flex flex-col gap-4 space-y-0 border-b border-border/70 py-5 sm:flex-row sm:items-center">
+            <CardHeader className="relative z-10 flex flex-col gap-4 space-y-0 py-5 sm:flex-row sm:items-center">
               <div className="grid flex-1 gap-1 text-center sm:text-left">
+                <p className="dashboard-kicker">Weekly Trend</p>
                 <CardTitle className="text-lg">周度趋势</CardTitle>
                 <CardDescription className="text-sm text-muted-foreground">销售额、销量、广告花费、广告点击量、自然流量</CardDescription>
               </div>
@@ -1365,7 +1367,7 @@ export default function WeeklyProductAnalysisPage() {
                   className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${
                     visibleLines.sales_amount
                       ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-                      : 'border-muted bg-muted/30 text-muted-foreground line-through'
+                      : 'border-border/70 bg-[hsl(var(--surface-soft))]/70 text-muted-foreground line-through dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]'
                   }`}
                 >
                   {visibleLines.sales_amount ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
@@ -1378,7 +1380,7 @@ export default function WeeklyProductAnalysisPage() {
                   className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${
                     visibleLines.units_sold
                       ? 'border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300'
-                      : 'border-muted bg-muted/30 text-muted-foreground line-through'
+                      : 'border-border/70 bg-[hsl(var(--surface-soft))]/70 text-muted-foreground line-through dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]'
                   }`}
                 >
                   {visibleLines.units_sold ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
@@ -1391,7 +1393,7 @@ export default function WeeklyProductAnalysisPage() {
                   className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${
                     visibleLines.ad_spend
                       ? 'border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300'
-                      : 'border-muted bg-muted/30 text-muted-foreground line-through'
+                      : 'border-border/70 bg-[hsl(var(--surface-soft))]/70 text-muted-foreground line-through dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]'
                   }`}
                 >
                   {visibleLines.ad_spend ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
@@ -1404,7 +1406,7 @@ export default function WeeklyProductAnalysisPage() {
                   className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${
                     visibleLines.ad_clicks
                       ? 'border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300'
-                      : 'border-muted bg-muted/30 text-muted-foreground line-through'
+                      : 'border-border/70 bg-[hsl(var(--surface-soft))]/70 text-muted-foreground line-through dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]'
                   }`}
                 >
                   {visibleLines.ad_clicks ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
@@ -1567,9 +1569,10 @@ export default function WeeklyProductAnalysisPage() {
           </Card>
 
           <Card className="dashboard-surface animate-enter">
-            <CardHeader className="relative z-10 border-b border-border/70 pb-3">
+            <CardHeader className="relative z-10 pb-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
+                  <p className="dashboard-kicker">Operational Ledger</p>
                   <CardTitle className="text-base">每周分析明细</CardTitle>
                   <CardDescription className="text-sm text-muted-foreground">
                     默认显示周汇总；可切换到 SKU明细 查看每周的行级结果。
@@ -1598,7 +1601,7 @@ export default function WeeklyProductAnalysisPage() {
                   >
                     {recomputing ? '重新核算中...' : '重新核算'}
                   </Button>
-                  <div className="inline-flex rounded-md border bg-muted/20 p-1">
+                  <div className="inline-flex rounded-md border border-border/70 bg-muted/20 p-1 dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]">
                     <button
                       type="button"
                       className={`rounded px-3 py-1.5 text-xs font-medium transition ${activeTab === 'summary' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
@@ -1621,7 +1624,7 @@ export default function WeeklyProductAnalysisPage() {
                   <div className="min-w-[280px] space-y-1.5">
                     <label className="text-xs text-muted-foreground">选择周次</label>
                     <Select value={selectedWeekId} onValueChange={setSelectedWeekId} disabled={summaryRows.length === 0}>
-                      <SelectTrigger className="h-9">
+                    <SelectTrigger className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
                         <SelectValue placeholder="请选择周次" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1636,7 +1639,7 @@ export default function WeeklyProductAnalysisPage() {
                   <Button
                     type="button"
                     variant="outline"
-                    className="h-9"
+                    className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
                     onClick={() => void loadWeeklyDetails({ force: true })}
                     disabled={!selectedWeekId || detailsLoading}
                   >

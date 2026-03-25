@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { EmptyTableState } from '@/components/ui/empty-state'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -154,6 +155,18 @@ export default function InventoryAnalysisPage() {
     const parsed = Number(projectId)
     return Number.isFinite(parsed) && parsed > 0 ? parsed : null
   }, [projectId])
+
+  const detailTotals = useMemo(
+    () => ({
+      available_qty: summary.total_available_qty,
+      age_0_90_qty: summary.total_age_0_90_qty,
+      age_91_180_qty: summary.total_age_91_180_qty,
+      age_181_270_qty: summary.total_age_181_270_qty,
+      age_271_365_qty: summary.total_age_271_365_qty,
+      age_365_plus_qty: summary.total_age_365_plus_qty,
+    }),
+    [summary],
+  )
 
   useEffect(() => {
     let active = true
@@ -334,14 +347,14 @@ export default function InventoryAnalysisPage() {
 
       const totalRow = worksheet.getRow(rows.length + 5)
       totalRow.values = [
-        '汇总',
+        '合计',
         '--',
-        summary.total_available_qty,
-        summary.total_age_0_90_qty,
-        summary.total_age_91_180_qty,
-        summary.total_age_181_270_qty,
-        summary.total_age_271_365_qty,
-        summary.total_age_365_plus_qty,
+        detailTotals.available_qty,
+        detailTotals.age_0_90_qty,
+        detailTotals.age_91_180_qty,
+        detailTotals.age_181_270_qty,
+        detailTotals.age_271_365_qty,
+        detailTotals.age_365_plus_qty,
         '--',
         '--',
         '--',
@@ -384,20 +397,23 @@ export default function InventoryAnalysisPage() {
 
   return (
     <div className="space-y-6">
-      <Card>
+      <Card className="dashboard-surface overflow-hidden">
         <CardHeader className="pb-3">
-          <CardTitle>库存分析</CardTitle>
-          
+          <div className="space-y-2">
+            <p className="dashboard-kicker">Analysis Console</p>
+            <CardTitle>库存分析</CardTitle>
+            <CardDescription>查看库存健康度、库龄结构和建议动作，把缺货与超龄风险放到同一个工作区里。</CardDescription>
+          </div>
         </CardHeader>
         <CardContent className="grid gap-4 lg:grid-cols-2">
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="dashboard-toolbar grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <div className="text-xs font-medium text-muted-foreground">项目</div>
               {projectsLoading ? (
                 <Skeleton className="h-9 w-full" />
               ) : (
                 <Select value={projectId} onValueChange={setProjectId}>
-                  <SelectTrigger>
+                  <SelectTrigger className="border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
                     <SelectValue placeholder="请选择项目" />
                   </SelectTrigger>
                   <SelectContent>
@@ -413,7 +429,7 @@ export default function InventoryAnalysisPage() {
             <div className="space-y-1.5">
               <div className="text-xs font-medium text-muted-foreground">国家站点</div>
               <Select value={country} onValueChange={setCountry}>
-                <SelectTrigger>
+                <SelectTrigger className="border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
                   <SelectValue placeholder="请选择国家站点" />
                 </SelectTrigger>
                 <SelectContent>
@@ -425,7 +441,7 @@ export default function InventoryAnalysisPage() {
                 </SelectContent>
               </Select>
             </div>
-            <Card className="border-dashed bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 sm:col-span-2">
+            <Card className="border-border/70 bg-[linear-gradient(135deg,hsl(var(--primary)/0.08),hsl(var(--surface-subtle))/0.96)] shadow-none sm:col-span-2 dark:border-border/85 dark:bg-[linear-gradient(135deg,hsl(var(--surface-overlay)),hsl(var(--surface-strong)))]">
               <CardContent className="flex h-[88px] items-center justify-between py-6">
                 <div className="flex h-full flex-col justify-center">
                   <div className="flex items-center gap-2 text-sm font-medium text-blue-700 dark:text-blue-300">
@@ -436,14 +452,14 @@ export default function InventoryAnalysisPage() {
                     {formatSnapshot(snapshotAt)}
                   </div>
                 </div>
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/50">
+                <div className="flex h-10 w-10 items-center justify-center rounded-md bg-blue-100 dark:bg-blue-900/50">
                   <Clock4 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                 </div>
               </CardContent>
             </Card>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Card className="border-dashed">
+            <Card className="hover-lift border-border/70 shadow-none dark:border-border/85">
               <CardContent className="flex h-[88px] items-center justify-between py-6">
                 <div className="flex h-full flex-col justify-center">
                   <div className="text-xs text-muted-foreground">SKU 总数</div>
@@ -452,7 +468,7 @@ export default function InventoryAnalysisPage() {
                 <PackageSearch className="h-5 w-5 text-muted-foreground" />
               </CardContent>
             </Card>
-            <Card className="border-dashed">
+            <Card className="hover-lift border-border/70 shadow-none dark:border-border/85">
               <CardContent className="flex h-[88px] items-center justify-between py-6">
                 <div className="flex h-full flex-col justify-center">
                   <div className="text-xs text-muted-foreground">可售库存总量</div>
@@ -461,7 +477,7 @@ export default function InventoryAnalysisPage() {
                 <Boxes className="h-5 w-5 text-muted-foreground" />
               </CardContent>
             </Card>
-            <Card className="border-dashed">
+            <Card className="hover-lift border-border/70 shadow-none dark:border-border/85">
               <CardContent className="flex h-[88px] items-center justify-between py-6">
                 <div className="flex h-full flex-col justify-center">
                   <div className="text-xs text-muted-foreground">缺货 SKU</div>
@@ -470,7 +486,7 @@ export default function InventoryAnalysisPage() {
                 <AlertTriangle className="h-5 w-5 text-rose-500" />
               </CardContent>
             </Card>
-            <Card className="border-dashed">
+            <Card className="hover-lift border-border/70 shadow-none dark:border-border/85">
               <CardContent className="flex h-[88px] items-center justify-between py-6">
                 <div className="flex h-full flex-col justify-center">
                   <div className="text-xs text-muted-foreground">365+ 库龄库存</div>
@@ -483,10 +499,12 @@ export default function InventoryAnalysisPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="dashboard-surface border-0">
         <CardHeader className="flex flex-row items-start justify-between gap-3 pb-3">
           <div>
+            <p className="dashboard-kicker">Operational Ledger</p>
             <CardTitle>库存明细表</CardTitle>
+            <CardDescription>承接当前项目和站点下的 SKU 库存明细、建议动作与风险状态。</CardDescription>
           </div>
           <Button
             type="button"
@@ -502,24 +520,24 @@ export default function InventoryAnalysisPage() {
         </CardHeader>
         <CardContent>
           {error ? (
-            <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+            <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
               {error}
             </div>
           ) : null}
-          <div className="overflow-x-auto rounded-lg border">
+          <div className="rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-1.5 dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="border-r border-border">SKU</TableHead>
-                  <TableHead className="border-r border-border">ASIN</TableHead>
-                  <TableHead className="border-r border-border text-right">库存</TableHead>
-                  <TableHead className="border-r border-border text-right">0-90天</TableHead>
-                  <TableHead className="border-r border-border text-right">91-180天</TableHead>
-                  <TableHead className="border-r border-border text-right">181-270天</TableHead>
-                  <TableHead className="border-r border-border text-right">271-365天</TableHead>
-                  <TableHead className="border-r border-border text-right">超过365天</TableHead>
-                  <TableHead className="border-r border-border">建议操作</TableHead>
-                  <TableHead className="border-r border-border">库存状态</TableHead>
+                  <TableHead>SKU</TableHead>
+                  <TableHead>ASIN</TableHead>
+                  <TableHead className="text-right">库存</TableHead>
+                  <TableHead className="text-right">0-90天</TableHead>
+                  <TableHead className="text-right">91-180天</TableHead>
+                  <TableHead className="text-right">181-270天</TableHead>
+                  <TableHead className="text-right">271-365天</TableHead>
+                  <TableHead className="text-right">超过365天</TableHead>
+                  <TableHead>建议操作</TableHead>
+                  <TableHead>库存状态</TableHead>
                   <TableHead>库龄状态</TableHead>
                 </TableRow>
               </TableHeader>
@@ -534,41 +552,49 @@ export default function InventoryAnalysisPage() {
                     </TableCell>
                   </TableRow>
                 ) : rows.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={11} className="h-24 text-center text-muted-foreground">
-                      当前筛选下暂无库存快照数据
-                    </TableCell>
-                  </TableRow>
+                  <EmptyTableState colSpan={11} message="当前筛选下暂无库存快照数据" />
                 ) : (
-                  rows.map((row) => {
-                    const stock = stockMeta(row.stock_status)
-                    const aging = agingMeta(row.aging_status)
-                    return (
-                      <TableRow key={`${row.sku}::${row.asin || 'na'}`}>
-                        <TableCell className="border-r border-border font-medium">{row.sku}</TableCell>
-                        <TableCell className="border-r border-border">{row.asin || '--'}</TableCell>
-                        <TableCell className="border-r border-border text-right">{formatInt(row.available_qty)}</TableCell>
-                        <TableCell className="border-r border-border text-right">{formatInt(row.age_0_90_qty)}</TableCell>
-                        <TableCell className="border-r border-border text-right">{formatInt(row.age_91_180_qty)}</TableCell>
-                        <TableCell className="border-r border-border text-right">{formatInt(row.age_181_270_qty)}</TableCell>
-                        <TableCell className="border-r border-border text-right">{formatInt(row.age_271_365_qty)}</TableCell>
-                        <TableCell className="border-r border-border text-right">{formatInt(row.age_365_plus_qty)}</TableCell>
-                        <TableCell className="border-r border-border">
-                          {row.recommended_action_label || '--'}
-                        </TableCell>
-                        <TableCell className="border-r border-border">
-                          <Badge variant="outline" className={stock.className}>
-                            {stock.label}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={aging.className}>
-                            {aging.label}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })
+                  <>
+                    {rows.map((row) => {
+                      const stock = stockMeta(row.stock_status)
+                      const aging = agingMeta(row.aging_status)
+                      return (
+                        <TableRow key={`${row.sku}::${row.asin || 'na'}`}>
+                          <TableCell className="font-medium">{row.sku}</TableCell>
+                          <TableCell>{row.asin || '--'}</TableCell>
+                          <TableCell className="text-right">{formatInt(row.available_qty)}</TableCell>
+                          <TableCell className="text-right">{formatInt(row.age_0_90_qty)}</TableCell>
+                          <TableCell className="text-right">{formatInt(row.age_91_180_qty)}</TableCell>
+                          <TableCell className="text-right">{formatInt(row.age_181_270_qty)}</TableCell>
+                          <TableCell className="text-right">{formatInt(row.age_271_365_qty)}</TableCell>
+                          <TableCell className="text-right">{formatInt(row.age_365_plus_qty)}</TableCell>
+                          <TableCell>
+                            {row.recommended_action_label || '--'}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={stock.className}>
+                              {stock.label}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={aging.className}>
+                              {aging.label}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                    <TableRow className="bg-muted/40 font-semibold">
+                      <TableCell colSpan={2}>合计</TableCell>
+                      <TableCell className="text-right">{formatInt(detailTotals.available_qty)}</TableCell>
+                      <TableCell className="text-right">{formatInt(detailTotals.age_0_90_qty)}</TableCell>
+                      <TableCell className="text-right">{formatInt(detailTotals.age_91_180_qty)}</TableCell>
+                      <TableCell className="text-right">{formatInt(detailTotals.age_181_270_qty)}</TableCell>
+                      <TableCell className="text-right">{formatInt(detailTotals.age_271_365_qty)}</TableCell>
+                      <TableCell className="text-right">{formatInt(detailTotals.age_365_plus_qty)}</TableCell>
+                      <TableCell colSpan={3} />
+                    </TableRow>
+                  </>
                 )}
               </TableBody>
             </Table>

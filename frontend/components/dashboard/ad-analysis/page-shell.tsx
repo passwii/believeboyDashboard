@@ -14,7 +14,7 @@ function SimpleList({ items }: { items: string[] }) {
       {items.map((item) => (
         <div
           key={item}
-          className="rounded-xl border border-border/50 bg-background/70 px-3 py-2 text-sm text-muted-foreground"
+          className="rounded-md border border-border/70 bg-[hsl(var(--surface-soft))] px-3 py-2 text-sm text-muted-foreground dark:border-border/80 dark:bg-[hsl(var(--surface-strong))] dark:text-foreground/80"
         >
           {item}
         </div>
@@ -26,22 +26,27 @@ function SimpleList({ items }: { items: string[] }) {
 export function AdAnalysisPageShell({ tab }: Props) {
   return (
     <div className="space-y-5">
-      <Card className="overflow-hidden border-border/70 bg-card/90 shadow-sm">
-        <CardHeader className="relative overflow-hidden border-b border-border/60 bg-gradient-to-br from-slate-50 via-background to-amber-50/70">
-          <div className="absolute inset-y-0 right-0 w-48 bg-[radial-gradient(circle_at_center,rgba(245,158,11,0.12),transparent_70%)]" />
-          <div className="relative space-y-3">
-            <Badge variant="outline" className="w-fit border-slate-300/80 bg-background/80 text-slate-700">
+      <Card className="dashboard-surface overflow-hidden">
+        <CardHeader className="relative overflow-hidden pb-5">
+          <div className="absolute inset-y-0 right-0 w-48 bg-[radial-gradient(circle_at_center,hsl(var(--primary)/0.14),transparent_72%)] dark:bg-[radial-gradient(circle_at_center,hsl(var(--primary)/0.18),transparent_72%)]" />
+          <div className="relative space-y-4">
+            <div className="space-y-2">
+              <p className="dashboard-kicker">Analysis Console</p>
+              <div>
+                <CardTitle className="text-2xl md:text-[2.2rem]">{tab.label}分析</CardTitle>
+                <CardDescription className="mt-2 max-w-3xl text-sm leading-7">
+                  {tab.summary}
+                </CardDescription>
+              </div>
+            </div>
+
+            <Badge variant="outline" className="w-fit border-border/70 bg-[hsl(var(--surface-subtle))] text-foreground dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]">
               广告分析 / {tab.label}
             </Badge>
-            <div>
-              <CardTitle className="text-2xl">{tab.label}分析</CardTitle>
-              <CardDescription className="mt-2 max-w-3xl text-sm leading-6">
-                {tab.summary}
-              </CardDescription>
-            </div>
-            <div className="flex flex-wrap gap-2 pt-1">
+
+            <div className="dashboard-toolbar flex flex-wrap gap-2">
               {tab.keyMetrics.map((metric) => (
-                <Badge key={metric} variant="secondary" className="rounded-full">
+                <Badge key={metric} variant="secondary">
                   {metric}
                 </Badge>
               ))}
@@ -51,10 +56,10 @@ export function AdAnalysisPageShell({ tab }: Props) {
       </Card>
 
       <div className="grid gap-5 xl:grid-cols-2">
-        <Card className="border-border/70 bg-card/90 shadow-sm">
+        <Card className="hover-lift">
           <CardHeader>
             <div className="flex items-center gap-2">
-              <Target className="h-4 w-4 text-slate-500" />
+              <Target className="h-4 w-4 text-primary" />
               <CardTitle className="text-lg">核心分析目标</CardTitle>
             </div>
           </CardHeader>
@@ -63,10 +68,10 @@ export function AdAnalysisPageShell({ tab }: Props) {
           </CardContent>
         </Card>
 
-        <Card className="border-border/70 bg-card/90 shadow-sm">
+        <Card className="hover-lift">
           <CardHeader>
             <div className="flex items-center gap-2">
-              <Database className="h-4 w-4 text-slate-500" />
+              <Database className="h-4 w-4 text-secondary" />
               <CardTitle className="text-lg">建议关联原始报表</CardTitle>
             </div>
           </CardHeader>
@@ -75,10 +80,10 @@ export function AdAnalysisPageShell({ tab }: Props) {
           </CardContent>
         </Card>
 
-        <Card className="border-border/70 bg-card/90 shadow-sm">
+        <Card className="hover-lift">
           <CardHeader>
             <div className="flex items-center gap-2">
-              <GitBranch className="h-4 w-4 text-slate-500" />
+              <GitBranch className="h-4 w-4 text-primary" />
               <CardTitle className="text-lg">建议 Drill 路径</CardTitle>
             </div>
           </CardHeader>
@@ -86,7 +91,7 @@ export function AdAnalysisPageShell({ tab }: Props) {
             {tab.drillPath.map((path) => (
               <div
                 key={path}
-                className="flex items-center justify-between rounded-xl border border-border/50 bg-background/70 px-3 py-3 text-sm"
+                className="flex items-center justify-between rounded-md border border-border/70 bg-[hsl(var(--surface-soft))] px-3 py-3 text-sm dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]"
               >
                 <span>{path}</span>
                 <ArrowRight className="h-4 w-4 text-muted-foreground" />
@@ -95,10 +100,10 @@ export function AdAnalysisPageShell({ tab }: Props) {
           </CardContent>
         </Card>
 
-        <Card className="border-border/70 bg-card/90 shadow-sm">
+        <Card className="hover-lift">
           <CardHeader>
             <div className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-slate-500" />
+              <TrendingUp className="h-4 w-4 text-secondary" />
               <CardTitle className="text-lg">建议调控规则</CardTitle>
             </div>
           </CardHeader>

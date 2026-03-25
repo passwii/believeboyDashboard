@@ -44,13 +44,13 @@ export function ReportUploadDropzone({
   uploadingAny,
 }: Props) {
   return (
-    <Card className="border-border/70 bg-card/80 shadow-sm">
-      <CardContent className="p-4">
+    <Card className="overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
+      <CardContent className="p-4 md:p-5">
         <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,1.02fr)_minmax(300px,0.98fr)]">
           <div className="flex h-full min-h-[252px] flex-col gap-4 pt-2">
             <div className="flex flex-wrap items-center gap-3">
               <Select value={country} onValueChange={onCountryChange}>
-                <SelectTrigger className="h-10 w-[160px] rounded-xl border-border/70 bg-background">
+                <SelectTrigger className="h-10 w-[160px] rounded-md border-border/70 bg-[hsl(var(--surface-overlay))] dark:border-border/95 dark:bg-[hsl(var(--surface-soft))]">
                   <SelectValue placeholder="选择站点" />
                 </SelectTrigger>
                 <SelectContent>
@@ -72,8 +72,10 @@ export function ReportUploadDropzone({
 
             <div
               className={cn(
-                'relative flex flex-1 rounded-3xl border border-dashed px-5 py-5 transition',
-                dragActive ? 'border-sky-500 bg-sky-500/10' : 'border-border bg-muted/40'
+                'relative flex flex-1 rounded-2xl border border-dashed px-5 py-5 transition-[border-color,background-color,box-shadow] duration-200',
+                dragActive
+                  ? 'border-sky-500/70 bg-[linear-gradient(135deg,hsl(var(--primary)/0.18),hsl(var(--chart-4)/0.08))] shadow-[inset_0_1px_0_hsl(220_30%_100%/0.08),0_20px_42px_-28px_hsl(var(--primary)/0.55)] dark:border-sky-400/65 dark:bg-[linear-gradient(135deg,hsl(var(--primary)/0.24),hsl(var(--chart-4)/0.12))]'
+                  : 'border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-subtle)),hsl(var(--surface-soft)))] dark:border-border/90 dark:bg-[linear-gradient(180deg,hsl(var(--surface-soft)),hsl(var(--surface-low)))]'
               )}
               onDrop={onDrop}
               onDragOver={onDragOver}
@@ -87,12 +89,15 @@ export function ReportUploadDropzone({
                 accept=".txt,.csv,.xlsx"
                 onChange={onPickFiles}
               />
-              <label htmlFor="report-upload-input" className="flex w-full cursor-pointer flex-col items-center justify-center gap-3 text-center">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-background shadow-sm">
-                  <FileUp className="h-6 w-6 text-sky-600" />
+              <label
+                htmlFor="report-upload-input"
+                className="flex w-full cursor-pointer flex-col items-center justify-center gap-3 text-center"
+              >
+                <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-border/70 bg-[hsl(var(--surface-overlay))] shadow-[0_14px_34px_-24px_hsl(var(--foreground)/0.35)] dark:border-sky-500/20 dark:bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))]">
+                  <FileUp className="h-6 w-6 text-sky-600 dark:text-sky-300" />
                 </div>
                 <div className="space-y-1">
-                  <p className="text-sm font-semibold sm:text-base">拖拽文件到这里，或点击选择</p>
+                  <p className="text-sm font-semibold text-foreground sm:text-base">拖拽文件到这里，或点击选择</p>
                   <p className="text-xs text-muted-foreground sm:text-sm">支持 `txt`、`csv`、`xlsx`</p>
                 </div>
               </label>
@@ -105,25 +110,25 @@ export function ReportUploadDropzone({
             </div>
           </div>
 
-          <div className="mt-2 flex h-full min-h-[252px] flex-col rounded-2xl border border-border/60 bg-background">
-            <div className="flex items-center justify-between border-b border-border/60 px-4 pb-3 pt-5">
-              <p className="text-sm font-semibold">本次识别文件</p>
+          <div className="mt-2 flex h-full min-h-[252px] flex-col overflow-hidden rounded-2xl border border-border/70 bg-[hsl(var(--surface-overlay))] dark:border-border/90 dark:bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))]">
+            <div className="flex items-center justify-between border-b border-border/70 bg-[hsl(var(--surface-subtle))]/80 px-4 pb-3 pt-5 dark:border-border/90 dark:bg-[hsl(var(--surface-soft))]/90">
+              <p className="text-sm font-semibold text-foreground">本次识别文件</p>
               <span className="text-xs text-muted-foreground">{items.length} 个</span>
             </div>
             <ScrollArea className="flex-1">
               <div className="space-y-2 p-3">
                 {items.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-border/60 px-4 py-8 text-center text-sm text-muted-foreground">
+                  <div className="rounded-xl border border-dashed border-border/70 bg-[hsl(var(--surface-subtle))]/45 px-4 py-8 text-center text-sm text-muted-foreground dark:border-border/85 dark:bg-[hsl(var(--surface-low))]/75">
                     暂无文件
                   </div>
                 ) : null}
                 {items.map((item) => (
                   <div
                     key={item.localId}
-                    className="flex items-start justify-between gap-3 rounded-2xl border border-border/60 bg-muted/30 px-3 py-3"
+                    className="flex items-start justify-between gap-3 rounded-xl border border-border/65 bg-[hsl(var(--surface-subtle))]/85 px-3 py-3 dark:border-border/85 dark:bg-[hsl(var(--surface-low))]/90"
                   >
                     <div className="min-w-0 space-y-1">
-                      <p className="truncate text-sm font-medium">{item.originalFileName}</p>
+                      <p className="truncate text-sm font-medium text-foreground">{item.originalFileName}</p>
                       <p className="text-xs text-muted-foreground">
                         {item.recognitionStatus === 'pending'
                           ? '识别中'
@@ -131,9 +136,14 @@ export function ReportUploadDropzone({
                             ? '未匹配到已支持的报表类型'
                             : `已识别为 ${item.reportType}`}
                       </p>
-                      {item.error ? <p className="text-xs text-rose-600">{item.error}</p> : null}
+                      {item.error ? <p className="text-xs text-rose-600 dark:text-rose-300">{item.error}</p> : null}
                     </div>
-                    <Button variant="ghost" size="icon" onClick={() => onRemove(item.localId)} className="h-8 w-8 shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => onRemove(item.localId)}
+                      className="h-8 w-8 shrink-0 rounded-lg text-muted-foreground hover:bg-rose-500/10 hover:text-rose-600 dark:hover:bg-rose-400/10 dark:hover:text-rose-300"
+                    >
                       <XCircle className="h-4 w-4" />
                       <span className="sr-only">remove</span>
                     </Button>

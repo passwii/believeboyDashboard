@@ -5,7 +5,8 @@ import { useSession } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
 import { RefreshCcw, Upload, FileDown, Plus, Pencil, Trash2, X, ChevronsUpDown, Check } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { DirectionalTabTransition, SlidingTabsTrigger, TabsMotionGroup } from '@/components/ui/tab-motion'
+import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -19,6 +20,7 @@ import {
 import { DateRangePicker, SingleDatePicker, formatDateInputValue as formatPickerDateInputValue, parseDateInputValue, parseDateRangeInputValue } from '@/components/ui/date-picker'
 import { Input } from '@/components/ui/input'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { EmptyTableState } from '@/components/ui/empty-state'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -99,6 +101,7 @@ type ShipmentSchedulesImportResponse = {
 }
 
 type ShipmentPageTab = 'overview' | 'cost' | 'sku-summary' | 'fba-box-detail'
+const SHIPMENT_TAB_ORDER: ShipmentPageTab[] = ['overview', 'cost', 'sku-summary', 'fba-box-detail']
 
 type ShipmentCostPreviewRow = {
   id: number
@@ -301,7 +304,7 @@ function ShipmentControlSkeleton() {
 
 function ShipmentMetricSkeleton() {
   return (
-    <div className="rounded-2xl border border-border/60 bg-muted/30 px-4 py-3">
+    <div className="rounded-2xl border border-border/60 bg-[hsl(var(--surface-subtle))] px-4 py-3">
       <Skeleton className="h-3 w-12" />
       <Skeleton className="mt-3 h-7 w-20" />
     </div>
@@ -332,11 +335,11 @@ function ShipmentTableSkeleton({
 
 function statusMeta(status: string): { label: string; className: string } {
   const map: Record<string, { label: string; className: string }> = {
-    draft: { label: '草稿', className: 'border border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200' },
+    draft: { label: '草稿', className: 'border border-border/70 bg-[hsl(var(--surface-subtle))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))] dark:text-foreground' },
     in_transit: { label: '在途', className: 'border border-sky-200 bg-sky-100 text-sky-700 dark:border-sky-900/80 dark:bg-sky-950/60 dark:text-sky-300' },
     completed: { label: '已完成', className: 'border border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-900/80 dark:bg-emerald-950/60 dark:text-emerald-300' },
   }
-  return map[status] || { label: status, className: 'border border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200' }
+  return map[status] || { label: status, className: 'border border-border/70 bg-[hsl(var(--surface-subtle))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))] dark:text-foreground' }
 }
 
 function methodLabel(method: string): string {
@@ -364,7 +367,7 @@ function countryMeta(country: string): { label: string; className: string } {
   }
   return map[country] || {
     label: countryLabel(country),
-    className: 'border border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200',
+    className: 'border border-border/70 bg-[hsl(var(--surface-subtle))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))] dark:text-foreground',
   }
 }
 
@@ -2095,7 +2098,7 @@ export default function ShipmentManagementPage() {
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
 
   return (
-    <div className="min-w-0 space-y-6">
+    <div className="min-w-0 space-y-6 text-foreground">
       <Card className="dashboard-surface">
         <CardHeader className="gap-4 pb-5">
           <div className="flex flex-col gap-4">
@@ -2209,17 +2212,21 @@ export default function ShipmentManagementPage() {
       <div className="grid min-w-0 gap-6">
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ShipmentPageTab)} className="min-w-0 w-full">
           <div className="mb-4 overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch] touch-pan-x">
-            <TabsList className="flex w-max min-w-full justify-start">
-              <TabsTrigger value="overview">总览</TabsTrigger>
-              <TabsTrigger value="cost">发货费用</TabsTrigger>
-              <TabsTrigger value="sku-summary">SKU汇总</TabsTrigger>
-              <TabsTrigger value="fba-box-detail">FBA 箱单明细</TabsTrigger>
-            </TabsList>
+            <TabsMotionGroup id="shipment-management-tabs">
+              <TabsList className="flex w-max min-w-full justify-start border border-border/70 bg-[hsl(var(--surface-subtle))] p-1">
+                <SlidingTabsTrigger value="overview" activeValue={activeTab} layoutId="shipment-management-tab-indicator">总览</SlidingTabsTrigger>
+                <SlidingTabsTrigger value="cost" activeValue={activeTab} layoutId="shipment-management-tab-indicator">发货费用</SlidingTabsTrigger>
+                <SlidingTabsTrigger value="sku-summary" activeValue={activeTab} layoutId="shipment-management-tab-indicator">SKU汇总</SlidingTabsTrigger>
+                <SlidingTabsTrigger value="fba-box-detail" activeValue={activeTab} layoutId="shipment-management-tab-indicator">FBA 箱单明细</SlidingTabsTrigger>
+              </TabsList>
+            </TabsMotionGroup>
           </div>
           
-          <TabsContent value="overview" className="mt-0 min-w-0">
+          <DirectionalTabTransition value={activeTab} order={SHIPMENT_TAB_ORDER}>
+          <TabsContent forceMount value={activeTab} className="mt-0 min-w-0">
+          {activeTab === 'overview' ? (
             <Card className="dashboard-surface min-w-0">
-              <CardHeader className="border-b border-border/70">
+              <CardHeader className="border-b border-border/70 bg-[hsl(var(--surface-subtle))]">
                 <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div>
                     
@@ -2244,19 +2251,19 @@ export default function ShipmentManagementPage() {
               </CardHeader>
               <CardContent className="p-0">
                 {items.length === 0 && !loading ? (
-                  <div className="rounded-[28px] border border-dashed border-border px-4 py-14 text-center text-sm text-muted-foreground">
+                  <div className="rounded-[28px] border border-dashed border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-14 text-center text-sm text-muted-foreground">
                     当前没有符合筛选条件的船期记录。
                   </div>
                 ) : (
                   <div className="relative">
                     {loading && items.length > 0 ? (
-                      <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/70 bg-background/95 px-3 py-1 text-xs text-muted-foreground shadow-sm">
+                      <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/70 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm">
                         列表更新中...
                       </div>
                     ) : null}
                     <Table containerClassName={TABLE_SCROLL_CONTAINER_CLASS} className="w-full min-w-[1080px]">
                       <TableHeader>
-                        <TableRow className="bg-muted/50">
+                        <TableRow className="bg-[hsl(var(--surface-subtle))]">
                           <TableHead className="w-[90px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0">项目</TableHead>
                           <TableHead className="w-[72px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0">国家</TableHead>
                           <TableHead className="w-[90px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0">发货时间</TableHead>
@@ -2277,7 +2284,7 @@ export default function ShipmentManagementPage() {
                           const status = statusMeta(item.shipment_status)
                           const country = countryMeta(item.country)
                           return (
-                            <TableRow key={item.id} className={item.id === selectedId ? 'bg-primary/5' : ''}>
+                              <TableRow key={item.id} className={item.id === selectedId ? 'bg-primary/8 dark:bg-primary/10' : ''}>
                               <TableCell className="border-r border-border/60 text-sm font-medium">{item.project_name}</TableCell>
                               <TableCell className="border-r border-border/60 text-sm">
                                 <Badge className={`${country.className} h-5 px-2 text-[11px]`}>
@@ -2317,11 +2324,9 @@ export default function ShipmentManagementPage() {
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
-
-          <TabsContent value="cost" className="mt-0 min-w-0">
+          ) : activeTab === 'cost' ? (
             <Card className="dashboard-surface min-w-0">
-              <CardHeader className="border-b border-border/70">
+              <CardHeader className="border-b border-border/70 bg-[hsl(var(--surface-subtle))]">
                 <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                   <div className="min-w-0">
                     <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Shipping Cost</div>
@@ -2356,23 +2361,23 @@ export default function ShipmentManagementPage() {
                         </>
                       ) : (
                         <>
-                          <div className="rounded-2xl border border-sky-500/15 bg-sky-500/5 px-4 py-3">
+                          <div className="rounded-2xl border border-sky-500/15 bg-sky-500/5 px-4 py-3 dark:bg-sky-500/10">
                             <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">批次</div>
                             <div className="mt-1 text-xl font-semibold">{costSummary.shipment_count}</div>
                           </div>
-                          <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/5 px-4 py-3">
+                          <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/5 px-4 py-3 dark:bg-emerald-500/10">
                             <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">数量</div>
                             <div className="mt-1 text-xl font-semibold">
                               {costSummary.total_quantity.toLocaleString()}
                             </div>
                           </div>
-                          <div className="rounded-2xl border border-amber-500/15 bg-amber-500/5 px-4 py-3">
+                          <div className="rounded-2xl border border-amber-500/15 bg-amber-500/5 px-4 py-3 dark:bg-amber-500/10">
                             <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">重量</div>
                             <div className="mt-1 text-xl font-semibold">
                               {formatDecimal(costSummary.total_chargeable_weight_kg)}
                             </div>
                           </div>
-                          <div className="rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3">
+                          <div className="rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3 dark:bg-primary/10">
                             <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">总运费</div>
                             <div className="mt-1 text-xl font-semibold">
                               {`¥ ${formatDecimal(costSummary.total_logistics_cost, 2)}`}
@@ -2392,13 +2397,13 @@ export default function ShipmentManagementPage() {
                 ) : (
                   <div className="relative">
                     {loading && items.length > 0 ? (
-                      <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/70 bg-background/95 px-3 py-1 text-xs text-muted-foreground shadow-sm">
+                      <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/70 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm">
                         发货费用计算中...
                       </div>
                     ) : null}
                     <Table containerClassName={TABLE_SCROLL_CONTAINER_CLASS} className="w-full min-w-[1320px]">
                       <TableHeader>
-                        <TableRow className="bg-muted/50">
+                        <TableRow className="bg-[hsl(var(--surface-subtle))]">
                           <TableHead className="whitespace-nowrap">项目</TableHead>
                           <TableHead className="whitespace-nowrap">发货时间</TableHead>
                           <TableHead className="whitespace-nowrap">货件编号</TableHead>
@@ -2417,7 +2422,7 @@ export default function ShipmentManagementPage() {
                         {items.map((item) => {
                           const status = statusMeta(item.shipment_status)
                           return (
-                            <TableRow key={`cost-${item.id}`} className={item.id === selectedId ? 'bg-primary/5' : ''}>
+                            <TableRow key={`cost-${item.id}`} className={item.id === selectedId ? 'bg-primary/8 dark:bg-primary/10' : ''}>
                               <TableCell className="font-medium">{item.project_name}</TableCell>
                               <TableCell>{formatDate(item.created_date || item.etd_date)}</TableCell>
                               <TableCell className="font-medium">{item.shipment_no}</TableCell>
@@ -2448,11 +2453,9 @@ export default function ShipmentManagementPage() {
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
-
-          <TabsContent value="sku-summary" className="mt-0 min-w-0">
+          ) : activeTab === 'sku-summary' ? (
             <Card className="dashboard-surface min-w-0">
-              <CardHeader className="border-b border-border/70">
+              <CardHeader className="border-b border-border/70 bg-[hsl(var(--surface-subtle))]">
                 <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                   <div className="min-w-0">
                     <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">SKU Summary</div>
@@ -2470,23 +2473,23 @@ export default function ShipmentManagementPage() {
                       </Button>
                     </div>
                     <div className="grid min-w-0 grid-cols-2 gap-2 md:grid-cols-4 xl:shrink-0">
-                      <div className="rounded-2xl border border-sky-500/15 bg-sky-500/5 px-4 py-3">
+                      <div className="rounded-2xl border border-sky-500/15 bg-sky-500/5 px-4 py-3 dark:bg-sky-500/10">
                         <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">SKU 数</div>
                         <div className="mt-1 text-xl font-semibold">{skuSummaryItems.length}</div>
                       </div>
-                      <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/5 px-4 py-3">
+                      <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/5 px-4 py-3 dark:bg-emerald-500/10">
                         <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">总数量</div>
                         <div className="mt-1 text-xl font-semibold">
                           {skuSummaryItems.reduce((acc, item) => acc + item.total_quantity, 0).toLocaleString()}
                         </div>
                       </div>
-                      <div className="rounded-2xl border border-amber-500/15 bg-amber-500/5 px-4 py-3">
+                      <div className="rounded-2xl border border-amber-500/15 bg-amber-500/5 px-4 py-3 dark:bg-amber-500/10">
                         <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">总计费重</div>
                         <div className="mt-1 text-xl font-semibold">
                           {formatDecimal(skuSummaryItems.reduce((acc, item) => acc + item.total_chargeable_weight_kg, 0))}
                         </div>
                       </div>
-                      <div className="rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3">
+                      <div className="rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3 dark:bg-primary/10">
                         <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">总费用</div>
                         <div className="mt-1 text-xl font-semibold">
                           ¥ {formatDecimal(skuSummaryItems.reduce((acc, item) => acc + item.total_logistics_cost, 0), 2)}
@@ -2504,13 +2507,13 @@ export default function ShipmentManagementPage() {
                 ) : (
                   <div className="relative">
                     {skuSummaryLoading && skuSummaryItems.length > 0 ? (
-                      <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/70 bg-background/95 px-3 py-1 text-xs text-muted-foreground shadow-sm">
+                      <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/70 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm">
                         SKU 汇总更新中...
                       </div>
                     ) : null}
                     <Table containerClassName={TABLE_SCROLL_CONTAINER_CLASS} className="w-full min-w-[1120px]">
                       <TableHeader>
-                        <TableRow className="bg-muted/50">
+                        <TableRow className="bg-[hsl(var(--surface-subtle))]">
                           <TableHead className="whitespace-nowrap">项目</TableHead>
                           <TableHead className="whitespace-nowrap">国家</TableHead>
                           <TableHead className="whitespace-nowrap">SKU</TableHead>
@@ -2547,9 +2550,7 @@ export default function ShipmentManagementPage() {
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
-
-          <TabsContent value="fba-box-detail" className="mt-0 min-w-0">
+          ) : (
             <Card className="dashboard-surface min-w-0">
               <CardHeader>
                 <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -2609,13 +2610,13 @@ export default function ShipmentManagementPage() {
                                 const country = countryMeta(fbaBoxMeta.country)
                                 return (
                                   <>
-                              <div className="rounded-2xl border border-slate-500/15 bg-slate-500/5 px-4 py-3">
+                      <div className="rounded-2xl border border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3">
                                 <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">项目</div>
                                 <div className="mt-1 text-lg font-semibold truncate" title={fbaBoxMeta.projectName}>
                                   {fbaBoxMeta.projectName}
                                 </div>
                               </div>
-                              <div className="rounded-2xl border border-slate-500/15 bg-slate-500/5 px-4 py-3">
+                      <div className="rounded-2xl border border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3">
                                 <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">国家地区</div>
                                 <div className="mt-2">
                                   <Badge className={`${country.className} h-6 px-2.5 text-xs`}>
@@ -2623,7 +2624,7 @@ export default function ShipmentManagementPage() {
                                   </Badge>
                                 </div>
                               </div>
-                              <div className="rounded-2xl border border-slate-500/15 bg-slate-500/5 px-4 py-3">
+                      <div className="rounded-2xl border border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3">
                                 <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">货件编号</div>
                                 <div className="mt-1 text-lg font-semibold truncate" title={fbaBoxMeta.shipmentNo}>
                                   {fbaBoxMeta.shipmentNo}
@@ -2634,19 +2635,19 @@ export default function ShipmentManagementPage() {
                               })()}
                             </>
                           ) : null}
-                          <div className="rounded-2xl border border-sky-500/15 bg-sky-500/5 px-4 py-3">
+                          <div className="rounded-2xl border border-sky-500/15 bg-sky-500/5 px-4 py-3 dark:bg-sky-500/10">
                             <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">SKU</div>
                             <div className="mt-1 text-xl font-semibold">{fbaBoxItems.length}</div>
                           </div>
-                          <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/5 px-4 py-3">
+                          <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/5 px-4 py-3 dark:bg-emerald-500/10">
                             <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">外箱数</div>
                             <div className="mt-1 text-xl font-semibold">{fbaBoxSummary.totalCartons}</div>
                           </div>
-                          <div className="rounded-2xl border border-amber-500/15 bg-amber-500/5 px-4 py-3">
+                          <div className="rounded-2xl border border-amber-500/15 bg-amber-500/5 px-4 py-3 dark:bg-amber-500/10">
                             <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">总重量</div>
                             <div className="mt-1 text-xl font-semibold">{formatDecimal(fbaBoxSummary.totalWeightKg)} kg</div>
                           </div>
-                          <div className="rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3">
+                          <div className="rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3 dark:bg-primary/10">
                             <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">总体积(m³)</div>
                             <div className="mt-1 text-xl font-semibold">{formatDecimal(fbaBoxSummary.totalVolumeM3, 4)}</div>
                           </div>
@@ -2655,13 +2656,13 @@ export default function ShipmentManagementPage() {
                     </div>
                     <div className="relative">
                       {fbaBoxLoading && fbaBoxItems.length > 0 ? (
-                        <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/70 bg-background/95 px-3 py-1 text-xs text-muted-foreground shadow-sm">
-                          箱单明细更新中...
-                        </div>
+                    <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/70 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm">
+                      箱单明细更新中...
+                    </div>
                       ) : null}
                       <Table containerClassName={TABLE_SCROLL_CONTAINER_CLASS} className="w-full min-w-[1000px]">
                         <TableHeader>
-                          <TableRow className="bg-muted/50">
+                          <TableRow className="bg-[hsl(var(--surface-subtle))]">
                             <TableHead className="whitespace-nowrap w-[80px]">仓库 ID</TableHead>
                             <TableHead className="whitespace-nowrap w-[140px]">SKU</TableHead>
                             <TableHead className="whitespace-nowrap w-[180px]">单品尺寸和重量</TableHead>
@@ -2717,22 +2718,24 @@ export default function ShipmentManagementPage() {
                 )}
               </CardContent>
             </Card>
+          )}
           </TabsContent>
+          </DirectionalTabTransition>
         </Tabs>
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-h-[90vh] overflow-auto dark:border-slate-800 dark:bg-slate-950 sm:max-w-5xl">
+        <DialogContent className="max-h-[90vh] overflow-auto border-border/70 bg-[hsl(var(--surface-panel))] dark:border-border/90 sm:max-w-5xl">
           <DialogHeader>
-            <DialogTitle className="dark:text-slate-100">{dialogMode === 'create' ? '新建船期批次' : '编辑船期批次'}</DialogTitle>
-            <DialogDescription className="dark:text-slate-400">
+            <DialogTitle className="text-foreground">{dialogMode === 'create' ? '新建船期批次' : '编辑船期批次'}</DialogTitle>
+            <DialogDescription className="text-muted-foreground">
               {dialogMode === 'create' ? '先创建批次，再在编辑页维护 SKU 明细。' : '可直接在下方维护 SKU 明细，支持项目 SKU 下拉选择与手动增行。'}
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 py-2 md:grid-cols-2 xl:grid-cols-4">
             <div className="space-y-2">
-              <div className="text-sm font-medium text-slate-700 dark:text-slate-200">项目</div>
+              <div className="text-sm font-medium text-foreground">项目</div>
               <Select value={form.project_id} onValueChange={(value) => handleFormChange('project_id', value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="选择项目" />
@@ -2748,7 +2751,7 @@ export default function ShipmentManagementPage() {
             </div>
 
             <div className="space-y-2">
-              <div className="text-sm font-medium text-slate-700 dark:text-slate-200">货件编号</div>
+              <div className="text-sm font-medium text-foreground">货件编号</div>
               <Input
                 value={form.shipment_no}
                 onChange={(event) => handleFormChange('shipment_no', event.target.value)}
@@ -2757,7 +2760,7 @@ export default function ShipmentManagementPage() {
             </div>
 
             <div className="space-y-2">
-              <div className="text-sm font-medium text-slate-700 dark:text-slate-200">运输方式</div>
+              <div className="text-sm font-medium text-foreground">运输方式</div>
               <Select value={form.shipping_method} onValueChange={(value) => handleFormChange('shipping_method', value)}>
                 <SelectTrigger>
                   <SelectValue />
@@ -2773,7 +2776,7 @@ export default function ShipmentManagementPage() {
             </div>
 
             <div className="space-y-2">
-              <div className="text-sm font-medium text-slate-700 dark:text-slate-200">国家地区</div>
+              <div className="text-sm font-medium text-foreground">国家地区</div>
               <Select value={form.country} onValueChange={(value) => handleFormChange('country', value)}>
                 <SelectTrigger>
                   <SelectValue />
@@ -2789,7 +2792,7 @@ export default function ShipmentManagementPage() {
             </div>
 
             <div className="space-y-2">
-              <div className="text-sm font-medium text-slate-700 dark:text-slate-200">状态</div>
+              <div className="text-sm font-medium text-foreground">状态</div>
               <Select value={form.shipment_status} onValueChange={(value) => handleFormChange('shipment_status', value)}>
                 <SelectTrigger>
                   <SelectValue />
@@ -2805,37 +2808,37 @@ export default function ShipmentManagementPage() {
             </div>
 
             <div className="space-y-2">
-              <div className="text-sm font-medium text-slate-700 dark:text-slate-200">追踪号</div>
+              <div className="text-sm font-medium text-foreground">追踪号</div>
               <Input value={form.tracking_no} onChange={(event) => handleFormChange('tracking_no', event.target.value)} />
             </div>
             <div className="space-y-2">
-              <div className="text-sm font-medium text-slate-700 dark:text-slate-200">仓库编码</div>
+              <div className="text-sm font-medium text-foreground">仓库编码</div>
               <Input value={form.warehouse_code} onChange={(event) => handleFormChange('warehouse_code', event.target.value)} />
             </div>
             <div className="space-y-2">
-              <div className="text-sm font-medium text-slate-700 dark:text-slate-200">货代公司</div>
+              <div className="text-sm font-medium text-foreground">货代公司</div>
               <Input value={form.forwarder_name} onChange={(event) => handleFormChange('forwarder_name', event.target.value)} />
             </div>
 
             <div className="space-y-2">
-              <div className="text-sm font-medium text-slate-700 dark:text-slate-200">发货时间</div>
+              <div className="text-sm font-medium text-foreground">发货时间</div>
               <SingleDatePicker value={parseDateInputValue(form.created_date)} onChange={(date) => handleFormChange('created_date', formatPickerDateInputValue(date))} />
             </div>
             <div className="space-y-2">
-              <div className="text-sm font-medium text-slate-700 dark:text-slate-200">ETD</div>
+              <div className="text-sm font-medium text-foreground">ETD</div>
               <SingleDatePicker value={parseDateInputValue(form.etd_date)} onChange={(date) => handleFormChange('etd_date', formatPickerDateInputValue(date))} />
             </div>
             <div className="space-y-2">
-              <div className="text-sm font-medium text-slate-700 dark:text-slate-200">ETA</div>
+              <div className="text-sm font-medium text-foreground">ETA</div>
               <SingleDatePicker value={parseDateInputValue(form.eta_date)} onChange={(date) => handleFormChange('eta_date', formatPickerDateInputValue(date))} />
             </div>
             <div className="space-y-2">
-              <div className="text-sm font-medium text-slate-700 dark:text-slate-200">实际入仓日期</div>
+              <div className="text-sm font-medium text-foreground">实际入仓日期</div>
               <SingleDatePicker value={parseDateInputValue(form.actual_inbound_date)} onChange={(date) => handleFormChange('actual_inbound_date', formatPickerDateInputValue(date))} />
             </div>
 
             <div className="space-y-2">
-              <div className="text-sm font-medium text-slate-700 dark:text-slate-200">物流报价（物流单价）</div>
+              <div className="text-sm font-medium text-foreground">物流报价（物流单价）</div>
               <Input
                 inputMode="decimal"
                 placeholder="例如 8.50"
@@ -2845,7 +2848,7 @@ export default function ShipmentManagementPage() {
             </div>
 
             <div className="space-y-2">
-              <div className="text-sm font-medium text-slate-700 dark:text-slate-200">是否参与历史发货核算</div>
+              <div className="text-sm font-medium text-foreground">是否参与历史发货核算</div>
               <Select
                 value={form.include_in_history_shipping_calc}
                 onValueChange={(value) => handleFormChange('include_in_history_shipping_calc', value)}
@@ -2861,19 +2864,19 @@ export default function ShipmentManagementPage() {
             </div>
 
             <div className="space-y-2 xl:col-span-4">
-              <div className="text-sm font-medium text-slate-700 dark:text-slate-200">备注</div>
+              <div className="text-sm font-medium text-foreground">备注</div>
               <textarea
                 value={form.remark}
                 onChange={(event) => handleFormChange('remark', event.target.value)}
                 rows={3}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring dark:border-border/70 dark:bg-[hsl(var(--surface-soft))] dark:text-foreground"
               />
             </div>
           </div>
 
           {dialogMode === 'edit' && detail && (
             <>
-              <Separator className="dark:bg-slate-800" />
+              <Separator className="bg-border" />
               <div className="space-y-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
@@ -2921,24 +2924,24 @@ export default function ShipmentManagementPage() {
                   </div>
                 </div>
                 <div className="grid gap-3 md:grid-cols-4">
-                  <div className="rounded-2xl border border-border/70 bg-muted/40 px-4 py-3">
+                  <div className="rounded-2xl border border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3">
                     <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">SKU 数</div>
                     <div className="mt-1 text-lg font-semibold">{detail.sku_count}</div>
                   </div>
-                  <div className="rounded-2xl border border-border/70 bg-muted/40 px-4 py-3">
+                  <div className="rounded-2xl border border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3">
                     <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">体积</div>
                     <div className="mt-1 text-lg font-semibold">{costPreviewRows.length > 0 ? `${formatDecimal(costPreviewSummary.totalVolumeM3, 4)} m³` : '待核算'}</div>
                   </div>
-                  <div className="rounded-2xl border border-border/70 bg-muted/40 px-4 py-3">
+                  <div className="rounded-2xl border border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3">
                     <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">计费重</div>
                     <div className="mt-1 text-lg font-semibold">{costPreviewRows.length > 0 ? `${formatDecimal(costPreviewSummary.totalChargeableWeightKg)} kg` : '待核算'}</div>
                   </div>
-                  <div className="rounded-2xl border border-border/70 bg-muted/40 px-4 py-3">
+                  <div className="rounded-2xl border border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3">
                     <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">预估运费</div>
                     <div className="mt-1 text-lg font-semibold">{costPreviewRows.length > 0 ? `¥ ${formatDecimal(costPreviewSummary.totalEstimatedCost, 2)}` : '待核算'}</div>
                   </div>
                 </div>
-                <div className="rounded-2xl border border-dashed border-border/70 bg-muted/20 px-4 py-3 text-xs text-muted-foreground">
+                <div className="rounded-2xl border border-dashed border-border/70 bg-[hsl(var(--surface-soft))] px-4 py-3 text-xs text-muted-foreground">
                   核算口径：体积按 SKU 信息中的单品长宽高换算为 m³，体积重按长 × 宽 × 高 / 6000，计费重取实际重量与体积重较大值。
                 </div>
                 {hasPendingItemChanges ? (
@@ -2968,11 +2971,7 @@ export default function ShipmentManagementPage() {
                       </TableHeader>
                       <TableBody>
                         {editableItems.length === 0 ? (
-                          <TableRow>
-                            <TableCell colSpan={8} className="py-8 text-center text-sm text-muted-foreground">
-                              还没有 SKU 明细
-                            </TableCell>
-                          </TableRow>
+                          <EmptyTableState colSpan={8} message="还没有 SKU 明细" />
                         ) : (
                           editableItems.map((item) => {
                             const preview = detail.items.find((detailItem) => detailItem.sku === item.sku)
@@ -3029,7 +3028,7 @@ export default function ShipmentManagementPage() {
             </>
           )}
 
-          <Separator className="dark:bg-slate-800" />
+          <Separator className="bg-border" />
           <DialogFooter>
             {dialogMode === 'edit' && isAdmin ? (
               <Button
@@ -3042,7 +3041,7 @@ export default function ShipmentManagementPage() {
                 删除批次
               </Button>
             ) : null}
-            <Button variant="outline" onClick={() => setDialogOpen(false)} className="dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+            <Button variant="outline" onClick={() => setDialogOpen(false)} className="dark:border-border/70 dark:bg-[hsl(var(--surface-soft))] dark:text-foreground">
               取消
             </Button>
             <Button onClick={() => void submitForm()} disabled={submitting}>
@@ -3053,10 +3052,10 @@ export default function ShipmentManagementPage() {
       </Dialog>
 
       <Dialog open={skuDialogOpen} onOpenChange={setSkuDialogOpen}>
-        <DialogContent className="max-h-[90vh] overflow-auto dark:border-slate-800 dark:bg-slate-950 sm:max-w-2xl">
+        <DialogContent className="max-h-[90vh] overflow-auto border-border/70 bg-[hsl(var(--surface-panel))] dark:border-border/90 sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle className="dark:text-slate-100">SKU 明细</DialogTitle>
-            <DialogDescription className="dark:text-slate-400">
+            <DialogTitle className="text-foreground">SKU 明细</DialogTitle>
+            <DialogDescription className="text-muted-foreground">
               {skuDialogDetail ? `${skuDialogDetail.shipment_no} - ${skuDialogDetail.sku_count} 个 SKU，合计 ${skuDialogDetail.total_quantity.toLocaleString()} 件` : ''}
             </DialogDescription>
           </DialogHeader>
@@ -3079,11 +3078,7 @@ export default function ShipmentManagementPage() {
                   </TableHeader>
                   <TableBody>
                     {skuDialogDetail.items.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={2} className="py-12 text-center text-sm text-muted-foreground">
-                          还没有 SKU 明细
-                        </TableCell>
-                      </TableRow>
+                      <EmptyTableState colSpan={2} message="还没有 SKU 明细" />
                     ) : (
                       skuDialogDetail.items.map((item) => (
                         <TableRow key={item.id}>
@@ -3103,7 +3098,7 @@ export default function ShipmentManagementPage() {
           )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSkuDialogOpen(false)} className="dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+            <Button variant="outline" onClick={() => setSkuDialogOpen(false)} className="dark:border-border/70 dark:bg-[hsl(var(--surface-soft))] dark:text-foreground">
               关闭
             </Button>
           </DialogFooter>

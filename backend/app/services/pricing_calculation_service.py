@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.models import ExchangeRate, PricingCalculationRun, ShipmentSkuSummary
 from app.schemas.pricing_calculation import (
+    PricingCalculationCostReverseRequest,
     PricingCalculationCreateRequest,
     PricingCalculationReverseRequest,
 )
@@ -218,6 +219,40 @@ def create_pricing_reverse_run(
     )
     row = create_pricing_run(db, create_payload, operator=operator)
     row.calculation_type = "profit_reverse"
+    db.flush()
+    db.refresh(row)
+    return row
+
+
+def create_pricing_cost_reverse_run(
+    db: Session,
+    payload: PricingCalculationCostReverseRequest,
+    *,
+    operator: str | None = None,
+) -> PricingCalculationRun:
+    ensure_tables(db)
+    resolved_fob_cost_rmb = _solve_fob_cost_for_profit_rate(payload, db)
+    create_payload = PricingCalculationCreateRequest(
+        product_name=payload.product_name,
+        package_length_cm=payload.package_length_cm,
+        package_width_cm=payload.package_width_cm,
+        package_height_cm=payload.package_height_cm,
+        weight_kg=payload.weight_kg,
+        fob_product_cost_rmb=float(resolved_fob_cost_rmb),
+        first_leg_cost_rmb=payload.first_leg_cost_rmb,
+        project_id=payload.project_id,
+        sku=payload.sku,
+        use_historical_shipping_cost=payload.use_historical_shipping_cost,
+        sale_price_usd=payload.sale_price_usd,
+        commission_rate=payload.commission_rate,
+        advertising_rate=payload.advertising_rate,
+        return_loss_rate=payload.return_loss_rate,
+        storage_months=payload.storage_months,
+        inbound_placement_mode=payload.inbound_placement_mode,
+        usd_to_rmb_rate=payload.usd_to_rmb_rate,
+    )
+    row = create_pricing_run(db, create_payload, operator=operator)
+    row.calculation_type = "cost_reverse"
     db.flush()
     db.refresh(row)
     return row
@@ -528,6 +563,61 @@ def _solve_sale_price_for_profit_rate(
         final_price = _money_decimal(final_price + Decimal("0.01"))
 
     return final_price
+
+
+def _solve_fob_cost_for_profit_rate(
+    payload: PricingCalculationCostReverseRequest, db: Session
+) -> Decimal:
+    target_profit_rate = _ratio(_decimal(payload.target_profit_rate))
+    low = Decimal("0.01")
+    high = Decimal("100000")
+    best_cost = low
+    best_result: dict[str, object] | None = None
+
+    def compute_at(cost: Decimal) -> dict[str, object]:
+        candidate_payload = PricingCalculationCreateRequest(
+            product_name=payload.product_name,
+            package_length_cm=payload.package_length_cm,
+            package_width_cm=payload.package_width_cm,
+            package_height_cm=payload.package_height_cm,
+            weight_kg=payload.weight_kg,
+            fob_product_cost_rmb=float(cost),
+            first_leg_cost_rmb=payload.first_leg_cost_rmb,
+            project_id=payload.project_id,
+            sku=payload.sku,
+            use_historical_shipping_cost=payload.use_historical_shipping_cost,
+            sale_price_usd=payload.sale_price_usd,
+            commission_rate=payload.commission_rate,
+            advertising_rate=payload.advertising_rate,
+            return_loss_rate=payload.return_loss_rate,
+            storage_months=payload.storage_months,
+            inbound_placement_mode=payload.inbound_placement_mode,
+            usd_to_rmb_rate=payload.usd_to_rmb_rate,
+        )
+        return _compute_pricing(candidate_payload, db)
+
+    for _ in range(40):
+        mid = _money_decimal((low + high) / Decimal("2"))
+        result = compute_at(mid)
+        current_profit_rate = result["profit_decimal"]["profit_rate"]
+
+        if abs(current_profit_rate - target_profit_rate) < Decimal("0.0001"):
+            best_cost = mid
+            best_result = result
+            break
+
+        if current_profit_rate > target_profit_rate:
+            low = mid
+        else:
+            high = mid
+
+        best_cost = mid
+        best_result = result
+
+    if best_result is None:
+        raise ValueError("无法找到满足目标利润率的 FOB 成本")
+
+    return _money_decimal(best_cost)
 
 
 def _resolve_first_leg_cost_rmb(

@@ -34,7 +34,7 @@ type StoreGridProps = {
 function StoreGrid({ items }: StoreGridProps) {
   if (items.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-2xl border border-border/70 bg-card p-12 text-center">
+      <div className="flex flex-col items-center justify-center rounded-2xl border border-border/70 bg-card p-12 text-center dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
         <Store className="mb-4 h-12 w-12 text-muted-foreground/50" />
         <p className="text-muted-foreground">暂无店铺数据</p>
       </div>
@@ -49,7 +49,7 @@ function StoreGrid({ items }: StoreGridProps) {
           href={store.store_address || '#'}
           target="_blank"
           rel="noreferrer"
-          className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border/70 bg-card p-4 shadow-sm transition-all duration-300 ease-out hover:-translate-y-1 hover:border-primary/35 hover:shadow-xl hover:shadow-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2"
+          className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border/70 bg-card p-4 shadow-sm transition-all duration-300 ease-out hover:-translate-y-1 hover:border-primary/35 hover:shadow-xl hover:shadow-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))] dark:hover:border-primary/30 dark:hover:shadow-primary/5"
           style={{ animationDelay: `${index * 40}ms` }}
           onClick={(e) => {
             if (!store.store_address) {
@@ -70,7 +70,7 @@ function StoreGrid({ items }: StoreGridProps) {
                   </p>
                 )}
               </div>
-              <div className="rounded-lg border border-border/70 bg-background/75 p-2 text-muted-foreground transition-colors group-hover:text-primary">
+              <div className="rounded-lg border border-border/70 bg-background/75 p-2 text-muted-foreground transition-colors group-hover:text-primary dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
                 <ArrowUpRight className="h-4 w-4" />
               </div>
             </div>
@@ -79,8 +79,8 @@ function StoreGrid({ items }: StoreGridProps) {
               {store.store_address ? '点击访问店铺页面' : '暂无店铺链接'}
             </p>
 
-            <div className="mt-auto flex items-center justify-between border-t border-border/70 pt-3">
-              <span className="inline-flex items-center gap-1 rounded-full border border-border/70 px-2.5 py-1 text-xs text-foreground/85">
+            <div className="mt-auto flex items-center justify-between border-t border-border/70 pt-3 dark:border-border/80">
+              <span className="inline-flex items-center gap-1 rounded-full border border-border/70 px-2.5 py-1 text-xs text-foreground/85 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
                 <ExternalLink className="h-3 w-3" />
                 店铺链接
               </span>
@@ -127,7 +127,7 @@ export default function StoreNavigationPage() {
 
   return (
     <div className="space-y-6 md:space-y-7">
-      <section className="dashboard-surface animate-enter px-5 py-5 md:px-7 md:py-7">
+      <section className="dashboard-surface animate-enter px-5 py-5 md:px-7 md:py-7 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
         <div className="relative z-10 flex flex-wrap items-start justify-between gap-5">
           <div className="max-w-2xl space-y-3">
             <p className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold tracking-[0.14em] text-primary/90">
@@ -140,7 +140,7 @@ export default function StoreNavigationPage() {
           </div>
           <div className="grid w-full max-w-sm grid-cols-3 gap-2.5">
             {stats.map((item) => (
-              <div key={item.label} className="rounded-xl border border-border/70 bg-background/80 p-3 text-center">
+              <div key={item.label} className="rounded-xl border border-border/70 bg-background/80 p-3 text-center dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
                 <item.icon className="mx-auto mb-1 h-4 w-4 text-primary/85" />
                 <p className="text-base font-semibold leading-tight">{item.value}</p>
                 <p className="text-[11px] text-muted-foreground">{item.label}</p>
@@ -157,11 +157,11 @@ export default function StoreNavigationPage() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center rounded-2xl border border-border/70 bg-card p-12">
+          <div className="flex items-center justify-center rounded-2xl border border-border/70 bg-card p-12 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : error ? (
-          <div className="flex flex-col items-center justify-center rounded-2xl border border-destructive/50 bg-card p-12 text-center">
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-destructive/50 bg-card p-12 text-center dark:border-destructive/30 dark:bg-[hsl(var(--surface-panel))]">
             <p className="text-destructive">{error}</p>
           </div>
         ) : (

@@ -25,10 +25,13 @@ import { SingleDatePicker, formatDateInputValue, parseDateInputValue } from '@/c
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { DirectionalTabTransition, SlidingTabsTrigger, TabsMotionGroup } from '@/components/ui/tab-motion'
+import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 
 const API_BASE = '/api/backend'
+type UploadWorkspaceTab = 'upload' | 'status'
+const UPLOAD_WORKSPACE_TAB_ORDER: UploadWorkspaceTab[] = ['upload', 'status']
 
 const REPORT_CARD_CONFIGS: ReportCardConfig[] = [
   {
@@ -227,6 +230,7 @@ export default function ReportUploadPage() {
   const [statusError, setStatusError] = useState<string | null>(null)
   const [statusDate, setStatusDate] = useState(() => toLocalDateInputValue())
   const [selectedCountry, setSelectedCountry] = useState<ReportUploadCountry>(DEFAULT_REPORT_UPLOAD_COUNTRY)
+  const [workspaceTab, setWorkspaceTab] = useState<UploadWorkspaceTab>('upload')
 
   useEffect(() => {
     const loadProjects = async () => {
@@ -492,14 +496,44 @@ export default function ReportUploadPage() {
   }
 
   return (
-    <div className="w-full space-y-6">
-      <Tabs defaultValue="upload" className="space-y-5">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="upload">报表上传</TabsTrigger>
-          <TabsTrigger value="status">报表状态</TabsTrigger>
-        </TabsList>
+    <div className="w-full space-y-6 text-foreground">
+      <Card className="overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
+        <CardContent className="grid gap-5 px-6 py-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-end md:px-8">
+          <div className="space-y-3">
+            <div className="dashboard-kicker">
+              报表上传
+            </div>
+            <div className="space-y-2">
+              <h1 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">上传、识别、入库，一条线完成</h1>
+              <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+                这里保留原有识别和提交流程，但把页面组织成更清晰的工作台：上传区、确认卡片和状态查询都放进统一的工作表面里。
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 text-sm md:min-w-[360px]">
+            <div className="rounded-xl border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-subtle)),hsl(var(--surface-soft)))] px-4 py-3 dark:border-border/90 dark:bg-[linear-gradient(180deg,hsl(var(--surface-soft)),hsl(var(--surface-low)))]">
+              <p className="text-xs text-muted-foreground">待确认卡片</p>
+              <p className="mt-1 text-lg font-semibold text-foreground">{REPORT_TYPES.length - readyCount}</p>
+            </div>
+            <div className="rounded-xl border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-subtle)),hsl(var(--surface-soft)))] px-4 py-3 dark:border-border/90 dark:bg-[linear-gradient(180deg,hsl(var(--surface-soft)),hsl(var(--surface-low)))]">
+              <p className="text-xs text-muted-foreground">可直接上传</p>
+              <p className="mt-1 text-lg font-semibold text-foreground">{readyCount}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-        <TabsContent value="upload" className="space-y-5">
+      <Tabs value={workspaceTab} onValueChange={(value) => setWorkspaceTab(value as UploadWorkspaceTab)} className="space-y-5">
+        <TabsMotionGroup id="report-upload-tabs">
+          <TabsList className="grid h-auto w-full max-w-[360px] grid-cols-2 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-1 shadow-none">
+            <SlidingTabsTrigger value="upload" activeValue={workspaceTab} layoutId="report-upload-tab-indicator" className="w-full">报表上传</SlidingTabsTrigger>
+            <SlidingTabsTrigger value="status" activeValue={workspaceTab} layoutId="report-upload-tab-indicator" className="w-full">报表状态</SlidingTabsTrigger>
+          </TabsList>
+        </TabsMotionGroup>
+
+        <DirectionalTabTransition value={workspaceTab} order={UPLOAD_WORKSPACE_TAB_ORDER}>
+        <TabsContent forceMount value={workspaceTab} className="space-y-5">
+        {workspaceTab === 'upload' ? (
           <div className="space-y-5">
             <ReportUploadDropzone
               items={queueItems}
@@ -525,15 +559,18 @@ export default function ReportUploadPage() {
             />
 
             <div className="space-y-4">
-              <div className="space-y-1">
-                <h2 className="text-lg font-semibold tracking-tight">当前识别卡片</h2>
-                {projectLoadError ? <p className="text-sm text-rose-600">{projectLoadError}</p> : null}
+              <div className="flex items-end justify-between gap-3">
+                <div className="space-y-1">
+                  <h2 className="text-lg font-semibold tracking-tight text-foreground">当前识别卡片</h2>
+                  <p className="text-sm text-muted-foreground">每张卡片对应一类报表，识别完成后即可确认项目和日期。</p>
+                </div>
+                {projectLoadError ? <p className="text-sm text-destructive">{projectLoadError}</p> : null}
               </div>
 
               {projectsLoading ? (
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                   {REPORT_TYPES.map((type) => (
-                    <Skeleton key={type} className="h-[320px] rounded-3xl" />
+                    <Skeleton key={type} className="h-[320px] rounded-xl" />
                   ))}
                 </div>
               ) : (
@@ -574,59 +611,62 @@ export default function ReportUploadPage() {
               )}
             </div>
           </div>
-        </TabsContent>
-
-        <TabsContent value="status">
-          <Card className="border-border/70 bg-card/90 shadow-sm">
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-500/10 text-sky-600">
-                  <LayoutTemplate className="h-5 w-5" />
+        ) : (
+          <Card className="overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
+            <CardHeader className="border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-6 py-5 md:px-8">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-sky-500/15 bg-sky-500/10 text-sky-600 dark:bg-sky-500/15 dark:text-sky-300">
+                    <LayoutTemplate className="h-5 w-5" />
+                  </div>
+                  <div className="space-y-1">
+                    <CardTitle>报表状态</CardTitle>
+                    <p className="text-sm text-muted-foreground">按日期和站点切换查看各项目的入库情况。</p>
+                  </div>
                 </div>
-                <div>
-                  <CardTitle>报表状态</CardTitle>
+
+                <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                  <Select value={selectedCountry} onValueChange={(value) => setSelectedCountry(value as ReportUploadCountry)}>
+                    <SelectTrigger className="h-10 w-[160px] rounded-md border-border/70 bg-background dark:bg-[hsl(var(--surface-soft))]">
+                      <SelectValue placeholder="选择站点" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {REPORT_UPLOAD_COUNTRY_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Button type="button" variant="outline" size="icon" onClick={() => setStatusDate((current) => shiftDateString(current, -1))}>
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <SingleDatePicker
+                    value={parseDateInputValue(statusDate)}
+                    onChange={(date) => setStatusDate(formatDateInputValue(date))}
+                    className="w-[180px] bg-background dark:bg-[hsl(var(--surface-soft))]"
+                  />
+                  <Button type="button" variant="outline" size="icon" onClick={() => setStatusDate((current) => shiftDateString(current, 1))}>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button type="button" variant="secondary" onClick={() => setStatusDate(toLocalDateInputValue())}>
+                    今天
+                  </Button>
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4 px-6 py-6 md:px-8">
               {statusError ? <p className="mb-4 text-sm text-rose-600">{statusError}</p> : null}
-              <div className="mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-border/60 bg-muted/20 p-3">
-                <Button type="button" variant="outline" size="icon" onClick={() => setStatusDate((current) => shiftDateString(current, -1))}>
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <SingleDatePicker
-                  value={parseDateInputValue(statusDate)}
-                  onChange={(date) => setStatusDate(formatDateInputValue(date))}
-                  className="w-[180px] bg-background"
-                />
-                <Button type="button" variant="outline" size="icon" onClick={() => setStatusDate((current) => shiftDateString(current, 1))}>
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-                <Button type="button" variant="secondary" onClick={() => setStatusDate(toLocalDateInputValue())}>
-                  今天
-                </Button>
-                <Select value={selectedCountry} onValueChange={(value) => setSelectedCountry(value as ReportUploadCountry)}>
-                  <SelectTrigger className="h-10 w-[160px] rounded-xl border-border/70 bg-background">
-                    <SelectValue placeholder="选择站点" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {REPORT_UPLOAD_COUNTRY_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
               {statusLoading ? (
                 <div className="space-y-3">
-                  <Skeleton className="h-12 rounded-2xl" />
-                  <Skeleton className="h-72 rounded-3xl" />
+                  <Skeleton className="h-12 rounded-lg" />
+                  <Skeleton className="h-72 rounded-xl" />
                 </div>
               ) : (
                 <ScrollArea className="w-full">
                   <div className="min-w-[920px] space-y-3">
-                    <div className="grid grid-cols-[160px_repeat(5,minmax(110px,1fr))] gap-2 px-2 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground">
+                    <div className="grid grid-cols-[160px_repeat(5,minmax(110px,1fr))] gap-2 px-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                       <div>项目</div>
                       {REPORT_TYPES.map((type) => (
                         <div key={type}>{statusLabelByType[type]}</div>
@@ -634,7 +674,7 @@ export default function ReportUploadPage() {
                     </div>
 
                     {statusRows.length === 0 ? (
-                      <div className="rounded-3xl border border-dashed border-border/60 bg-muted/30 px-6 py-12 text-center">
+                      <div className="rounded-xl border border-dashed border-border/70 bg-[hsl(var(--surface-subtle))] px-6 py-12 text-center">
                         <p className="text-base font-medium">{statusDate} 暂时没有可展示的报表状态</p>
                         <p className="mt-2 text-sm text-muted-foreground">切换左右日期，或先在“报表上传”页签完成当天报表上传。</p>
                       </div>
@@ -643,9 +683,9 @@ export default function ReportUploadPage() {
                     {statusRows.map((row) => (
                       <div
                         key={row.project_id}
-                        className="grid grid-cols-[160px_repeat(5,minmax(110px,1fr))] gap-2 rounded-3xl border border-border/60 bg-muted/20 p-2.5"
+                        className="grid grid-cols-[160px_repeat(5,minmax(110px,1fr))] gap-2 rounded-xl border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-subtle)),hsl(var(--surface-soft)))] p-2.5 dark:border-border/90 dark:bg-[linear-gradient(180deg,hsl(var(--surface-soft)),hsl(var(--surface-low)))]"
                       >
-                        <div className="rounded-2xl bg-background px-3 py-2.5">
+                        <div className="rounded-lg border border-border/70 bg-[hsl(var(--surface-panel))] px-3 py-2.5 dark:border-border/90 dark:bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))]">
                           <p className="text-sm font-semibold">{row.project_name}</p>
                           <p className="mt-1 text-xs text-muted-foreground">
                             {getReportUploadCountryLabel(selectedCountry, true)}
@@ -655,24 +695,24 @@ export default function ReportUploadPage() {
                           const cell = row.statuses[type] as StatusCell | undefined
                           const tone =
                             cell?.status === 'available'
-                              ? 'border-emerald-200 bg-emerald-50'
+                              ? 'border-emerald-500/20 bg-emerald-500/10 dark:border-emerald-400/30 dark:bg-emerald-400/12'
                               : cell?.status === 'saved_only'
-                                ? 'border-amber-200 bg-amber-50'
-                                : 'border-border bg-background'
+                                ? 'border-amber-500/20 bg-amber-500/10 dark:border-amber-400/30 dark:bg-amber-400/12'
+                                : 'border-border/70 bg-[hsl(var(--surface-panel))] dark:border-border/90 dark:bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))]'
                           return (
-                            <div key={type} className={`rounded-2xl border px-2.5 py-2 ${tone}`}>
+                            <div key={type} className={`rounded-lg border px-2.5 py-2 shadow-none ${tone}`}>
                               <div className="flex items-center gap-2">
                                 {cell?.status === 'missing' ? (
                                   <CircleX className="h-4 w-4 text-rose-500" />
                                 ) : (
-                                  <CheckCircle2 className={`h-4 w-4 ${cell?.status === 'saved_only' ? 'text-amber-600' : 'text-emerald-600'}`} />
+                                  <CheckCircle2 className={`h-4 w-4 ${cell?.status === 'saved_only' ? 'text-amber-600 dark:text-amber-300' : 'text-emerald-600 dark:text-emerald-300'}`} />
                                 )}
                                 <span className="text-xs font-medium">
                                   {cell?.status === 'available'
                                     ? '已入库'
                                     : cell?.status === 'saved_only'
                                       ? '仅文件'
-                                      : '缺失'}
+                                  : '缺失'}
                                 </span>
                               </div>
                               <p className="mt-1.5 text-[11px] text-muted-foreground">{statusTypeLabel(cell)}</p>
@@ -686,7 +726,9 @@ export default function ReportUploadPage() {
               )}
             </CardContent>
           </Card>
+        )}
         </TabsContent>
+        </DirectionalTabTransition>
       </Tabs>
     </div>
   )

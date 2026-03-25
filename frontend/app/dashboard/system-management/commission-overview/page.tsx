@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { MonthPicker, formatMonthInputValue, parseMonthInputValue } from '@/components/ui/date-picker'
+import { EmptyTableState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -536,9 +537,7 @@ export default function CommissionOverviewPage() {
                 <TableCell colSpan={6} className="text-center text-muted-foreground">加载中...</TableCell>
               </TableRow>
             ) : monthlySummary.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground">{summaryYear}年暂无数据</TableCell>
-              </TableRow>
+              <EmptyTableState colSpan={6} message={`${summaryYear}年暂无数据`} />
             ) : (
               monthlySummary.map((item) => (
                 <TableRow key={item.report_month}>
@@ -579,9 +578,7 @@ export default function CommissionOverviewPage() {
                 <TableCell colSpan={16} className="text-center text-muted-foreground">加载中...</TableCell>
               </TableRow>
             ) : projectSummary.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={16} className="text-center text-muted-foreground">{summaryYear}年暂无数据</TableCell>
-              </TableRow>
+              <EmptyTableState colSpan={16} message={`${summaryYear}年暂无数据`} />
             ) : (
               projectSummary.map((project) => (
                 <TableRow key={project.project_id}>
@@ -628,9 +625,7 @@ export default function CommissionOverviewPage() {
                   <TableCell colSpan={8} className="text-center text-muted-foreground">加载中...</TableCell>
                 </TableRow>
               ) : filteredOperationRows.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground">当前筛选条件无数据</TableCell>
-                </TableRow>
+                <EmptyTableState colSpan={8} message="当前筛选条件无数据" />
               ) : (
                 filteredOperationRows.map((row) => {
                   const projectPaymentStatus = projectPaymentStatusByProjectId.get(row.project_id) ?? (row.payment_status === 'paid' ? 'paid' : 'unpaid')
@@ -657,13 +652,13 @@ export default function CommissionOverviewPage() {
 
   return (
     <div className="mx-auto flex h-[calc(100dvh-6.5rem)] w-full max-w-[1520px] flex-col space-y-4 md:h-[calc(100dvh-8rem)] lg:h-[calc(100dvh-9rem)]">
-      <Card className="flex flex-1 flex-col border-border/80 shadow-[0_20px_40px_-22px_rgba(15,23,42,0.22)]">
+      <Card className="flex flex-1 flex-col border-border/80 shadow-[0_20px_40px_-22px_rgba(15,23,42,0.22)] dark:border-border/80 dark:bg-[hsl(var(--surface-panel))] dark:shadow-[0_24px_50px_-30px_rgba(0,0,0,0.45)]">
         <CardHeader className="space-y-2 pb-4 shrink-0">
           <Badge variant="outline" className="w-fit rounded-md border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300">
             系统管理
           </Badge>
           <CardTitle className="text-2xl tracking-tight">佣金管理</CardTitle>
-          <CardDescription>回款确认状态与回款金额只允许在“总览”Sheet编辑，其余Sheet均只读。</CardDescription>
+          <CardDescription className="dark:text-muted-foreground/80">回款确认状态与回款金额只允许在“总览”Sheet编辑，其余Sheet均只读。</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-1 flex-col space-y-3 pt-1 min-h-0">
           <div className="flex flex-wrap items-end justify-between gap-4">
@@ -730,7 +725,7 @@ export default function CommissionOverviewPage() {
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
-                    <div className="h-10 w-[100px] flex items-center justify-center rounded-md border border-input bg-background text-sm font-medium">
+                    <div className="h-10 w-[100px] flex items-center justify-center rounded-md border border-input bg-background text-sm font-medium dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
                       {summaryYear}年
                     </div>
                     <Button
@@ -777,31 +772,31 @@ export default function CommissionOverviewPage() {
                 </div>
               ) : null}
 
-              <div className="inline-flex rounded-md border bg-muted/20 p-1">
+              <div className="inline-flex rounded-md border bg-muted/20 p-1 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
                 <button
                   type="button"
-                  className={`rounded px-3.5 py-1.5 text-xs font-semibold transition ${activeTab === 'detail' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
+                  className={`rounded px-3.5 py-1.5 text-xs font-semibold transition ${activeTab === 'detail' ? 'bg-background text-foreground shadow-sm dark:bg-[hsl(var(--surface-panel))]' : 'text-muted-foreground dark:text-muted-foreground/80'}`}
                   onClick={() => setActiveTab('detail')}
                 >
                   总览
                 </button>
                 <button
                   type="button"
-                  className={`rounded px-3.5 py-1.5 text-xs font-semibold transition ${activeTab === 'monthly' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
+                  className={`rounded px-3.5 py-1.5 text-xs font-semibold transition ${activeTab === 'monthly' ? 'bg-background text-foreground shadow-sm dark:bg-[hsl(var(--surface-panel))]' : 'text-muted-foreground dark:text-muted-foreground/80'}`}
                   onClick={() => setActiveTab('monthly')}
                 >
                   年-月汇总
                 </button>
                 <button
                   type="button"
-                  className={`rounded px-3.5 py-1.5 text-xs font-semibold transition ${activeTab === 'projectSummary' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
+                  className={`rounded px-3.5 py-1.5 text-xs font-semibold transition ${activeTab === 'projectSummary' ? 'bg-background text-foreground shadow-sm dark:bg-[hsl(var(--surface-panel))]' : 'text-muted-foreground dark:text-muted-foreground/80'}`}
                   onClick={() => setActiveTab('projectSummary')}
                 >
                   项目汇总
                 </button>
                 <button
                   type="button"
-                  className={`rounded px-3.5 py-1.5 text-xs font-semibold transition ${activeTab === 'operation' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
+                  className={`rounded px-3.5 py-1.5 text-xs font-semibold transition ${activeTab === 'operation' ? 'bg-background text-foreground shadow-sm dark:bg-[hsl(var(--surface-panel))]' : 'text-muted-foreground dark:text-muted-foreground/80'}`}
                   onClick={() => setActiveTab('operation')}
                 >
                   运营提成
@@ -811,7 +806,7 @@ export default function CommissionOverviewPage() {
           </div>
 
           {error ? (
-            <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>
+            <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive dark:border-destructive/30 dark:bg-destructive/12">{error}</div>
           ) : null}
 
           {activeTab === 'detail' ? (
@@ -834,9 +829,7 @@ export default function CommissionOverviewPage() {
                         <TableCell colSpan={6} className="text-center text-muted-foreground">加载中...</TableCell>
                       </TableRow>
                     ) : rows.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={6} className="text-center text-muted-foreground">当前月份暂无数据，请先刷新核算</TableCell>
-                      </TableRow>
+                      <EmptyTableState colSpan={6} message="当前月份暂无数据，请先刷新核算" />
                     ) : (
                       sortedRows.map((row) => (
                         <TableRow key={row.id}>
@@ -902,13 +895,13 @@ export default function CommissionOverviewPage() {
             renderOperationTable()
           )}
 
-          <section className="shrink-0 overflow-hidden rounded-2xl border border-slate-200/80 bg-[linear-gradient(145deg,rgba(248,250,252,0.96),rgba(255,255,255,0.98)),radial-gradient(circle_at_top_right,rgba(245,158,11,0.12),transparent_32%),radial-gradient(circle_at_bottom_left,rgba(14,165,233,0.1),transparent_26%)] shadow-[0_20px_45px_-30px_rgba(15,23,42,0.28)]">
+          <section className="shrink-0 overflow-hidden rounded-2xl border border-slate-200/80 bg-[linear-gradient(145deg,rgba(248,250,252,0.96),rgba(255,255,255,0.98)),radial-gradient(circle_at_top_right,rgba(245,158,11,0.12),transparent_32%),radial-gradient(circle_at_bottom_left,rgba(14,165,233,0.1),transparent_26%)] shadow-[0_20px_45px_-30px_rgba(15,23,42,0.28)] dark:border-border/80 dark:bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))] dark:shadow-[0_24px_50px_-30px_rgba(0,0,0,0.45)]">
             {activeTab === 'operation' ? (
               <div className="space-y-4 p-5">
                 <div className="space-y-1.5">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-700/80">Bonus Rules</p>
-                  <h3 className="text-lg font-semibold tracking-tight text-slate-900">运营提成备注</h3>
-                  <p className="text-sm leading-6 text-slate-600">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-700/80 dark:text-amber-300/80">Bonus Rules</p>
+                  <h3 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-foreground">运营提成备注</h3>
+                  <p className="text-sm leading-6 text-slate-600 dark:text-muted-foreground/80">
                     运营提成在项目佣金基础上再次核算。只有运营时，运营按阶梯提成；有助理时，助理默认按项目佣金基数的 2% 核算，手工 override 存在时优先按 override。
                   </p>
                 </div>
@@ -917,16 +910,16 @@ export default function CommissionOverviewPage() {
                   {OPERATOR_PUBLIC_COMMISSION_TIERS.map((item, index) => (
                     <article
                       key={item.range}
-                      className="rounded-2xl border border-white/80 bg-white/85 p-4 shadow-[0_16px_30px_-24px_rgba(15,23,42,0.45)] backdrop-blur-sm"
+                      className="rounded-2xl border border-white/80 bg-white/85 p-4 shadow-[0_16px_30px_-24px_rgba(15,23,42,0.45)] backdrop-blur-sm dark:border-border/80 dark:bg-[hsl(var(--surface-soft))] dark:shadow-none"
                     >
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">Tier {index + 1}</p>
-                      <p className="mt-3 text-sm font-medium text-slate-500">月销售额</p>
-                      <p className="mt-1 text-base font-semibold text-slate-900">{item.range}</p>
-                      <div className="mt-4 inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200/80">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400 dark:text-muted-foreground/70">Tier {index + 1}</p>
+                      <p className="mt-3 text-sm font-medium text-slate-500 dark:text-muted-foreground/80">月销售额</p>
+                      <p className="mt-1 text-base font-semibold text-slate-900 dark:text-foreground">{item.range}</p>
+                      <div className="mt-4 inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200/80 dark:bg-emerald-500/12 dark:text-emerald-300 dark:ring-emerald-500/30">
                         运营提成比例 {item.ratio}
                       </div>
                       {item.note ? (
-                        <p className="mt-3 rounded-xl border border-amber-200/80 bg-amber-50/90 px-3 py-2 text-xs leading-5 text-amber-800">
+                        <p className="mt-3 rounded-xl border border-amber-200/80 bg-amber-50/90 px-3 py-2 text-xs leading-5 text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/12 dark:text-amber-300">
                           备注：{item.note}
                         </p>
                       ) : null}
@@ -936,26 +929,26 @@ export default function CommissionOverviewPage() {
               </div>
             ) : (
               <div className="grid gap-4 p-5 xl:grid-cols-[0.92fr_1.45fr]">
-                <aside className="relative overflow-hidden rounded-[28px] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(14,165,233,0.08),rgba(255,255,255,0.92)),radial-gradient(circle_at_top_left,rgba(14,165,233,0.14),transparent_36%)] p-5 shadow-[0_18px_34px_-28px_rgba(15,23,42,0.45)]">
+                <aside className="relative overflow-hidden rounded-[28px] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(14,165,233,0.08),rgba(255,255,255,0.92)),radial-gradient(circle_at_top_left,rgba(14,165,233,0.14),transparent_36%)] p-5 shadow-[0_18px_34px_-28px_rgba(15,23,42,0.45)] dark:border-border/80 dark:bg-[linear-gradient(180deg,hsl(var(--surface-soft)),hsl(var(--surface-panel)))] dark:shadow-none">
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-sky-700/80">Project Commission</p>
-                      <h3 className="text-xl font-semibold tracking-tight text-slate-900">工厂佣金结算备注</h3>
-                      <p className="text-sm leading-6 text-slate-600">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-sky-700/80 dark:text-sky-300/80">Project Commission</p>
+                      <h3 className="text-xl font-semibold tracking-tight text-slate-900 dark:text-foreground">工厂佣金结算备注</h3>
+                      <p className="text-sm leading-6 text-slate-600 dark:text-muted-foreground/80">
                         这里展示的是项目与工厂之间的佣金结算口径。当前先引用现有两类规则作为说明，后续你可以继续补充更多结算规则。
                       </p>
                     </div>
 
-                    <div className="rounded-2xl border border-white/80 bg-white/85 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Rule Index</p>
+                    <div className="rounded-2xl border border-white/80 bg-white/85 p-4 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
+                      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400 dark:text-muted-foreground/70">Rule Index</p>
                       <div className="mt-3 space-y-2">
                         {PROJECT_COMMISSION_RULES.map((item) => (
-                          <div key={item.code} className="flex items-center justify-between rounded-2xl bg-slate-50/90 px-3 py-2.5">
+                          <div key={item.code} className="flex items-center justify-between rounded-2xl bg-slate-50/90 px-3 py-2.5 dark:bg-[hsl(var(--surface-soft))]">
                             <div>
-                              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{item.code}</p>
-                              <p className="mt-1 text-sm font-semibold text-slate-900">{item.title}</p>
+                              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-muted-foreground/70">{item.code}</p>
+                              <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-foreground">{item.title}</p>
                             </div>
-                            <span className="rounded-full border border-sky-200/80 bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700">
+                            <span className="rounded-full border border-sky-200/80 bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700 dark:border-sky-500/20 dark:bg-sky-500/12 dark:text-sky-300">
                               {item.tag}
                             </span>
                           </div>
@@ -963,9 +956,9 @@ export default function CommissionOverviewPage() {
                       </div>
                     </div>
 
-                    <div className="rounded-2xl border border-dashed border-slate-300 bg-white/72 p-4 text-sm leading-6 text-slate-600">
+                    <div className="rounded-2xl border border-dashed border-slate-300 bg-white/72 p-4 text-sm leading-6 text-slate-600 dark:border-border/70 dark:bg-[hsl(var(--surface-soft))] dark:text-muted-foreground/80">
                       当前区域作为结算手册占位。
-                      <span className="font-medium text-slate-800"> 未来新增规则 </span>
+                      <span className="font-medium text-slate-800 dark:text-foreground"> 未来新增规则 </span>
                       可以继续沿用右侧卡片结构补充。
                     </div>
                   </div>
@@ -975,36 +968,36 @@ export default function CommissionOverviewPage() {
                   {PROJECT_COMMISSION_RULES.map((item) => (
                     <article
                       key={item.title}
-                      className="group relative overflow-hidden rounded-[28px] border border-white/85 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(248,250,252,0.9))] p-5 shadow-[0_20px_40px_-30px_rgba(15,23,42,0.42)] transition-colors duration-200 hover:border-sky-200/80"
+                      className="group relative overflow-hidden rounded-[28px] border border-white/85 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(248,250,252,0.9))] p-5 shadow-[0_20px_40px_-30px_rgba(15,23,42,0.42)] transition-colors duration-200 hover:border-sky-200/80 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))] dark:hover:border-sky-500/25"
                     >
                       <div className="absolute inset-y-5 left-0 w-1 rounded-full bg-gradient-to-b from-sky-500 via-cyan-400 to-emerald-400" />
                       <div className="pl-4">
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div className="space-y-1">
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">{item.code}</p>
-                            <h4 className="text-base font-semibold text-slate-900">{item.title}</h4>
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400 dark:text-muted-foreground/70">{item.code}</p>
+                            <h4 className="text-base font-semibold text-slate-900 dark:text-foreground">{item.title}</h4>
                           </div>
-                          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
+                          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600 dark:border-slate-500/20 dark:bg-slate-500/12 dark:text-slate-200">
                             {item.tag}
                           </span>
                         </div>
 
                         <div className="mt-4 grid gap-3 md:grid-cols-[0.9fr_1.5fr]">
-                          <div className="rounded-2xl bg-slate-950/[0.035] p-4">
-                            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">适用口径</p>
-                            <p className="mt-2 text-sm font-medium leading-6 text-slate-700">
+                          <div className="rounded-2xl bg-slate-950/[0.035] p-4 dark:bg-[hsl(var(--surface-soft))]">
+                            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-muted-foreground/70">适用口径</p>
+                            <p className="mt-2 text-sm font-medium leading-6 text-slate-700 dark:text-foreground/90">
                               {item.tag === '按销售额' ? '按月销售收入与项目佣金点数核算' : '按回款率阶梯自动核算项目佣金'}
                             </p>
                           </div>
-                          <div className="rounded-2xl border border-slate-100 bg-white/82 p-4">
-                            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">规则说明</p>
-                            <p className="mt-2 text-sm leading-7 text-slate-600">{item.description}</p>
+                          <div className="rounded-2xl border border-slate-100 bg-white/82 p-4 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
+                            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-muted-foreground/70">规则说明</p>
+                            <p className="mt-2 text-sm leading-7 text-slate-600 dark:text-muted-foreground/80">{item.description}</p>
                             {'tiers' in item ? (
                               <div className="mt-4 grid gap-2 sm:grid-cols-2">
                                 {item.tiers.map((tier) => (
                                   <div
                                     key={tier}
-                                    className="rounded-xl border border-emerald-100 bg-emerald-50/70 px-3 py-2 text-sm font-medium text-emerald-800"
+                                    className="rounded-xl border border-emerald-100 bg-emerald-50/70 px-3 py-2 text-sm font-medium text-emerald-800 dark:border-emerald-500/20 dark:bg-emerald-500/12 dark:text-emerald-300"
                                   >
                                     {tier}
                                   </div>

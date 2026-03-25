@@ -46,10 +46,10 @@ function MetricCard({
           <p className="dashboard-kicker">{title}</p>
           <CardTitle className="dashboard-display text-[clamp(2rem,2.4vw,2.55rem)]">{value}</CardTitle>
         </div>
-        <div className="rounded-[0.85rem] bg-secondary/10 p-2 text-secondary">{icon}</div>
+        <div className="rounded-md bg-secondary/10 p-2 text-secondary">{icon}</div>
       </CardHeader>
       <CardContent className="relative z-10">
-          <div className="mb-4 h-12 w-full rounded-lg bg-[hsl(var(--surface-low))] px-1 py-1">
+        <div className="mb-4 h-12 w-full rounded-md bg-[hsl(var(--surface-subtle))] px-1 py-1">
           <svg viewBox="0 0 100 30" className="h-full w-full overflow-visible">
             <defs>
               <linearGradient id={`spark-${gradientId}`} x1="0" y1="0" x2="0" y2="1">

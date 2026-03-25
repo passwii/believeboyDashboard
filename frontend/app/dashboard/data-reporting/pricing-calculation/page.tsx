@@ -10,13 +10,17 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { DirectionalTabTransition, SlidingTabsTrigger, TabsMotionGroup } from '@/components/ui/tab-motion'
+import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import { cn, formatLocalTimestampForFilename } from '@/lib/utils'
 
 const API_BASE = '/api/backend'
 const MAX_VISIBLE_RUNS = 8
 const MAX_SELECTED_RUNS = 4
 const HISTORY_SHIPMENT_STATUSES = ['completed', 'in_transit'] as const
+const BUSINESS_TAB_ORDER = ['new-product', 'store-accounting'] as const
+const CALCULATION_MODE_ORDER = ['profit-calc', 'profit-reverse', 'cost-reverse'] as const
+const STORE_CALCULATION_MODE_ORDER = ['profit-calc', 'profit-reverse'] as const
 
 function PricingFieldSkeleton() {
   return (
@@ -55,7 +59,7 @@ function PricingTableSkeleton({ rows = 6 }: { rows?: number }) {
 type PricingCalculationRunItem = {
   id: number
   product_name: string
-  calculation_type: 'profit_calc' | 'profit_reverse'
+  calculation_type: 'profit_calc' | 'profit_reverse' | 'cost_reverse'
   project_id: number | null
   sku: string | null
   package_length_cm: number
@@ -127,12 +131,12 @@ type ListResponse = {
 // 店铺 SKU 核算快照类型
 type StoreSkuPricingSnapshotItem = {
   id: number
-  project_id: number  // 项目 ID
+  project_id: number
   project_name: string
   sku: string
   asin: string | null
   country: string | null
-  calculation_type: 'profit_calc' | 'profit_reverse'
+  calculation_type: 'profit_calc' | 'profit_reverse' | 'cost_reverse'
   package_length_cm: number
   package_width_cm: number
   package_height_cm: number
@@ -283,7 +287,7 @@ type FormState = {
   usd_to_rmb_rate: string
 }
 
-type CalculationMode = 'profit-calc' | 'profit-reverse'
+type CalculationMode = 'profit-calc' | 'profit-reverse' | 'cost-reverse'
 type BusinessTab = 'new-product' | 'store-accounting'
 
 type StoreSkuDraft = {
@@ -315,7 +319,7 @@ const INITIAL_FORM: FormState = {
   package_height_cm: '',
   weight_kg: '',
   fob_product_cost_rmb: '',
-  first_leg_unit_price_rmb: '',
+  first_leg_unit_price_rmb: '5',
   sale_price_usd: '',
   target_profit_rate: '25',
   commission_rate: '15',
@@ -329,14 +333,14 @@ const INITIAL_FORM: FormState = {
 function buildInitialStoreDraft(item: ProductCostItem, historicalFirstLegCost?: number, exchangeRate?: string): StoreSkuDraft {
   const resolvedFirstLegCost = historicalFirstLegCost && historicalFirstLegCost > 0
     ? historicalFirstLegCost
-    : item.first_leg_cost_rmb
+    : item.first_leg_cost_rmb > 0 ? item.first_leg_cost_rmb : 5
   const resolvedExchangeRate = exchangeRate && exchangeRate.trim() ? exchangeRate : ''
   return {
     package_length_cm: item.package_length_cm > 0 ? String(item.package_length_cm) : '',
     package_width_cm: item.package_width_cm > 0 ? String(item.package_width_cm) : '',
     package_height_cm: item.package_height_cm > 0 ? String(item.package_height_cm) : '',
     weight_kg: item.weight_kg > 0 ? String(item.weight_kg) : '',
-    first_leg_cost_rmb: resolvedFirstLegCost > 0 ? String(resolvedFirstLegCost) : '',
+    first_leg_cost_rmb: resolvedFirstLegCost > 0 ? String(resolvedFirstLegCost) : '5',
     sale_price_usd: '',
     target_profit_rate: '25',
     advertising_rate: '12',
@@ -552,6 +556,15 @@ function formatCompactDate(value: string) {
 }
 
 function getCalculationTypeMeta(calculationType: PricingCalculationRunItem['calculation_type']) {
+  if (calculationType === 'cost_reverse') {
+    return {
+      label: '成本倒推',
+      badgeClassName: 'border-emerald-300 bg-emerald-100 text-emerald-900 dark:border-emerald-900/80 dark:bg-emerald-950/50 dark:text-emerald-200',
+      cardClassName: 'border-emerald-300 bg-emerald-50/80 hover:border-emerald-400 hover:bg-emerald-50 dark:border-emerald-900/70 dark:bg-emerald-950/25 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/40',
+      selectedClassName: 'border-emerald-400 bg-emerald-100 shadow-sm ring-1 ring-emerald-200 dark:border-emerald-700 dark:bg-emerald-950/60 dark:ring-emerald-900/80',
+    }
+  }
+
   if (calculationType === 'profit_reverse') {
     return {
       label: '利润倒算',
@@ -1371,7 +1384,9 @@ export default function PricingCalculationPage() {
     setError(null)
 
     try {
-      const createdRun = await requestPricingCalculation({
+      let createdRun: PricingCalculationRunItem
+
+      createdRun = await requestPricingCalculation({
         calculationMode,
         product_name: form.product_name.trim(),
         package_length_cm: Number(form.package_length_cm),
@@ -1615,336 +1630,375 @@ export default function PricingCalculationPage() {
             <h1 className="text-xl font-semibold text-foreground">定价测算</h1>
             <p className="text-sm text-muted-foreground">在同一个工作台里完成新品核算与店铺维度 SKU 测算。</p>
           </div>
-          <TabsList className="grid w-full grid-cols-2 lg:w-[320px]">
-            <TabsTrigger value="new-product">新品核算</TabsTrigger>
-            <TabsTrigger value="store-accounting">店铺核算</TabsTrigger>
-          </TabsList>
+          <TabsMotionGroup id="pricing-business-tabs">
+            <TabsList className="grid w-full grid-cols-2 rounded-xl border border-border/70 bg-[hsl(var(--surface-subtle))] p-1 lg:w-[320px]">
+              <SlidingTabsTrigger value="new-product" activeValue={activeBusinessTab} layoutId="pricing-business-tab-indicator">
+                新品核算
+              </SlidingTabsTrigger>
+              <SlidingTabsTrigger value="store-accounting" activeValue={activeBusinessTab} layoutId="pricing-business-tab-indicator">
+                店铺核算
+              </SlidingTabsTrigger>
+            </TabsList>
+          </TabsMotionGroup>
         </div>
 
-        <TabsContent value="new-product" className="space-y-4">
-          <div className="grid gap-4 xl:grid-cols-[520px_minmax(0,1fr)]">
-            <Card className="border-border/80 bg-card/95 shadow-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg">测算输入</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <form className="space-y-4" onSubmit={handleSubmit}>
-                  <Tabs value={calculationMode} onValueChange={(value) => setCalculationMode(value as CalculationMode)}>
-                    <TabsList className="grid w-full grid-cols-2">
-                      <TabsTrigger value="profit-calc">利润核算</TabsTrigger>
-                      <TabsTrigger value="profit-reverse">利润倒算</TabsTrigger>
-                    </TabsList>
-                  </Tabs>
+        <DirectionalTabTransition value={activeBusinessTab} order={BUSINESS_TAB_ORDER}>
+          <TabsContent forceMount value={activeBusinessTab} className="space-y-4">
+            {activeBusinessTab === 'new-product' ? (
+              <>
+                <div className="grid gap-4 xl:grid-cols-[520px_minmax(0,1fr)]">
+                  <Card className="border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-lg">测算输入</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <form className="space-y-4" onSubmit={handleSubmit}>
+                        <Tabs value={calculationMode} onValueChange={(value) => setCalculationMode(value as CalculationMode)}>
+                          <TabsMotionGroup id="pricing-calculation-mode-tabs">
+                            <TabsList className="grid w-full grid-cols-3 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-1">
+                              <SlidingTabsTrigger value="profit-calc" activeValue={calculationMode} layoutId="pricing-calculation-mode-indicator">
+                                利润核算
+                              </SlidingTabsTrigger>
+                              <SlidingTabsTrigger value="profit-reverse" activeValue={calculationMode} layoutId="pricing-calculation-mode-indicator">
+                                利润倒算
+                              </SlidingTabsTrigger>
+                              <SlidingTabsTrigger value="cost-reverse" activeValue={calculationMode} layoutId="pricing-calculation-mode-indicator">
+                                成本倒推
+                              </SlidingTabsTrigger>
+                            </TabsList>
+                          </TabsMotionGroup>
+                        </Tabs>
 
-                  <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
-                    <Field label="产品名称">
-                      <Input value={form.product_name} onChange={(event) => updateField('product_name', event.target.value)} placeholder="例如：桌面置物架" required />
-                    </Field>
-                    <Field label="FOB 产品成本(RMB)">
-                      <Input type="number" step="0.01" value={form.fob_product_cost_rmb} onChange={(event) => updateField('fob_product_cost_rmb', event.target.value)} required />
-                    </Field>
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-4">
-                    <Field label="长(cm)">
-                      <Input type="number" step="0.01" value={form.package_length_cm} onChange={(event) => updateField('package_length_cm', event.target.value)} required />
-                    </Field>
-                    <Field label="宽(cm)">
-                      <Input type="number" step="0.01" value={form.package_width_cm} onChange={(event) => updateField('package_width_cm', event.target.value)} required />
-                    </Field>
-                    <Field label="高(cm)">
-                      <Input type="number" step="0.01" value={form.package_height_cm} onChange={(event) => updateField('package_height_cm', event.target.value)} required />
-                    </Field>
-                    <Field label="重量(kg)">
-                      <Input type="number" step="0.001" value={form.weight_kg} onChange={(event) => updateField('weight_kg', event.target.value)} required />
-                    </Field>
-                  </div>
+                        <DirectionalTabTransition value={calculationMode} order={CALCULATION_MODE_ORDER}>
+                          <div className="space-y-4">
+                            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
+                              <Field label="产品名称">
+                                <Input value={form.product_name} onChange={(event) => updateField('product_name', event.target.value)} placeholder="例如：桌面置物架" required />
+                              </Field>
+                              {calculationMode === 'cost-reverse' ? (
+                                <Field label="售价(USD)">
+                                  <Input type="number" step="0.01" value={form.sale_price_usd} onChange={(event) => updateField('sale_price_usd', event.target.value)} required />
+                                </Field>
+                              ) : (
+                                <Field label="FOB 产品成本(RMB)">
+                                  <Input type="number" step="0.01" value={form.fob_product_cost_rmb} onChange={(event) => updateField('fob_product_cost_rmb', event.target.value)} required />
+                                </Field>
+                              )}
+                            </div>
+                            <div className="grid gap-3 sm:grid-cols-4">
+                              <Field label="长(cm)">
+                                <Input type="number" step="0.01" value={form.package_length_cm} onChange={(event) => updateField('package_length_cm', event.target.value)} required />
+                              </Field>
+                              <Field label="宽(cm)">
+                                <Input type="number" step="0.01" value={form.package_width_cm} onChange={(event) => updateField('package_width_cm', event.target.value)} required />
+                              </Field>
+                              <Field label="高(cm)">
+                                <Input type="number" step="0.01" value={form.package_height_cm} onChange={(event) => updateField('package_height_cm', event.target.value)} required />
+                              </Field>
+                              <Field label="重量(kg)">
+                                <Input type="number" step="0.001" value={form.weight_kg} onChange={(event) => updateField('weight_kg', event.target.value)} required />
+                              </Field>
+                            </div>
 
-                  <div className="rounded-2xl border border-border/70 bg-muted/45 p-4">
-                    <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
-                      <div className="space-y-3">
-                        <Field label="头程单价(RMB/kg)">
-                          <Input type="number" step="0.01" value={form.first_leg_unit_price_rmb} onChange={(event) => updateField('first_leg_unit_price_rmb', event.target.value)} placeholder="请输入头程单价" />
-                        </Field>
-                        <p className="text-xs leading-5 text-muted-foreground">
-                          实重 {formatMetric(toNumber(form.weight_kg), 3)} kg，体积重 {formatMetric(volumeWeightKg, 3)} kg，计费重 {formatMetric(chargeableWeightKg, 3)} kg。
-                        </p>
+                            <div className="rounded-2xl border border-border/70 bg-[hsl(var(--surface-subtle))] p-4">
+                              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
+                                <div className="space-y-3">
+                                  <Field label="头程单价(RMB/kg)">
+                                    <Input type="number" step="0.01" value={form.first_leg_unit_price_rmb} onChange={(event) => updateField('first_leg_unit_price_rmb', event.target.value)} placeholder="请输入头程单价" />
+                                  </Field>
+                                  <p className="text-xs leading-5 text-muted-foreground">
+                                    实重 {formatMetric(toNumber(form.weight_kg), 3)} kg，体积重 {formatMetric(volumeWeightKg, 3)} kg，计费重 {formatMetric(chargeableWeightKg, 3)} kg。
+                                  </p>
+                                </div>
+                                <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))] p-3 dark:bg-[hsl(var(--surface-soft))]">
+                                  <p className="text-xs text-muted-foreground">头程成本(RMB)</p>
+                                  <p className="mt-2 text-2xl font-semibold text-foreground">{firstLegCostRmb.toFixed(2)}</p>
+                                  <p className="mt-1 text-xs text-muted-foreground">计费重 × 头程单价</p>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              {calculationMode === 'profit-calc' ? (
+                                <Field label="售价(USD)">
+                                  <Input type="number" step="0.01" value={form.sale_price_usd} onChange={(event) => updateField('sale_price_usd', event.target.value)} required />
+                                </Field>
+                              ) : (
+                                <Field label="目标利润率(%)">
+                                  <Input type="number" step="0.01" value={form.target_profit_rate} onChange={(event) => updateField('target_profit_rate', event.target.value)} required />
+                                </Field>
+                              )}
+                              <Field label="平台佣金率(%)">
+                                <Input type="number" step="0.01" value={form.commission_rate} onChange={(event) => updateField('commission_rate', event.target.value)} required />
+                              </Field>
+                              <Field label="广告费率(%)">
+                                <Input type="number" step="0.01" value={form.advertising_rate} onChange={(event) => updateField('advertising_rate', event.target.value)} required />
+                              </Field>
+                              <Field label="退货折损率(%)">
+                                <Input type="number" step="0.01" value={form.return_loss_rate} onChange={(event) => updateField('return_loss_rate', event.target.value)} required />
+                              </Field>
+                              <Field label="仓储月数">
+                                <Input type="number" step="0.01" value={form.storage_months} onChange={(event) => updateField('storage_months', event.target.value)} required />
+                              </Field>
+                            </div>
+
+                            <Button type="submit" disabled={loading} className="h-10 w-full">
+                              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Calculator className="mr-2 h-4 w-4" />}
+                              {calculationMode === 'profit-reverse' ? '倒算售价' : calculationMode === 'cost-reverse' ? '倒推成本' : '开始测算'}
+                            </Button>
+                          </div>
+                        </DirectionalTabTransition>
+                      </form>
+                    </CardContent>
+                  </Card>
+
+                  <div className="space-y-4">
+                    <Card className="border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-lg">筛选产品</CardTitle>
+                        <CardDescription>先搜索产品，再选择最多 {MAX_SELECTED_RUNS} 个测算结果进入对比矩阵。</CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        <div className="flex flex-col gap-3 md:flex-row">
+                          <div className="relative flex-1">
+                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                            <Input
+                              value={productKeyword}
+                              onChange={(event) => setProductKeyword(event.target.value)}
+                              placeholder="按产品名称筛选"
+                              className="pl-9"
+                            />
+                          </div>
+                          <Button type="button" variant="outline" onClick={() => setSelectedRunIds([])} disabled={selectedRunIds.length === 0}>
+                            清空选择
+                          </Button>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                          <span>筛选结果 {filteredRuns.length} 条</span>
+                          <span>已选 {selectedRuns.length}/{MAX_SELECTED_RUNS}</span>
+                          {productKeyword ? <span>关键词: {productKeyword}</span> : null}
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {error ? (
+                      <Card className="border-destructive/40">
+                        <CardContent className="flex items-start gap-3 p-4 text-sm text-destructive">
+                          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                          <span>{error}</span>
+                        </CardContent>
+                      </Card>
+                    ) : null}
+
+                    <Card className="border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-lg">最近测算</CardTitle>
+                        <CardDescription>点击卡片即可加入或移出对比矩阵。</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex flex-wrap gap-3">
+                          {runsLoading ? (
+                            <>
+                              <PricingRunCardSkeleton />
+                              <PricingRunCardSkeleton />
+                              <PricingRunCardSkeleton />
+                              <PricingRunCardSkeleton />
+                            </>
+                          ) : visibleRuns.length === 0 ? (
+                            <div className="rounded-2xl border border-dashed px-4 py-6 text-sm text-muted-foreground">
+                              {runs.length === 0 ? '暂无测算记录' : '没有匹配当前筛选条件的产品'}
+                            </div>
+                          ) : (
+                            visibleRuns.map((run) => {
+                              const typeMeta = getCalculationTypeMeta(run.calculation_type ?? 'profit_calc')
+                              const isSelected = selectedRunIds.includes(run.id)
+
+                              return (
+                                <button
+                                  key={run.id}
+                                  type="button"
+                                  onClick={() => toggleRunSelection(run.id)}
+                                  className={cn(
+                                    'min-w-[180px] rounded-xl border p-3 text-left transition-colors',
+                                    isSelected ? typeMeta.selectedClassName : typeMeta.cardClassName
+                                  )}
+                                >
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div>
+                                      <p className="text-xs text-muted-foreground">{formatCompactDate(run.created_at)}</p>
+                                      <p className="mt-1 line-clamp-1 text-sm font-semibold text-foreground">{run.product_name}</p>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      {isSelected ? (
+                                        <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                                      ) : (
+                                        <X className="h-4 w-4 text-muted-foreground" />
+                                      )}
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7 rounded-full text-muted-foreground hover:bg-background/80 hover:text-amber-600 dark:hover:text-amber-400"
+                                        disabled={recalculatingRunId === run.id}
+                                        onClick={(event) => {
+                                          event.stopPropagation()
+                                          void handleRecalculateRun(run.id)
+                                        }}
+                                        title="使用最新计算逻辑重算"
+                                      >
+                                        {recalculatingRunId === run.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7 rounded-full text-muted-foreground hover:bg-background/80 hover:text-rose-600 dark:hover:text-rose-400"
+                                        disabled={deletingRunId === run.id}
+                                        onClick={(event) => {
+                                          event.stopPropagation()
+                                          void handleDeleteRun(run.id)
+                                        }}
+                                      >
+                                        {deletingRunId === run.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                                      </Button>
+                                    </div>
+                                  </div>
+                                  <div className="mt-2 flex items-center gap-2">
+                                    <Badge className={cn('border text-[10px]', typeMeta.badgeClassName)}>{typeMeta.label}</Badge>
+                                    <Badge variant="secondary" className="text-[10px]">{run.size_tier_label}</Badge>
+                                  </div>
+                                  <p className={`mt-2 text-lg font-semibold ${run.profit.profit_usd >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                                    {formatCurrency(run.profit.profit_usd)}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">{formatPercent(run.profit.profit_rate)}</p>
+                                </button>
+                              )
+                            })
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
+
+                <Card className="border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
+                  <CardHeader className="pb-3">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="space-y-1">
+                        <CardTitle className="text-lg">测算对比矩阵</CardTitle>
+                        <CardDescription>只展示当前已选中的产品，方便横向比较成本、费用与利润。</CardDescription>
                       </div>
-                      <div className="rounded-xl border border-border/70 bg-background/85 p-3 dark:bg-background/55">
-                        <p className="text-xs text-muted-foreground">头程成本(RMB)</p>
-                        <p className="mt-2 text-2xl font-semibold text-foreground">{firstLegCostRmb.toFixed(2)}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">计费重 × 头程单价</p>
-                      </div>
+                      <Button type="button" variant="outline" onClick={() => void handleExportComparisonMatrix()} disabled={selectedRuns.length === 0 || exporting}>
+                        {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                        导出 Excel
+                      </Button>
                     </div>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {calculationMode === 'profit-calc' ? (
-                      <Field label="售价(USD)">
-                        <Input type="number" step="0.01" value={form.sale_price_usd} onChange={(event) => updateField('sale_price_usd', event.target.value)} required />
-                      </Field>
-                    ) : (
-                      <Field label="目标利润率(%)">
-                        <Input type="number" step="0.01" value={form.target_profit_rate} onChange={(event) => updateField('target_profit_rate', event.target.value)} required />
-                      </Field>
-                    )}
-                    <Field label="平台佣金率(%)">
-                      <Input type="number" step="0.01" value={form.commission_rate} onChange={(event) => updateField('commission_rate', event.target.value)} required />
-                    </Field>
-                    <Field label="广告费率(%)">
-                      <Input type="number" step="0.01" value={form.advertising_rate} onChange={(event) => updateField('advertising_rate', event.target.value)} required />
-                    </Field>
-                    <Field label="退货折损率(%)">
-                      <Input type="number" step="0.01" value={form.return_loss_rate} onChange={(event) => updateField('return_loss_rate', event.target.value)} required />
-                    </Field>
-                    <Field label="仓储月数">
-                      <Input type="number" step="0.01" value={form.storage_months} onChange={(event) => updateField('storage_months', event.target.value)} required />
-                    </Field>
-                  </div>
-
-                  <Button type="submit" disabled={loading} className="h-10 w-full">
-                    {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Calculator className="mr-2 h-4 w-4" />}
-                    {calculationMode === 'profit-reverse' ? '倒算售价' : '开始测算'}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-
-            <div className="space-y-4">
-              <Card className="border-border/80 bg-card/95 shadow-sm">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg">筛选产品</CardTitle>
-                  <CardDescription>先搜索产品，再选择最多 {MAX_SELECTED_RUNS} 个测算结果进入对比矩阵。</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex flex-col gap-3 md:flex-row">
-                    <div className="relative flex-1">
-                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        value={productKeyword}
-                        onChange={(event) => setProductKeyword(event.target.value)}
-                        placeholder="按产品名称筛选"
-                        className="pl-9"
-                      />
-                    </div>
-                    <Button type="button" variant="outline" onClick={() => setSelectedRunIds([])} disabled={selectedRunIds.length === 0}>
-                      清空选择
-                    </Button>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    <span>筛选结果 {filteredRuns.length} 条</span>
-                    <span>已选 {selectedRuns.length}/{MAX_SELECTED_RUNS}</span>
-                    {productKeyword ? <span>关键词: {productKeyword}</span> : null}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {error ? (
-                <Card className="border-destructive/40">
-                  <CardContent className="flex items-start gap-3 p-4 text-sm text-destructive">
-                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                    <span>{error}</span>
+                  </CardHeader>
+                  <CardContent>
+                    <ComparisonTable runs={selectedRuns} />
                   </CardContent>
                 </Card>
-              ) : null}
-
-              <Card className="border-border/80 bg-card/95 shadow-sm">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg">最近测算</CardTitle>
-                  <CardDescription>点击卡片即可加入或移出对比矩阵。</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-wrap gap-3">
-                    {runsLoading ? (
-                      <>
-                        <PricingRunCardSkeleton />
-                        <PricingRunCardSkeleton />
-                        <PricingRunCardSkeleton />
-                        <PricingRunCardSkeleton />
-                      </>
-                    ) : visibleRuns.length === 0 ? (
-                      <div className="rounded-2xl border border-dashed px-4 py-6 text-sm text-muted-foreground">
-                        {runs.length === 0 ? '暂无测算记录' : '没有匹配当前筛选条件的产品'}
-                      </div>
-                    ) : (
-                      visibleRuns.map((run) => {
-                        const typeMeta = getCalculationTypeMeta(run.calculation_type ?? 'profit_calc')
-                        const isSelected = selectedRunIds.includes(run.id)
-
-                        return (
-                          <button
-                            key={run.id}
-                            type="button"
-                            onClick={() => toggleRunSelection(run.id)}
-                            className={cn(
-                              'min-w-[180px] rounded-xl border p-3 text-left transition-colors',
-                              isSelected ? typeMeta.selectedClassName : typeMeta.cardClassName
-                            )}
+              </>
+            ) : (
+              <>
+                <Card className="border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg">项目筛选</CardTitle>
+                    <CardDescription>先选择项目，再按 SKU 逐行填写测算参数并生成结果；头程加权成本会自动从发货汇总带入。</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid gap-3 lg:grid-cols-[260px_minmax(0,1fr)_140px]">
+                      {projectsLoading ? (
+                        <PricingFieldSkeleton />
+                      ) : (
+                        <Field label="项目">
+                          <select
+                            value={selectedProjectName}
+                            onChange={(event) => setSelectedProjectName(event.target.value)}
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
                           >
-                            <div className="flex items-start justify-between gap-2">
-                              <div>
-                                <p className="text-xs text-muted-foreground">{formatCompactDate(run.created_at)}</p>
-                                <p className="mt-1 line-clamp-1 text-sm font-semibold text-foreground">{run.product_name}</p>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                {isSelected ? (
-                                  <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                                ) : (
-                                  <X className="h-4 w-4 text-slate-300 dark:text-slate-600" />
-                                )}
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7 rounded-full text-muted-foreground hover:bg-background/80 hover:text-amber-600 dark:hover:text-amber-400"
-                                  disabled={recalculatingRunId === run.id}
-                                  onClick={(event) => {
-                                    event.stopPropagation()
-                                    void handleRecalculateRun(run.id)
-                                  }}
-                                  title="使用最新计算逻辑重算"
-                                >
-                                  {recalculatingRunId === run.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7 rounded-full text-muted-foreground hover:bg-background/80 hover:text-rose-600 dark:hover:text-rose-400"
-                                  disabled={deletingRunId === run.id}
-                                  onClick={(event) => {
-                                    event.stopPropagation()
-                                    void handleDeleteRun(run.id)
-                                  }}
-                                >
-                                  {deletingRunId === run.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                                </Button>
-                              </div>
-                            </div>
-                            <div className="mt-2 flex items-center gap-2">
-                              <Badge className={cn('border text-[10px]', typeMeta.badgeClassName)}>{typeMeta.label}</Badge>
-                              <Badge variant="secondary" className="text-[10px]">{run.size_tier_label}</Badge>
-                            </div>
-                            <p className={`mt-2 text-lg font-semibold ${run.profit.profit_usd >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                              {formatCurrency(run.profit.profit_usd)}
-                            </p>
-                            <p className="text-xs text-muted-foreground">{formatPercent(run.profit.profit_rate)}</p>
-                          </button>
-                        )
-                      })
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-
-          <Card className="border-border/80 bg-card/95 shadow-sm">
-            <CardHeader className="pb-3">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                <div className="space-y-1">
-                  <CardTitle className="text-lg">测算对比矩阵</CardTitle>
-                  <CardDescription>只展示当前已选中的产品，方便横向比较成本、费用与利润。</CardDescription>
-                </div>
-                <Button type="button" variant="outline" onClick={() => void handleExportComparisonMatrix()} disabled={selectedRuns.length === 0 || exporting}>
-                  {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                  导出 Excel
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <ComparisonTable runs={selectedRuns} />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="store-accounting" className="space-y-4">
-          <Card className="border-border/80 bg-card/95 shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">项目筛选</CardTitle>
-              <CardDescription>先选择项目，再按 SKU 逐行填写测算参数并生成结果；头程加权成本会自动从发货汇总带入。</CardDescription>
-            </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-3 lg:grid-cols-[260px_minmax(0,1fr)_140px]">
-                {projectsLoading ? (
-                  <PricingFieldSkeleton />
-                ) : (
-                  <Field label="项目">
-                    <select
-                      value={selectedProjectName}
-                      onChange={(event) => setSelectedProjectName(event.target.value)}
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
-                    >
-                      <option value="">请选择项目</option>
-                      {projects.map((project) => (
-                        <option key={`${project.id ?? project.name}-${project.name}`} value={project.name}>
-                          {project.name}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                )}
-                <Field label="SKU / ASIN 搜索">
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input value={skuKeyword} onChange={(event) => setSkuKeyword(event.target.value)} placeholder="输入 SKU、ASIN 或项目名" className="pl-9" />
-                  </div>
-                </Field>
-                <div className="flex items-end">
-                  <div className="w-full rounded-xl border border-border/70 bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-                    {projectsLoading ? '项目准备中...' : storeSkusLoading ? 'SKU 数据同步中...' : `SKU 数量 ${filteredStoreSkus.length}`}
-                  </div>
-                </div>
-              </div>
-
-              {projectsError ? (
-                <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{projectsError}</div>
-              ) : null}
-              {storeSkusError ? (
-                <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{storeSkusError}</div>
-              ) : null}
-            </CardContent>
-          </Card>
-
-          <Card className="border-border/80 bg-card/95 shadow-sm">
-            <CardHeader className="pb-3">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                <div className="space-y-1">
-                  <CardTitle className="text-lg">店铺 SKU 核算表</CardTitle>
-                </div>
-                <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
-                  <Tabs value={storeCalculationMode} onValueChange={(value) => setStoreCalculationMode(value as 'profit-calc' | 'profit-reverse')} className="w-auto">
-                    <TabsList className="grid w-full grid-cols-2">
-                      <TabsTrigger value="profit-calc">利润核算</TabsTrigger>
-                      <TabsTrigger value="profit-reverse">利润倒算</TabsTrigger>
-                    </TabsList>
-                  </Tabs>
-                  <Button type="button" variant="outline" onClick={() => void handleExportStoreSkuTable()} disabled={!selectedProjectName || exporting}>
-                    {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                    导出 Excel
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {!selectedProjectName ? (
-                <div className="rounded-2xl border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">请选择项目后查看对应 SKU。</div>
-              ) : storeSkusLoading && filteredStoreSkus.length === 0 ? (
-                <PricingTableSkeleton rows={8} />
-              ) : filteredStoreSkus.length === 0 ? (
-                <div className="rounded-2xl border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">当前项目下暂无匹配的 SKU。</div>
-              ) : (
-                <div className="relative">
-                  {storeSkusLoading ? (
-                    <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/70 bg-background/95 px-3 py-1 text-xs text-muted-foreground shadow-sm">
-                      SKU 数据更新中...
+                            <option value="">请选择项目</option>
+                            {projects.map((project) => (
+                              <option key={`${project.id ?? project.name}-${project.name}`} value={project.name}>
+                                {project.name}
+                              </option>
+                            ))}
+                          </select>
+                        </Field>
+                      )}
+                      <Field label="SKU / ASIN 搜索">
+                        <div className="relative">
+                          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                          <Input value={skuKeyword} onChange={(event) => setSkuKeyword(event.target.value)} placeholder="输入 SKU、ASIN 或项目名" className="pl-9" />
+                        </div>
+                      </Field>
+                      <div className="flex items-end">
+                        <div className="w-full rounded-xl border border-border/70 bg-[hsl(var(--surface-subtle))] px-3 py-2 text-sm text-muted-foreground">
+                          {projectsLoading ? '项目准备中...' : storeSkusLoading ? 'SKU 数据同步中...' : `SKU 数量 ${filteredStoreSkus.length}`}
+                        </div>
+                      </div>
                     </div>
-                  ) : null}
-                  <StoreAccountingTable items={filteredStoreSkus} rowStates={storeRows} onDraftChange={updateStoreDraft} onCalculate={handleStoreSkuCalculate} systemExchangeRate={systemExchangeRate} calculationMode={storeCalculationMode} />
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+
+                    {projectsError ? (
+                      <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{projectsError}</div>
+                    ) : null}
+                    {storeSkusError ? (
+                      <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{storeSkusError}</div>
+                    ) : null}
+                  </CardContent>
+                </Card>
+
+                <Card className="border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
+                  <CardHeader className="pb-3">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="space-y-1">
+                        <CardTitle className="text-lg">店铺 SKU 核算表</CardTitle>
+                      </div>
+                      <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+                        <Tabs value={storeCalculationMode} onValueChange={(value) => setStoreCalculationMode(value as 'profit-calc' | 'profit-reverse')} className="w-auto">
+                          <TabsMotionGroup id="pricing-store-mode-tabs">
+                            <TabsList className="grid w-full grid-cols-2 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-1">
+                              <SlidingTabsTrigger value="profit-calc" activeValue={storeCalculationMode} layoutId="pricing-store-mode-indicator">
+                                利润核算
+                              </SlidingTabsTrigger>
+                              <SlidingTabsTrigger value="profit-reverse" activeValue={storeCalculationMode} layoutId="pricing-store-mode-indicator">
+                                利润倒算
+                              </SlidingTabsTrigger>
+                            </TabsList>
+                          </TabsMotionGroup>
+                        </Tabs>
+                        <Button type="button" variant="outline" onClick={() => void handleExportStoreSkuTable()} disabled={!selectedProjectName || exporting}>
+                          {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                          导出 Excel
+                        </Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <DirectionalTabTransition value={storeCalculationMode} order={STORE_CALCULATION_MODE_ORDER}>
+                      {!selectedProjectName ? (
+                        <div className="rounded-2xl border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">请选择项目后查看对应 SKU。</div>
+                      ) : storeSkusLoading && filteredStoreSkus.length === 0 ? (
+                        <PricingTableSkeleton rows={8} />
+                      ) : filteredStoreSkus.length === 0 ? (
+                        <div className="rounded-2xl border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">当前项目下暂无匹配的 SKU。</div>
+                      ) : (
+                        <div className="relative">
+                          {storeSkusLoading ? (
+                            <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/70 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm">
+                              SKU 数据更新中...
+                            </div>
+                          ) : null}
+                          <StoreAccountingTable items={filteredStoreSkus} rowStates={storeRows} onDraftChange={updateStoreDraft} onCalculate={handleStoreSkuCalculate} systemExchangeRate={systemExchangeRate} calculationMode={storeCalculationMode} />
+                        </div>
+                      )}
+                    </DirectionalTabTransition>
+                  </CardContent>
+                </Card>
+              </>
+            )}
+          </TabsContent>
+        </DirectionalTabTransition>
       </Tabs>
     </div>
   )
@@ -1974,7 +2028,9 @@ async function requestPricingCalculation(payload: {
   const endpoint =
     payload.calculationMode === 'profit-reverse'
       ? `${API_BASE}/api/v1/pricing-calculation/reverse-quote`
-      : `${API_BASE}/api/v1/pricing-calculation/quote`
+      : payload.calculationMode === 'cost-reverse'
+        ? `${API_BASE}/api/v1/pricing-calculation/reverse-cost`
+        : `${API_BASE}/api/v1/pricing-calculation/quote`
 
   const response = await fetch(endpoint, {
     method: 'POST',
@@ -1994,7 +2050,12 @@ async function requestPricingCalculation(payload: {
       ...(payload.use_historical_shipping_cost ? { use_historical_shipping_cost: payload.use_historical_shipping_cost } : {}),
       ...(payload.calculationMode === 'profit-reverse'
         ? { target_profit_rate: payload.target_profit_rate }
-        : { sale_price_usd: payload.sale_price_usd }),
+        : payload.calculationMode === 'cost-reverse'
+          ? {
+              sale_price_usd: payload.sale_price_usd,
+              target_profit_rate: payload.target_profit_rate,
+            }
+          : { sale_price_usd: payload.sale_price_usd }),
       commission_rate: payload.commission_rate,
       advertising_rate: payload.advertising_rate,
       return_loss_rate: payload.return_loss_rate,
@@ -2062,8 +2123,8 @@ function StoreAccountingTable({
       subHeader: 'bg-violet-50 dark:bg-violet-950',
     },
     '操作': {
-      header: 'bg-slate-200 text-slate-900 dark:bg-slate-900 dark:text-slate-100',
-      subHeader: 'bg-slate-100 dark:bg-slate-950',
+      header: 'bg-[hsl(var(--surface-subtle))] text-foreground dark:bg-[hsl(var(--surface-soft))]',
+      subHeader: 'bg-[hsl(var(--surface-subtle))] dark:bg-[hsl(var(--surface-soft))]',
     },
   }
 
@@ -2072,7 +2133,7 @@ function StoreAccountingTable({
 
   return (
     <Table className="w-max min-w-full text-xs" containerClassName="rounded-xl border border-border/70">
-      <TableHeader className="bg-muted">
+      <TableHeader className="bg-[hsl(var(--surface-subtle))]">
         <TableRow className="hover:bg-transparent">
           <TableHead colSpan={1} className={cn('sticky left-0 z-50 border-r px-3 py-2 text-center font-semibold', groupStyles['店铺产品'].header)}>店铺产品</TableHead>
           <TableHead colSpan={6} className={cn('border-r px-3 py-2 text-center font-semibold', groupStyles['货品数据'].header)}>货品数据</TableHead>
@@ -2137,7 +2198,7 @@ function StoreAccountingTable({
           const ddpUsd = ddpRmb && exchangeRate > 0 ? ddpRmb / exchangeRate : null
 
           return (
-            <TableRow key={item.id} className="align-middle hover:bg-muted/30">
+            <TableRow key={item.id} className="align-middle hover:bg-[hsl(var(--surface-subtle))]">
               <TableCell className={cn('sticky left-0 z-20 whitespace-nowrap border-r px-3 py-2', groupStyles['店铺产品'].subHeader)}>
                 <div className="min-w-[136px]">
                   <p className="truncate font-semibold text-foreground">{item.sku}</p>
@@ -2287,12 +2348,12 @@ function ComparisonTable({ runs }: { runs: PricingCalculationRunItem[] }) {
   return (
     <div className="max-h-[600px] overflow-auto rounded-xl border border-border/70">
       <table className="w-max min-w-full text-xs border-collapse">
-        <thead className="sticky top-0 z-30 bg-muted">
+        <thead className="sticky top-0 z-30 bg-[hsl(var(--surface-subtle))]">
           <tr>
-            <th className="sticky left-0 z-20 min-w-[116px] whitespace-nowrap bg-muted px-3 py-2 border-b border-r font-semibold text-left">分类</th>
-            <th className="sticky left-[116px] z-20 min-w-[150px] whitespace-nowrap bg-muted px-3 py-2 border-b border-l font-semibold text-left">明细项</th>
+            <th className="sticky left-0 z-20 min-w-[116px] whitespace-nowrap bg-[hsl(var(--surface-subtle))] px-3 py-2 border-b border-r font-semibold text-left">分类</th>
+            <th className="sticky left-[116px] z-20 min-w-[150px] whitespace-nowrap bg-[hsl(var(--surface-subtle))] px-3 py-2 border-b border-l font-semibold text-left">明细项</th>
           {runs.map((run) => (
-            <th key={run.id} className="min-w-[210px] whitespace-nowrap bg-muted px-3 py-2 border-b border-l align-top">
+            <th key={run.id} className="min-w-[210px] whitespace-nowrap bg-[hsl(var(--surface-subtle))] px-3 py-2 border-b border-l align-top">
               <div className="space-y-1 py-1">
                 <div className="flex items-center justify-between gap-2">
                   <span className="max-w-[150px] truncate font-semibold text-foreground">{run.product_name}</span>
@@ -2310,7 +2371,7 @@ function ComparisonTable({ runs }: { runs: PricingCalculationRunItem[] }) {
             <tr 
               key={`${section.title}-${row.label}`} 
               className={cn(
-                'hover:bg-muted/30',
+                'hover:bg-[hsl(var(--surface-subtle))]',
                 row.label === '售价' || row.label === '利润率' ? 'bg-yellow-50 dark:bg-yellow-950/20' : ''
               )}
             >
@@ -2318,8 +2379,8 @@ function ComparisonTable({ runs }: { runs: PricingCalculationRunItem[] }) {
                 <td
                   rowSpan={section.rows.length}
                   className={cn(
-                    'sticky left-0 z-10 min-w-[116px] whitespace-nowrap border-r border-b align-top font-semibold bg-muted p-2',
-                    sectionStyles[section.title]?.categoryCell ?? 'border-slate-200 bg-slate-100 text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100'
+                    'sticky left-0 z-10 min-w-[116px] whitespace-nowrap border-r border-b align-top font-semibold bg-[hsl(var(--surface-subtle))] p-2',
+                    sectionStyles[section.title]?.categoryCell ?? 'border-border/70 bg-[hsl(var(--surface-subtle))] text-foreground dark:bg-[hsl(var(--surface-soft))]'
                   )}
                 >
                   {section.title}
@@ -2328,8 +2389,8 @@ function ComparisonTable({ runs }: { runs: PricingCalculationRunItem[] }) {
               <td
                 className={cn(
                   'sticky left-[116px] z-10 min-w-[150px] whitespace-nowrap border-l border-b font-medium p-2',
-                  row.label === '售价' || row.label === '利润率' ? 'bg-yellow-50 font-bold text-slate-900 dark:bg-yellow-950/30 dark:text-yellow-100' : 'text-slate-700 dark:text-slate-200',
-                  sectionStyles[section.title]?.subCell ?? 'bg-background'
+                  row.label === '售价' || row.label === '利润率' ? 'bg-yellow-50 font-bold text-slate-900 dark:bg-yellow-950/30 dark:text-yellow-100' : 'text-muted-foreground',
+                  sectionStyles[section.title]?.subCell ?? 'bg-[hsl(var(--surface-panel))]'
                 )}
               >
                 {row.label}

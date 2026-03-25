@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { EmptyTableState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -271,8 +272,8 @@ export default function SystemDataManagementPage() {
 
   return (
     <div className="w-full space-y-6">
-      <Card className="overflow-hidden border-border/80 shadow-[0_20px_45px_-24px_rgba(15,23,42,0.26)]">
-        <CardHeader className="space-y-3 bg-gradient-to-r from-cyan-500/10 via-sky-500/10 to-transparent">
+      <Card className="overflow-hidden border-border/80 shadow-[0_20px_45px_-24px_rgba(15,23,42,0.26)] dark:border-border/80 dark:bg-[hsl(var(--surface-panel))] dark:shadow-[0_24px_50px_-30px_rgba(0,0,0,0.45)]">
+        <CardHeader className="space-y-3 bg-gradient-to-r from-cyan-500/10 via-sky-500/10 to-transparent dark:from-cyan-500/8 dark:via-sky-500/6 dark:to-transparent">
           <Badge variant="outline" className="w-fit rounded-md border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300">
             系统管理
           </Badge>
@@ -286,16 +287,16 @@ export default function SystemDataManagementPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-6 p-5 sm:p-7">
-          {error ? <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">{error}</div> : null}
+          {error ? <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-sm text-destructive dark:border-destructive/30 dark:bg-destructive/12">{error}</div> : null}
           {success ? (
-            <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-4 py-2.5 text-sm text-emerald-700 dark:text-emerald-300">
+            <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-4 py-2.5 text-sm text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/12 dark:text-emerald-300">
               {success}
             </div>
           ) : null}
 
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {summaryCards.map((card) => (
-              <div key={card.key} className="rounded-xl border border-border/70 bg-card/70 p-4">
+              <div key={card.key} className="rounded-xl border border-border/70 bg-card/70 p-4 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
                 <div className="flex items-center justify-between text-muted-foreground">
                   <p className="text-xs">{card.title}</p>
                   {card.icon}
@@ -306,7 +307,7 @@ export default function SystemDataManagementPage() {
             ))}
           </div>
 
-          <Card className="border-border/70 bg-muted/20">
+          <Card className="border-border/70 bg-muted/20 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
             <CardHeader>
               <CardTitle className="text-base">修改数据状态</CardTitle>
               <CardDescription>用于控制当前业务数据是否开放写入、维护或暂停。</CardDescription>
@@ -332,13 +333,13 @@ export default function SystemDataManagementPage() {
           </Card>
 
           <div className="grid gap-6 xl:grid-cols-[1.35fr_1fr]">
-            <Card className="border-border/70">
+            <Card className="border-border/70 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
               <CardHeader>
                 <CardTitle className="text-base">数据表状态</CardTitle>
                 <CardDescription>检查各表数据规模、最近更新时间和健康状态。</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="rounded-lg border border-border/70">
+                <div className="rounded-lg border border-border/70 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -350,11 +351,13 @@ export default function SystemDataManagementPage() {
                     </TableHeader>
                     <TableBody>
                       {!overview || overview.tables.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={4} className="text-center text-muted-foreground">
-                            {detailsLoading ? '加载中...' : '暂无表状态数据'}
-                          </TableCell>
-                        </TableRow>
+                        detailsLoading ? (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center text-muted-foreground">加载中...</TableCell>
+                          </TableRow>
+                        ) : (
+                          <EmptyTableState colSpan={4} message="暂无表状态数据" />
+                        )
                       ) : (
                         overview.tables.map((item) => (
                           <TableRow key={item.table_name}>
@@ -375,17 +378,17 @@ export default function SystemDataManagementPage() {
               </CardContent>
             </Card>
 
-            <Card className="border-border/70">
+            <Card className="border-border/70 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
               <CardHeader>
                 <CardTitle className="text-base">最近系统状态</CardTitle>
                 <CardDescription>展示数据状态和最近任务执行反馈。</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {!overview || overview.recent_statuses.length === 0 ? (
-                  <div className="rounded-md border border-border/70 p-3 text-sm text-muted-foreground">暂无系统状态记录</div>
+                  <div className="rounded-md border border-border/70 p-3 text-sm text-muted-foreground dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">暂无系统状态记录</div>
                 ) : (
                   overview.recent_statuses.map((item, index) => (
-                    <div key={`${item.source}-${index}`} className="rounded-lg border border-border/70 bg-card/60 p-3">
+                    <div key={`${item.source}-${index}`} className="rounded-lg border border-border/70 bg-card/60 p-3 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 text-sm font-medium">
                           {item.level === 'failed' || item.level === 'error' ? (

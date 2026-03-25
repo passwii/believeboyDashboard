@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { EmptyTableState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -178,7 +179,7 @@ export default function AccountManagementPage() {
 
   return (
     <div className="w-full space-y-6">
-      <Card className="border-border/80 shadow-[0_20px_40px_-22px_rgba(15,23,42,0.22)]">
+      <Card className="border-border/80 shadow-[0_20px_40px_-22px_rgba(15,23,42,0.22)] dark:border-border/80 dark:bg-[hsl(var(--surface-panel))] dark:shadow-[0_24px_50px_-30px_rgba(0,0,0,0.45)]">
         <CardHeader className="space-y-3">
           <Badge variant="outline" className="w-fit rounded-md border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300">
             系统管理
@@ -188,7 +189,7 @@ export default function AccountManagementPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="text-sm text-muted-foreground">共 {items.length} 个账号，其中管理员 {adminCount} 个。</div>
+            <div className="text-sm text-muted-foreground dark:text-muted-foreground/80">共 {items.length} 个账号，其中管理员 {adminCount} 个。</div>
             <div className="flex items-center gap-2">
               <Button variant="outline" onClick={() => void load()} disabled={loading}>
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
@@ -199,15 +200,15 @@ export default function AccountManagementPage() {
           </div>
 
           {error ? (
-            <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>
+            <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive dark:border-destructive/30 dark:bg-destructive/12">{error}</div>
           ) : null}
           {success ? (
-            <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
+            <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/12 dark:text-emerald-300">
               {success}
             </div>
           ) : null}
 
-          <div className="rounded-lg border border-border/70">
+          <div className="rounded-lg border border-border/70 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -228,11 +229,7 @@ export default function AccountManagementPage() {
                     </TableCell>
                   </TableRow>
                 ) : items.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground">
-                      暂无账号
-                    </TableCell>
-                  </TableRow>
+                  <EmptyTableState colSpan={7} message="暂无账号" />
                 ) : (
                   items.map((item) => {
                     const isProtected = isYaweiAccount(item)
@@ -294,7 +291,7 @@ export default function AccountManagementPage() {
       </Card>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
+        <DialogContent className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
           <DialogHeader>
             <DialogTitle>新增账号</DialogTitle>
             <DialogDescription>创建新用户并指定是否管理员。</DialogDescription>
@@ -356,7 +353,7 @@ export default function AccountManagementPage() {
       </Dialog>
 
       <Dialog open={resetOpen} onOpenChange={setResetOpen}>
-        <DialogContent>
+        <DialogContent className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
           <DialogHeader>
             <DialogTitle>重置密码</DialogTitle>
             <DialogDescription>

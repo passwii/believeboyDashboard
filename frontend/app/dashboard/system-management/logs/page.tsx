@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { EmptyTableState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -261,9 +262,10 @@ export default function SystemOperationLogsPage() {
 
   return (
     <div className="w-full space-y-6">
-      <Card className="overflow-hidden border-border/80 shadow-[0_20px_45px_-24px_rgba(15,23,42,0.26)]">
-        <CardHeader className="space-y-3 bg-gradient-to-r from-slate-500/10 via-cyan-500/10 to-transparent">
-          <Badge variant="outline" className="w-fit rounded-md border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300">
+      <Card className="dashboard-surface overflow-hidden border-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.9),rgba(241,244,247,0.96))] dark:border-border/80 dark:bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))]">
+        <CardHeader className="space-y-3">
+          <p className="dashboard-kicker">Management Workspace</p>
+          <Badge variant="outline" className="w-fit border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300">
             系统管理
           </Badge>
           <CardTitle>日志查看</CardTitle>
@@ -277,7 +279,7 @@ export default function SystemOperationLogsPage() {
         </CardHeader>
 
         <CardContent className="space-y-5 p-5 sm:p-7">
-          {error ? <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">{error}</div> : null}
+          {error ? <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-sm text-destructive dark:border-destructive/30 dark:bg-destructive/12">{error}</div> : null}
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {summaryCards.map((card) => (
@@ -286,15 +288,15 @@ export default function SystemOperationLogsPage() {
                 type="button"
                 onClick={card.onClick}
                 disabled={!card.onClick}
-                className={`group rounded-2xl bg-gradient-to-br ${card.accent} p-[1px] text-left ${card.onClick ? 'transition-transform duration-200 hover:-translate-y-0.5' : 'cursor-default'}`}
+                className={`group rounded-lg bg-gradient-to-br ${card.accent} p-[1px] text-left ${card.onClick ? 'transition-transform duration-200 hover:-translate-y-0.5' : 'cursor-default'}`}
               >
-                <div className="flex h-full min-h-[138px] flex-col justify-between rounded-[calc(1rem-1px)] bg-black/10 p-4 backdrop-blur-sm">
+                <div className="flex h-full min-h-[138px] flex-col justify-between rounded-[calc(0.75rem-1px)] bg-black/10 p-4 backdrop-blur-sm dark:border dark:border-white/10 dark:bg-[hsl(var(--surface-soft)/0.88)]">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/72">{card.title}</p>
                       <p className="mt-3 text-3xl font-semibold tracking-tight">{card.value}</p>
                     </div>
-                    <div className="rounded-xl border border-white/15 bg-white/10 p-2 text-white/90">
+                    <div className="rounded-md border border-white/15 bg-white/10 p-2 text-white/90">
                       {card.icon}
                     </div>
                   </div>
@@ -304,7 +306,7 @@ export default function SystemOperationLogsPage() {
             ))}
           </div>
 
-          <Card className="border-border/70 bg-muted/20 shadow-none">
+          <Card className="border-white/45 bg-muted/20 shadow-none dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
                 <ShieldCheck className="h-4 w-4 text-cyan-600" />
@@ -325,10 +327,10 @@ export default function SystemOperationLogsPage() {
                       setPage(1)
                       setAction(item.action)
                     }}
-                    className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background px-3 py-1.5 text-sm transition-colors hover:border-cyan-500/40 hover:bg-cyan-500/5"
+                    className="inline-flex items-center gap-2 rounded-md border border-border/70 bg-background px-3 py-1.5 text-sm transition-colors hover:border-cyan-500/40 hover:bg-cyan-500/5 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))] dark:hover:border-cyan-500/30 dark:hover:bg-cyan-500/10"
                   >
                     <span className="font-medium">{item.action}</span>
-                    <Badge variant="secondary" className="rounded-full px-2 py-0 text-[11px]">
+                    <Badge variant="secondary" className="px-2 py-0 text-[11px]">
                       {item.count}
                     </Badge>
                   </button>
@@ -363,7 +365,7 @@ export default function SystemOperationLogsPage() {
             </div>
           </div>
 
-          <div className="rounded-lg border border-border/70">
+          <div className="rounded-lg border border-white/45 bg-[hsl(var(--surface-subtle))] p-1.5 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -378,11 +380,13 @@ export default function SystemOperationLogsPage() {
               </TableHeader>
               <TableBody>
                 {rows.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground">
-                      {loading ? '加载中...' : '暂无日志'}
-                    </TableCell>
-                  </TableRow>
+                  loading ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center text-muted-foreground">加载中...</TableCell>
+                    </TableRow>
+                  ) : (
+                    <EmptyTableState colSpan={7} message="暂无日志" />
+                  )
                 ) : (
                   rows.map((row) => (
                     <TableRow key={row.id}>
@@ -430,7 +434,7 @@ export default function SystemOperationLogsPage() {
       </Card>
 
       <Dialog open={Boolean(activeRow)} onOpenChange={(open) => (open ? null : setActiveRow(null))}>
-        <DialogContent className="max-h-[85vh] max-w-4xl overflow-y-auto">
+        <DialogContent className="max-h-[85vh] max-w-4xl overflow-y-auto dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
           <DialogHeader>
             <DialogTitle>日志详情</DialogTitle>
           </DialogHeader>
@@ -448,16 +452,16 @@ export default function SystemOperationLogsPage() {
               </div>
               <div className="space-y-2">
                 <p className="font-medium">Before</p>
-                <pre className="overflow-x-auto rounded-md border border-border/70 bg-muted/40 p-3 text-xs">{renderJson(activeRow.before_json)}</pre>
+                <pre className="overflow-x-auto rounded-md border border-border/70 bg-muted/40 p-3 text-xs dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">{renderJson(activeRow.before_json)}</pre>
               </div>
               <div className="space-y-2">
                 <p className="font-medium">After</p>
-                <pre className="overflow-x-auto rounded-md border border-border/70 bg-muted/40 p-3 text-xs">{renderJson(activeRow.after_json)}</pre>
+                <pre className="overflow-x-auto rounded-md border border-border/70 bg-muted/40 p-3 text-xs dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">{renderJson(activeRow.after_json)}</pre>
               </div>
               {activeRow.error_message ? (
                 <div className="space-y-2">
                   <p className="font-medium text-destructive">Error</p>
-                  <pre className="overflow-x-auto rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
+                  <pre className="overflow-x-auto rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive dark:border-destructive/30 dark:bg-destructive/12">
                     {activeRow.error_message}
                   </pre>
                 </div>

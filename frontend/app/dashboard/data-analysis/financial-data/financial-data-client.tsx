@@ -382,7 +382,7 @@ function StatCard({ title, value, rawValue, icon, color, trend, trendLabel }: St
 
   return (
     <Card className={`dashboard-surface hover-lift animate-enter border ${colors.border} relative overflow-hidden`}>
-      <div className={`absolute inset-0 bg-gradient-to-br ${colors.gradient} via-transparent to-transparent opacity-60`} />
+      <div className={`absolute inset-0 bg-gradient-to-br ${colors.gradient} via-transparent to-transparent opacity-60 dark:opacity-35`} />
       <CardHeader className="relative z-10 flex flex-row items-start justify-between space-y-0 pb-3">
         <CardTitle className="text-[13px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
           {title}
@@ -1071,16 +1071,17 @@ export default function FinancialDataClient({
 
   return (
     <div className="min-w-0 w-full space-y-6 overflow-x-hidden">
-      <Card className="overflow-hidden border-border/80 shadow-[0_20px_40px_-22px_rgba(15,23,42,0.22)]">
+      <Card className="dashboard-surface overflow-hidden">
         <CardContent className="space-y-6 p-6 md:p-8">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="space-y-2">
-              <Badge variant="outline" className="w-fit rounded-md border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
-                数据分析
+              <p className="dashboard-kicker">Analysis Console</p>
+              <Badge variant="outline" className="w-fit border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+                月度财务分析
               </Badge>
-              <p className="text-sm text-muted-foreground">按店铺查看月度财务收入/支出数据，缺失月份自动补零展示。</p>
+              <p className="max-w-3xl text-sm leading-7 text-muted-foreground">按店铺查看月度收入、支出、回款与成本核算，缺失月份自动补零展示，方便纵向观察利润结构。</p>
             </div>
-            <div className="flex flex-wrap items-end gap-2">
+            <div className="dashboard-toolbar flex flex-wrap items-end gap-2">
               {projectsLoading ? (
                 <div className="min-w-[180px]">
                   <FinancialFilterSkeleton />
@@ -1089,7 +1090,7 @@ export default function FinancialDataClient({
                 <div className="min-w-[180px] space-y-1.5">
                   <label className="text-xs text-muted-foreground">店铺</label>
                   <Select value={projectId} onValueChange={setProjectId} disabled={projects.length === 0}>
-                    <SelectTrigger className="h-9">
+                    <SelectTrigger className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
                       <SelectValue placeholder="请选择店铺" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1118,14 +1119,14 @@ export default function FinancialDataClient({
                   className="h-9 w-[170px]"
                 />
               </div>
-              <Button type="button" variant="outline" className="h-9" onClick={() => void loadFinancialSeries({ force: true })} disabled={loading || !projectId}>
+              <Button type="button" variant="outline" className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]" onClick={() => void loadFinancialSeries({ force: true })} disabled={loading || !projectId}>
                 {loading ? '刷新中...' : '刷新数据'}
               </Button>
             </div>
           </div>
 
-          {projectLoadError ? <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{projectLoadError}</div> : null}
-          {error ? <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div> : null}
+          {projectLoadError ? <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{projectLoadError}</div> : null}
+          {error ? <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div> : null}
 
           {/* 优化后的统计卡片 */}
           <div className="grid gap-4 md:grid-cols-3">
@@ -1160,8 +1161,9 @@ export default function FinancialDataClient({
 
           {/* 优化后的图表 - 使用 AreaChart 和渐变 */}
           <Card className="dashboard-surface animate-enter">
-            <CardHeader className="relative z-10 flex flex-col gap-4 space-y-0 border-b border-border/70 py-5 sm:flex-row sm:items-center">
+            <CardHeader className="relative z-10 flex flex-col gap-4 space-y-0 py-5 sm:flex-row sm:items-center">
               <div className="grid flex-1 gap-1 text-center sm:text-left">
+                <p className="dashboard-kicker">Financial Trend</p>
                 <CardTitle className="text-lg">月度趋势</CardTitle>
                 <CardDescription className="text-sm text-muted-foreground">
                   销售额、退款
@@ -1169,26 +1171,26 @@ export default function FinancialDataClient({
               </div>
               {/* 可点击的图例按钮 */}
               <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
-                <button
+                  <button
                   type="button"
                   onClick={() => setVisibleLines(prev => ({ ...prev, income_sales: !prev.income_sales }))}
                   className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${
                     visibleLines.income_sales
                       ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-                      : 'border-muted bg-muted/30 text-muted-foreground line-through'
+                      : 'border-border/70 bg-[hsl(var(--surface-soft))]/70 text-muted-foreground line-through dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]'
                   }`}
                 >
                   {visibleLines.income_sales ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
                   <span className="h-2 w-2 rounded-full" style={{ backgroundColor: 'hsl(var(--chart-2))' }} />
                   销售额
                 </button>
-                <button
+                  <button
                   type="button"
                   onClick={() => setVisibleLines(prev => ({ ...prev, income_refund: !prev.income_refund }))}
                   className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${
                     visibleLines.income_refund
                       ? 'border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300'
-                      : 'border-muted bg-muted/30 text-muted-foreground line-through'
+                      : 'border-border/70 bg-[hsl(var(--surface-soft))]/70 text-muted-foreground line-through dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]'
                   }`}
                 >
                   {visibleLines.income_refund ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
@@ -1294,6 +1296,7 @@ export default function FinancialDataClient({
             <CardHeader className="relative z-10 pb-2">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
+                  <p className="dashboard-kicker">Operational Ledger</p>
                   <CardTitle className="text-base">月度财务明细</CardTitle>
                   <CardDescription className="text-sm text-muted-foreground">
                     {data ? `${data.project_name} · ${formatMonth(data.start_month)} 至 ${formatMonth(data.end_month)}` : '按月展示收入/支出结构与返款'}
@@ -1318,7 +1321,7 @@ export default function FinancialDataClient({
                   ))}
                 </div>
               ) : data && data.rows.length > 0 ? (
-                <div className="w-full max-w-full overflow-x-auto rounded-md border">
+                <div className="w-full max-w-full overflow-x-auto rounded-lg border border-border/70 bg-[hsl(var(--surface-panel))]/96 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]/98">
                 <Table className={`w-max ${isAdmin ? 'min-w-[2500px]' : 'min-w-[2100px]'} table-fixed text-xs`}>
                     <TableHeader>
                       <TableRow className="bg-muted/30 hover:bg-muted/30">
@@ -1331,7 +1334,7 @@ export default function FinancialDataClient({
                         </TableHead>
                         <TableHead
                           colSpan={4}
-                          className="border-r bg-emerald-100 px-2 py-2 text-center text-foreground dark:bg-emerald-900"
+                          className="border-r bg-emerald-100 px-2 py-2 text-center text-foreground dark:bg-emerald-900/80 dark:text-emerald-100"
                         >
                           平台-收入 Income
                         </TableHead>
@@ -1362,16 +1365,16 @@ export default function FinancialDataClient({
                         <TableHead rowSpan={2} className="px-2 py-2 text-center">净利润USD</TableHead>
                       </TableRow>
                       <TableRow className="bg-muted/20 hover:bg-muted/20">
-                        <TableHead className="border-r bg-emerald-100 px-2 py-1.5 text-center dark:bg-emerald-900">
+                        <TableHead className="border-r bg-emerald-100 px-2 py-1.5 text-center dark:bg-emerald-900/80 dark:text-emerald-100">
                           销售额
                         </TableHead>
-                        <TableHead className="border-r bg-emerald-100 px-2 py-1.5 text-center dark:bg-emerald-900">
+                        <TableHead className="border-r bg-emerald-100 px-2 py-1.5 text-center dark:bg-emerald-900/80 dark:text-emerald-100">
                           退款
                         </TableHead>
-                        <TableHead className="border-r bg-emerald-100 px-2 py-1.5 text-center dark:bg-emerald-900">
+                        <TableHead className="border-r bg-emerald-100 px-2 py-1.5 text-center dark:bg-emerald-900/80 dark:text-emerald-100">
                           赔偿
                         </TableHead>
-                        <TableHead className="border-r bg-emerald-100 px-2 py-1.5 text-center dark:bg-emerald-900">
+                        <TableHead className="border-r bg-emerald-100 px-2 py-1.5 text-center dark:bg-emerald-900/80 dark:text-emerald-100">
                           其他收入
                         </TableHead>
                         <TableHead className="border-r bg-amber-500/10 px-2 py-1.5 text-center">平台费</TableHead>

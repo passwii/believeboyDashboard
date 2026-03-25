@@ -7,11 +7,12 @@ import { FileDown, Package2, Ruler, Upload } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { EmptyState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { DirectionalTabTransition, SlidingTabsTrigger, TabsMotionGroup } from '@/components/ui/tab-motion'
+import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 
 type ProductCostItem = {
@@ -63,6 +64,7 @@ type ShipmentSkuSummaryResponse = {
 
 type ActiveTab = 'cost' | 'dimension'
 type ImportMode = 'create' | 'update'
+const ACTIVE_TAB_ORDER: ActiveTab[] = ['cost', 'dimension']
 
 const API_BASE = '/api/backend'
 const HISTORY_SHIPMENT_STATUSES = ['completed', 'in_transit'] as const
@@ -216,6 +218,8 @@ export default function SkuInfoPage() {
   const [editRow, setEditRow] = useState(EMPTY_EDIT_ROW)
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize])
+  const visibleActiveCount = useMemo(() => items.filter((item) => item.is_active).length, [items])
+  const visibleInactiveCount = useMemo(() => items.length - visibleActiveCount, [items.length, visibleActiveCount])
   const selectedProject = useMemo(
     () => projects.find((project) => project.name === projectFilter) ?? null,
     [projectFilter, projects]
@@ -506,175 +510,260 @@ export default function SkuInfoPage() {
   }
 
   return (
-    <div className="w-full space-y-6">
-      <Card className="overflow-hidden border-border/80 shadow-[0_20px_40px_-22px_rgba(15,23,42,0.22)]">
+    <div className="w-full space-y-6 text-foreground">
+      <Card className="overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
         <CardContent className="space-y-6 p-6 md:p-8">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="space-y-2">
-              <Badge variant="outline" className="w-fit rounded-md border-sky-500/30 bg-sky-500/10 text-sky-700">数据管理</Badge>
-              <div>
-                <h2 className="text-xl font-semibold text-foreground">SKU信息</h2>
-                
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-3xl space-y-4">
+              <Badge variant="outline" className="w-fit border-sky-500/20 bg-sky-500/10 text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/15 dark:text-sky-300">
+                数据管理 / SKU 成本
+              </Badge>
+              <div className="space-y-2">
+                <h1 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">SKU 信息管理</h1>
+                <CardDescription className="max-w-2xl text-sm leading-6 text-muted-foreground md:text-base">
+                  在同一页里维护成本、尺寸与状态信息。先选定项目，再通过筛选和表格批量调整 SKU 主数据。
+                </CardDescription>
               </div>
-            </div>
-            <Button type="button" onClick={() => void onRefresh()} disabled={loading}>{loading ? '刷新中...' : '刷新数据'}</Button>
-          </div>
-
-          <Separator />
-
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <h3 className="text-base font-semibold text-foreground">筛选条件</h3>
-              
-            </div>
-            <div className="grid gap-4 md:grid-cols-7">
-              {projectsLoading ? (
-                <FilterFieldSkeleton />
-              ) : (
-                <div className="grid gap-2">
-                  <label className="text-sm font-medium text-foreground">项目名</label>
-                  <Select value={projectFilter} onValueChange={(value) => void onProjectFilterChange(value)} disabled={projects.length === 0}>
-                    <SelectTrigger><SelectValue placeholder={projects.length ? '请选择项目名' : '暂无可选项目'} /></SelectTrigger>
-                    <SelectContent className="max-h-64 overflow-y-auto">
-                      {projects.map((project) => <SelectItem key={project.name} value={project.name}>{project.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  {projectLoadError ? <p className="text-xs text-destructive">{projectLoadError}</p> : null}
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-subtle))] p-4 shadow-none">
+                  <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">当前页 SKU</div>
+                  <div className="mt-2 text-2xl font-semibold text-foreground">{items.length}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">随筛选条件实时变化</div>
                 </div>
-              )}
-              <div className="grid gap-2">
-                <label className="text-sm font-medium text-foreground">SKU</label>
-                <Input placeholder="输入 SKU" value={skuFilter} onChange={(e) => setSkuFilter(e.target.value)} />
+                <div className="rounded-xl border border-emerald-500/15 bg-emerald-500/10 p-4 shadow-none dark:bg-emerald-500/12">
+                  <div className="text-xs uppercase tracking-[0.18em] text-emerald-700/80 dark:text-emerald-300/90">活跃</div>
+                  <div className="mt-2 text-2xl font-semibold text-foreground">{visibleActiveCount}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">当前页可用记录</div>
+                </div>
+                <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-subtle))] p-4 shadow-none">
+                  <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">不活跃</div>
+                  <div className="mt-2 text-2xl font-semibold text-foreground">{visibleInactiveCount}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">当前页暂停维护记录</div>
+                </div>
+                <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-subtle))] p-4 shadow-none">
+                  <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">当前项目</div>
+                  <div className="mt-2 truncate text-2xl font-semibold text-foreground">{projectFilter || '未选择'}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">选择项目后自动加载数据</div>
+                </div>
               </div>
-              <div className="grid gap-2">
-                <label className="text-sm font-medium text-foreground">ASIN</label>
-                <Input placeholder="输入 ASIN" value={asinFilter} onChange={(e) => setAsinFilter(e.target.value)} />
-              </div>
-              <div className="grid gap-2">
-                <label className="text-sm font-medium text-foreground">国家站点</label>
-                <Select value={countryFilter} onValueChange={(value) => setCountryFilter(value as 'all' | 'US' | 'DE' | 'UK')}>
-                  <SelectTrigger><SelectValue placeholder="全部国家站点" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">全部</SelectItem>
-                    {COUNTRY_OPTIONS.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <label className="text-sm font-medium text-foreground">状态</label>
-                <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as 'all' | 'active' | 'inactive')}>
-                  <SelectTrigger><SelectValue placeholder="全部状态" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">全部</SelectItem>
-                    <SelectItem value="active">活跃</SelectItem>
-                    <SelectItem value="inactive">不活跃</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <label className="text-sm font-medium text-foreground">每页显示</label>
-                <Select value={String(pageSize)} onValueChange={onPageSizeChange}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {PAGE_SIZE_OPTIONS.map((option) => <SelectItem key={option} value={String(option)}>{option} 条</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-end gap-2">
-                <Button type="button" variant="outline" onClick={onResetFilters} className="w-full">重置</Button>
-                <Button type="button" onClick={() => void onSearch()} className="w-full">查询</Button>
-              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 lg:justify-end">
+              <Button type="button" variant="outline" onClick={onResetFilters}>
+                重置筛选
+              </Button>
+              <Button type="button" onClick={() => void onRefresh()} disabled={loading}>
+                {loading ? '刷新中...' : '刷新数据'}
+              </Button>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {error ? <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div> : null}
-      {successMessage ? <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700">{successMessage}</div> : null}
+      <Card className="overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
+        <CardHeader className="space-y-2 border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-6 py-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="space-y-1">
+              <CardTitle className="text-base font-semibold">筛选条件</CardTitle>
+              <CardDescription>优先选择项目，再按 SKU、ASIN、国家和状态收窄结果范围。</CardDescription>
+            </div>
+            <Badge variant="outline" className="border-border/60 bg-[hsl(var(--surface-panel))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))]">
+              {projectFilter ? `已选项目：${projectFilter}` : '未选择项目'}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="p-6">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-12">
+            {projectsLoading ? (
+              <div className="xl:col-span-3">
+                <FilterFieldSkeleton />
+              </div>
+            ) : (
+              <div className="grid gap-2 xl:col-span-3">
+                <label className="text-sm font-medium text-foreground">项目名</label>
+                <Select value={projectFilter} onValueChange={(value) => void onProjectFilterChange(value)} disabled={projects.length === 0}>
+                  <SelectTrigger className="h-10 dark:bg-[hsl(var(--surface-soft))]">
+                    <SelectValue placeholder={projects.length ? '请选择项目名' : '暂无可选项目'} />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-64 overflow-y-auto">
+                    {projects.map((project) => (
+                      <SelectItem key={project.name} value={project.name}>
+                        {project.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {projectLoadError ? <p className="text-xs text-destructive">{projectLoadError}</p> : null}
+              </div>
+            )}
+            <div className="grid gap-2 xl:col-span-2">
+              <label className="text-sm font-medium text-foreground">SKU</label>
+              <Input placeholder="输入 SKU" value={skuFilter} onChange={(e) => setSkuFilter(e.target.value)} />
+            </div>
+            <div className="grid gap-2 xl:col-span-2">
+              <label className="text-sm font-medium text-foreground">ASIN</label>
+              <Input placeholder="输入 ASIN" value={asinFilter} onChange={(e) => setAsinFilter(e.target.value)} />
+            </div>
+            <div className="grid gap-2 xl:col-span-2">
+              <label className="text-sm font-medium text-foreground">国家站点</label>
+              <Select value={countryFilter} onValueChange={(value) => setCountryFilter(value as 'all' | 'US' | 'DE' | 'UK')}>
+              <SelectTrigger className="h-10 dark:bg-[hsl(var(--surface-soft))]">
+                  <SelectValue placeholder="全部国家站点" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部</SelectItem>
+                  {COUNTRY_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2 xl:col-span-2">
+              <label className="text-sm font-medium text-foreground">状态</label>
+              <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as 'all' | 'active' | 'inactive')}>
+              <SelectTrigger className="h-10 dark:bg-[hsl(var(--surface-soft))]">
+                  <SelectValue placeholder="全部状态" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部</SelectItem>
+                  <SelectItem value="active">活跃</SelectItem>
+                  <SelectItem value="inactive">不活跃</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2 xl:col-span-2">
+              <label className="text-sm font-medium text-foreground">每页显示</label>
+              <Select value={String(pageSize)} onValueChange={onPageSizeChange}>
+              <SelectTrigger className="h-10 dark:bg-[hsl(var(--surface-soft))]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PAGE_SIZE_OPTIONS.map((option) => (
+                    <SelectItem key={option} value={String(option)}>
+                      {option} 条
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-end gap-2 xl:col-span-12 xl:justify-end">
+              <Button type="button" variant="outline" onClick={onResetFilters}>
+                重置
+              </Button>
+              <Button type="button" onClick={() => void onSearch()}>
+                查询
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {error ? <div className="rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive shadow-sm">{error}</div> : null}
+      {successMessage ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700 shadow-sm">{successMessage}</div> : null}
 
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ActiveTab)} className="space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <TabsList className="grid w-full max-w-[320px] grid-cols-2">
-            <TabsTrigger value="cost" className="gap-2"><Package2 className="h-4 w-4" />成本管理</TabsTrigger>
-            <TabsTrigger value="dimension" className="gap-2"><Ruler className="h-4 w-4" />尺寸管理</TabsTrigger>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <TabsMotionGroup id="sku-cost-tabs">
+          <TabsList className="inline-flex h-auto w-full max-w-[360px] rounded-xl border border-border/70 bg-[hsl(var(--surface-subtle))] p-1 shadow-none">
+            <SlidingTabsTrigger value="cost" activeValue={activeTab} layoutId="sku-cost-tab-indicator" className="flex-1 gap-2 px-4 py-2">
+              <Package2 className="h-4 w-4" />
+              成本管理
+            </SlidingTabsTrigger>
+            <SlidingTabsTrigger value="dimension" activeValue={activeTab} layoutId="sku-cost-tab-indicator" className="flex-1 gap-2 px-4 py-2">
+              <Ruler className="h-4 w-4" />
+              尺寸管理
+            </SlidingTabsTrigger>
           </TabsList>
-          <Badge variant="outline" className="rounded-md border-border bg-muted text-muted-foreground">
-            {loading && items.length === 0 ? '数据准备中...' : `第 ${page} / ${totalPages} 页，共 ${total} 条`}
-          </Badge>
+          </TabsMotionGroup>
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="outline" className="border-border/60 bg-[hsl(var(--surface-panel))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))]">
+              {loading && items.length === 0 ? '数据准备中...' : `第 ${page} / ${totalPages} 页，共 ${total} 条`}
+            </Badge>
+            <Badge variant="outline" className="border-border/60 bg-[hsl(var(--surface-panel))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))]">
+              {projectFilter ? `项目：${projectFilter}` : '请先选择项目'}
+            </Badge>
+          </div>
         </div>
 
-        <TabsContent value="cost">
-          <Card className="overflow-hidden border-border/80">
-            <CardHeader className="space-y-3">
+        <DirectionalTabTransition value={activeTab} order={ACTIVE_TAB_ORDER}>
+        <TabsContent forceMount value={activeTab}>
+        {activeTab === 'cost' ? (
+          <Card className="overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
+            <CardHeader className="space-y-3 border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-6 py-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="space-y-1">
                   <CardTitle className="text-base font-semibold">成本管理</CardTitle>
-                  
+                  <CardDescription>维护 FOB 与头程成本，并支持模板下载、导出和批量导入。</CardDescription>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <ActionsBar
-                    batchImporting={batchImporting}
-                    onDownloadCreateTemplate={downloadCostTemplate}
-                    onDownloadUpdateTemplate={handleExportCurrentFiltered}
-                    onUpload={handleBatchImportFile}
-                  />
-                </div>
+                <ActionsBar
+                  batchImporting={batchImporting}
+                  onDownloadCreateTemplate={downloadCostTemplate}
+                  onDownloadUpdateTemplate={handleExportCurrentFiltered}
+                  onUpload={handleBatchImportFile}
+                />
               </div>
             </CardHeader>
             <CardContent className="pt-0">
-              <div className="relative max-h-[560px] overflow-auto rounded-md border border-border/60">
+              <div className="relative max-h-[560px] overflow-auto rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))]">
                 {loading && items.length > 0 ? (
-                  <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/70 bg-background/95 px-3 py-1 text-xs text-muted-foreground shadow-sm">
+                  <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/60 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
                     数据更新中...
                   </div>
                 ) : null}
-                <table className="w-full text-sm">
+                <table className="w-full border-separate border-spacing-0 text-sm">
                   <thead className="[&_tr]:border-b">
-                    <tr className="border-b bg-background">
-                      <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left">排序</th>
-                      <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left">项目名</th>
-                      <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left">SKU / ASIN / FNSKU</th>
-                      <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left">品名</th>
-                      <th className="sticky top-0 z-10 h-12 bg-background px-4 text-right">头程成本(历史加权)</th>
-                      <th className="sticky top-0 z-10 h-12 bg-background px-4 text-right">FOB</th>
-                      <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left">国家</th>
-                      <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left">状态</th>
-                      <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left">操作</th>
+                    <tr className="border-b bg-[hsl(var(--surface-subtle))]">
+                      <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">排序</th>
+                      <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">项目名</th>
+                      <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">SKU / ASIN / FNSKU</th>
+                      <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">品名</th>
+                      <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-right text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">头程成本(历史加权)</th>
+                      <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-right text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">FOB</th>
+                      <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">国家</th>
+                      <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">状态</th>
+                      <th className="sticky top-0 z-10 h-12 border-b border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">操作</th>
                     </tr>
                   </thead>
                   <tbody>
                     {loading && items.length === 0 ? <TableSkeletonRows columns={9} /> : null}
                     {items.map((row) => (
-                      <tr key={row.id} className={`border-b ${editingId === row.id ? 'bg-muted/30' : ''}`}>
-                        <td className="p-4">{editingId === row.id ? <Input className="h-8 w-16" value={editRow.sort_order} onChange={(e) => setEditRow((current) => ({ ...current, sort_order: e.target.value }))} /> : row.sort_order}</td>
-                        <td className="p-4 font-medium">{row.project_name}</td>
-                        <td className="p-4">
+                      <tr key={row.id} className={`border-b border-border/50 transition-colors ${editingId === row.id ? 'bg-[hsl(var(--surface-subtle))]' : 'hover:bg-[hsl(var(--surface-subtle))]'} `}>
+                        <td className="border-b border-r border-border/60 p-4 align-top">{editingId === row.id ? <Input className="h-8 w-16" value={editRow.sort_order} onChange={(e) => setEditRow((current) => ({ ...current, sort_order: e.target.value }))} /> : row.sort_order}</td>
+                        <td className="border-b border-r border-border/60 p-4 align-top font-medium">{row.project_name}</td>
+                        <td className="border-b border-r border-border/60 p-4 align-top">
                           <div className="space-y-1">
                             <div className="font-medium">{editingId === row.id ? <Input className="h-8 w-24" value={editRow.sku} onChange={(e) => setEditRow((current) => ({ ...current, sku: e.target.value }))} /> : row.sku}</div>
                             <div>{editingId === row.id ? <Input className="h-8 w-28" value={editRow.asin} onChange={(e) => setEditRow((current) => ({ ...current, asin: e.target.value }))} /> : row.asin}</div>
                             <div>{editingId === row.id ? <Input className="h-8 w-32" value={editRow.fnsku} onChange={(e) => setEditRow((current) => ({ ...current, fnsku: e.target.value }))} /> : (row.fnsku || '-')}</div>
                           </div>
                         </td>
-                        <td className="p-4">{editingId === row.id ? <Input className="h-8 w-28" value={editRow.product_name} onChange={(e) => setEditRow((current) => ({ ...current, product_name: e.target.value }))} placeholder="品名" /> : (row.product_name || '-')}</td>
-                        <td className="p-4 text-right">{(row.historical_first_leg_cost_rmb ?? row.first_leg_cost_rmb).toFixed(2)}</td>
-                        <td className="p-4 text-right">{editingId === row.id ? <Input className="h-8 w-20" value={editRow.fob_unit_cost} onChange={(e) => setEditRow((current) => ({ ...current, fob_unit_cost: e.target.value }))} /> : row.fob_unit_cost.toFixed(2)}</td>
-                        <td className="p-4">
+                        <td className="border-b border-r border-border/60 p-4 align-top">{editingId === row.id ? <Input className="h-8 w-28" value={editRow.product_name} onChange={(e) => setEditRow((current) => ({ ...current, product_name: e.target.value }))} placeholder="品名" /> : (row.product_name || '-')}</td>
+                        <td className="border-b border-r border-border/60 p-4 align-top text-right">{(row.historical_first_leg_cost_rmb ?? row.first_leg_cost_rmb).toFixed(2)}</td>
+                        <td className="border-b border-r border-border/60 p-4 align-top text-right">{editingId === row.id ? <Input className="h-8 w-20" value={editRow.fob_unit_cost} onChange={(e) => setEditRow((current) => ({ ...current, fob_unit_cost: e.target.value }))} /> : row.fob_unit_cost.toFixed(2)}</td>
+                        <td className="border-b border-r border-border/60 p-4 align-top">
                           {editingId === row.id ? (
                             <Select value={editRow.country} onValueChange={(value) => setEditRow((current) => ({ ...current, country: value as 'US' | 'DE' | 'UK' }))}>
                               <SelectTrigger className="h-8 w-28"><SelectValue /></SelectTrigger>
-                              <SelectContent>{COUNTRY_OPTIONS.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
+                              <SelectContent>
+                                {COUNTRY_OPTIONS.map((option) => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
                             </Select>
                           ) : (COUNTRY_OPTIONS.find((option) => option.value === row.country)?.label || row.country)}
                         </td>
-                        <td className="p-4">
+                        <td className="border-b border-r border-border/60 p-4 align-top">
                           {editingId === row.id ? (
                             <Select value={editRow.is_active ? 'active' : 'inactive'} onValueChange={(value) => setEditRow((current) => ({ ...current, is_active: value === 'active' }))}>
                               <SelectTrigger className="h-8 w-24"><SelectValue /></SelectTrigger>
                               <SelectContent><SelectItem value="active">活跃</SelectItem><SelectItem value="inactive">不活跃</SelectItem></SelectContent>
                             </Select>
-                          ) : <Badge variant="outline" className={row.is_active ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700' : 'border-slate-400/40 bg-slate-500/10 text-slate-600'}>{row.is_active ? '活跃' : '不活跃'}</Badge>}
+                          ) : <Badge variant="outline" className={row.is_active ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' : 'border-border/70 bg-[hsl(var(--surface-subtle))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))] dark:text-foreground'}>{row.is_active ? '活跃' : '不活跃'}</Badge>}
                         </td>
-                        <td className="p-4">
+                        <td className="border-b border-border/60 p-4 align-top">
                           <div className="flex gap-2">
                             {editingId === row.id ? (
                               <>
@@ -687,26 +776,20 @@ export default function SkuInfoPage() {
                       </tr>
                     ))}
                     {!loading && items.length === 0 ? (
-                      <tr>
-                        <td colSpan={9} className="py-12 text-center text-sm text-muted-foreground">
-                          {projectFilter ? '当前筛选条件下暂无 SKU 数据。' : '请选择项目后再查询 SKU 数据。'}
-                        </td>
-                      </tr>
+                      <EmptyState colSpan={9} message={projectFilter ? '当前筛选条件下暂无 SKU 数据。' : '请选择项目后再查询 SKU 数据。'} />
                     ) : null}
                   </tbody>
                 </table>
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="dimension">
-          <Card className="overflow-hidden border-border/80">
-            <CardHeader className="space-y-3">
+        ) : (
+      <Card className="overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
+        <CardHeader className="space-y-3 border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-6 py-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="space-y-1">
                   <CardTitle className="text-base font-semibold">尺寸管理</CardTitle>
-                  
+                  <CardDescription>同步维护单品和外箱尺寸，支持同样的模板下载、导出与批量导入流程。</CardDescription>
                 </div>
                 <ActionsBar
                   batchImporting={batchImporting}
@@ -717,60 +800,60 @@ export default function SkuInfoPage() {
               </div>
             </CardHeader>
             <CardContent className="pt-0">
-              <div className="relative max-h-[560px] overflow-auto rounded-md border border-border/60">
+              <div className="relative max-h-[560px] overflow-auto rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))]">
                 {loading && items.length > 0 ? (
-                  <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/70 bg-background/95 px-3 py-1 text-xs text-muted-foreground shadow-sm">
+                  <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/60 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
                     数据更新中...
                   </div>
                 ) : null}
-                <table className="w-full text-sm">
+                <table className="w-full border-separate border-spacing-0 text-sm">
                   <thead className="[&_tr]:border-b">
-                    <tr className="border-b bg-background">
-                      <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left">项目名</th>
-                      <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left">SKU / ASIN / FNSKU</th>
-                      <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left">单品尺寸</th>
-                      <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left">单品重量</th>
-                      <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left">外箱尺寸</th>
-                      <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left">外箱重量</th>
-                      <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left">装箱数量</th>
-                      <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left">状态</th>
-                      <th className="sticky top-0 z-10 h-12 bg-background px-4 text-left">操作</th>
+                    <tr className="border-b bg-[hsl(var(--surface-subtle))]">
+                      <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">项目名</th>
+                      <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">SKU / ASIN / FNSKU</th>
+                      <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">单品尺寸</th>
+                      <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">单品重量</th>
+                      <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">外箱尺寸</th>
+                      <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">外箱重量</th>
+                      <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">装箱数量</th>
+                      <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">状态</th>
+                      <th className="sticky top-0 z-10 h-12 border-b border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">操作</th>
                     </tr>
                   </thead>
                   <tbody>
                     {loading && items.length === 0 ? <TableSkeletonRows columns={9} cellWidth="w-24" /> : null}
                     {items.map((row) => (
-                      <tr key={row.id} className={`border-b ${editingId === row.id ? 'bg-muted/30' : ''}`}>
-                        <td className="p-4 font-medium">{row.project_name}</td>
-                        <td className="p-4">
+                      <tr key={row.id} className={`border-b border-border/50 transition-colors ${editingId === row.id ? 'bg-[hsl(var(--surface-subtle))]' : 'hover:bg-[hsl(var(--surface-subtle))]'} `}>
+                        <td className="border-b border-r border-border/60 p-4 align-top font-medium">{row.project_name}</td>
+                        <td className="border-b border-r border-border/60 p-4 align-top">
                           <div className="space-y-1">
                             <div className="font-medium">{editingId === row.id ? <Input className="h-8 w-24" value={editRow.sku} onChange={(e) => setEditRow((current) => ({ ...current, sku: e.target.value }))} /> : row.sku}</div>
                             <div>{editingId === row.id ? <Input className="h-8 w-28" value={editRow.asin} onChange={(e) => setEditRow((current) => ({ ...current, asin: e.target.value }))} /> : row.asin}</div>
                             <div>{editingId === row.id ? <Input className="h-8 w-32" value={editRow.fnsku} onChange={(e) => setEditRow((current) => ({ ...current, fnsku: e.target.value }))} /> : (row.fnsku || '-')}</div>
                           </div>
                         </td>
-                        <td className="p-4">
+                        <td className="border-b border-r border-border/60 p-4 align-top">
                           {editingId === row.id ? (
                             <TripleInput values={[editRow.package_length_cm, editRow.package_width_cm, editRow.package_height_cm]} onChange={(values) => setEditRow((current) => ({ ...current, package_length_cm: values[0], package_width_cm: values[1], package_height_cm: values[2] }))} />
                           ) : `${row.package_length_cm} × ${row.package_width_cm} × ${row.package_height_cm} cm`}
                         </td>
-                        <td className="p-4">{editingId === row.id ? <Input className="h-8 w-24" value={editRow.weight_kg} onChange={(e) => setEditRow((current) => ({ ...current, weight_kg: e.target.value }))} /> : `${row.weight_kg} kg`}</td>
-                        <td className="p-4">
+                        <td className="border-b border-r border-border/60 p-4 align-top">{editingId === row.id ? <Input className="h-8 w-24" value={editRow.weight_kg} onChange={(e) => setEditRow((current) => ({ ...current, weight_kg: e.target.value }))} /> : `${row.weight_kg} kg`}</td>
+                        <td className="border-b border-r border-border/60 p-4 align-top">
                           {editingId === row.id ? (
                             <TripleInput values={[editRow.carton_length_cm, editRow.carton_width_cm, editRow.carton_height_cm]} onChange={(values) => setEditRow((current) => ({ ...current, carton_length_cm: values[0], carton_width_cm: values[1], carton_height_cm: values[2] }))} />
                           ) : `${row.carton_length_cm} × ${row.carton_width_cm} × ${row.carton_height_cm} cm`}
                         </td>
-                        <td className="p-4">{editingId === row.id ? <Input className="h-8 w-24" value={editRow.carton_weight_kg} onChange={(e) => setEditRow((current) => ({ ...current, carton_weight_kg: e.target.value }))} /> : `${row.carton_weight_kg} kg`}</td>
-                        <td className="p-4">{editingId === row.id ? <Input className="h-8 w-24" value={editRow.units_per_carton} onChange={(e) => setEditRow((current) => ({ ...current, units_per_carton: e.target.value }))} /> : `${row.units_per_carton} pcs/箱`}</td>
-                        <td className="p-4">
+                        <td className="border-b border-r border-border/60 p-4 align-top">{editingId === row.id ? <Input className="h-8 w-24" value={editRow.carton_weight_kg} onChange={(e) => setEditRow((current) => ({ ...current, carton_weight_kg: e.target.value }))} /> : `${row.carton_weight_kg} kg`}</td>
+                        <td className="border-b border-r border-border/60 p-4 align-top">{editingId === row.id ? <Input className="h-8 w-24" value={editRow.units_per_carton} onChange={(e) => setEditRow((current) => ({ ...current, units_per_carton: e.target.value }))} /> : `${row.units_per_carton} pcs/箱`}</td>
+                        <td className="border-b border-r border-border/60 p-4 align-top">
                           {editingId === row.id ? (
                             <Select value={editRow.is_active ? 'active' : 'inactive'} onValueChange={(value) => setEditRow((current) => ({ ...current, is_active: value === 'active' }))}>
                               <SelectTrigger className="h-8 w-24"><SelectValue /></SelectTrigger>
                               <SelectContent><SelectItem value="active">活跃</SelectItem><SelectItem value="inactive">不活跃</SelectItem></SelectContent>
                             </Select>
-                          ) : <Badge variant="outline" className={row.is_active ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700' : 'border-slate-400/40 bg-slate-500/10 text-slate-600'}>{row.is_active ? '活跃' : '不活跃'}</Badge>}
+                          ) : <Badge variant="outline" className={row.is_active ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' : 'border-border/70 bg-[hsl(var(--surface-subtle))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))] dark:text-foreground'}>{row.is_active ? '活跃' : '不活跃'}</Badge>}
                         </td>
-                        <td className="p-4">
+                        <td className="border-b border-border/60 p-4 align-top">
                           <div className="flex gap-2">
                             {editingId === row.id ? (
                               <>
@@ -783,22 +866,20 @@ export default function SkuInfoPage() {
                       </tr>
                     ))}
                     {!loading && items.length === 0 ? (
-                      <tr>
-                        <td colSpan={9} className="py-12 text-center text-sm text-muted-foreground">
-                          {projectFilter ? '当前筛选条件下暂无尺寸数据。' : '请选择项目后再查询尺寸数据。'}
-                        </td>
-                      </tr>
+                      <EmptyState colSpan={9} message={projectFilter ? '当前筛选条件下暂无尺寸数据。' : '请选择项目后再查询尺寸数据。'} />
                     ) : null}
                   </tbody>
                 </table>
               </div>
             </CardContent>
           </Card>
+        )}
         </TabsContent>
+        </DirectionalTabTransition>
       </Tabs>
 
       {projectFilter ? (
-        <div className="flex items-center justify-between rounded-lg border border-border/70 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+      <div className="flex items-center justify-between rounded-xl border border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3 text-sm text-muted-foreground shadow-none">
           <span>当前项目：{projectFilter}</span>
           <div className="flex items-center gap-2">
             <Button type="button" variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>上一页</Button>
@@ -823,22 +904,22 @@ function ActionsBar({
 }) {
   return (
     <div className="flex flex-wrap gap-2">
-      <Button type="button" variant="outline" onClick={onDownloadCreateTemplate}>
+      <Button type="button" size="sm" variant="outline" onClick={onDownloadCreateTemplate}>
         <FileDown className="mr-2 h-4 w-4" />
         下载上新模板
       </Button>
-      <Button type="button" variant="outline" onClick={onDownloadUpdateTemplate}>
+      <Button type="button" size="sm" variant="outline" onClick={onDownloadUpdateTemplate}>
         <FileDown className="mr-2 h-4 w-4" />
         导出批量修改
       </Button>
-      <Button asChild variant="outline" disabled={batchImporting}>
+      <Button asChild size="sm" variant="outline" disabled={batchImporting}>
         <label>
           <Upload className="mr-2 h-4 w-4" />
           {batchImporting ? '导入中...' : '批量上新'}
           <input type="file" accept=".csv" className="hidden" onChange={(event) => onUpload(event, 'create')} />
         </label>
       </Button>
-      <Button asChild variant="outline" disabled={batchImporting}>
+      <Button asChild size="sm" variant="outline" disabled={batchImporting}>
         <label>
           <Upload className="mr-2 h-4 w-4" />
           {batchImporting ? '导入中...' : '批量修改'}

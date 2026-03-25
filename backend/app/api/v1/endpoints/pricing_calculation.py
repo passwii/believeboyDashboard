@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, get_request_operator, protected
 from app.schemas.pricing_calculation import (
+    PricingCalculationCostReverseRequest,
     PricingCalculationCreateRequest,
     PricingCalculationReverseRequest,
     PricingCalculationRunItem,
@@ -54,6 +55,21 @@ def calculate_pricing_reverse_quote(
 ) -> PricingCalculationRunItem:
     try:
         row = pricing_calculation_service.create_pricing_reverse_run(db, payload, operator=operator)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    db.commit()
+    return PricingCalculationRunItem(**pricing_calculation_service.serialize_pricing_run(row))
+
+
+@router.post('/pricing-calculation/reverse-cost', response_model=PricingCalculationRunItem)
+def calculate_pricing_reverse_cost(
+    payload: PricingCalculationCostReverseRequest,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+) -> PricingCalculationRunItem:
+    try:
+        row = pricing_calculation_service.create_pricing_cost_reverse_run(db, payload, operator=operator)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 

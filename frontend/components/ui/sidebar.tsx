@@ -27,9 +27,9 @@ import {
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
-const SIDEBAR_WIDTH = "15.5rem"
-const SIDEBAR_WIDTH_MOBILE = "18rem"
-const SIDEBAR_WIDTH_ICON = "4.25rem"
+const SIDEBAR_WIDTH = "18.5rem"
+const SIDEBAR_WIDTH_MOBILE = "20rem"
+const SIDEBAR_WIDTH_ICON = "5rem"
 const SIDEBAR_KEYBOARD_SHORTCUT = "b"
 
 type SidebarContextProps = {
@@ -204,7 +204,7 @@ const Sidebar = React.forwardRef<
           <SheetContent
             data-sidebar="sidebar"
             data-mobile="true"
-            className="w-[--sidebar-width] border-r border-sidebar-border/70 bg-sidebar p-0 text-sidebar-foreground shadow-2xl [&>button]:hidden"
+            className="w-[--sidebar-width] border-r border-sidebar-border/70 bg-sidebar p-0 text-sidebar-foreground shadow-[var(--shadow-overlay)] [&>button]:hidden"
             style={
               {
                 "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
@@ -244,7 +244,7 @@ const Sidebar = React.forwardRef<
         />
         <div
           className={cn(
-            "fixed inset-y-0 z-10 hidden h-svh w-[--sidebar-width] transition-[left,right,width] duration-200 ease-linear md:flex shadow-[4px_0_24px_rgba(0,0,0,0.08)]",
+            "fixed inset-y-0 z-10 hidden h-svh w-[--sidebar-width] transition-[left,right,width] duration-200 ease-linear md:flex",
             side === "left"
               ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
               : "right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
@@ -260,7 +260,7 @@ const Sidebar = React.forwardRef<
         >
             <div
               data-sidebar="sidebar"
-              className="flex h-full w-full flex-col overflow-hidden bg-sidebar group-data-[collapsible=icon]:rounded-none group-data-[variant=floating]:rounded-none"
+              className="relative flex h-full w-full flex-col overflow-hidden rounded-[1.6rem] border border-sidebar-border/70 bg-[linear-gradient(180deg,hsl(var(--sidebar-background)),hsl(var(--sidebar-background))_55%,hsl(var(--sidebar-accent)/0.82))] shadow-[var(--shadow-overlay)] before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-28 before:bg-[radial-gradient(circle_at_top_left,hsl(var(--sidebar-primary)/0.16),transparent_72%)] group-data-[collapsible=icon]:rounded-[1.4rem] group-data-[variant=floating]:rounded-[1.7rem] group-data-[variant=inset]:rounded-[1.6rem]"
             >
               {children}
             </div>
@@ -312,7 +312,7 @@ const SidebarRail = React.forwardRef<
       onClick={toggleSidebar}
       title="Toggle Sidebar"
       className={cn(
-        "absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 transition-all ease-linear after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] hover:after:bg-sidebar-border group-data-[side=left]:-right-4 group-data-[side=right]:left-0 sm:flex",
+        "absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 transition-all ease-linear after:absolute after:inset-y-8 after:left-1/2 after:w-[2px] after:rounded-full hover:after:bg-sidebar-border group-data-[side=left]:-right-4 group-data-[side=right]:left-0 sm:flex",
         "[[data-side=left]_&]:cursor-w-resize [[data-side=right]_&]:cursor-e-resize",
         "[[data-side=left][data-state=collapsed]_&]:cursor-e-resize [[data-side=right][data-state=collapsed]_&]:cursor-w-resize",
         "group-data-[collapsible=offcanvas]:translate-x-0 group-data-[collapsible=offcanvas]:after:left-full group-data-[collapsible=offcanvas]:hover:bg-sidebar",
@@ -353,7 +353,7 @@ const SidebarInput = React.forwardRef<
       ref={ref}
       data-sidebar="input"
       className={cn(
-        "h-8 w-full bg-background shadow-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+        "h-8 w-full rounded-xl border-sidebar-border/70 bg-background/92 shadow-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/20",
         className
       )}
       {...props}
@@ -416,7 +416,7 @@ const SidebarContent = React.forwardRef<
       ref={ref}
       data-sidebar="content"
       className={cn(
-        "flex min-h-0 flex-1 flex-col gap-3 overflow-auto group-data-[collapsible=icon]:overflow-hidden",
+        "flex min-h-0 flex-1 flex-col gap-3 overflow-auto pb-3 group-data-[collapsible=icon]:overflow-hidden",
         className
       )}
       {...props}
@@ -451,7 +451,7 @@ const SidebarGroupLabel = React.forwardRef<
       ref={ref}
       data-sidebar="group-label"
       className={cn(
-        "flex h-8 shrink-0 items-center rounded-md px-3 text-[0.66rem] font-semibold uppercase tracking-[0.22em] text-sidebar-foreground/48 outline-none ring-sidebar-ring transition-[margin,opacity] duration-200 ease-linear focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
+        "flex h-8 shrink-0 items-center px-3 text-[0.66rem] font-semibold uppercase tracking-[0.22em] text-sidebar-foreground/46 outline-none ring-sidebar-ring transition-[margin,opacity] duration-200 ease-linear focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
         "group-data-[collapsible=icon]:-mt-8 group-data-[collapsible=icon]:opacity-0",
         className
       )}
@@ -524,13 +524,13 @@ const SidebarMenuItem = React.forwardRef<
 SidebarMenuItem.displayName = "SidebarMenuItem"
 
 const sidebarMenuButtonVariants = cva(
-  "peer/menu-button relative flex w-full items-center gap-3 overflow-hidden rounded-2xl border border-transparent px-3 py-2.5 text-left text-[0.92rem] font-medium leading-5 text-sidebar-foreground outline-none ring-sidebar-ring transition-[width,height,padding,color,background-color,border-color,box-shadow] duration-200 hover:border-sidebar-border/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:shadow-[0_12px_28px_rgba(25,28,30,0.08)] focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-[[data-sidebar=menu-action]]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:border-primary/20 data-[active=true]:bg-[linear-gradient(135deg,hsl(var(--sidebar-accent)),hsl(var(--sidebar-accent)/0.82))] data-[active=true]:font-semibold data-[active=true]:text-sidebar-accent-foreground data-[active=true]:shadow-[0_14px_30px_rgba(25,28,30,0.1)] data-[state=open]:border-sidebar-border/60 data-[state=open]:bg-sidebar-accent/88 data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:!size-10 group-data-[collapsible=icon]:!rounded-2xl group-data-[collapsible=icon]:!p-2.5 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-sidebar-foreground/68 hover:[&>svg]:text-sidebar-accent-foreground data-[active=true]:[&>svg]:text-primary",
+        "peer/menu-button relative flex w-full items-center gap-3 overflow-hidden rounded-xl border border-transparent px-3 py-2.5 text-left text-[0.92rem] font-medium leading-5 text-sidebar-foreground outline-none ring-sidebar-ring transition-[width,height,padding,color,background-color,border-color,box-shadow,transform] duration-200 hover:-translate-y-px hover:border-sidebar-border/72 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:shadow-[0_14px_34px_-20px_rgba(25,28,30,0.25)] focus-visible:ring-2 focus-visible:ring-sidebar-ring/20 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-[[data-sidebar=menu-action]]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:border-primary/18 data-[active=true]:bg-[linear-gradient(135deg,hsl(var(--sidebar-accent)),hsl(var(--sidebar-accent)/0.82))] data-[active=true]:font-semibold data-[active=true]:text-sidebar-accent-foreground data-[active=true]:shadow-[0_18px_36px_-24px_hsl(var(--primary)/0.55)] data-[state=open]:border-sidebar-border/58 data-[state=open]:bg-sidebar-accent/88 data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:!size-11 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:!rounded-xl group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:text-center group-data-[collapsible=icon]:[&>*:first-child]:shrink-0 group-data-[collapsible=icon]:[&>*:not(:first-child)]:hidden [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-sidebar-foreground/68 hover:[&>svg]:text-sidebar-accent-foreground data-[active=true]:[&>svg]:text-primary",
   {
     variants: {
       variant: {
         default: "",
         outline:
-          "bg-background/70 shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border)/0.3)]",
+          "bg-background/70 shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border)/0.24)]",
       },
       size: {
         default: "min-h-11",
@@ -710,7 +710,7 @@ const SidebarMenuSub = React.forwardRef<
     ref={ref}
     data-sidebar="menu-sub"
     className={cn(
-      "mx-4 mt-1 flex min-w-0 translate-x-px flex-col gap-1 pl-4",
+      "mx-4 mt-1 flex min-w-0 translate-x-px flex-col gap-1.5 pl-4",
       "group-data-[collapsible=icon]:hidden",
       className
     )}
@@ -742,8 +742,8 @@ const SidebarMenuSubButton = React.forwardRef<
       data-size={size}
       data-active={isActive}
       className={cn(
-        "relative flex min-h-9 min-w-0 items-center gap-2 overflow-hidden rounded-lg border border-transparent px-3 text-sidebar-foreground/86 outline-none ring-sidebar-ring transition-[color,background-color,border-color,box-shadow] duration-200 hover:border-sidebar-border/60 hover:bg-sidebar-accent/78 hover:text-sidebar-accent-foreground hover:shadow-[0_10px_24px_rgba(25,28,30,0.06)] focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-sidebar-accent-foreground",
-        "before:absolute before:-left-4 before:top-1/2 before:h-6 before:w-[3px] before:-translate-y-1/2 before:rounded-full before:bg-primary before:opacity-0 before:transition-opacity data-[active=true]:border-primary/15 data-[active=true]:bg-primary/10 data-[active=true]:font-semibold data-[active=true]:text-sidebar-accent-foreground data-[active=true]:shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.08)] data-[active=true]:before:opacity-100",
+        "relative flex min-h-9 min-w-0 items-center gap-2 overflow-hidden rounded-xl border border-transparent px-3 text-sidebar-foreground/86 outline-none ring-sidebar-ring transition-[color,background-color,border-color,box-shadow,transform] duration-200 hover:-translate-y-px hover:border-sidebar-border/56 hover:bg-sidebar-accent/78 hover:text-sidebar-accent-foreground hover:shadow-[0_12px_24px_-20px_rgba(25,28,30,0.25)] focus-visible:ring-2 focus-visible:ring-sidebar-ring/20 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-sidebar-accent-foreground",
+        "before:absolute before:-left-4 before:top-1/2 before:h-6 before:w-[3px] before:-translate-y-1/2 before:rounded-full before:bg-primary before:opacity-0 before:transition-opacity data-[active=true]:border-primary/15 data-[active=true]:bg-primary/10 data-[active=true]:font-semibold data-[active=true]:text-sidebar-accent-foreground data-[active=true]:shadow-[0_16px_28px_-24px_hsl(var(--primary)/0.7)] data-[active=true]:before:opacity-100",
         size === "sm" && "text-sm",
         size === "md" && "text-base",
         "group-data-[collapsible=icon]:hidden",

@@ -267,7 +267,7 @@ export default function AIChatPage() {
 
   return (
     <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-      <Card className="dashboard-surface">
+      <Card className="dashboard-surface dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">AI 会话</CardTitle>
           <Button size="sm" onClick={() => void createConversation()}>
@@ -286,7 +286,9 @@ export default function AIChatPage() {
                   onClick={() => setActiveConversationId(item.id)}
                   className={cn(
                     'w-full rounded-md px-3 py-2 text-left text-sm transition-colors',
-                    activeConversationId === item.id ? 'bg-primary/10 text-primary' : 'hover:bg-muted'
+                    activeConversationId === item.id
+                      ? 'bg-primary/10 text-primary dark:bg-primary/15 dark:text-primary'
+                      : 'hover:bg-muted dark:hover:bg-[hsl(var(--surface-strong)/0.45)]'
                   )}
                 >
                   <p className="line-clamp-1 font-medium">{item.title}</p>
@@ -301,12 +303,12 @@ export default function AIChatPage() {
         </CardContent>
       </Card>
 
-      <Card className="dashboard-surface">
+      <Card className="dashboard-surface dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
         <CardHeader>
           <CardTitle className="text-base">{activeConversation?.title || '请选择或新建会话'}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="rounded-xl border bg-muted/20 p-4">
+          <div className="rounded-xl border bg-muted/20 p-4 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
             <div className="mb-4 flex items-center gap-2">
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
                 <Settings2 className="h-4 w-4" />
@@ -397,7 +399,7 @@ export default function AIChatPage() {
             </div>
           </div>
 
-          <ScrollArea className="h-[390px] rounded-lg border bg-muted/20 p-3">
+          <ScrollArea className="h-[390px] rounded-lg border bg-muted/20 p-3 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
             <div className="space-y-3">
               {loadingMessages ? <p className="text-sm text-muted-foreground">加载消息中...</p> : null}
               {messages.map((message) => (
@@ -405,7 +407,9 @@ export default function AIChatPage() {
                   key={message.id}
                   className={cn(
                     'flex gap-2 rounded-md border p-3 text-sm',
-                    message.role === 'assistant' ? 'bg-background' : 'bg-primary/5'
+                    message.role === 'assistant'
+                      ? 'bg-background dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]'
+                      : 'bg-primary/5 dark:border-primary/20 dark:bg-primary/10'
                   )}
                 >
                   <div className="pt-0.5">

@@ -4,7 +4,10 @@ from sqlalchemy.orm import Session
 from app.db.session import Base
 from app.models import Project
 from app.models.shipment_sku_summary import ShipmentSkuSummary
-from app.schemas.pricing_calculation import PricingCalculationCreateRequest
+from app.schemas.pricing_calculation import (
+    PricingCalculationCostReverseRequest,
+    PricingCalculationCreateRequest,
+)
 from app.services import pricing_calculation_service
 
 
@@ -54,3 +57,38 @@ def test_compute_pricing_prefers_historical_shipping_cost_from_summary():
 
         assert float(computed['inputs']['first_leg_cost_rmb']) == 3.0
         assert '头程历史加权成本' not in computed['warnings']
+
+
+def test_create_cost_reverse_run_persists_single_cost_reverse_record():
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        payload = PricingCalculationCostReverseRequest(
+            product_name='成本倒推产品',
+            package_length_cm=30,
+            package_width_cm=20,
+            package_height_cm=10,
+            weight_kg=1.2,
+            first_leg_cost_rmb=8,
+            sale_price_usd=29.9,
+            target_profit_rate=0.25,
+            advertising_rate=0.12,
+            return_loss_rate=0.04,
+            storage_months=1,
+            inbound_placement_mode='single_destination',
+            usd_to_rmb_rate=7.2,
+        )
+
+        row = pricing_calculation_service.create_pricing_cost_reverse_run(db, payload)
+        db.commit()
+        db.refresh(row)
+
+        rows, total = pricing_calculation_service.list_pricing_runs(db, page=1, page_size=20)
+
+        assert total == 1
+        assert len(rows) == 1
+        assert row.calculation_type == 'cost_reverse'
+        assert rows[0].id == row.id
+        assert rows[0].calculation_type == 'cost_reverse'
+        assert abs(float(row.profit_rate) - 0.25) < 0.01

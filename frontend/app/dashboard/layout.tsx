@@ -6,6 +6,7 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/s
 import { AppSidebar } from '@/components/dashboard/app-sidebar'
 import { SearchCommand } from '@/components/dashboard/search-command'
 import { Button } from '@/components/ui/button'
+import { ThemeToggle } from '@/components/theme-toggle'
 import { Bell, ChevronRight, CircleHelp, History, Search } from 'lucide-react'
 
 const DASHBOARD_PAGE_TITLES: Array<{ match: string; title: string }> = [
@@ -69,9 +70,9 @@ export default function DashboardLayout({
     <SidebarProvider>
       <AppSidebar variant="inset" />
       <SidebarInset className="min-w-0 overflow-x-clip bg-[hsl(var(--surface-low))]">
-        <header className="sticky top-0 z-20 bg-white shadow-[0_1px_0_rgba(148,163,184,0.14),0_10px_22px_-22px_rgba(15,23,42,0.26)]">
+        <header className="sticky top-0 z-20 border-b border-border/70 bg-[hsl(var(--surface-overlay)/0.82)] backdrop-blur-xl">
           <div className="flex min-h-[4.5rem] items-center gap-4 px-3 md:px-5 lg:px-6 xl:px-8">
-            <SidebarTrigger className="h-10 w-10 rounded-2xl bg-transparent text-secondary shadow-none hover:bg-[hsl(var(--surface-low))]" />
+            <SidebarTrigger className="h-10 w-10 rounded-xl border border-border/65 bg-[hsl(var(--surface-overlay)/0.65)] text-secondary shadow-none hover:bg-[hsl(var(--surface-subtle))]" />
             <div className="min-w-0 flex-1">
               <nav className="flex items-center gap-1.5 overflow-hidden text-[1rem] font-medium text-muted-foreground md:text-[1.08rem]">
                 {breadcrumbLabel.split(' > ').map((segment, index, items) => (
@@ -93,28 +94,29 @@ export default function DashboardLayout({
             <div className="hidden min-w-[18rem] flex-1 justify-end xl:flex">
               <Button
                 variant="outline"
-                className="h-10 w-full max-w-[24rem] justify-start rounded-2xl border-0 bg-[hsl(var(--surface-low))] px-4 text-muted-foreground shadow-none"
+                className="h-10 w-full max-w-[24rem] justify-start rounded-xl border-border/65 bg-[hsl(var(--surface-subtle))] px-4 text-muted-foreground shadow-none"
                 onClick={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))}
               >
                 <Search className="h-4 w-4" />
                 <span className="flex-1 text-left">搜索页面、工具与报表...</span>
-                <span className="rounded-lg bg-white/90 px-2 py-1 text-[0.68rem] font-semibold text-foreground/70">⌘K</span>
+                <span className="rounded-sm bg-background/90 px-2 py-1 text-[0.68rem] font-semibold text-foreground/70">⌘K</span>
               </Button>
             </div>
             <div className="flex items-center justify-end gap-2">
               <Button
                 variant="outline"
                 size="icon"
-                className="h-10 w-10 rounded-2xl border-0 bg-[hsl(var(--surface-low))] shadow-none xl:hidden"
+                className="h-10 w-10 rounded-xl border-border/65 bg-[hsl(var(--surface-subtle))] shadow-none xl:hidden"
                 onClick={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))}
               >
                 <Search className="h-4 w-4" />
                 <span className="sr-only">Search</span>
               </Button>
+              <ThemeToggle />
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-10 w-10 rounded-2xl bg-transparent text-secondary hover:bg-[hsl(var(--surface-low))]"
+                className="h-10 w-10 rounded-xl border border-transparent bg-transparent text-secondary hover:bg-[hsl(var(--surface-subtle))]"
               >
                 <Bell className="h-4 w-4" />
                 <span className="sr-only">Notifications</span>
@@ -122,7 +124,7 @@ export default function DashboardLayout({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-10 w-10 rounded-2xl bg-transparent text-secondary hover:bg-[hsl(var(--surface-low))]"
+                className="h-10 w-10 rounded-xl border border-transparent bg-transparent text-secondary hover:bg-[hsl(var(--surface-subtle))]"
               >
                 <History className="h-4 w-4" />
                 <span className="sr-only">History</span>
@@ -130,7 +132,7 @@ export default function DashboardLayout({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-10 w-10 rounded-2xl bg-transparent text-secondary hover:bg-[hsl(var(--surface-low))]"
+                className="h-10 w-10 rounded-xl border border-transparent bg-transparent text-secondary hover:bg-[hsl(var(--surface-subtle))]"
               >
                 <CircleHelp className="h-4 w-4" />
                 <span className="sr-only">Help</span>

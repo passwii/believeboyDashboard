@@ -159,7 +159,7 @@ function getUploadMeta(state: UploadStateItem) {
   if (state.status === 'uploading') return { text: '上传中', dot: 'bg-blue-500', bar: 'bg-blue-500' }
   if (state.status === 'error') return { text: '上传失败', dot: 'bg-rose-500', bar: 'bg-rose-500' }
   if (state.status === 'ready') return { text: '待上传', dot: 'bg-sky-500', bar: 'bg-sky-500' }
-  return { text: '未识别', dot: 'bg-slate-400', bar: 'bg-slate-300' }
+  return { text: '未识别', dot: 'bg-[hsl(var(--surface-outline))]', bar: 'bg-[hsl(var(--surface-outline))]' }
 }
 
 function normalizeProgress(value: number) {
@@ -299,14 +299,14 @@ export default function DailyReportPage() {
     if (submitState.status === 'success') return { label: '已完成', tone: 'text-emerald-600' }
     if (submitState.status === 'submitting') return { label: '进行中', tone: 'text-blue-600' }
     if (submitState.status === 'error') return { label: '异常', tone: 'text-rose-600' }
-    return { label: '未开始', tone: 'text-slate-500' }
+    return { label: '未开始', tone: 'text-muted-foreground' }
   }, [submitState.status])
 
   const syncMeta = useMemo(() => {
     if (persistenceSync.status === 'success') return { label: '已同步', tone: 'text-emerald-600' }
     if (persistenceSync.status === 'running') return { label: '同步中', tone: 'text-blue-600' }
     if (persistenceSync.status === 'failed') return { label: '失败', tone: 'text-amber-600' }
-    return { label: '待同步', tone: 'text-slate-500' }
+    return { label: '待同步', tone: 'text-muted-foreground' }
   }, [persistenceSync.status])
 
   const addFiles = async (files: File[]) => {
@@ -682,9 +682,9 @@ export default function DailyReportPage() {
   }
 
   return (
-    <div className="grid w-full gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+    <div className="grid w-full gap-6 text-foreground xl:grid-cols-[minmax(0,1fr)_360px]">
       <div className="space-y-6">
-        <Card className="shadow-sm">
+        <Card className="overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
           <CardHeader>
             <CardTitle className="text-lg">控制台</CardTitle>
             <CardDescription>项目名称必填，报表日期默认昨天，站点与处理状态在此统一查看。</CardDescription>
@@ -756,19 +756,19 @@ export default function DailyReportPage() {
             </div>
 
             <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-lg border bg-muted/30 px-3 py-2">
+              <div className="rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] px-3 py-2">
                 <p className="text-xs text-muted-foreground">识别</p>
                 <p className="mt-1 text-sm font-semibold">{recognizedCount}/{REQUIRED_TYPES.length}</p>
               </div>
-              <div className="rounded-lg border bg-muted/30 px-3 py-2">
+              <div className="rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] px-3 py-2">
                 <p className="text-xs text-muted-foreground">上传</p>
                 <p className="mt-1 text-sm font-semibold">{uploadedCount}/{REQUIRED_TYPES.length}</p>
               </div>
-              <div className="rounded-lg border bg-muted/30 px-3 py-2">
+              <div className="rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] px-3 py-2">
                 <p className="text-xs text-muted-foreground">表格生成</p>
                 <p className={cn('mt-1 text-sm font-semibold', generationMeta.tone)}>{generationMeta.label}</p>
               </div>
-              <div className="rounded-lg border bg-muted/30 px-3 py-2">
+              <div className="rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] px-3 py-2">
                 <p className="text-xs text-muted-foreground">数据同步</p>
                 <p className={cn('mt-1 text-sm font-semibold', syncMeta.tone)}>{syncMeta.label}</p>
               </div>
@@ -778,18 +778,18 @@ export default function DailyReportPage() {
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm">
+        <Card className="overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
           <CardHeader>
             <CardTitle className="text-lg">文件识别与上传</CardTitle>
             <CardDescription>左侧投递文件，右侧三行状态栏实时展示识别与上传情况，失败时显示手动匹配。</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="grid gap-5 xl:grid-cols-[300px_1fr]">
-              <div
-                className={cn(
-                  'flex flex-col rounded-xl border-2 border-dashed p-4 text-center transition-colors',
-                  dragActive ? 'border-blue-500 bg-blue-50/60 dark:bg-blue-900/20' : 'border-border bg-muted/30'
-                )}
+                <div
+                  className={cn(
+                    'flex flex-col rounded-xl border-2 border-dashed p-4 text-center transition-colors',
+                dragActive ? 'border-blue-500 bg-blue-50/60 dark:bg-blue-900/20' : 'border-border bg-[hsl(var(--surface-subtle))]'
+                  )}
                 style={{ minHeight: `${dropZoneHeight}px` }}
                 onDrop={(event) => void onDrop(event)}
                 onDragOver={(event) => {
@@ -835,7 +835,7 @@ export default function DailyReportPage() {
                   const meta = getUploadMeta(state)
                   const matched = state.status !== 'empty'
                   return (
-                    <div key={type} className="flex min-h-[120px] flex-col rounded-lg border bg-card p-3">
+                    <div key={type} className="flex min-h-[120px] flex-col rounded-lg border border-border/70 bg-[hsl(var(--surface-panel))] p-3">
                       <div className="mb-2 flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span className={cn('h-2.5 w-2.5 rounded-full', meta.dot)} />
@@ -844,9 +844,9 @@ export default function DailyReportPage() {
                         <span className="text-xs text-muted-foreground">{meta.text}</span>
                       </div>
 
-                      <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+                          <div className="h-2 overflow-hidden rounded-full bg-[hsl(var(--surface-high))] dark:bg-[hsl(var(--surface-high))]">
                         <div
-                          className={cn('h-full transition-all duration-200', matched ? meta.bar : 'bg-slate-300 dark:bg-slate-700')}
+                          className={cn('h-full transition-all duration-200', matched ? meta.bar : 'bg-[hsl(var(--surface-outline))] dark:bg-[hsl(var(--surface-outline))]')}
                           style={{ width: matched ? '100%' : '28%' }}
                         />
                       </div>
@@ -872,13 +872,13 @@ export default function DailyReportPage() {
                 })}
 
                 {manualMatchRows.length > 0 ? (
-                  <div className="rounded-lg border border-blue-200/70 bg-blue-50/60 p-3 dark:border-blue-800/50 dark:bg-blue-950/20">
+                <div className="rounded-lg border border-blue-200/70 bg-blue-50/60 p-3 dark:border-blue-800/50 dark:bg-blue-950/20">
                     <p className="text-sm font-semibold text-blue-800 dark:text-blue-200">手动匹配</p>
                     <p className="mt-1 text-xs text-blue-700/80 dark:text-blue-200/80">以下文件识别失败，请手动指定类型。</p>
 
-                    <div className="mt-3 space-y-2">
-                      {manualMatchRows.map((row) => (
-                        <div key={row.id} className="grid gap-2 rounded-md border border-blue-200/70 bg-white/90 p-2 dark:border-blue-800/40 dark:bg-slate-900/60 md:grid-cols-[1fr_190px]">
+                  <div className="mt-3 space-y-2">
+                    {manualMatchRows.map((row) => (
+                      <div key={row.id} className="grid gap-2 rounded-md border border-blue-200/70 bg-[hsl(var(--surface-panel))] p-2 dark:border-blue-800/40 md:grid-cols-[1fr_190px]">
                           <div>
                             <p className="truncate text-sm font-medium text-foreground">{row.file.name}</p>
                             <p className="text-xs text-muted-foreground">{row.detectedReason}</p>
@@ -905,21 +905,21 @@ export default function DailyReportPage() {
         </Card>
       </div>
 
-      <Card className="h-fit shadow-sm xl:sticky xl:top-6">
+      <Card className="h-fit border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90 xl:sticky xl:top-6">
         <CardHeader>
           <CardTitle className="text-lg">处理状态</CardTitle>
           <CardDescription>默认展示全部步骤，执行时高亮当前进度，并显示后台同步状态。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-3 rounded-lg border bg-slate-50/70 p-3 dark:bg-slate-950/30">
+          <div className="space-y-3 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-3">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-sm font-medium">
-                {submitState.status === 'submitting' ? <Loader2 className="h-4 w-4 animate-spin text-blue-500" /> : <DatabaseZap className="h-4 w-4 text-slate-500" />}
+                {submitState.status === 'submitting' ? <Loader2 className="h-4 w-4 animate-spin text-blue-500" /> : <DatabaseZap className="h-4 w-4 text-muted-foreground" />}
                 <span>{submitState.message || '等待生成任务'}</span>
               </div>
               <span className="text-xs font-semibold text-muted-foreground">{normalizeProgress(jobProgress?.progress ?? 0)}%</span>
             </div>
-            <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+            <div className="h-2 overflow-hidden rounded-full bg-[hsl(var(--surface-high))] dark:bg-[hsl(var(--surface-high))]">
               <div
                 className="h-full bg-blue-500 transition-all duration-300"
                 style={{ width: `${normalizeProgress(jobProgress?.progress ?? 0)}%` }}
@@ -935,7 +935,7 @@ export default function DailyReportPage() {
                     <span
                       className={cn(
                         'h-2.5 w-2.5 rounded-full transition-colors',
-                        done ? 'bg-emerald-500' : active ? 'bg-blue-500' : 'bg-slate-300 dark:bg-slate-700'
+                        done ? 'bg-emerald-500' : active ? 'bg-blue-500' : 'bg-[hsl(var(--surface-outline))] dark:bg-[hsl(var(--surface-outline))]'
                       )}
                     />
                     <div className="flex items-center gap-2">
@@ -961,7 +961,7 @@ export default function DailyReportPage() {
             </div>
           </div>
 
-          <div className="rounded-lg border bg-muted/30 px-3 py-2">
+          <div className="rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] px-3 py-2">
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-medium">后台同步</p>
               <p className={cn('text-sm font-semibold', syncMeta.tone)}>{syncMeta.label}</p>

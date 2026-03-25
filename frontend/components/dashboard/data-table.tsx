@@ -305,18 +305,18 @@ export function DataTable() {
 
   return (
     <div className="w-full space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-2 py-4">
+      <div className="dashboard-toolbar flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
         <Input
           placeholder="筛选任务、报表或条目..."
           value={(table.getColumn('header')?.getFilterValue() as string) ?? ''}
           onChange={(event) =>
             table.getColumn('header')?.setFilterValue(event.target.value)
           }
-          className="h-11 max-w-sm rounded-lg border-0 bg-[hsl(var(--surface-low))] text-sm shadow-none min-w-touch"
+          className="h-11 max-w-sm min-w-touch border-white/40 bg-background/88 text-sm shadow-none"
         />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="h-11 min-w-touch rounded-lg border-0 bg-[hsl(var(--surface-low))] shadow-none">
+            <Button variant="outline" className="h-11 min-w-touch border-white/40 bg-background/88 shadow-none">
               视图列 <ChevronDown className="ml-2 h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -341,8 +341,8 @@ export function DataTable() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <div className="overflow-x-auto rounded-[1.15rem] bg-[hsl(var(--surface-low))] py-2 px-0.5">
-        <Table className="rounded-[0.95rem] bg-white">
+      <div className="rounded-lg border border-white/45 bg-[hsl(var(--surface-subtle))] p-1.5">
+        <Table className="overflow-hidden rounded-lg bg-background/96">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
@@ -367,10 +367,10 @@ export function DataTable() {
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && 'selected'}
-                  className="rounded-lg transition-colors hover:bg-[hsl(var(--surface-low))]"
+                  className="transition-colors hover:bg-[hsl(var(--surface-subtle))]"
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className="py-3 px-2">
+                    <TableCell key={cell.id} className="px-3 py-3">
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext()
@@ -392,7 +392,7 @@ export function DataTable() {
           </TableBody>
         </Table>
       </div>
-      <div className="flex items-center justify-end space-x-2 py-4">
+      <div className="flex items-center justify-end space-x-2 py-2">
         <div className="flex-1 text-sm text-muted-foreground">
           已选择 {table.getFilteredSelectedRowModel().rows.length} / {table.getFilteredRowModel().rows.length} 条。
         </div>

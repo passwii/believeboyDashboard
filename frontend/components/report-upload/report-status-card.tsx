@@ -1,10 +1,10 @@
 'use client'
 
-import { AlertCircle, CalendarDays, CheckCircle2, FileText, Loader2, PackageSearch } from 'lucide-react'
+import { AlertCircle, CalendarDays, CheckCircle2, CircleHelp, FileText, Loader2, PackageSearch } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardTitle } from '@/components/ui/card'
 import { DateRangePicker, SingleDatePicker, formatDateInputValue, parseDateInputValue, parseDateRangeInputValue } from '@/components/ui/date-picker'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { ReportCardConfig, ReportCardState } from '@/components/report-upload/types'
@@ -72,17 +72,30 @@ export function ReportStatusCard({
   const useRangePicker = recognition?.date_input_mode === 'range_manual' || (!recognition && config.type === 'payment_report')
 
   return (
-    <Card className="flex h-full flex-col border-border/70 bg-card/90 shadow-sm">
-      <CardHeader className="space-y-3 pb-4">
-        <div className="flex items-start justify-between gap-3">
-          <CardTitle className="text-base leading-6">{config.title}</CardTitle>
+    <Card className="flex h-full flex-col overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90 dark:bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))]">
+      <CardContent className="flex flex-1 flex-col gap-4 px-5 !pt-6 pb-5 md:!pt-7">
+        <div className="mt-1 flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-start gap-2">
+            <CardTitle className="text-base leading-6 text-foreground">{config.title}</CardTitle>
+            <div className="group relative mt-0.5 shrink-0">
+              <button
+                type="button"
+                className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                aria-label="查看识别字段"
+                title={config.subtitle}
+              >
+                <CircleHelp className="h-4 w-4" />
+              </button>
+              <div className="pointer-events-none absolute left-1/2 top-[calc(100%+8px)] z-20 w-max max-w-[220px] -translate-x-1/2 rounded-md border border-border/80 bg-popover px-3 py-1.5 text-xs leading-5 text-popover-foreground opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 dark:border-border/95 dark:bg-[hsl(var(--surface-panel))]">
+                {config.subtitle}
+              </div>
+            </div>
+          </div>
           {statusBadge(state)}
         </div>
-      </CardHeader>
-      <CardContent className="flex flex-1 flex-col gap-4">
-        <div className="min-h-[92px] space-y-2 rounded-2xl bg-muted/35 px-3 py-2.5">
-          <div className="flex items-center gap-2 text-sm font-medium">
-            <FileText className="h-4 w-4 text-sky-600" />
+        <div className="space-y-2 rounded-xl border border-border/70 bg-[hsl(var(--surface-subtle))]/80 px-3 py-3 dark:border-border/85 dark:bg-[hsl(var(--surface-low))]/90">
+          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <FileText className="h-4 w-4 text-sky-600 dark:text-sky-300" />
             当前文件
           </div>
           {state.candidates.length === 0 ? (
@@ -91,7 +104,7 @@ export function ReportStatusCard({
             <>
               {state.candidates.length > 1 ? (
                 <Select value={state.activeTempFileId || ''} onValueChange={onPickCandidate}>
-                  <SelectTrigger>
+                  <SelectTrigger className="rounded-md border-border/70 bg-[hsl(var(--surface-overlay))] dark:border-border/95 dark:bg-[hsl(var(--surface-soft))]">
                     <SelectValue placeholder="选择要使用的文件" />
                   </SelectTrigger>
                   <SelectContent>
@@ -104,9 +117,9 @@ export function ReportStatusCard({
                 </Select>
               ) : null}
               {recognition ? (
-                <div className="space-y-1">
-                  <p className="text-sm font-medium">{recognition.original_filename}</p>
-                </div>
+                <p className="truncate text-xs font-medium text-muted-foreground" title={recognition.original_filename}>
+                  {recognition.original_filename}
+                </p>
               ) : null}
             </>
           )}
@@ -115,14 +128,15 @@ export function ReportStatusCard({
         <div className="grid flex-1 gap-3 content-start">
           <div className="grid gap-3">
             <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-border/60 bg-muted/30">
-                <PackageSearch className={cn('h-4 w-4 text-sky-600', projectWarning && 'text-rose-600')} />
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border/70 bg-[hsl(var(--surface-overlay))] dark:border-border/95 dark:bg-[hsl(var(--surface-soft))]">
+                <PackageSearch className={cn('h-4 w-4 text-sky-600 dark:text-sky-300', projectWarning && 'text-rose-600 dark:text-rose-300')} />
               </div>
               <Select value={state.selectedProject || undefined} onValueChange={onProjectChange}>
                 <SelectTrigger
                   className={cn(
+                    'rounded-md border-border/70 bg-[hsl(var(--surface-overlay))] dark:border-border/95 dark:bg-[hsl(var(--surface-soft))]',
                     projectWarning &&
-                      'border-rose-300 bg-rose-50/80 text-rose-700 ring-offset-background focus:ring-rose-500 data-[placeholder]:text-rose-500'
+                      'border-rose-300 bg-rose-50/80 text-rose-700 ring-offset-background focus:ring-rose-500 data-[placeholder]:text-rose-500 dark:border-rose-500/55 dark:bg-rose-500/10 dark:text-rose-100 dark:data-[placeholder]:text-rose-300'
                   )}
                 >
                   <SelectValue placeholder="请选择项目" />
@@ -138,13 +152,17 @@ export function ReportStatusCard({
             </div>
 
             <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-border/60 bg-muted/30">
-                <CalendarDays className={cn('h-4 w-4 text-sky-600', dateWarning && 'text-rose-600')} />
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border/70 bg-[hsl(var(--surface-overlay))] dark:border-border/95 dark:bg-[hsl(var(--surface-soft))]">
+                <CalendarDays className={cn('h-4 w-4 text-sky-600 dark:text-sky-300', dateWarning && 'text-rose-600 dark:text-rose-300')} />
               </div>
               {useRangePicker ? (
                 <DateRangePicker
                   value={parseDateRangeInputValue(state.reportStartDate, state.reportEndDate)}
-                  className={cn('w-full', dateWarning && 'border-rose-300 bg-rose-50/80 text-rose-700 focus-visible:ring-rose-500')}
+                  className={cn(
+                    'w-full rounded-md border-border/70 bg-[hsl(var(--surface-overlay))] dark:border-border/95 dark:bg-[hsl(var(--surface-soft))]',
+                    dateWarning &&
+                      'border-rose-300 bg-rose-50/80 text-rose-700 focus-visible:ring-rose-500 dark:border-rose-500/55 dark:bg-rose-500/10 dark:text-rose-100'
+                  )}
                   onChange={(range) => {
                     onDateChange('reportStartDate', formatDateInputValue(range?.from))
                     onDateChange('reportEndDate', formatDateInputValue(range?.to))
@@ -152,7 +170,7 @@ export function ReportStatusCard({
                 />
               ) : recognition?.date_input_mode === 'multi_auto' ? (
                 <div className="space-y-2">
-                  <div className="rounded-2xl border border-border/60 bg-muted/30 px-3 py-2 text-sm text-foreground">
+                  <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-overlay))] px-3 py-2 text-sm text-foreground dark:border-border/90 dark:bg-[hsl(var(--surface-soft))]">
                     {recognition.detected_start_date && recognition.detected_end_date
                       ? `${recognition.detected_start_date} ~ ${recognition.detected_end_date}`
                       : '将按 purchase-date 自动拆分多个日期'}
@@ -162,7 +180,11 @@ export function ReportStatusCard({
               ) : (
                 <SingleDatePicker
                   value={parseDateInputValue(state.reportDate)}
-                  className={cn(dateWarning && 'border-rose-300 bg-rose-50/80 text-rose-700 focus-visible:ring-rose-500')}
+                  className={cn(
+                    'rounded-md border-border/70 bg-[hsl(var(--surface-overlay))] dark:border-border/95 dark:bg-[hsl(var(--surface-soft))]',
+                    dateWarning &&
+                      'border-rose-300 bg-rose-50/80 text-rose-700 focus-visible:ring-rose-500 dark:border-rose-500/55 dark:bg-rose-500/10 dark:text-rose-100'
+                  )}
                   onChange={(date) => onDateChange('reportDate', formatDateInputValue(date))}
                 />
               )}
@@ -171,15 +193,13 @@ export function ReportStatusCard({
         </div>
 
         {recognition?.warnings?.length ? (
-          <div className="rounded-2xl border border-amber-300/60 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          <div className="rounded-xl border border-amber-300/60 bg-amber-50/80 px-3 py-2 text-xs text-amber-900 dark:border-amber-400/35 dark:bg-amber-400/10 dark:text-amber-100">
             {recognition.warnings.join('；')}
           </div>
         ) : null}
 
         {state.commitMessage && state.commitStatus === 'error' ? (
-          <div
-            className="rounded-2xl border border-rose-300/70 bg-rose-50 px-3 py-2 text-xs text-rose-700"
-          >
+          <div className="rounded-xl border border-rose-300/70 bg-rose-50/90 px-3 py-2 text-xs text-rose-700 dark:border-rose-500/45 dark:bg-rose-500/10 dark:text-rose-100">
             <div className="flex items-center gap-2">
               <AlertCircle className="h-4 w-4" />
               {state.commitMessage}

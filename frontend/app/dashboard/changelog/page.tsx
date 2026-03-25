@@ -66,7 +66,7 @@ export default function ChangelogPage() {
 
   return (
     <div className="space-y-6 md:space-y-7">
-      <section className="dashboard-surface animate-enter px-5 py-5 md:px-7 md:py-7">
+      <section className="dashboard-surface animate-enter px-5 py-5 md:px-7 md:py-7 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
         <div className="relative z-10 space-y-4">
           <Badge variant="secondary" className="inline-flex h-7 items-center gap-1 rounded-full px-3 text-[11px] font-medium uppercase tracking-[0.14em]">
             <GitBranch className="h-3.5 w-3.5" />
@@ -92,13 +92,13 @@ export default function ChangelogPage() {
       </section>
 
       {error ? (
-        <Card className="border-destructive/40 bg-destructive/5">
+        <Card className="border-destructive/40 bg-destructive/5 dark:border-destructive/30 dark:bg-destructive/12">
           <CardContent className="p-4 text-sm text-destructive">{error}</CardContent>
         </Card>
       ) : null}
 
       {groupedEntries.map((day) => (
-        <Card key={day.date} className="dashboard-surface animate-enter">
+        <Card key={day.date} className="dashboard-surface animate-enter dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
           <CardHeader className="relative z-10 gap-2 md:flex-row md:items-center md:justify-between">
             <div>
               <CardTitle className="text-lg md:text-xl">{formatDateLabel(day.date)}</CardTitle>
@@ -112,7 +112,7 @@ export default function ChangelogPage() {
             {day.entries.map((entry) => (
               <article
                 key={entry.hash}
-                className="rounded-xl border border-border/70 bg-background/75 p-3 transition-colors hover:border-primary/35"
+                className="rounded-xl border border-border/70 bg-background/75 p-3 transition-colors hover:border-primary/35 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))] dark:hover:border-primary/30"
               >
                 <div className="flex flex-wrap items-center gap-2 text-xs">
                   <Badge variant="outline" className="font-mono">
@@ -130,7 +130,7 @@ export default function ChangelogPage() {
       ))}
 
       {!error && groupedEntries.length === 0 ? (
-        <Card>
+        <Card className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
           <CardContent className="p-5 text-sm text-muted-foreground">暂未读取到提交记录。</CardContent>
         </Card>
       ) : null}

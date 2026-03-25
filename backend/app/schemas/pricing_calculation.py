@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 InboundPlacementMode = Literal['single_destination', 'amazon_optimized_split']
-CalculationType = Literal['profit_calc', 'profit_reverse']
+CalculationType = Literal['profit_calc', 'profit_reverse', 'cost_reverse']
 
 
 class PricingCalculationCreateRequest(BaseModel):
@@ -39,6 +39,26 @@ class PricingCalculationReverseRequest(BaseModel):
     project_id: int | None = Field(default=None, gt=0)
     sku: str | None = Field(default=None, min_length=1, max_length=100)
     use_historical_shipping_cost: bool = False
+    target_profit_rate: float = Field(default=0.25, ge=0, lt=1)
+    commission_rate: float = Field(default=0.15, ge=0, le=1)
+    advertising_rate: float = Field(default=0.12, ge=0, le=1)
+    return_loss_rate: float = Field(default=0.04, ge=0, le=1)
+    storage_months: float = Field(default=1, gt=0, le=120)
+    inbound_placement_mode: InboundPlacementMode = 'single_destination'
+    usd_to_rmb_rate: float | None = Field(default=None, gt=0, le=1000)
+
+
+class PricingCalculationCostReverseRequest(BaseModel):
+    product_name: str = Field(min_length=1, max_length=255)
+    package_length_cm: float = Field(gt=0, le=1000)
+    package_width_cm: float = Field(gt=0, le=1000)
+    package_height_cm: float = Field(gt=0, le=1000)
+    weight_kg: float = Field(gt=0, le=1000)
+    first_leg_cost_rmb: float = Field(ge=0, le=100000000)
+    project_id: int | None = Field(default=None, gt=0)
+    sku: str | None = Field(default=None, min_length=1, max_length=100)
+    use_historical_shipping_cost: bool = False
+    sale_price_usd: float = Field(gt=0, le=100000000)
     target_profit_rate: float = Field(default=0.25, ge=0, lt=1)
     commission_rate: float = Field(default=0.15, ge=0, le=1)
     advertising_rate: float = Field(default=0.12, ge=0, le=1)

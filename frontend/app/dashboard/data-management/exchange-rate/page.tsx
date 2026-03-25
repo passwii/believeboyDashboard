@@ -29,6 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { EmptyTableState } from "@/components/ui/empty-state"
 import {
   Pagination,
   PaginationContent,
@@ -120,12 +121,12 @@ const getCurrencyBadgeMeta = (currency: string) => {
         className:
           "border-blue-300 bg-gradient-to-r from-sky-50 via-blue-100 to-indigo-100 text-blue-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-blue-800 dark:from-sky-950 dark:via-blue-950 dark:to-indigo-950 dark:text-blue-100",
       }
-    default:
+      default:
       return {
         symbol: "¤",
         accent: "其他货币",
         className:
-          "border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200",
+          "border-border/70 bg-[hsl(var(--surface-subtle))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))] dark:text-foreground",
       }
   }
 }
@@ -427,8 +428,8 @@ export default function ExchangeRatePage() {
   }
 
   return (
-    <div className="container mx-auto py-6">
-      <Card>
+    <div className="container mx-auto py-6 text-foreground">
+      <Card className="border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>汇率信息管理</CardTitle>
@@ -442,7 +443,7 @@ export default function ExchangeRatePage() {
         </CardHeader>
         <CardContent>
           {/* 筛选区域 */}
-          <div className="mb-6 flex flex-wrap gap-4 rounded-lg border bg-muted/50 p-4">
+          <div className="mb-6 flex flex-wrap gap-4 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-4">
             <div className="flex items-center gap-2">
               <Label className="whitespace-nowrap text-sm font-medium">货币种类</Label>
               <Select
@@ -451,7 +452,7 @@ export default function ExchangeRatePage() {
                   handleFilterChange("currency", value === ALL_FILTER_VALUE ? "" : value)
                 }
               >
-                <SelectTrigger className="w-[180px]">
+                  <SelectTrigger className="w-[180px] dark:bg-[hsl(var(--surface-soft))]">
                   <SelectValue placeholder="全部货币" />
                 </SelectTrigger>
                 <SelectContent>
@@ -473,7 +474,7 @@ export default function ExchangeRatePage() {
                   handleFilterChange("year", value === ALL_FILTER_VALUE ? "" : value)
                 }
               >
-                <SelectTrigger className="w-[120px]">
+                  <SelectTrigger className="w-[120px] dark:bg-[hsl(var(--surface-soft))]">
                   <SelectValue placeholder="全部年份" />
                 </SelectTrigger>
                 <SelectContent>
@@ -495,7 +496,7 @@ export default function ExchangeRatePage() {
                   handleFilterChange("month", value === ALL_FILTER_VALUE ? "" : value)
                 }
               >
-                <SelectTrigger className="w-[112px]">
+                  <SelectTrigger className="w-[112px] dark:bg-[hsl(var(--surface-soft))]">
                   <SelectValue placeholder="全部月份" />
                 </SelectTrigger>
                 <SelectContent>
@@ -518,9 +519,9 @@ export default function ExchangeRatePage() {
           </div>
 
           {/* 数据表格 */}
-          <div className="rounded-md border">
+          <div className="overflow-hidden rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))]">
             <Table>
-              <TableHeader>
+              <TableHeader className="bg-[hsl(var(--surface-subtle))]">
                 <TableRow>
                   <TableHead>货币代码</TableHead>
                   <TableHead>货币名称</TableHead>
@@ -540,11 +541,7 @@ export default function ExchangeRatePage() {
                     </TableCell>
                   </TableRow>
                 ) : rates.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={isAdmin ? 8 : 7} className="h-24 text-center text-muted-foreground">
-                      {isAdmin ? "暂无汇率数据，点击右上角按钮新增" : "暂无汇率数据"}
-                    </TableCell>
-                  </TableRow>
+                  <EmptyTableState colSpan={isAdmin ? 8 : 7} message={isAdmin ? "暂无汇率数据，点击右上角按钮新增" : "暂无汇率数据"} />
                 ) : (
                   rates.map((rate) => (
                     <TableRow key={rate.id}>
@@ -584,7 +581,7 @@ export default function ExchangeRatePage() {
                                 <button
                                   key={image.id}
                                   type="button"
-                                  className="relative h-10 w-10 overflow-hidden rounded border"
+                              className="relative h-10 w-10 overflow-hidden rounded border border-border/70"
                                   onClick={() => setPreviewImage(image)}
                                   title={image.filename}
                                 >
@@ -598,7 +595,7 @@ export default function ExchangeRatePage() {
                                 </button>
                               ))}
                               {rate.noteImages.length > 4 && (
-                                <div className="flex h-10 w-10 items-center justify-center rounded border text-xs text-muted-foreground">
+                                <div className="flex h-10 w-10 items-center justify-center rounded border border-border/70 text-xs text-muted-foreground">
                                   +{rate.noteImages.length - 4}
                                 </div>
                               )}
@@ -656,7 +653,7 @@ export default function ExchangeRatePage() {
 
       {/* 新增/编辑弹窗 */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px] dark:border-border/90 dark:bg-[hsl(var(--surface-panel))]">
           <DialogHeader>
             <DialogTitle>
               {editingRate ? "编辑汇率信息" : "新增汇率信息"}
@@ -678,7 +675,7 @@ export default function ExchangeRatePage() {
                   onValueChange={handleCurrencyChange}
                   disabled={!!editingRate}
                 >
-                  <SelectTrigger id="currency">
+                <SelectTrigger id="currency" className="dark:bg-[hsl(var(--surface-soft))]">
                     <SelectValue placeholder="选择货币" />
                   </SelectTrigger>
                   <SelectContent>
@@ -720,7 +717,7 @@ export default function ExchangeRatePage() {
                   }
                   disabled={!!editingRate}
                 >
-                  <SelectTrigger id="year">
+                <SelectTrigger id="year" className="dark:bg-[hsl(var(--surface-soft))]">
                     <SelectValue placeholder="选择年份" />
                   </SelectTrigger>
                   <SelectContent>
@@ -743,7 +740,7 @@ export default function ExchangeRatePage() {
                   }
                   disabled={!!editingRate}
                 >
-                  <SelectTrigger id="month" className="w-[112px]">
+                <SelectTrigger id="month" className="w-[112px] dark:bg-[hsl(var(--surface-soft))]">
                     <SelectValue placeholder="选择月份" />
                   </SelectTrigger>
                   <SelectContent>
@@ -793,7 +790,7 @@ export default function ExchangeRatePage() {
               <div className="flex items-center gap-3">
                 <label
                   htmlFor="note-image-upload"
-                  className="inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted"
+                className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-border/70 px-3 py-2 text-sm hover:bg-muted dark:hover:bg-[hsl(var(--surface-subtle))]"
                 >
                   {uploadingImage ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -817,7 +814,7 @@ export default function ExchangeRatePage() {
                 <p className="text-xs text-muted-foreground">支持 PNG/JPG/WEBP/GIF，最大 10MB</p>
               </div>
               {formData.noteImages.length > 0 && (
-                <div className="flex flex-wrap gap-3 rounded-md border bg-muted/30 p-3">
+                <div className="flex flex-wrap gap-3 rounded-md border border-border/70 bg-[hsl(var(--surface-subtle))] p-3">
                   {formData.noteImages.map((image) => (
                     <div key={image.id} className="space-y-1">
                       <button
@@ -833,7 +830,7 @@ export default function ExchangeRatePage() {
                           unoptimized
                         />
                       </button>
-                      <div className="w-20 truncate text-[10px] text-muted-foreground" title={image.filename}>
+                        <div className="w-20 truncate text-[10px] text-muted-foreground" title={image.filename}>
                         {image.filename}
                       </div>
                       <div className="flex items-center justify-between">
@@ -873,7 +870,7 @@ export default function ExchangeRatePage() {
             </DialogDescription>
           </DialogHeader>
           {deletingRate && (
-            <div className="my-4 rounded-md bg-muted p-3 text-sm">
+            <div className="my-4 rounded-md bg-[hsl(var(--surface-subtle))] p-3 text-sm">
               <p>
                 <span className="font-medium">货币:</span>{" "}
                 {deletingRate.currency} ({deletingRate.currencyName})
@@ -899,13 +896,13 @@ export default function ExchangeRatePage() {
       </Dialog>
 
       <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-3xl dark:border-border/90 dark:bg-[hsl(var(--surface-panel))]">
           <DialogHeader>
             <DialogTitle>图片预览</DialogTitle>
             <DialogDescription>{previewImage?.filename}</DialogDescription>
           </DialogHeader>
           {previewImage && (
-            <div className="relative aspect-video w-full overflow-hidden rounded-md border bg-muted/20">
+            <div className="relative aspect-video w-full overflow-hidden rounded-md border border-border/70 bg-[hsl(var(--surface-subtle))]">
               <Image
                 src={previewImage.url}
                 alt={previewImage.filename}
