@@ -7,11 +7,11 @@ import {
   Calculator,
   ChartColumnBig,
   ChevronRight,
-  ClipboardList,
   Command,
   Database,
-  FolderKanban,
+  FileUp,
   LayoutDashboard,
+  PackageSearch,
   ShieldUser,
   Sparkles,
   Wrench,
@@ -59,11 +59,26 @@ type NavGroup = {
 }
 
 const quickLinks: NavLink[] = [
-  { title: '运营总览', url: '/dashboard' },
-  { title: 'AI 聊天', url: '/dashboard/ai-panel/chat' },
-  { title: '站点导航', url: '/dashboard/operations/site-navigation' },
+  { title: '定价核算', url: '/dashboard/data-reporting/pricing-calculation' },
+  { title: '数据分析', url: '/dashboard/data-analysis/daily-analysis' },
+  { title: '补货分析', url: '/dashboard/data-analysis/inventory-replenishment' },
   { title: '上传中心', url: '/dashboard/data-management/report-upload' },
 ]
+
+const quickLinkMeta: Record<string, { icon: React.ReactNode }> = {
+  定价核算: {
+    icon: <Calculator className="h-3.5 w-3.5" />,
+  },
+  数据分析: {
+    icon: <ChartColumnBig className="h-3.5 w-3.5" />,
+  },
+  补货分析: {
+    icon: <PackageSearch className="h-3.5 w-3.5" />,
+  },
+  上传中心: {
+    icon: <FileUp className="h-3.5 w-3.5" />,
+  },
+}
 
 const primaryGroups: NavGroup[] = [
   {
@@ -233,30 +248,49 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 group-data-[collapsible=icon]:hidden">
+        <div className="group-data-[collapsible=icon]:hidden">
+          <div className="mb-2 flex items-center justify-between px-1">
+            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-sidebar-foreground/46">
+              Pinned
+            </p>
+            <span className="rounded-full border border-sidebar-border/60 bg-sidebar-accent/55 px-2 py-0.5 text-[0.6rem] font-semibold tracking-[0.18em] text-sidebar-foreground/42">
+              4 SHORTCUTS
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
           {quickLinks.map((link, index) => {
             const active = isLinkActive(pathname, link)
-            const icons = [<ClipboardList key="a" className="h-4 w-4" />, <Bot key="b" className="h-4 w-4" />, <FolderKanban key="c" className="h-4 w-4" />, <Database key="d" className="h-4 w-4" />]
+            const meta = quickLinkMeta[link.title]
 
             return (
               <RouteLoadingLink
                 key={link.title}
                 href={link.url}
-                className={`flex min-h-16 items-center gap-3 rounded-[1.1rem] border px-3 py-3 transition-all duration-200 ${
+                className={`group relative flex min-h-[4rem] items-center gap-2.5 overflow-hidden rounded-[1.05rem] border px-3 py-2.5 transition-all duration-200 ${
                   active
-                    ? 'border-primary/25 bg-primary/12 text-sidebar-accent-foreground shadow-[0_16px_30px_-22px_hsl(var(--primary)/0.75)]'
-                    : 'border-sidebar-border/65 bg-sidebar-accent/58 text-sidebar-foreground/78 hover:border-sidebar-border hover:bg-sidebar-accent'
+                    ? 'border-primary/25 bg-[linear-gradient(145deg,hsl(var(--primary)/0.16),hsl(var(--sidebar-accent)/0.94))] text-sidebar-accent-foreground shadow-[0_18px_36px_-24px_hsl(var(--primary)/0.8)]'
+                    : 'border-sidebar-border/65 bg-[linear-gradient(160deg,hsl(var(--sidebar-accent)/0.82),hsl(var(--sidebar-background)/0.94))] text-sidebar-foreground/78 hover:border-sidebar-border hover:bg-sidebar-accent'
                 }`}
               >
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sidebar-background/85 text-sidebar-foreground shadow-[inset_0_1px_0_hsl(0_0%_100%/0.15)]">
-                  {icons[index]}
+                <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-[radial-gradient(circle_at_top_right,hsl(var(--sidebar-primary)/0.14),transparent_72%)] opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100" />
+                <span
+                  className={`relative flex h-8.5 w-8.5 shrink-0 items-center justify-center rounded-xl border shadow-[inset_0_1px_0_hsl(0_0%_100%/0.18)] ${
+                    active
+                      ? 'border-primary/18 bg-primary/14 text-primary'
+                      : 'border-sidebar-border/55 bg-sidebar-background/88 text-sidebar-foreground'
+                  }`}
+                >
+                  {meta?.icon}
                 </span>
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-semibold">{link.title}</div>
+                <div className="relative min-w-0 flex-1">
+                  <div className="truncate text-[0.82rem] font-semibold tracking-tight text-sidebar-foreground">
+                    {link.title}
+                  </div>
                 </div>
               </RouteLoadingLink>
             )
           })}
+          </div>
         </div>
       </SidebarHeader>
 
