@@ -718,11 +718,11 @@ export default function DailyAnalysisPage() {
         </CardHeader>
 
         <CardContent className="space-y-4 pt-0">
-          <div className="dashboard-toolbar grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)_auto] xl:items-end">
+          <div className="dashboard-toolbar grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(12rem,14rem)_minmax(8.5rem,10rem)_minmax(0,1fr)_auto] xl:items-end">
             <div className="space-y-2">
               <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">项目</div>
               <Select value={projectId} onValueChange={setProjectId}>
-                <SelectTrigger className="h-11 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
+                <SelectTrigger className="h-11 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none [&>span]:truncate dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
                   <SelectValue placeholder="选择项目" />
                 </SelectTrigger>
                 <SelectContent>
@@ -738,7 +738,7 @@ export default function DailyAnalysisPage() {
             <div className="space-y-2">
               <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">国家站点</div>
               <Select value={country} onValueChange={(value) => setCountry(value as CountryOption)}>
-                <SelectTrigger className="h-11 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
+                <SelectTrigger className="h-11 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none [&>span]:truncate dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
                   <SelectValue placeholder="国家站点" />
                 </SelectTrigger>
                 <SelectContent>

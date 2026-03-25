@@ -1,8 +1,26 @@
 'use client'
 
-import { useEffect, useMemo, useState, type ChangeEvent, type DragEvent } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type ChangeEvent,
+  type DragEvent,
+} from 'react'
 import { useSession } from 'next-auth/react'
-import { CheckCircle2, ChevronLeft, ChevronRight, CircleX, LayoutTemplate } from 'lucide-react'
+import {
+  BarChart3,
+  BookOpen,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Clock3,
+  CircleX,
+  LayoutTemplate,
+  Megaphone,
+  Package,
+  Wallet,
+} from 'lucide-react'
 
 import { ReportUploadDropzone } from '@/components/report-upload/report-upload-dropzone'
 import { ReportStatusCard } from '@/components/report-upload/report-status-card'
@@ -20,18 +38,94 @@ import type {
   UploadQueueItem,
 } from '@/components/report-upload/types'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { SingleDatePicker, formatDateInputValue, parseDateInputValue } from '@/components/ui/date-picker'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import {
+  SingleDatePicker,
+  formatDateInputValue,
+  parseDateInputValue,
+} from '@/components/ui/date-picker'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { DirectionalTabTransition, SlidingTabsTrigger, TabsMotionGroup } from '@/components/ui/tab-motion'
+import {
+  DirectionalTabTransition,
+  SlidingTabsTrigger,
+  TabsMotionGroup,
+} from '@/components/ui/tab-motion'
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 
 const API_BASE = '/api/backend'
-type UploadWorkspaceTab = 'upload' | 'status'
-const UPLOAD_WORKSPACE_TAB_ORDER: UploadWorkspaceTab[] = ['upload', 'status']
+type UploadWorkspaceTab = 'upload' | 'status' | 'guide'
+const UPLOAD_WORKSPACE_TAB_ORDER: UploadWorkspaceTab[] = [
+  'upload',
+  'status',
+  'guide',
+]
+
+const REPORT_GUIDE_ITEMS = [
+  {
+    type: 'inventory',
+    title: '库存报表',
+    amazonName: '亚马逊物流库存',
+    summary: '亚马逊实时导出，但我们在系统里按美国时间口径理解数据日期。',
+    detail:
+      '当天上午导出，对应美国时间昨天；当天下午导出，对应美国时间当天。请特别注意导出时间，建议固定在每天上午点击“请求 txt 下载”。',
+    action:
+      '无须当天立即真实下载，先完成请求即可；也可以等到周一统一下载后再入库。',
+    badge: '美国时间判断',
+    tone: 'border-sky-500/25 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.18),transparent_52%),linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))]',
+    icon: Package,
+  },
+  {
+    type: 'business',
+    title: '业务报告',
+    amazonName: '详情页面销售和流量（按子商品）',
+    summary: '业务报告是唯一的特殊项，导出可用日期为 T-1。',
+    detail:
+      '也就是今天只能导出隔一天之前的数据。比如当前是美国时间 24 号，只能导出到 23 号，提示数据此时还不可用。',
+    action: '选择日期时请按美国时间理解，避免把 T 误当成可导出日期。',
+    badge: '唯一例外：T-1',
+    tone: 'border-amber-500/25 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.16),transparent_52%),linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))]',
+    icon: BarChart3,
+  },
+  {
+    type: 'ad',
+    title: '广告报告',
+    amazonName: '系统自动生成下载',
+    summary: '广告报告默认由系统自动生成并下载，日常维护成本最低。',
+    detail:
+      '这类报表通常不需要额外手工处理，按既定节奏定期下载并完成入库即可。',
+    action: '只要保持定期下载入库即可，整体无明显操作难度。',
+    badge: '自动生成',
+    tone: 'border-emerald-500/25 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.16),transparent_52%),linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))]',
+    icon: Megaphone,
+  },
+  {
+    type: 'payment',
+    title: '付款报告',
+    amazonName: '付款报告',
+    summary: '原则上可直接忽略，不作为日常单独处理重点。',
+    detail:
+      '当前流程会直接索引到每周产品分析里的付款报告，并自动覆盖对应日期范围内的每一天。',
+    action: '无需额外重复维护，除非后续流程规则变更。',
+    badge: '默认忽略',
+    tone: 'border-fuchsia-500/25 bg-[radial-gradient(circle_at_top_left,rgba(217,70,239,0.16),transparent_52%),linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))]',
+    icon: Wallet,
+  },
+] as const
 
 const REPORT_CARD_CONFIGS: ReportCardConfig[] = [
   {
@@ -59,7 +153,8 @@ const REPORT_CARD_CONFIGS: ReportCardConfig[] = [
     type: 'sales_report',
     title: '销售报表 - 所有订单',
     subtitle: '识别字段：purchase-date / sku / asin',
-    dateHint: '单日文件会自动带出识别日期；周期文件会锁定日期范围并可直接上传。',
+    dateHint:
+      '单日文件会自动带出识别日期；周期文件会锁定日期范围并可直接上传。',
     projectHint: '默认根据 SKU 自动匹配项目。',
   },
   {
@@ -180,16 +275,24 @@ function createEmptyCardState(): Record<ReportType, ReportCardState> {
 function updateCardFromCandidates(
   state: ReportCardState,
   candidates: RecognitionResponse[],
-  preferredTempFileId?: string | null
+  preferredTempFileId?: string | null,
 ): ReportCardState {
-  const active = candidates.find((item) => item.temp_file_id === preferredTempFileId) || candidates[candidates.length - 1] || null
+  const active =
+    candidates.find((item) => item.temp_file_id === preferredTempFileId) ||
+    candidates[candidates.length - 1] ||
+    null
   const nextProject =
     state.selectedProject ||
-    (active?.project_match.status === 'matched' ? active.project_match.project_name || '' : '')
+    (active?.project_match.status === 'matched'
+      ? active.project_match.project_name || ''
+      : '')
   const nextDate =
     state.reportDate ||
-    (active?.date_input_mode === 'single_detected' ? active.detected_date || active.detected_end_date || '' : '')
-  const nextStartDate = state.reportStartDate || active?.detected_start_date || ''
+    (active?.date_input_mode === 'single_detected'
+      ? active.detected_date || active.detected_end_date || ''
+      : '')
+  const nextStartDate =
+    state.reportStartDate || active?.detected_start_date || ''
   const nextEndDate = state.reportEndDate || active?.detected_end_date || ''
 
   return {
@@ -208,7 +311,10 @@ function updateCardFromCandidates(
 
 async function parseError(response: Response): Promise<string> {
   try {
-    const payload = (await response.json()) as { detail?: string; message?: string }
+    const payload = (await response.json()) as {
+      detail?: string
+      message?: string
+    }
     return payload.detail || payload.message || `请求失败 (${response.status})`
   } catch {
     return `请求失败 (${response.status})`
@@ -224,12 +330,15 @@ export default function ReportUploadPage() {
   const [dragActive, setDragActive] = useState(false)
   const [recognizing, setRecognizing] = useState(false)
   const [queueItems, setQueueItems] = useState<UploadQueueItem[]>([])
-  const [cards, setCards] = useState<Record<ReportType, ReportCardState>>(createEmptyCardState)
+  const [cards, setCards] =
+    useState<Record<ReportType, ReportCardState>>(createEmptyCardState)
   const [statusRows, setStatusRows] = useState<StatusProjectRow[]>([])
   const [statusLoading, setStatusLoading] = useState(true)
   const [statusError, setStatusError] = useState<string | null>(null)
   const [statusDate, setStatusDate] = useState(() => toLocalDateInputValue())
-  const [selectedCountry, setSelectedCountry] = useState<ReportUploadCountry>(DEFAULT_REPORT_UPLOAD_COUNTRY)
+  const [selectedCountry, setSelectedCountry] = useState<ReportUploadCountry>(
+    DEFAULT_REPORT_UPLOAD_COUNTRY,
+  )
   const [workspaceTab, setWorkspaceTab] = useState<UploadWorkspaceTab>('upload')
 
   useEffect(() => {
@@ -237,10 +346,13 @@ export default function ReportUploadPage() {
       setProjectsLoading(true)
       setProjectLoadError(null)
       try {
-        const payload = await fetchManagedProjectsCached<Array<{ name: string }>>(session)
+        const payload =
+          await fetchManagedProjectsCached<Array<{ name: string }>>(session)
         setProjects(payload.map((item) => item.name).filter(Boolean))
       } catch (error) {
-        setProjectLoadError(error instanceof Error ? error.message : '项目列表加载失败')
+        setProjectLoadError(
+          error instanceof Error ? error.message : '项目列表加载失败',
+        )
       } finally {
         setProjectsLoading(false)
       }
@@ -253,15 +365,23 @@ export default function ReportUploadPage() {
       setStatusLoading(true)
       setStatusError(null)
       try {
-        const query = new URLSearchParams({ report_date: statusDate, country: selectedCountry })
-        const response = await fetch(`${API_BASE}/api/v1/report-upload/status?${query.toString()}`, { cache: 'no-store' })
+        const query = new URLSearchParams({
+          report_date: statusDate,
+          country: selectedCountry,
+        })
+        const response = await fetch(
+          `${API_BASE}/api/v1/report-upload/status?${query.toString()}`,
+          { cache: 'no-store' },
+        )
         if (!response.ok) {
           throw new Error(await parseError(response))
         }
         const payload = (await response.json()) as { items: StatusProjectRow[] }
         setStatusRows(payload.items || [])
       } catch (error) {
-        setStatusError(error instanceof Error ? error.message : '报表状态加载失败')
+        setStatusError(
+          error instanceof Error ? error.message : '报表状态加载失败',
+        )
       } finally {
         setStatusLoading(false)
       }
@@ -272,7 +392,12 @@ export default function ReportUploadPage() {
   const readyCount = useMemo(() => {
     return REPORT_TYPES.filter((type) => {
       const state = cards[type]
-      if (!state.recognition || state.commitStatus === 'success' || state.commitStatus === 'saving') return false
+      if (
+        !state.recognition ||
+        state.commitStatus === 'success' ||
+        state.commitStatus === 'saving'
+      )
+        return false
       if (state.candidates.length > 1) return false
       if (!state.selectedProject) return false
       if (state.recognition.date_input_mode === 'range_manual') {
@@ -285,7 +410,10 @@ export default function ReportUploadPage() {
     }).length
   }, [cards])
 
-  const uploadingAny = useMemo(() => REPORT_TYPES.some((type) => cards[type].commitStatus === 'saving'), [cards])
+  const uploadingAny = useMemo(
+    () => REPORT_TYPES.some((type) => cards[type].commitStatus === 'saving'),
+    [cards],
+  )
 
   const applyRecognition = (recognition: RecognitionResponse) => {
     if (recognition.report_type === 'unknown') return
@@ -293,11 +421,17 @@ export default function ReportUploadPage() {
     setCards((prev) => {
       const type = recognition.report_type as ReportType
       const existing = prev[type]
-      const filtered = existing.candidates.filter((item) => item.temp_file_id !== recognition.temp_file_id)
+      const filtered = existing.candidates.filter(
+        (item) => item.temp_file_id !== recognition.temp_file_id,
+      )
       const candidates = [...filtered, recognition]
       return {
         ...prev,
-        [type]: updateCardFromCandidates(existing, candidates, recognition.temp_file_id),
+        [type]: updateCardFromCandidates(
+          existing,
+          candidates,
+          recognition.temp_file_id,
+        ),
       }
     })
   }
@@ -322,10 +456,13 @@ export default function ReportUploadPage() {
         const formData = new FormData()
         formData.append('file', file)
         formData.append('country', selectedCountry)
-        const response = await fetch(`${API_BASE}/api/v1/report-upload/recognize`, {
-          method: 'POST',
-          body: formData,
-        })
+        const response = await fetch(
+          `${API_BASE}/api/v1/report-upload/recognize`,
+          {
+            method: 'POST',
+            body: formData,
+          },
+        )
         if (!response.ok) {
           throw new Error(await parseError(response))
         }
@@ -338,10 +475,13 @@ export default function ReportUploadPage() {
                   tempFileId: recognition.temp_file_id,
                   reportType: recognition.report_type,
                   recognitionStatus: recognition.status,
-                  error: recognition.status === 'recognized' ? null : recognition.reason,
+                  error:
+                    recognition.status === 'recognized'
+                      ? null
+                      : recognition.reason,
                 }
-              : item
-          )
+              : item,
+          ),
         )
         if (recognition.status === 'recognized') {
           applyRecognition(recognition)
@@ -356,8 +496,8 @@ export default function ReportUploadPage() {
                   recognitionStatus: 'error',
                   error: error instanceof Error ? error.message : '识别失败',
                 }
-              : item
-          )
+              : item,
+          ),
         )
       }
     }
@@ -380,14 +520,25 @@ export default function ReportUploadPage() {
   const removeFile = (localId: string) => {
     const target = queueItems.find((item) => item.localId === localId)
     setQueueItems((prev) => prev.filter((item) => item.localId !== localId))
-    if (!target?.tempFileId || !target.reportType || target.reportType === 'unknown') return
+    if (
+      !target?.tempFileId ||
+      !target.reportType ||
+      target.reportType === 'unknown'
+    )
+      return
 
     setCards((prev) => {
       const type = target.reportType as ReportType
-      const nextCandidates = prev[type].candidates.filter((item) => item.temp_file_id !== target.tempFileId)
+      const nextCandidates = prev[type].candidates.filter(
+        (item) => item.temp_file_id !== target.tempFileId,
+      )
       return {
         ...prev,
-        [type]: updateCardFromCandidates(prev[type], nextCandidates, prev[type].activeTempFileId),
+        [type]: updateCardFromCandidates(
+          prev[type],
+          nextCandidates,
+          prev[type].activeTempFileId,
+        ),
       }
     })
   }
@@ -397,7 +548,10 @@ export default function ReportUploadPage() {
     setCards(createEmptyCardState())
   }
 
-  const updateCard = (type: ReportType, updater: (state: ReportCardState) => ReportCardState) => {
+  const updateCard = (
+    type: ReportType,
+    updater: (state: ReportCardState) => ReportCardState,
+  ) => {
     setCards((prev) => ({
       ...prev,
       [type]: updater(prev[type]),
@@ -409,7 +563,11 @@ export default function ReportUploadPage() {
     const recognition = state.recognition
     if (!recognition) return
 
-    updateCard(type, (current) => ({ ...current, commitStatus: 'saving', commitMessage: null }))
+    updateCard(type, (current) => ({
+      ...current,
+      commitStatus: 'saving',
+      commitMessage: null,
+    }))
     try {
       const payload = {
         temp_file_id: recognition.temp_file_id,
@@ -437,10 +595,18 @@ export default function ReportUploadPage() {
       }))
       setStatusLoading(true)
       try {
-        const query = new URLSearchParams({ report_date: statusDate, country: selectedCountry })
-        const refresh = await fetch(`${API_BASE}/api/v1/report-upload/status?${query.toString()}`, { cache: 'no-store' })
+        const query = new URLSearchParams({
+          report_date: statusDate,
+          country: selectedCountry,
+        })
+        const refresh = await fetch(
+          `${API_BASE}/api/v1/report-upload/status?${query.toString()}`,
+          { cache: 'no-store' },
+        )
         if (refresh.ok) {
-          const payload = (await refresh.json()) as { items: StatusProjectRow[] }
+          const payload = (await refresh.json()) as {
+            items: StatusProjectRow[]
+          }
           setStatusRows(payload.items || [])
           setStatusError(null)
         }
@@ -467,8 +633,8 @@ export default function ReportUploadPage() {
             ? state.reportStartDate && state.reportEndDate
             : state.recognition.date_input_mode === 'multi_auto'
               ? true
-            : state.reportDate) &&
-          state.commitStatus !== 'success'
+              : state.reportDate) &&
+          state.commitStatus !== 'success',
       )
       if (canCommit) {
         // eslint-disable-next-line no-await-in-loop
@@ -486,248 +652,543 @@ export default function ReportUploadPage() {
       ad_search_term_report: '搜索词',
       payment_report: '付款',
     }),
-    []
+    [],
   )
 
   const statusTypeLabel = (cell?: StatusCell) => {
     if (!cell || cell.status === 'missing') return '未入库'
-    if (cell.report_start_date && cell.report_end_date && cell.report_start_date !== cell.report_end_date) return '周期入库'
+    if (
+      cell.report_start_date &&
+      cell.report_end_date &&
+      cell.report_start_date !== cell.report_end_date
+    )
+      return '周期入库'
     return '当日入库'
   }
 
   return (
-    <div className="w-full space-y-6 text-foreground">
-      <Card className="overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
-        <CardContent className="grid gap-5 px-6 py-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-end md:px-8">
-          <div className="space-y-3">
-            <div className="dashboard-kicker">
-              报表上传
-            </div>
-            <div className="space-y-2">
-              <h1 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">上传、识别、入库，一条线完成</h1>
-              <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-                这里保留原有识别和提交流程，但把页面组织成更清晰的工作台：上传区、确认卡片和状态查询都放进统一的工作表面里。
-              </p>
+    <div className='w-full space-y-6 text-foreground'>
+      <Card className='overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90'>
+        <CardContent className='grid gap-5 px-6 py-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-end md:px-8'>
+          <div className='space-y-3'>
+            <div className='dashboard-kicker'>报表上传</div>
+            <div className='space-y-2'>
+              <h1 className='text-2xl font-semibold tracking-tight text-foreground md:text-3xl'>
+                上传、识别、入库，一条线完成
+              </h1>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3 text-sm md:min-w-[360px]">
-            <div className="rounded-xl border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-subtle)),hsl(var(--surface-soft)))] px-4 py-3 dark:border-border/90 dark:bg-[linear-gradient(180deg,hsl(var(--surface-soft)),hsl(var(--surface-low)))]">
-              <p className="text-xs text-muted-foreground">待确认卡片</p>
-              <p className="mt-1 text-lg font-semibold text-foreground">{REPORT_TYPES.length - readyCount}</p>
+          <div className='grid grid-cols-2 gap-3 text-sm md:min-w-[360px]'>
+            <div className='rounded-xl border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-subtle)),hsl(var(--surface-soft)))] px-4 py-3 dark:border-border/90 dark:bg-[linear-gradient(180deg,hsl(var(--surface-soft)),hsl(var(--surface-low)))]'>
+              <p className='text-xs text-muted-foreground'>待确认卡片</p>
+              <p className='mt-1 text-lg font-semibold text-foreground'>
+                {REPORT_TYPES.length - readyCount}
+              </p>
             </div>
-            <div className="rounded-xl border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-subtle)),hsl(var(--surface-soft)))] px-4 py-3 dark:border-border/90 dark:bg-[linear-gradient(180deg,hsl(var(--surface-soft)),hsl(var(--surface-low)))]">
-              <p className="text-xs text-muted-foreground">可直接上传</p>
-              <p className="mt-1 text-lg font-semibold text-foreground">{readyCount}</p>
+            <div className='rounded-xl border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-subtle)),hsl(var(--surface-soft)))] px-4 py-3 dark:border-border/90 dark:bg-[linear-gradient(180deg,hsl(var(--surface-soft)),hsl(var(--surface-low)))]'>
+              <p className='text-xs text-muted-foreground'>可直接上传</p>
+              <p className='mt-1 text-lg font-semibold text-foreground'>
+                {readyCount}
+              </p>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <Tabs value={workspaceTab} onValueChange={(value) => setWorkspaceTab(value as UploadWorkspaceTab)} className="space-y-5">
-        <TabsMotionGroup id="report-upload-tabs">
-          <TabsList className="grid h-auto w-full max-w-[360px] grid-cols-2 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-1 shadow-none">
-            <SlidingTabsTrigger value="upload" activeValue={workspaceTab} layoutId="report-upload-tab-indicator" className="w-full">报表上传</SlidingTabsTrigger>
-            <SlidingTabsTrigger value="status" activeValue={workspaceTab} layoutId="report-upload-tab-indicator" className="w-full">报表状态</SlidingTabsTrigger>
+      <Tabs
+        value={workspaceTab}
+        onValueChange={(value) => setWorkspaceTab(value as UploadWorkspaceTab)}
+        className='space-y-5'
+      >
+        <TabsMotionGroup id='report-upload-tabs'>
+          <TabsList className='grid h-auto w-full max-w-[540px] grid-cols-3 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-1 shadow-none'>
+            <SlidingTabsTrigger
+              value='upload'
+              activeValue={workspaceTab}
+              layoutId='report-upload-tab-indicator'
+              className='w-full'
+            >
+              报表上传
+            </SlidingTabsTrigger>
+            <SlidingTabsTrigger
+              value='status'
+              activeValue={workspaceTab}
+              layoutId='report-upload-tab-indicator'
+              className='w-full'
+            >
+              报表状态
+            </SlidingTabsTrigger>
+            <SlidingTabsTrigger
+              value='guide'
+              activeValue={workspaceTab}
+              layoutId='report-upload-tab-indicator'
+              className='w-full'
+            >
+              报表指引
+            </SlidingTabsTrigger>
           </TabsList>
         </TabsMotionGroup>
 
-        <DirectionalTabTransition value={workspaceTab} order={UPLOAD_WORKSPACE_TAB_ORDER}>
-        <TabsContent forceMount value={workspaceTab} className="space-y-5">
-        {workspaceTab === 'upload' ? (
-          <div className="space-y-5">
-            <ReportUploadDropzone
-              items={queueItems}
-              dragActive={dragActive}
-              recognizing={recognizing}
-              country={selectedCountry}
-              onCountryChange={(value) => setSelectedCountry(value)}
-              onDrop={onDrop}
-              onDragOver={(event) => {
-                event.preventDefault()
-                setDragActive(true)
-              }}
-              onDragLeave={(event) => {
-                event.preventDefault()
-                setDragActive(false)
-              }}
-              onPickFiles={onPickFiles}
-              onRemove={removeFile}
-              onClear={clearAll}
-              onUploadReady={() => void uploadAllReady()}
-              readyCount={readyCount}
-              uploadingAny={uploadingAny}
-            />
+        <DirectionalTabTransition
+          value={workspaceTab}
+          order={UPLOAD_WORKSPACE_TAB_ORDER}
+        >
+          <TabsContent forceMount value={workspaceTab} className='space-y-5'>
+            {workspaceTab === 'upload' ? (
+              <div className='space-y-5'>
+                <ReportUploadDropzone
+                  items={queueItems}
+                  dragActive={dragActive}
+                  recognizing={recognizing}
+                  country={selectedCountry}
+                  onCountryChange={(value) => setSelectedCountry(value)}
+                  onDrop={onDrop}
+                  onDragOver={(event) => {
+                    event.preventDefault()
+                    setDragActive(true)
+                  }}
+                  onDragLeave={(event) => {
+                    event.preventDefault()
+                    setDragActive(false)
+                  }}
+                  onPickFiles={onPickFiles}
+                  onRemove={removeFile}
+                  onClear={clearAll}
+                  onUploadReady={() => void uploadAllReady()}
+                  readyCount={readyCount}
+                  uploadingAny={uploadingAny}
+                />
 
-            <div className="space-y-4">
-              <div className="flex items-end justify-between gap-3">
-                <div className="space-y-1">
-                  <h2 className="text-lg font-semibold tracking-tight text-foreground">当前识别卡片</h2>
-                  <p className="text-sm text-muted-foreground">每张卡片对应一类报表，识别完成后即可确认项目和日期。</p>
-                </div>
-                {projectLoadError ? <p className="text-sm text-destructive">{projectLoadError}</p> : null}
-              </div>
-
-              {projectsLoading ? (
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  {REPORT_TYPES.map((type) => (
-                    <Skeleton key={type} className="h-[320px] rounded-xl" />
-                  ))}
-                </div>
-              ) : (
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  {REPORT_CARD_CONFIGS.map((config) => {
-                    const state = cards[config.type]
-                    const recognition = state.recognition
-                    const canCommit = Boolean(
-                      recognition &&
-                        state.candidates.length === 1 &&
-                        state.selectedProject &&
-                        (recognition.date_input_mode === 'range_manual'
-                          ? state.reportStartDate && state.reportEndDate
-                          : recognition.date_input_mode === 'multi_auto'
-                            ? true
-                          : state.reportDate)
-                    )
-
-                    return (
-                      <ReportStatusCard
-                        key={config.type}
-                        config={config}
-                        state={state}
-                        projects={projects}
-                        onPickCandidate={(tempFileId) =>
-                          updateCard(config.type, (current) =>
-                            updateCardFromCandidates(current, current.candidates, tempFileId)
-                          )
-                        }
-                        onProjectChange={(value) => updateCard(config.type, (current) => ({ ...current, selectedProject: value }))}
-                        onDateChange={(field, value) => updateCard(config.type, (current) => ({ ...current, [field]: value }))}
-                        onCommit={() => void commitCard(config.type)}
-                        canCommit={canCommit}
-                      />
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        ) : (
-          <Card className="overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
-            <CardHeader className="border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-6 py-5 md:px-8">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-sky-500/15 bg-sky-500/10 text-sky-600 dark:bg-sky-500/15 dark:text-sky-300">
-                    <LayoutTemplate className="h-5 w-5" />
+                <div className='space-y-4'>
+                  <div className='flex items-end justify-between gap-3'>
+                    <div className='space-y-1'>
+                      <h2 className='text-lg font-semibold tracking-tight text-foreground'>
+                        当前识别卡片
+                      </h2>
+                      <p className='text-sm text-muted-foreground'>
+                        每张卡片对应一类报表，识别完成后即可确认项目和日期。
+                      </p>
+                    </div>
+                    {projectLoadError ? (
+                      <p className='text-sm text-destructive'>
+                        {projectLoadError}
+                      </p>
+                    ) : null}
                   </div>
-                  <div className="space-y-1">
-                    <CardTitle>报表状态</CardTitle>
-                    <p className="text-sm text-muted-foreground">按日期和站点切换查看各项目的入库情况。</p>
-                  </div>
-                </div>
 
-                <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                  <Select value={selectedCountry} onValueChange={(value) => setSelectedCountry(value as ReportUploadCountry)}>
-                    <SelectTrigger className="h-10 w-[160px] rounded-md border-border/70 bg-background dark:bg-[hsl(var(--surface-soft))]">
-                      <SelectValue placeholder="选择站点" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {REPORT_UPLOAD_COUNTRY_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  <Button type="button" variant="outline" size="icon" onClick={() => setStatusDate((current) => shiftDateString(current, -1))}>
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <SingleDatePicker
-                    value={parseDateInputValue(statusDate)}
-                    onChange={(date) => setStatusDate(formatDateInputValue(date))}
-                    className="w-[180px] bg-background dark:bg-[hsl(var(--surface-soft))]"
-                  />
-                  <Button type="button" variant="outline" size="icon" onClick={() => setStatusDate((current) => shiftDateString(current, 1))}>
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                  <Button type="button" variant="secondary" onClick={() => setStatusDate(toLocalDateInputValue())}>
-                    今天
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4 px-6 py-6 md:px-8">
-              {statusError ? <p className="mb-4 text-sm text-rose-600">{statusError}</p> : null}
-              {statusLoading ? (
-                <div className="space-y-3">
-                  <Skeleton className="h-12 rounded-lg" />
-                  <Skeleton className="h-72 rounded-xl" />
-                </div>
-              ) : (
-                <ScrollArea className="w-full">
-                  <div className="min-w-[920px] space-y-3">
-                    <div className="grid grid-cols-[160px_repeat(5,minmax(110px,1fr))] gap-2 px-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                      <div>项目</div>
+                  {projectsLoading ? (
+                    <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-4'>
                       {REPORT_TYPES.map((type) => (
-                        <div key={type}>{statusLabelByType[type]}</div>
+                        <Skeleton key={type} className='h-[320px] rounded-xl' />
                       ))}
                     </div>
+                  ) : (
+                    <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-4'>
+                      {REPORT_CARD_CONFIGS.map((config) => {
+                        const state = cards[config.type]
+                        const recognition = state.recognition
+                        const canCommit = Boolean(
+                          recognition &&
+                            state.candidates.length === 1 &&
+                            state.selectedProject &&
+                            (recognition.date_input_mode === 'range_manual'
+                              ? state.reportStartDate && state.reportEndDate
+                              : recognition.date_input_mode === 'multi_auto'
+                                ? true
+                                : state.reportDate),
+                        )
 
-                    {statusRows.length === 0 ? (
-                      <div className="rounded-xl border border-dashed border-border/70 bg-[hsl(var(--surface-subtle))] px-6 py-12 text-center">
-                        <p className="text-base font-medium">{statusDate} 暂时没有可展示的报表状态</p>
-                        <p className="mt-2 text-sm text-muted-foreground">切换左右日期，或先在“报表上传”页签完成当天报表上传。</p>
+                        return (
+                          <ReportStatusCard
+                            key={config.type}
+                            config={config}
+                            state={state}
+                            projects={projects}
+                            onPickCandidate={(tempFileId) =>
+                              updateCard(config.type, (current) =>
+                                updateCardFromCandidates(
+                                  current,
+                                  current.candidates,
+                                  tempFileId,
+                                ),
+                              )
+                            }
+                            onProjectChange={(value) =>
+                              updateCard(config.type, (current) => ({
+                                ...current,
+                                selectedProject: value,
+                              }))
+                            }
+                            onDateChange={(field, value) =>
+                              updateCard(config.type, (current) => ({
+                                ...current,
+                                [field]: value,
+                              }))
+                            }
+                            onCommit={() => void commitCard(config.type)}
+                            canCommit={canCommit}
+                          />
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : workspaceTab === 'status' ? (
+              <Card className='overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90'>
+                <CardHeader className='border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-6 py-5 md:px-8'>
+                  <div className='flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between'>
+                    <div className='flex items-center gap-3'>
+                      <div className='flex h-11 w-11 items-center justify-center rounded-lg border border-sky-500/15 bg-sky-500/10 text-sky-600 dark:bg-sky-500/15 dark:text-sky-300'>
+                        <LayoutTemplate className='h-5 w-5' />
                       </div>
-                    ) : null}
+                      <div className='space-y-1'>
+                        <CardTitle>报表状态</CardTitle>
+                        <p className='text-sm text-muted-foreground'>
+                          按日期和站点切换查看各项目的入库情况。
+                        </p>
+                      </div>
+                    </div>
 
-                    {statusRows.map((row) => (
-                      <div
-                        key={row.project_id}
-                        className="grid grid-cols-[160px_repeat(5,minmax(110px,1fr))] gap-2 rounded-xl border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-subtle)),hsl(var(--surface-soft)))] p-2.5 dark:border-border/90 dark:bg-[linear-gradient(180deg,hsl(var(--surface-soft)),hsl(var(--surface-low)))]"
+                    <div className='flex flex-wrap items-center gap-2 lg:justify-end'>
+                      <Select
+                        value={selectedCountry}
+                        onValueChange={(value) =>
+                          setSelectedCountry(value as ReportUploadCountry)
+                        }
                       >
-                        <div className="rounded-lg border border-border/70 bg-[hsl(var(--surface-panel))] px-3 py-2.5 dark:border-border/90 dark:bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))]">
-                          <p className="text-sm font-semibold">{row.project_name}</p>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {getReportUploadCountryLabel(selectedCountry, true)}
+                        <SelectTrigger className='h-10 w-[160px] rounded-md border-border/70 bg-background dark:bg-[hsl(var(--surface-soft))]'>
+                          <SelectValue placeholder='选择站点' />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {REPORT_UPLOAD_COUNTRY_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      <Button
+                        type='button'
+                        variant='outline'
+                        size='icon'
+                        onClick={() =>
+                          setStatusDate((current) =>
+                            shiftDateString(current, -1),
+                          )
+                        }
+                      >
+                        <ChevronLeft className='h-4 w-4' />
+                      </Button>
+                      <SingleDatePicker
+                        value={parseDateInputValue(statusDate)}
+                        onChange={(date) =>
+                          setStatusDate(formatDateInputValue(date))
+                        }
+                        className='w-[180px] bg-background dark:bg-[hsl(var(--surface-soft))]'
+                      />
+                      <Button
+                        type='button'
+                        variant='outline'
+                        size='icon'
+                        onClick={() =>
+                          setStatusDate((current) =>
+                            shiftDateString(current, 1),
+                          )
+                        }
+                      >
+                        <ChevronRight className='h-4 w-4' />
+                      </Button>
+                      <Button
+                        type='button'
+                        variant='secondary'
+                        onClick={() => setStatusDate(toLocalDateInputValue())}
+                      >
+                        今天
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className='space-y-4 px-6 py-6 md:px-8'>
+                  {statusError ? (
+                    <p className='mb-4 text-sm text-rose-600'>{statusError}</p>
+                  ) : null}
+                  {statusLoading ? (
+                    <div className='space-y-3'>
+                      <Skeleton className='h-12 rounded-lg' />
+                      <Skeleton className='h-72 rounded-xl' />
+                    </div>
+                  ) : (
+                    <ScrollArea className='w-full'>
+                      <div className='min-w-[920px] space-y-3'>
+                        <div className='grid grid-cols-[160px_repeat(5,minmax(110px,1fr))] gap-2 px-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground'>
+                          <div>项目</div>
+                          {REPORT_TYPES.map((type) => (
+                            <div key={type}>{statusLabelByType[type]}</div>
+                          ))}
+                        </div>
+
+                        {statusRows.length === 0 ? (
+                          <div className='rounded-xl border border-dashed border-border/70 bg-[hsl(var(--surface-subtle))] px-6 py-12 text-center'>
+                            <p className='text-base font-medium'>
+                              {statusDate} 暂时没有可展示的报表状态
+                            </p>
+                            <p className='mt-2 text-sm text-muted-foreground'>
+                              切换左右日期，或先在“报表上传”页签完成当天报表上传。
+                            </p>
+                          </div>
+                        ) : null}
+
+                        {statusRows.map((row) => (
+                          <div
+                            key={row.project_id}
+                            className='grid grid-cols-[160px_repeat(5,minmax(110px,1fr))] gap-2 rounded-xl border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-subtle)),hsl(var(--surface-soft)))] p-2.5 dark:border-border/90 dark:bg-[linear-gradient(180deg,hsl(var(--surface-soft)),hsl(var(--surface-low)))]'
+                          >
+                            <div className='rounded-lg border border-border/70 bg-[hsl(var(--surface-panel))] px-3 py-2.5 dark:border-border/90 dark:bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))]'>
+                              <p className='text-sm font-semibold'>
+                                {row.project_name}
+                              </p>
+                              <p className='mt-1 text-xs text-muted-foreground'>
+                                {getReportUploadCountryLabel(
+                                  selectedCountry,
+                                  true,
+                                )}
+                              </p>
+                            </div>
+                            {REPORT_TYPES.map((type) => {
+                              const cell = row.statuses[type] as
+                                | StatusCell
+                                | undefined
+                              const tone =
+                                cell?.status === 'available'
+                                  ? 'border-emerald-500/20 bg-emerald-500/10 dark:border-emerald-400/30 dark:bg-emerald-400/12'
+                                  : cell?.status === 'saved_only'
+                                    ? 'border-amber-500/20 bg-amber-500/10 dark:border-amber-400/30 dark:bg-amber-400/12'
+                                    : 'border-border/70 bg-[hsl(var(--surface-panel))] dark:border-border/90 dark:bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))]'
+                              return (
+                                <div
+                                  key={type}
+                                  className={`rounded-lg border px-2.5 py-2 shadow-none ${tone}`}
+                                >
+                                  <div className='flex items-center gap-2'>
+                                    {cell?.status === 'missing' ? (
+                                      <CircleX className='h-4 w-4 text-rose-500' />
+                                    ) : (
+                                      <CheckCircle2
+                                        className={`h-4 w-4 ${cell?.status === 'saved_only' ? 'text-amber-600 dark:text-amber-300' : 'text-emerald-600 dark:text-emerald-300'}`}
+                                      />
+                                    )}
+                                    <span className='text-xs font-medium'>
+                                      {cell?.status === 'available'
+                                        ? '已入库'
+                                        : cell?.status === 'saved_only'
+                                          ? '仅文件'
+                                          : '缺失'}
+                                    </span>
+                                  </div>
+                                  <p className='mt-1.5 text-[11px] text-muted-foreground'>
+                                    {statusTypeLabel(cell)}
+                                  </p>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  )}
+                </CardContent>
+              </Card>
+            ) : (
+              <div className='space-y-5'>
+                <Card className='overflow-hidden border-border/70 bg-[linear-gradient(135deg,rgba(14,165,233,0.1),transparent_28%),linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))] shadow-[var(--shadow-soft)] dark:border-border/90'>
+                  <CardHeader className='px-6 py-6 md:px-8'>
+                    <div className='flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between'>
+                      <div className='space-y-3'>
+                        <div className='flex h-11 w-11 items-center justify-center rounded-2xl border border-sky-500/20 bg-sky-500/10 text-sky-600 dark:bg-sky-500/15 dark:text-sky-300'>
+                          <BookOpen className='h-5 w-5' />
+                        </div>
+                        <div className='space-y-2'>
+                          <CardTitle className='text-xl md:text-2xl'>
+                            报表导出与入库指引
+                          </CardTitle>
+                        </div>
+                      </div>
+
+                      <div className='grid gap-3 sm:grid-cols-3'>
+                        <div className='rounded-2xl border border-border/70 bg-background/80 px-4 py-3 backdrop-blur dark:bg-[hsl(var(--surface-soft))]/80'>
+                          <p className='text-xs uppercase tracking-[0.12em] text-muted-foreground'>
+                            时间口径
+                          </p>
+                          <p className='mt-1 text-base font-semibold'>
+                            全部按美国时间 T
                           </p>
                         </div>
-                        {REPORT_TYPES.map((type) => {
-                          const cell = row.statuses[type] as StatusCell | undefined
-                          const tone =
-                            cell?.status === 'available'
-                              ? 'border-emerald-500/20 bg-emerald-500/10 dark:border-emerald-400/30 dark:bg-emerald-400/12'
-                              : cell?.status === 'saved_only'
-                                ? 'border-amber-500/20 bg-amber-500/10 dark:border-amber-400/30 dark:bg-amber-400/12'
-                                : 'border-border/70 bg-[hsl(var(--surface-panel))] dark:border-border/90 dark:bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))]'
+
+                        <div className='rounded-2xl border border-border/70 bg-background/80 px-4 py-3 backdrop-blur dark:bg-[hsl(var(--surface-soft))]/80'>
+                          <p className='text-xs uppercase tracking-[0.12em] text-muted-foreground'>
+                            特殊项
+                          </p>
+                          <p className='mt-1 text-base font-semibold'>
+                            业务报告按 T-1
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </CardHeader>
+                </Card>
+
+                <div className='grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.95fr)]'>
+                  <Card className='overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90'>
+                    <CardHeader className='border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-6 py-5 md:px-8'>
+                      <div className='flex items-center gap-3'>
+                        <div className='flex h-11 w-11 items-center justify-center rounded-xl border border-foreground/10 bg-background/80 text-foreground dark:bg-[hsl(var(--surface-soft))]'>
+                          <Clock3 className='h-5 w-5' />
+                        </div>
+                        <div className='space-y-1'>
+                          <CardTitle>快速规则</CardTitle>
+                          <CardDescription>
+                            先看统一口径，再按报表类型执行。
+                          </CardDescription>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className='space-y-4 px-6 pb-6 pt-5 md:px-8 md:pb-8 md:pt-6'>
+                      <div className='rounded-2xl border border-sky-500/20 bg-sky-500/10 px-4 py-4 text-sm leading-7 text-sky-950 dark:text-sky-100'>
+                        我们系统里的报表日期，统一按美国时间理解。正常情况下，除了业务报告，其他所有报告都可按美国时间
+                        T 处理。
+                      </div>
+
+                      <div className='grid gap-3 md:grid-cols-2'>
+                        <div className='rounded-2xl border border-border/70 bg-[hsl(var(--surface-subtle))] p-4'>
+                          <p className='text-sm font-semibold text-foreground'>
+                            库存 / 广告 / 付款
+                          </p>
+                          <p className='mt-2 text-sm leading-6 text-muted-foreground'>
+                            默认按美国时间 T
+                            理解和安排入库，其中库存报表还需要结合导出时段判断实际对应日期。
+                          </p>
+                        </div>
+                        <div className='rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4'>
+                          <p className='text-sm font-semibold text-foreground'>
+                            业务报告是例外
+                          </p>
+                          <p className='mt-2 text-sm leading-6 text-muted-foreground'>
+                            业务报告不是 T，而是 T-1。比如美国时间的 24
+                            号只能导出到 23 号。
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className='space-y-3'>
+                        {REPORT_GUIDE_ITEMS.map((item) => {
+                          const Icon = item.icon
+
                           return (
-                            <div key={type} className={`rounded-lg border px-2.5 py-2 shadow-none ${tone}`}>
-                              <div className="flex items-center gap-2">
-                                {cell?.status === 'missing' ? (
-                                  <CircleX className="h-4 w-4 text-rose-500" />
-                                ) : (
-                                  <CheckCircle2 className={`h-4 w-4 ${cell?.status === 'saved_only' ? 'text-amber-600 dark:text-amber-300' : 'text-emerald-600 dark:text-emerald-300'}`} />
-                                )}
-                                <span className="text-xs font-medium">
-                                  {cell?.status === 'available'
-                                    ? '已入库'
-                                    : cell?.status === 'saved_only'
-                                      ? '仅文件'
-                                  : '缺失'}
-                                </span>
+                            <div
+                              key={item.type}
+                              className={`rounded-3xl border p-5 ${item.tone}`}
+                            >
+                              <div className='flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between'>
+                                <div className='space-y-3'>
+                                  <div className='flex flex-wrap items-center gap-3'>
+                                    <div className='flex h-11 w-11 items-center justify-center rounded-2xl border border-foreground/10 bg-background/80 text-foreground shadow-sm dark:bg-[hsl(var(--surface-soft))]/90'>
+                                      <Icon className='h-5 w-5' />
+                                    </div>
+                                    <div>
+                                      <p className='text-lg font-semibold text-foreground'>
+                                        {item.title}
+                                      </p>
+                                      <p className='text-sm text-muted-foreground'>
+                                        亚马逊报表名称：{item.amazonName}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <p className='text-sm leading-7 text-foreground/90'>
+                                    {item.summary}
+                                  </p>
+                                  <p className='text-sm leading-7 text-muted-foreground'>
+                                    {item.detail}
+                                  </p>
+                                </div>
+
+                                <div className='rounded-full border border-foreground/10 bg-background/80 px-3 py-1.5 text-xs font-medium tracking-[0.08em] text-foreground/80 dark:bg-[hsl(var(--surface-soft))]/90'>
+                                  {item.badge}
+                                </div>
                               </div>
-                              <p className="mt-1.5 text-[11px] text-muted-foreground">{statusTypeLabel(cell)}</p>
+
+                              <div className='mt-4 rounded-2xl border border-border/60 bg-background/75 px-4 py-3 text-sm leading-6 text-muted-foreground dark:bg-[hsl(var(--surface-soft))]/80'>
+                                {item.action}
+                              </div>
                             </div>
                           )
                         })}
                       </div>
-                    ))}
+                    </CardContent>
+                  </Card>
+
+                  <div className='space-y-4'>
+                    <Card className='overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90'>
+                      <CardHeader className='border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-6 py-5'>
+                        <CardTitle>建议节奏</CardTitle>
+                        <CardDescription>
+                          按这个顺序做，最不容易出错。
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className='space-y-3 px-6 pb-6 pt-5'>
+                        <div className='rounded-2xl border border-border/70 bg-[hsl(var(--surface-subtle))] p-4'>
+                          <p className='text-sm font-semibold'>
+                            1. 先确认美国时间日期
+                          </p>
+                          <p className='mt-2 text-sm leading-6 text-muted-foreground'>
+                            上传或导出前先判断当前要处理的是美国哪一天，避免把本地日期直接套进去。
+                          </p>
+                        </div>
+                        <div className='rounded-2xl border border-border/70 bg-[hsl(var(--surface-subtle))] p-4'>
+                          <p className='text-sm font-semibold'>
+                            2. 库存报表尽量固定上午处理
+                          </p>
+                          <p className='mt-2 text-sm leading-6 text-muted-foreground'>
+                            上午点击“请求 txt
+                            下载”更稳定，口径也更统一，后续可集中下载入库。
+                          </p>
+                        </div>
+                        <div className='rounded-2xl border border-border/70 bg-[hsl(var(--surface-subtle))] p-4'>
+                          <p className='text-sm font-semibold'>
+                            3. 单独留意业务报告 T-1
+                          </p>
+                          <p className='mt-2 text-sm leading-6 text-muted-foreground'>
+                            这是最容易错的一类，看到当天日期时要主动往前多退一天。
+                          </p>
+                        </div>
+                        <div className='rounded-2xl border border-border/70 bg-[hsl(var(--surface-subtle))] p-4'>
+                          <p className='text-sm font-semibold'>
+                            4. 广告与付款按既有流程维护
+                          </p>
+                          <p className='mt-2 text-sm leading-6 text-muted-foreground'>
+                            广告报告定期下载即可；付款报告默认由现有产品分析流程覆盖，无需重复操作。
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card className='overflow-hidden border-amber-500/20 bg-[linear-gradient(180deg,rgba(245,158,11,0.12),transparent_120%),hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-amber-400/30'>
+                      <CardHeader className='px-6 py-5'>
+                        <CardTitle>特别提醒</CardTitle>
+                      </CardHeader>
+                      <CardContent className='px-6 pb-6'>
+                        <p className='text-sm leading-7 text-muted-foreground'>
+                          如果页面日期、导出时间和亚马逊后台展示日期看起来不一致，优先按美国时间重新核对一次。这个页面的所有说明，都是围绕美国
+                          T 时间口径整理的。
+                        </p>
+                      </CardContent>
+                    </Card>
                   </div>
-                </ScrollArea>
-              )}
-            </CardContent>
-          </Card>
-        )}
-        </TabsContent>
+                </div>
+              </div>
+            )}
+          </TabsContent>
         </DirectionalTabTransition>
       </Tabs>
     </div>
