@@ -1999,7 +1999,7 @@ export default function CategoryResearchPage() {
     >
       <div className="flex items-center justify-between">
         <TabsMotionGroup id="research-analysis-tabs">
-          <TabsList className="grid h-11 w-full max-w-[320px] grid-cols-2">
+          <TabsList className="grid w-full max-w-[320px] grid-cols-2">
             <SlidingTabsTrigger value="research" activeValue={workspaceTab} layoutId="research-analysis-tab-indicator">调研</SlidingTabsTrigger>
             <SlidingTabsTrigger value="analysis" activeValue={workspaceTab} layoutId="research-analysis-tab-indicator">分析</SlidingTabsTrigger>
           </TabsList>
