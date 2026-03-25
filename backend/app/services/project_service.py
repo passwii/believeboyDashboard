@@ -7,7 +7,7 @@ from pathlib import Path
 
 from fastapi import HTTPException, status
 from sqlalchemy import func, or_, select, text
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.models import ProductCost, Project
@@ -54,6 +54,44 @@ def _normalize_commission_rate(value: float | Decimal | None) -> Decimal | None:
     if rate > 1:
         rate = rate / Decimal('100')
     return rate
+
+
+def _sync_projects_id_sequence(db: Session) -> None:
+    if db.bind is None or db.bind.dialect.name != 'postgresql':
+        return
+
+    db.execute(
+        text(
+            """
+            with target_sequences as (
+              select distinct s.relname as sequence_name
+              from pg_class c
+              join pg_attribute a
+                on a.attrelid = c.oid
+               and a.attname = 'id'
+              join pg_depend d
+                on d.refobjid = c.oid
+               and d.refobjsubid = a.attnum
+               and d.deptype in ('a', 'i')
+              join pg_class s
+                on s.oid = d.objid
+               and s.relkind = 'S'
+              where c.oid = 'public.projects'::regclass
+            )
+            select setval(
+              format('public.%I', sequence_name),
+              coalesce((select max(id) from public.projects), 1),
+              coalesce((select max(id) is not null from public.projects), false)
+            )
+            from target_sequences
+            """
+        )
+    )
+
+
+def _is_projects_primary_key_conflict(exc: IntegrityError) -> bool:
+    message = str(getattr(exc, 'orig', exc))
+    return 'projects_pkey' in message and 'Key (id)=' in message
 
 
 def read_projects_csv_file(csv_path: Path | None = None) -> tuple[list[str], str, int, int]:
@@ -269,20 +307,47 @@ def create_single_project(
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='项目已存在')
 
-    max_sort_order = db.execute(select(func.coalesce(func.max(Project.sort_order), -1))).scalar_one()
-    row = Project(
-        project_name=project_name,
-        brand_name=_normalize_optional_text(brand_name),
-        store_address=_normalize_optional_text(store_address),
-        project_operator=_normalize_optional_text(project_operator),
-        assistant_operator=_normalize_optional_text(assistant_operator),
-        commission_basis=_normalize_commission_basis(commission_basis),
-        commission_rate=_normalize_commission_rate(commission_rate),
-        sort_order=int(max_sort_order) + 1,
-        source_file=(source_file or '').strip() or 'manual_single_add',
-    )
+    normalized_brand_name = _normalize_optional_text(brand_name)
+    normalized_store_address = _normalize_optional_text(store_address)
+    normalized_project_operator = _normalize_optional_text(project_operator)
+    normalized_assistant_operator = _normalize_optional_text(assistant_operator)
+    normalized_commission_basis = _normalize_commission_basis(commission_basis)
+    normalized_commission_rate = _normalize_commission_rate(commission_rate)
+    normalized_source_file = (source_file or '').strip() or 'manual_single_add'
+
+    def _build_row() -> Project:
+        max_sort_order = db.execute(select(func.coalesce(func.max(Project.sort_order), -1))).scalar_one()
+        return Project(
+            project_name=project_name,
+            brand_name=normalized_brand_name,
+            store_address=normalized_store_address,
+            project_operator=normalized_project_operator,
+            assistant_operator=normalized_assistant_operator,
+            commission_basis=normalized_commission_basis,
+            commission_rate=normalized_commission_rate,
+            sort_order=int(max_sort_order) + 1,
+            source_file=normalized_source_file,
+        )
+
+    row = _build_row()
     db.add(row)
-    db.flush()
+    try:
+        db.flush()
+    except IntegrityError as exc:
+        if _is_projects_primary_key_conflict(exc):
+            db.rollback()
+
+            duplicate = db.execute(select(Project).where(Project.project_name == project_name)).scalars().first()
+            if duplicate:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='项目已存在') from exc
+
+            _sync_projects_id_sequence(db)
+            row = _build_row()
+            db.add(row)
+            db.flush()
+        else:
+            raise
+
     db.refresh(row)
     return row
 

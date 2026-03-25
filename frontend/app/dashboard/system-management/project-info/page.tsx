@@ -68,8 +68,11 @@ function authHeaders(): Record<string, string> {
 }
 
 async function parseError(response: Response): Promise<string> {
+  const raw = await response.text()
+  const text = raw.trim()
+
   try {
-    const payload = (await response.json()) as { detail?: unknown }
+    const payload = JSON.parse(raw) as { detail?: unknown }
     if (typeof payload.detail === 'string' && payload.detail.trim()) {
       return payload.detail
     }
@@ -92,9 +95,8 @@ async function parseError(response: Response): Promise<string> {
     if (payload.detail && typeof payload.detail === 'object') {
       return JSON.stringify(payload.detail)
     }
-    return `请求失败 (${response.status})`
+    return text || `请求失败 (${response.status})`
   } catch {
-    const text = await response.text()
     return text || `请求失败 (${response.status})`
   }
 }

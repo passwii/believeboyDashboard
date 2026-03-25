@@ -18,12 +18,14 @@ function managedProjectsCacheKey(session?: Session | null): string {
 }
 
 async function parseError(response: Response, fallback: string): Promise<string> {
+  const raw = await response.text()
+  const text = raw.trim()
+
   try {
-    const payload = (await response.json()) as { detail?: unknown; message?: unknown }
+    const payload = JSON.parse(raw) as { detail?: unknown; message?: unknown }
     if (typeof payload.detail === 'string' && payload.detail.trim()) return payload.detail
     if (typeof payload.message === 'string' && payload.message.trim()) return payload.message
   } catch {
-    const text = await response.text()
     if (text.trim()) return text
   }
   return fallback
