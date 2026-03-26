@@ -256,7 +256,7 @@ function SidebarGroupBlock({ group }: { group: NavGroup }) {
           </SidebarMenuButton>
         </CollapsibleTrigger>
         <CollapsibleContent className='overflow-hidden pt-2 data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down'>
-          <SidebarMenuSub className='mx-0 mt-0 gap-1.5 pl-3'>
+          <SidebarMenuSub className='mx-0 mt-0 gap-1.5 pl-3 pr-1.5'>
             {group.items.map((item) => (
               <SidebarMenuSubItem key={item.title}>
                 <SidebarMenuSubButton

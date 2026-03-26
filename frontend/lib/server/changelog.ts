@@ -1,97 +1,321 @@
-import { execFileSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
-import path from 'node:path'
+export type ReleaseStatus = 'archived' | 'stable' | 'current'
 
-export type ChangelogType = 'feature' | 'fix' | 'docs' | 'chore' | 'merge' | 'other'
-
-export type ChangelogEntry = {
-  hash: string
-  shortHash: string
-  date: string
-  subject: string
-  type: ChangelogType
+export type ReleaseHighlight = {
+  area: string
+  title: string
+  detail: string
 }
 
-const MAX_TRAVERSE_LEVEL = 8
+export type ReleaseVersion = {
+  version: string
+  codename: string
+  status: ReleaseStatus
+  startDate: string
+  endDate: string
+  summary: string
+  focus: string[]
+  highlights: ReleaseHighlight[]
+  sourceLogs: string[]
+}
 
-function resolveGitRoot(startDir: string): string | null {
-  let current = path.resolve(startDir)
-
-  for (let i = 0; i < MAX_TRAVERSE_LEVEL; i += 1) {
-    if (existsSync(path.join(current, '.git'))) {
-      return current
-    }
-
-    const parent = path.dirname(current)
-    if (parent === current) {
-      break
-    }
-    current = parent
+export type ChangelogSnapshot = {
+  releases: ReleaseVersion[]
+  currentRelease: ReleaseVersion
+  stats: {
+    versionCount: number
+    highlightCount: number
+    logCount: number
+    moduleCount: number
   }
-
-  return null
-}
-
-function classifyCommit(subject: string): ChangelogType {
-  const normalized = subject.trim().toLowerCase()
-
-  if (normalized.startsWith('feat')) return 'feature'
-  if (normalized.startsWith('fix')) return 'fix'
-  if (normalized.startsWith('docs')) return 'docs'
-  if (normalized.startsWith('chore')) return 'chore'
-  if (normalized.startsWith('merge ')) return 'merge'
-  return 'other'
-}
-
-export function getChangelogEntries(limit = 120): { entries: ChangelogEntry[]; error: string | null } {
-  const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.min(limit, 300)) : 120
-  const gitRoot = resolveGitRoot(process.cwd())
-
-  if (!gitRoot) {
-    return {
-      entries: [],
-      error: '未找到 Git 仓库，暂时无法读取更新日志。',
-    }
+  source: {
+    mode: 'processed-history-logs'
+    label: string
+    updatedAt: string
   }
+}
 
-  try {
-    const output = execFileSync(
-      'git',
-      ['log', '-n', String(safeLimit), '--date=short', '--pretty=format:%H%x09%h%x09%ad%x09%s'],
+const RELEASES: ReleaseVersion[] = [
+  {
+    version: 'V1',
+    codename: '基础搭建',
+    status: 'archived',
+    startDate: '2026-02-23',
+    endDate: '2026-02-24',
+    summary:
+      '完成 Dashboard 基础骨架、README 与侧边栏结构同步，并首轮重构销售日报页面，建立产品的第一版运营化工作台。',
+    focus: ['控制台框架', '侧边栏导航', '销售日报', '基础文档'],
+    highlights: [
       {
-        cwd: gitRoot,
-        encoding: 'utf8',
-        stdio: ['ignore', 'pipe', 'ignore'],
-      }
-    )
+        area: 'Platform',
+        title: '搭建 Dashboard 应用骨架',
+        detail: '完成 Next.js 仪表盘脚手架、基础布局和项目结构初始化，为后续模块扩展提供统一容器。',
+      },
+      {
+        area: 'Navigation',
+        title: '同步侧边栏与文档信息架构',
+        detail: '将 README、Dox 与页面导航对齐，明确系统入口和运营路径。',
+      },
+      {
+        area: 'Reporting',
+        title: '首轮重构销售日报页面',
+        detail: '销售日报页面按照新的设计规范改版，形成后续报表页可复用的 UI 基线。',
+      },
+    ],
+    sourceLogs: [
+      'feat: scaffold dashboard app and refresh README',
+      'V1 文档: 同步 Dox 与 README 到侧边栏运营化改版',
+      'feat(ui): 重构销售日报页面并同步设计规范',
+    ],
+  },
+  {
+    version: 'V2',
+    codename: '运营中台成型',
+    status: 'archived',
+    startDate: '2026-02-25',
+    endDate: '2026-02-26',
+    summary:
+      '系统从单页工作台扩展为多模块运营后台，补齐项目管理、系统管理、月报、数据分析与 AI 对话能力。',
+    focus: ['项目管理', '系统管理', '月度报表', 'AI 聊天', '深色模式'],
+    highlights: [
+      {
+        area: 'Management',
+        title: '新增项目管理与系统管理能力',
+        detail: '建立项目、账号与系统配置相关的管理入口，后台从工具页升级为运营系统。',
+      },
+      {
+        area: 'Analysis',
+        title: '月报与数据分析模块成型',
+        detail: '完善月度报告、分析页面与相关服务，为经营核算建立第一层分析视图。',
+      },
+      {
+        area: 'AI',
+        title: '接入 AI 聊天与会话能力',
+        detail: '补上 AI Chat 数据表与前端入口，开始形成辅助运营分析的智能面板。',
+      },
+      {
+        area: 'UI',
+        title: '优化深色模式与会话体验',
+        detail: '统一深浅色视觉表现，改善页面在不同主题下的可读性和一致性。',
+      },
+    ],
+    sourceLogs: [
+      'V2.25 更新数据库-1 SKU成本',
+      '添加项目管理和系统管理功能',
+      'V2.26 Fix',
+      'UI/UX: 优化深色模式样式和会话配置',
+      'feat: 完善月报功能与数据分析模块',
+      'feat: 添加 AI 聊天功能与数据分析增强',
+    ],
+  },
+  {
+    version: 'V3',
+    codename: '经营治理升级',
+    status: 'archived',
+    startDate: '2026-03-01',
+    endDate: '2026-03-07',
+    summary:
+      '围绕经营核算与数据治理升级，逐步补齐汇率、佣金、类目研究、周度分析与系统管理主链路。',
+    focus: ['汇率管理', '佣金管理', '类目研究', '周度产品分析', '系统管理增强'],
+    highlights: [
+      {
+        area: 'Finance',
+        title: '建立汇率与佣金治理能力',
+        detail: '新增汇率管理、佣金管理与 V2 规则迭代，让经营核算具备更完整的财务配置能力。',
+      },
+      {
+        area: 'Research',
+        title: '上线类目研究完整链路',
+        detail: '从表结构、服务、页面到测试补齐类目研究模块，并持续修复研究分析页问题。',
+      },
+      {
+        area: 'Analysis',
+        title: '强化月报、产品分析与周度分析',
+        detail: '月报、产品分析源持久化和每周产品分析能力持续增强，分析模块开始系统化。',
+      },
+      {
+        area: 'UX',
+        title: '重构调研分析页面布局',
+        detail: '页面调整为更适合长内容浏览的滚动式布局，并处理溢出和阅读节奏问题。',
+      },
+    ],
+    sourceLogs: [
+      'feat: 添加月度报告、产品分析源持久化和Redis缓存支持',
+      'feat: 每周产品分析增强',
+      'feat: 添加汇率管理功能、用户账户全名字段及相关页面优化',
+      'feat: 佣金管理V2 + 产品成本增强 + 系统管理功能完善',
+      '更新系统管理模块：重构佣金管理、项目管理，新增数据分析页面',
+      'feat: 添加类目研究功能，优化产品成本排序 API',
+      'feat: 实现类目研究服务和产品成本排序逻辑，添加测试',
+      'feat: 重构品类调研分析页面为滚动式布局并优化溢出处理',
+    ],
+  },
+  {
+    version: 'V4',
+    codename: '执行链路完善',
+    status: 'stable',
+    startDate: '2026-03-10',
+    endDate: '2026-03-18',
+    summary:
+      '发货、库存、定价、权限和导出能力集中落地，系统进入面向运营执行的协同工作台阶段。',
+    focus: ['发货管理', '库存补货', '定价核算', '权限控制', 'Excel 导出'],
+    highlights: [
+      {
+        area: 'Logistics',
+        title: '发货管理与船期维护能力成熟',
+        detail: '发货计划支持国家字段、批次编辑、SKU 明细维护、货件编号搜索与状态简化，执行链路明显完善。',
+      },
+      {
+        area: 'Inventory',
+        title: '补货分析与库存分析上线',
+        detail: '库存补货、库存分析页面与服务逐步补齐，库存决策开始具备独立的数据工作区。',
+      },
+      {
+        area: 'Pricing',
+        title: '定价核算进入深水区',
+        detail: '支持批量导入、运行类型切换、快照存档、佣金率配置、矩阵对比加粗和多轮 Excel 导出优化。',
+      },
+      {
+        area: 'Security',
+        title: '加强项目权限与账号安全',
+        detail: '补上项目访问检查、运营查看权限修复与密码管理，减少跨项目访问风险。',
+      },
+      {
+        area: 'Experience',
+        title: '加载态与响应式体验升级',
+        detail: '增加页面骨架屏、加载提示与响应式布局优化，让高频运营页面更稳定可用。',
+      },
+    ],
+    sourceLogs: [
+      'feat: 添加汇率管理、库存补货、发货计划等功能',
+      'feat: add country field support and improve shipment schedules',
+      'feat: add password management and improve user authentication',
+      'feat: add CSV batch import for SKU cost',
+      'feat: support pricing calculation run types and deletion',
+      'Add styled Excel exports for analysis dashboards',
+      'feat: 添加店铺 SKU 核算快照功能及发货成本计算优化',
+      '新增Excel导出定价功能',
+      'feat: 添加定价计算的佣金率(commission_rate)可配置功能',
+      '收紧项目权限控制',
+      'feat(frontend): 添加页面加载状态骨架屏和更新提示',
+      'feat: 支持在编辑页面直接维护船期批次SKU明细',
+      'feat: 添加货件编号搜索过滤功能和总数量统计',
+      '优化库存补货页面 UI 并修复发货管理相关逻辑',
+      'feat: 新增库存分析页面',
+    ],
+  },
+  {
+    version: 'V5',
+    codename: '数据链路重构',
+    status: 'stable',
+    startDate: '2026-03-19',
+    endDate: '2026-03-20',
+    summary:
+      '重构报表上传与分析数据链路，补齐历史数据回填与清洗流程，为后续广告分析和多源报表奠定稳定底座。',
+    focus: ['报表上传', '日报分析', '数据回填', '历史清洗', '分析工作流'],
+    highlights: [
+      {
+        area: 'Pipeline',
+        title: '重构报表上传与日报分析流程',
+        detail: '上传、状态跟踪、日报分析与分析源之间的关系被重新整理，数据链路更清晰。',
+      },
+      {
+        area: 'History',
+        title: '补齐历史广告与补货日期数据',
+        detail: '针对广告报表、补库存报告等历史数据做 ReportDate 回填与补全，降低旧数据缺失对分析的影响。',
+      },
+      {
+        area: 'Cleanup',
+        title: '清理异常付款报告历史',
+        detail: '删除错误、重复与过旧的付款报告历史，减少脏数据对财务与分析模块的干扰。',
+      },
+      {
+        area: 'Workflow',
+        title: '更新研究与分析工作流',
+        detail: '类目研究和分析流程继续深化，为后续更完整的广告/库存分析提供统一节奏。',
+      },
+    ],
+    sourceLogs: [
+      '重构报表上传与日报分析流程',
+      '补库存报告 ReportDate 云端回填迁移',
+      '补广告报表 ReportDate 回填迁移',
+      '清理玥涵早期错误付款报告历史',
+      '清理 2026 年前付款报告历史',
+      '补齐数据管理页面更新',
+      'feat: update category research and analysis workflow',
+      '补全历史广告数据，包含手动日报部分数据',
+    ],
+  },
+  {
+    version: 'V6',
+    codename: '分析工作台',
+    status: 'current',
+    startDate: '2026-03-23',
+    endDate: '2026-03-25',
+    summary:
+      '广告分析模块正式加入主工作台，仪表盘、导航、导出体验与界面细节集中打磨，形成当前的 V6 版本形态。',
+    focus: ['广告分析', '仪表盘改版', '导航优化', 'Excel 体验', '界面抛光'],
+    highlights: [
+      {
+        area: 'Ads',
+        title: '广告分析模块上线',
+        detail: '新增广告分析主模块及分页面结构，让投放数据首次成为 Dashboard 的独立分析域。',
+      },
+      {
+        area: 'Dashboard',
+        title: '仪表盘信息密度与节奏重排',
+        detail: '优化布局、间距、描述文案和组件导航，让首页与分析页的浏览效率更高。',
+      },
+      {
+        area: 'Navigation',
+        title: '侧边栏快捷入口重做',
+        detail: '更新常用链接、增强分组与视觉层次，使高频页面切换更顺手。',
+      },
+      {
+        area: 'Export',
+        title: '持续打磨定价与发货 Excel 导出',
+        detail: '补齐规则列、颜色映射、分组表头与汇总行位置等细节，导出结果更适合直接交付使用。',
+      },
+      {
+        area: 'Polish',
+        title: '多页面 UI 细节统一抛光',
+        detail: '对研究分析 Tab、项目创建错误、侧边栏阴影与界面交互做收口，形成当前稳定版本。',
+      },
+    ],
+    sourceLogs: [
+      'feat: add ad-analysis module and enhance dashboard components',
+      'feat: enhance dashboard UI components and navigation',
+      '优化仪表盘布局与间距，移除冗余描述文字',
+      '优化定价核算Excel导出，添加分组表头和颜色映射；调整侧边栏样式和阴影',
+      'feat: SKU信息增加品名字段，成本管理Tab合并ASIN/FNSKU显示',
+      'fix: 店铺核算Excel导出-补全产品核定表头下的规则列，并修正货品数据/DPD成本底色',
+      '优化仪表盘界面样式与交互体验',
+      '优化侧边栏快捷入口：更新常用链接并增强UI设计',
+      'fix: align research analysis tabs',
+      'fix: 修复项目创建时的主键冲突与前端错误解析',
+      'Refine dashboard sidebar and related UI polish',
+    ],
+  },
+]
 
-    const entries = output
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line) => {
-        const [hash, shortHash, date, ...subjectParts] = line.split('\t')
-        const subject = subjectParts.join('\t').trim()
+export function getChangelogSnapshot(): ChangelogSnapshot {
+  const currentRelease = RELEASES.find((release) => release.status === 'current') ?? RELEASES[RELEASES.length - 1]
+  const highlightCount = RELEASES.reduce((count, release) => count + release.highlights.length, 0)
+  const logCount = RELEASES.reduce((count, release) => count + release.sourceLogs.length, 0)
+  const moduleCount = new Set(RELEASES.flatMap((release) => release.focus)).size
 
-        if (!hash || !shortHash || !date || !subject) {
-          return null
-        }
-
-        return {
-          hash,
-          shortHash,
-          date,
-          subject,
-          type: classifyCommit(subject),
-        } satisfies ChangelogEntry
-      })
-      .filter((entry): entry is ChangelogEntry => entry !== null)
-
-    return { entries, error: null }
-  } catch {
-    return {
-      entries: [],
-      error: '读取 Git 提交记录失败，请确认运行环境允许执行 git 命令。',
-    }
+  return {
+    releases: RELEASES,
+    currentRelease,
+    stats: {
+      versionCount: RELEASES.length,
+      highlightCount,
+      logCount,
+      moduleCount,
+    },
+    source: {
+      mode: 'processed-history-logs',
+      label: '',
+      updatedAt: currentRelease.endDate,
+    },
   }
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { DateRange } from 'react-day-picker'
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, BarChart3, FileDown, Loader2, RefreshCcw } from 'lucide-react'
+import { ArrowDown, ArrowUp, BarChart3, ChevronLeft, ChevronRight, FileDown, Loader2, RefreshCcw } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { Bar, CartesianGrid, ComposedChart, Line, XAxis, YAxis } from 'recharts'
 
@@ -690,19 +690,14 @@ export default function DailyAnalysisPage() {
   }
 
   return (
-    <div className="space-y-6 lg:space-y-7">
+    <div className="space-y-5 lg:space-y-6">
       <Card className="dashboard-surface overflow-hidden">
-        <CardHeader className="pb-4">
-          <div className="flex flex-col gap-4">
-            <div className="space-y-3">
-              
-              <div className="space-y-2">
-                <p className="dashboard-kicker">Analysis Console</p>
-                <CardTitle className="text-2xl md:text-[2.2rem]">销售数据策展台</CardTitle>
-                
-              </div>
+        <CardHeader className="pb-3">
+          <div className="flex flex-col gap-3">
+            <div className="space-y-1.5">
+              <p className="dashboard-kicker">Analysis Console</p>
+              <CardTitle className="text-2xl md:text-[2.2rem]">销售数据策展台</CardTitle>
             </div>
-
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="outline" className="border-border/60 bg-background/80 px-3 py-1 text-foreground">
                 项目：{selectedProjectName || '未选择'}
@@ -717,12 +712,12 @@ export default function DailyAnalysisPage() {
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-4 pt-0">
-          <div className="dashboard-toolbar grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(12rem,14rem)_minmax(8.5rem,10rem)_minmax(0,1fr)_auto] xl:items-end">
+        <CardContent className="space-y-3 pt-0">
+          <div className="dashboard-toolbar grid gap-2.5 md:grid-cols-2 xl:grid-cols-[minmax(12rem,14rem)_minmax(8rem,9.5rem)_minmax(0,1fr)_auto] xl:items-end">
             <div className="space-y-2">
               <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">项目</div>
               <Select value={projectId} onValueChange={setProjectId}>
-                <SelectTrigger className="h-11 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none [&>span]:truncate dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
+                <SelectTrigger className="h-10 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none [&>span]:truncate dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
                   <SelectValue placeholder="选择项目" />
                 </SelectTrigger>
                 <SelectContent>
@@ -738,7 +733,7 @@ export default function DailyAnalysisPage() {
             <div className="space-y-2">
               <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">国家站点</div>
               <Select value={country} onValueChange={(value) => setCountry(value as CountryOption)}>
-                <SelectTrigger className="h-11 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none [&>span]:truncate dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
+                <SelectTrigger className="h-10 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none [&>span]:truncate dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
                   <SelectValue placeholder="国家站点" />
                 </SelectTrigger>
                 <SelectContent>
@@ -757,13 +752,13 @@ export default function DailyAnalysisPage() {
                 <DateRangePicker
                   value={dateRange}
                   onChange={setDateRange}
-                  className="h-11 flex-1 min-w-[220px]"
+                  className="h-10 flex-1 min-w-[220px]"
                   onApply={() => void loadData()}
                 />
-                <Button type="button" variant="secondary" className="h-11 px-4" onClick={() => void handleQuickRange(getYesterdayRange())}>
+                <Button type="button" variant="secondary" className="h-10 px-4" onClick={() => void handleQuickRange(getYesterdayRange())}>
                   昨天
                 </Button>
-                <Button type="button" variant="secondary" className="h-11 px-4" onClick={() => void handleQuickRange(getLastWeekRange())}>
+                <Button type="button" variant="secondary" className="h-10 px-4" onClick={() => void handleQuickRange(getLastWeekRange())}>
                   上周
                 </Button>
               </div>
@@ -773,7 +768,7 @@ export default function DailyAnalysisPage() {
               type="button"
               onClick={() => void loadData()}
               disabled={loading || projectsLoading}
-              className="h-11 px-5"
+              className="h-10 px-5"
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
               刷新视图
@@ -804,88 +799,90 @@ export default function DailyAnalysisPage() {
               <Badge variant="outline" className="border-border/60 bg-background/85 px-3 py-1 text-foreground">
                 对比区间：{formatRangeLabel(comparisonRange)}
               </Badge>
-              {metricPageCount > 1 ? (
-                <div className="flex items-center gap-2 rounded-md bg-[hsl(var(--surface-soft))]/90 px-2 py-1">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => setMetricPage((page) => Math.max(0, page - 1))}
-                    disabled={metricPage === 0}
-                  >
-                    <ArrowLeft className="h-4 w-4" />
-                  </Button>
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {metricPage + 1} / {metricPageCount}
-                  </span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => setMetricPage((page) => Math.min(metricPageCount - 1, page + 1))}
-                    disabled={metricPage >= metricPageCount - 1}
-                  >
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              ) : null}
             </div>
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-5">
+        <CardContent className="space-y-4">
           {summaryRows.length ? (
             <>
-              <div className="grid gap-3 xl:grid-cols-4">
-                {visibleMetricCards.map((metric) => {
-                  const isActive = metric.key === activeChartMetric
-                  const showIncrease = metric.percentChange === null ? true : metric.percentChange >= 0
-                  const usePositiveColor = metric.percentChange === null ? true : metric.isPositiveDirection
-
-                  return (
-                    <button
-                      key={metric.key}
+              <div className="relative px-10 md:px-12">
+                {metricPageCount > 1 ? (
+                  <>
+                    <Button
                       type="button"
-                      onClick={() => setActiveChartMetric(metric.key)}
-                      className={cn(
-                        'rounded-lg px-5 py-5 text-left transition-all duration-200',
-                        isActive
-                          ? 'bg-primary text-primary-foreground shadow-[0_18px_38px_-24px_hsl(var(--primary)/0.72)]'
-                          : 'bg-[hsl(var(--surface-soft))]/86 text-foreground hover:-translate-y-0.5 hover:bg-background'
-                      )}
+                      variant="ghost"
+                      aria-label="查看上一组图表指标"
+                      className="absolute left-0 top-1/2 z-10 h-16 w-14 -translate-x-[68%] -translate-y-1/2 rounded-none p-0 text-[#ef5a4c] hover:bg-transparent hover:text-[#e14b3d] disabled:opacity-30"
+                      onClick={() => setMetricPage((page) => Math.max(0, page - 1))}
+                      disabled={metricPage === 0}
                     >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className={cn('text-sm font-semibold tracking-tight', isActive ? 'text-primary-foreground/88' : 'text-muted-foreground')}>
-                          {metric.label}
-                        </div>
-                        <div
-                          className={cn(
-                            'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold',
-                            isActive
-                              ? 'bg-[hsl(var(--surface-overlay)/0.72)] text-primary-foreground shadow-sm'
-                              : usePositiveColor
-                                ? 'bg-[hsl(var(--success))/0.12] text-[hsl(var(--success))]'
-                                : 'bg-destructive/12 text-destructive'
-                          )}
-                        >
-                          {showIncrease ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />}
-                          {metric.percentChange === null ? '--' : `${Math.abs(metric.percentChange).toFixed(1)}%`}
-                        </div>
-                      </div>
+                      <ChevronLeft className="h-14 w-14 stroke-[2.4]" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      aria-label="查看下一组图表指标"
+                      className="absolute right-0 top-1/2 z-10 h-16 w-14 translate-x-[68%] -translate-y-1/2 rounded-none p-0 text-[#ef5a4c] hover:bg-transparent hover:text-[#e14b3d] disabled:opacity-30"
+                      onClick={() => setMetricPage((page) => Math.min(metricPageCount - 1, page + 1))}
+                      disabled={metricPage >= metricPageCount - 1}
+                    >
+                      <ChevronRight className="h-14 w-14 stroke-[2.4]" />
+                    </Button>
+                  </>
+                ) : null}
 
-                      <div className="mt-7 space-y-1">
-                        <div className={cn('text-[1.9rem] font-semibold tracking-tight', isActive ? 'text-primary-foreground' : 'text-foreground')}>
-                          {formatMetricCardValue(metric.key, metric.currentValue)}
+                <div className="grid gap-2.5 xl:grid-cols-4">
+                  {visibleMetricCards.map((metric) => {
+                    const isActive = metric.key === activeChartMetric
+                    const showIncrease = metric.percentChange === null ? true : metric.percentChange >= 0
+                    const usePositiveColor = metric.percentChange === null ? true : metric.isPositiveDirection
+
+                    return (
+                      <button
+                        key={metric.key}
+                        type="button"
+                        onClick={() => setActiveChartMetric(metric.key)}
+                        className={cn(
+                          'rounded-lg border px-4 py-4 text-left transition-all duration-200',
+                          isActive
+                            ? 'border-primary/45 bg-primary text-primary-foreground shadow-[0_16px_34px_-24px_hsl(var(--primary)/0.72)]'
+                            : 'border-border/70 bg-[hsl(var(--surface-soft))]/86 text-foreground hover:-translate-y-0.5 hover:border-border hover:bg-background'
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className={cn('text-sm font-semibold tracking-tight', isActive ? 'text-primary-foreground/88' : 'text-muted-foreground')}>
+                            {metric.label}
+                          </div>
+                          <div
+                            className={cn(
+                              'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold backdrop-blur-sm',
+                              isActive
+                                ? usePositiveColor
+                                  ? 'border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(220,252,231,0.92))] text-[hsl(var(--success))] shadow-[0_10px_24px_-14px_rgba(255,255,255,0.9)]'
+                                  : 'border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(254,226,226,0.92))] text-[hsl(var(--destructive))] shadow-[0_10px_24px_-14px_rgba(255,255,255,0.9)]'
+                                : usePositiveColor
+                                  ? 'border-[hsl(var(--success))/0.28] bg-[hsl(var(--success))/0.12] text-[hsl(var(--success))]'
+                                  : 'border-destructive/25 bg-destructive/12 text-destructive'
+                            )}
+                          >
+                            {showIncrease ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />}
+                            {metric.percentChange === null ? '--' : `${Math.abs(metric.percentChange).toFixed(1)}%`}
+                          </div>
                         </div>
-                        <div className={cn('text-sm', isActive ? 'text-primary-foreground/72' : 'text-muted-foreground')}>
-                          对比 {formatMetricCardValue(metric.key, metric.previousValue)}
+
+                        <div className="mt-5 space-y-1">
+                          <div className={cn('text-[1.65rem] font-semibold tracking-tight', isActive ? 'text-primary-foreground' : 'text-foreground')}>
+                            {formatMetricCardValue(metric.key, metric.currentValue)}
+                          </div>
+                          <div className={cn('text-sm', isActive ? 'text-primary-foreground/72' : 'text-muted-foreground')}>
+                            对比 {formatMetricCardValue(metric.key, metric.previousValue)}
+                          </div>
                         </div>
-                      </div>
-                    </button>
-                  )
-                })}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
 
               <div className="rounded-lg bg-[hsl(var(--surface-soft))]/82 p-4 md:p-5">
