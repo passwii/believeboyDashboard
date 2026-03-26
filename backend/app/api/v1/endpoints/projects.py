@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, get_request_operator, protected
 from app.schemas.project import ProjectCreate, ProjectItem, ProjectOption, ProjectUpdate
-from app.services.audit_log_service import append_operation_audit_log
+from app.services.audit_log_service import append_operation_audit_log, append_operation_view_log
 from app.services import project_service
 
 router = APIRouter(dependencies=[Depends(protected)])
@@ -25,18 +25,46 @@ def _serialize_project_item(row) -> dict[str, object | None]:
 
 
 @router.get('/projects')
-def list_projects(db: Session = Depends(get_db_session)) -> list[ProjectOption]:
+def list_projects(
+    request: Request,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+) -> list[ProjectOption]:
     payload = project_service.list_project_options(db)
+    append_operation_view_log(
+        db,
+        action='projects.options.view',
+        target_type='project',
+        operator=operator,
+        after={'count': len(payload)},
+        request=request,
+    )
+    db.commit()
     return [ProjectOption(**item) for item in payload]
 
 
 @router.get('/projects/operator-options')
-def list_project_operator_options(db: Session = Depends(get_db_session)) -> list[str]:
-    return project_service.list_project_operator_options(db)
+def list_project_operator_options(
+    request: Request,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+) -> list[str]:
+    payload = project_service.list_project_operator_options(db)
+    append_operation_view_log(
+        db,
+        action='projects.operator_options.view',
+        target_type='project_operator',
+        operator=operator,
+        after={'count': len(payload)},
+        request=request,
+    )
+    db.commit()
+    return payload
 
 
 @router.get('/projects/manage')
 def list_projects_manage(
+    request: Request,
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
@@ -46,6 +74,15 @@ def list_projects_manage(
         operator=operator,
         is_admin=bool(is_admin),
     )
+    append_operation_view_log(
+        db,
+        action='projects.list',
+        target_type='project',
+        operator=operator,
+        after={'count': len(rows)},
+        request=request,
+    )
+    db.commit()
 
     return [
         ProjectItem(

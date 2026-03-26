@@ -19,6 +19,7 @@ from app.models.commission_ratio_override import CommissionRatioOverride
 from app.models.exchange_rate import ExchangeRate
 from app.models.monthly_report import MonthlyReport, MonthlyReportPT4Calculation
 from app.models.operation_audit_log import OperationAuditLog
+from app.models.operator_performance_record import OperatorPerformanceRecord
 from app.models.project import Project
 from app.models.project_role_assignment import ProjectRoleAssignment
 from app.schemas.system_management import (
@@ -36,6 +37,8 @@ from app.schemas.system_management import (
     OperationAuditLogItem,
     OperationAuditLogsResponse,
     OperationAuditLogsSummaryResponse,
+    OperatorPerformanceItem,
+    OperatorPerformanceResponse,
     OperationAuditLogModuleSummaryItem,
     OperationAuditLogActionSummaryItem,
     CommissionRecordItem,
@@ -63,8 +66,9 @@ from app.schemas.system_management import (
     UpsertCommissionRatioOverridesRequest,
     UpsertCommissionRecordsRequest,
     UpsertProjectRoleAssignmentsRequest,
+    UpsertOperatorPerformanceRequest,
 )
-from app.services.audit_log_service import append_operation_audit_log
+from app.services.audit_log_service import append_operation_audit_log, append_operation_view_log
 
 router = APIRouter(prefix='/system-management', dependencies=[Depends(protected)])
 performance_logger = logging.getLogger('app.performance')
@@ -73,6 +77,7 @@ DATA_STATE_TABLE = 'system_management_data_state'
 STALE_WINDOW_HOURS = 72
 REPORT_MONTH_RE = re.compile(r'^\d{4}-(0[1-9]|1[0-2])$')
 YEAR_RE = re.compile(r'^\d{4}$')
+MULTI_NAME_SPLIT_RE = re.compile(r'[、,，;\n]+')
 OPERATOR_BONUS_RATIO_TIERS: tuple[tuple[Decimal, Decimal], ...] = (
     (Decimal('10000'), Decimal('0.12')),
     (Decimal('50000'), Decimal('0.14')),
@@ -231,6 +236,13 @@ def _dedupe_names(values: list[str]) -> list[str]:
     return result
 
 
+def _split_role_names(value: str | None) -> list[str]:
+    normalized = (value or '').strip()
+    if not normalized:
+        return []
+    return [item.strip() for item in MULTI_NAME_SPLIT_RE.split(normalized) if item.strip()]
+
+
 def _serialize_commission_record(row: CommissionRecord) -> CommissionRecordItem:
     return CommissionRecordItem(
         id=row.id,
@@ -301,10 +313,26 @@ def _serialize_role_assignment(row: ProjectRoleAssignment) -> ProjectRoleAssignm
     return ProjectRoleAssignmentItem(
         id=row.id,
         project_id=row.project_id,
-        role_type=CommissionIncomeCategory(row.role_type),
+        role_type=row.role_type,
         person_name=row.person_name,
         effective_from_month=row.effective_from_month,
         effective_to_month=row.effective_to_month,
+        updated_at=_to_iso(row.updated_at) or '',
+    )
+
+
+def _serialize_operator_performance(row: OperatorPerformanceRecord) -> OperatorPerformanceItem:
+    return OperatorPerformanceItem(
+        id=row.id,
+        report_month=row.report_month,
+        week_index=row.week_index,
+        project_id=row.project_id,
+        project_name=row.project_name,
+        person_name=row.person_name,
+        role_type=row.role_type,
+        score=int(row.score),
+        note=row.note,
+        updated_by=row.updated_by,
         updated_at=_to_iso(row.updated_at) or '',
     )
 
@@ -359,6 +387,9 @@ def _apply_audit_log_filters(
         like_value = f'%{normalized_keyword}%'
         stmt = stmt.where(
             or_(
+                OperationAuditLog.operator.ilike(like_value),
+                OperationAuditLog.action.ilike(like_value),
+                OperationAuditLog.target_type.ilike(like_value),
                 OperationAuditLog.request_path.ilike(like_value),
                 OperationAuditLog.target_id.ilike(like_value),
                 OperationAuditLog.trace_id.ilike(like_value),
@@ -658,11 +689,24 @@ def get_operation_audit_logs_summary(
 
 
 @router.get('/data-management/status', response_model=DataManagementStatusResponse)
-def get_data_management_status(db: Session = Depends(get_db_session)) -> DataManagementStatusResponse:
+def get_data_management_status(
+    request: Request,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+) -> DataManagementStatusResponse:
     settings = get_settings()
     db_healthy, checked_at = _check_database(db)
     db_engine, db_source = _resolve_database_source(settings.database_url)
     data_status, note, updated_by, updated_at = _load_data_state(db)
+    append_operation_view_log(
+        db,
+        action='system.data_management.status.view',
+        target_type='system_management',
+        operator=operator,
+        after={'data_status': data_status.value, 'database_healthy': db_healthy},
+        request=request,
+    )
+    db.commit()
     return DataManagementStatusResponse(
         server_time=checked_at,
         database=DatabaseStatus(
@@ -685,7 +729,11 @@ def get_data_management_status(db: Session = Depends(get_db_session)) -> DataMan
 
 
 @router.get('/data-management/overview', response_model=DataManagementOverviewResponse)
-def get_data_management_overview(db: Session = Depends(get_db_session)) -> DataManagementOverviewResponse:
+def get_data_management_overview(
+    request: Request,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+) -> DataManagementOverviewResponse:
     overall_started_at = _now()
     cached_payload = _get_cached_data_management_overview()
     if cached_payload is not None:
@@ -731,6 +779,20 @@ def get_data_management_overview(db: Session = Depends(get_db_session)) -> DataM
         tables=table_statuses,
         recent_statuses=recent_statuses,
     )
+    append_operation_view_log(
+        db,
+        action='system.data_management.overview.view',
+        target_type='system_management',
+        operator=operator,
+        after={
+            'total_tables': len(table_statuses),
+            'total_rows': total_rows,
+            'stale_tables': stale_tables,
+            'recent_status_count': len(recent_statuses),
+        },
+        request=request,
+    )
+    db.commit()
     _set_cached_data_management_overview(payload)
     total_duration_ms = int((_now() - overall_started_at).total_seconds() * 1000)
     performance_logger.info(
@@ -1104,7 +1166,7 @@ def recompute_commission_records(
         project_month_row.computed_at = now
 
         fallback_roles = roles_by_project.get(int(project.id), {'operator': [], 'assistant': []})
-        operator_names = _dedupe_names(fallback_roles['operator']) or _dedupe_names([project.project_operator or ''])
+        operator_names = _dedupe_names(fallback_roles['operator']) or _dedupe_names(_split_role_names(project.project_operator))
         assistant_names = _dedupe_names(fallback_roles['assistant']) or _dedupe_names([project.assistant_operator or ''])
         default_ratio_map = _build_default_bonus_ratios(
             income_total_usd=income_total_usd,
@@ -1203,9 +1265,11 @@ def recompute_commission_records(
 @router.get('/commission-management/records', response_model=CommissionRecordsResponse)
 def list_commission_records(
     report_month: str,
+    request: Request,
     person_name: str | None = None,
     include_inactive: bool = False,
     db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
 ) -> CommissionRecordsResponse:
     try:
         month = _parse_report_month(report_month)
@@ -1225,6 +1289,16 @@ def list_commission_records(
     )
 
     rows = db.execute(stmt).scalars().all()
+    append_operation_view_log(
+        db,
+        action='commission.bonus_records.view',
+        target_type='commission_bonus_record',
+        target_id=month,
+        operator=operator,
+        after={'report_month': month, 'person_name': normalized_person or None, 'include_inactive': include_inactive, 'count': len(rows)},
+        request=request,
+    )
+    db.commit()
     return CommissionRecordsResponse(
         report_month=month,
         items=[_serialize_commission_record(row) for row in rows],
@@ -1278,7 +1352,9 @@ def update_commission_payment_status(
 @router.get('/commission-management/project-months', response_model=CommissionProjectMonthsResponse)
 def list_commission_project_months(
     report_month: str,
+    request: Request,
     db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
 ) -> CommissionProjectMonthsResponse:
     try:
         month = _parse_report_month(report_month)
@@ -1290,13 +1366,25 @@ def list_commission_project_months(
         .where(CommissionProjectMonth.report_month == month)
         .order_by(CommissionProjectMonth.project_id.asc())
     ).scalars().all()
+    append_operation_view_log(
+        db,
+        action='commission.project_months.view',
+        target_type='commission_project_month',
+        target_id=month,
+        operator=operator,
+        after={'report_month': month, 'count': len(rows)},
+        request=request,
+    )
+    db.commit()
     return CommissionProjectMonthsResponse(report_month=month, items=[_serialize_project_month(row) for row in rows])
 
 
 @router.get('/commission-management/summary/monthly', response_model=CommissionYearlyMonthlySummaryResponse)
 def list_commission_yearly_monthly_summary(
     year: str,
+    request: Request,
     db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
 ) -> CommissionYearlyMonthlySummaryResponse:
     try:
         normalized_year = _parse_year(year)
@@ -1351,13 +1439,25 @@ def list_commission_yearly_monthly_summary(
             )
         )
 
+    append_operation_view_log(
+        db,
+        action='commission.summary.monthly.view',
+        target_type='commission_summary',
+        target_id=normalized_year,
+        operator=operator,
+        after={'year': normalized_year, 'count': len(items)},
+        request=request,
+    )
+    db.commit()
     return CommissionYearlyMonthlySummaryResponse(year=normalized_year, items=items)
 
 
 @router.get('/commission-management/summary/project', response_model=CommissionProjectYearlySummaryResponse)
 def list_commission_project_yearly_summary(
     year: str,
+    request: Request,
     db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
 ) -> CommissionProjectYearlySummaryResponse:
     try:
         normalized_year = _parse_year(year)
@@ -1419,6 +1519,16 @@ def list_commission_project_yearly_summary(
         item.receive_rate = (item.total_received_rmb / item.total_commission_rmb) if item.total_commission_rmb > 0 else 0
 
     items.sort(key=lambda item: item.project_id)
+    append_operation_view_log(
+        db,
+        action='commission.summary.project.view',
+        target_type='commission_summary',
+        target_id=normalized_year,
+        operator=operator,
+        after={'year': normalized_year, 'count': len(items)},
+        request=request,
+    )
+    db.commit()
     return CommissionProjectYearlySummaryResponse(year=normalized_year, items=items)
 
 
@@ -1573,7 +1683,9 @@ def upsert_commission_ratio_overrides(
 @router.get('/commission-management/ratio-overrides', response_model=CommissionRatioOverridesResponse)
 def list_commission_ratio_overrides(
     report_month: str,
+    request: Request,
     db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
 ) -> CommissionRatioOverridesResponse:
     try:
         month = _parse_report_month(report_month)
@@ -1589,14 +1701,26 @@ def list_commission_ratio_overrides(
             CommissionRatioOverride.income_category.asc(),
         )
     ).scalars().all()
+    append_operation_view_log(
+        db,
+        action='commission.ratio_overrides.view',
+        target_type='commission_ratio_override',
+        target_id=month,
+        operator=operator,
+        after={'report_month': month, 'count': len(rows)},
+        request=request,
+    )
+    db.commit()
     return CommissionRatioOverridesResponse(report_month=month, items=[_serialize_ratio_override(row) for row in rows])
 
 
 @router.get('/commission-management/role-assignments', response_model=ProjectRoleAssignmentsResponse)
 def list_project_role_assignments(
+    request: Request,
     report_month: str | None = None,
     project_id: int | None = None,
     db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
 ) -> ProjectRoleAssignmentsResponse:
     stmt = select(ProjectRoleAssignment)
     if project_id is not None and project_id > 0:
@@ -1614,6 +1738,16 @@ def list_project_role_assignments(
         ProjectRoleAssignment.person_name.asc(),
     )
     rows = db.execute(stmt).scalars().all()
+    append_operation_view_log(
+        db,
+        action='commission.role_assignments.view',
+        target_type='project_role_assignment',
+        target_id=project_id,
+        operator=operator,
+        after={'report_month': report_month, 'project_id': project_id, 'count': len(rows)},
+        request=request,
+    )
+    db.commit()
     return ProjectRoleAssignmentsResponse(items=[_serialize_role_assignment(row) for row in rows])
 
 
@@ -1627,8 +1761,14 @@ def upsert_project_role_assignments(
     for item in payload.items:
         from_month = _parse_report_month(item.effective_from_month)
         to_month = _parse_report_month(item.effective_to_month) if item.effective_to_month else None
+        role_type = item.role_type.strip()
+        person_name = item.person_name.strip()
         if to_month is not None and to_month < from_month:
             raise HTTPException(status_code=422, detail='effective_to_month must be greater than or equal to effective_from_month')
+        if not role_type:
+            raise HTTPException(status_code=422, detail='role_type is required')
+        if not person_name:
+            raise HTTPException(status_code=422, detail='person_name is required')
 
         row = None
         if item.id is not None:
@@ -1636,16 +1776,16 @@ def upsert_project_role_assignments(
         if row is None:
             row = ProjectRoleAssignment(
                 project_id=item.project_id,
-                role_type=item.role_type.value,
-                person_name=item.person_name.strip(),
+                role_type=role_type,
+                person_name=person_name,
                 effective_from_month=from_month,
                 effective_to_month=to_month,
             )
             db.add(row)
         else:
             row.project_id = item.project_id
-            row.role_type = item.role_type.value
-            row.person_name = item.person_name.strip()
+            row.role_type = role_type
+            row.person_name = person_name
             row.effective_from_month = from_month
             row.effective_to_month = to_month
 
@@ -1667,3 +1807,120 @@ def upsert_project_role_assignments(
         )
     ).scalars().all()
     return ProjectRoleAssignmentsResponse(items=[_serialize_role_assignment(row) for row in rows])
+
+
+@router.get('/operator-management/performance', response_model=OperatorPerformanceResponse)
+def list_operator_performance(
+    request: Request,
+    report_month: str,
+    project_id: int | None = None,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+) -> OperatorPerformanceResponse:
+    month = _parse_report_month(report_month)
+    stmt = select(OperatorPerformanceRecord).where(OperatorPerformanceRecord.report_month == month)
+    if project_id is not None and project_id > 0:
+        stmt = stmt.where(OperatorPerformanceRecord.project_id == project_id)
+    stmt = stmt.order_by(
+        OperatorPerformanceRecord.person_name.asc(),
+        OperatorPerformanceRecord.project_name.asc(),
+        OperatorPerformanceRecord.week_index.asc(),
+    )
+    rows = db.execute(stmt).scalars().all()
+    append_operation_view_log(
+        db,
+        action='operator.performance.view',
+        target_type='operator_performance_record',
+        target_id=month,
+        operator=operator,
+        after={'report_month': month, 'project_id': project_id, 'count': len(rows)},
+        request=request,
+    )
+    db.commit()
+    return OperatorPerformanceResponse(report_month=month, items=[_serialize_operator_performance(row) for row in rows])
+
+
+@router.post('/operator-management/performance/upsert', response_model=OperatorPerformanceResponse)
+def upsert_operator_performance(
+    payload: UpsertOperatorPerformanceRequest,
+    request: Request,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+) -> OperatorPerformanceResponse:
+    touched_months: set[str] = set()
+    for item in payload.items:
+        month = _parse_report_month(item.report_month)
+        touched_months.add(month)
+        person_name = item.person_name.strip()
+        role_type = item.role_type.strip()
+        project_name = item.project_name.strip()
+
+        if not person_name:
+            raise HTTPException(status_code=422, detail='person_name is required')
+        if not role_type:
+            raise HTTPException(status_code=422, detail='role_type is required')
+        if not project_name:
+            raise HTTPException(status_code=422, detail='project_name is required')
+
+        row = None
+        if item.id is not None:
+            row = db.execute(select(OperatorPerformanceRecord).where(OperatorPerformanceRecord.id == item.id)).scalars().first()
+        if row is None:
+            row = db.execute(
+                select(OperatorPerformanceRecord).where(
+                    OperatorPerformanceRecord.report_month == month,
+                    OperatorPerformanceRecord.week_index == item.week_index,
+                    OperatorPerformanceRecord.project_id == item.project_id,
+                    OperatorPerformanceRecord.person_name == person_name,
+                    OperatorPerformanceRecord.role_type == role_type,
+                )
+            ).scalars().first()
+
+        if row is None:
+            row = OperatorPerformanceRecord(
+                report_month=month,
+                week_index=item.week_index,
+                project_id=item.project_id,
+                project_name=project_name,
+                person_name=person_name,
+                role_type=role_type,
+                score=item.score,
+                note=(item.note or '').strip() or None,
+                updated_by=operator,
+            )
+            db.add(row)
+        else:
+            row.report_month = month
+            row.week_index = item.week_index
+            row.project_id = item.project_id
+            row.project_name = project_name
+            row.person_name = person_name
+            row.role_type = role_type
+            row.score = item.score
+            row.note = (item.note or '').strip() or None
+            row.updated_by = operator
+
+    append_operation_audit_log(
+        db,
+        action='operator.performance.upsert',
+        target_type='operator_performance_record',
+        operator=operator,
+        after={'incoming_items': len(payload.items)},
+        request=request,
+    )
+    db.commit()
+
+    target_month = sorted(touched_months)[-1] if touched_months else ''
+    if not target_month:
+        return OperatorPerformanceResponse(report_month='', items=[])
+
+    rows = db.execute(
+        select(OperatorPerformanceRecord)
+        .where(OperatorPerformanceRecord.report_month == target_month)
+        .order_by(
+            OperatorPerformanceRecord.person_name.asc(),
+            OperatorPerformanceRecord.project_name.asc(),
+            OperatorPerformanceRecord.week_index.asc(),
+        )
+    ).scalars().all()
+    return OperatorPerformanceResponse(report_month=target_month, items=[_serialize_operator_performance(row) for row in rows])

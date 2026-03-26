@@ -107,3 +107,24 @@ def append_operation_audit_log(
             error_message=_clip(error_message, 4000),
         )
     )
+
+
+def append_operation_view_log(
+    db: Session,
+    *,
+    action: str,
+    target_type: str,
+    operator: str | None = None,
+    target_id: str | int | None = None,
+    after: dict[str, Any] | list[Any] | None = None,
+    request: Request | None = None,
+) -> None:
+    append_operation_audit_log(
+        db,
+        action=action,
+        target_type=target_type,
+        target_id=target_id,
+        operator=operator,
+        after=after,
+        request=request,
+    )

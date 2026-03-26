@@ -18,7 +18,7 @@ class ProjectRoleAssignment(Base):
             'effective_from_month',
             name='project_role_assignments_unique_role_window',
         ),
-        CheckConstraint("role_type in ('operator', 'assistant')", name='ck_project_role_assignments_role_type'),
+        CheckConstraint("length(trim(role_type)) > 0", name='ck_project_role_assignments_role_type_nonempty'),
         CheckConstraint("effective_from_month LIKE '____-__'", name='ck_project_role_assignments_from_month_format'),
         CheckConstraint(
             "effective_to_month is null or effective_to_month LIKE '____-__'",

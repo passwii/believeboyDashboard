@@ -62,6 +62,39 @@ def test_normalize_commission_rate_rejects_out_of_range():
     assert exc_info.value.status_code == 422
 
 
+def test_normalize_multi_name_text_dedupes_and_joins_names():
+    normalized = project_service._normalize_multi_name_text('小王, 小李、 小王\n小赵')
+
+    assert normalized == '小王、小李、小赵'
+
+
+def test_list_project_items_allows_member_access_for_multi_operator_field():
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as session:
+        session.add_all(
+            [
+                Project(project_name='项目A', project_operator='小王、小李', sort_order=0),
+                Project(project_name='项目B', project_operator='小赵', sort_order=1),
+            ]
+        )
+        session.commit()
+
+        rows = project_service.list_project_items(session, operator='小李', is_admin=False)
+
+        assert [row.project_name for row in rows] == ['项目A']
+
+
+def test_ensure_project_creation_allowed_accepts_multi_operator_membership():
+    project_service.ensure_project_creation_allowed(
+        '小李',
+        is_admin=False,
+        project_operator='小王、小李',
+        assistant_operator=None,
+    )
+
+
 def test_create_single_project_recovers_from_primary_key_sequence_drift(monkeypatch: pytest.MonkeyPatch):
     engine = create_engine('sqlite:///:memory:', future=True)
     Base.metadata.create_all(bind=engine)

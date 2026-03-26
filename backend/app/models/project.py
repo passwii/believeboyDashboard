@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, DateTime, Integer, Numeric, String, UniqueConstraint, CheckConstraint, func
+from sqlalchemy import BigInteger, DateTime, Integer, Numeric, String, Text, UniqueConstraint, CheckConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
@@ -30,8 +30,8 @@ class Project(Base):
     project_name: Mapped[str] = mapped_column(String, nullable=False, index=True)
     brand_name: Mapped[str | None] = mapped_column(String, nullable=True)
     store_address: Mapped[str | None] = mapped_column(String, nullable=True)
-    project_operator: Mapped[str | None] = mapped_column(String, nullable=True)
-    assistant_operator: Mapped[str | None] = mapped_column(String, nullable=True)
+    project_operator: Mapped[str | None] = mapped_column(Text, nullable=True)
+    assistant_operator: Mapped[str | None] = mapped_column(Text, nullable=True)
     commission_basis: Mapped[str | None] = mapped_column(String, nullable=True)
     commission_rate: Mapped[Decimal | None] = mapped_column(Numeric(7, 4), nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, index=True)

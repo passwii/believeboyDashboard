@@ -1479,7 +1479,7 @@ function AnalysisSectionHeader({
 }) {
   return (
     <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-      <div>
+      <div className="md:pl-3 lg:pl-4">
         <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Deep Dive</p>
         <h2 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">{section.label}</h2>
       </div>

@@ -21,7 +21,7 @@ from app.schemas.shipment_schedule import (
     ShipmentScheduleListResponse,
     ShipmentScheduleUpdate,
 )
-from app.services.audit_log_service import append_operation_audit_log
+from app.services.audit_log_service import append_operation_audit_log, append_operation_view_log
 from app.services import project_service, shipment_schedule_service
 
 router = APIRouter(dependencies=[Depends(protected)])
@@ -61,8 +61,82 @@ def _serialize_schedule_list_item(row: object, sku_count: int, total_quantity: i
     )
 
 
+def _build_shipment_schedule_detail(row: object, sku_count: int, total_quantity: int) -> ShipmentScheduleDetail:
+    return ShipmentScheduleDetail(
+        id=int(row.id),
+        project_id=int(row.project_id),
+        project_name=str(row.project_name_snapshot),
+        country=str(row.country),
+        shipment_no=str(row.shipment_no),
+        tracking_no=row.tracking_no,
+        warehouse_code=row.warehouse_code,
+        forwarder_name=row.forwarder_name,
+        shipping_method=str(row.shipping_method),
+        created_date=_date_text(row.created_date),
+        etd_date=_date_text(row.etd_date),
+        eta_date=_date_text(row.eta_date),
+        actual_inbound_date=_date_text(row.actual_inbound_date),
+        remark=row.remark,
+        shipment_status=str(row.shipment_status),
+        sku_count=int(sku_count),
+        total_quantity=int(total_quantity),
+        logistics_unit_price=float(row.logistics_unit_price or 0),
+        total_volume_m3=float(row.total_volume_m3 or 0),
+        total_chargeable_weight_kg=float(row.total_chargeable_weight_kg or 0),
+        logistics_total_price=float(row.logistics_total_price or 0),
+        include_in_history_shipping_calc=bool(row.include_in_history_shipping_calc),
+        items=[
+            {
+                'id': int(item.id),
+                'item_date': _date_text(item.item_date),
+                'sku': str(item.sku),
+                'quantity': int(item.quantity),
+                'remark': item.remark,
+                'volume_m3': float(item.volume_m3 or 0),
+                'actual_weight_kg': float(item.actual_weight_kg or 0),
+                'volumetric_weight_kg': float(item.volumetric_weight_kg or 0),
+                'chargeable_weight_kg': float(item.chargeable_weight_kg or 0),
+                'estimated_logistics_cost': float(item.estimated_logistics_cost or 0),
+                'average_logistics_unit_price': float(item.average_logistics_unit_price or 0),
+            }
+            for item in row.items
+        ],
+        updated_at=row.updated_at.isoformat(),
+    )
+
+
+def _get_shipment_schedule_detail_payload(
+    *,
+    schedule_id: int,
+    db: Session,
+    operator: str | None,
+    is_admin: bool,
+    request: Request | None = None,
+) -> ShipmentScheduleDetail:
+    row, sku_count, total_quantity = shipment_schedule_service.get_shipment_schedule_detail(db, schedule_id)
+    project_service.ensure_project_access(
+        db,
+        int(row.project_id),
+        operator=operator,
+        is_admin=is_admin,
+    )
+    if request is not None:
+        append_operation_view_log(
+            db,
+            action='shipment_schedules.detail.view',
+            target_type='shipment_schedule',
+            target_id=schedule_id,
+            operator=operator,
+            after={'shipment_no': row.shipment_no, 'sku_count': int(sku_count), 'total_quantity': int(total_quantity)},
+            request=request,
+        )
+        db.commit()
+    return _build_shipment_schedule_detail(row, sku_count, total_quantity)
+
+
 @router.get('/shipment-schedules', response_model=ShipmentScheduleListResponse)
 def list_shipment_schedules(
+    request: Request,
     project_id: int | None = Query(default=None, gt=0),
     country: str | None = Query(default=None),
     shipment_status: str | None = Query(default=None),
@@ -111,6 +185,25 @@ def list_shipment_schedules(
         page_size=page_size,
         include_total=include_total,
     )
+    append_operation_view_log(
+        db,
+        action='shipment_schedules.list',
+        target_type='shipment_schedule',
+        operator=operator,
+        after={
+            'project_id': project_id,
+            'country': country,
+            'shipment_status': shipment_status,
+            'shipping_method': shipping_method,
+            'shipment_no': shipment_no,
+            'page': page,
+            'page_size': page_size,
+            'count': len(rows),
+            'total': total,
+        },
+        request=request,
+    )
+    db.commit()
     return ShipmentScheduleListResponse(
         items=[_serialize_schedule_list_item(row, sku_count, total_quantity) for row, sku_count, total_quantity in rows],
         page=page,
@@ -122,6 +215,7 @@ def list_shipment_schedules(
 
 @router.get('/shipment-schedules/cost-summary', response_model=ShipmentScheduleCostSummary)
 def summarize_shipment_schedule_costs(
+    request: Request,
     project_id: int | None = Query(default=None, gt=0),
     country: str | None = Query(default=None),
     shipment_status: str | None = Query(default=None),
@@ -156,11 +250,27 @@ def summarize_shipment_schedule_costs(
         created_date_from=created_date_from,
         created_date_to=created_date_to,
     )
+    append_operation_view_log(
+        db,
+        action='shipment_schedules.cost_summary.view',
+        target_type='shipment_schedule',
+        operator=operator,
+        after={
+            'project_id': project_id,
+            'country': country,
+            'shipment_status': shipment_status,
+            'shipping_method': shipping_method,
+            'shipment_no': shipment_no,
+        },
+        request=request,
+    )
+    db.commit()
     return ShipmentScheduleCostSummary(**summary)
 
 
 @router.get('/shipment-schedules/sku-summary', response_model=ShipmentSkuSummaryResponse)
 def list_shipment_sku_summary(
+    request: Request,
     project_id: int | None = Query(default=None, gt=0),
     country: str | None = Query(default=None),
     include_only_history_calc: bool = Query(default=True),
@@ -189,6 +299,21 @@ def list_shipment_sku_summary(
         include_only_history_calc=include_only_history_calc,
         shipment_status=shipment_status,
     )
+    append_operation_view_log(
+        db,
+        action='shipment_schedules.sku_summary.view',
+        target_type='shipment_schedule',
+        operator=operator,
+        after={
+            'project_id': project_id,
+            'country': country,
+            'shipment_status': shipment_status,
+            'include_only_history_calc': include_only_history_calc,
+            'count': len(rows),
+        },
+        request=request,
+    )
+    db.commit()
     return ShipmentSkuSummaryResponse(
         items=[ShipmentSkuSummaryItem(**row) for row in rows]
     )
@@ -196,6 +321,7 @@ def list_shipment_sku_summary(
 
 @router.get('/shipment-schedules/fba-box-details', response_model=ShipmentFbaBoxDetailResponse)
 def list_shipment_fba_box_details(
+    request: Request,
     shipment_no: str = Query(..., min_length=1),
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
@@ -211,6 +337,16 @@ def list_shipment_fba_box_details(
         operator=operator,
         is_admin=bool(is_admin),
     )
+    append_operation_view_log(
+        db,
+        action='shipment_schedules.fba_box_details.view',
+        target_type='shipment_schedule',
+        target_id=row.id,
+        operator=operator,
+        after={'shipment_no': shipment_no, 'count': len(items)},
+        request=request,
+    )
+    db.commit()
     return ShipmentFbaBoxDetailResponse(
         project_id=int(row.project_id),
         project_name=str(row.project_name_snapshot),
@@ -223,57 +359,17 @@ def list_shipment_fba_box_details(
 @router.get('/shipment-schedules/{schedule_id}', response_model=ShipmentScheduleDetail)
 def get_shipment_schedule_detail(
     schedule_id: int,
+    request: Request,
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> ShipmentScheduleDetail:
-    row, sku_count, total_quantity = shipment_schedule_service.get_shipment_schedule_detail(db, schedule_id)
-    project_service.ensure_project_access(
-        db,
-        int(row.project_id),
+    return _get_shipment_schedule_detail_payload(
+        schedule_id=schedule_id,
+        request=request,
+        db=db,
         operator=operator,
         is_admin=bool(is_admin),
-    )
-    return ShipmentScheduleDetail(
-        id=int(row.id),
-        project_id=int(row.project_id),
-        project_name=str(row.project_name_snapshot),
-        country=str(row.country),
-        shipment_no=str(row.shipment_no),
-        tracking_no=row.tracking_no,
-        warehouse_code=row.warehouse_code,
-        forwarder_name=row.forwarder_name,
-        shipping_method=str(row.shipping_method),
-        created_date=_date_text(row.created_date),
-        etd_date=_date_text(row.etd_date),
-        eta_date=_date_text(row.eta_date),
-        actual_inbound_date=_date_text(row.actual_inbound_date),
-        remark=row.remark,
-        shipment_status=str(row.shipment_status),
-        sku_count=int(sku_count),
-        total_quantity=int(total_quantity),
-        logistics_unit_price=float(row.logistics_unit_price or 0),
-        total_volume_m3=float(row.total_volume_m3 or 0),
-        total_chargeable_weight_kg=float(row.total_chargeable_weight_kg or 0),
-        logistics_total_price=float(row.logistics_total_price or 0),
-        include_in_history_shipping_calc=bool(row.include_in_history_shipping_calc),
-        items=[
-            {
-                'id': int(item.id),
-                'item_date': _date_text(item.item_date),
-                'sku': str(item.sku),
-                'quantity': int(item.quantity),
-                'remark': item.remark,
-                'volume_m3': float(item.volume_m3 or 0),
-                'actual_weight_kg': float(item.actual_weight_kg or 0),
-                'volumetric_weight_kg': float(item.volumetric_weight_kg or 0),
-                'chargeable_weight_kg': float(item.chargeable_weight_kg or 0),
-                'estimated_logistics_cost': float(item.estimated_logistics_cost or 0),
-                'average_logistics_unit_price': float(item.average_logistics_unit_price or 0),
-            }
-            for item in row.items
-        ],
-        updated_at=row.updated_at.isoformat(),
     )
 
 
@@ -295,7 +391,13 @@ def create_shipment_schedule(
         request=request,
     )
     db.commit()
-    return get_shipment_schedule_detail(schedule_id=row.id, db=db)
+    return _get_shipment_schedule_detail_payload(
+        schedule_id=row.id,
+        request=request,
+        db=db,
+        operator=operator,
+        is_admin=False,
+    )
 
 
 @router.post('/shipment-schedules/import-csv', response_model=ShipmentSchedulesImportResponse)
@@ -356,7 +458,13 @@ def update_shipment_schedule(
         request=request,
     )
     db.commit()
-    return get_shipment_schedule_detail(schedule_id=row.id, db=db)
+    return _get_shipment_schedule_detail_payload(
+        schedule_id=row.id,
+        request=request,
+        db=db,
+        operator=operator,
+        is_admin=False,
+    )
 
 
 @router.delete('/shipment-schedules/{schedule_id}', status_code=status.HTTP_204_NO_CONTENT)
@@ -463,4 +571,10 @@ def calculate_shipment_schedule_costs(
         request=request,
     )
     db.commit()
-    return get_shipment_schedule_detail(schedule_id=row.id, db=db)
+    return _get_shipment_schedule_detail_payload(
+        schedule_id=row.id,
+        request=request,
+        db=db,
+        operator=operator,
+        is_admin=False,
+    )

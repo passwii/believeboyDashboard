@@ -31,7 +31,7 @@ from app.schemas.product_cost import (
     ProductCostUpdate,
     ProductCostUpsertResponse,
 )
-from app.services.audit_log_service import append_operation_audit_log
+from app.services.audit_log_service import append_operation_audit_log, append_operation_view_log
 from app.services import product_cost_service
 
 router = APIRouter(dependencies=[Depends(protected)])
@@ -66,6 +66,7 @@ def _serialize_product_cost(row: ProductCost | ProductCostItem) -> dict[str, obj
 @router.get("/sku-info", response_model=ProductCostsPage)
 @router.get("/product-costs", response_model=ProductCostsPage, include_in_schema=False)
 def list_product_costs(
+    request: Request,
     project_name: str | None = Query(default=None),
     sku: str | None = Query(default=None),
     asin: str | None = Query(default=None),
@@ -75,6 +76,7 @@ def list_product_costs(
     page_size: int = Query(default=20, ge=1, le=200),
     include_total: bool = Query(default=False),
     db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
 ) -> ProductCostsPage:
     rows, total, has_next = product_cost_service.list_product_costs(
         db,
@@ -87,6 +89,25 @@ def list_product_costs(
         page_size,
         include_total=include_total,
     )
+    append_operation_view_log(
+        db,
+        action='sku_info.list',
+        target_type='product_cost',
+        operator=operator,
+        after={
+            'page': page,
+            'page_size': page_size,
+            'project_name': project_name,
+            'sku': sku,
+            'asin': asin,
+            'country': country,
+            'is_active': is_active,
+            'count': len(rows),
+            'total': total,
+        },
+        request=request,
+    )
+    db.commit()
     return ProductCostsPage(
         items=[
             ProductCostItem(
@@ -323,6 +344,7 @@ def import_product_costs_from_csv(
 
 @router.get("/sku-info/export")
 def export_product_costs_csv(
+    request: Request,
     project_name: str | None = Query(default=None),
     sku: str | None = Query(default=None),
     asin: str | None = Query(default=None),
@@ -330,6 +352,7 @@ def export_product_costs_csv(
     is_active: bool | None = Query(default=None),
     export_type: str = Query(default="update"),
     db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
 ) -> Response:
     rows = product_cost_service.list_product_costs_all(
         db,
@@ -403,6 +426,25 @@ def export_product_costs_csv(
             for row in rows
         ]
         filename = "sku-info-cost-update-export.csv"
+
+    append_operation_view_log(
+        db,
+        action='sku_info.export',
+        target_type='product_cost',
+        operator=operator,
+        after={
+            'project_name': project_name,
+            'sku': sku,
+            'asin': asin,
+            'country': country,
+            'is_active': is_active,
+            'export_type': normalized_export_type,
+            'count': len(rows),
+            'filename': filename,
+        },
+        request=request,
+    )
+    db.commit()
 
     stream = StringIO()
     writer = csv.writer(stream)

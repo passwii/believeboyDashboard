@@ -1,7 +1,7 @@
 'use client'
 
 import Link, { type LinkProps } from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { type MouseEvent, useCallback, useEffect, useRef } from 'react'
 import { useGlobalLoading } from '@/components/global-loading-provider'
 
@@ -21,13 +21,28 @@ function canHandleNavigationClick(event: MouseEvent<HTMLAnchorElement>, target?:
 export function RouteLoadingLink({
   href,
   onClick,
+  onMouseEnter,
+  onFocus,
   target,
   ...props
 }: RouteLoadingLinkProps) {
   const pathname = usePathname()
+  const router = useRouter()
   const { startGlobalLoading, endGlobalLoading } = useGlobalLoading()
   const pendingRef = useRef(false)
   const watchdogTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const prefetchedRef = useRef(false)
+
+  const hrefString = typeof href === 'string' ? href : href.pathname || ''
+
+  const prefetchRoute = useCallback(() => {
+    if (prefetchedRef.current) return
+    if (!hrefString.startsWith('/')) return
+    if (hrefString === pathname || hrefString.startsWith(`${pathname}#`)) return
+
+    prefetchedRef.current = true
+    router.prefetch(hrefString)
+  }, [hrefString, pathname, router])
 
   const finishNavigationLoading = useCallback(() => {
     if (!pendingRef.current) return
@@ -58,21 +73,29 @@ export function RouteLoadingLink({
     }
   }, [finishNavigationLoading])
 
+  useEffect(() => {
+    prefetchedRef.current = false
+  }, [hrefString])
+
   return (
     <Link
       href={href}
       target={target}
+      onMouseEnter={(event) => {
+        onMouseEnter?.(event)
+        prefetchRoute()
+      }}
+      onFocus={(event) => {
+        onFocus?.(event)
+        prefetchRoute()
+      }}
       onClick={(event) => {
         onClick?.(event)
         if (!canHandleNavigationClick(event, target)) return
 
-        if (typeof href !== 'string') {
-          beginNavigationLoading()
-          return
-        }
-
-        if (!href.startsWith('/')) return
-        if (href === pathname || href.startsWith(`${pathname}#`)) return
+        prefetchRoute()
+        if (!hrefString.startsWith('/')) return
+        if (hrefString === pathname || hrefString.startsWith(`${pathname}#`)) return
 
         beginNavigationLoading()
       }}

@@ -17,13 +17,14 @@ from app.schemas.inventory_replenishment import (
     InventoryReplenishmentSummary,
 )
 from app.services import inventory_analysis_service, inventory_replenishment_service, project_service
-from app.services.audit_log_service import append_operation_audit_log
+from app.services.audit_log_service import append_operation_audit_log, append_operation_view_log
 
 router = APIRouter(dependencies=[Depends(protected)])
 
 
 @router.get('/inventory-analysis', response_model=InventoryAnalysisResponse)
 def get_inventory_analysis(
+    request: Request,
     project_id: int = Query(gt=0),
     country: str = Query(default='US'),
     db: Session = Depends(get_db_session),
@@ -41,6 +42,16 @@ def get_inventory_analysis(
         project_id=project_id,
         country=country,
     )
+    append_operation_view_log(
+        db,
+        action='inventory_analysis.view',
+        target_type='inventory_analysis',
+        target_id=project_id,
+        operator=operator,
+        after={'project_id': project_id, 'country': country, 'item_count': len(payload['items'])},
+        request=request,
+    )
+    db.commit()
     return InventoryAnalysisResponse(
         project_id=int(payload['project_id']),
         project_name=str(payload['project_name']),
@@ -54,6 +65,7 @@ def get_inventory_analysis(
 
 @router.get('/inventory-replenishment-analysis', response_model=InventoryReplenishmentListResponse)
 def list_inventory_replenishment_analysis(
+    request: Request,
     project_id: int = Query(gt=0),
     country: str = Query(default='US'),
     keyword: str | None = Query(default=None),
@@ -81,6 +93,26 @@ def list_inventory_replenishment_analysis(
         page=page,
         page_size=page_size,
     )
+    append_operation_view_log(
+        db,
+        action='inventory_replenishment.list',
+        target_type='inventory_replenishment',
+        target_id=project_id,
+        operator=operator,
+        after={
+            'project_id': project_id,
+            'country': country,
+            'keyword': keyword,
+            'risk_status': risk_status,
+            'in_transit_only': in_transit_only,
+            'page': page,
+            'page_size': page_size,
+            'count': len(rows),
+            'total': total,
+        },
+        request=request,
+    )
+    db.commit()
     return InventoryReplenishmentListResponse(
         items=[InventoryReplenishmentListItem(**row) for row in rows],
         summary=InventoryReplenishmentSummary(**summary),
@@ -151,6 +183,7 @@ def update_inventory_replenishment_setting(
 
 @router.get('/inventory-replenishment-shipments', response_model=InventoryReplenishmentShipmentResponse)
 def list_inventory_replenishment_shipments(
+    request: Request,
     project_id: int = Query(gt=0),
     sku: str = Query(min_length=1),
     db: Session = Depends(get_db_session),
@@ -168,6 +201,16 @@ def list_inventory_replenishment_shipments(
         project_id=project_id,
         sku=sku,
     )
+    append_operation_view_log(
+        db,
+        action='inventory_replenishment.shipments.view',
+        target_type='inventory_replenishment',
+        target_id=project_id,
+        operator=operator,
+        after={'project_id': project_id, 'sku': sku, 'count': len(rows)},
+        request=request,
+    )
+    db.commit()
     return InventoryReplenishmentShipmentResponse(
         project_id=project_id,
         sku=sku,

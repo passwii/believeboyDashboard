@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, get_request_operator, protected
 from app.core.passwords import hash_password
-from app.services.audit_log_service import append_operation_audit_log
+from app.services.audit_log_service import append_operation_audit_log, append_operation_view_log
 
 router = APIRouter(prefix='/system-management/users', tags=['users'], dependencies=[Depends(protected)])
 
@@ -84,7 +84,11 @@ def _serialize_user_item(item: UserItem) -> dict[str, object | None]:
 
 
 @router.get('', response_model=UsersResponse)
-def list_users(db: Session = Depends(get_db_session)) -> UsersResponse:
+def list_users(
+    request: Request,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+) -> UsersResponse:
     rows = db.execute(
         text(
             '''
@@ -103,6 +107,15 @@ def list_users(db: Session = Depends(get_db_session)) -> UsersResponse:
             '''
         )
     ).mappings().all()
+    append_operation_view_log(
+        db,
+        action='users.list',
+        target_type='user_account',
+        operator=operator,
+        after={'count': len(rows)},
+        request=request,
+    )
+    db.commit()
     return UsersResponse(items=[_to_item(row) for row in rows])
 
 

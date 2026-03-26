@@ -201,7 +201,11 @@ const adminGroup: NavGroup = {
       url: '/dashboard/system-management/account-management',
     },
     {
-      title: '佣金管理',
+      title: '运营管理',
+      url: '/dashboard/system-management/operator-management',
+    },
+    {
+      title: '项目佣金',
       url: '/dashboard/system-management/commission-overview',
     },
     { title: '日志查看', url: '/dashboard/system-management/logs' },
@@ -233,7 +237,7 @@ function SidebarGroupBlock({ group }: { group: NavGroup }) {
           <SidebarMenuButton
             tooltip={group.label}
             isActive={hasActiveChild}
-            className='rounded-[0.95rem] border-transparent bg-transparent px-3.5 py-2 text-sidebar-foreground/88 shadow-none hover:bg-[hsl(var(--sidebar-foreground)/0.03)] data-[active=true]:border-[hsl(var(--sidebar-foreground)/0.1)] data-[active=true]:bg-[linear-gradient(180deg,hsl(var(--sidebar-foreground)/0.09),hsl(var(--sidebar-foreground)/0.05))] data-[active=true]:text-sidebar-foreground'
+            className='rounded-[0.95rem] border-transparent bg-transparent px-3.5 py-2 text-sidebar-foreground/88 shadow-none hover:bg-[hsl(var(--sidebar-foreground)/0.03)] data-[active=true]:-translate-y-[1px] data-[active=true]:border-[hsl(var(--sidebar-foreground)/0.12)] data-[active=true]:bg-[linear-gradient(180deg,hsl(var(--sidebar-background)),hsl(var(--sidebar-background))_42%,hsl(var(--sidebar-foreground)/0.06)_100%)] data-[active=true]:text-sidebar-foreground data-[active=true]:ring-1 data-[active=true]:ring-[hsl(var(--sidebar-background)/0.95)] data-[active=true]:shadow-[0_18px_30px_-18px_hsl(var(--sidebar-foreground)/0.42),0_8px_16px_-12px_hsl(var(--sidebar-foreground)/0.22),0_1px_0_hsl(var(--sidebar-background)),inset_0_2px_0_hsl(var(--sidebar-background)),inset_0_-1px_0_hsl(var(--sidebar-foreground)/0.08)]'
           >
             <span
               className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[0.8rem] border border-[hsl(var(--sidebar-foreground)/0.08)] shadow-[inset_0_1px_0_hsl(var(--sidebar-foreground)/0.06)] ${

@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import csv
+import re
 from decimal import Decimal, InvalidOperation
 from io import StringIO
 from pathlib import Path
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, or_, select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -15,6 +16,7 @@ from app.models import ProductCost, Project
 DEFAULT_PROJECTS_CSV_PATH = Path(__file__).resolve().parents[3] / 'Docs' / 'ModelFiles' / 'projects.csv'
 PROJECT_NAME_HEADER = '项目名称'
 ALLOWED_COMMISSION_BASIS = {'sales_amount', 'cash_received', 'profit_margin'}
+MULTI_NAME_SPLIT_RE = re.compile(r'[、,，;\n]+')
 
 
 def _normalize_optional_text(value: str | None) -> str | None:
@@ -22,6 +24,35 @@ def _normalize_optional_text(value: str | None) -> str | None:
         return None
     normalized = value.strip()
     return normalized or None
+
+
+def _split_multi_names(value: str | None) -> list[str]:
+    normalized = _normalize_optional_text(value)
+    if normalized is None:
+        return []
+    return [item.strip() for item in MULTI_NAME_SPLIT_RE.split(normalized) if item.strip()]
+
+
+def _normalize_multi_name_text(value: str | None) -> str | None:
+    names = _split_multi_names(value)
+    if not names:
+        return None
+
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for name in names:
+        if name in seen:
+            continue
+        seen.add(name)
+        deduped.append(name)
+    return '、'.join(deduped)
+
+
+def _text_contains_name(value: str | None, target: str | None) -> bool:
+    normalized_target = _normalize_optional_text(target)
+    if normalized_target is None:
+        return False
+    return normalized_target in _split_multi_names(value)
 
 
 def _normalize_commission_basis(value: str | None) -> str | None:
@@ -184,22 +215,24 @@ def list_project_items(
     operator: str | None = None,
     is_admin: bool = True,
 ) -> list[Project]:
-    stmt = select(Project)
-
     normalized_operator = (operator or '').strip()
     if not is_admin:
-        if normalized_operator:
-            stmt = stmt.where(
-                or_(
-                    Project.project_operator == normalized_operator,
-                    Project.assistant_operator == normalized_operator,
-                )
-            )
-        else:
+        if not normalized_operator:
             return []
 
+    stmt = select(Project)
     stmt = stmt.order_by(Project.sort_order.asc(), Project.id.asc())
-    return db.execute(stmt).scalars().all()
+    rows = db.execute(stmt).scalars().all()
+
+    if is_admin:
+        return rows
+
+    return [
+        row
+        for row in rows
+        if _text_contains_name(row.project_operator, normalized_operator)
+        or _text_contains_name(row.assistant_operator, normalized_operator)
+    ]
 
 
 def list_accessible_project_ids(
@@ -231,7 +264,9 @@ def ensure_project_access(
     if not normalized_operator:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='无权限访问该项目')
 
-    if row.project_operator == normalized_operator or row.assistant_operator == normalized_operator:
+    if _text_contains_name(row.project_operator, normalized_operator) or _text_contains_name(
+        row.assistant_operator, normalized_operator
+    ):
         return row
 
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='无权限访问该项目')
@@ -251,9 +286,11 @@ def ensure_project_creation_allowed(
     if not normalized_operator:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='无权限创建项目')
 
-    normalized_project_operator = _normalize_optional_text(project_operator)
-    normalized_assistant_operator = _normalize_optional_text(assistant_operator)
-    if normalized_project_operator == normalized_operator or normalized_assistant_operator == normalized_operator:
+    normalized_project_operator = _normalize_multi_name_text(project_operator)
+    normalized_assistant_operator = _normalize_multi_name_text(assistant_operator)
+    if _text_contains_name(normalized_project_operator, normalized_operator) or _text_contains_name(
+        normalized_assistant_operator, normalized_operator
+    ):
         return
 
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='无权限创建项目')
@@ -309,8 +346,8 @@ def create_single_project(
 
     normalized_brand_name = _normalize_optional_text(brand_name)
     normalized_store_address = _normalize_optional_text(store_address)
-    normalized_project_operator = _normalize_optional_text(project_operator)
-    normalized_assistant_operator = _normalize_optional_text(assistant_operator)
+    normalized_project_operator = _normalize_multi_name_text(project_operator)
+    normalized_assistant_operator = _normalize_multi_name_text(assistant_operator)
     normalized_commission_basis = _normalize_commission_basis(commission_basis)
     normalized_commission_rate = _normalize_commission_rate(commission_rate)
     normalized_source_file = (source_file or '').strip() or 'manual_single_add'
@@ -378,8 +415,8 @@ def update_project(
     row.project_name = project_name
     row.brand_name = _normalize_optional_text(brand_name)
     row.store_address = _normalize_optional_text(store_address)
-    row.project_operator = _normalize_optional_text(project_operator)
-    row.assistant_operator = _normalize_optional_text(assistant_operator)
+    row.project_operator = _normalize_multi_name_text(project_operator)
+    row.assistant_operator = _normalize_multi_name_text(assistant_operator)
     row.commission_basis = _normalize_commission_basis(commission_basis)
     row.commission_rate = _normalize_commission_rate(commission_rate)
     db.flush()

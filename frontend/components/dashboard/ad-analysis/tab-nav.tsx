@@ -1,7 +1,7 @@
 'use client'
 
 import { LayoutGroup, motion, useReducedMotion } from 'framer-motion'
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 
 import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
 import { AD_ANALYSIS_TABS } from '@/components/dashboard/ad-analysis/config'
@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 
 export function AdAnalysisTabNav() {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const prefersReducedMotion = useReducedMotion()
 
   return (
@@ -17,10 +18,11 @@ export function AdAnalysisTabNav() {
         <div className="flex min-w-max gap-2 rounded-lg border border-border/70 bg-[hsl(var(--surface-overlay)/0.94)] p-2 shadow-[var(--shadow-soft)] dark:border-border/85 dark:bg-[hsl(var(--surface-panel)/0.96)]">
           {AD_ANALYSIS_TABS.map((tab) => {
             const isActive = pathname === tab.href
+            const href = searchParams.toString() ? `${tab.href}?${searchParams.toString()}` : tab.href
             return (
               <RouteLoadingLink
                 key={tab.key}
-                href={tab.href}
+                href={href}
                 className={cn(
                   'relative isolate rounded-md px-4 py-2.5 text-sm font-semibold transition-[background-color,color,box-shadow,transform] duration-200 ease-[var(--motion-ease-out)]',
                   isActive

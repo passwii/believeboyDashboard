@@ -1,12 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { PencilLine, PlusCircle } from 'lucide-react'
+import { ChevronsUpDown, PencilLine, PlusCircle } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -18,6 +19,7 @@ import {
 } from '@/components/ui/dialog'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   Select,
   SelectContent,
@@ -32,6 +34,7 @@ import {
   fetchManagedProjectsCached,
   fetchProjectOperatorOptionsCached,
 } from '@/lib/project-client-cache'
+import { cn } from '@/lib/utils'
 
 type ProjectItem = {
   id: number
@@ -61,6 +64,107 @@ const COMMISSION_BASIS_LABEL: Record<string, string> = {
   sales_amount: '销售额',
   cash_received: '平台回款',
   profit_margin: '利润率',
+}
+const OPERATOR_SPLIT_RE = /[、,，;\n]+/
+
+function parseOperatorNames(value: string | null): string[] {
+  if (!value) {
+    return []
+  }
+
+  const seen = new Set<string>()
+  const items: string[] = []
+  for (const raw of value.split(OPERATOR_SPLIT_RE)) {
+    const normalized = raw.trim()
+    if (!normalized || seen.has(normalized)) {
+      continue
+    }
+    seen.add(normalized)
+    items.push(normalized)
+  }
+  return items
+}
+
+function serializeOperatorNames(values: string[]): string | null {
+  if (values.length === 0) {
+    return null
+  }
+  return values.join('、')
+}
+
+function toggleOperatorName(values: string[], name: string): string[] {
+  return values.includes(name) ? values.filter((item) => item !== name) : [...values, name]
+}
+
+function renderOperatorSummary(values: string[]): string {
+  if (values.length === 0) {
+    return ''
+  }
+  if (values.length <= 2) {
+    return values.join('、')
+  }
+  return `${values.slice(0, 2).join('、')} 等 ${values.length} 人`
+}
+
+type OperatorMultiSelectProps = {
+  buttonId?: string
+  value: string[]
+  options: string[]
+  placeholder: string
+  disabled?: boolean
+  onChange: (next: string[]) => void
+}
+
+function OperatorMultiSelect({
+  buttonId,
+  value,
+  options,
+  placeholder,
+  disabled = false,
+  onChange,
+}: OperatorMultiSelectProps) {
+  const summary = renderOperatorSummary(value)
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          id={buttonId}
+          variant="outline"
+          role="combobox"
+          disabled={disabled}
+          className={cn('w-full justify-between font-normal', !summary && 'text-muted-foreground')}
+        >
+          <span className="truncate">{summary || placeholder}</span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] p-3">
+        <div className="space-y-2">
+          {options.length > 0 ? (
+            options.map((name) => {
+              const checked = value.includes(name)
+              return (
+                <label
+                  key={`operator-multi-${name}`}
+                  className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 text-sm hover:bg-muted/60"
+                >
+                  <Checkbox
+                    checked={checked}
+                    onCheckedChange={() => onChange(toggleOperatorName(value, name))}
+                  />
+                  <span className="flex-1">{name}</span>
+                </label>
+              )
+            })
+          ) : (
+            <p className="px-2 py-1 text-sm text-muted-foreground">暂无可选运营</p>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
 }
 
 function authHeaders(): Record<string, string> {
@@ -122,8 +226,8 @@ export default function StoreInfoPage() {
   const [addName, setAddName] = useState('')
   const [addBrandName, setAddBrandName] = useState('')
   const [addStoreAddress, setAddStoreAddress] = useState('')
-  const [addProjectOperator, setAddProjectOperator] = useState('')
-  const [addAssistantOperator, setAddAssistantOperator] = useState('')
+  const [addProjectOperators, setAddProjectOperators] = useState<string[]>([])
+  const [addAssistantOperators, setAddAssistantOperators] = useState<string[]>([])
   const [addCommissionMode, setAddCommissionMode] = useState('')
   const [addCommissionRate, setAddCommissionRate] = useState('')
 
@@ -132,8 +236,8 @@ export default function StoreInfoPage() {
   const [editName, setEditName] = useState('')
   const [editBrandName, setEditBrandName] = useState('')
   const [editStoreAddress, setEditStoreAddress] = useState('')
-  const [editProjectOperator, setEditProjectOperator] = useState('')
-  const [editAssistantOperator, setEditAssistantOperator] = useState('')
+  const [editProjectOperators, setEditProjectOperators] = useState<string[]>([])
+  const [editAssistantOperators, setEditAssistantOperators] = useState<string[]>([])
   const [editCommissionMode, setEditCommissionMode] = useState('')
   const [editCommissionRate, setEditCommissionRate] = useState('')
   const isAddCashReceivedCommission = addCommissionMode === 'cash_received'
@@ -194,8 +298,8 @@ export default function StoreInfoPage() {
           name: normalizedName,
           brand_name: addBrandName.trim() || null,
           store_address: addStoreAddress.trim() || null,
-          project_operator: addProjectOperator.trim() || null,
-          assistant_operator: addAssistantOperator.trim() || null,
+          project_operator: serializeOperatorNames(addProjectOperators),
+          assistant_operator: serializeOperatorNames(addAssistantOperators),
           commission_basis: addCommissionMode.trim() || null,
           commission_rate: isAddCashReceivedCommission ? null : (addCommissionRate ? parseFloat(addCommissionRate) : null),
         }),
@@ -206,8 +310,8 @@ export default function StoreInfoPage() {
       setAddName('')
       setAddBrandName('')
       setAddStoreAddress('')
-      setAddProjectOperator('')
-      setAddAssistantOperator('')
+      setAddProjectOperators([])
+      setAddAssistantOperators([])
       setAddCommissionMode('')
       setAddCommissionRate('')
       setAddDialogOpen(false)
@@ -227,8 +331,8 @@ export default function StoreInfoPage() {
     setEditName(item.name)
     setEditBrandName(item.brand_name ?? '')
     setEditStoreAddress(item.store_address ?? '')
-    setEditProjectOperator(item.project_operator ?? '')
-    setEditAssistantOperator(item.assistant_operator ?? '')
+    setEditProjectOperators(parseOperatorNames(item.project_operator))
+    setEditAssistantOperators(parseOperatorNames(item.assistant_operator))
     setEditCommissionMode(item.commission_basis ?? '')
     const points = toCommissionPoints(item.commission_rate)
     setEditCommissionRate(points?.toString() ?? '')
@@ -262,8 +366,8 @@ export default function StoreInfoPage() {
           name: normalizedName,
           brand_name: editBrandName.trim() || null,
           store_address: editStoreAddress.trim() || null,
-          project_operator: editProjectOperator.trim() || null,
-          assistant_operator: editAssistantOperator.trim() || null,
+          project_operator: serializeOperatorNames(editProjectOperators),
+          assistant_operator: serializeOperatorNames(editAssistantOperators),
           commission_basis: editCommissionMode.trim() || null,
           commission_rate: isEditCashReceivedCommission ? null : (editCommissionRate ? parseFloat(editCommissionRate) : null),
         }),
@@ -275,8 +379,8 @@ export default function StoreInfoPage() {
       setEditingItem(null)
       setEditBrandName('')
       setEditStoreAddress('')
-      setEditProjectOperator('')
-      setEditAssistantOperator('')
+      setEditProjectOperators([])
+      setEditAssistantOperators([])
       setEditCommissionMode('')
       setEditCommissionRate('')
       clearProjectClientCaches()
@@ -342,64 +446,54 @@ export default function StoreInfoPage() {
                       运营
                     </label>
                     <div className="flex items-center gap-2">
-                      <Select value={addProjectOperator} onValueChange={setAddProjectOperator} disabled={submitting}>
-                        <SelectTrigger id="project-add-operator" className="flex-1">
-                          <SelectValue placeholder="选择运营" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {operatorOptions.length > 0 ? (
-                            operatorOptions.map((name) => (
-                              <SelectItem key={`operator-add-${name}`} value={name}>
-                                {name}
-                              </SelectItem>
-                            ))
-                          ) : (
-                            <SelectItem value="__empty_operator_add__" disabled>
-                              暂无可选运营
-                            </SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
+                      <div className="flex-1">
+                        <OperatorMultiSelect
+                          buttonId="project-add-operator"
+                          value={addProjectOperators}
+                          options={operatorOptions}
+                          placeholder="选择一个或多个运营"
+                          disabled={submitting}
+                          onChange={setAddProjectOperators}
+                        />
+                      </div>
                       <Button
                         type="button"
                         variant="outline"
-                        onClick={() => setAddProjectOperator('')}
-                        disabled={submitting || !addProjectOperator}
+                        onClick={() => setAddProjectOperators([])}
+                        disabled={submitting || addProjectOperators.length === 0}
                       >
                         清空
                       </Button>
                     </div>
+                    {addProjectOperators.length > 0 ? (
+                      <p className="text-xs text-muted-foreground">已选择：{addProjectOperators.join('、')}</p>
+                    ) : null}
                     <label htmlFor="project-add-assistant-operator" className="text-sm font-medium text-foreground">
                       助理运营
                     </label>
                     <div className="flex items-center gap-2">
-                      <Select value={addAssistantOperator} onValueChange={setAddAssistantOperator} disabled={submitting}>
-                        <SelectTrigger id="project-add-assistant-operator" className="flex-1">
-                          <SelectValue placeholder="选择助理运营" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {operatorOptions.length > 0 ? (
-                            operatorOptions.map((name) => (
-                              <SelectItem key={`assistant-operator-add-${name}`} value={name}>
-                                {name}
-                              </SelectItem>
-                            ))
-                          ) : (
-                            <SelectItem value="__empty_assistant_add__" disabled>
-                              暂无可选助理运营
-                            </SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
+                      <div className="flex-1">
+                        <OperatorMultiSelect
+                          buttonId="project-add-assistant-operator"
+                          value={addAssistantOperators}
+                          options={operatorOptions}
+                          placeholder="选择一个或多个助理运营"
+                          disabled={submitting}
+                          onChange={setAddAssistantOperators}
+                        />
+                      </div>
                       <Button
                         type="button"
                         variant="outline"
-                        onClick={() => setAddAssistantOperator('')}
-                        disabled={submitting || !addAssistantOperator}
+                        onClick={() => setAddAssistantOperators([])}
+                        disabled={submitting || addAssistantOperators.length === 0}
                       >
                         清空
                       </Button>
                     </div>
+                    {addAssistantOperators.length > 0 ? (
+                      <p className="text-xs text-muted-foreground">已选择：{addAssistantOperators.join('、')}</p>
+                    ) : null}
                     <label htmlFor="project-add-commission-mode" className="text-sm font-medium text-foreground">
                       佣金方式
                     </label>
@@ -501,8 +595,8 @@ export default function StoreInfoPage() {
                       <td className="border-b border-r border-border/60 p-4 align-middle text-muted-foreground">{item.id}</td>
                       <td className="border-b border-r border-border/60 p-4 align-middle font-medium text-foreground">{item.name}</td>
                       <td className="border-b border-r border-border/60 p-4 align-middle">{item.brand_name || '-'}</td>
-                      <td className="border-b border-r border-border/60 p-4 align-middle">{item.project_operator || '-'}</td>
-                      <td className="border-b border-r border-border/60 p-4 align-middle">{item.assistant_operator || '-'}</td>
+                      <td className="border-b border-r border-border/60 p-4 align-middle whitespace-pre-wrap break-words">{item.project_operator || '-'}</td>
+                      <td className="border-b border-r border-border/60 p-4 align-middle whitespace-pre-wrap break-words">{item.assistant_operator || '-'}</td>
                       <td className="border-b border-r border-border/60 p-4 align-middle">{item.commission_basis ? COMMISSION_BASIS_LABEL[item.commission_basis] ?? item.commission_basis : '-'}</td>
                       <td className="border-b border-r border-border/60 p-4 align-middle">{item.commission_basis === 'cash_received' ? '阶梯(7/10/13/15%)' : (toCommissionPoints(item.commission_rate) ?? '-')}</td>
                       <td className="border-b border-r border-border/60 p-4 align-middle max-w-[120px] truncate" title={item.store_address || ''}>
@@ -564,64 +658,54 @@ export default function StoreInfoPage() {
               运营
             </label>
             <div className="flex items-center gap-2">
-              <Select value={editProjectOperator} onValueChange={setEditProjectOperator} disabled={submitting}>
-                <SelectTrigger id="project-edit-operator" className="flex-1">
-                  <SelectValue placeholder="选择运营" />
-                </SelectTrigger>
-                <SelectContent>
-                  {operatorOptions.length > 0 ? (
-                    operatorOptions.map((name) => (
-                      <SelectItem key={`operator-edit-${name}`} value={name}>
-                        {name}
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <SelectItem value="__empty_operator_edit__" disabled>
-                      暂无可选运营
-                    </SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
+              <div className="flex-1">
+                <OperatorMultiSelect
+                  buttonId="project-edit-operator"
+                  value={editProjectOperators}
+                  options={operatorOptions}
+                  placeholder="选择一个或多个运营"
+                  disabled={submitting}
+                  onChange={setEditProjectOperators}
+                />
+              </div>
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setEditProjectOperator('')}
-                disabled={submitting || !editProjectOperator}
+                onClick={() => setEditProjectOperators([])}
+                disabled={submitting || editProjectOperators.length === 0}
               >
                 清空
               </Button>
             </div>
+            {editProjectOperators.length > 0 ? (
+              <p className="text-xs text-muted-foreground">已选择：{editProjectOperators.join('、')}</p>
+            ) : null}
             <label htmlFor="project-edit-assistant-operator" className="text-sm font-medium text-foreground">
               助理运营
             </label>
             <div className="flex items-center gap-2">
-              <Select value={editAssistantOperator} onValueChange={setEditAssistantOperator} disabled={submitting}>
-                <SelectTrigger id="project-edit-assistant-operator" className="flex-1">
-                  <SelectValue placeholder="选择助理运营" />
-                </SelectTrigger>
-                <SelectContent>
-                  {operatorOptions.length > 0 ? (
-                    operatorOptions.map((name) => (
-                      <SelectItem key={`assistant-operator-edit-${name}`} value={name}>
-                        {name}
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <SelectItem value="__empty_assistant_edit__" disabled>
-                      暂无可选助理运营
-                    </SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
+              <div className="flex-1">
+                <OperatorMultiSelect
+                  buttonId="project-edit-assistant-operator"
+                  value={editAssistantOperators}
+                  options={operatorOptions}
+                  placeholder="选择一个或多个助理运营"
+                  disabled={submitting}
+                  onChange={setEditAssistantOperators}
+                />
+              </div>
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setEditAssistantOperator('')}
-                disabled={submitting || !editAssistantOperator}
+                onClick={() => setEditAssistantOperators([])}
+                disabled={submitting || editAssistantOperators.length === 0}
               >
                 清空
               </Button>
             </div>
+            {editAssistantOperators.length > 0 ? (
+              <p className="text-xs text-muted-foreground">已选择：{editAssistantOperators.join('、')}</p>
+            ) : null}
             <label htmlFor="project-edit-commission-mode" className="text-sm font-medium text-foreground">
               佣金方式
             </label>
