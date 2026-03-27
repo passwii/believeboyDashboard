@@ -63,7 +63,7 @@ const quickLinks: NavLink[] = [
     title: '补货分析',
     url: '/dashboard/data-analysis/inventory-replenishment',
   },
-  { title: '广告管理', url: '/dashboard/data-management/ad-upload' },
+  { title: '报表上传', url: '/dashboard/data-management/report-upload' },
 ]
 
 const quickLinkMeta: Record<
@@ -89,7 +89,7 @@ const quickLinkMeta: Record<
     accent: 'bg-[linear-gradient(180deg,#214b20,#387d35)] text-[#bff0a4]',
     activeAccent: 'bg-[linear-gradient(180deg,#2a6128,#449841)] text-[#ddffc8]',
   },
-  广告管理: {
+  报表上传: {
     icon: <FileUp className='h-4.5 w-4.5' />,
     accent: 'bg-[linear-gradient(180deg,#2440a8,#345de8)] text-[#d8e2ff]',
     activeAccent: 'bg-[linear-gradient(180deg,#2d4fc9,#3d6cff)] text-[#edf2ff]',
@@ -238,10 +238,10 @@ function SidebarGroupBlock({ group }: { group: NavGroup }) {
           <SidebarMenuButton
             tooltip={group.label}
             isActive={hasActiveChild}
-            className='rounded-[0.95rem] border-transparent bg-transparent px-3.5 py-2 text-sidebar-foreground/88 shadow-none hover:bg-[hsl(var(--sidebar-foreground)/0.03)] data-[active=true]:-translate-y-[1px] data-[active=true]:border-[hsl(var(--sidebar-foreground)/0.12)] data-[active=true]:bg-[linear-gradient(180deg,hsl(var(--sidebar-background)),hsl(var(--sidebar-background))_42%,hsl(var(--sidebar-foreground)/0.06)_100%)] data-[active=true]:text-sidebar-foreground data-[active=true]:ring-1 data-[active=true]:ring-[hsl(var(--sidebar-background)/0.95)] data-[active=true]:shadow-[0_18px_30px_-18px_hsl(var(--sidebar-foreground)/0.42),0_8px_16px_-12px_hsl(var(--sidebar-foreground)/0.22),0_1px_0_hsl(var(--sidebar-background)),inset_0_2px_0_hsl(var(--sidebar-background)),inset_0_-1px_0_hsl(var(--sidebar-foreground)/0.08)]'
+            className='rounded-[0.8rem] border-transparent bg-transparent px-3.5 py-2 text-sidebar-foreground/88 shadow-none hover:bg-[hsl(var(--sidebar-foreground)/0.03)] data-[active=true]:-translate-y-[1px] data-[active=true]:border-[hsl(var(--sidebar-foreground)/0.12)] data-[active=true]:bg-[linear-gradient(180deg,hsl(var(--sidebar-background)),hsl(var(--sidebar-background))_42%,hsl(var(--sidebar-foreground)/0.06)_100%)] data-[active=true]:text-sidebar-foreground data-[active=true]:ring-1 data-[active=true]:ring-[hsl(var(--sidebar-background)/0.95)] data-[active=true]:shadow-[0_18px_30px_-18px_hsl(var(--sidebar-foreground)/0.42),0_8px_16px_-12px_hsl(var(--sidebar-foreground)/0.22),0_1px_0_hsl(var(--sidebar-background)),inset_0_2px_0_hsl(var(--sidebar-background)),inset_0_-1px_0_hsl(var(--sidebar-foreground)/0.08)]'
           >
             <span
-              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[0.8rem] border border-[hsl(var(--sidebar-foreground)/0.08)] shadow-[inset_0_1px_0_hsl(var(--sidebar-foreground)/0.06)] ${
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[0.65rem] border border-[hsl(var(--sidebar-foreground)/0.08)] shadow-[inset_0_1px_0_hsl(var(--sidebar-foreground)/0.06)] ${
                 hasActiveChild ? group.activeAccent : group.accent
               }`}
             >
@@ -255,7 +255,7 @@ function SidebarGroupBlock({ group }: { group: NavGroup }) {
                 {group.items.length}
               </span>
             </span>
-            <span className='flex h-7 w-7 items-center justify-center rounded-full text-sidebar-foreground/34 transition-colors duration-200 group-data-[state=open]/collapsible:bg-[hsl(var(--sidebar-foreground)/0.06)] group-data-[state=open]/collapsible:text-sidebar-foreground/72'>
+            <span className='flex h-7 w-7 items-center justify-center rounded-[0.65rem] text-sidebar-foreground/34 transition-colors duration-200 group-data-[state=open]/collapsible:bg-[hsl(var(--sidebar-foreground)/0.06)] group-data-[state=open]/collapsible:text-sidebar-foreground/72'>
               <ChevronRight className='transition-transform duration-300 ease-out group-data-[state=open]/collapsible:rotate-90' />
             </span>
           </SidebarMenuButton>
@@ -299,7 +299,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarHeader className='gap-3 px-4 pb-1 pt-4 group-data-[collapsible=icon]:px-2.5'>
         <div className='relative group-data-[collapsible=icon]:px-0'>
           <div className='relative flex items-start gap-3 group-data-[collapsible=icon]:justify-center'>
-            <div className='flex h-11 w-11 shrink-0 items-center justify-center rounded-[0.9rem] bg-[linear-gradient(135deg,hsl(var(--primary)),hsl(var(--chart-2)))] text-sidebar-primary-foreground shadow-[0_14px_24px_-18px_hsl(var(--sidebar-primary)/0.75)]'>
+            <div className='flex h-11 w-11 shrink-0 items-center justify-center rounded-[0.7rem] bg-[linear-gradient(135deg,hsl(var(--primary)),hsl(var(--chart-2)))] text-sidebar-primary-foreground shadow-[0_14px_24px_-18px_hsl(var(--sidebar-primary)/0.75)]'>
               <Command className='size-4.5' />
             </div>
             <div className='min-w-0 flex-1 group-data-[collapsible=icon]:hidden'>
@@ -334,14 +334,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   key={link.title}
                   href={link.url}
                   aria-label={link.title}
-                  className={`group relative flex min-h-[3.45rem] items-center justify-center overflow-visible rounded-[0.95rem] border px-2 py-2 transition-all duration-200 ${
+                  className={`group relative flex min-h-[3.45rem] items-center justify-center overflow-visible rounded-[0.8rem] border px-2 py-2 transition-all duration-200 ${
                     active
                       ? 'border-[hsl(var(--sidebar-foreground)/0.12)] bg-[hsl(var(--sidebar-foreground)/0.08)] text-sidebar-accent-foreground shadow-[inset_0_1px_0_hsl(var(--sidebar-foreground)/0.05)]'
                       : 'border-transparent bg-transparent text-sidebar-foreground/78 hover:border-[hsl(var(--sidebar-foreground)/0.06)] hover:bg-[hsl(var(--sidebar-foreground)/0.035)]'
                   }`}
                 >
                   <span
-                    className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-[0.8rem] border border-[hsl(var(--sidebar-foreground)/0.08)] shadow-[inset_0_1px_0_hsl(var(--sidebar-foreground)/0.06)] ${
+                    className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-[0.65rem] border border-[hsl(var(--sidebar-foreground)/0.08)] shadow-[inset_0_1px_0_hsl(var(--sidebar-foreground)/0.06)] ${
                       active
                         ? meta?.activeAccent
                         : meta?.accent
@@ -385,7 +385,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     asChild
                     tooltip={item.title}
                     isActive={isLinkActive(pathname, item)}
-                    className='rounded-[0.95rem] border-transparent bg-transparent px-3.5 py-3 text-sidebar-foreground/78'
+                    className='rounded-[0.8rem] border-transparent bg-transparent px-3.5 py-3 text-sidebar-foreground/78'
                   >
                     <RouteLoadingLink href={item.url}>
                       {item.icon}
