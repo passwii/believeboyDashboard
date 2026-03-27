@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, Header, Query, Request, Response, UploadFile, status
 from sqlalchemy.orm import Session
@@ -141,7 +142,7 @@ def list_shipment_schedules(
     country: str | None = Query(default=None),
     shipment_status: str | None = Query(default=None),
     shipping_method: str | None = Query(default=None),
-    shipment_no: str | None = Query(default=None),
+    shipment_no: list[str] | None = Query(default=None),
     created_date_from: str | None = Query(default=None),
     created_date_to: str | None = Query(default=None),
     etd_from: str | None = Query(default=None),
@@ -220,7 +221,7 @@ def summarize_shipment_schedule_costs(
     country: str | None = Query(default=None),
     shipment_status: str | None = Query(default=None),
     shipping_method: str | None = Query(default=None),
-    shipment_no: str | None = Query(default=None),
+    shipment_no: list[str] | None = Query(default=None),
     created_date_from: str | None = Query(default=None),
     created_date_to: str | None = Query(default=None),
     db: Session = Depends(get_db_session),
@@ -322,36 +323,36 @@ def list_shipment_sku_summary(
 @router.get('/shipment-schedules/fba-box-details', response_model=ShipmentFbaBoxDetailResponse)
 def list_shipment_fba_box_details(
     request: Request,
-    shipment_no: str = Query(..., min_length=1),
+    shipment_no: Annotated[list[str], Query(min_length=1)],
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> ShipmentFbaBoxDetailResponse:
-    row, items = shipment_schedule_service.list_shipment_fba_box_details(
+    rows, items = shipment_schedule_service.list_shipment_fba_box_details(
         db,
-        shipment_no=shipment_no,
+        shipment_nos=shipment_no,
     )
-    project_service.ensure_project_access(
-        db,
-        int(row.project_id),
-        operator=operator,
-        is_admin=bool(is_admin),
-    )
+    for row in rows:
+        project_service.ensure_project_access(
+            db,
+            int(row.project_id),
+            operator=operator,
+            is_admin=bool(is_admin),
+        )
     append_operation_view_log(
         db,
         action='shipment_schedules.fba_box_details.view',
         target_type='shipment_schedule',
-        target_id=row.id,
         operator=operator,
-        after={'shipment_no': shipment_no, 'count': len(items)},
+        after={'shipment_nos': shipment_no, 'count': len(items)},
         request=request,
     )
     db.commit()
     return ShipmentFbaBoxDetailResponse(
-        project_id=int(row.project_id),
-        project_name=str(row.project_name_snapshot),
-        country=str(row.country),
-        shipment_no=str(row.shipment_no),
+        project_ids=[int(row.project_id) for row in rows],
+        project_names=[str(row.project_name_snapshot) for row in rows],
+        countries=[str(row.country) for row in rows],
+        shipment_nos=[str(row.shipment_no) for row in rows],
         items=[ShipmentFbaBoxDetailItem(**item) for item in items],
     )
 

@@ -1,6 +1,5 @@
-import { AD_ANALYSIS_TABS } from '@/components/dashboard/ad-analysis/config'
-import { AdAnalysisPageShell } from '@/components/dashboard/ad-analysis/page-shell'
+import { AdAnalysisTrafficQualityClient } from '@/components/dashboard/ad-analysis/traffic-quality-client'
 
 export default function AdAnalysisTrafficQualityPage() {
-  return <AdAnalysisPageShell tab={AD_ANALYSIS_TABS[7]} />
+  return <AdAnalysisTrafficQualityClient />
 }

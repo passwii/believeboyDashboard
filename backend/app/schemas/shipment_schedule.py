@@ -166,6 +166,10 @@ class ShipmentSkuSummaryResponse(BaseModel):
 
 
 class ShipmentFbaBoxDetailItem(BaseModel):
+    project_id: int
+    project_name: str
+    country: str
+    shipment_no: str
     warehouse_code: str | None = None
     sku: str
     asin: str | None = None
@@ -189,8 +193,8 @@ class ShipmentFbaBoxDetailItem(BaseModel):
 
 
 class ShipmentFbaBoxDetailResponse(BaseModel):
-    project_id: int
-    project_name: str
-    country: str
-    shipment_no: str
+    project_ids: list[int]
+    project_names: list[str]
+    countries: list[str]
+    shipment_nos: list[str]
     items: list[ShipmentFbaBoxDetailItem]

@@ -31,6 +31,25 @@ export const AD_ANALYSIS_TABS: AdAnalysisTabConfig[] = [
     ],
   },
   {
+    key: 'time-trend',
+    label: '趋势',
+    href: '/dashboard/data-analysis/ad-analysis/time-trend',
+    summary: '趋势页用于把每天的广告消耗变化拉成时间线，识别异常波动和节奏问题。',
+    goals: [
+      '按日报累计查看点击和花费变化。',
+      '识别单日异常放量、花费突增和 CPC 抬升。',
+      '给预算调节和流量排查提供时间参照。',
+    ],
+    sourceReports: ['按时间查看效果报表'],
+    keyMetrics: ['Report Date', 'Clicks', 'Spend', 'CPC', 'Running Spend'],
+    drillPath: ['趋势 -> 总览', '趋势 -> 活动', '趋势 -> 预算'],
+    adjustmentRules: [
+      '单日花费明显跳升时，先回看同日活动和广告位变化。',
+      'Clicks 增长但 CPC 同步抬高时，优先检查竞价和流量入口。',
+      '趋势平稳但产出下降时，再回到搜索词和 SKU 页面做质量排查。',
+    ],
+  },
+  {
     key: 'campaigns',
     label: '活动',
     href: '/dashboard/data-analysis/ad-analysis/campaigns',
@@ -67,6 +86,25 @@ export const AD_ANALYSIS_TABS: AdAnalysisTabConfig[] = [
       '高点击高转化且 ACOS 优于目标：提高预算优先级并争取更多有效曝光。',
       '高曝光低点击：先查主图、价格、标题，再看广告位和词的精准度。',
       '高点击低转化：优先检查落地页竞争力、词路是否跑偏、是否需要否词。',
+    ],
+  },
+  {
+    key: 'purchased-products',
+    label: '已购买商品',
+    href: '/dashboard/data-analysis/ad-analysis/purchased-products',
+    summary: '已购买商品页用于识别广告带来的关联购买，判断广告是否在放大连带销售。',
+    goals: [
+      '查看广告 SKU 带来的其他商品购买结果。',
+      '识别高关联销售的关联 ASIN。',
+      '为组合投放和捆绑策略提供依据。',
+    ],
+    sourceReports: ['已购买商品报表'],
+    keyMetrics: ['关联 ASIN', '广告 SKU', '其他 SKU Units 7d', '其他 SKU Orders 7d', '其他 SKU Sales 7d'],
+    drillPath: ['已购买商品 -> SKU', '已购买商品 -> 活动'],
+    adjustmentRules: [
+      '高关联销售的 ASIN 可以纳入组合推广或捆绑分析。',
+      '只有点击没有连带购买时，不要高估广告的交叉销售价值。',
+      '若某广告 SKU 稳定带动其他商品订单，可提高其投放优先级。',
     ],
   },
   {

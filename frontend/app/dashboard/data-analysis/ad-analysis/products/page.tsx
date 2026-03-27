@@ -1,6 +1,5 @@
-import { AD_ANALYSIS_TABS } from '@/components/dashboard/ad-analysis/config'
-import { AdAnalysisPageShell } from '@/components/dashboard/ad-analysis/page-shell'
+import { AdAnalysisProductsClient } from '@/components/dashboard/ad-analysis/products-client'
 
 export default function AdAnalysisProductsPage() {
-  return <AdAnalysisPageShell tab={AD_ANALYSIS_TABS[2]} />
+  return <AdAnalysisProductsClient />
 }

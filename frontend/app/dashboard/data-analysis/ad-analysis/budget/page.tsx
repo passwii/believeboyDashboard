@@ -1,6 +1,5 @@
-import { AD_ANALYSIS_TABS } from '@/components/dashboard/ad-analysis/config'
-import { AdAnalysisPageShell } from '@/components/dashboard/ad-analysis/page-shell'
+import { AdAnalysisBudgetClient } from '@/components/dashboard/ad-analysis/budget-client'
 
 export default function AdAnalysisBudgetPage() {
-  return <AdAnalysisPageShell tab={AD_ANALYSIS_TABS[6]} />
+  return <AdAnalysisBudgetClient />
 }

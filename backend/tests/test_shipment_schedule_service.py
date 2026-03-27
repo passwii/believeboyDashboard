@@ -71,6 +71,7 @@ def test_summarize_shipment_schedule_costs_ignores_history_calc_flag():
             db,
             project_id=project.id,
             project_ids=[project.id],
+            country=None,
             shipment_status='completed',
             shipping_method=None,
             shipment_no=None,
@@ -528,6 +529,124 @@ def test_calculate_shipment_schedule_costs_persists_schedule_and_item_metrics():
         assert float(saved_item.chargeable_weight_kg) == pytest.approx(2.0, abs=1e-3)
         assert float(saved_item.estimated_logistics_cost) == pytest.approx(17.0, abs=1e-2)
         assert float(saved_item.average_logistics_unit_price) == pytest.approx(1.7, abs=1e-4)
+
+
+def test_list_shipment_fba_box_details_supports_multiple_shipment_nos():
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        project = Project(project_name='宝勒1店', sort_order=1, source_file='seed.csv')
+        db.add(project)
+        db.flush()
+
+        first_schedule = ShipmentSchedule(
+            project_id=project.id,
+            country='US',
+            project_name_snapshot='宝勒1店',
+            shipment_no='FBA-001',
+            warehouse_code='LAX9',
+            shipping_method='sea',
+            shipment_status='draft',
+            source_type='manual',
+        )
+        second_schedule = ShipmentSchedule(
+            project_id=project.id,
+            country='US',
+            project_name_snapshot='宝勒1店',
+            shipment_no='FBA-002',
+            warehouse_code='ONT8',
+            shipping_method='sea',
+            shipment_status='draft',
+            source_type='manual',
+        )
+        db.add_all([first_schedule, second_schedule])
+        db.flush()
+
+        db.add_all([
+            ShipmentScheduleItem(
+                shipment_schedule_id=first_schedule.id,
+                project_id=project.id,
+                shipment_no='FBA-001',
+                sku='SKU-001',
+                quantity=24,
+                source_type='manual',
+            ),
+            ShipmentScheduleItem(
+                shipment_schedule_id=second_schedule.id,
+                project_id=project.id,
+                shipment_no='FBA-002',
+                sku='SKU-002',
+                quantity=12,
+                source_type='manual',
+            ),
+        ])
+        db.add_all([
+            ProductCost(
+                project_name='宝勒1店',
+                sku='SKU-001',
+                asin='ASIN-001',
+                fnsku='FNSKU-001',
+                fob_unit_cost=2,
+                currency='USD',
+                country='US',
+                sort_order=1,
+                is_active=True,
+                units_per_carton=12,
+                carton_length_cm=40,
+                carton_width_cm=30,
+                carton_height_cm=20,
+                carton_weight_kg=8,
+            ),
+            ProductCost(
+                project_name='宝勒1店',
+                sku='SKU-002',
+                asin='ASIN-002',
+                fnsku='FNSKU-002',
+                fob_unit_cost=3,
+                currency='USD',
+                country='US',
+                sort_order=2,
+                is_active=True,
+                units_per_carton=6,
+                carton_length_cm=35,
+                carton_width_cm=25,
+                carton_height_cm=18,
+                carton_weight_kg=6,
+            ),
+        ])
+        db.commit()
+
+        rows, items = shipment_schedule_service.list_shipment_fba_box_details(
+            db,
+            shipment_nos=['FBA-001', 'FBA-002'],
+        )
+
+        assert [row.shipment_no for row in rows] == ['FBA-001', 'FBA-002']
+        assert [item['shipment_no'] for item in items] == ['FBA-001', 'FBA-002']
+        assert items[0]['project_name'] == '宝勒1店'
+        assert items[0]['country'] == 'US'
+        assert items[0]['carton_count'] == 2
+        assert items[1]['carton_count'] == 2
+
+
+def test_list_shipment_fba_box_details_rejects_missing_shipment_no():
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        project = Project(project_name='宝勒1店', sort_order=1, source_file='seed.csv')
+        db.add(project)
+        db.commit()
+
+        with pytest.raises(HTTPException) as exc_info:
+            shipment_schedule_service.list_shipment_fba_box_details(
+                db,
+                shipment_nos=['FBA-404'],
+            )
+
+        assert exc_info.value.status_code == 404
+        assert 'FBA-404' in str(exc_info.value.detail)
 
 
 def test_update_shipment_schedule_persists_history_calc_flag():

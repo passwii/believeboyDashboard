@@ -2,11 +2,15 @@
 
 import { startTransition, useEffect, useMemo, useState } from 'react'
 import { Filter, Loader2 } from 'lucide-react'
+import type { DateRange } from 'react-day-picker'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 
+import { AD_ANALYSIS_TABS } from '@/components/dashboard/ad-analysis/config'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { DateRangePicker, formatDateInputValue, parseDateRangeInputValue } from '@/components/ui/date-picker'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
@@ -21,6 +25,16 @@ const COUNTRY_OPTIONS = [
   { value: 'DE', label: '德国站 (DE)' },
   { value: 'UK', label: '英国站 (UK)' },
 ] as const
+
+const DRILL_PARAM_LABELS = {
+  campaign: '活动',
+  focusDate: '聚焦日期',
+  placement: '广告位',
+  purchasedAsin: '关联 ASIN',
+  searchTerm: '搜索词',
+  sku: 'SKU',
+  targetText: '投放',
+} as const
 
 function buildHref(pathname: string, searchParams: URLSearchParams) {
   const query = searchParams.toString()
@@ -39,6 +53,25 @@ export function AdAnalysisTopFilters() {
 
   const projectId = searchParams.get('projectId') || ''
   const country = searchParams.get('country') || 'US'
+  const dateFrom = searchParams.get('dateFrom') || ''
+  const dateTo = searchParams.get('dateTo') || ''
+  const activeTabLabel = useMemo(
+    () => AD_ANALYSIS_TABS.find((item) => item.href === pathname)?.label || '广告分析',
+    [pathname],
+  )
+  const drillTokens = useMemo(
+    () => {
+      const items: Array<{ key: string; label: string; value: string }> = []
+      Object.entries(DRILL_PARAM_LABELS).forEach(([key, label]) => {
+        const value = searchParams.get(key)
+        if (value) {
+          items.push({ key, label, value })
+        }
+      })
+      return items
+    },
+    [searchParams],
+  )
 
   const selectedProjectName = useMemo(
     () => projects.find((item) => String(item.id) === projectId)?.name || '',
@@ -86,7 +119,10 @@ export function AdAnalysisTopFilters() {
     }
   }, [country, pathname, projectId, router, searchParams, session])
 
-  const updateSearchParam = (key: 'projectId' | 'country', value: string) => {
+  const updateSearchParam = (
+    key: 'projectId' | 'country' | 'dateFrom' | 'dateTo',
+    value: string,
+  ) => {
     const nextSearchParams = new URLSearchParams(searchParams.toString())
 
     if (value) {
@@ -94,6 +130,39 @@ export function AdAnalysisTopFilters() {
     } else {
       nextSearchParams.delete(key)
     }
+
+    startTransition(() => {
+      router.replace(buildHref(pathname, nextSearchParams), { scroll: false })
+    })
+  }
+
+  const updateDateRange = (range?: DateRange) => {
+    const nextSearchParams = new URLSearchParams(searchParams.toString())
+    const nextDateFrom = formatDateInputValue(range?.from)
+    const nextDateTo = formatDateInputValue(range?.to)
+
+    if (nextDateFrom) {
+      nextSearchParams.set('dateFrom', nextDateFrom)
+    } else {
+      nextSearchParams.delete('dateFrom')
+    }
+
+    if (nextDateTo) {
+      nextSearchParams.set('dateTo', nextDateTo)
+    } else {
+      nextSearchParams.delete('dateTo')
+    }
+
+    startTransition(() => {
+      router.replace(buildHref(pathname, nextSearchParams), { scroll: false })
+    })
+  }
+
+  const clearDrillParams = () => {
+    const nextSearchParams = new URLSearchParams(searchParams.toString())
+    Object.keys(DRILL_PARAM_LABELS).forEach((key) => {
+      nextSearchParams.delete(key)
+    })
 
     startTransition(() => {
       router.replace(buildHref(pathname, nextSearchParams), { scroll: false })
@@ -119,17 +188,35 @@ export function AdAnalysisTopFilters() {
 
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline" className="border-border/70 bg-background/80 text-foreground">
+              当前视图：{activeTabLabel}
+            </Badge>
+            <Badge variant="outline" className="border-border/70 bg-background/80 text-foreground">
               项目：{selectedProjectName || '未选择'}
             </Badge>
             <Badge variant="outline" className="border-border/70 bg-background/80 text-foreground">
               国家站点：{COUNTRY_OPTIONS.find((item) => item.value === country)?.label || country}
             </Badge>
+            <Badge variant="outline" className="border-border/70 bg-background/80 text-foreground">
+              日期范围：{dateFrom || '全部'} ~ {dateTo || '全部'}
+            </Badge>
+            {drillTokens.length > 0 ? (
+              <>
+                {drillTokens.map((item) => (
+                  <Badge key={item.key} variant="secondary" className="bg-primary/10 text-primary">
+                    {item.label}：{item.value}
+                  </Badge>
+                ))}
+                <Button variant="ghost" size="sm" onClick={clearDrillParams}>
+                  清空下钻
+                </Button>
+              </>
+            ) : null}
           </div>
         </div>
       </CardHeader>
 
       <CardContent className="space-y-3 pt-0">
-        <div className="dashboard-toolbar grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(14rem,18rem)_minmax(12rem,14rem)]">
+        <div className="dashboard-toolbar grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(14rem,18rem)_minmax(12rem,14rem)_minmax(18rem,22rem)]">
           <div className="space-y-2">
             <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">项目</div>
             {projectsLoading ? (
@@ -164,6 +251,15 @@ export function AdAnalysisTopFilters() {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-2">
+            <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">日期范围</div>
+            <DateRangePicker
+              value={parseDateRangeInputValue(dateFrom, dateTo)}
+              onChange={updateDateRange}
+              className="h-10 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
+            />
           </div>
         </div>
 

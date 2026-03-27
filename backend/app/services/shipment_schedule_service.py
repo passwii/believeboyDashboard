@@ -126,6 +126,22 @@ def _normalize_status_filters(value: str | None) -> list[str]:
     return [_normalize_status(part.strip()) for part in normalized.split(",") if part.strip()]
 
 
+def _normalize_shipment_no_filters(values: str | list[str] | None) -> list[str]:
+    if values is None:
+        return []
+    raw_values = values if isinstance(values, list) else [values]
+    normalized_values: list[str] = []
+    seen: set[str] = set()
+    for raw_value in raw_values:
+        for part in str(raw_value).replace("\n", ",").split(","):
+            normalized = _normalize_text(part, max_length=100)
+            if normalized is None or normalized in seen:
+                continue
+            seen.add(normalized)
+            normalized_values.append(normalized)
+    return normalized_values
+
+
 def _normalize_shipping_method(value: str) -> str:
     normalized = (value or "").strip()
     if normalized not in ALLOWED_SHIPPING_METHOD:
@@ -345,9 +361,14 @@ def list_shipment_schedules(
             ShipmentSchedule.shipping_method
             == _normalize_shipping_method(shipping_method)
         )
-    if shipment_no:
+    normalized_shipment_nos = _normalize_shipment_no_filters(shipment_no)
+    if len(normalized_shipment_nos) > 1:
         filter_stmt = filter_stmt.where(
-            ShipmentSchedule.shipment_no.ilike(f"%{shipment_no.strip()}%")
+            ShipmentSchedule.shipment_no.in_(normalized_shipment_nos)
+        )
+    elif len(normalized_shipment_nos) == 1:
+        filter_stmt = filter_stmt.where(
+            ShipmentSchedule.shipment_no.ilike(f"%{normalized_shipment_nos[0]}%")
         )
 
     created_from_date = _parse_date(created_date_from, "created_date_from")
@@ -451,9 +472,12 @@ def summarize_shipment_schedule_costs(
         stmt = stmt.where(
             ShipmentSchedule.shipping_method == _normalize_shipping_method(shipping_method)
         )
-    if shipment_no:
+    normalized_shipment_nos = _normalize_shipment_no_filters(shipment_no)
+    if len(normalized_shipment_nos) > 1:
+        stmt = stmt.where(ShipmentSchedule.shipment_no.in_(normalized_shipment_nos))
+    elif len(normalized_shipment_nos) == 1:
         stmt = stmt.where(
-            ShipmentSchedule.shipment_no.ilike(f"%{shipment_no.strip()}%")
+            ShipmentSchedule.shipment_no.ilike(f"%{normalized_shipment_nos[0]}%")
         )
 
     created_from_date = _parse_date(created_date_from, "created_date_from")
@@ -629,38 +653,44 @@ def list_shipment_sku_summary(
 def list_shipment_fba_box_details(
     db: Session,
     *,
-    shipment_no: str,
-) -> tuple[ShipmentSchedule, list[dict[str, object]]]:
-    normalized_shipment_no = _normalize_text(shipment_no, max_length=100)
-    if normalized_shipment_no is None:
+    shipment_nos: str | list[str],
+) -> tuple[list[ShipmentSchedule], list[dict[str, object]]]:
+    normalized_shipment_nos = _normalize_shipment_no_filters(shipment_nos)
+    if not normalized_shipment_nos:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="shipment_no 不能为空",
         )
 
-    row = (
+    rows = (
         db.execute(
             select(ShipmentSchedule)
-            .where(ShipmentSchedule.shipment_no == normalized_shipment_no)
+            .where(ShipmentSchedule.shipment_no.in_(normalized_shipment_nos))
             .options(selectinload(ShipmentSchedule.items))
         )
         .scalars()
-        .first()
+        .all()
     )
-    if row is None:
+    row_map = {str(row.shipment_no): row for row in rows}
+    missing_shipment_nos = [
+        shipment_no for shipment_no in normalized_shipment_nos if shipment_no not in row_map
+    ]
+    if missing_shipment_nos:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="未找到对应的 FBA 货件编号",
+            detail=f"未找到对应的 FBA 货件编号: {'、'.join(missing_shipment_nos)}",
         )
 
-    row.items.sort(key=lambda item: (item.item_date or date.min, item.sku, item.id))
-    sku_values = sorted({item.sku for item in row.items})
+    ordered_rows = [row_map[shipment_no] for shipment_no in normalized_shipment_nos]
+    sku_values = sorted({item.sku for row in ordered_rows for item in row.items})
     product_rows = (
         db.execute(
             select(ProductCost).where(
-                ProductCost.project_name == row.project_name_snapshot,
                 ProductCost.sku.in_(sku_values),
-                ProductCost.country == row.country,
+                ProductCost.project_name.in_(
+                    [str(row.project_name_snapshot) for row in ordered_rows]
+                ),
+                ProductCost.country.in_([str(row.country) for row in ordered_rows]),
             )
         )
         .scalars()
@@ -668,116 +698,123 @@ def list_shipment_fba_box_details(
         if sku_values
         else []
     )
-    product_map: dict[str, ProductCost] = {}
+    product_map: dict[tuple[str, str, str], ProductCost] = {}
     for product in product_rows:
-        product_map.setdefault(product.sku, product)
+        key = (str(product.project_name), str(product.country), str(product.sku))
+        product_map.setdefault(key, product)
 
     result: list[dict[str, object]] = []
-    for item in row.items:
-        product = product_map.get(item.sku)
-        quantity = int(item.quantity)
-        units_per_carton = (
-            int(product.units_per_carton)
-            if product and int(product.units_per_carton or 0) > 0
-            else 0
-        )
-        full_carton_count = quantity // units_per_carton if units_per_carton > 0 else 0
-        partial_carton_units = (
-            quantity % units_per_carton if units_per_carton > 0 else 0
-        )
-        carton_count = full_carton_count + (1 if partial_carton_units > 0 else 0)
-
-        has_carton_size = bool(
-            product
-            and float(product.carton_length_cm or 0) > 0
-            and float(product.carton_width_cm or 0) > 0
-            and float(product.carton_height_cm or 0) > 0
-        )
-        if has_carton_size:
-            length_cm = Decimal(str(product.carton_length_cm or 0))
-            width_cm = Decimal(str(product.carton_width_cm or 0))
-            height_cm = Decimal(str(product.carton_height_cm or 0))
-            volume_multiplier = Decimal(str(carton_count))
-        else:
-            length_cm = (
-                Decimal(str(product.package_length_cm or 0))
-                if product
-                else DECIMAL_ZERO
+    for row in ordered_rows:
+        row.items.sort(key=lambda item: (item.item_date or date.min, item.sku, item.id))
+        for item in row.items:
+            product = product_map.get((str(row.project_name_snapshot), str(row.country), str(item.sku)))
+            quantity = int(item.quantity)
+            units_per_carton = (
+                int(product.units_per_carton)
+                if product and int(product.units_per_carton or 0) > 0
+                else 0
             )
-            width_cm = (
-                Decimal(str(product.package_width_cm or 0)) if product else DECIMAL_ZERO
+            full_carton_count = quantity // units_per_carton if units_per_carton > 0 else 0
+            partial_carton_units = (
+                quantity % units_per_carton if units_per_carton > 0 else 0
             )
-            height_cm = (
-                Decimal(str(product.package_height_cm or 0))
-                if product
-                else DECIMAL_ZERO
+            carton_count = full_carton_count + (1 if partial_carton_units > 0 else 0)
+
+            has_carton_size = bool(
+                product
+                and float(product.carton_length_cm or 0) > 0
+                and float(product.carton_width_cm or 0) > 0
+                and float(product.carton_height_cm or 0) > 0
             )
-            volume_multiplier = Decimal(str(quantity))
+            if has_carton_size:
+                length_cm = Decimal(str(product.carton_length_cm or 0))
+                width_cm = Decimal(str(product.carton_width_cm or 0))
+                height_cm = Decimal(str(product.carton_height_cm or 0))
+                volume_multiplier = Decimal(str(carton_count))
+            else:
+                length_cm = (
+                    Decimal(str(product.package_length_cm or 0))
+                    if product
+                    else DECIMAL_ZERO
+                )
+                width_cm = (
+                    Decimal(str(product.package_width_cm or 0)) if product else DECIMAL_ZERO
+                )
+                height_cm = (
+                    Decimal(str(product.package_height_cm or 0))
+                    if product
+                    else DECIMAL_ZERO
+                )
+                volume_multiplier = Decimal(str(quantity))
 
-        if product and float(product.carton_weight_kg or 0) > 0 and carton_count > 0:
-            total_weight_kg = Decimal(str(product.carton_weight_kg or 0)) * Decimal(
-                str(carton_count)
+            if product and float(product.carton_weight_kg or 0) > 0 and carton_count > 0:
+                total_weight_kg = Decimal(str(product.carton_weight_kg or 0)) * Decimal(
+                    str(carton_count)
+                )
+            else:
+                total_weight_kg = (
+                    Decimal(str(product.weight_kg or 0)) * Decimal(str(quantity))
+                    if product
+                    else DECIMAL_ZERO
+                )
+
+            total_volume_m3 = (
+                length_cm * width_cm * height_cm / Decimal("1000000") * volume_multiplier
+            ).quantize(VOLUME_QUANT, rounding=ROUND_HALF_UP)
+
+            if product is None:
+                outer_box_text = "未匹配 SKU 成本资料"
+            elif units_per_carton <= 0:
+                outer_box_text = "未维护装箱率"
+            elif partial_carton_units > 0 and full_carton_count > 0:
+                outer_box_text = (
+                    f"{full_carton_count} 箱整箱 + 1 箱尾箱（{partial_carton_units} 件）"
+                )
+            elif partial_carton_units > 0:
+                outer_box_text = f"1 箱尾箱（{partial_carton_units} 件）"
+            else:
+                outer_box_text = f"{carton_count} 箱整箱"
+
+            result.append(
+                {
+                    "project_id": int(row.project_id),
+                    "project_name": str(row.project_name_snapshot),
+                    "country": str(row.country),
+                    "shipment_no": str(row.shipment_no),
+                    "warehouse_code": row.warehouse_code,
+                    "sku": item.sku,
+                    "asin": str(product.asin) if product and product.asin else None,
+                    "fnsku": str(product.fnsku) if product and product.fnsku else None,
+                    "package_length_cm": float(product.package_length_cm)
+                    if product and product.package_length_cm
+                    else None,
+                    "package_width_cm": float(product.package_width_cm)
+                    if product and product.package_width_cm
+                    else None,
+                    "package_height_cm": float(product.package_height_cm)
+                    if product and product.package_height_cm
+                    else None,
+                    "weight_kg": float(product.weight_kg)
+                    if product and product.weight_kg
+                    else None,
+                    "length_cm": _decimal_to_float(length_cm, Decimal("0.01")),
+                    "width_cm": _decimal_to_float(width_cm, Decimal("0.01")),
+                    "height_cm": _decimal_to_float(height_cm, Decimal("0.01")),
+                    "carton_weight_kg": float(product.carton_weight_kg)
+                    if product and product.carton_weight_kg
+                    else None,
+                    "quantity": quantity,
+                    "units_per_carton": units_per_carton,
+                    "carton_count": carton_count,
+                    "full_carton_count": full_carton_count,
+                    "partial_carton_units": partial_carton_units,
+                    "outer_box_text": outer_box_text,
+                    "total_weight_kg": _decimal_to_float(total_weight_kg, WEIGHT_QUANT),
+                    "total_volume_m3": _decimal_to_float(total_volume_m3, VOLUME_QUANT),
+                }
             )
-        else:
-            total_weight_kg = (
-                Decimal(str(product.weight_kg or 0)) * Decimal(str(quantity))
-                if product
-                else DECIMAL_ZERO
-            )
 
-        total_volume_m3 = (
-            length_cm * width_cm * height_cm / Decimal("1000000") * volume_multiplier
-        ).quantize(VOLUME_QUANT, rounding=ROUND_HALF_UP)
-
-        if product is None:
-            outer_box_text = "未匹配 SKU 成本资料"
-        elif units_per_carton <= 0:
-            outer_box_text = "未维护装箱率"
-        elif partial_carton_units > 0 and full_carton_count > 0:
-            outer_box_text = (
-                f"{full_carton_count} 箱整箱 + 1 箱尾箱（{partial_carton_units} 件）"
-            )
-        elif partial_carton_units > 0:
-            outer_box_text = f"1 箱尾箱（{partial_carton_units} 件）"
-        else:
-            outer_box_text = f"{carton_count} 箱整箱"
-
-        result.append(
-            {
-                "warehouse_code": row.warehouse_code,
-                "sku": item.sku,
-                "asin": str(product.asin) if product and product.asin else None,
-                "fnsku": str(product.fnsku) if product and product.fnsku else None,
-                "package_length_cm": float(product.package_length_cm)
-                if product and product.package_length_cm
-                else None,
-                "package_width_cm": float(product.package_width_cm)
-                if product and product.package_width_cm
-                else None,
-                "package_height_cm": float(product.package_height_cm)
-                if product and product.package_height_cm
-                else None,
-                "weight_kg": float(product.weight_kg)
-                if product and product.weight_kg
-                else None,
-                "length_cm": _decimal_to_float(length_cm, Decimal("0.01")),
-                "width_cm": _decimal_to_float(width_cm, Decimal("0.01")),
-                "height_cm": _decimal_to_float(height_cm, Decimal("0.01")),
-                "carton_weight_kg": float(product.carton_weight_kg)
-                if product and product.carton_weight_kg
-                else None,
-                "quantity": quantity,
-                "units_per_carton": units_per_carton,
-                "carton_count": carton_count,
-                "full_carton_count": full_carton_count,
-                "partial_carton_units": partial_carton_units,
-                "outer_box_text": outer_box_text,
-                "total_weight_kg": _decimal_to_float(total_weight_kg, WEIGHT_QUANT),
-                "total_volume_m3": _decimal_to_float(total_volume_m3, VOLUME_QUANT),
-            }
-        )
-
-    return row, result
+    return ordered_rows, result
 
 
 def calculate_shipment_schedule_costs(

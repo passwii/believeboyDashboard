@@ -132,6 +132,10 @@ type ShipmentSkuSummaryResponse = {
 }
 
 type ShipmentFbaBoxDetailItem = {
+  project_id: number
+  project_name: string
+  country: string
+  shipment_no: string
   warehouse_code: string | null
   sku: string
   asin: string | null
@@ -155,10 +159,10 @@ type ShipmentFbaBoxDetailItem = {
 }
 
 type ShipmentFbaBoxDetailResponse = {
-  project_id: number
-  project_name: string
-  country: string
-  shipment_no: string
+  project_ids: number[]
+  project_names: string[]
+  countries: string[]
+  shipment_nos: string[]
   items: ShipmentFbaBoxDetailItem[]
 }
 
@@ -504,78 +508,120 @@ function SearchableShipmentNoFilter({
   loading,
   onChange,
 }: {
-  value: string
+  value: string[]
   options: string[]
   loading: boolean
-  onChange: (value: string) => void
+  onChange: (value: string[]) => void
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
 
   const normalizedQuery = query.trim()
   const canUseTypedValue = normalizedQuery.length > 0 && !options.some((option) => option === normalizedQuery)
+  const selectedLabel = value.length === 0 ? '全部货件' : value.length === 1 ? value[0] : `已选 ${value.length} 个货件`
+
+  const toggleValue = (nextValue: string) => {
+    onChange(value.includes(nextValue) ? value.filter((item) => item !== nextValue) : [...value, nextValue])
+  }
 
   return (
-    <DropdownMenu open={open} onOpenChange={(nextOpen) => {
-      setOpen(nextOpen)
-      if (!nextOpen) setQuery('')
-    }}>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" className="h-10 w-full justify-between px-3 font-normal">
-          <span className={cn('truncate text-left', value ? 'text-foreground' : 'text-muted-foreground')}>
-            {value || '全部货件'}
-          </span>
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[280px] p-0">
-        <Command shouldFilter className="max-h-[320px]">
-          <CommandInput placeholder="搜索货件编号" value={query} onValueChange={setQuery} />
-          <CommandList>
-            <CommandItem
-              value="__all__ 全部货件"
-              onSelect={() => {
-                onChange('')
-                setOpen(false)
-              }}
+    <div className="space-y-2">
+      <DropdownMenu open={open} onOpenChange={(nextOpen) => {
+        setOpen(nextOpen)
+        if (!nextOpen) setQuery('')
+      }}>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" className="h-10 w-full justify-between px-3 font-normal">
+            <span className={cn('truncate text-left', value.length > 0 ? 'text-foreground' : 'text-muted-foreground')}>
+              {selectedLabel}
+            </span>
+            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[280px] p-0">
+          <Command shouldFilter className="max-h-[320px]">
+            <CommandInput placeholder="搜索货件编号" value={query} onValueChange={setQuery} />
+            <CommandList>
+              <CommandItem
+                value="__all__ 全部货件"
+                onSelect={() => {
+                  onChange([])
+                }}
+              >
+                <Check className={cn('h-4 w-4', value.length === 0 ? 'opacity-100' : 'opacity-0')} />
+                <span>全部货件</span>
+              </CommandItem>
+              {canUseTypedValue ? (
+                <CommandItem
+                  value={`__typed__ ${normalizedQuery}`}
+                  onSelect={() => {
+                    toggleValue(normalizedQuery)
+                  }}
+                >
+                  <Check className={cn('h-4 w-4', value.includes(normalizedQuery) ? 'opacity-100' : 'opacity-0')} />
+                  <div className="flex min-w-0 flex-col">
+                    <span className="truncate">{normalizedQuery}</span>
+                    <span className="text-xs text-muted-foreground">添加当前输入到筛选</span>
+                  </div>
+                </CommandItem>
+              ) : null}
+              {options.map((option) => (
+                <CommandItem
+                  key={option}
+                  value={option}
+                  onSelect={() => {
+                    toggleValue(option)
+                  }}
+                >
+                  <Check className={cn('h-4 w-4', value.includes(option) ? 'opacity-100' : 'opacity-0')} />
+                  <span className="truncate">{option}</span>
+                </CommandItem>
+              ))}
+              <CommandEmpty>{loading ? '货件编号加载中...' : '没有匹配的货件编号'}</CommandEmpty>
+            </CommandList>
+          </Command>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {value.length > 0 ? (
+        <div className="flex flex-wrap gap-1.5">
+          {value.map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => onChange(value.filter((current) => current !== item))}
+              className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-[hsl(var(--surface-subtle))] px-2 py-1 text-[11px] text-foreground transition hover:border-border"
             >
-              <Check className={cn('h-4 w-4', value === '' ? 'opacity-100' : 'opacity-0')} />
-              <span>全部货件</span>
-            </CommandItem>
-            {canUseTypedValue ? (
-              <CommandItem
-                value={`__typed__ ${normalizedQuery}`}
-                onSelect={() => {
-                  onChange(normalizedQuery)
-                  setOpen(false)
-                }}
-              >
-                <Check className="h-4 w-4 opacity-0" />
-                <div className="flex min-w-0 flex-col">
-                  <span className="truncate">{normalizedQuery}</span>
-                  <span className="text-xs text-muted-foreground">使用当前输入进行筛选</span>
-                </div>
-              </CommandItem>
-            ) : null}
-            {options.map((option) => (
-              <CommandItem
-                key={option}
-                value={option}
-                onSelect={() => {
-                  onChange(option)
-                  setOpen(false)
-                }}
-              >
-                <Check className={cn('h-4 w-4', value === option ? 'opacity-100' : 'opacity-0')} />
-                <span className="truncate">{option}</span>
-              </CommandItem>
-            ))}
-            <CommandEmpty>{loading ? '货件编号加载中...' : '没有匹配的货件编号'}</CommandEmpty>
-          </CommandList>
-        </Command>
-      </DropdownMenuContent>
-    </DropdownMenu>
+              <span className="max-w-[180px] truncate">{item}</span>
+              <X className="h-3 w-3" />
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
   )
+}
+
+function dedupeTrimmedValues(values: string[]): string[] {
+  const normalized: string[] = []
+  const seen = new Set<string>()
+  values.forEach((value) => {
+    const trimmed = value.trim()
+    if (!trimmed || seen.has(trimmed)) return
+    seen.add(trimmed)
+    normalized.push(trimmed)
+  })
+  return normalized
+}
+
+function normalizeShipmentNoList(values: string[]): string[] {
+  const parts = values.flatMap((value) => value.split(','))
+  return dedupeTrimmedValues(parts)
+}
+
+function formatShipmentNoFilterLabel(values: string[]): string {
+  if (values.length === 0) return '货件编号：全部'
+  if (values.length <= 3) return `货件编号：${values.join('、')}`
+  return `货件编号：已选 ${values.length} 个`
 }
 
 function formatDimensionText(length: number, width: number, height: number): string {
@@ -615,7 +661,7 @@ export default function ShipmentManagementPage() {
   const [projectFilter, setProjectFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [countryFilter, setCountryFilter] = useState('all')
-  const [shipmentNoFilter, setShipmentNoFilter] = useState('')
+  const [shipmentNoFilter, setShipmentNoFilter] = useState<string[]>([])
   const [shipmentNoOptions, setShipmentNoOptions] = useState<string[]>([])
   const [shipmentNoOptionsLoading, setShipmentNoOptionsLoading] = useState(false)
   const [shipmentDateFrom, setShipmentDateFrom] = useState('')
@@ -652,7 +698,7 @@ export default function ShipmentManagementPage() {
   const [skuSummaryExporting, setSkuSummaryExporting] = useState(false)
   const [fbaBoxExporting, setFbaBoxExporting] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
-  const [fbaBoxMeta, setFbaBoxMeta] = useState<{ projectName: string; country: string; shipmentNo: string } | null>(null)
+  const [fbaBoxMeta, setFbaBoxMeta] = useState<{ projectNames: string[]; countries: string[]; shipmentNos: string[] } | null>(null)
   const [fbaBoxItems, setFbaBoxItems] = useState<ShipmentFbaBoxDetailItem[]>([])
 
   const summary = useMemo(() => {
@@ -704,8 +750,11 @@ export default function ShipmentManagementPage() {
     [detail, editableItems]
   )
 
-  const trimmedShipmentNoFilter = shipmentNoFilter.trim()
-  const shipmentNoParam = searchParams.get('shipment_no')?.trim() || ''
+  const selectedShipmentNoFilter = useMemo(() => normalizeShipmentNoList(shipmentNoFilter), [shipmentNoFilter])
+  const shipmentNoParam = useMemo(
+    () => normalizeShipmentNoList(searchParams.getAll('shipment_no')),
+    [searchParams]
+  )
   const requestedTab = searchParams.get('tab')
 
   const fbaBoxSummary = useMemo(() => {
@@ -722,27 +771,31 @@ export default function ShipmentManagementPage() {
   }, [fbaBoxItems])
 
   const fbaBoxWarehouseGroups = useMemo(() => {
-    const groups: { warehouseCode: string | null; startIndex: number; endIndex: number }[] = []
+    const groups: { shipmentNo: string; warehouseCode: string | null; startIndex: number; endIndex: number }[] = []
+    let currentShipmentNo: string | null = null
     let currentWarehouse: string | null = null
     let startIndex = 0
 
     fbaBoxItems.forEach((item, index) => {
       const warehouse = item.warehouse_code
-      if (warehouse !== currentWarehouse) {
-        if (currentWarehouse !== null) {
+      if (warehouse !== currentWarehouse || item.shipment_no !== currentShipmentNo) {
+        if (currentWarehouse !== null && currentShipmentNo !== null) {
           groups.push({
+            shipmentNo: currentShipmentNo,
             warehouseCode: currentWarehouse,
             startIndex,
             endIndex: index - 1,
           })
         }
+        currentShipmentNo = item.shipment_no
         currentWarehouse = warehouse
         startIndex = index
       }
     })
 
-    if (currentWarehouse !== null) {
+    if (currentWarehouse !== null && currentShipmentNo !== null) {
       groups.push({
+        shipmentNo: currentShipmentNo,
         warehouseCode: currentWarehouse,
         startIndex,
         endIndex: fbaBoxItems.length - 1,
@@ -834,7 +887,7 @@ export default function ShipmentManagementPage() {
       if (projectFilter !== 'all') params.set('project_id', projectFilter)
       if (countryFilter !== 'all') params.set('country', countryFilter)
       if (statusFilter !== 'all') params.set('shipment_status', statusFilter)
-      if (shipmentNoFilter.trim()) params.set('shipment_no', shipmentNoFilter.trim())
+      selectedShipmentNoFilter.forEach((shipmentNo) => params.append('shipment_no', shipmentNo))
       if (shipmentDateFrom) params.set('created_date_from', shipmentDateFrom)
       if (shipmentDateTo) params.set('created_date_to', shipmentDateTo)
 
@@ -860,7 +913,7 @@ export default function ShipmentManagementPage() {
     } finally {
       setLoading(false)
     }
-  }, [countryFilter, pageSize, projectFilter, shipmentDateFrom, shipmentDateTo, shipmentNoFilter, statusFilter])
+  }, [countryFilter, pageSize, projectFilter, selectedShipmentNoFilter, shipmentDateFrom, shipmentDateTo, statusFilter])
 
   const loadShipmentNoOptions = useCallback(async () => {
     setShipmentNoOptionsLoading(true)
@@ -893,8 +946,7 @@ export default function ShipmentManagementPage() {
         nextPage += 1
       }
 
-      const uniqueShipmentNos = Array.from(new Set(shipmentNos)).sort((a, b) => a.localeCompare(b, 'zh-CN'))
-      setShipmentNoOptions(uniqueShipmentNos)
+      setShipmentNoOptions(Array.from(new Set(shipmentNos)))
     } catch {
       setShipmentNoOptions([])
     } finally {
@@ -965,7 +1017,7 @@ export default function ShipmentManagementPage() {
       if (projectFilter !== 'all') params.set('project_id', projectFilter)
       if (countryFilter !== 'all') params.set('country', countryFilter)
       if (statusFilter !== 'all') params.set('shipment_status', statusFilter)
-      if (shipmentNoFilter.trim()) params.set('shipment_no', shipmentNoFilter.trim())
+      selectedShipmentNoFilter.forEach((shipmentNo) => params.append('shipment_no', shipmentNo))
       if (shipmentDateFrom) params.set('created_date_from', shipmentDateFrom)
       if (shipmentDateTo) params.set('created_date_to', shipmentDateTo)
 
@@ -988,13 +1040,14 @@ export default function ShipmentManagementPage() {
     } finally {
       setCostSummaryLoading(false)
     }
-  }, [countryFilter, projectFilter, shipmentDateFrom, shipmentDateTo, shipmentNoFilter, statusFilter])
+  }, [countryFilter, projectFilter, selectedShipmentNoFilter, shipmentDateFrom, shipmentDateTo, statusFilter])
 
-  const loadFbaBoxDetails = useCallback(async (shipmentNo: string) => {
+  const loadFbaBoxDetails = useCallback(async (shipmentNos: string[]) => {
     setFbaBoxLoading(true)
     setFbaBoxError(null)
     try {
-      const params = new URLSearchParams({ shipment_no: shipmentNo })
+      const params = new URLSearchParams()
+      shipmentNos.forEach((shipmentNo) => params.append('shipment_no', shipmentNo))
       const response = await fetch(`${API_BASE}/api/v1/shipment-schedules/fba-box-details?${params.toString()}`, {
         headers: authHeaders(),
         cache: 'no-store',
@@ -1002,9 +1055,9 @@ export default function ShipmentManagementPage() {
       if (!response.ok) throw new Error(await parseError(response))
       const payload = (await response.json()) as ShipmentFbaBoxDetailResponse
       setFbaBoxMeta({
-        projectName: payload.project_name,
-        country: payload.country,
-        shipmentNo: payload.shipment_no,
+        projectNames: dedupeTrimmedValues(payload.project_names),
+        countries: dedupeTrimmedValues(payload.countries),
+        shipmentNos: normalizeShipmentNoList(payload.shipment_nos),
       })
       setFbaBoxItems(payload.items)
     } catch (loadError) {
@@ -1021,8 +1074,11 @@ export default function ShipmentManagementPage() {
   }, [loadProjects])
 
   useEffect(() => {
-    if (!shipmentNoParam) return
-    setShipmentNoFilter((current) => (current === shipmentNoParam ? current : shipmentNoParam))
+    if (shipmentNoParam.length === 0) return
+    setShipmentNoFilter((current) => {
+      const currentNormalized = normalizeShipmentNoList(current)
+      return currentNormalized.join(',') === shipmentNoParam.join(',') ? current : shipmentNoParam
+    })
     if (requestedTab === 'fba-box-detail') {
       setActiveTab('fba-box-detail')
     }
@@ -1055,14 +1111,14 @@ export default function ShipmentManagementPage() {
 
   useEffect(() => {
     if (activeTab !== 'fba-box-detail') return
-    if (!trimmedShipmentNoFilter) {
+    if (selectedShipmentNoFilter.length === 0) {
       setFbaBoxMeta(null)
       setFbaBoxItems([])
       setFbaBoxError(null)
       return
     }
-    void loadFbaBoxDetails(trimmedShipmentNoFilter)
-  }, [activeTab, loadFbaBoxDetails, trimmedShipmentNoFilter])
+    void loadFbaBoxDetails(selectedShipmentNoFilter)
+  }, [activeTab, loadFbaBoxDetails, selectedShipmentNoFilter])
 
   useEffect(() => {
     if (!dialogOpen || dialogMode !== 'edit' || !form.project_id) return
@@ -1534,7 +1590,7 @@ export default function ShipmentManagementPage() {
         countryFilter === 'all' ? '国家：全部' : `国家：${countryLabel(countryFilter)}`,
         statusFilter === 'all' ? '状态：全部' : `状态：${statusMeta(statusFilter).label}`,
         `发货时间：${shipmentDateFrom || '不限'} ~ ${shipmentDateTo || '不限'}`,
-        shipmentNoFilter.trim() ? `货件编号：${shipmentNoFilter.trim()}` : '货件编号：全部',
+        formatShipmentNoFilterLabel(selectedShipmentNoFilter),
       ].join('    ')
       worksheet.mergeCells(3, 1, 3, lastColumn)
       worksheet.getCell(3, 1).value = filterText
@@ -1697,7 +1753,7 @@ export default function ShipmentManagementPage() {
         countryFilter === 'all' ? '国家：全部' : `国家：${countryLabel(countryFilter)}`,
         statusFilter === 'all' ? '状态：全部' : `状态：${statusMeta(statusFilter).label}`,
         `发货时间：${shipmentDateFrom || '不限'} ~ ${shipmentDateTo || '不限'}`,
-        shipmentNoFilter.trim() ? `货件编号：${shipmentNoFilter.trim()}` : '货件编号：全部',
+        formatShipmentNoFilterLabel(selectedShipmentNoFilter),
       ].join('    ')
       worksheet.mergeCells(3, 1, 3, lastColumn)
       worksheet.getCell(3, 1).value = filterText
@@ -1974,6 +2030,9 @@ export default function ShipmentManagementPage() {
       })
 
       const columns = [
+        { header: '项目', key: 'project_name', width: 18 },
+        { header: '国家', key: 'country', width: 10 },
+        { header: '货件编号', key: 'shipment_no', width: 20 },
         { header: '仓库 ID', key: 'warehouse_code', width: 16 },
         { header: 'SKU', key: 'sku', width: 26 },
         { header: 'ASIN', key: 'asin', width: 20 },
@@ -1995,7 +2054,13 @@ export default function ShipmentManagementPage() {
       const lastColumn = columns.length
 
       worksheet.mergeCells(1, 1, 1, lastColumn)
-      worksheet.getCell(1, 1).value = `项目：${fbaBoxMeta.projectName}    国家：${countryLabel(fbaBoxMeta.country)}    货件编号：${fbaBoxMeta.shipmentNo}`
+      const projectText = fbaBoxMeta.projectNames.length === 1 ? fbaBoxMeta.projectNames[0] : `${fbaBoxMeta.projectNames.length} 个项目`
+      const countryText = fbaBoxMeta.countries.length === 1 ? countryLabel(fbaBoxMeta.countries[0]) : `${fbaBoxMeta.countries.length} 个国家`
+      const shipmentText =
+        fbaBoxMeta.shipmentNos.length <= 3
+          ? fbaBoxMeta.shipmentNos.join('、')
+          : `${fbaBoxMeta.shipmentNos.slice(0, 3).join('、')} 等 ${fbaBoxMeta.shipmentNos.length} 个货件`
+      worksheet.getCell(1, 1).value = `项目：${projectText}    国家：${countryText}    货件编号：${shipmentText}`
       worksheet.getCell(1, 1).font = { name: 'Microsoft YaHei', size: 13, bold: true, color: { argb: 'FF000000' } }
       worksheet.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
       worksheet.getCell(1, 1).alignment = { vertical: 'middle', horizontal: 'left' }
@@ -2022,6 +2087,9 @@ export default function ShipmentManagementPage() {
       fbaBoxItems.forEach((item, index) => {
         const row = worksheet.getRow(index + 4)
         row.values = [
+          item.project_name,
+          item.country,
+          item.shipment_no,
           item.warehouse_code || '-',
           item.sku,
           item.asin || '-',
@@ -2045,10 +2113,10 @@ export default function ShipmentManagementPage() {
           cell.font = { name: 'Microsoft YaHei', size: 9, color: { argb: 'FF0F172A' } }
           cell.alignment = {
             vertical: 'middle',
-            horizontal: colNumber >= 14 ? 'right' : 'left',
+            horizontal: colNumber >= 17 ? 'right' : 'left',
           }
-          if (colNumber === 15) cell.numFmt = '#,##0.0000'
-          if (colNumber === 16) cell.numFmt = '#,##0.000'
+          if (colNumber === 19) cell.numFmt = '#,##0.0000'
+          if (colNumber === 20) cell.numFmt = '#,##0.000'
           cell.border = {
             top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
             left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
@@ -2060,10 +2128,10 @@ export default function ShipmentManagementPage() {
 
       const totalRow = worksheet.getRow(fbaBoxItems.length + 4)
       totalRow.getCell(1).value = '合计'
-      totalRow.getCell(14).value = fbaBoxSummary.totalCartons
-      totalRow.getCell(15).value = fbaBoxSummary.totalQuantity
-      totalRow.getCell(16).value = fbaBoxSummary.totalVolumeM3
-      totalRow.getCell(17).value = fbaBoxSummary.totalWeightKg
+      totalRow.getCell(17).value = fbaBoxSummary.totalCartons
+      totalRow.getCell(18).value = fbaBoxSummary.totalQuantity
+      totalRow.getCell(19).value = fbaBoxSummary.totalVolumeM3
+      totalRow.getCell(20).value = fbaBoxSummary.totalWeightKg
       totalRow.eachCell((cell) => {
         cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
@@ -2074,8 +2142,8 @@ export default function ShipmentManagementPage() {
           right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
         }
       })
-      totalRow.getCell(16).numFmt = '#,##0.0000'
-      totalRow.getCell(17).numFmt = '#,##0.000'
+      totalRow.getCell(19).numFmt = '#,##0.0000'
+      totalRow.getCell(20).numFmt = '#,##0.000'
 
       const buffer = await workbook.xlsx.writeBuffer()
       const blob = new Blob([buffer], {
@@ -2085,7 +2153,7 @@ export default function ShipmentManagementPage() {
       const link = document.createElement('a')
       const safeTimestamp = formatLocalTimestampForFilename()
       link.href = url
-      link.download = `FBA箱单明细-${fbaBoxMeta.shipmentNo}-${safeTimestamp}.xlsx`
+      link.download = `FBA箱单明细-${fbaBoxMeta.shipmentNos.length}个货件-${safeTimestamp}.xlsx`
       link.click()
       window.URL.revokeObjectURL(url)
     } catch (exportError) {
@@ -2561,9 +2629,9 @@ export default function ShipmentManagementPage() {
                   <div className="flex flex-wrap gap-2">
                     <Button
                       variant="outline"
-                      disabled={!trimmedShipmentNoFilter || fbaBoxLoading}
+                      disabled={selectedShipmentNoFilter.length === 0 || fbaBoxLoading}
                       onClick={() => {
-                        if (trimmedShipmentNoFilter) void loadFbaBoxDetails(trimmedShipmentNoFilter)
+                        if (selectedShipmentNoFilter.length > 0) void loadFbaBoxDetails(selectedShipmentNoFilter)
                       }}
                     >
                       <RefreshCcw className="h-4 w-4" />
@@ -2582,13 +2650,13 @@ export default function ShipmentManagementPage() {
                     {fbaBoxError}
                   </div>
                 ) : null}
-                {!trimmedShipmentNoFilter ? (
+                {selectedShipmentNoFilter.length === 0 ? (
                   <div className="px-4 py-14 text-center text-sm text-muted-foreground">
-                    请输入完整的 FBA 货件编号后再加载箱单明细。
+                    请选择一个或多个 FBA 货件编号后再加载箱单明细。
                   </div>
                 ) : fbaBoxItems.length === 0 && !fbaBoxLoading ? (
                   <div className="px-4 py-14 text-center text-sm text-muted-foreground">
-                    当前货件暂无可展示的 FBA 箱单明细。
+                    当前筛选货件暂无可展示的 FBA 箱单明细。
                   </div>
                 ) : (
                   <>
@@ -2607,27 +2675,36 @@ export default function ShipmentManagementPage() {
                           {fbaBoxMeta ? (
                             <>
                               {(() => {
-                                const country = countryMeta(fbaBoxMeta.country)
+                                const singleCountry = fbaBoxMeta.countries.length === 1 ? countryMeta(fbaBoxMeta.countries[0]) : null
                                 return (
                                   <>
                       <div className="rounded-2xl border border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3">
                                 <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">项目</div>
-                                <div className="mt-1 text-lg font-semibold truncate" title={fbaBoxMeta.projectName}>
-                                  {fbaBoxMeta.projectName}
+                                <div
+                                  className="mt-1 text-lg font-semibold truncate"
+                                  title={fbaBoxMeta.projectNames.join('、')}
+                                >
+                                  {fbaBoxMeta.projectNames.length === 1 ? fbaBoxMeta.projectNames[0] : `${fbaBoxMeta.projectNames.length} 个项目`}
                                 </div>
                               </div>
                       <div className="rounded-2xl border border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3">
                                 <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">国家地区</div>
                                 <div className="mt-2">
-                                  <Badge className={`${country.className} h-6 px-2.5 text-xs`}>
-                                    {country.label}
-                                  </Badge>
+                                  {singleCountry ? (
+                                    <Badge className={`${singleCountry.className} h-6 px-2.5 text-xs`}>
+                                      {singleCountry.label}
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="secondary" className="h-6 px-2.5 text-xs">
+                                      {fbaBoxMeta.countries.length} 个国家
+                                    </Badge>
+                                  )}
                                 </div>
                               </div>
                       <div className="rounded-2xl border border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3">
-                                <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">货件编号</div>
-                                <div className="mt-1 text-lg font-semibold truncate" title={fbaBoxMeta.shipmentNo}>
-                                  {fbaBoxMeta.shipmentNo}
+                                <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">货件数量</div>
+                                <div className="mt-1 text-lg font-semibold" title={fbaBoxMeta.shipmentNos.join('、')}>
+                                  {fbaBoxMeta.shipmentNos.length}
                                 </div>
                               </div>
                                   </>
@@ -2663,6 +2740,7 @@ export default function ShipmentManagementPage() {
                       <Table containerClassName={TABLE_SCROLL_CONTAINER_CLASS} className="w-full min-w-[1000px]">
                         <TableHeader>
                           <TableRow className="bg-[hsl(var(--surface-subtle))]">
+                            <TableHead className="whitespace-nowrap w-[140px]">货件编号</TableHead>
                             <TableHead className="whitespace-nowrap w-[80px]">仓库 ID</TableHead>
                             <TableHead className="whitespace-nowrap w-[140px]">SKU</TableHead>
                             <TableHead className="whitespace-nowrap w-[180px]">单品尺寸和重量</TableHead>
@@ -2675,10 +2753,10 @@ export default function ShipmentManagementPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {fbaBoxLoading && fbaBoxItems.length === 0 ? <ShipmentTableSkeleton columns={9} /> : null}
+                          {fbaBoxLoading && fbaBoxItems.length === 0 ? <ShipmentTableSkeleton columns={10} /> : null}
                           {fbaBoxItems.map((item, index) => {
                             const group = fbaBoxWarehouseGroups.find(
-                              (g) => index >= g.startIndex && index <= g.endIndex
+                              (g) => g.shipmentNo === item.shipment_no && index >= g.startIndex && index <= g.endIndex
                             )
                             const rowSpan = group ? group.endIndex - group.startIndex + 1 : 1
                             const showWarehouse = group && group.startIndex === index
@@ -2691,7 +2769,8 @@ export default function ShipmentManagementPage() {
                               : '-'
 
                             return (
-                              <TableRow key={`fba-box-${item.sku}`}>
+                              <TableRow key={`fba-box-${item.shipment_no}-${item.sku}-${index}`}>
+                                <TableCell className="font-medium">{item.shipment_no}</TableCell>
                                 {showWarehouse ? (
                                   <TableCell
                                     className="font-medium font-semibold text-primary bg-primary/5"

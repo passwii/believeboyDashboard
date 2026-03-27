@@ -18,6 +18,8 @@ from app.api.v1.endpoints.inventory_replenishment import router as inventory_rep
 from app.api.v1.endpoints.shipment_schedules import router as shipment_schedules_router
 from app.api.v1.endpoints.system_management import router as system_management_router
 from app.api.v1.endpoints.uploads import router as uploads_router
+from app.api.v1.endpoints.ad_upload import router as ad_upload_router
+from app.api.v1.endpoints.ad_analysis import router as ad_analysis_router
 from app.api.v1.endpoints.users import router as users_router
 from app.api.v1.endpoints.category_research import router as category_research_router
 
@@ -33,6 +35,8 @@ api_router.include_router(inventory_replenishment_router)
 api_router.include_router(shipment_schedules_router)
 api_router.include_router(ai_chat_router)
 api_router.include_router(uploads_router)
+api_router.include_router(ad_upload_router)
+api_router.include_router(ad_analysis_router)
 api_router.include_router(jobs_router)
 api_router.include_router(daily_reports_router)
 api_router.include_router(daily_analysis_router)

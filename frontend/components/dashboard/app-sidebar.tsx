@@ -63,7 +63,7 @@ const quickLinks: NavLink[] = [
     title: '补货分析',
     url: '/dashboard/data-analysis/inventory-replenishment',
   },
-  { title: '上传中心', url: '/dashboard/data-management/report-upload' },
+  { title: '广告管理', url: '/dashboard/data-management/ad-upload' },
 ]
 
 const quickLinkMeta: Record<
@@ -89,7 +89,7 @@ const quickLinkMeta: Record<
     accent: 'bg-[linear-gradient(180deg,#214b20,#387d35)] text-[#bff0a4]',
     activeAccent: 'bg-[linear-gradient(180deg,#2a6128,#449841)] text-[#ddffc8]',
   },
-  上传中心: {
+  广告管理: {
     icon: <FileUp className='h-4.5 w-4.5' />,
     accent: 'bg-[linear-gradient(180deg,#2440a8,#345de8)] text-[#d8e2ff]',
     activeAccent: 'bg-[linear-gradient(180deg,#2d4fc9,#3d6cff)] text-[#edf2ff]',
@@ -166,6 +166,7 @@ const primaryGroups: NavGroup[] = [
     accent: 'bg-[linear-gradient(180deg,#8c3b5e,#bb5682)] text-[#ffe1ee]',
     activeAccent: 'bg-[linear-gradient(180deg,#aa4b72,#d46797)] text-white',
     items: [
+      { title: '广告管理', url: '/dashboard/data-management/ad-upload' },
       { title: '报表上传', url: '/dashboard/data-management/report-upload' },
       {
         title: '发货管理',
