@@ -26,3 +26,9 @@ def get_request_operator(x_operator: str | None = Header(default=None, alias='X-
     if not value:
         return None
     return value[:255]
+
+
+def get_request_is_admin(x_is_admin: str | None = Header(default=None, alias='X-Is-Admin')) -> bool:
+    if x_is_admin is None:
+        return False
+    return x_is_admin.strip().lower() in {'1', 'true', 'yes', 'on'}

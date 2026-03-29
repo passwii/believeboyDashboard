@@ -162,7 +162,7 @@ export function AdAnalysisOverviewClient() {
 
   return (
     <div className='space-y-5'>
-      <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-4'>
+      <div className='grid items-start gap-4 md:grid-cols-2 xl:grid-cols-4'>
         {data.metrics.map((metric) => (
           <Card key={metric.label} className='hover-lift'>
             <CardHeader className='pb-2'>
@@ -178,10 +178,10 @@ export function AdAnalysisOverviewClient() {
 
       {comparison ? (
         <Card>
-          <CardHeader>
+          <CardHeader className='pb-3'>
             <CardTitle className='text-lg'>周期对比</CardTitle>
           </CardHeader>
-          <CardContent className='space-y-3'>
+          <CardContent className='space-y-3 pt-0'>
             <p className='text-sm text-muted-foreground'>
               当前周期 {comparison.current_start} ~ {comparison.current_end}
               {' '}对比上一周期 {comparison.previous_start} ~ {comparison.previous_end}
@@ -217,15 +217,15 @@ export function AdAnalysisOverviewClient() {
         </Card>
       ) : null}
 
-      <div className='grid gap-5 xl:grid-cols-[0.8fr_1.2fr]'>
+      <div className='grid items-start gap-5 xl:grid-cols-3'>
         <Card>
-          <CardHeader>
+          <CardHeader className='pb-3'>
             <div className='flex items-center gap-2'>
               <BarChart3 className='h-4 w-4 text-primary' />
               <CardTitle className='text-lg'>结构化分析</CardTitle>
             </div>
           </CardHeader>
-          <CardContent className='space-y-3'>
+          <CardContent className='space-y-3 pt-0'>
             {narrativeSections.length === 0 ? (
               <EmptyState rowHeight='md' message='当前还没有可用的结构化分析结论。' />
             ) : (
@@ -266,13 +266,13 @@ export function AdAnalysisOverviewClient() {
         </Card>
 
         <Card>
-          <CardHeader>
+          <CardHeader className='pb-3'>
             <div className='flex items-center gap-2'>
               <Radar className='h-4 w-4 text-primary' />
               <CardTitle className='text-lg'>风险提醒</CardTitle>
             </div>
           </CardHeader>
-          <CardContent className='space-y-3'>
+          <CardContent className='space-y-3 pt-0'>
             {data.issue_cards.length === 0 ? (
               <EmptyState rowHeight='md' message='当前没有明显风险信号。' />
             ) : (
@@ -309,70 +309,68 @@ export function AdAnalysisOverviewClient() {
           </CardContent>
         </Card>
 
-        <div className='xl:col-span-2 xl:grid xl:grid-cols-2'>
-          <Card>
-            <CardHeader>
-              <div className='flex items-center gap-2'>
-                <TrendingUp className='h-4 w-4 text-primary' />
-                <CardTitle className='text-lg'>高消耗活动</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {data.top_campaigns.length === 0 ? (
-                <EmptyState rowHeight='md' message='当前没有广告活动明细。' />
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>活动</TableHead>
-                      <TableHead>Spend</TableHead>
-                      <TableHead>Sales</TableHead>
-                      <TableHead>Orders</TableHead>
-                      <TableHead>ACOS</TableHead>
-                      <TableHead>下钻</TableHead>
+        <Card>
+          <CardHeader className='pb-3'>
+            <div className='flex items-center gap-2'>
+              <TrendingUp className='h-4 w-4 text-primary' />
+              <CardTitle className='text-lg'>高消耗活动</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className='pt-0'>
+            {data.top_campaigns.length === 0 ? (
+              <EmptyState rowHeight='md' message='当前没有广告活动明细。' />
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>活动</TableHead>
+                    <TableHead>Spend</TableHead>
+                    <TableHead>Sales</TableHead>
+                    <TableHead>Orders</TableHead>
+                    <TableHead>ACOS</TableHead>
+                    <TableHead>下钻</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data.top_campaigns.map((item, index) => (
+                    <TableRow key={`${String(item.campaign_name)}-${index}`}>
+                      <TableCell>{String(item.campaign_name || '-')}</TableCell>
+                      <TableCell>${Number(item.spend || 0).toFixed(2)}</TableCell>
+                      <TableCell>${Number(item.sales_7d || 0).toFixed(2)}</TableCell>
+                      <TableCell>{String(item.orders_7d || 0)}</TableCell>
+                      <TableCell>{(Number(item.acos || 0) * 100).toFixed(2)}%</TableCell>
+                      <TableCell>
+                        <AdAnalysisDrillLinks
+                          links={[
+                            {
+                              href: buildAnalysisDrillHref(
+                                'campaigns',
+                                { projectId, country, dateFrom, dateTo },
+                                { campaign: String(item.campaign_name || '') },
+                              ),
+                              label: '活动',
+                            },
+                          ]}
+                        />
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data.top_campaigns.map((item, index) => (
-                      <TableRow key={`${String(item.campaign_name)}-${index}`}>
-                        <TableCell>{String(item.campaign_name || '-')}</TableCell>
-                        <TableCell>${Number(item.spend || 0).toFixed(2)}</TableCell>
-                        <TableCell>${Number(item.sales_7d || 0).toFixed(2)}</TableCell>
-                        <TableCell>{String(item.orders_7d || 0)}</TableCell>
-                        <TableCell>{(Number(item.acos || 0) * 100).toFixed(2)}%</TableCell>
-                        <TableCell>
-                          <AdAnalysisDrillLinks
-                            links={[
-                              {
-                                href: buildAnalysisDrillHref(
-                                  'campaigns',
-                                  { projectId, country, dateFrom, dateTo },
-                                  { campaign: String(item.campaign_name || '') },
-                                ),
-                                label: '活动',
-                              },
-                            ]}
-                          />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
-      <div className='grid gap-5 xl:grid-cols-2'>
+      <div className='grid items-start gap-5 xl:grid-cols-2'>
         <Card>
-          <CardHeader>
+          <CardHeader className='pb-3'>
             <div className='flex items-center gap-2'>
               <BarChart3 className='h-4 w-4 text-primary' />
               <CardTitle className='text-lg'>高消耗 SKU</CardTitle>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className='pt-0'>
             {data.top_products.length === 0 ? (
               <EmptyState rowHeight='md' message='当前没有推广商品明细。' />
             ) : (
@@ -418,13 +416,13 @@ export function AdAnalysisOverviewClient() {
         </Card>
 
         <Card>
-          <CardHeader>
+          <CardHeader className='pb-3'>
             <div className='flex items-center gap-2'>
               <Search className='h-4 w-4 text-primary' />
               <CardTitle className='text-lg'>浪费搜索词</CardTitle>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className='pt-0'>
             {data.top_waste_terms.length === 0 ? (
               <EmptyState rowHeight='md' message='当前没有达到观察门槛的浪费搜索词。' />
             ) : (
@@ -470,15 +468,15 @@ export function AdAnalysisOverviewClient() {
         </Card>
       </div>
 
-      <div className='grid gap-5 xl:grid-cols-2'>
+      <div className='grid items-start gap-5 xl:grid-cols-2'>
         <Card>
-          <CardHeader>
+          <CardHeader className='pb-3'>
             <div className='flex items-center gap-2'>
               <TimerReset className='h-4 w-4 text-primary' />
               <CardTitle className='text-lg'>近 7 日趋势</CardTitle>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className='pt-0'>
             {data.trend_summary.length === 0 ? (
               <EmptyState rowHeight='md' message='当前没有趋势明细。' />
             ) : (
@@ -524,13 +522,13 @@ export function AdAnalysisOverviewClient() {
         </Card>
 
         <Card>
-          <CardHeader>
+          <CardHeader className='pb-3'>
             <div className='flex items-center gap-2'>
               <Boxes className='h-4 w-4 text-primary' />
               <CardTitle className='text-lg'>关联购买机会</CardTitle>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className='pt-0'>
             {data.top_cross_sell_products.length === 0 ? (
               <EmptyState rowHeight='md' message='当前没有明显的关联购买贡献。' />
             ) : (

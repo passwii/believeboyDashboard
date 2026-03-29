@@ -1,22 +1,24 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { AlertCircle, Calculator, CheckCircle2, Download, Loader2, RefreshCw, Search, Trash2, X } from 'lucide-react'
+import { AlertCircle, Calculator, Check, CheckCircle2, ChevronDown, Download, Loader2, RefreshCw, Search, Trash2, X } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { DirectionalTabTransition, SlidingTabsTrigger, TabsMotionGroup } from '@/components/ui/tab-motion'
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { cn, formatLocalTimestampForFilename } from '@/lib/utils'
 
 const API_BASE = '/api/backend'
 const MAX_VISIBLE_RUNS = 8
-const MAX_SELECTED_RUNS = 4
+const MAX_SELECTED_RUNS = 8
 const HISTORY_SHIPMENT_STATUSES = ['completed', 'in_transit'] as const
 const BUSINESS_TAB_ORDER = ['new-product', 'store-accounting'] as const
 const CALCULATION_MODE_ORDER = ['profit-calc', 'profit-reverse', 'cost-reverse'] as const
@@ -582,6 +584,10 @@ function getCalculationTypeMeta(calculationType: PricingCalculationRunItem['calc
   }
 }
 
+function getRunSummary(run: PricingCalculationRunItem) {
+  return `${run.product_name} - ${getCalculationTypeMeta(run.calculation_type).label} - ${formatCompactDate(run.created_at)}`
+}
+
 type ComparisonValueType = 'text' | 'currency_usd' | 'currency_rmb' | 'percent' | 'number'
 
 type ComparisonRow = {
@@ -1136,6 +1142,7 @@ export default function PricingCalculationPage() {
   const [runs, setRuns] = useState<PricingCalculationRunItem[]>([])
   const [productKeyword, setProductKeyword] = useState('')
   const [selectedRunIds, setSelectedRunIds] = useState<number[]>([])
+  const [runPickerOpen, setRunPickerOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [runsLoading, setRunsLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
@@ -1163,7 +1170,7 @@ export default function PricingCalculationPage() {
     async function loadRuns() {
       setRunsLoading(true)
       try {
-        const response = await fetch(`${API_BASE}/api/v1/pricing-calculation/runs?page=1&page_size=24`, {
+        const response = await fetch(`${API_BASE}/api/v1/pricing-calculation/runs?page=1&page_size=100`, {
           cache: 'no-store',
         })
         const payload = (await response.json()) as ListResponse | { detail?: string; message?: string }
@@ -1345,16 +1352,32 @@ export default function PricingCalculationPage() {
     if (!normalizedKeyword) {
       return runs
     }
-    return runs.filter((run) => run.product_name.toLowerCase().includes(normalizedKeyword))
+    return runs.filter((run) => {
+      return [
+        run.product_name,
+        run.created_by ?? '',
+        getCalculationTypeMeta(run.calculation_type).label,
+        formatCompactDate(run.created_at),
+      ].some((value) => value.toLowerCase().includes(normalizedKeyword))
+    })
   }, [productKeyword, runs])
+  const runPickerOptions = useMemo(() => {
+    return filteredRuns.map((run) => ({
+      run,
+      summary: getRunSummary(run),
+    }))
+  }, [filteredRuns])
   const visibleRuns = useMemo(() => filteredRuns.slice(0, MAX_VISIBLE_RUNS), [filteredRuns])
 
   const selectedRuns = useMemo(() => {
     if (selectedRunIds.length === 0) {
       return []
     }
-    const selectedSet = new Set(selectedRunIds)
-    return runs.filter((run) => selectedSet.has(run.id)).slice(0, MAX_SELECTED_RUNS)
+    const runMap = new Map(runs.map((run) => [run.id, run]))
+    return selectedRunIds
+      .map((id) => runMap.get(id))
+      .filter((run): run is PricingCalculationRunItem => Boolean(run))
+      .slice(0, MAX_SELECTED_RUNS)
   }, [runs, selectedRunIds])
   const volumeWeightKg = useMemo(() => {
     return (toNumber(form.package_length_cm) * toNumber(form.package_width_cm) * toNumber(form.package_height_cm)) / 6000
@@ -1756,19 +1779,66 @@ export default function PricingCalculationPage() {
                     <Card className="border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
                       <CardHeader className="pb-3">
                         <CardTitle className="text-lg">筛选产品</CardTitle>
-                        <CardDescription>先搜索产品，再选择最多 {MAX_SELECTED_RUNS} 个测算结果进入对比矩阵。</CardDescription>
+                        <CardDescription>支持关键词搜索和下拉多选；最近测算卡片只展示前 {MAX_VISIBLE_RUNS} 条，未展示的记录也能在下拉中快速选中。</CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-3">
-                        <div className="flex flex-col gap-3 md:flex-row">
+                        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(300px,420px)_auto]">
                           <div className="relative flex-1">
                             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                             <Input
                               value={productKeyword}
                               onChange={(event) => setProductKeyword(event.target.value)}
-                              placeholder="按产品名称筛选"
+                              placeholder="按产品名、测算类型、日期、创建人筛选"
                               className="pl-9"
                             />
                           </div>
+                          <Popover open={runPickerOpen} onOpenChange={setRunPickerOpen}>
+                            <PopoverTrigger asChild>
+                              <Button type="button" variant="outline" className="w-full justify-between">
+                                <span className="truncate">
+                                  {selectedRunIds.length > 0 ? `已选 ${selectedRunIds.length} 个测算结果` : '下拉选择测算结果'}
+                                </span>
+                                <ChevronDown className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent align="start" className="w-[min(92vw,420px)] p-0">
+                              <Command>
+                                <CommandInput placeholder="搜索产品名称、测算类型、日期" />
+                                <CommandList>
+                                  <CommandEmpty>没有匹配的测算结果</CommandEmpty>
+                                  <CommandGroup heading={`可选记录 ${runPickerOptions.length} 条`}>
+                                    {runPickerOptions.map(({ run, summary }) => {
+                                      const isSelected = selectedRunIds.includes(run.id)
+                                      const disabled = !isSelected && selectedRunIds.length >= MAX_SELECTED_RUNS
+                                      return (
+                                        <CommandItem
+                                          key={run.id}
+                                          value={`${run.id} ${summary} ${run.created_by ?? ''}`}
+                                          disabled={disabled}
+                                          onSelect={() => toggleRunSelection(run.id)}
+                                          className="items-start gap-3 py-3"
+                                        >
+                                          <span
+                                            className={cn(
+                                              'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border',
+                                              isSelected ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-background'
+                                            )}
+                                          >
+                                            {isSelected ? <Check className="h-3 w-3" /> : null}
+                                          </span>
+                                          <div className="min-w-0 flex-1">
+                                            <div className="truncate text-sm font-medium text-foreground">{run.product_name}</div>
+                                            <div className="mt-1 text-xs text-muted-foreground">{getCalculationTypeMeta(run.calculation_type).label} · {formatCompactDate(run.created_at)}</div>
+                                            {run.created_by ? <div className="mt-1 text-[11px] text-muted-foreground">创建人：{run.created_by}</div> : null}
+                                          </div>
+                                        </CommandItem>
+                                      )
+                                    })}
+                                  </CommandGroup>
+                                </CommandList>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
                           <Button type="button" variant="outline" onClick={() => setSelectedRunIds([])} disabled={selectedRunIds.length === 0}>
                             清空选择
                           </Button>
@@ -1778,6 +1848,21 @@ export default function PricingCalculationPage() {
                           <span>已选 {selectedRuns.length}/{MAX_SELECTED_RUNS}</span>
                           {productKeyword ? <span>关键词: {productKeyword}</span> : null}
                         </div>
+                        {selectedRuns.length > 0 ? (
+                          <div className="flex flex-wrap gap-2">
+                            {selectedRuns.map((run) => (
+                              <button
+                                key={run.id}
+                                type="button"
+                                onClick={() => toggleRunSelection(run.id)}
+                                className="inline-flex max-w-full items-center gap-2 rounded-full border border-border/70 bg-[hsl(var(--surface-subtle))] px-3 py-1 text-xs text-foreground transition-colors hover:bg-[hsl(var(--surface-panel))]"
+                              >
+                                <span className="truncate">{getRunSummary(run)}</span>
+                                <X className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
                       </CardContent>
                     </Card>
 
@@ -1819,14 +1904,15 @@ export default function PricingCalculationPage() {
                                   type="button"
                                   onClick={() => toggleRunSelection(run.id)}
                                   className={cn(
-                                    'min-w-[180px] rounded-xl border p-3 text-left transition-colors',
+                                    'flex min-h-[152px] w-full max-w-[240px] flex-col rounded-xl border p-3 text-left transition-colors sm:w-[220px]',
                                     isSelected ? typeMeta.selectedClassName : typeMeta.cardClassName
                                   )}
                                 >
                                   <div className="flex items-start justify-between gap-2">
-                                    <div>
+                                    <div className="min-w-0">
                                       <p className="text-xs text-muted-foreground">{formatCompactDate(run.created_at)}</p>
-                                      <p className="mt-1 line-clamp-1 text-sm font-semibold text-foreground">{run.product_name}</p>
+                                      <p className="mt-1 line-clamp-2 break-all text-sm font-semibold text-foreground">{run.product_name}</p>
+                                      {run.created_by ? <p className="mt-1 truncate text-[11px] text-muted-foreground">创建人：{run.created_by}</p> : null}
                                     </div>
                                     <div className="flex items-center gap-1">
                                       {isSelected ? (
@@ -1867,7 +1953,7 @@ export default function PricingCalculationPage() {
                                     <Badge className={cn('border text-[10px]', typeMeta.badgeClassName)}>{typeMeta.label}</Badge>
                                     <Badge variant="secondary" className="text-[10px]">{run.size_tier_label}</Badge>
                                   </div>
-                                  <p className={`mt-2 text-lg font-semibold ${run.profit.profit_usd >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                                  <p className={`mt-auto pt-3 text-lg font-semibold ${run.profit.profit_usd >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                                     {formatCurrency(run.profit.profit_usd)}
                                   </p>
                                   <p className="text-xs text-muted-foreground">{formatPercent(run.profit.profit_rate)}</p>

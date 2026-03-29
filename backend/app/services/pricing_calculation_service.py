@@ -259,7 +259,13 @@ def create_pricing_cost_reverse_run(
 
 
 def list_pricing_runs(
-    db: Session, *, page: int = 1, page_size: int = 20, exclude_project_id: bool = True
+    db: Session,
+    *,
+    page: int = 1,
+    page_size: int = 20,
+    exclude_project_id: bool = True,
+    operator: str | None = None,
+    is_admin: bool = False,
 ) -> tuple[list[PricingCalculationRun], int]:
     ensure_tables(db)
     safe_page = max(page, 1)
@@ -268,6 +274,12 @@ def list_pricing_runs(
     # 过滤：如果 exclude_project_id 为 True，则只返回没有 project_id 的记录（新品核算）
     if exclude_project_id:
         stmt = stmt.where(PricingCalculationRun.project_id.is_(None))
+    normalized_operator = (operator or '').strip()
+    if not is_admin:
+        if normalized_operator:
+            stmt = stmt.where(PricingCalculationRun.created_by == normalized_operator)
+        else:
+            stmt = stmt.where(PricingCalculationRun.id == -1)
     total = int(
         db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one() or 0
     )
@@ -285,10 +297,30 @@ def list_pricing_runs(
     return rows, total
 
 
-def delete_pricing_run(db: Session, run_id: int) -> bool:
+def can_access_pricing_run(
+    row: PricingCalculationRun | None,
+    *,
+    operator: str | None = None,
+    is_admin: bool = False,
+) -> bool:
+    if row is None:
+        return False
+    if is_admin:
+        return True
+    normalized_operator = (operator or '').strip()
+    if not normalized_operator:
+        return False
+    return (row.created_by or '').strip() == normalized_operator
+
+
+def delete_pricing_run(
+    db: Session, run_id: int, *, operator: str | None = None, is_admin: bool = False
+) -> bool:
     ensure_tables(db)
     row = db.get(PricingCalculationRun, run_id)
     if row is None:
+        return False
+    if not can_access_pricing_run(row, operator=operator, is_admin=is_admin):
         return False
     db.delete(row)
     db.flush()

@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, get_request_operator, protected
+from app.api.deps import get_db_session, get_request_is_admin, get_request_operator, protected
 from app.schemas.pricing_calculation import (
     PricingCalculationCostReverseRequest,
     PricingCalculationCreateRequest,
@@ -22,8 +22,17 @@ def list_pricing_runs(
     page_size: int = Query(default=12, ge=1, le=100),
     exclude_project_id: bool = Query(default=True, description="是否排除店铺核算记录（只返回新品核算）"),
     db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Depends(get_request_is_admin),
 ) -> PricingCalculationRunListResponse:
-    rows, total = pricing_calculation_service.list_pricing_runs(db, page=page, page_size=page_size, exclude_project_id=exclude_project_id)
+    rows, total = pricing_calculation_service.list_pricing_runs(
+        db,
+        page=page,
+        page_size=page_size,
+        exclude_project_id=exclude_project_id,
+        operator=operator,
+        is_admin=is_admin,
+    )
     return PricingCalculationRunListResponse(
         items=[PricingCalculationRunItem(**pricing_calculation_service.serialize_pricing_run(row)) for row in rows],
         total=total,
@@ -81,8 +90,16 @@ def calculate_pricing_reverse_cost(
 def delete_pricing_run(
     run_id: int,
     db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Depends(get_request_is_admin),
 ) -> Response:
-    deleted = pricing_calculation_service.delete_pricing_run(db, run_id)
+    row = db.get(pricing_calculation_service.PricingCalculationRun, run_id)
+    if not row:
+        raise HTTPException(status_code=404, detail='测算记录不存在')
+    if not pricing_calculation_service.can_access_pricing_run(row, operator=operator, is_admin=is_admin):
+        raise HTTPException(status_code=403, detail='无权操作该测算记录')
+
+    deleted = pricing_calculation_service.delete_pricing_run(db, run_id, operator=operator, is_admin=is_admin)
     if not deleted:
         raise HTTPException(status_code=404, detail='测算记录不存在')
 
@@ -95,12 +112,15 @@ def recalculate_pricing_run(
     run_id: int,
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Depends(get_request_is_admin),
 ) -> PricingCalculationRunItem:
     """重新计算已有的测算记录，使用最新的计算逻辑（回款=售价-费用合计含广告费）"""
     # 获取原有记录
     row = db.get(pricing_calculation_service.PricingCalculationRun, run_id)
     if not row:
         raise HTTPException(status_code=404, detail='测算记录不存在')
+    if not pricing_calculation_service.can_access_pricing_run(row, operator=operator, is_admin=is_admin):
+        raise HTTPException(status_code=403, detail='无权操作该测算记录')
 
     # 构建计算请求参数
     from app.schemas.pricing_calculation import PricingCalculationCreateRequest
