@@ -61,11 +61,30 @@ def _safe_div_percent_decimal(numerator: Decimal, denominator: Decimal) -> Decim
 def _read_transactions(input_path: str) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     with open(input_path, "r", encoding="utf-8-sig", newline="") as fh:
-        for _ in range(7):
-            next(fh, None)
-        reader = csv.DictReader(fh)
+        reader = csv.reader(fh)
+        header: list[str] | None = None
+        for raw_row in reader:
+            normalized_header = [str(cell).strip() for cell in raw_row]
+            lowered = {cell.lower() for cell in normalized_header if cell}
+            if 'date/time' in lowered and 'type' in lowered:
+                header = normalized_header
+                break
+
+        if header is None:
+            raise ValueError('monthly report header row not found')
+
+        reader = csv.DictReader(fh, fieldnames=header)
         for row in reader:
-            normalized = {k.strip(): (v.strip() if isinstance(v, str) else v) for k, v in row.items()}
+            normalized: dict[str, object] = {}
+            for k, v in row.items():
+                if k is None:
+                    continue
+                normalized[str(k).strip()] = v.strip() if isinstance(v, str) else v
+            if not any(
+                (str(value).strip() if value is not None else "")
+                for value in normalized.values()
+            ):
+                continue
             normalized["quantity"] = int(_to_decimal(normalized.get("quantity") or 0))
             rows.append(normalized)
     return rows

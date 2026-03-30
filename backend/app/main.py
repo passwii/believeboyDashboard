@@ -8,6 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.router import api_router
 from app.core.config import get_settings
+from app.db.session import SessionLocal
+from app.services.audit_log_service import sync_operation_audit_log_sequence
 
 settings = get_settings()
 
@@ -25,6 +27,19 @@ app.add_middleware(
     allow_methods=['*'],
     allow_headers=['*'],
 )
+
+
+@app.on_event('startup')
+def sync_sequences_on_startup() -> None:
+    db = SessionLocal()
+    try:
+        sync_operation_audit_log_sequence(db)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 
 @app.middleware('http')

@@ -9,6 +9,7 @@ from app.core.config import get_settings
 from app.main import app
 from app.models.job import JobStatus
 from app.services import monthly_report_service
+from app.tasks.scripts import monthly_report as monthly_report_script
 
 client = TestClient(app)
 
@@ -108,6 +109,83 @@ def test_monthly_reports_creates_job_without_pdf(monkeypatch):
     payload = response.json()
     assert payload['job_id'] == 124
     assert payload['status'] == 'pending'
+
+
+def test_monthly_report_csv_reader_ignores_none_header_key(tmp_path: Path):
+    sample = tmp_path / 'sample.csv'
+    sample.write_text(
+        '\n'.join([
+            'meta-1',
+            'meta-2',
+            'meta-3',
+            'meta-4',
+            'meta-5',
+            'meta-6',
+            'meta-7',
+            'date/time,type,description,quantity',
+            '"Mar 01, 2026 01:23:45 PM UTC",Order,Normal,2,unexpected-extra-cell',
+        ]),
+        encoding='utf-8',
+    )
+
+    rows = monthly_report_script._read_transactions(str(sample))
+
+    assert len(rows) == 1
+    assert rows[0]['type'] == 'Order'
+    assert rows[0]['description'] == 'Normal'
+    assert rows[0]['quantity'] == 2
+
+
+def test_monthly_report_csv_reader_finds_dynamic_header_row(tmp_path: Path):
+    sample = tmp_path / 'sample_dynamic_header.csv'
+    sample.write_text(
+        '\n'.join([
+            'meta-1',
+            'meta-2',
+            'meta-3',
+            'meta-4',
+            'meta-5',
+            'meta-6',
+            'meta-7',
+            'meta-8',
+            'meta-9',
+            'date/time,type,quantity,total',
+            '"Mar 01, 2026 01:23:45 PM UTC",Order,1,12.34',
+        ]),
+        encoding='utf-8',
+    )
+
+    rows = monthly_report_script._read_transactions(str(sample))
+
+    assert len(rows) == 1
+    assert rows[0]['date/time'] == 'Mar 01, 2026 01:23:45 PM UTC'
+    assert rows[0]['type'] == 'Order'
+    assert rows[0]['quantity'] == 1
+
+
+def test_monthly_report_csv_reader_skips_blank_rows(tmp_path: Path):
+    sample = tmp_path / 'sample_blank.csv'
+    sample.write_text(
+        '\n'.join([
+            'meta-1',
+            'meta-2',
+            'meta-3',
+            'meta-4',
+            'meta-5',
+            'meta-6',
+            'meta-7',
+            'date/time,type,quantity',
+            ',,',
+            '"Mar 01, 2026 01:23:45 PM UTC",Order,1',
+        ]),
+        encoding='utf-8',
+    )
+
+    rows = monthly_report_script._read_transactions(str(sample))
+
+    assert len(rows) == 1
+    assert rows[0]['type'] == 'Order'
+    assert rows[0]['quantity'] == 1
 
 
 def test_monthly_reports_list(monkeypatch):

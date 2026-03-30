@@ -5,6 +5,7 @@ from decimal import Decimal
 from typing import Any
 
 from fastapi import Request
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.models.operation_audit_log import OperationAuditLog
@@ -22,6 +23,27 @@ _SENSITIVE_KEYS = {
     'api_key',
     'x-api-key',
 }
+
+
+def sync_operation_audit_log_sequence(db: Session) -> None:
+    bind = db.get_bind()
+    if bind.dialect.name != 'postgresql':
+        return
+
+    db.execute(
+        text(
+            """
+            SELECT setval(
+                pg_get_serial_sequence('operation_audit_logs', 'id'),
+                GREATEST(
+                    COALESCE((SELECT MAX(id) FROM operation_audit_logs), 0),
+                    1
+                ),
+                true
+            )
+            """
+        )
+    )
 
 
 def _clip(value: str | None, max_len: int) -> str | None:
