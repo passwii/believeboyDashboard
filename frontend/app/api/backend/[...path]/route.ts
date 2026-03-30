@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 
 import { requireUserSession } from '@/lib/auth/server'
+import { normalizeErrorMessage } from '@/lib/error-utils'
 import {
   buildBackendProxyHeaders,
   buildBackendUrl,
@@ -33,7 +34,7 @@ async function proxy(request: NextRequest, { params }: { params: { path: string[
     return await toProxyResponse(response)
   } catch (error) {
     return NextResponse.json(
-      { message: error instanceof Error ? error.message : 'Proxy request failed' },
+      { message: normalizeErrorMessage(error, '后端服务暂时不可用，请联系管理员') },
       { status: 500 }
     )
   }

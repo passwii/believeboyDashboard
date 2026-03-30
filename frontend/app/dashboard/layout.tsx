@@ -2,42 +2,17 @@
 
 import { useEffect, useMemo } from 'react'
 import { usePathname } from 'next/navigation'
+import { LivePresence } from '@/components/dashboard/live-presence'
+import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
+import { ProductUpdatesEntry } from '@/components/dashboard/product-updates-entry'
+import { ProductUpdatesSpotlight } from '@/components/dashboard/product-updates-spotlight'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/dashboard/app-sidebar'
 import { SearchCommand } from '@/components/dashboard/search-command'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { getDashboardPageTitle } from '@/lib/dashboard-route-meta'
 import { Bell, ChevronRight, CircleHelp, History, Search } from 'lucide-react'
-
-const DASHBOARD_PAGE_TITLES: Array<{ match: string; title: string }> = [
-  { match: '/data-reporting/daily-report', title: '销售日报' },
-  { match: '/data-reporting/monthly-report', title: '财务月报' },
-  { match: '/data-reporting/product-analysis', title: '产品分析' },
-  { match: '/data-reporting/pricing-calculation', title: '定价核算' },
-  { match: '/data-analysis/financial-data', title: '月度财务分析' },
-  { match: '/data-analysis/daily-analysis', title: '销售数据' },
-  { match: '/data-analysis/ad-analysis', title: '广告分析' },
-  { match: '/data-analysis/weekly-product-analysis', title: '按周产品分析' },
-  { match: '/data-analysis/inventory-analysis', title: '库存分析' },
-  { match: '/data-analysis/inventory-replenishment', title: '补货分析' },
-  { match: '/data-management/report-upload', title: '报表上传' },
-  { match: '/data-management/shipment-management', title: '发货管理' },
-  { match: '/data-management/sku-cost', title: 'SKU 信息中心' },
-  { match: '/data-management/exchange-rate', title: '汇率信息' },
-  { match: '/system-management/project-info', title: '项目信息' },
-  { match: '/system-management/data-management', title: '数据库状态' },
-  { match: '/system-management/account-management', title: '系统账号管理' },
-  { match: '/system-management/operator-management', title: '运营管理' },
-  { match: '/system-management/commission-overview', title: '佣金管理' },
-  { match: '/system-management/commission-management', title: '佣金管理' },
-  { match: '/system-management/logs', title: '日志查看' },
-  { match: '/operations/site-navigation', title: '跨境平台书签导航' },
-  { match: '/operations/store-navigation', title: '店铺导航' },
-  { match: '/ai-panel/chat', title: 'AI 聊天面板' },
-  { match: '/tools/research-analysis', title: '调研分析' },
-  { match: '/change-password', title: '修改密码' },
-  { match: '/changelog', title: '更新日志' },
-]
 
 export default function DashboardLayout({
   children,
@@ -45,10 +20,7 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   const pathname = usePathname()
-  const pageTitle = useMemo(() => {
-    if (pathname === '/dashboard') return '运营总览与关键数据面板'
-    return DASHBOARD_PAGE_TITLES.find(({ match }) => pathname.includes(match))?.title ?? 'Dashboard'
-  }, [pathname])
+  const pageTitle = useMemo(() => getDashboardPageTitle(pathname), [pathname])
   const breadcrumbLabel = useMemo(() => {
     if (pathname === '/dashboard') return '运营总览'
 
@@ -103,6 +75,7 @@ export default function DashboardLayout({
                 <span className="rounded-sm bg-background/90 px-2 py-1 text-[0.68rem] font-semibold text-foreground/70">⌘K</span>
               </Button>
             </div>
+            <LivePresence />
             <div className="flex items-center justify-end gap-2">
               <Button
                 variant="outline"
@@ -122,21 +95,28 @@ export default function DashboardLayout({
                 <Bell className="h-4 w-4" />
                 <span className="sr-only">Notifications</span>
               </Button>
+              <ProductUpdatesEntry />
               <Button
+                asChild
                 variant="ghost"
                 size="icon"
                 className="h-10 w-10 rounded-xl border border-transparent bg-transparent text-secondary hover:bg-[hsl(var(--surface-subtle))]"
               >
-                <History className="h-4 w-4" />
-                <span className="sr-only">History</span>
+                <RouteLoadingLink href="/dashboard/changelog" aria-label="开发更新日志">
+                  <History className="h-4 w-4" />
+                  <span className="sr-only">History</span>
+                </RouteLoadingLink>
               </Button>
               <Button
+                asChild
                 variant="ghost"
                 size="icon"
                 className="h-10 w-10 rounded-xl border border-transparent bg-transparent text-secondary hover:bg-[hsl(var(--surface-subtle))]"
               >
-                <CircleHelp className="h-4 w-4" />
-                <span className="sr-only">Help</span>
+                <RouteLoadingLink href="/dashboard/feature-updates#support" aria-label="帮助与功能说明">
+                  <CircleHelp className="h-4 w-4" />
+                  <span className="sr-only">Help</span>
+                </RouteLoadingLink>
               </Button>
             </div>
           </div>
@@ -148,6 +128,7 @@ export default function DashboardLayout({
         </main>
       </SidebarInset>
       <SearchCommand />
+      <ProductUpdatesSpotlight />
     </SidebarProvider>
   )
 }

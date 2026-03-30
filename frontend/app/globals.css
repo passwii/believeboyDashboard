@@ -264,6 +264,54 @@
 }
 
 @layer components {
+  .ui-floating-motion {
+    transform-origin: var(--radix-popper-transform-origin, center top);
+    will-change: transform, opacity;
+    transition-property: opacity, transform;
+    transition-duration: var(--motion-base);
+    transition-timing-function: var(--motion-ease-out);
+  }
+
+  .ui-floating-motion[data-state='open'] {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  .ui-floating-motion[data-state='closed'] {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.985);
+    transition-duration: var(--motion-fast);
+    transition-timing-function: var(--motion-ease-standard);
+  }
+
+  .ui-floating-motion[data-side='top'][data-state='closed'] {
+    transform: translate3d(0, 0.5rem, 0) scale(0.985);
+  }
+
+  .ui-floating-motion[data-side='bottom'][data-state='closed'] {
+    transform: translate3d(0, -0.5rem, 0) scale(0.985);
+  }
+
+  .ui-floating-motion[data-side='left'][data-state='closed'] {
+    transform: translate3d(0.5rem, 0, 0) scale(0.985);
+  }
+
+  .ui-floating-motion[data-side='right'][data-state='closed'] {
+    transform: translate3d(-0.5rem, 0, 0) scale(0.985);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ui-floating-motion,
+    .ui-floating-motion[data-state='open'],
+    .ui-floating-motion[data-state='closed'],
+    .ui-floating-motion[data-side='top'][data-state='closed'],
+    .ui-floating-motion[data-side='bottom'][data-state='closed'],
+    .ui-floating-motion[data-side='left'][data-state='closed'],
+    .ui-floating-motion[data-side='right'][data-state='closed'] {
+      transform: none;
+    }
+  }
+
   .dashboard-full-width > * {
     width: 100%;
     max-width: none !important;

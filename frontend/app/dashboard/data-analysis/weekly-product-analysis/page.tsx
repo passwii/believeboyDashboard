@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { clearClientCache, getClientCache, setClientCache } from '@/lib/client-cache'
+import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
 
@@ -1241,6 +1242,21 @@ export default function WeeklyProductAnalysisPage() {
       link.download = `按周产品分析-${projectName}-${country}-${safeTimestamp}.xlsx`
       link.click()
       window.URL.revokeObjectURL(url)
+      await logClientOperation({
+        action: 'product_analysis.weekly.export',
+        targetType: 'product_analysis_weekly',
+        targetId: projectId,
+        after: {
+          project_id: projectId,
+          project_name: projectName,
+          country,
+          start_date: startDate,
+          end_date: endDate,
+          summary_count: summaryRows.length,
+          detail_count: exportDetailRows.length,
+          filename: link.download,
+        },
+      })
     } catch (exportError) {
       setError(exportError instanceof Error ? exportError.message : '导出 Excel 失败')
     } finally {

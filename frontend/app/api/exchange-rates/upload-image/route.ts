@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 
 import { requireAdminSession } from '@/lib/auth/server'
+import { normalizeErrorMessage } from '@/lib/error-utils'
 import {
   buildBackendProxyHeaders,
   buildBackendUrl,
@@ -25,7 +26,7 @@ export async function POST(request: Request) {
     if (!response.ok) {
       const payload = (await response.json().catch(() => null)) as { detail?: string; message?: string } | null
       return NextResponse.json(
-        { error: payload?.detail || payload?.message || 'Failed to upload image' },
+        { error: normalizeErrorMessage(payload?.detail || payload?.message, '图片上传失败') },
         { status: response.status }
       )
     }
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
     })
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to upload image' },
+      { error: normalizeErrorMessage(error, '图片上传失败') },
       { status: 500 }
     )
   }

@@ -2,6 +2,7 @@ import type { Session } from 'next-auth'
 
 import { buildBackendHeaders } from '@/lib/backend-auth'
 import { clearClientCacheByPrefix, getClientCache, setClientCache } from '@/lib/client-cache'
+import { normalizeErrorMessage } from '@/lib/error-utils'
 
 const PROJECT_CACHE_PREFIX = 'projects:'
 const PROJECTS_CACHE_TTL_MS = 10 * 60 * 1000
@@ -47,7 +48,8 @@ async function fetchCachedJson<T>(
     headers: buildBackendHeaders(options?.session),
   })
   if (!response.ok) {
-    throw new Error(await parseError(response, options?.fallbackError || `请求失败 (${response.status})`))
+    const message = await parseError(response, options?.fallbackError || `请求失败 (${response.status})`)
+    throw new Error(normalizeErrorMessage(message, options?.fallbackError || '加载失败'))
   }
 
   const payload = (await response.json()) as T

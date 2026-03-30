@@ -180,9 +180,14 @@ const primaryGroups: NavGroup[] = [
 
 const utilityLinks: Array<NavLink & { icon: React.ReactNode }> = [
   {
+    title: '产品更新',
+    url: '/dashboard/feature-updates',
+    icon: <BellRing className='h-4 w-4' />,
+  },
+  {
     title: '更新日志',
     url: '/dashboard/changelog',
-    icon: <BellRing className='h-4 w-4' />,
+    icon: <Database className='h-4 w-4' />,
   },
 ]
 

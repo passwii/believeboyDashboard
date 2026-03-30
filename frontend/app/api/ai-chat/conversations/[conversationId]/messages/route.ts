@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { requireUserSession } from '@/lib/auth/server'
+import { normalizeErrorMessage } from '@/lib/error-utils'
 import {
   buildSystemPrompt,
   getAiProviderConfig,
@@ -31,7 +32,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
     })
     return NextResponse.json(data)
   } catch (err) {
-    return NextResponse.json({ message: err instanceof Error ? err.message : '加载消息失败' }, { status: 500 })
+    return NextResponse.json({ message: normalizeErrorMessage(err, '加载消息失败') }, { status: 500 })
   }
 }
 
@@ -96,6 +97,6 @@ export async function POST(request: Request, { params }: RouteContext) {
 
     return NextResponse.json(data)
   } catch (err) {
-    return NextResponse.json({ message: err instanceof Error ? err.message : '发送失败' }, { status: 500 })
+    return NextResponse.json({ message: normalizeErrorMessage(err, '发送失败') }, { status: 500 })
   }
 }

@@ -22,6 +22,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+import { normalizeErrorMessage } from '@/lib/error-utils'
 import { cn } from '@/lib/utils'
 
 type UploadType = 'sales_report' | 'ad_report' | 'inventory_report'
@@ -226,7 +227,7 @@ export default function DailyReportPage() {
         const data = await fetchManagedProjectsCached<ProjectOption[]>(session)
         setProjects(data)
       } catch (error) {
-        setProjectLoadError(error instanceof Error ? error.message : '项目列表加载失败')
+        setProjectLoadError(normalizeErrorMessage(error, '项目列表加载失败'))
       } finally {
         setProjectsLoading(false)
       }
@@ -717,7 +718,7 @@ export default function DailyReportPage() {
                       ))}
                     </SelectContent>
                   </Select>
-                  {!projectsLoading && projects.length === 0 ? (
+                  {!projectsLoading && !projectLoadError && projects.length === 0 ? (
                     <p className="text-xs text-muted-foreground">暂无项目，请先到“项目信息”页面新增。</p>
                   ) : null}
                   {projectLoadError ? <p className="text-xs text-destructive">{projectLoadError}</p> : null}

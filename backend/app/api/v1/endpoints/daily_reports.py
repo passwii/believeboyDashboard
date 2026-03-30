@@ -1,12 +1,15 @@
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
+from sqlalchemy.orm import Session
 
+from app.api.deps import get_db_session
 from app.api.deps import get_request_operator, protected
 from app.core.config import Settings, get_settings
 from app.schemas.daily_report import CreateDailyReportRequest, DailyReportResponse, DailyReportTaskStatusResponse
+from app.services.audit_log_service import append_operation_audit_log
 from app.services import analysis_report_runtime_service, upload_service
 
 router = APIRouter(dependencies=[Depends(protected)])
@@ -15,7 +18,9 @@ router = APIRouter(dependencies=[Depends(protected)])
 @router.post('/daily-reports', response_model=DailyReportResponse)
 def create_daily_report(
     data: CreateDailyReportRequest,
+    request: Request,
     settings: Settings = Depends(get_settings),
+    db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> DailyReportResponse:
     report_date = data.report_date.strip()
@@ -56,6 +61,22 @@ def create_daily_report(
         },
     )
 
+    append_operation_audit_log(
+        db,
+        action='daily_reports.create',
+        target_type='daily_report_task',
+        target_id=task.id,
+        operator=operator,
+        after={
+            'job_id': task.id,
+            'project_name': project_name,
+            'country': data.country.strip() or 'US',
+            'report_date': report_date,
+        },
+        request=request,
+    )
+    db.commit()
+
     return DailyReportResponse(
         job_id=task.id,
         status_endpoint=f'/api/v1/daily-reports/tasks/{task.id}',
@@ -85,7 +106,12 @@ def get_daily_report_task(task_id: int) -> DailyReportTaskStatusResponse:
 
 
 @router.get('/daily-reports/tasks/{task_id}/result')
-def download_daily_report_task_result(task_id: int):
+def download_daily_report_task_result(
+    task_id: int,
+    request: Request,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+):
     task = analysis_report_runtime_service.get_task(task_id)
     if task is None or task.report_type != 'daily_report':
         raise HTTPException(status_code=404, detail='Task not found')
@@ -97,4 +123,14 @@ def download_daily_report_task_result(task_id: int):
     result_path = Path(task.result_path)
     if not result_path.exists() or not result_path.is_file():
         raise HTTPException(status_code=404, detail='Result file missing')
+    append_operation_audit_log(
+        db,
+        action='daily_reports.result.export',
+        target_type='daily_report_task',
+        target_id=task.id,
+        operator=operator,
+        after={'job_id': task.id, 'filename': result_path.name},
+        request=request,
+    )
+    db.commit()
     return FileResponse(path=str(result_path), filename=result_path.name)

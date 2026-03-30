@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 
 import { requireUserSession } from '@/lib/auth/server'
+import { normalizeErrorMessage } from '@/lib/error-utils'
 import {
   buildBackendProxyHeaders,
   buildBackendUrl,
@@ -33,7 +34,7 @@ export async function GET(
     return await toProxyResponse(response)
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to read image' },
+      { error: normalizeErrorMessage(error, '图片读取失败') },
       { status: 500 }
     )
   }

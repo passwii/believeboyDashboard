@@ -24,7 +24,7 @@ export function AdAnalysisTabNav() {
                 key={tab.key}
                 href={href}
                 className={cn(
-                  'relative isolate rounded-md px-4 py-2.5 text-sm font-semibold transition-[background-color,color,box-shadow,transform] duration-200 ease-[var(--motion-ease-out)]',
+                  'relative isolate rounded-md px-4 py-2.5 text-sm font-semibold transition-[background-color,color,box-shadow,transform] duration-200 [transition-timing-function:var(--motion-ease-out)]',
                   isActive
                     ? '-translate-y-px text-primary-foreground'
                     : 'text-muted-foreground hover:bg-accent/80 hover:text-foreground dark:text-foreground/72 dark:hover:bg-[hsl(var(--surface-strong))] dark:hover:text-foreground'

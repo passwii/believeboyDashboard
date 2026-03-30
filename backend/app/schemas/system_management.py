@@ -385,3 +385,12 @@ class OperationAuditLogsSummaryResponse(BaseModel):
     unique_operator_count: int
     modules: list[OperationAuditLogModuleSummaryItem] = Field(default_factory=list)
     top_actions: list[OperationAuditLogActionSummaryItem] = Field(default_factory=list)
+
+
+class OperationAuditClientActionRequest(BaseModel):
+    action: str = Field(min_length=1, max_length=128)
+    target_type: str = Field(min_length=1, max_length=64)
+    target_id: str | None = Field(default=None, max_length=128)
+    result: str = Field(default='success', pattern='^(success|failure)$')
+    after: dict | list | None = None
+    error_message: str | None = Field(default=None, max_length=4000)

@@ -4,7 +4,7 @@ from collections import defaultdict
 from datetime import date
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from sqlalchemy import exists, func, or_, select
 from sqlalchemy.orm import Session
 
@@ -16,6 +16,7 @@ from app.schemas.product_analysis_source import (
     CurrentInventorySnapshotResponse,
     ProductAnalysisWeeklyRecomputeResponse,
 )
+from app.services.audit_log_service import append_operation_audit_log
 from app.services import product_analysis_source_service, project_service
 
 router = APIRouter(dependencies=[Depends(protected)])
@@ -546,6 +547,7 @@ def list_product_analysis_weekly(
 
 @router.post('/product-analysis/weekly/recompute', response_model=ProductAnalysisWeeklyRecomputeResponse)
 def recompute_product_analysis_weekly(
+    request: Request,
     project_id: int = Query(gt=0),
     country: Annotated[str, Query()] = 'US',
     start_date: date | None = Query(default=None),
@@ -570,6 +572,22 @@ def recompute_product_analysis_weekly(
             start_date=start_date,
             end_date=end_date,
             current_only=current_only,
+        )
+        append_operation_audit_log(
+            db,
+            action='product_analysis.weekly.recompute',
+            target_type='product_analysis_weekly',
+            target_id=project_id,
+            operator=operator,
+            after={
+                'project_id': project_id,
+                'country': normalized_country,
+                'start_date': start_date.isoformat() if start_date else None,
+                'end_date': end_date.isoformat() if end_date else None,
+                'current_only': current_only,
+                'recomputed': payload.recomputed,
+            },
+            request=request,
         )
         db.commit()
     except ValueError as exc:

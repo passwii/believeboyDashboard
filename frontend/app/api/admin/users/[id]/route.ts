@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { requireAdminSession } from '@/lib/auth/server'
+import { normalizeErrorMessage } from '@/lib/error-utils'
 import { backendFetchJson, getBackendApiKey } from '@/lib/server/backend-api'
 
 type UserItem = {
@@ -74,7 +75,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     })
     return NextResponse.json({ item: toFrontendUser(data.item) })
   } catch (err) {
-    const message = err instanceof Error ? err.message : '更新失败'
+    const message = normalizeErrorMessage(err, '更新失败')
     const status = message.includes('不存在') ? 404 : 500
     return NextResponse.json({ message }, { status })
   }

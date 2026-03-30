@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { requireAdminSession } from '@/lib/auth/server'
+import { normalizeErrorMessage } from '@/lib/error-utils'
 import { backendFetchJson, getBackendApiKey } from '@/lib/server/backend-api'
 
 type UserItem = {
@@ -48,7 +49,7 @@ export async function GET() {
     })
     return NextResponse.json({ items: data.items.map(toFrontendUser) })
   } catch (err) {
-    return NextResponse.json({ message: err instanceof Error ? err.message : '加载失败' }, { status: 500 })
+    return NextResponse.json({ message: normalizeErrorMessage(err, '加载失败') }, { status: 500 })
   }
 }
 
@@ -89,7 +90,7 @@ export async function POST(request: Request) {
     })
     return NextResponse.json({ item: toFrontendUser(data.item) }, { status: 201 })
   } catch (err) {
-    const message = err instanceof Error ? err.message : '创建失败'
+    const message = normalizeErrorMessage(err, '创建失败')
     const status = message.includes('已存在') ? 409 : 500
     return NextResponse.json({ message }, { status })
   }

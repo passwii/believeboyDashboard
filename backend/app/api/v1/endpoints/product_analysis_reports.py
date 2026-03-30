@@ -1,16 +1,18 @@
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
+from sqlalchemy.orm import Session
 
-from app.api.deps import get_request_operator, protected
+from app.api.deps import get_db_session, get_request_operator, protected
 from app.core.config import Settings, get_settings
 from app.schemas.product_analysis import (
     CreateProductAnalysisReportRequest,
     ProductAnalysisReportResponse,
     ProductAnalysisTaskStatusResponse,
 )
+from app.services.audit_log_service import append_operation_audit_log
 from app.services import analysis_report_runtime_service, upload_service
 
 router = APIRouter(dependencies=[Depends(protected)])
@@ -44,8 +46,10 @@ def _normalize_country(value: str | None) -> str:
 @router.post('/product-analysis-reports', response_model=ProductAnalysisReportResponse)
 def create_product_analysis_report(
     data: CreateProductAnalysisReportRequest,
+    request: Request,
     settings: Settings = Depends(get_settings),
-    _operator: str | None = Depends(get_request_operator),
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
 ) -> ProductAnalysisReportResponse:
     start_date = data.report_start_date.strip()
     end_date = data.report_end_date.strip()
@@ -90,9 +94,25 @@ def create_product_analysis_report(
             'country': country,
             'file_ids': file_ids,
             'resolved_file_paths': resolved_file_paths,
-            'operator': _operator,
+            'operator': operator,
         },
     )
+    append_operation_audit_log(
+        db,
+        action='product_analysis_reports.create',
+        target_type='product_analysis_report_task',
+        target_id=task.id,
+        operator=operator,
+        after={
+            'job_id': task.id,
+            'project_name': project_name,
+            'country': country,
+            'report_start_date': start_date,
+            'report_end_date': end_date,
+        },
+        request=request,
+    )
+    db.commit()
 
     return ProductAnalysisReportResponse(
         job_id=task.id,
@@ -123,7 +143,12 @@ def get_product_analysis_task(task_id: int) -> ProductAnalysisTaskStatusResponse
 
 
 @router.get('/product-analysis-reports/tasks/{task_id}/result')
-def download_product_analysis_task_result(task_id: int):
+def download_product_analysis_task_result(
+    task_id: int,
+    request: Request,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+):
     task = analysis_report_runtime_service.get_task(task_id)
     if task is None or task.report_type != 'product_analysis':
         raise HTTPException(status_code=404, detail='Task not found')
@@ -135,4 +160,14 @@ def download_product_analysis_task_result(task_id: int):
     result_path = Path(task.result_path)
     if not result_path.exists() or not result_path.is_file():
         raise HTTPException(status_code=404, detail='Result file missing')
+    append_operation_audit_log(
+        db,
+        action='product_analysis_reports.result.export',
+        target_type='product_analysis_report_task',
+        target_id=task.id,
+        operator=operator,
+        after={'job_id': task.id, 'filename': result_path.name},
+        request=request,
+    )
+    db.commit()
     return FileResponse(path=str(result_path), filename=result_path.name)

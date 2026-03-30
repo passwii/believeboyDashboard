@@ -11,6 +11,7 @@ import { EmptyTableState } from '@/components/ui/empty-state'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
 
@@ -388,6 +389,18 @@ export default function InventoryAnalysisPage() {
       link.download = `库存分析-${safeTimestamp}.xlsx`
       link.click()
       window.URL.revokeObjectURL(url)
+      await logClientOperation({
+        action: 'inventory_analysis.export',
+        targetType: 'inventory_analysis',
+        targetId: currentProjectId,
+        after: {
+          project_id: currentProjectId,
+          project_name: projects.find((project) => project.id === currentProjectId)?.name ?? null,
+          country,
+          row_count: rows.length,
+          filename: link.download,
+        },
+      })
     } catch (exportError) {
       setError(exportError instanceof Error ? exportError.message : '导出 Excel 失败')
     } finally {

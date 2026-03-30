@@ -65,6 +65,7 @@ import {
   TabsMotionGroup,
 } from '@/components/ui/tab-motion'
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
+import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 
 const API_BASE = '/api/backend'
@@ -310,15 +311,7 @@ function updateCardFromCandidates(
 }
 
 async function parseError(response: Response): Promise<string> {
-  try {
-    const payload = (await response.json()) as {
-      detail?: string
-      message?: string
-    }
-    return payload.detail || payload.message || `请求失败 (${response.status})`
-  } catch {
-    return `请求失败 (${response.status})`
-  }
+  return parseResponseError(response, '请求失败')
 }
 
 export default function ReportUploadPage() {
@@ -351,7 +344,7 @@ export default function ReportUploadPage() {
         setProjects(payload.map((item) => item.name).filter(Boolean))
       } catch (error) {
         setProjectLoadError(
-          error instanceof Error ? error.message : '项目列表加载失败',
+          normalizeErrorMessage(error, '项目列表加载失败'),
         )
       } finally {
         setProjectsLoading(false)
@@ -380,7 +373,7 @@ export default function ReportUploadPage() {
         setStatusRows(payload.items || [])
       } catch (error) {
         setStatusError(
-          error instanceof Error ? error.message : '报表状态加载失败',
+          normalizeErrorMessage(error, '报表状态加载失败'),
         )
       } finally {
         setStatusLoading(false)
@@ -494,7 +487,7 @@ export default function ReportUploadPage() {
                   ...item,
                   reportType: 'unknown',
                   recognitionStatus: 'error',
-                  error: error instanceof Error ? error.message : '识别失败',
+                  error: normalizeErrorMessage(error, '识别失败'),
                 }
               : item,
           ),
@@ -617,7 +610,7 @@ export default function ReportUploadPage() {
       updateCard(type, (current) => ({
         ...current,
         commitStatus: 'error',
-        commitMessage: error instanceof Error ? error.message : '保存失败',
+        commitMessage: normalizeErrorMessage(error, '保存失败'),
       }))
     }
   }

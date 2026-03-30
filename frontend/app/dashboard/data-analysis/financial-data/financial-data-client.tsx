@@ -30,6 +30,7 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from '@/components/ui/chart'
+import { logClientOperation } from '@/lib/operation-audit'
 import {
   MonthPicker,
   formatMonthInputValue,
@@ -1566,6 +1567,19 @@ export default function FinancialDataClient({
       link.download = `月度财务分析-${safeProjectName}-${safeTimestamp}.xlsx`
       link.click()
       window.URL.revokeObjectURL(url)
+      await logClientOperation({
+        action: 'financial_data.export',
+        targetType: 'monthly_financial_analysis',
+        targetId: projectId,
+        after: {
+          project_id: projectId,
+          project_name: data.project_name,
+          start_month: startMonth,
+          end_month: endMonth,
+          row_count: detailExportRows.length,
+          filename: link.download,
+        },
+      })
     } catch (exportError) {
       setError(
         exportError instanceof Error ? exportError.message : '导出 Excel 失败',

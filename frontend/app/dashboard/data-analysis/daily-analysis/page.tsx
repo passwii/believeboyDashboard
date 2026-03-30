@@ -17,6 +17,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { DirectionalTabTransition, SlidingTabsTrigger, TabsMotionGroup } from '@/components/ui/tab-motion'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
+import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { cn } from '@/lib/utils'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
@@ -677,6 +678,19 @@ export default function DailyAnalysisPage() {
     setExporting(true)
     try {
       await exportDailyAnalysisToExcel(summaryRows, detailRows, selectedProjectName, country, dateRangeDisplay)
+      await logClientOperation({
+        action: 'daily_analysis.export',
+        targetType: 'daily_analysis',
+        targetId: projectId || null,
+        after: {
+          project_id: projectId || null,
+          project_name: selectedProjectName,
+          country,
+          date_range: dateRangeDisplay,
+          summary_count: summaryRows.length,
+          detail_count: detailRows.length,
+        },
+      })
     } catch (exportError) {
       console.error('导出失败:', exportError)
     } finally {

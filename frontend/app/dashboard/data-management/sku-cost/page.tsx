@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { DirectionalTabTransition, SlidingTabsTrigger, TabsMotionGroup } from '@/components/ui/tab-motion'
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
+import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 
 type ProductCostItem = {
@@ -128,13 +129,7 @@ function sortProductCosts(rows: ProductCostItem[]): ProductCostItem[] {
 }
 
 async function parseError(response: Response): Promise<string> {
-  try {
-    const payload = (await response.json()) as { detail?: string }
-    return payload.detail || `请求失败 (${response.status})`
-  } catch {
-    const text = await response.text()
-    return text || `请求失败 (${response.status})`
-  }
+  return parseResponseError(response, '请求失败')
 }
 
 const EMPTY_EDIT_ROW = {
@@ -237,7 +232,7 @@ export default function SkuInfoPage() {
         const data = await fetchManagedProjectsCached<ProjectOption[]>(session)
         setProjects(data)
       } catch (loadError) {
-        setProjectLoadError(loadError instanceof Error ? loadError.message : '项目列表加载失败')
+        setProjectLoadError(normalizeErrorMessage(loadError, '项目列表加载失败'))
       } finally {
         setProjectsLoading(false)
       }
@@ -332,7 +327,7 @@ export default function SkuInfoPage() {
       setHasNextPage(payload.has_next)
       setPage(nextPage)
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : '加载失败')
+      setError(normalizeErrorMessage(loadError, '加载失败'))
     } finally {
       setLoading(false)
     }
@@ -409,7 +404,7 @@ export default function SkuInfoPage() {
       setSuccessMessage(`CSV ${importMode === 'create' ? '批量上新' : '批量修改'}完成：新增 ${payload.inserted} 条，更新 ${payload.updated} 条，跳过 ${payload.skipped ?? 0} 条`)
       if (projectFilter.trim()) await loadData(undefined, { resetPage: true, clearOnMissingProject: true })
     } catch (importError) {
-      setError(importError instanceof Error ? importError.message : 'CSV 批量导入失败')
+      setError(normalizeErrorMessage(importError, 'CSV 批量导入失败'))
     } finally {
       setBatchImporting(false)
     }
@@ -439,7 +434,7 @@ export default function SkuInfoPage() {
       URL.revokeObjectURL(url)
       setSuccessMessage('已导出当前筛选结果的批量修改模板')
     } catch (exportError) {
-      setError(exportError instanceof Error ? exportError.message : '导出失败')
+      setError(normalizeErrorMessage(exportError, '导出失败'))
     }
   }
 
@@ -505,7 +500,7 @@ export default function SkuInfoPage() {
       await loadData(undefined, { pageOverride: page, clearOnMissingProject: true })
       setSuccessMessage('该行已更新')
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : '保存失败')
+      setError(normalizeErrorMessage(saveError, '保存失败'))
     }
   }
 

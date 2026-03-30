@@ -35,6 +35,7 @@ from app.schemas.system_management import (
     CommissionRatioOverridesResponse,
     CommissionRatioSource,
     OperationAuditLogItem,
+    OperationAuditClientActionRequest,
     OperationAuditLogsResponse,
     OperationAuditLogsSummaryResponse,
     OperatorPerformanceItem,
@@ -93,6 +94,32 @@ _data_management_overview_cache: dict[str, object] = {
     'expires_at': None,
     'payload': None,
 }
+PASSIVE_AUDIT_ACTION_PATTERNS = (
+    '%.list',
+    '%.view',
+)
+
+
+@router.post('/operation-audit-logs/client-actions')
+def create_client_operation_audit_log(
+    payload: OperationAuditClientActionRequest,
+    request: Request,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+) -> dict[str, bool]:
+    append_operation_audit_log(
+        db,
+        action=payload.action,
+        target_type=payload.target_type,
+        target_id=payload.target_id,
+        operator=operator,
+        result=payload.result,
+        after=payload.after,
+        error_message=payload.error_message,
+        request=request,
+    )
+    db.commit()
+    return {'ok': True}
 
 
 def _resolve_database_source(database_url: str) -> tuple[str, str | None]:
@@ -366,6 +393,9 @@ def _apply_audit_log_filters(
     result: str | None,
     keyword: str | None,
 ):
+    for pattern in PASSIVE_AUDIT_ACTION_PATTERNS:
+        stmt = stmt.where(~OperationAuditLog.action.ilike(pattern))
+
     normalized_operator = (operator or '').strip()
     if normalized_operator:
         stmt = stmt.where(OperationAuditLog.operator.ilike(f'%{normalized_operator}%'))

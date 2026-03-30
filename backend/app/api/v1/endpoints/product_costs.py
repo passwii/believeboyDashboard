@@ -427,7 +427,7 @@ def export_product_costs_csv(
         ]
         filename = "sku-info-cost-update-export.csv"
 
-    append_operation_view_log(
+    append_operation_audit_log(
         db,
         action='sku_info.export',
         target_type='product_cost',

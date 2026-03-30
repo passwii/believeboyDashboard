@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { requireUserSession } from '@/lib/auth/server'
+import { normalizeErrorMessage } from '@/lib/error-utils'
 import { backendFetchJson, getBackendApiKey } from '@/lib/server/backend-api'
 
 type ChangePasswordBody = {
@@ -59,6 +60,6 @@ export async function PATCH(request: Request) {
     })
     return NextResponse.json({ ok: true })
   } catch (err) {
-    return NextResponse.json({ message: err instanceof Error ? err.message : '修改失败' }, { status: 500 })
+    return NextResponse.json({ message: normalizeErrorMessage(err, '修改失败') }, { status: 500 })
   }
 }

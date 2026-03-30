@@ -9,11 +9,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { DirectionalTabTransition, SlidingTabsTrigger, TabsMotionGroup } from '@/components/ui/tab-motion'
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
+import { logClientOperation } from '@/lib/operation-audit'
 import { cn, formatLocalTimestampForFilename } from '@/lib/utils'
 
 const API_BASE = '/api/backend'
@@ -1519,6 +1521,14 @@ export default function PricingCalculationPage() {
     setError(null)
     try {
       await exportComparisonMatrixToExcel(selectedRuns)
+      await logClientOperation({
+        action: 'pricing_calculation.comparison.export',
+        targetType: 'pricing_calculation_run',
+        after: {
+          run_ids: selectedRuns.map((run) => run.id),
+          row_count: selectedRuns.length,
+        },
+      })
     } catch (exportError) {
       setError(exportError instanceof Error ? exportError.message : '导出 Excel 失败')
     } finally {
@@ -1547,6 +1557,17 @@ export default function PricingCalculationPage() {
     setError(null)
     try {
       await exportStoreSkuTableToExcel(filteredStoreSkus, storeRows, selectedProjectName, storeCalculationMode)
+      await logClientOperation({
+        action: 'pricing_calculation.store_table.export',
+        targetType: 'store_sku_pricing_snapshot',
+        targetId: selectedProject?.id,
+        after: {
+          project_id: selectedProject?.id ?? null,
+          project_name: selectedProjectName,
+          calculation_mode: storeCalculationMode,
+          row_count: itemsWithResults.length,
+        },
+      })
     } catch (exportError) {
       setError(exportError instanceof Error ? exportError.message : '导出 Excel 失败')
     } finally {
@@ -1998,18 +2019,22 @@ export default function PricingCalculationPage() {
                         <PricingFieldSkeleton />
                       ) : (
                         <Field label="项目">
-                          <select
+                          <Select
                             value={selectedProjectName}
-                            onChange={(event) => setSelectedProjectName(event.target.value)}
-                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                            onValueChange={setSelectedProjectName}
+                            disabled={projects.length === 0}
                           >
-                            <option value="">请选择项目</option>
-                            {projects.map((project) => (
-                              <option key={`${project.id ?? project.name}-${project.name}`} value={project.name}>
-                                {project.name}
-                              </option>
-                            ))}
-                          </select>
+                            <SelectTrigger className="h-10 transition-all duration-200 data-[state=open]:ring-2 data-[state=open]:ring-blue-500/30">
+                              <SelectValue placeholder={projects.length ? '请选择项目' : '暂无可选项目'} />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-64 overflow-y-auto">
+                              {projects.map((project) => (
+                                <SelectItem key={`${project.id ?? project.name}-${project.name}`} value={project.name}>
+                                  {project.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </Field>
                       )}
                       <Field label="SKU / ASIN 搜索">

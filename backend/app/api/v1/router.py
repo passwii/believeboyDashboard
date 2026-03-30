@@ -7,6 +7,7 @@ from app.api.v1.endpoints.daily_reports import router as daily_reports_router
 from app.api.v1.endpoints.daily_analysis import router as daily_analysis_router
 from app.api.v1.endpoints.product_analysis import router as product_analysis_router
 from app.api.v1.endpoints.product_analysis_reports import router as product_analysis_reports_router
+from app.api.v1.endpoints.presence import router as presence_router
 from app.api.v1.endpoints.product_costs import router as product_costs_router
 from app.api.v1.endpoints.pricing_calculation import router as pricing_calculation_router
 from app.api.v1.endpoints.store_sku_pricing_snapshots import router as store_sku_pricing_snapshots_router
@@ -46,3 +47,4 @@ api_router.include_router(product_analysis_router)
 api_router.include_router(category_research_router)
 api_router.include_router(system_management_router)
 api_router.include_router(users_router)
+api_router.include_router(presence_router)

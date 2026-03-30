@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 
 import { requireUserSession } from '@/lib/auth/server'
+import { normalizeErrorMessage } from '@/lib/error-utils'
 import {
   buildBackendProxyHeaders,
   buildBackendUrl,
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
     if (!response.ok) {
       const payload = (await response.json().catch(() => null)) as { detail?: string; message?: string } | null
       return NextResponse.json(
-        { error: payload?.detail || payload?.message || 'Failed to fetch options' },
+        { error: normalizeErrorMessage(payload?.detail || payload?.message, '汇率选项加载失败') },
         { status: response.status }
       )
     }
@@ -33,7 +34,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(payload)
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to fetch options' },
+      { error: normalizeErrorMessage(error, '汇率选项加载失败') },
       { status: 500 }
     )
   }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { requireUserSession } from '@/lib/auth/server'
+import { normalizeErrorMessage } from '@/lib/error-utils'
 import {
   getAiProviderConfig,
   getPromptPresetSummaries,
@@ -30,7 +31,7 @@ export async function GET() {
   } catch (err) {
     return NextResponse.json(
       {
-        message: err instanceof Error ? err.message : '加载 AI 配置失败',
+        message: normalizeErrorMessage(err, '加载 AI 配置失败'),
         providerConfigured,
         models: providerConfig.defaultModel ? [providerConfig.defaultModel] : [],
         defaultModel: providerConfig.defaultModel,

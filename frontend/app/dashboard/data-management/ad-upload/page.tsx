@@ -37,6 +37,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 
 const API_BASE = '/api/backend'
@@ -139,15 +140,7 @@ type BatchProjectState = {
 }
 
 async function parseError(response: Response): Promise<string> {
-  const raw = await response.text()
-  try {
-    const payload = JSON.parse(raw) as { detail?: unknown; message?: unknown }
-    if (typeof payload.detail === 'string' && payload.detail.trim()) return payload.detail
-    if (typeof payload.message === 'string' && payload.message.trim()) return payload.message
-  } catch {
-    if (raw.trim()) return raw.trim()
-  }
-  return `请求失败 (${response.status})`
+  return parseResponseError(response, '请求失败')
 }
 
 function formatDateRange(start?: string | null, end?: string | null) {
@@ -270,7 +263,7 @@ export default function AdUploadPage() {
         if (!cancelled) setProjects(payload)
       } catch (error) {
         if (!cancelled) {
-          setProjectsError(error instanceof Error ? error.message : '项目列表加载失败')
+          setProjectsError(normalizeErrorMessage(error, '项目列表加载失败'))
         }
       } finally {
         if (!cancelled) setProjectsLoading(false)
@@ -301,7 +294,7 @@ export default function AdUploadPage() {
         if (!cancelled) setStatusItems(payload.items)
       } catch (error) {
         if (!cancelled) {
-          setStatusError(error instanceof Error ? error.message : '状态列表加载失败')
+          setStatusError(normalizeErrorMessage(error, '状态列表加载失败'))
         }
       } finally {
         if (!cancelled) setStatusLoading(false)
@@ -427,7 +420,7 @@ export default function AdUploadPage() {
       updateQueueItem(localId, (item) => ({
         ...item,
         recognitionStatus: 'error',
-        error: error instanceof Error ? error.message : '识别失败',
+        error: normalizeErrorMessage(error, '识别失败'),
       }))
     }
   }
@@ -511,7 +504,7 @@ export default function AdUploadPage() {
       const payload = (await response.json()) as StatusResponse
       setStatusItems(payload.items)
     } catch (error) {
-      setStatusError(error instanceof Error ? error.message : '状态列表加载失败')
+      setStatusError(normalizeErrorMessage(error, '状态列表加载失败'))
     } finally {
       setStatusLoading(false)
     }
@@ -569,7 +562,7 @@ export default function AdUploadPage() {
       updateQueueItem(item.localId, (current) => ({
         ...current,
         commitStatus: 'error',
-        commitMessage: error instanceof Error ? error.message : '保存失败',
+        commitMessage: normalizeErrorMessage(error, '保存失败'),
       }))
     }
   }

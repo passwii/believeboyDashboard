@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/sheet'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
 
@@ -715,6 +716,20 @@ export default function InventoryReplenishmentPage() {
       link.download = `补货分析-${safeTimestamp}.xlsx`
       link.click()
       window.URL.revokeObjectURL(url)
+      await logClientOperation({
+        action: 'inventory_replenishment.export',
+        targetType: 'inventory_replenishment',
+        targetId: currentProjectId,
+        after: {
+          project_id: currentProjectId,
+          project_name: selectedProjectName,
+          country,
+          keyword: keyword.trim() || null,
+          risk_status: riskFilter === 'all' ? null : riskFilter,
+          row_count: rows.length,
+          filename: link.download,
+        },
+      })
     } catch (exportError) {
       setError(exportError instanceof Error ? exportError.message : '导出 Excel 失败')
     } finally {

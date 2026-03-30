@@ -22,6 +22,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { buildBackendHeaders } from '@/lib/backend-auth'
+import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
 
 type OperationAuditLogItem = {
   id: number
@@ -147,7 +148,7 @@ const CATEGORY_OPTIONS: CategoryMeta[] = [
     key: 'report',
     label: '报表中心',
     description: '日报、月报、产品分析、测算与导出',
-    prefixes: ['daily_reports.', 'monthly_reports.', 'product_analysis_reports.', 'pricing_calculation.', 'report_upload.'],
+    prefixes: ['daily_reports.', 'daily_analysis.', 'monthly_reports.', 'financial_data.', 'product_analysis.', 'product_analysis_reports.', 'pricing_calculation.', 'report_upload.'],
     className: 'border-fuchsia-500/30 bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-300',
   },
   {
@@ -199,9 +200,15 @@ const ACTION_LABELS: Record<string, string> = {
   'shipment_schedules.delete': '删除发货计划',
   'shipment_schedules.import_items_csv': '导入发货明细 CSV',
   'shipment_schedules.calculate_costs': '计算发货成本',
+  'shipment_schedules.overview.export': '导出船期批次总览',
+  'shipment_schedules.costs.export': '导出发货费用',
+  'shipment_schedules.sku_summary.export': '导出 SKU 汇总',
+  'shipment_schedules.fba_box_details.export': '导出 FBA 箱单明细',
   'inventory_analysis.view': '查看库存分析',
+  'inventory_analysis.export': '导出库存分析',
   'inventory_replenishment.list': '查看补货分析列表',
   'inventory_replenishment.shipments.view': '查看补货在途记录',
+  'inventory_replenishment.export': '导出补货分析',
   'inventory_replenishment_settings.upsert': '维护补货参数',
   'system.data_management.status.view': '查看数据状态',
   'system.data_management.overview.view': '查看系统数据总览',
@@ -222,12 +229,25 @@ const ACTION_LABELS: Record<string, string> = {
   'operator.performance.upsert': '维护运营绩效',
   'daily_reports.create': '生成日报',
   'daily_reports.result.view': '查看日报结果',
+  'daily_reports.result.export': '导出日报结果',
+  'daily_analysis.export': '导出销售数据分析',
   'monthly_reports.create': '生成月报',
   'monthly_reports.result.view': '查看月报结果',
+  'monthly_reports.result.export': '导出月报任务结果',
+  'monthly_reports.export': '导出月报',
+  'financial_data.export': '导出月度财务分析',
+  'product_analysis.weekly.recompute': '重新核算周报',
+  'product_analysis.weekly.export': '导出周报分析',
   'product_analysis_reports.create': '生成产品分析报表',
   'product_analysis_reports.result.view': '查看产品分析报表',
+  'product_analysis_reports.result.export': '导出产品分析报表',
   'pricing_calculation.run.create': '发起报价测算',
+  'pricing_calculation.run.delete': '删除报价测算',
+  'pricing_calculation.run.recalculate': '重新核算报价测算',
   'pricing_calculation.run.view': '查看报价测算结果',
+  'pricing_calculation.comparison.export': '导出测算对比矩阵',
+  'pricing_calculation.store_table.export': '导出店铺 SKU 核算表',
+  'pricing_calculation.store_snapshot.upsert': '保存店铺 SKU 核算快照',
   'report_upload.status.view': '查看报表上传状态',
   'report_upload.recognize': '识别报表内容',
   'report_upload.commit': '提交报表入库',
@@ -250,6 +270,15 @@ const TARGET_TYPE_LABELS: Record<string, string> = {
   project_role_assignment: '项目角色分配',
   operator_performance_record: '运营绩效',
   commission_summary: '提成汇总',
+  daily_report_task: '日报任务',
+  monthly_report_task: '月报任务',
+  monthly_report: '月报',
+  product_analysis_report_task: '产品分析任务',
+  report_upload: '报表入库',
+  report_upload_temp_file: '报表临时文件',
+  pricing_calculation_run: '定价测算',
+  store_sku_pricing_snapshot: '店铺 SKU 核算快照',
+  product_analysis_weekly: '周报分析',
 }
 
 const RESULT_META = {
@@ -265,12 +294,7 @@ function formatDateTime(value: string | null): string {
 }
 
 async function parseError(response: Response): Promise<string> {
-  try {
-    const payload = (await response.json()) as { detail?: string; message?: string }
-    return payload.detail || payload.message || `请求失败 (${response.status})`
-  } catch {
-    return `请求失败 (${response.status})`
-  }
+  return parseResponseError(response, '请求失败')
 }
 
 function renderJson(value: unknown): string {
@@ -381,7 +405,7 @@ export default function SystemOperationLogsPage() {
       setHasNext(Boolean(logsPayload.has_next))
       setSummary(summaryPayload)
     } catch (err) {
-      setError(err instanceof Error ? err.message : '加载日志失败')
+      setError(normalizeErrorMessage(err, '加载日志失败'))
     } finally {
       setLoading(false)
     }

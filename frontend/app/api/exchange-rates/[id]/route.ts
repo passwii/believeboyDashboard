@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 
 import { requireAdminSession, requireUserSession } from '@/lib/auth/server'
+import { normalizeErrorMessage } from '@/lib/error-utils'
 import {
   buildBackendProxyHeaders,
   buildBackendUrl,
@@ -85,12 +86,12 @@ async function toErrorResponse(response: Response, fallbackMessage: string) {
   try {
     const payload = (await response.json()) as { detail?: string; message?: string; error?: string }
     return NextResponse.json(
-      { error: payload.error || payload.detail || payload.message || fallbackMessage },
+      { error: normalizeErrorMessage(payload.error || payload.detail || payload.message, fallbackMessage) },
       { status: response.status }
     )
   } catch {
     const text = await response.text()
-    return NextResponse.json({ error: text || fallbackMessage }, { status: response.status })
+    return NextResponse.json({ error: normalizeErrorMessage(text, fallbackMessage) }, { status: response.status })
   }
 }
 
@@ -122,7 +123,7 @@ export async function GET(
     return NextResponse.json({ data: toClientModel(payload) })
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to fetch exchange rate' },
+      { error: normalizeErrorMessage(error, '汇率详情加载失败') },
       { status: 500 }
     )
   }
@@ -158,7 +159,7 @@ export async function PUT(
     return NextResponse.json({ data: toClientModel(payload) })
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to update exchange rate' },
+      { error: normalizeErrorMessage(error, '汇率更新失败') },
       { status: 500 }
     )
   }
@@ -190,7 +191,7 @@ export async function DELETE(
     return NextResponse.json({ success: true })
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to delete exchange rate' },
+      { error: normalizeErrorMessage(error, '汇率删除失败') },
       { status: 500 }
     )
   }

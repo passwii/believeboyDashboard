@@ -1,3 +1,5 @@
+import { normalizeErrorMessage } from '@/lib/error-utils'
+
 type BackendErrorPayload = { detail?: string; message?: string }
 
 function trimTrailingSlash(value: string) {
@@ -17,7 +19,7 @@ export async function backendFetchJson<T>(path: string, init?: RequestInit): Pro
   const response = await fetch(`${getBackendBaseUrl()}${path}`, init)
   const data = (await response.json()) as T & BackendErrorPayload
   if (!response.ok) {
-    throw new Error(data.message || data.detail || '请求后端失败')
+    throw new Error(normalizeErrorMessage(data.message || data.detail, '请求后端失败'))
   }
   return data
 }

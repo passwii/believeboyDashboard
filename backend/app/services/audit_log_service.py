@@ -119,12 +119,6 @@ def append_operation_view_log(
     after: dict[str, Any] | list[Any] | None = None,
     request: Request | None = None,
 ) -> None:
-    append_operation_audit_log(
-        db,
-        action=action,
-        target_type=target_type,
-        target_id=target_id,
-        operator=operator,
-        after=after,
-        request=request,
-    )
+    # Passive page-load and data-fetch events generate too much noise for audit review.
+    # Keep the call sites stable, but stop persisting view/list-style logs by default.
+    return None

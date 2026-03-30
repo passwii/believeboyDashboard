@@ -26,6 +26,8 @@ import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
+import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
+import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { cn, formatLocalTimestampForFilename } from '@/lib/utils'
 
@@ -250,13 +252,7 @@ function authHeaders(): Record<string, string> {
 }
 
 async function parseError(response: Response): Promise<string> {
-  try {
-    const payload = (await response.json()) as { detail?: string }
-    return payload.detail || `请求失败 (${response.status})`
-  } catch {
-    const text = await response.text()
-    return text || `请求失败 (${response.status})`
-  }
+  return parseResponseError(response, '请求失败')
 }
 
 function formatDate(value: string | null | undefined): string {
@@ -818,7 +814,7 @@ export default function ShipmentManagementPage() {
         setProjectFilter(String(payload[0].id))
       }
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : '项目列表加载失败')
+      setError(normalizeErrorMessage(loadError, '项目列表加载失败'))
     } finally {
       setProjectsLoading(false)
     }
@@ -869,7 +865,7 @@ export default function ShipmentManagementPage() {
       setProjectSkuOptions(allItems)
     } catch (loadError) {
       setProjectSkuOptions([])
-      setError(loadError instanceof Error ? loadError.message : '项目 SKU 列表加载失败')
+      setError(normalizeErrorMessage(loadError, '项目 SKU 列表加载失败'))
     } finally {
       setProjectSkuLoading(false)
     }
@@ -908,7 +904,7 @@ export default function ShipmentManagementPage() {
         return payload.items[0].id
       })
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : '船期列表加载失败')
+      setError(normalizeErrorMessage(loadError, '船期列表加载失败'))
       setItems([])
     } finally {
       setLoading(false)
@@ -968,7 +964,7 @@ export default function ShipmentManagementPage() {
       return payload
     } catch (loadError) {
       setDetail(null)
-      setDetailError(loadError instanceof Error ? loadError.message : '详情加载失败')
+      setDetailError(normalizeErrorMessage(loadError, '详情加载失败'))
       return null
     } finally {
       setDetailLoading(false)
@@ -1003,7 +999,7 @@ export default function ShipmentManagementPage() {
       setSkuSummaryItems(payload.items)
     } catch (loadError) {
       setSkuSummaryItems([])
-      setError(loadError instanceof Error ? loadError.message : 'SKU 汇总加载失败')
+      setError(normalizeErrorMessage(loadError, 'SKU 汇总加载失败'))
     } finally {
       setSkuSummaryLoading(false)
     }
@@ -1036,7 +1032,7 @@ export default function ShipmentManagementPage() {
         total_chargeable_weight_kg: 0,
         total_logistics_cost: 0,
       })
-      setError(loadError instanceof Error ? loadError.message : '发货费用汇总加载失败')
+      setError(normalizeErrorMessage(loadError, '发货费用汇总加载失败'))
     } finally {
       setCostSummaryLoading(false)
     }
@@ -1063,7 +1059,7 @@ export default function ShipmentManagementPage() {
     } catch (loadError) {
       setFbaBoxMeta(null)
       setFbaBoxItems([])
-      setFbaBoxError(loadError instanceof Error ? loadError.message : 'FBA 箱单明细加载失败')
+      setFbaBoxError(normalizeErrorMessage(loadError, 'FBA 箱单明细加载失败'))
     } finally {
       setFbaBoxLoading(false)
     }
@@ -1164,7 +1160,7 @@ export default function ShipmentManagementPage() {
       setDialogOpen(true)
     } catch (loadError) {
       setDetail(null)
-      setDetailError(loadError instanceof Error ? loadError.message : '详情加载失败')
+      setDetailError(normalizeErrorMessage(loadError, '详情加载失败'))
     } finally {
       setDetailLoading(false)
     }
@@ -1263,7 +1259,7 @@ export default function ShipmentManagementPage() {
       setCostPreviewRows(rows)
     } catch (calculateError) {
       setCostPreviewRows([])
-      setCostPreviewError(calculateError instanceof Error ? calculateError.message : '核算失败')
+      setCostPreviewError(normalizeErrorMessage(calculateError, '核算失败'))
     } finally {
       setCostPreviewLoading(false)
     }
@@ -1385,7 +1381,7 @@ export default function ShipmentManagementPage() {
       await loadSkuSummary()
       await loadDetail(saved.id)
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : '保存失败')
+      setError(normalizeErrorMessage(submitError, '保存失败'))
     } finally {
       setSubmitting(false)
     }
@@ -1470,7 +1466,7 @@ export default function ShipmentManagementPage() {
         syncEditDialogFromDetail(refreshedDetail)
       }
     } catch (importError) {
-      setError(importError instanceof Error ? importError.message : 'CSV 导入失败')
+      setError(normalizeErrorMessage(importError, 'CSV 导入失败'))
     } finally {
       setImporting(false)
     }
@@ -1501,7 +1497,7 @@ export default function ShipmentManagementPage() {
       await loadList(1)
       await loadSkuSummary()
     } catch (importError) {
-      setError(importError instanceof Error ? importError.message : '批量导入失败')
+      setError(normalizeErrorMessage(importError, '批量导入失败'))
     } finally {
       setBatchImporting(false)
     }
@@ -1530,7 +1526,7 @@ export default function ShipmentManagementPage() {
       await loadList(1)
       await loadSkuSummary()
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : '删除失败')
+      setError(normalizeErrorMessage(deleteError, '删除失败'))
     } finally {
       setDeleting(false)
     }
@@ -1693,8 +1689,19 @@ export default function ShipmentManagementPage() {
       link.download = `船期批次总览-${safeTimestamp}.xlsx`
       link.click()
       window.URL.revokeObjectURL(url)
+      await logClientOperation({
+        action: 'shipment_schedules.overview.export',
+        targetType: 'shipment_schedule',
+        after: {
+          row_count: items.length,
+          filename: link.download,
+          project_filter: projectFilter,
+          country_filter: countryFilter,
+          status_filter: statusFilter,
+        },
+      })
     } catch (exportError) {
-      setError(exportError instanceof Error ? exportError.message : '导出 Excel 失败')
+      setError(normalizeErrorMessage(exportError, '导出 Excel 失败'))
     } finally {
       setExporting(false)
     }
@@ -1858,8 +1865,19 @@ export default function ShipmentManagementPage() {
       link.download = `发货费用-${safeTimestamp}.xlsx`
       link.click()
       window.URL.revokeObjectURL(url)
+      await logClientOperation({
+        action: 'shipment_schedules.costs.export',
+        targetType: 'shipment_schedule',
+        after: {
+          row_count: items.length,
+          filename: link.download,
+          project_filter: projectFilter,
+          country_filter: countryFilter,
+          status_filter: statusFilter,
+        },
+      })
     } catch (exportError) {
-      setError(exportError instanceof Error ? exportError.message : '导出 Excel 失败')
+      setError(normalizeErrorMessage(exportError, '导出 Excel 失败'))
     } finally {
       setCostExporting(false)
     }
@@ -2004,8 +2022,18 @@ export default function ShipmentManagementPage() {
       link.download = `SKU汇总-${safeTimestamp}.xlsx`
       link.click()
       window.URL.revokeObjectURL(url)
+      await logClientOperation({
+        action: 'shipment_schedules.sku_summary.export',
+        targetType: 'shipment_schedule',
+        after: {
+          row_count: skuSummaryItems.length,
+          filename: link.download,
+          project_filter: projectFilter,
+          country_filter: countryFilter,
+        },
+      })
     } catch (exportError) {
-      setError(exportError instanceof Error ? exportError.message : '导出 Excel 失败')
+      setError(normalizeErrorMessage(exportError, '导出 Excel 失败'))
     } finally {
       setSkuSummaryExporting(false)
     }
@@ -2156,8 +2184,17 @@ export default function ShipmentManagementPage() {
       link.download = `FBA箱单明细-${fbaBoxMeta.shipmentNos.length}个货件-${safeTimestamp}.xlsx`
       link.click()
       window.URL.revokeObjectURL(url)
+      await logClientOperation({
+        action: 'shipment_schedules.fba_box_details.export',
+        targetType: 'shipment_schedule',
+        after: {
+          shipment_nos: fbaBoxMeta.shipmentNos,
+          row_count: fbaBoxItems.length,
+          filename: link.download,
+        },
+      })
     } catch (exportError) {
-      setFbaBoxError(exportError instanceof Error ? exportError.message : '导出 Excel 失败')
+      setFbaBoxError(normalizeErrorMessage(exportError, '导出 Excel 失败'))
     } finally {
       setFbaBoxExporting(false)
     }

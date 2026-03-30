@@ -4,7 +4,7 @@ from decimal import Decimal
 from pathlib import Path
 from time import perf_counter
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -19,6 +19,7 @@ from app.schemas.monthly_report import (
     MonthlyReportResponse,
     MonthlyReportTaskStatusResponse,
 )
+from app.services.audit_log_service import append_operation_audit_log
 from app.services import monthly_report_runtime_service, monthly_report_service, project_service, upload_service
 
 router = APIRouter(dependencies=[Depends(protected)])
@@ -27,9 +28,11 @@ router = APIRouter(dependencies=[Depends(protected)])
 @router.post('/monthly-reports', response_model=MonthlyReportResponse)
 def create_monthly_report(
     data: CreateMonthlyReportRequest,
+    request: Request,
     response: Response,
     settings: Settings = Depends(get_settings),
-    _operator: str | None = Depends(get_request_operator),
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
 ) -> MonthlyReportResponse:
     started_at = perf_counter()
     monthly_report_service.parse_report_month(data.report_month)
@@ -72,6 +75,21 @@ def create_monthly_report(
             **({'monthly_summary_pdf': str(summary_pdf_path)} if summary_pdf_path else {}),
         },
     )
+    append_operation_audit_log(
+        db,
+        action='monthly_reports.create',
+        target_type='monthly_report_task',
+        target_id=task.id,
+        operator=operator,
+        after={
+            'job_id': task.id,
+            'project_id': project_id,
+            'project_name': project_name,
+            'report_month': data.report_month.strip(),
+        },
+        request=request,
+    )
+    db.commit()
     after_enqueue_job = perf_counter()
     prepare_ms = 0
     enqueue_ms = int((after_enqueue_job - after_resolve_paths) * 1000)
@@ -114,7 +132,12 @@ def get_monthly_report_task(task_id: int) -> MonthlyReportTaskStatusResponse:
 
 
 @router.get('/monthly-reports/tasks/{task_id}/result')
-def download_monthly_report_task_result(task_id: int):
+def download_monthly_report_task_result(
+    task_id: int,
+    request: Request,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+):
     task = monthly_report_runtime_service.get_task(task_id)
     if task is None:
         raise HTTPException(status_code=404, detail='Task not found')
@@ -126,6 +149,16 @@ def download_monthly_report_task_result(task_id: int):
     result_path = Path(task.result_path)
     if not result_path.exists() or not result_path.is_file():
         raise HTTPException(status_code=404, detail='Result file missing')
+    append_operation_audit_log(
+        db,
+        action='monthly_reports.result.export',
+        target_type='monthly_report_task',
+        target_id=task.id,
+        operator=operator,
+        after={'job_id': task.id, 'filename': result_path.name},
+        request=request,
+    )
+    db.commit()
 
     return FileResponse(path=str(result_path), filename=result_path.name)
 
@@ -190,7 +223,12 @@ def get_monthly_report_detail(
 
 
 @router.get('/monthly-reports/{report_id:int}/export')
-def download_monthly_report_export(report_id: int, db: Session = Depends(get_db_session)):
+def download_monthly_report_export(
+    report_id: int,
+    request: Request,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+):
     report = monthly_report_service.get_report_or_404(db, report_id)
     if report.status != JobStatus.success:
         raise HTTPException(status_code=409, detail='Monthly report is not finished')
@@ -198,6 +236,16 @@ def download_monthly_report_export(report_id: int, db: Session = Depends(get_db_
     result_path = monthly_report_service.resolve_result_path(report)
     if result_path is None:
         raise HTTPException(status_code=404, detail='Result file missing')
+    append_operation_audit_log(
+        db,
+        action='monthly_reports.export',
+        target_type='monthly_report',
+        target_id=report.id,
+        operator=operator,
+        after={'report_id': report.id, 'project_id': report.project_id, 'filename': Path(result_path).name},
+        request=request,
+    )
+    db.commit()
 
     return FileResponse(path=str(result_path), filename=result_path.name)
 

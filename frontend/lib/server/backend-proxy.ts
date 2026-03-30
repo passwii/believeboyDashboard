@@ -36,6 +36,21 @@ export function buildBackendProxyHeaders(session: Session | null, requestHeaders
     headers.set('X-Is-Admin', 'true')
   }
 
+  const userId = session?.user?.id?.trim()
+  if (userId) {
+    headers.set('X-User-Id', userId)
+  }
+
+  const userName = session?.user?.operatorNameZh?.trim() || session?.user?.name?.trim()
+  if (userName) {
+    headers.set('X-User-Name', encodeURIComponent(userName))
+  }
+
+  const userEmail = session?.user?.email?.trim()
+  if (userEmail) {
+    headers.set('X-User-Email', encodeURIComponent(userEmail))
+  }
+
   const operatorName = session?.user?.operatorNameZh?.trim()
   if (operatorName) {
     headers.set('X-Operator', encodeURIComponent(operatorName))

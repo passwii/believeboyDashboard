@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 
 import { requireAdminSession, requireUserSession } from '@/lib/auth/server'
+import { normalizeErrorMessage } from '@/lib/error-utils'
 import {
   buildBackendProxyHeaders,
   buildBackendUrl,
@@ -85,12 +86,12 @@ async function toErrorResponse(response: Response, fallbackMessage: string) {
   try {
     const payload = (await response.json()) as { detail?: string; message?: string; error?: string }
     return NextResponse.json(
-      { success: false, error: payload.error || payload.detail || payload.message || fallbackMessage },
+      { success: false, error: normalizeErrorMessage(payload.error || payload.detail || payload.message, fallbackMessage) },
       { status: response.status }
     )
   } catch {
     const text = await response.text()
-    return NextResponse.json({ success: false, error: text || fallbackMessage }, { status: response.status })
+    return NextResponse.json({ success: false, error: normalizeErrorMessage(text, fallbackMessage) }, { status: response.status })
   }
 }
 
@@ -147,7 +148,7 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Failed to fetch exchange rates' },
+      { success: false, error: normalizeErrorMessage(error, '汇率列表加载失败') },
       { status: 500 }
     )
   }
@@ -175,7 +176,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, data: toClientModel(payload) }, { status: 201 })
   } catch (error) {
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Failed to create exchange rate' },
+      { success: false, error: normalizeErrorMessage(error, '汇率创建失败') },
       { status: 500 }
     )
   }
