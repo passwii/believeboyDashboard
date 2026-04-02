@@ -9,7 +9,7 @@ from app.core.config import get_settings
 _redis_client: redis.Redis | None = None
 
 DATA_MANAGEMENT_OVERVIEW_KEY = "data_management:overview"
-DATA_MANAGEMENT_OVERVIEW_TTL = 36000
+DATA_MANAGEMENT_OVERVIEW_TTL = 36000  # 10 hours
 
 
 def get_data_management_overview_cache() -> dict | None:
@@ -38,7 +38,7 @@ def invalidate_data_management_overview_cache() -> None:
 
 
 PRODUCT_ANALYSIS_WEEKLY_KEY_PREFIX = "product_analysis:weekly"
-PRODUCT_ANALYSIS_WEEKLY_TTL = 36000
+PRODUCT_ANALYSIS_WEEKLY_TTL = 14400  # 4 hours
 
 
 def make_weekly_analysis_cache_key(
@@ -114,7 +114,7 @@ def invalidate_weekly_analysis_cache() -> int:
 # ─────────────────────────────────────────
 
 CACHE_KEY_PREFIX = "cache"
-CACHE_TTL_LONG = 36000  # 10 hours in seconds
+CACHE_TTL_LONG = 3600  # 1 hour in seconds
 
 
 def _make_cache_key(*parts: str) -> str:
@@ -247,7 +247,10 @@ def get_all_presence(stale_after_seconds: int = 90) -> list[dict[str, Any]]:
 # ─────────────────────────────────────────
 
 SHIPMENT_SCHEDULES_KEY_PREFIX = "shipment-schedules"
-SHIPMENT_SCHEDULES_TTL = 36000  # 10 hour in seconds
+SHIPMENT_LIST_TTL = 1800  # 30 minutes
+SHIPMENT_DETAIL_TTL = 600  # 10 minutes
+SHIPMENT_COST_SUMMARY_TTL = 3600  # 1 hour
+SHIPMENT_SKU_TTL = 1800  # 30 minutes
 
 
 def _make_shipment_schedules_cache_key(*parts: str) -> str:
@@ -303,7 +306,7 @@ def set_shipment_schedule_list_cache(
     params_str = f"{project_id}:{country}:{shipment_status}:{shipping_method}:{shipment_nos}:{created_date_from}:{created_date_to}:{etd_from}:{etd_to}:{eta_from}:{eta_to}:{page}:{page_size}:{include_total}"
     params_hash = hashlib.md5(params_str.encode()).hexdigest()[:16]
     key = _make_shipment_schedules_cache_key("list", params_hash)
-    cache_set(key, data, SHIPMENT_SCHEDULES_TTL)
+    cache_set(key, data, SHIPMENT_LIST_TTL)
 
 
 def get_shipment_schedule_cost_summary_cache(
@@ -340,7 +343,7 @@ def set_shipment_schedule_cost_summary_cache(
     params_str = f"{project_id}:{country}:{shipment_status}:{shipping_method}:{shipment_nos}:{created_date_from}:{created_date_to}"
     params_hash = hashlib.md5(params_str.encode()).hexdigest()[:16]
     key = _make_shipment_schedules_cache_key("cost-summary", params_hash)
-    cache_set(key, data, SHIPMENT_SCHEDULES_TTL)
+    cache_set(key, data, SHIPMENT_COST_SUMMARY_TTL)
 
 
 def get_shipment_sku_summary_cache(
@@ -348,11 +351,15 @@ def get_shipment_sku_summary_cache(
     country: str | None,
     include_only_history_calc: bool,
     shipment_status: str | None,
+    shipment_nos: list[str] | None = None,
+    created_date_from: str | None = None,
+    created_date_to: str | None = None,
 ) -> list[dict] | None:
     """Get cached shipment SKU summary."""
     import hashlib
 
-    params_str = f"{project_id}:{country}:{include_only_history_calc}:{shipment_status}"
+    shipment_nos_str = ",".join(sorted(shipment_nos)) if shipment_nos else ""
+    params_str = f"{project_id}:{country}:{include_only_history_calc}:{shipment_status}:{shipment_nos_str}:{created_date_from}:{created_date_to}"
     params_hash = hashlib.md5(params_str.encode()).hexdigest()[:16]
     key = _make_shipment_schedules_cache_key("sku-summary", params_hash)
     return cache_get(key)
@@ -364,14 +371,18 @@ def set_shipment_sku_summary_cache(
     include_only_history_calc: bool,
     shipment_status: str | None,
     data: list[dict],
+    shipment_nos: list[str] | None = None,
+    created_date_from: str | None = None,
+    created_date_to: str | None = None,
 ) -> None:
     """Cache shipment SKU summary."""
     import hashlib
 
-    params_str = f"{project_id}:{country}:{include_only_history_calc}:{shipment_status}"
+    shipment_nos_str = ",".join(sorted(shipment_nos)) if shipment_nos else ""
+    params_str = f"{project_id}:{country}:{include_only_history_calc}:{shipment_status}:{shipment_nos_str}:{created_date_from}:{created_date_to}"
     params_hash = hashlib.md5(params_str.encode()).hexdigest()[:16]
     key = _make_shipment_schedules_cache_key("sku-summary", params_hash)
-    cache_set(key, data, SHIPMENT_SCHEDULES_TTL)
+    cache_set(key, data, SHIPMENT_SKU_TTL)
 
 
 def get_shipment_fba_box_details_cache(shipment_nos: list[str]) -> dict | None:
@@ -391,7 +402,7 @@ def set_shipment_fba_box_details_cache(shipment_nos: list[str], data: dict) -> N
     shipment_nos_str = ",".join(sorted(shipment_nos))
     params_hash = hashlib.md5(shipment_nos_str.encode()).hexdigest()[:16]
     key = _make_shipment_schedules_cache_key("fba-box-details", params_hash)
-    cache_set(key, data, SHIPMENT_SCHEDULES_TTL)
+    cache_set(key, data, SHIPMENT_SKU_TTL)
 
 
 def get_shipment_schedule_detail_cache(schedule_id: int) -> dict | None:
@@ -403,7 +414,7 @@ def get_shipment_schedule_detail_cache(schedule_id: int) -> dict | None:
 def set_shipment_schedule_detail_cache(schedule_id: int, data: dict) -> None:
     """Cache shipment schedule detail."""
     key = _make_shipment_schedules_cache_key("detail", str(schedule_id))
-    cache_set(key, data, SHIPMENT_SCHEDULES_TTL)
+    cache_set(key, data, SHIPMENT_DETAIL_TTL)
 
 
 def invalidate_shipment_schedule_detail_cache(schedule_id: int) -> None:
@@ -447,7 +458,7 @@ def invalidate_all_shipment_schedules_cache() -> int:
 # ─────────────────────────────────────────
 
 DAILY_ANALYSIS_KEY_PREFIX = "cache:reports:daily"
-DAILY_ANALYSIS_TTL = 36000
+DAILY_ANALYSIS_TTL = 7200  # 2 hours
 
 
 def _make_daily_analysis_cache_key(
@@ -494,7 +505,7 @@ def invalidate_daily_analysis_cache(project_id: int) -> int:
 # ─────────────────────────────────────────
 
 MONTHLY_FINANCIAL_SERIES_KEY_PREFIX = "cache:monthly:financial-series"
-MONTHLY_FINANCIAL_SERIES_TTL = 360000
+MONTHLY_FINANCIAL_SERIES_TTL = 3600  # 1 hour (critical: financial data must reflect changes quickly)
 
 
 def _make_financial_series_cache_key(
@@ -539,10 +550,8 @@ def clear_all_caches() -> int:
     cache_prefixes = [
         DATA_MANAGEMENT_OVERVIEW_KEY.split(":")[0],
         PRODUCT_ANALYSIS_WEEKLY_KEY_PREFIX.split(":")[0],
-        CACHE_KEY_PREFIX,
+        CACHE_KEY_PREFIX,  # covers daily and financial-series
         SHIPMENT_SCHEDULES_KEY_PREFIX,
-        DAILY_ANALYSIS_KEY_PREFIX.split(":")[0],
-        MONTHLY_FINANCIAL_SERIES_KEY_PREFIX.split(":")[0],
         "presence",
     ]
 

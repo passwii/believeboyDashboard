@@ -65,6 +65,7 @@ import {
 } from '@/components/ui/command'
 import { logClientOperation } from '@/lib/operation-audit'
 import { cn, formatLocalTimestampForFilename } from '@/lib/utils'
+import { useNotifications } from '@/components/notifications'
 
 const API_BASE = '/api/backend'
 const MAX_VISIBLE_RUNS = 8
@@ -1612,6 +1613,7 @@ async function exportStoreSkuTableToExcel(
 }
 
 export default function PricingCalculationPage() {
+  const { notify } = useNotifications()
   const [activeBusinessTab, setActiveBusinessTab] =
     useState<BusinessTab>('new-product')
   const [form, setForm] = useState<FormState>(INITIAL_FORM)
@@ -2087,10 +2089,12 @@ export default function PricingCalculationPage() {
 
       setRuns((current) => current.filter((run) => run.id !== runId))
       setSelectedRunIds((current) => current.filter((id) => id !== runId))
+      notify({ type: 'success', title: '运行记录已删除' })
     } catch (deleteError) {
       setError(
         deleteError instanceof Error ? deleteError.message : '删除测算记录失败',
       )
+      notify({ type: 'error', title: '删除失败', message: deleteError instanceof Error ? deleteError.message : '删除测算记录失败' })
     } finally {
       setDeletingRunId(null)
     }
@@ -2127,8 +2131,10 @@ export default function PricingCalculationPage() {
       setRuns((current) =>
         current.map((run) => (run.id === runId ? updatedRun : run)),
       )
+      notify({ type: 'success', title: '重新核算完成', message: '报价测算数据已更新' })
     } catch (recalcError) {
       setError(recalcError instanceof Error ? recalcError.message : '重算失败')
+      notify({ type: 'error', title: '重新核算失败', message: recalcError instanceof Error ? recalcError.message : '重算失败' })
     } finally {
       setRecalculatingRunId(null)
     }

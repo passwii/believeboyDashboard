@@ -142,7 +142,11 @@ def _normalize_status_filters(value: str | None) -> list[str]:
     normalized = _normalize_text(value)
     if normalized is None:
         return []
-    return [_normalize_status(part.strip()) for part in normalized.split(",") if part.strip()]
+    return [
+        _normalize_status(part.strip())
+        for part in normalized.split(",")
+        if part.strip()
+    ]
 
 
 def _normalize_shipment_no_filters(values: str | list[str] | None) -> list[str]:
@@ -311,7 +315,9 @@ def _normalize_manual_items(
                 "item_date": _parse_date(item.item_date, f"第 {index} 行 item_date"),
                 "sku": sku,
                 "quantity": int(item.quantity),
-                "carton_count": int(item.carton_count) if item.carton_count is not None else None,
+                "carton_count": int(item.carton_count)
+                if item.carton_count is not None
+                else None,
                 "remark": _normalize_text(item.remark),
             }
         )
@@ -398,9 +404,13 @@ def list_shipment_schedules(
     eta_from_date = _parse_date(eta_from, "eta_from")
     eta_to_date = _parse_date(eta_to, "eta_to")
     if created_from_date is not None:
-        filter_stmt = filter_stmt.where(ShipmentSchedule.created_date >= created_from_date)
+        filter_stmt = filter_stmt.where(
+            ShipmentSchedule.created_date >= created_from_date
+        )
     if created_to_date is not None:
-        filter_stmt = filter_stmt.where(ShipmentSchedule.created_date <= created_to_date)
+        filter_stmt = filter_stmt.where(
+            ShipmentSchedule.created_date <= created_to_date
+        )
     if etd_from_date is not None:
         filter_stmt = filter_stmt.where(ShipmentSchedule.etd_date >= etd_from_date)
     if etd_to_date is not None:
@@ -466,10 +476,12 @@ def summarize_shipment_schedule_costs(
         select(
             func.count(ShipmentSchedule.id).label("shipment_count"),
             func.coalesce(func.sum(item_agg.c.sku_count), 0).label("total_sku"),
-            func.coalesce(func.sum(item_agg.c.total_quantity), 0).label("total_quantity"),
-            func.coalesce(func.sum(ShipmentSchedule.total_chargeable_weight_kg), 0).label(
-                "total_chargeable_weight_kg"
+            func.coalesce(func.sum(item_agg.c.total_quantity), 0).label(
+                "total_quantity"
             ),
+            func.coalesce(
+                func.sum(ShipmentSchedule.total_chargeable_weight_kg), 0
+            ).label("total_chargeable_weight_kg"),
             func.coalesce(func.sum(ShipmentSchedule.logistics_total_price), 0).label(
                 "total_logistics_cost"
             ),
@@ -490,7 +502,8 @@ def summarize_shipment_schedule_costs(
         )
     if shipping_method:
         stmt = stmt.where(
-            ShipmentSchedule.shipping_method == _normalize_shipping_method(shipping_method)
+            ShipmentSchedule.shipping_method
+            == _normalize_shipping_method(shipping_method)
         )
     normalized_shipment_nos = _normalize_shipment_no_filters(shipment_no)
     if len(normalized_shipment_nos) > 1:
@@ -539,11 +552,19 @@ def list_shipment_sku_summary(
     country: str | None = None,
     include_only_history_calc: bool = True,
     shipment_status: str | None = "completed",
+    shipment_nos: list[str] | None = None,
+    created_date_from: str | None = None,
+    created_date_to: str | None = None,
 ) -> list[dict[str, object]]:
     shipment_statuses = _normalize_status_filters(shipment_status)
     use_completed_cache = shipment_statuses == ["completed"]
+    # The pre-computed ShipmentSkuSummary table cannot filter by shipment_nos or date range,
+    # so skip it when any of those filters are provided
+    has_extra_filters = (
+        bool(shipment_nos) or bool(created_date_from) or bool(created_date_to)
+    )
 
-    if include_only_history_calc and use_completed_cache:
+    if include_only_history_calc and use_completed_cache and not has_extra_filters:
         existing_count_stmt = select(func.count()).select_from(ShipmentSkuSummary)
         existing_count = int(db.execute(existing_count_stmt).scalar_one() or 0)
         if existing_count == 0:
@@ -642,6 +663,12 @@ def list_shipment_sku_summary(
         stmt = stmt.where(ShipmentSchedule.include_in_history_shipping_calc.is_(True))
     if shipment_statuses:
         stmt = stmt.where(ShipmentSchedule.shipment_status.in_(shipment_statuses))
+    if shipment_nos:
+        stmt = stmt.where(ShipmentSchedule.shipment_no.in_(shipment_nos))
+    if created_date_from:
+        stmt = stmt.where(ShipmentSchedule.created_date >= created_date_from)
+    if created_date_to:
+        stmt = stmt.where(ShipmentSchedule.created_date <= created_date_to)
     rows = db.execute(stmt).all()
     summary_items: list[dict[str, object]] = []
     for row in rows:
@@ -693,7 +720,9 @@ def list_shipment_fba_box_details(
     )
     row_map = {str(row.shipment_no): row for row in rows}
     missing_shipment_nos = [
-        shipment_no for shipment_no in normalized_shipment_nos if shipment_no not in row_map
+        shipment_no
+        for shipment_no in normalized_shipment_nos
+        if shipment_no not in row_map
     ]
     if missing_shipment_nos:
         raise HTTPException(
@@ -727,14 +756,18 @@ def list_shipment_fba_box_details(
     for row in ordered_rows:
         row.items.sort(key=lambda item: (item.item_date or date.min, item.sku, item.id))
         for item in row.items:
-            product = product_map.get((str(row.project_name_snapshot), str(row.country), str(item.sku)))
+            product = product_map.get(
+                (str(row.project_name_snapshot), str(row.country), str(item.sku))
+            )
             quantity = int(item.quantity)
             units_per_carton = (
                 int(product.units_per_carton)
                 if product and int(product.units_per_carton or 0) > 0
                 else 0
             )
-            full_carton_count = quantity // units_per_carton if units_per_carton > 0 else 0
+            full_carton_count = (
+                quantity // units_per_carton if units_per_carton > 0 else 0
+            )
             partial_carton_units = (
                 quantity % units_per_carton if units_per_carton > 0 else 0
             )
@@ -758,7 +791,9 @@ def list_shipment_fba_box_details(
                     else DECIMAL_ZERO
                 )
                 width_cm = (
-                    Decimal(str(product.package_width_cm or 0)) if product else DECIMAL_ZERO
+                    Decimal(str(product.package_width_cm or 0))
+                    if product
+                    else DECIMAL_ZERO
                 )
                 height_cm = (
                     Decimal(str(product.package_height_cm or 0))
@@ -767,7 +802,11 @@ def list_shipment_fba_box_details(
                 )
                 volume_multiplier = Decimal(str(quantity))
 
-            if product and float(product.carton_weight_kg or 0) > 0 and carton_count > 0:
+            if (
+                product
+                and float(product.carton_weight_kg or 0) > 0
+                and carton_count > 0
+            ):
                 total_weight_kg = Decimal(str(product.carton_weight_kg or 0)) * Decimal(
                     str(carton_count)
                 )
@@ -779,7 +818,11 @@ def list_shipment_fba_box_details(
                 )
 
             total_volume_m3 = (
-                length_cm * width_cm * height_cm / Decimal("1000000") * volume_multiplier
+                length_cm
+                * width_cm
+                * height_cm
+                / Decimal("1000000")
+                * volume_multiplier
             ).quantize(VOLUME_QUANT, rounding=ROUND_HALF_UP)
 
             if product is None:
@@ -787,9 +830,7 @@ def list_shipment_fba_box_details(
             elif units_per_carton <= 0:
                 outer_box_text = "未维护装箱率"
             elif partial_carton_units > 0 and full_carton_count > 0:
-                outer_box_text = (
-                    f"{full_carton_count} 箱整箱 + 1 箱尾箱（{partial_carton_units} 件）"
-                )
+                outer_box_text = f"{full_carton_count} 箱整箱 + 1 箱尾箱（{partial_carton_units} 件）"
             elif partial_carton_units > 0:
                 outer_box_text = f"1 箱尾箱（{partial_carton_units} 件）"
             else:
@@ -1106,8 +1147,14 @@ def parse_shipment_items_csv(content: bytes) -> list[dict[str, object]]:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="CSV 必须包含 quantity 或 carton_count 字段（至少填一个）",
         )
-    if "project_name" not in available_headers or "shipment_no" not in available_headers or "SKU" not in available_headers:
-        missing = ", ".join(sorted({"project_name", "shipment_no", "SKU"} - available_headers))
+    if (
+        "project_name" not in available_headers
+        or "shipment_no" not in available_headers
+        or "SKU" not in available_headers
+    ):
+        missing = ", ".join(
+            sorted({"project_name", "shipment_no", "SKU"} - available_headers)
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=f"CSV 缺少字段: {missing}"
         )
@@ -1123,7 +1170,9 @@ def parse_shipment_items_csv(content: bytes) -> list[dict[str, object]]:
 
         quantity_text = _normalize_text(normalized.get("quantity"))
         carton_count_text = _normalize_text(normalized.get("carton_count"))
-        parsed_carton_count = _parse_carton_count(carton_count_text, f"第 {index} 行 carton_count")
+        parsed_carton_count = _parse_carton_count(
+            carton_count_text, f"第 {index} 行 carton_count"
+        )
 
         # quantity must be computable later via _validate_items_against_product_costs
         if quantity_text is not None:
@@ -1396,9 +1445,7 @@ def parse_shipment_schedules_csv(content: bytes) -> list[dict[str, object]]:
             {
                 "row_no": index,
                 "project_name": project_name,
-                "country": _normalize_country(
-                    _header_value(normalized, "country")
-                ),
+                "country": _normalize_country(_header_value(normalized, "country")),
                 "shipment_no": shipment_no,
                 "tracking_no": _normalize_text(
                     _header_value(normalized, "tracking_no"), max_length=100

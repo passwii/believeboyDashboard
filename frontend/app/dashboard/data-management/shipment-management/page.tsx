@@ -1035,12 +1035,13 @@ export default function ShipmentManagementPage() {
   const loadSkuSummary = useCallback(async () => {
     setSkuSummaryLoading(true)
     try {
-      const params = new URLSearchParams({
-        include_only_history_calc: 'true',
-        shipment_status: HISTORY_SHIPMENT_STATUSES.join(','),
-      })
+      const params = new URLSearchParams()
       if (projectFilter !== 'all') params.set('project_id', projectFilter)
       if (countryFilter !== 'all') params.set('country', countryFilter)
+      if (statusFilter !== 'all') params.set('shipment_status', statusFilter)
+      selectedShipmentNoFilter.forEach((shipmentNo) => params.append('shipment_no', shipmentNo))
+      if (shipmentDateFrom) params.set('created_date_from', shipmentDateFrom)
+      if (shipmentDateTo) params.set('created_date_to', shipmentDateTo)
       const response = await fetch(`${API_BASE}/api/v1/shipment-schedules/sku-summary?${params.toString()}`, {
         headers: authHeaders(),
         cache: 'no-store',
@@ -1054,7 +1055,7 @@ export default function ShipmentManagementPage() {
     } finally {
       setSkuSummaryLoading(false)
     }
-  }, [countryFilter, projectFilter])
+  }, [countryFilter, projectFilter, selectedShipmentNoFilter, shipmentDateFrom, shipmentDateTo, statusFilter])
 
   const loadCostSummary = useCallback(async () => {
     setCostSummaryLoading(true)
@@ -2489,7 +2490,7 @@ export default function ShipmentManagementPage() {
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ShipmentPageTab)} className="min-w-0 w-full">
           <div className="mb-4 overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch]">
             <TabsMotionGroup id="shipment-management-tabs">
-              <TabsList className="flex w-max min-w-full justify-start border border-border/70 bg-[hsl(var(--surface-subtle))] p-1">
+              <TabsList className="flex w-max justify-start border border-border/70 bg-[hsl(var(--surface-subtle))] p-1">
                 <SlidingTabsTrigger value="overview" activeValue={activeTab} layoutId="shipment-management-tab-indicator">总览</SlidingTabsTrigger>
                 <SlidingTabsTrigger value="cost" activeValue={activeTab} layoutId="shipment-management-tab-indicator">发货费用</SlidingTabsTrigger>
                 <SlidingTabsTrigger value="sku-summary" activeValue={activeTab} layoutId="shipment-management-tab-indicator">SKU汇总</SlidingTabsTrigger>

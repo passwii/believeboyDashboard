@@ -49,16 +49,20 @@ import { DirectionalTabTransition, SlidingTabsTrigger, TabsMotionGroup } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
+import { useNotifications } from '@/components/notifications'
 
 const API_BASE = '/api/backend'
 const DASHBOARD_PALETTE = {
   blue: 'hsl(var(--chart-1))',
   blueDeep: 'hsl(var(--chart-1))',
   blueSoft: 'hsl(var(--chart-1) / 0.35)',
+  blueLight: 'hsl(var(--chart-1) / 0.5)',
   cyan: 'hsl(var(--chart-4))',
   indigo: 'hsl(var(--chart-1))',
   gold: 'hsl(var(--chart-3))',
   rose: 'hsl(var(--chart-5))',
+  green: 'hsl(var(--chart-2))',
+  greenLight: 'hsl(var(--chart-2) / 0.5)',
 }
 const PIE_COLORS = [
   DASHBOARD_PALETTE.blue,
@@ -391,8 +395,8 @@ const actionBarChartConfig = {
 } satisfies ChartConfig
 
 const marketTrendChartConfig = {
-  recent12: { label: '近12个月', color: DASHBOARD_PALETTE.blue },
-  prior12: { label: 'Last 12个月', color: DASHBOARD_PALETTE.cyan },
+  recent12: { label: '过去一年', color: DASHBOARD_PALETTE.blueLight },
+  prior12: { label: '过去两年', color: DASHBOARD_PALETTE.greenLight },
 } satisfies ChartConfig
 
 const marketStructureChartConfig = {
@@ -1492,6 +1496,7 @@ function AnalysisSectionHeader({
 }
 
 export default function CategoryResearchPage() {
+  const { notify } = useNotifications()
   const { data: session } = useSession()
   const isAdmin = Boolean(session?.user?.isAdmin)
   const currentOperator = (session?.user?.operatorNameZh || session?.user?.name || session?.user?.email || '').trim()
@@ -1762,8 +1767,10 @@ export default function CategoryResearchPage() {
       }
       setFormError(null)
       setFormSuccess(`重算完成：版本ID ${payload.dataset_id}，产品 ${payload.row_count_products} 条，趋势 ${payload.row_count_trends} 条`)
+      notify({ type: 'success', title: '当前版本重算完成', message: `产品 ${payload.row_count_products} 条，趋势 ${payload.row_count_trends} 条` })
     } catch (error) {
       setFormError(error instanceof Error ? error.message : '重算失败')
+      notify({ type: 'error', title: '当前版本重算失败', message: error instanceof Error ? error.message : '重算失败' })
     } finally {
       setRecomputingCurrent(false)
     }
@@ -1804,8 +1811,10 @@ export default function CategoryResearchPage() {
       }
       setFormError(null)
       setFormSuccess(`历史重算完成：匹配 ${payload.matched} 个版本，重算 ${payload.recomputed} 个版本`)
+      notify({ type: 'success', title: '历史版本重算完成', message: `匹配 ${payload.matched} 个版本，重算 ${payload.recomputed} 个版本` })
     } catch (error) {
       setFormError(error instanceof Error ? error.message : '历史重算失败')
+      notify({ type: 'error', title: '历史版本重算失败', message: error instanceof Error ? error.message : '历史重算失败' })
     } finally {
       setRecomputingHistory(false)
     }
@@ -2450,11 +2459,11 @@ export default function CategoryResearchPage() {
                             <ChartTooltipContent
                               labelFormatter={(_, payload) => {
                                 const point = payload?.[0]?.payload as { recentMonth?: string; priorMonth?: string } | undefined
-                                return `近12 ${point?.recentMonth ?? '-'} / Last12 ${point?.priorMonth ?? '-'}`
+                                return `过去一年 ${point?.recentMonth ?? '-'} / 过去两年 ${point?.priorMonth ?? '-'}`
                               }}
                               formatter={(value, name) => (
                                 <div className="flex w-full items-center justify-between gap-4">
-                                  <span className="text-muted-foreground">{name === 'recent12' ? '近12个月' : 'Last 12个月'}</span>
+                                  <span className="text-muted-foreground">{name === 'recent12' ? '过去一年' : '过去两年'}</span>
                                   <span className="font-medium">{formatNumber(Number(value))}</span>
                                 </div>
                               )}

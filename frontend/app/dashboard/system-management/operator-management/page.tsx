@@ -15,6 +15,7 @@ import { DirectionalTabTransition, SlidingTabsTrigger, TabsMotionGroup } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import { buildBackendHeaders } from '@/lib/backend-auth'
+import { useNotifications } from '@/components/notifications'
 
 type ManageProject = {
   id: number
@@ -230,6 +231,7 @@ const OPERATOR_PUBLIC_COMMISSION_TIERS: Array<{ range: string; ratio: string; no
 ] as const
 
 export default function OperatorManagementPage() {
+  const { notify } = useNotifications()
   const { data: session } = useSession()
   const [activeTab, setActiveTab] = useState<OperatorPageTab>('role-info')
   const [month, setMonth] = useState(lastMonthString())
@@ -505,9 +507,10 @@ export default function OperatorManagementPage() {
       const payload = (await response.json()) as RoleAssignmentsResponse
       setRoleRows(payload.items ?? [])
       setRoleDraftRows(buildRoleDraft(payload.items ?? []))
-      setSuccessMessage('运营信息已保存')
+      notify({ type: 'success', title: '运营信息已保存' })
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : '运营信息保存失败')
+      notify({ type: 'error', title: '运营信息保存失败', message: submitError instanceof Error ? submitError.message : '运营信息保存失败' })
     } finally {
       setSavingRoles(false)
     }
@@ -550,9 +553,10 @@ export default function OperatorManagementPage() {
       const payload = (await response.json()) as PerformanceResponse
       setPerformanceRows(payload.items ?? [])
       setPerformanceDraftRows(buildPerformanceDraft(payload.items ?? []))
-      setSuccessMessage('运营绩效已保存')
+      notify({ type: 'success', title: '运营绩效已保存' })
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : '运营绩效保存失败')
+      notify({ type: 'error', title: '运营绩效保存失败', message: submitError instanceof Error ? submitError.message : '运营绩效保存失败' })
     } finally {
       setSavingPerformance(false)
     }
@@ -602,9 +606,10 @@ export default function OperatorManagementPage() {
       }
       const payload = (await response.json()) as RatioOverridesResponse
       setRatioOverrideRows(payload.items ?? [])
-      setSuccessMessage('运营佣金比例与备注已保存')
+      notify({ type: 'success', title: '运营佣金比例与备注已保存' })
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : '运营佣金保存失败')
+      notify({ type: 'error', title: '运营佣金保存失败', message: submitError instanceof Error ? submitError.message : '运营佣金保存失败' })
     } finally {
       setSavingCommission(false)
     }

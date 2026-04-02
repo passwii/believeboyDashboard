@@ -43,6 +43,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Pencil, Trash2, Plus, RotateCcw, ImagePlus, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useNotifications } from "@/components/notifications"
 
 // 预定义货币选项
 const CURRENCY_OPTIONS = [
@@ -132,6 +133,7 @@ const getCurrencyBadgeMeta = (currency: string) => {
 }
 
 export default function ExchangeRatePage() {
+  const { notify } = useNotifications()
   const { data: session } = useSession()
   const isAdmin = Boolean(session?.user?.isAdmin)
   const [rates, setRates] = useState<ExchangeRate[]>([])
@@ -276,9 +278,10 @@ export default function ExchangeRatePage() {
 
       setDialogOpen(false)
       fetchRates()
+      notify({ type: 'success', title: editingRate ? '汇率已更新' : '汇率已添加' })
     } catch (error: any) {
       console.error("Error saving exchange rate:", error)
-      // Error handling without toast
+      notify({ type: 'error', title: '保存失败', message: error instanceof Error ? error.message : '操作失败' })
     }
   }
 
@@ -298,9 +301,10 @@ export default function ExchangeRatePage() {
       setDeleteDialogOpen(false)
       setDeletingRate(null)
       fetchRates()
+      notify({ type: 'success', title: '汇率记录已删除' })
     } catch (error) {
       console.error("Error deleting exchange rate:", error)
-      // Error handling without toast
+      notify({ type: 'error', title: '删除失败', message: error instanceof Error ? error.message : '删除失败' })
     }
   }
 

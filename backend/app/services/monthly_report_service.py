@@ -815,9 +815,9 @@ def _load_monthly_cost_totals(
         cost_pair = cost_by_sku.get(_normalize_key(row.sku))
         if cost_pair is None:
             continue
-        quantity = _to_decimal(row.total_quantity)
         if row.transaction_type == "refund":
-            quantity = -quantity
+            continue  # 成本在原销售月已确认，退货不再重复扣减
+        quantity = _to_decimal(row.total_quantity)
         report_totals = totals_by_report.setdefault(
             int(row.report_id),
             {

@@ -5,7 +5,7 @@ import { Manrope, Space_Grotesk } from 'next/font/google'
 import './globals.css'
 import { GlobalLoadingProvider } from '@/components/global-loading-provider'
 import { GlobalLoadingOverlay } from '@/components/global-loading-overlay'
-import { GlobalErrorBridge } from '@/components/system/global-error-bridge'
+import { NotificationWrapper } from '@/components/system/notification-wrapper'
 import { ThemeProvider } from '@/components/theme-provider'
 import { AuthSessionProvider } from '@/components/auth/session-provider'
 
@@ -40,11 +40,12 @@ export default function RootLayout({
         >
           <AuthSessionProvider>
             <GlobalLoadingProvider>
-              {children}
-              <GlobalLoadingOverlay />
-              <GlobalErrorBridge />
-              <Analytics />
-              <SpeedInsights />
+              <NotificationWrapper>
+                {children}
+                <GlobalLoadingOverlay />
+                <Analytics />
+                <SpeedInsights />
+              </NotificationWrapper>
             </GlobalLoadingProvider>
           </AuthSessionProvider>
         </ThemeProvider>

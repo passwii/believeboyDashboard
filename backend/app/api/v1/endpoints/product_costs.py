@@ -339,12 +339,13 @@ def import_product_costs_from_csv(
         )
 
     items = product_cost_service.parse_product_cost_csv(content)
-    _, inserted, updated, skipped = product_cost_service.import_product_costs(
+    rows, inserted, updated, skipped = product_cost_service.import_product_costs(
         db,
         items,
         import_mode=import_mode,
         source_file=file.filename,
     )
+    project_names = {row.project_name for row in rows}
     append_operation_audit_log(
         db,
         action="sku_info.import_csv",
@@ -360,6 +361,8 @@ def import_product_costs_from_csv(
         },
         request=request,
     )
+    for project_name in project_names:
+        _invalidate_financial_cache(db, project_name)
     db.commit()
     return ProductCostImportResponse(
         inserted=inserted, updated=updated, skipped=skipped, total=inserted + updated
@@ -556,6 +559,7 @@ def recalculate_first_leg_costs(
         },
         request=request,
     )
+    _invalidate_financial_cache(db, payload.project_name)
     db.commit()
     return ProductCostFirstLegRecalculateResponse(
         updated=updated, unit_price_per_kg_rmb=payload.unit_price_per_kg_rmb

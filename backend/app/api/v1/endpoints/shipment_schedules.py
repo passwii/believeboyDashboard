@@ -433,15 +433,28 @@ def list_shipment_sku_summary(
     country: str | None = Query(default=None),
     include_only_history_calc: bool = Query(default=True),
     shipment_status: str | None = Query(default="completed"),
+    shipment_no: Annotated[list[str] | None, Query()] = None,
+    created_date_from: str | None = Query(default=None),
+    created_date_to: str | None = Query(default=None),
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> ShipmentSkuSummaryResponse:
+    has_extra_filters = (
+        bool(shipment_no) or bool(created_date_from) or bool(created_date_to)
+    )
+    effective_include_history = (
+        False if has_extra_filters else include_only_history_calc
+    )
+
     cached = redis_service.get_shipment_sku_summary_cache(
         project_id=project_id,
         country=country,
-        include_only_history_calc=include_only_history_calc,
+        include_only_history_calc=effective_include_history,
         shipment_status=shipment_status,
+        shipment_nos=shipment_no,
+        created_date_from=created_date_from,
+        created_date_to=created_date_to,
     )
     if cached is not None:
         append_operation_view_log(
@@ -453,7 +466,10 @@ def list_shipment_sku_summary(
                 "project_id": project_id,
                 "country": country,
                 "shipment_status": shipment_status,
-                "include_only_history_calc": include_only_history_calc,
+                "include_only_history_calc": effective_include_history,
+                "shipment_nos": shipment_no,
+                "created_date_from": created_date_from,
+                "created_date_to": created_date_to,
                 "count": len(cached),
                 "source": "cache",
             },
@@ -481,15 +497,21 @@ def list_shipment_sku_summary(
         project_id=project_id,
         project_ids=accessible_project_ids,
         country=country,
-        include_only_history_calc=include_only_history_calc,
+        include_only_history_calc=effective_include_history,
         shipment_status=shipment_status,
+        shipment_nos=shipment_no,
+        created_date_from=created_date_from,
+        created_date_to=created_date_to,
     )
     redis_service.set_shipment_sku_summary_cache(
         project_id=project_id,
         country=country,
-        include_only_history_calc=include_only_history_calc,
+        include_only_history_calc=effective_include_history,
         shipment_status=shipment_status,
         data=rows,
+        shipment_nos=shipment_no,
+        created_date_from=created_date_from,
+        created_date_to=created_date_to,
     )
     append_operation_view_log(
         db,
@@ -500,7 +522,10 @@ def list_shipment_sku_summary(
             "project_id": project_id,
             "country": country,
             "shipment_status": shipment_status,
-            "include_only_history_calc": include_only_history_calc,
+            "include_only_history_calc": effective_include_history,
+            "shipment_nos": shipment_no,
+            "created_date_from": created_date_from,
+            "created_date_to": created_date_to,
             "count": len(rows),
             "source": "database",
         },
@@ -597,7 +622,10 @@ def create_shipment_schedule(
     row = shipment_schedule_service.create_shipment_schedule(
         db, payload, operator=operator
     )
-    redis_service.invalidate_all_shipment_schedules_cache()
+    redis_service.invalidate_shipment_schedules_list_cache()
+    redis_service.invalidate_shipment_schedules_cost_summary_cache()
+    redis_service.invalidate_shipment_sku_summary_cache()
+    redis_service.invalidate_shipment_fba_box_details_cache()
     append_operation_audit_log(
         db,
         action="shipment_schedules.create",
@@ -652,7 +680,10 @@ def import_shipment_schedules_csv(
         filename=file.filename,
         operator=operator,
     )
-    redis_service.invalidate_all_shipment_schedules_cache()
+    redis_service.invalidate_shipment_schedules_list_cache()
+    redis_service.invalidate_shipment_schedules_cost_summary_cache()
+    redis_service.invalidate_shipment_sku_summary_cache()
+    redis_service.invalidate_shipment_fba_box_details_cache()
     append_operation_audit_log(
         db,
         action="shipment_schedules.import_csv",

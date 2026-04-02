@@ -251,21 +251,21 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   return (
     <Sidebar collapsible='offcanvas' {...props}>
-      <SidebarHeader className='gap-3 px-4 py-4'>
+      <SidebarHeader className='gap-1.5 px-3 py-2.5'>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
               size='lg'
-              className='h-auto rounded-[1rem] border border-[hsl(var(--sidebar-foreground)/0.08)] bg-[hsl(var(--sidebar-background))] px-3 py-3 shadow-none hover:bg-[hsl(var(--sidebar-foreground)/0.02)] data-[active=true]:bg-[hsl(var(--sidebar-foreground)/0.03)]'
+              className='h-[44px] rounded-[0.75rem] bg-[hsl(var(--sidebar-background))] px-2.5 py-2 shadow-none hover:bg-[hsl(var(--sidebar-foreground)/0.02)] data-[active=true]:bg-[hsl(var(--sidebar-foreground)/0.03)]'
             >
-              <div className='flex h-11 w-11 shrink-0 items-center justify-center rounded-[0.9rem] bg-[linear-gradient(135deg,hsl(var(--primary)),hsl(var(--chart-2)))] text-sidebar-primary-foreground shadow-none'>
-                <Command className='size-4.5' />
+              <div className='flex h-8 w-8 shrink-0 items-center justify-center rounded-[0.65rem] bg-[linear-gradient(135deg,hsl(var(--primary)),hsl(var(--chart-2)))] text-sidebar-primary-foreground shadow-none'>
+                <Command className='size-4' />
               </div>
               <div className='grid min-w-0 flex-1 text-left leading-tight'>
-                <span className='truncate text-[0.92rem] font-semibold text-sidebar-foreground'>
+                <span className='truncate text-[0.82rem] font-semibold text-sidebar-foreground'>
                   BelieveBoy
                 </span>
-                <span className='truncate text-[0.82rem] text-sidebar-foreground/56'>
+                <span className='truncate text-[0.72rem] text-sidebar-foreground/56'>
                   运营控制台
                 </span>
               </div>

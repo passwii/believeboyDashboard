@@ -711,7 +711,7 @@ def recompute_product_analysis_weekly(
                 "start_date": start_date.isoformat() if start_date else None,
                 "end_date": end_date.isoformat() if end_date else None,
                 "current_only": current_only,
-                "recomputed": payload.recomputed,
+                "recomputed": payload["recomputed"],
             },
             request=request,
         )

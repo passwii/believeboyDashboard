@@ -11,6 +11,7 @@ import { EmptyTableState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { useNotifications } from '@/components/notifications'
 import { buildBackendHeaders } from '@/lib/backend-auth'
 import { cn } from '@/lib/utils'
 
@@ -119,14 +120,12 @@ function hasSummary(value: unknown): value is { summary: DataManagementOverview[
 
 export default function SystemDataManagementPage() {
   const { data: session, status } = useSession()
+  const { notify } = useNotifications()
   const [overview, setOverview] = useState<DataManagementOverview | null>(null)
   const [statusOverview, setStatusOverview] = useState<DataManagementStatusPayload | null>(null)
   const [loading, setLoading] = useState(false)
   const [detailsLoading, setDetailsLoading] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
-
   const [selectedStatus, setSelectedStatus] = useState<DataLifecycleStatus>('active')
   const [statusNote, setStatusNote] = useState('')
   const [clearingCache, setClearingCache] = useState(false)
@@ -152,11 +151,11 @@ export default function SystemDataManagementPage() {
       setSelectedStatus(payload.summary.data_status)
       setStatusNote(payload.data_status_note || '')
     } catch (loadErr) {
-      setError(loadErr instanceof Error ? loadErr.message : '状态加载失败')
+      notify({ type: 'error', title: loadErr instanceof Error ? loadErr.message : '状态加载失败' })
     } finally {
       setLoading(false)
     }
-  }, [session, status])
+  }, [session, status, notify])
 
   const loadOverview = useCallback(async (): Promise<void> => {
     if (status === 'loading') return
@@ -186,29 +185,25 @@ export default function SystemDataManagementPage() {
         data_status_updated_by: payload.data_status_updated_by,
       }))
     } catch (loadErr) {
-      setError(loadErr instanceof Error ? loadErr.message : '状态加载失败')
+      notify({ type: 'error', title: loadErr instanceof Error ? loadErr.message : '状态加载失败' })
     } finally {
       setDetailsLoading(false)
     }
-  }, [session, status])
+  }, [session, status, notify])
 
   useEffect(() => {
     if (status !== 'loading') {
-      setError(null)
       void loadStatus()
       void loadOverview()
     }
   }, [loadOverview, loadStatus, status])
 
   const refreshAll = useCallback(async () => {
-    setError(null)
     await Promise.all([loadStatus(), loadOverview()])
   }, [loadOverview, loadStatus])
 
   const onSaveStatus = useCallback(async () => {
     setSaving(true)
-    setError(null)
-    setSuccess(null)
 
     try {
       const response = await fetch(`${API_BASE}/api/v1/system-management/data-management/data-status`, {
@@ -222,21 +217,19 @@ export default function SystemDataManagementPage() {
       if (!response.ok) {
         throw new Error(await parseError(response))
       }
-      setSuccess('数据状态更新成功')
+      notify({ type: 'success', title: '数据状态更新成功' })
       await refreshAll()
     } catch (saveErr) {
-      setError(saveErr instanceof Error ? saveErr.message : '状态更新失败')
+      notify({ type: 'error', title: saveErr instanceof Error ? saveErr.message : '状态更新失败' })
     } finally {
       setSaving(false)
     }
-  }, [refreshAll, selectedStatus, session, statusNote])
+  }, [refreshAll, selectedStatus, session, statusNote, notify])
 
   const onClearCache = useCallback(async () => {
     if (!confirm('确定要清理所有 Redis 缓存吗？')) return
 
     setClearingCache(true)
-    setError(null)
-    setSuccess(null)
 
     try {
       const response = await fetch(`${API_BASE}/api/v1/system-management/cache/clear-all`, {
@@ -247,14 +240,14 @@ export default function SystemDataManagementPage() {
         throw new Error(await parseError(response))
       }
       const payload = (await response.json()) as { deleted_count: number; message: string }
-      setSuccess(payload.message)
+      notify({ type: 'success', title: payload.message })
       await refreshAll()
     } catch (clearErr) {
-      setError(clearErr instanceof Error ? clearErr.message : '缓存清理失败')
+      notify({ type: 'error', title: clearErr instanceof Error ? clearErr.message : '缓存清理失败' })
     } finally {
       setClearingCache(false)
     }
-  }, [refreshAll, session])
+  }, [refreshAll, session, notify])
 
   const summaryCards = useMemo(() => {
     const snapshot = overview ?? statusOverview
@@ -317,13 +310,6 @@ export default function SystemDataManagementPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-6 p-5 sm:p-7">
-          {error ? <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-sm text-destructive dark:border-destructive/30 dark:bg-destructive/12">{error}</div> : null}
-          {success ? (
-            <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-4 py-2.5 text-sm text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/12 dark:text-emerald-300">
-              {success}
-            </div>
-          ) : null}
-
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {summaryCards.map((card) => (
               <div key={card.key} className="rounded-xl border border-border/70 bg-card/70 p-4 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">

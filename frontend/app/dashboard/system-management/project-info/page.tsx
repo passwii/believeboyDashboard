@@ -35,6 +35,7 @@ import {
   fetchProjectOperatorOptionsCached,
 } from '@/lib/project-client-cache'
 import { cn } from '@/lib/utils'
+import { useNotifications } from '@/components/notifications'
 
 type ProjectItem = {
   id: number
@@ -213,6 +214,7 @@ function toCommissionPoints(rate: number | null): number | null {
 }
 
 export default function StoreInfoPage() {
+  const { notify } = useNotifications()
   const { startGlobalLoading, endGlobalLoading } = useGlobalLoading()
   const { data: session, status } = useSession()
   const [items, setItems] = useState<ProjectItem[]>([])
@@ -316,10 +318,11 @@ export default function StoreInfoPage() {
       setAddCommissionRate('')
       setAddDialogOpen(false)
       clearProjectClientCaches()
-      setSuccessMessage(`已新增项目：${normalizedName}`)
+      notify({ type: 'success', title: '项目已新增', message: normalizedName })
       await loadProjects()
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : '新增失败')
+      notify({ type: 'error', title: '新增项目失败', message: submitError instanceof Error ? submitError.message : '新增失败' })
     } finally {
       endGlobalLoading('blocking')
       setSubmitting(false)
@@ -384,10 +387,11 @@ export default function StoreInfoPage() {
       setEditCommissionMode('')
       setEditCommissionRate('')
       clearProjectClientCaches()
-      setSuccessMessage(`已更新项目名称：${normalizedName}`)
+      notify({ type: 'success', title: '项目已更新', message: normalizedName })
       await loadProjects()
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : '更新失败')
+      notify({ type: 'error', title: '更新项目失败', message: submitError instanceof Error ? submitError.message : '更新失败' })
     } finally {
       endGlobalLoading('blocking')
       setSubmitting(false)

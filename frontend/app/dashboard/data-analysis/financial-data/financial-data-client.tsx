@@ -283,11 +283,11 @@ function applyExcelBorder(cell: import('exceljs').Cell, color = 'FFE2E8F0') {
 
 function autosizeExcelColumns(worksheet: import('exceljs').Worksheet) {
   worksheet.columns?.forEach((column) => {
-    let maxLength = 12
+    let maxLength = 10
     column.eachCell?.({ includeEmpty: true }, (cell) => {
       const raw = cell.value
       const text = raw === null || raw === undefined ? '' : String(raw)
-      maxLength = Math.max(maxLength, Math.min(text.length + 4, 28))
+      maxLength = Math.max(maxLength, Math.min(text.length + 2, 20))
     })
     column.width = maxLength
   })
@@ -313,6 +313,7 @@ type FinancialExportDetailRow = {
   firstLegCostRmb: number
   netProfitRmb: number
   netProfitUsd: number
+  netProfitRate: number
   evaluationFeeRmb: number
   prepaymentOtherRmb: number
   operationCommissionRmb: number | null
@@ -499,6 +500,12 @@ const EXPORT_DETAIL_COLUMNS = [
     key: 'netProfitUsd',
     title: '净利润USD',
     format: 'currency_usd',
+    group: '成本核算',
+  },
+  {
+    key: 'netProfitRate',
+    title: '净利率',
+    format: 'percent_signed',
     group: '成本核算',
   },
 ] as const
@@ -1058,6 +1065,7 @@ export default function FinancialDataClient({
         firstLegCostRmb: row.first_leg_cost_rmb,
         netProfitRmb,
         netProfitUsd,
+        netProfitRate: toSignedRatio(netProfitUsd, row.income_total),
         evaluationFeeRmb,
         prepaymentOtherRmb,
         operationCommissionRmb: disableCommission
@@ -1427,6 +1435,8 @@ export default function FinancialDataClient({
           cell.value = totals.net_profit_rmb
         } else if (column.key === 'netProfitUsd') {
           cell.value = totals.net_profit_usd
+        } else if (column.key === 'netProfitRate') {
+          cell.value = toSignedRatio(totals.net_profit_usd, totals.income_total)
         } else if (column.key === 'evaluationFeeRmb') {
           cell.value = totals.evaluation_fee_rmb
         } else if (column.key === 'prepaymentOtherRmb') {
@@ -1498,18 +1508,16 @@ export default function FinancialDataClient({
       })
 
       const compactWidthKeys = new Set<string>([
-        'monthLabel',
         'hasSourceReport',
       ])
       detailSheet.columns = activeExportColumns.map((column) => ({
         width:
           column.key === 'monthLabel'
-            ? 14
+            ? 12
             : compactWidthKeys.has(column.key)
-              ? 12
-              : 14,
+              ? 10
+              : 12,
       }))
-      autosizeExcelColumns(detailSheet)
 
       const buffer = await workbook.xlsx.writeBuffer()
       const blob = new Blob([buffer], {
@@ -2055,6 +2063,9 @@ export default function FinancialDataClient({
                   <TableHead rowSpan={2} className='px-2 py-2 text-center'>
                     净利润USD
                   </TableHead>
+                  <TableHead rowSpan={2} className='px-2 py-2 text-center'>
+                    净利率
+                  </TableHead>
                 </TableRow>
                 <TableRow className='bg-muted/20 hover:bg-muted/20'>
                   <TableHead className='border-r bg-emerald-100 px-2 py-1.5 text-center dark:bg-emerald-900/80 dark:text-emerald-100'>
@@ -2149,6 +2160,7 @@ export default function FinancialDataClient({
                     row.amazon_pay_back,
                     row.income_total,
                   )
+                  const netProfitRate = toSignedRatio(netProfitUsd, row.income_total)
 
                   return (
                     <TableRow
@@ -2272,6 +2284,9 @@ export default function FinancialDataClient({
                       </TableCell>
                       <TableCell className='px-2 py-1.5 text-right font-semibold tabular-nums'>
                         {formatCurrency(netProfitUsd)}
+                      </TableCell>
+                      <TableCell className='px-2 py-1.5 text-right font-semibold tabular-nums'>
+                        {formatSignedRatio(netProfitRate)}
                       </TableCell>
                     </TableRow>
                   )
@@ -2422,6 +2437,11 @@ export default function FinancialDataClient({
                   </TableCell>
                   <TableCell className='px-2 py-2 text-right tabular-nums'>
                     {formatCurrency(totals.net_profit_usd)}
+                  </TableCell>
+                  <TableCell className='px-2 py-2 text-right tabular-nums'>
+                    {formatSignedRatio(
+                      toSignedRatio(totals.net_profit_usd, totals.income_total),
+                    )}
                   </TableCell>
                 </TableRow>
               </TableFooter>

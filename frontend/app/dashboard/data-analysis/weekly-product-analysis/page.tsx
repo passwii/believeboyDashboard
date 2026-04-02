@@ -52,6 +52,7 @@ import {
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
+import { useNotifications } from '@/components/notifications'
 
 type ProjectOption = {
   id: number | null
@@ -984,6 +985,7 @@ function fillDetailWorksheet(
 }
 
 export default function WeeklyProductAnalysisPage() {
+  const { notify } = useNotifications()
   const { data: session } = useSession()
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
@@ -1232,12 +1234,14 @@ export default function WeeklyProductAnalysisPage() {
       setRecomputeMessage(
         `已按最新 SKU cost 重算 ${Number(payload.recomputed || 0)} 个历史周报`,
       )
+      notify({ type: 'success', title: '周度数据重算完成', message: `已重算 ${Number(payload.recomputed || 0)} 个历史周报` })
     } catch (recomputeError) {
       setError(
         recomputeError instanceof Error
           ? recomputeError.message
           : '历史周报重算失败',
       )
+      notify({ type: 'error', title: '周度数据重算失败', message: recomputeError instanceof Error ? recomputeError.message : '历史周报重算失败' })
     } finally {
       setRecomputing(false)
     }

@@ -6,12 +6,7 @@ import { LivePresence } from '@/components/dashboard/live-presence'
 import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
 import { ProductUpdatesEntry } from '@/components/dashboard/product-updates-entry'
 import { ProductUpdatesSpotlight } from '@/components/dashboard/product-updates-spotlight'
-import {
-  NotificationsProvider,
-  NotificationToastContainer,
-  NotificationPanel,
-  useNotifications,
-} from '@/components/notifications'
+import { NotificationPanel, useNotifications } from '@/components/notifications'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/dashboard/app-sidebar'
 import { SearchCommand } from '@/components/dashboard/search-command'
@@ -87,7 +82,6 @@ export default function DashboardLayout({
   }, [pageTitle])
 
   return (
-    <NotificationsProvider>
     <SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpen}>
       <AppSidebar variant="sidebar" />
       <SidebarInset className="min-w-0 overflow-x-clip bg-[hsl(var(--surface-low))]">
@@ -182,8 +176,6 @@ export default function DashboardLayout({
       </SidebarInset>
       <SearchCommand />
       <ProductUpdatesSpotlight />
-      <NotificationToastContainer />
     </SidebarProvider>
-    </NotificationsProvider>
   )
 }

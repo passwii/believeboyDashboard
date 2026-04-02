@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { buildBackendHeaders } from '@/lib/backend-auth'
+import { useNotifications } from '@/components/notifications'
 
 type PaymentStatus = 'paid' | 'partial' | 'unpaid'
 
@@ -188,6 +189,7 @@ const PROJECT_COMMISSION_RULES = [
 ] as const
 
 export default function CommissionOverviewPage() {
+  const { notify } = useNotifications()
   const { data: session } = useSession()
   const [month, setMonth] = useState(lastMonthString())
   const [summaryYear, setSummaryYear] = useState(getCurrentYear())
@@ -415,8 +417,10 @@ export default function CommissionOverviewPage() {
         loadProjectMeta(),
         activeTab === 'monthly' || activeTab === 'projectSummary' ? loadYearlySummary() : Promise.resolve(),
       ])
+      notify({ type: 'success', title: '佣金重新核算完成' })
     } catch (recomputeError) {
       setError(recomputeError instanceof Error ? recomputeError.message : '佣金核算失败')
+      notify({ type: 'error', title: '佣金核算失败', message: recomputeError instanceof Error ? recomputeError.message : '佣金核算失败' })
     } finally {
       setRecomputing(false)
     }
