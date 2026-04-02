@@ -3,10 +3,16 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, get_request_is_admin, get_request_operator, protected
+from app.api.deps import (
+    get_db_session,
+    get_request_is_admin,
+    get_request_operator,
+    protected,
+)
 from app.schemas.pricing_calculation import (
     PricingCalculationCostReverseRequest,
     PricingCalculationCreateRequest,
+    PricingCalculationFbmRequest,
     PricingCalculationReverseRequest,
     PricingCalculationRunItem,
     PricingCalculationRunListResponse,
@@ -17,11 +23,15 @@ from app.services import pricing_calculation_service
 router = APIRouter(dependencies=[Depends(protected)])
 
 
-@router.get('/pricing-calculation/runs', response_model=PricingCalculationRunListResponse)
+@router.get(
+    "/pricing-calculation/runs", response_model=PricingCalculationRunListResponse
+)
 def list_pricing_runs(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=12, ge=1, le=100),
-    exclude_project_id: bool = Query(default=True, description="是否排除店铺核算记录（只返回新品核算）"),
+    exclude_project_id: bool = Query(
+        default=True, description="是否排除店铺核算记录（只返回新品核算）"
+    ),
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Depends(get_request_is_admin),
@@ -35,14 +45,19 @@ def list_pricing_runs(
         is_admin=is_admin,
     )
     return PricingCalculationRunListResponse(
-        items=[PricingCalculationRunItem(**pricing_calculation_service.serialize_pricing_run(row)) for row in rows],
+        items=[
+            PricingCalculationRunItem(
+                **pricing_calculation_service.serialize_pricing_run(row)
+            )
+            for row in rows
+        ],
         total=total,
         page=page,
         page_size=page_size,
     )
 
 
-@router.post('/pricing-calculation/quote', response_model=PricingCalculationRunItem)
+@router.post("/pricing-calculation/quote", response_model=PricingCalculationRunItem)
 def calculate_pricing_quote(
     payload: PricingCalculationCreateRequest,
     request: Request,
@@ -50,15 +65,17 @@ def calculate_pricing_quote(
     operator: str | None = Depends(get_request_operator),
 ) -> PricingCalculationRunItem:
     try:
-        row = pricing_calculation_service.create_pricing_run(db, payload, operator=operator)
+        row = pricing_calculation_service.create_pricing_run(
+            db, payload, operator=operator
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     serialized = pricing_calculation_service.serialize_pricing_run(row)
     append_operation_audit_log(
         db,
-        action='pricing_calculation.run.create',
-        target_type='pricing_calculation_run',
+        action="pricing_calculation.run.create",
+        target_type="pricing_calculation_run",
         target_id=row.id,
         operator=operator,
         after=serialized,
@@ -68,7 +85,9 @@ def calculate_pricing_quote(
     return PricingCalculationRunItem(**serialized)
 
 
-@router.post('/pricing-calculation/reverse-quote', response_model=PricingCalculationRunItem)
+@router.post(
+    "/pricing-calculation/reverse-quote", response_model=PricingCalculationRunItem
+)
 def calculate_pricing_reverse_quote(
     payload: PricingCalculationReverseRequest,
     request: Request,
@@ -76,15 +95,17 @@ def calculate_pricing_reverse_quote(
     operator: str | None = Depends(get_request_operator),
 ) -> PricingCalculationRunItem:
     try:
-        row = pricing_calculation_service.create_pricing_reverse_run(db, payload, operator=operator)
+        row = pricing_calculation_service.create_pricing_reverse_run(
+            db, payload, operator=operator
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     serialized = pricing_calculation_service.serialize_pricing_run(row)
     append_operation_audit_log(
         db,
-        action='pricing_calculation.run.create',
-        target_type='pricing_calculation_run',
+        action="pricing_calculation.run.create",
+        target_type="pricing_calculation_run",
         target_id=row.id,
         operator=operator,
         after=serialized,
@@ -94,7 +115,9 @@ def calculate_pricing_reverse_quote(
     return PricingCalculationRunItem(**serialized)
 
 
-@router.post('/pricing-calculation/reverse-cost', response_model=PricingCalculationRunItem)
+@router.post(
+    "/pricing-calculation/reverse-cost", response_model=PricingCalculationRunItem
+)
 def calculate_pricing_reverse_cost(
     payload: PricingCalculationCostReverseRequest,
     request: Request,
@@ -102,15 +125,17 @@ def calculate_pricing_reverse_cost(
     operator: str | None = Depends(get_request_operator),
 ) -> PricingCalculationRunItem:
     try:
-        row = pricing_calculation_service.create_pricing_cost_reverse_run(db, payload, operator=operator)
+        row = pricing_calculation_service.create_pricing_cost_reverse_run(
+            db, payload, operator=operator
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     serialized = pricing_calculation_service.serialize_pricing_run(row)
     append_operation_audit_log(
         db,
-        action='pricing_calculation.run.create',
-        target_type='pricing_calculation_run',
+        action="pricing_calculation.run.create",
+        target_type="pricing_calculation_run",
         target_id=row.id,
         operator=operator,
         after=serialized,
@@ -120,7 +145,37 @@ def calculate_pricing_reverse_cost(
     return PricingCalculationRunItem(**serialized)
 
 
-@router.delete('/pricing-calculation/runs/{run_id}', status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/pricing-calculation/fbm-quote", response_model=PricingCalculationRunItem)
+def calculate_pricing_fbm_quote(
+    payload: PricingCalculationFbmRequest,
+    request: Request,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+) -> PricingCalculationRunItem:
+    try:
+        row = pricing_calculation_service.create_pricing_fbm_run(
+            db, payload, operator=operator
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    serialized = pricing_calculation_service.serialize_pricing_run(row)
+    append_operation_audit_log(
+        db,
+        action="pricing_calculation.run.create",
+        target_type="pricing_calculation_run",
+        target_id=row.id,
+        operator=operator,
+        after=serialized,
+        request=request,
+    )
+    db.commit()
+    return PricingCalculationRunItem(**serialized)
+
+
+@router.delete(
+    "/pricing-calculation/runs/{run_id}", status_code=status.HTTP_204_NO_CONTENT
+)
 def delete_pricing_run(
     run_id: int,
     request: Request,
@@ -130,19 +185,23 @@ def delete_pricing_run(
 ) -> Response:
     row = db.get(pricing_calculation_service.PricingCalculationRun, run_id)
     if not row:
-        raise HTTPException(status_code=404, detail='测算记录不存在')
-    if not pricing_calculation_service.can_access_pricing_run(row, operator=operator, is_admin=is_admin):
-        raise HTTPException(status_code=403, detail='无权操作该测算记录')
+        raise HTTPException(status_code=404, detail="测算记录不存在")
+    if not pricing_calculation_service.can_access_pricing_run(
+        row, operator=operator, is_admin=is_admin
+    ):
+        raise HTTPException(status_code=403, detail="无权操作该测算记录")
 
     before = pricing_calculation_service.serialize_pricing_run(row)
-    deleted = pricing_calculation_service.delete_pricing_run(db, run_id, operator=operator, is_admin=is_admin)
+    deleted = pricing_calculation_service.delete_pricing_run(
+        db, run_id, operator=operator, is_admin=is_admin
+    )
     if not deleted:
-        raise HTTPException(status_code=404, detail='测算记录不存在')
+        raise HTTPException(status_code=404, detail="测算记录不存在")
 
     append_operation_audit_log(
         db,
-        action='pricing_calculation.run.delete',
-        target_type='pricing_calculation_run',
+        action="pricing_calculation.run.delete",
+        target_type="pricing_calculation_run",
         target_id=run_id,
         operator=operator,
         before=before,
@@ -152,7 +211,10 @@ def delete_pricing_run(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post('/pricing-calculation/runs/{run_id}/recalculate', response_model=PricingCalculationRunItem)
+@router.post(
+    "/pricing-calculation/runs/{run_id}/recalculate",
+    response_model=PricingCalculationRunItem,
+)
 def recalculate_pricing_run(
     run_id: int,
     request: Request,
@@ -164,15 +226,17 @@ def recalculate_pricing_run(
     # 获取原有记录
     row = db.get(pricing_calculation_service.PricingCalculationRun, run_id)
     if not row:
-        raise HTTPException(status_code=404, detail='测算记录不存在')
-    if not pricing_calculation_service.can_access_pricing_run(row, operator=operator, is_admin=is_admin):
-        raise HTTPException(status_code=403, detail='无权操作该测算记录')
+        raise HTTPException(status_code=404, detail="测算记录不存在")
+    if not pricing_calculation_service.can_access_pricing_run(
+        row, operator=operator, is_admin=is_admin
+    ):
+        raise HTTPException(status_code=403, detail="无权操作该测算记录")
 
     before = pricing_calculation_service.serialize_pricing_run(row)
 
     # 构建计算请求参数
     from app.schemas.pricing_calculation import PricingCalculationCreateRequest
-    
+
     payload = PricingCalculationCreateRequest(
         product_name=row.product_name,
         package_length_cm=float(row.package_length_cm),
@@ -188,22 +252,22 @@ def recalculate_pricing_run(
         inbound_placement_mode=row.inbound_placement_mode,
         usd_to_rmb_rate=float(row.usd_to_rmb_rate),
     )
-    
+
     # 重新计算
     computed = pricing_calculation_service._compute_pricing(payload, db)
-    
+
     # 更新原有记录
-    row.payout_usd = computed['profit_decimal']['payout_usd']
-    row.profit_usd = computed['profit_decimal']['profit_usd']
-    row.profit_rate = computed['profit_decimal']['profit_rate']
-    row.total_fee_usd = computed['fees_decimal']['total_fee_usd']
-    
+    row.payout_usd = computed["profit_decimal"]["payout_usd"]
+    row.profit_usd = computed["profit_decimal"]["profit_usd"]
+    row.profit_rate = computed["profit_decimal"]["profit_rate"]
+    row.total_fee_usd = computed["fees_decimal"]["total_fee_usd"]
+
     db.refresh(row)
     serialized = pricing_calculation_service.serialize_pricing_run(row)
     append_operation_audit_log(
         db,
-        action='pricing_calculation.run.recalculate',
-        target_type='pricing_calculation_run',
+        action="pricing_calculation.run.recalculate",
+        target_type="pricing_calculation_run",
         target_id=run_id,
         operator=operator,
         before=before,

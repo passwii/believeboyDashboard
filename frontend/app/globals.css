@@ -424,6 +424,21 @@
   .dashboard-chip {
     @apply inline-flex items-center gap-2 rounded-md border border-transparent bg-[hsl(var(--surface-subtle))] px-3 py-1.5 text-xs font-semibold text-muted-foreground;
   }
+
+  @media (max-width: 768px) {
+    .dashboard-surface table,
+    .dashboard-panel table,
+    [class*="overflow-auto"] table,
+    [class*="overflow-x-auto"] table {
+      min-width: 600px;
+    }
+
+    .dashboard-surface > div:has(table),
+    [class*="CardContent"] > div:has(table) {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+  }
 }
 
 @layer utilities {

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 import re
 
 from fastapi import HTTPException, status
@@ -129,26 +130,63 @@ def _get_project_or_404(db: Session, project_id: int) -> Project:
     return project
 
 
+def _get_inventory_source(
+    db: Session,
+    *,
+    project_id: int,
+    country: str,
+    snapshot_at: datetime | None = None,
+) -> AnalysisSourceFile | None:
+    """
+    获取库存快照数据源文件。
+    如果指定了 snapshot_at，则查找最接近该时间的快照；
+    否则查找当前标记为 is_current=True 的快照。
+    """
+    if snapshot_at is not None:
+        # 查找最接近指定时间的快照
+        return (
+            db.execute(
+                select(AnalysisSourceFile)
+                .where(
+                    AnalysisSourceFile.project_id == project_id,
+                    AnalysisSourceFile.report_type == "inventory_report",
+                    AnalysisSourceFile.country == country,
+                    AnalysisSourceFile.snapshot_at <= snapshot_at,
+                )
+                .order_by(AnalysisSourceFile.snapshot_at.desc())
+                .limit(1)
+            )
+            .scalars()
+            .first()
+        )
+    else:
+        # 默认获取当前快照
+        return (
+            db.execute(
+                select(AnalysisSourceFile)
+                .where(
+                    AnalysisSourceFile.project_id == project_id,
+                    AnalysisSourceFile.report_type == "inventory_report",
+                    AnalysisSourceFile.country == country,
+                    AnalysisSourceFile.is_current.is_(True),
+                )
+                .order_by(AnalysisSourceFile.id.desc())
+                .limit(1)
+            )
+            .scalars()
+            .first()
+        )
+
+
+# 保留原函数用于兼容
 def _get_current_inventory_source(
     db: Session,
     *,
     project_id: int,
     country: str,
 ) -> AnalysisSourceFile | None:
-    return (
-        db.execute(
-            select(AnalysisSourceFile)
-            .where(
-                AnalysisSourceFile.project_id == project_id,
-                AnalysisSourceFile.report_type == "inventory_report",
-                AnalysisSourceFile.country == country,
-                AnalysisSourceFile.is_current.is_(True),
-            )
-            .order_by(AnalysisSourceFile.id.desc())
-            .limit(1)
-        )
-        .scalars()
-        .first()
+    return _get_inventory_source(
+        db, project_id=project_id, country=country, snapshot_at=None
     )
 
 
@@ -212,7 +250,9 @@ def _load_aggregated_rows(
             func.coalesce(func.sum(InventorySnapshotRow.age_365_plus_qty), 0).label(
                 "age_365_plus_qty"
             ),
-            func.max(InventorySnapshotRow.recommended_action).label("recommended_action"),
+            func.max(InventorySnapshotRow.recommended_action).label(
+                "recommended_action"
+            ),
         )
         .where(InventorySnapshotRow.source_file_id == source_file_id)
         .group_by(InventorySnapshotRow.sku, InventorySnapshotRow.asin)
@@ -252,24 +292,23 @@ def list_inventory_analysis(
     *,
     project_id: int,
     country: str,
+    snapshot_at: datetime | None = None,
 ) -> dict[str, object]:
     project = _get_project_or_404(db, project_id)
     normalized_country = _normalize_country(country)
     base_rows = _load_base_skus(db, project, normalized_country)
-    source = _get_current_inventory_source(
+    source = _get_inventory_source(
         db,
         project_id=project_id,
         country=normalized_country,
+        snapshot_at=snapshot_at,
     )
     aggregated_rows = (
         _load_aggregated_rows(db, source_file_id=int(source.id))
         if source is not None
         else []
     )
-    aggregated_map = {
-        _row_key(row.sku, row.asin): row
-        for row in aggregated_rows
-    }
+    aggregated_map = {_row_key(row.sku, row.asin): row for row in aggregated_rows}
     ordered_rows: list[_AggregatedRow] = []
     consumed_keys: set[tuple[str, str]] = set()
 
@@ -280,7 +319,8 @@ def list_inventory_analysis(
                 (
                     row
                     for row in aggregated_rows
-                    if row.sku == base_row.sku and _row_key(row.sku, row.asin) not in consumed_keys
+                    if row.sku == base_row.sku
+                    and _row_key(row.sku, row.asin) not in consumed_keys
                 ),
                 None,
             )

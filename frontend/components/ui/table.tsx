@@ -4,13 +4,14 @@ import { cn } from "@/lib/utils"
 
 interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
   containerClassName?: string
+  noWrapperRounded?: boolean
 }
 
 const Table = React.forwardRef<
   HTMLTableElement,
   TableProps
->(({ className, containerClassName, ...props }, ref) => (
-  <div className={cn("relative w-full overflow-x-auto overflow-y-visible rounded-lg", containerClassName)}>
+>(({ className, containerClassName, noWrapperRounded, ...props }, ref) => (
+  <div className={cn("relative w-full overflow-x-auto overflow-y-visible", noWrapperRounded ? "" : "rounded-lg", containerClassName)}>
     <table
       ref={ref}
       className={cn("w-full border-separate border-spacing-0 caption-bottom text-sm", className)}

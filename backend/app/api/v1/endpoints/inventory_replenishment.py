@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, Header, Query, Request
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, get_request_operator, protected
+from app.models import AnalysisSourceFile
 from app.schemas.inventory_replenishment import (
     InventoryAnalysisItem,
     InventoryAnalysisResponse,
@@ -16,20 +19,32 @@ from app.schemas.inventory_replenishment import (
     InventoryReplenishmentShipmentResponse,
     InventoryReplenishmentSummary,
 )
-from app.services import inventory_analysis_service, inventory_replenishment_service, project_service
-from app.services.audit_log_service import append_operation_audit_log, append_operation_view_log
+from app.services import (
+    inventory_analysis_service,
+    inventory_replenishment_service,
+    project_service,
+)
+from app.services.audit_log_service import (
+    append_operation_audit_log,
+    append_operation_view_log,
+)
+from app.schemas.inventory_replenishment import InventorySnapshotOption
 
 router = APIRouter(dependencies=[Depends(protected)])
 
 
-@router.get('/inventory-analysis', response_model=InventoryAnalysisResponse)
+@router.get("/inventory-analysis", response_model=InventoryAnalysisResponse)
 def get_inventory_analysis(
     request: Request,
     project_id: int = Query(gt=0),
-    country: str = Query(default='US'),
+    country: str = Query(default="US"),
+    snapshot_at: datetime | None = Query(
+        default=None,
+        description="筛选特定快照时间的库存数据，格式: YYYY-MM-DD 或 YYYY-MM-DDTHH:MM:SS",
+    ),
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
-    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> InventoryAnalysisResponse:
     project_service.ensure_project_access(
         db,
@@ -41,33 +56,73 @@ def get_inventory_analysis(
         db,
         project_id=project_id,
         country=country,
+        snapshot_at=snapshot_at,
     )
     append_operation_view_log(
         db,
-        action='inventory_analysis.view',
-        target_type='inventory_analysis',
+        action="inventory_analysis.view",
+        target_type="inventory_analysis",
         target_id=project_id,
         operator=operator,
-        after={'project_id': project_id, 'country': country, 'item_count': len(payload['items'])},
+        after={
+            "project_id": project_id,
+            "country": country,
+            "snapshot_at": str(snapshot_at) if snapshot_at else "current",
+            "item_count": len(payload["items"]),
+        },
         request=request,
     )
     db.commit()
     return InventoryAnalysisResponse(
-        project_id=int(payload['project_id']),
-        project_name=str(payload['project_name']),
-        country=str(payload['country']),
-        snapshot_at=payload['snapshot_at'],
-        summary=InventoryAnalysisSummary(**payload['summary']),
-        action_options=[str(item) for item in payload['action_options']],
-        items=[InventoryAnalysisItem(**item) for item in payload['items']],
+        project_id=int(payload["project_id"]),
+        project_name=str(payload["project_name"]),
+        country=str(payload["country"]),
+        snapshot_at=payload["snapshot_at"],
+        summary=InventoryAnalysisSummary(**payload["summary"]),
+        action_options=[str(item) for item in payload["action_options"]],
+        items=[InventoryAnalysisItem(**item) for item in payload["items"]],
     )
 
 
-@router.get('/inventory-replenishment-analysis', response_model=InventoryReplenishmentListResponse)
+@router.get(
+    "/inventory-snapshot-options",
+    response_model=list[InventorySnapshotOption],
+)
+def list_inventory_snapshot_options(
+    project_id: int = Query(gt=0),
+    country: str = Query(default="US"),
+    db: Session = Depends(get_db_session),
+) -> list[InventorySnapshotOption]:
+    from sqlalchemy import select
+
+    rows = db.execute(
+        select(AnalysisSourceFile.snapshot_at, AnalysisSourceFile.is_current)
+        .where(
+            AnalysisSourceFile.project_id == project_id,
+            AnalysisSourceFile.report_type == "inventory_report",
+            AnalysisSourceFile.country == country,
+            AnalysisSourceFile.snapshot_at.isnot(None),
+        )
+        .order_by(AnalysisSourceFile.snapshot_at.desc())
+    ).all()
+
+    return [
+        InventorySnapshotOption(
+            snapshot_at=row.snapshot_at, is_current=bool(row.is_current)
+        )
+        for row in rows
+        if row.snapshot_at is not None
+    ]
+
+
+@router.get(
+    "/inventory-replenishment-analysis",
+    response_model=InventoryReplenishmentListResponse,
+)
 def list_inventory_replenishment_analysis(
     request: Request,
     project_id: int = Query(gt=0),
-    country: str = Query(default='US'),
+    country: str = Query(default="US"),
     keyword: str | None = Query(default=None),
     risk_status: str | None = Query(default=None),
     in_transit_only: bool = Query(default=False),
@@ -75,7 +130,7 @@ def list_inventory_replenishment_analysis(
     page_size: int = Query(default=50, ge=1, le=200),
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
-    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> InventoryReplenishmentListResponse:
     project_service.ensure_project_access(
         db,
@@ -83,32 +138,34 @@ def list_inventory_replenishment_analysis(
         operator=operator,
         is_admin=bool(is_admin),
     )
-    rows, summary, total, has_next = inventory_replenishment_service.list_inventory_replenishment_analysis(
-        db,
-        project_id=project_id,
-        country=country,
-        keyword=keyword,
-        risk_status=risk_status,
-        in_transit_only=in_transit_only,
-        page=page,
-        page_size=page_size,
+    rows, summary, total, has_next = (
+        inventory_replenishment_service.list_inventory_replenishment_analysis(
+            db,
+            project_id=project_id,
+            country=country,
+            keyword=keyword,
+            risk_status=risk_status,
+            in_transit_only=in_transit_only,
+            page=page,
+            page_size=page_size,
+        )
     )
     append_operation_view_log(
         db,
-        action='inventory_replenishment.list',
-        target_type='inventory_replenishment',
+        action="inventory_replenishment.list",
+        target_type="inventory_replenishment",
         target_id=project_id,
         operator=operator,
         after={
-            'project_id': project_id,
-            'country': country,
-            'keyword': keyword,
-            'risk_status': risk_status,
-            'in_transit_only': in_transit_only,
-            'page': page,
-            'page_size': page_size,
-            'count': len(rows),
-            'total': total,
+            "project_id": project_id,
+            "country": country,
+            "keyword": keyword,
+            "risk_status": risk_status,
+            "in_transit_only": in_transit_only,
+            "page": page,
+            "page_size": page_size,
+            "count": len(rows),
+            "total": total,
         },
         request=request,
     )
@@ -123,16 +180,19 @@ def list_inventory_replenishment_analysis(
     )
 
 
-@router.put('/inventory-replenishment-settings/{project_id}/{sku:path}', response_model=InventoryReplenishmentSettingItem)
+@router.put(
+    "/inventory-replenishment-settings/{project_id}/{sku:path}",
+    response_model=InventoryReplenishmentSettingItem,
+)
 def update_inventory_replenishment_setting(
     project_id: int,
     sku: str,
     payload: InventoryReplenishmentSettingUpdate,
     request: Request,
-    country: str = Query(default='US'),
+    country: str = Query(default="US"),
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
-    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> InventoryReplenishmentSettingItem:
     project_service.ensure_project_access(
         db,
@@ -153,18 +213,18 @@ def update_inventory_replenishment_setting(
     )
     append_operation_audit_log(
         db,
-        action='inventory_replenishment_settings.upsert',
-        target_type='inventory_replenishment_setting',
+        action="inventory_replenishment_settings.upsert",
+        target_type="inventory_replenishment_setting",
         target_id=row.id,
         operator=operator,
         after={
-            'project_id': row.project_id,
-            'sku': row.sku,
-            'country': row.country,
-            'asin': row.asin,
-            'production_lead_days': row.production_lead_days,
-            'shipping_days': row.shipping_days,
-            'safety_factor': float(row.safety_factor),
+            "project_id": row.project_id,
+            "sku": row.sku,
+            "country": row.country,
+            "asin": row.asin,
+            "production_lead_days": row.production_lead_days,
+            "shipping_days": row.shipping_days,
+            "safety_factor": float(row.safety_factor),
         },
         request=request,
     )
@@ -181,14 +241,17 @@ def update_inventory_replenishment_setting(
     )
 
 
-@router.get('/inventory-replenishment-shipments', response_model=InventoryReplenishmentShipmentResponse)
+@router.get(
+    "/inventory-replenishment-shipments",
+    response_model=InventoryReplenishmentShipmentResponse,
+)
 def list_inventory_replenishment_shipments(
     request: Request,
     project_id: int = Query(gt=0),
     sku: str = Query(min_length=1),
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
-    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> InventoryReplenishmentShipmentResponse:
     project_service.ensure_project_access(
         db,
@@ -203,11 +266,11 @@ def list_inventory_replenishment_shipments(
     )
     append_operation_view_log(
         db,
-        action='inventory_replenishment.shipments.view',
-        target_type='inventory_replenishment',
+        action="inventory_replenishment.shipments.view",
+        target_type="inventory_replenishment",
         target_id=project_id,
         operator=operator,
-        after={'project_id': project_id, 'sku': sku, 'count': len(rows)},
+        after={"project_id": project_id, "sku": sku, "count": len(rows)},
         request=request,
     )
     db.commit()

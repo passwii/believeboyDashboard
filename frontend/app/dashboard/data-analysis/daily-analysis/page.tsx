@@ -2,14 +2,14 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { DateRange } from 'react-day-picker'
-import { ArrowDown, ArrowUp, BarChart3, ChevronLeft, ChevronRight, FileDown, Loader2, RefreshCcw } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, FileDown, Loader2, RefreshCcw } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { Bar, CartesianGrid, ComposedChart, Line, XAxis, YAxis } from 'recharts'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart'
+import { DataCard, DataCardHeader, DataCardContent, DataTableCard, DataTableCardHeader, DataTableCardBody, DataTableCardStatBar } from '@/components/ui/data-card'
 import { DateRangePicker } from '@/components/ui/date-picker'
 import { EmptyTableState } from '@/components/ui/empty-state'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -705,14 +705,14 @@ export default function DailyAnalysisPage() {
 
   return (
     <div className="space-y-5 lg:space-y-6">
-      <Card className="dashboard-surface overflow-hidden">
-        <CardHeader className="pb-3">
-          <div className="flex flex-col gap-3">
-            <div className="space-y-1.5">
-              <p className="dashboard-kicker">Analysis Console</p>
-              <CardTitle className="text-2xl md:text-[2.2rem]">销售数据策展台</CardTitle>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
+      <DataCard>
+        <DataCardHeader
+          title="销售数据策展台"
+          titleClassName="text-2xl tracking-tight"
+          badge={<p className="dashboard-kicker">Analysis Console</p>}
+          description="项目与时间维度下的核心指标趋势、周期对比与明细穿透。"
+          action={
+            <>
               <Badge variant="outline" className="border-border/60 bg-background/80 px-3 py-1 text-foreground">
                 项目：{selectedProjectName || '未选择'}
               </Badge>
@@ -722,102 +722,91 @@ export default function DailyAnalysisPage() {
               <Badge variant="outline" className="border-border/60 bg-background/80 px-3 py-1 text-foreground">
                 周期：{dateRangeDisplay || '--'}
               </Badge>
-            </div>
-          </div>
-        </CardHeader>
-
-        <CardContent className="space-y-3 pt-0">
-          <div className="dashboard-toolbar grid gap-2.5 md:grid-cols-2 xl:grid-cols-[minmax(12rem,14rem)_minmax(8rem,9.5rem)_minmax(0,1fr)_auto] xl:items-end">
-            <div className="space-y-2">
-              <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">项目</div>
-              <Select value={projectId} onValueChange={setProjectId}>
-                <SelectTrigger className="h-10 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none [&>span]:truncate dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
-                  <SelectValue placeholder="选择项目" />
-                </SelectTrigger>
-                <SelectContent>
-                  {projects.map((item) => (
-                    <SelectItem key={item.id} value={String(item.id)}>
-                      {item.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">国家站点</div>
-              <Select value={country} onValueChange={(value) => setCountry(value as CountryOption)}>
-                <SelectTrigger className="h-10 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none [&>span]:truncate dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
-                  <SelectValue placeholder="国家站点" />
-                </SelectTrigger>
-                <SelectContent>
-                  {COUNTRY_OPTIONS.map((item) => (
-                    <SelectItem key={item.value} value={item.value}>
-                      {item.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">日期范围</div>
-              <div className="flex flex-wrap gap-2">
-                <DateRangePicker
-                  value={dateRange}
-                  onChange={setDateRange}
-                  className="h-10 flex-1 min-w-[220px]"
-                  onApply={() => void loadData()}
-                />
-                <Button type="button" variant="secondary" className="h-10 px-4" onClick={() => void handleQuickRange(getYesterdayRange())}>
-                  昨天
-                </Button>
-                <Button type="button" variant="secondary" className="h-10 px-4" onClick={() => void handleQuickRange(getLastWeekRange())}>
-                  上周
-                </Button>
-              </div>
-            </div>
-
-            <Button
-              type="button"
-              onClick={() => void loadData()}
-              disabled={loading || projectsLoading}
-              className="h-10 px-5"
-            >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
-              刷新视图
-            </Button>
+            </>
+          }
+        />
+        <div className="dashboard-toolbar grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(12rem,14rem)_minmax(8rem,9.5rem)_minmax(0,1fr)_auto] xl:items-end">
+          <div className="space-y-2">
+            <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">项目</div>
+            <Select value={projectId} onValueChange={setProjectId}>
+              <SelectTrigger className="h-10 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none [&>span]:truncate dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
+                <SelectValue placeholder="选择项目" />
+              </SelectTrigger>
+              <SelectContent>
+                {projects.map((item) => (
+                  <SelectItem key={item.id} value={String(item.id)}>
+                    {item.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
-          {projectsError ? <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">{projectsError}</div> : null}
-          {error ? <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div> : null}
-        </CardContent>
-      </Card>
+          <div className="space-y-2">
+            <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">国家站点</div>
+            <Select value={country} onValueChange={(value) => setCountry(value as CountryOption)}>
+              <SelectTrigger className="h-10 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none [&>span]:truncate dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
+                <SelectValue placeholder="国家站点" />
+              </SelectTrigger>
+              <SelectContent>
+                {COUNTRY_OPTIONS.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-      <Card className="dashboard-surface overflow-hidden border-0">
-        <CardHeader className="pb-4">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="space-y-2">
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-md bg-primary/10 text-primary">
-                  <BarChart3 className="h-5 w-5" />
-                </div>
-                <div>
-                  <CardTitle className="text-2xl">趋势与绩效对比</CardTitle>
-                  
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="outline" className="border-border/60 bg-background/85 px-3 py-1 text-foreground">
-                对比区间：{formatRangeLabel(comparisonRange)}
-              </Badge>
+          <div className="space-y-2">
+            <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">日期范围</div>
+            <div className="flex flex-wrap gap-2">
+              <DateRangePicker
+                value={dateRange}
+                onChange={setDateRange}
+                className="h-10 flex-1 min-w-[220px]"
+                onApply={() => void loadData()}
+              />
+              <Button type="button" variant="secondary" className="h-10 px-4" onClick={() => void handleQuickRange(getYesterdayRange())}>
+                昨天
+              </Button>
+              <Button type="button" variant="secondary" className="h-10 px-4" onClick={() => void handleQuickRange(getLastWeekRange())}>
+                上周
+              </Button>
             </div>
           </div>
-        </CardHeader>
 
-        <CardContent className="space-y-4">
+          <Button
+            type="button"
+            onClick={() => void loadData()}
+            disabled={loading || projectsLoading}
+            className="h-10 px-5"
+          >
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+            刷新视图
+          </Button>
+        </div>
+
+        {projectsError ? <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">{projectsError}</div> : null}
+        {error ? <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div> : null}
+      </DataCard>
+
+      <DataCard>
+        <DataTableCardStatBar
+          className="border-b border-border/70 bg-[hsl(var(--surface-subtle))]"
+          items={[
+            { label: '订单总量', value: formatMetricCardValue('order_qty', aggregateMetric(summaryRows, 'order_qty')) },
+            { label: '销售额', value: formatMetricCardValue('sales_amount', aggregateMetric(summaryRows, 'sales_amount')) },
+            { label: '广告花费', value: formatMetricCardValue('ad_spend', aggregateMetric(summaryRows, 'ad_spend')) },
+            { label: '广告订单', value: formatMetricCardValue('ad_orders', aggregateMetric(summaryRows, 'ad_orders')) },
+          ]}
+        />
+        <DataCardContent className="space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline" className="border-border/60 bg-background/85 px-3 py-1 text-foreground">
+              对比区间：{formatRangeLabel(comparisonRange)}
+            </Badge>
+          </div>
           {summaryRows.length ? (
             <>
               <div className="relative px-10 md:px-12">
@@ -1049,18 +1038,16 @@ export default function DailyAnalysisPage() {
               </div>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </DataCardContent>
+      </DataCard>
 
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ViewTab)} className="w-full">
-        <Card className="dashboard-surface overflow-hidden">
-          <CardHeader className="pb-4">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <p className="dashboard-kicker">Operational Ledger</p>
-                <CardTitle className="text-2xl">销售数据工作区</CardTitle>
-                
-              </div>
+        <DataTableCard>
+          <DataTableCardHeader className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between pb-4">
+            <div>
+              <p className="dashboard-kicker">Operational Ledger</p>
+              <div className="text-base font-semibold text-foreground">销售数据工作区</div>
+            </div>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <Button
                   type="button"
@@ -1080,10 +1067,9 @@ export default function DailyAnalysisPage() {
                   </TabsList>
                 </TabsMotionGroup>
               </div>
-            </div>
-          </CardHeader>
+          </DataTableCardHeader>
 
-          <CardContent className="p-0">
+          <DataTableCardBody>
             <DirectionalTabTransition value={activeTab} order={VIEW_TAB_ORDER}>
             <TabsContent forceMount value={activeTab} className="m-0">
             {activeTab === 'summary' ? (
@@ -1203,8 +1189,8 @@ export default function DailyAnalysisPage() {
             )}
             </TabsContent>
             </DirectionalTabTransition>
-          </CardContent>
-        </Card>
+          </DataTableCardBody>
+        </DataTableCard>
       </Tabs>
     </div>
   )

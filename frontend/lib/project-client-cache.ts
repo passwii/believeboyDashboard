@@ -64,7 +64,7 @@ export function clearProjectClientCaches(): void {
 export async function fetchProjectOptionsCached<T>(): Promise<T> {
   return fetchCachedJson<T>(
     `${PROJECT_CACHE_PREFIX}options`,
-    '/api/backend/api/v1/projects',
+    '/api/backend/api/v1/projects/manage',
     { fallbackError: '项目列表加载失败' }
   )
 }

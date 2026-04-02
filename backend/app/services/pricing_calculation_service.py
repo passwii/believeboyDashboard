@@ -11,6 +11,7 @@ from app.models import ExchangeRate, PricingCalculationRun, ShipmentSkuSummary
 from app.schemas.pricing_calculation import (
     PricingCalculationCostReverseRequest,
     PricingCalculationCreateRequest,
+    PricingCalculationFbmRequest,
     PricingCalculationReverseRequest,
 )
 
@@ -258,6 +259,74 @@ def create_pricing_cost_reverse_run(
     return row
 
 
+def create_pricing_fbm_run(
+    db: Session,
+    payload: PricingCalculationFbmRequest,
+    *,
+    operator: str | None = None,
+) -> PricingCalculationRun:
+    ensure_tables(db)
+    computed = _compute_fbm_pricing(payload, db)
+    row = PricingCalculationRun(
+        product_name=payload.product_name.strip(),
+        package_length_cm=computed["inputs"]["package_length_cm"],
+        package_width_cm=computed["inputs"]["package_width_cm"],
+        package_height_cm=computed["inputs"]["package_height_cm"],
+        weight_kg=computed["inputs"]["weight_kg"],
+        fob_product_cost_rmb=computed["inputs"]["fob_product_cost_rmb"],
+        first_leg_cost_rmb=computed["inputs"]["first_leg_cost_rmb"],
+        ddp_cost_rmb=computed["profit_decimal"]["ddp_cost_rmb"],
+        ddp_cost_usd=computed["profit_decimal"]["ddp_cost_usd"],
+        sale_price_usd=computed["inputs"]["sale_price_usd"],
+        calculation_type="fbm_calc",
+        commission_rate=computed["inputs"]["commission_rate"],
+        advertising_rate=computed["inputs"]["advertising_rate"],
+        return_loss_rate=computed["inputs"]["return_loss_rate"],
+        storage_months=computed["inputs"]["storage_months"],
+        inbound_placement_mode=computed["inputs"]["inbound_placement_mode"],
+        usd_to_rmb_rate=computed["usd_to_rmb_rate"],
+        usd_to_rmb_rate_source=computed["usd_to_rmb_rate_source"],
+        size_tier=computed["size_tier"],
+        size_tier_label=computed["size_tier_label"],
+        price_band=computed["price_band"],
+        price_band_label=computed["price_band_label"],
+        longest_side_in=computed["dimensions_decimal"]["longest_side_in"],
+        middle_side_in=computed["dimensions_decimal"]["middle_side_in"],
+        shortest_side_in=computed["dimensions_decimal"]["shortest_side_in"],
+        length_plus_girth_in=computed["dimensions_decimal"]["length_plus_girth_in"],
+        volume_cubic_in=computed["dimensions_decimal"]["volume_cubic_in"],
+        volume_cubic_ft=computed["dimensions_decimal"]["volume_cubic_ft"],
+        product_weight_lb=computed["weights_decimal"]["product_weight_lb"],
+        product_weight_oz=computed["weights_decimal"]["product_weight_oz"],
+        dimensional_weight_lb=computed["weights_decimal"]["dimensional_weight_lb"],
+        chargeable_weight_lb=computed["weights_decimal"]["chargeable_weight_lb"],
+        chargeable_weight_oz=computed["weights_decimal"]["chargeable_weight_oz"],
+        chargeable_weight_rule=computed["weights"]["chargeable_weight_rule"],
+        fulfillment_fee_rule_label=computed["fulfillment_fee_rule_label"],
+        inbound_config_fee_rule_label=computed["inbound_config_fee_rule_label"],
+        storage_fee_rule_label=computed["storage_fee_rule_label"],
+        referral_fee_usd=computed["fees_decimal"]["referral_fee_usd"],
+        advertising_fee_usd=computed["fees_decimal"]["advertising_fee_usd"],
+        return_loss_usd=computed["fees_decimal"]["return_loss_usd"],
+        fba_fulfillment_fee_usd=computed["fees_decimal"]["delivery_fee_usd"],
+        inbound_config_fee_usd=computed["fees_decimal"]["inbound_config_fee_usd"],
+        storage_fee_usd=computed["fees_decimal"]["storage_fee_usd"],
+        total_fee_usd=computed["fees_decimal"]["total_fee_usd"],
+        payout_usd=computed["profit_decimal"]["payout_usd"],
+        profit_usd=computed["profit_decimal"]["profit_usd"],
+        profit_rate=computed["profit_decimal"]["profit_rate"],
+        warnings_json=computed["warnings"],
+        notes="\n".join(computed["warnings"]) if computed["warnings"] else None,
+        created_by=(operator or "").strip() or None,
+        project_id=payload.project_id,
+        sku=payload.sku,
+    )
+    db.add(row)
+    db.flush()
+    db.refresh(row)
+    return row
+
+
 def list_pricing_runs(
     db: Session,
     *,
@@ -274,7 +343,7 @@ def list_pricing_runs(
     # 过滤：如果 exclude_project_id 为 True，则只返回没有 project_id 的记录（新品核算）
     if exclude_project_id:
         stmt = stmt.where(PricingCalculationRun.project_id.is_(None))
-    normalized_operator = (operator or '').strip()
+    normalized_operator = (operator or "").strip()
     if not is_admin:
         if normalized_operator:
             stmt = stmt.where(PricingCalculationRun.created_by == normalized_operator)
@@ -307,10 +376,10 @@ def can_access_pricing_run(
         return False
     if is_admin:
         return True
-    normalized_operator = (operator or '').strip()
+    normalized_operator = (operator or "").strip()
     if not normalized_operator:
         return False
-    return (row.created_by or '').strip() == normalized_operator
+    return (row.created_by or "").strip() == normalized_operator
 
 
 def delete_pricing_run(
@@ -526,6 +595,154 @@ def _compute_pricing(
             "advertising_fee_usd": advertising_fee_usd,
             "return_loss_usd": return_loss_usd,
             "fba_fulfillment_fee_usd": fulfillment_fee_usd,
+            "inbound_config_fee_usd": inbound_fee_usd,
+            "storage_fee_usd": storage_fee_usd,
+            "total_fee_usd": total_fee_usd,
+        },
+        "profit_decimal": {
+            "ddp_cost_rmb": ddp_cost_rmb,
+            "ddp_cost_usd": ddp_cost_usd,
+            "payout_usd": payout_usd,
+            "profit_usd": profit_usd,
+            "profit_rate": profit_rate,
+        },
+        "commission_rate": commission_rate,
+        "warnings": warnings,
+    }
+
+
+def _compute_fbm_pricing(
+    payload: PricingCalculationFbmRequest, db: Session
+) -> dict[str, object]:
+    length_cm = _decimal(payload.package_length_cm)
+    width_cm = _decimal(payload.package_width_cm)
+    height_cm = _decimal(payload.package_height_cm)
+    weight_kg = _decimal(payload.weight_kg)
+    sale_price_usd = _money(payload.sale_price_usd)
+    fob_product_cost_rmb = _money(payload.fob_product_cost_rmb)
+    # FBM: 头程 = 整柜价格 / 整柜数量
+    first_leg_cost_rmb = _money(
+        payload.full_container_price_rmb / payload.full_container_quantity
+    )
+    commission_rate = _ratio(_decimal(payload.commission_rate))
+    advertising_rate = _ratio(_decimal(payload.advertising_rate))
+    return_loss_rate = _ratio(_decimal(payload.return_loss_rate))
+    storage_months = _quantize(_decimal(payload.storage_months), Decimal("0.01"))
+    # FBM: 配送费为用户手动输入
+    delivery_fee_usd = _money(payload.delivery_fee_usd)
+
+    usd_to_rmb_rate, rate_source = _resolve_usd_to_rmb_rate(db, payload.usd_to_rmb_rate)
+
+    sides_in = sorted(
+        [length_cm / CM_PER_INCH, width_cm / CM_PER_INCH, height_cm / CM_PER_INCH],
+        reverse=True,
+    )
+    longest_side_in, middle_side_in, shortest_side_in = sides_in
+    length_plus_girth_in = longest_side_in + (middle_side_in + shortest_side_in) * 2
+    volume_cubic_in = longest_side_in * middle_side_in * shortest_side_in
+    volume_cubic_ft = volume_cubic_in / CUBIC_IN_PER_CUBIC_FT
+    product_weight_lb = weight_kg / KG_PER_LB
+    product_weight_oz = product_weight_lb * OZ_PER_LB
+    dimensional_weight_lb = volume_cubic_in / DIM_DIVISOR
+
+    size_tier, size_rule, chargeable_weight_lb = _resolve_size_tier(
+        longest_side_in=longest_side_in,
+        middle_side_in=middle_side_in,
+        shortest_side_in=shortest_side_in,
+        length_plus_girth_in=length_plus_girth_in,
+        product_weight_lb=product_weight_lb,
+        dimensional_weight_lb=dimensional_weight_lb,
+    )
+    chargeable_weight_oz = chargeable_weight_lb * OZ_PER_LB
+    price_band, price_band_label = _resolve_price_band(sale_price_usd)
+    # FBM: 不计算 FBA 配送费，入库配置费，仓储费
+    inbound_fee_usd, inbound_rule, inbound_warnings = _resolve_inbound_config_fee(
+        size_tier=size_tier,
+        chargeable_weight_lb=chargeable_weight_lb,
+        chargeable_weight_oz=chargeable_weight_oz,
+        inbound_placement_mode=payload.inbound_placement_mode,
+    )
+    storage_fee_usd, storage_rule = _resolve_storage_fee(
+        size_tier=size_tier,
+        volume_cubic_ft=volume_cubic_ft,
+        storage_months=storage_months,
+    )
+
+    ddp_cost_rmb = _money_decimal(fob_product_cost_rmb + first_leg_cost_rmb)
+    ddp_cost_usd = _money_decimal(ddp_cost_rmb / usd_to_rmb_rate)
+    referral_fee_usd = _money_decimal(
+        sale_price_usd
+        * commission_rate
+        * (Decimal("1") - (return_loss_rate * RETURN_COMMISSION_RELIEF_RATE))
+    )
+    advertising_fee_usd = _money_decimal(sale_price_usd * advertising_rate)
+    return_loss_usd = _money_decimal(sale_price_usd * return_loss_rate)
+    # FBM: 用手动输入的配送费替代 FBA  fulfillment fee
+    total_fee_usd = _money_decimal(
+        referral_fee_usd
+        + advertising_fee_usd
+        + return_loss_usd
+        + delivery_fee_usd
+        + inbound_fee_usd
+        + storage_fee_usd
+    )
+    payout_usd = _money_decimal(sale_price_usd - total_fee_usd)
+    profit_usd = _money_decimal(payout_usd - ddp_cost_usd)
+    profit_rate = (
+        _ratio_decimal(profit_usd / sale_price_usd)
+        if sale_price_usd > 0
+        else Decimal("0")
+    )
+
+    warnings = list(inbound_warnings)
+
+    return {
+        "inputs": {
+            "package_length_cm": _quantize(length_cm, METRIC_QUANT),
+            "package_width_cm": _quantize(width_cm, METRIC_QUANT),
+            "package_height_cm": _quantize(height_cm, METRIC_QUANT),
+            "weight_kg": _quantize(weight_kg, METRIC_QUANT),
+            "fob_product_cost_rmb": fob_product_cost_rmb,
+            "first_leg_cost_rmb": first_leg_cost_rmb,
+            "sale_price_usd": sale_price_usd,
+            "commission_rate": commission_rate,
+            "advertising_rate": advertising_rate,
+            "return_loss_rate": return_loss_rate,
+            "storage_months": storage_months,
+            "inbound_placement_mode": payload.inbound_placement_mode,
+        },
+        "size_tier": size_tier,
+        "size_tier_label": TIER_LABELS[size_tier],
+        "price_band": price_band,
+        "price_band_label": price_band_label,
+        "usd_to_rmb_rate": _quantize(usd_to_rmb_rate, RATE_QUANT),
+        "usd_to_rmb_rate_source": rate_source,
+        "dimensions_decimal": {
+            "longest_side_in": _quantize(longest_side_in, METRIC_QUANT),
+            "middle_side_in": _quantize(middle_side_in, METRIC_QUANT),
+            "shortest_side_in": _quantize(shortest_side_in, METRIC_QUANT),
+            "length_plus_girth_in": _quantize(length_plus_girth_in, METRIC_QUANT),
+            "volume_cubic_in": _quantize(volume_cubic_in, METRIC_QUANT),
+            "volume_cubic_ft": _quantize(volume_cubic_ft, VOLUME_FT_QUANT),
+        },
+        "weights_decimal": {
+            "product_weight_lb": _quantize(product_weight_lb, METRIC_QUANT),
+            "product_weight_oz": _quantize(product_weight_oz, METRIC_QUANT),
+            "dimensional_weight_lb": _quantize(dimensional_weight_lb, METRIC_QUANT),
+            "chargeable_weight_lb": _quantize(chargeable_weight_lb, METRIC_QUANT),
+            "chargeable_weight_oz": _quantize(chargeable_weight_oz, METRIC_QUANT),
+        },
+        "weights": {
+            "chargeable_weight_rule": size_rule,
+        },
+        "fulfillment_fee_rule_label": "FBM配送费（手动输入）",
+        "inbound_config_fee_rule_label": inbound_rule,
+        "storage_fee_rule_label": storage_rule,
+        "fees_decimal": {
+            "referral_fee_usd": referral_fee_usd,
+            "advertising_fee_usd": advertising_fee_usd,
+            "return_loss_usd": return_loss_usd,
+            "delivery_fee_usd": delivery_fee_usd,
             "inbound_config_fee_usd": inbound_fee_usd,
             "storage_fee_usd": storage_fee_usd,
             "total_fee_usd": total_fee_usd,

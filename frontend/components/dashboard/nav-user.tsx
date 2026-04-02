@@ -38,15 +38,15 @@ export function NavUser({ user, onLogout }: NavUserProps) {
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
               size="lg"
-              className="rounded-[1rem] border border-white/8 bg-white/[0.04] text-sidebar-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] data-[state=open]:bg-white/[0.08] data-[state=open]:text-sidebar-accent-foreground"
+              className="rounded-[0.95rem] border border-[hsl(var(--sidebar-foreground)/0.08)] bg-[hsl(var(--sidebar-background))] text-sidebar-foreground shadow-none hover:bg-[hsl(var(--sidebar-foreground)/0.02)] data-[state=open]:bg-[hsl(var(--sidebar-foreground)/0.04)]"
             >
-              <Avatar className="h-8 w-8 rounded-md">
+              <Avatar className="h-8 w-8 rounded-[0.75rem]">
                 <AvatarImage src={user.avatar} alt={user.name} />
-                <AvatarFallback className="rounded-md">{fallback}</AvatarFallback>
+                <AvatarFallback className="rounded-[0.75rem]">{fallback}</AvatarFallback>
               </Avatar>
-              <div className="grid flex-1 text-left text-base leading-tight">
+              <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-semibold text-sidebar-foreground">{user.name}</span>
-                <span className="truncate text-sm text-sidebar-foreground/46">{user.email}</span>
+                <span className="truncate text-[0.78rem] text-sidebar-foreground/46">{user.email}</span>
               </div>
               <ChevronsUpDown className="ml-auto size-4 text-sidebar-foreground/40" />
             </SidebarMenuButton>

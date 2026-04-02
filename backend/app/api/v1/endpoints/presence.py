@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from urllib.parse import unquote
 
 from fastapi import APIRouter, Depends, Header, Query
@@ -8,22 +9,41 @@ from app.api.deps import get_db_session, protected
 from app.schemas.presence import PresenceHeartbeatRequest, PresenceResponse
 from app.services.presence_service import list_active_presence, upsert_presence
 
-router = APIRouter(prefix="/system-management/presence", tags=["presence"], dependencies=[Depends(protected)])
+router = APIRouter(
+    prefix="/system-management/presence",
+    tags=["presence"],
+    dependencies=[Depends(protected)],
+)
 
 
-def get_request_user_id(x_user_id: str | None = Header(default=None, alias="X-User-Id")) -> str | None:
+def get_request_user_id(
+    x_user_id: str | None = Header(default=None, alias="X-User-Id"),
+) -> str | None:
     value = (x_user_id or "").strip()
     return value[:255] if value else None
 
 
-def get_request_user_name(x_user_name: str | None = Header(default=None, alias="X-User-Name")) -> str | None:
+def get_request_user_name(
+    x_user_name: str | None = Header(default=None, alias="X-User-Name"),
+) -> str | None:
     value = unquote((x_user_name or "")).strip()
     return value[:255] if value else None
 
 
-def get_request_user_email(x_user_email: str | None = Header(default=None, alias="X-User-Email")) -> str | None:
+def get_request_user_email(
+    x_user_email: str | None = Header(default=None, alias="X-User-Email"),
+) -> str | None:
     value = unquote((x_user_email or "")).strip()
     return value[:255] if value else None
+
+
+def _get_server_time(db: Session | None) -> str:
+    if db is not None:
+        try:
+            return str(db.execute(text("select current_timestamp")).scalar_one())
+        except Exception:
+            pass
+    return datetime.now(timezone.utc).isoformat()
 
 
 @router.post("/heartbeat", response_model=PresenceResponse)
@@ -44,10 +64,9 @@ def heartbeat(
             current_path=payload.current_path,
             current_page_title=payload.current_page_title,
         )
-        db.commit()
 
     return PresenceResponse(
-        server_time=str(db.execute(text("select current_timestamp")).scalar_one()),
+        server_time=_get_server_time(db),
         items=list_active_presence(db, current_user_id=user_id, stale_after_seconds=90),
     )
 
@@ -59,6 +78,8 @@ def get_presence(
     user_id: str | None = Depends(get_request_user_id),
 ) -> PresenceResponse:
     return PresenceResponse(
-        server_time=str(db.execute(text("select current_timestamp")).scalar_one()),
-        items=list_active_presence(db, current_user_id=user_id, stale_after_seconds=stale_after_seconds),
+        server_time=_get_server_time(db),
+        items=list_active_presence(
+            db, current_user_id=user_id, stale_after_seconds=stale_after_seconds
+        ),
     )

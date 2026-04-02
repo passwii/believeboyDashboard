@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 
 import { requireUserSession } from '@/lib/auth/server'
 import { normalizeErrorMessage } from '@/lib/error-utils'
-import { proxyBackendJson, requireBackendApiKey } from '@/lib/server/ai-chat'
+import { backendFetchJson, getBackendApiKey } from '@/lib/server/backend-api'
 
 export async function GET() {
   const session = await requireUserSession()
@@ -11,8 +11,12 @@ export async function GET() {
   }
 
   try {
-    const apiKey = requireBackendApiKey()
-    const data = await proxyBackendJson('/api/v1/ai/conversations', {
+    const apiKey = getBackendApiKey()
+    if (!apiKey) {
+      throw new Error('缺少后端 API Key 配置')
+    }
+
+    const data = await backendFetchJson('/api/v1/ai/conversations', {
       method: 'GET',
       headers: { 'X-API-Key': apiKey },
       cache: 'no-store',
@@ -32,8 +36,12 @@ export async function POST(request: Request) {
   const body = (await request.json()) as { title?: string }
 
   try {
-    const apiKey = requireBackendApiKey()
-    const data = await proxyBackendJson('/api/v1/ai/conversations', {
+    const apiKey = getBackendApiKey()
+    if (!apiKey) {
+      throw new Error('缺少后端 API Key 配置')
+    }
+
+    const data = await backendFetchJson('/api/v1/ai/conversations', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

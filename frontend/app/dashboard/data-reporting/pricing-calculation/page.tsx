@@ -23,7 +23,7 @@ const MAX_VISIBLE_RUNS = 8
 const MAX_SELECTED_RUNS = 8
 const HISTORY_SHIPMENT_STATUSES = ['completed', 'in_transit'] as const
 const BUSINESS_TAB_ORDER = ['new-product', 'store-accounting'] as const
-const CALCULATION_MODE_ORDER = ['profit-calc', 'profit-reverse', 'cost-reverse'] as const
+const CALCULATION_MODE_ORDER = ['profit-calc', 'profit-reverse', 'cost-reverse', 'fbm-calc'] as const
 const STORE_CALCULATION_MODE_ORDER = ['profit-calc', 'profit-reverse'] as const
 
 function PricingFieldSkeleton() {
@@ -63,7 +63,7 @@ function PricingTableSkeleton({ rows = 6 }: { rows?: number }) {
 type PricingCalculationRunItem = {
   id: number
   product_name: string
-  calculation_type: 'profit_calc' | 'profit_reverse' | 'cost_reverse'
+  calculation_type: 'profit_calc' | 'profit_reverse' | 'cost_reverse' | 'fbm_calc'
   project_id: number | null
   sku: string | null
   package_length_cm: number
@@ -73,6 +73,9 @@ type PricingCalculationRunItem = {
   fob_product_cost_rmb: number
   first_leg_cost_rmb: number
   sale_price_usd: number
+  full_container_quantity?: number
+  full_container_price_rmb?: number
+  delivery_fee_usd?: number
   commission_rate: number
   advertising_rate: number
   return_loss_rate: number
@@ -287,11 +290,14 @@ type FormState = {
   advertising_rate: string
   return_loss_rate: string
   storage_months: string
+  delivery_fee_usd: string
+  full_container_quantity: string
+  full_container_price_rmb: string
   inbound_placement_mode: 'single_destination' | 'amazon_optimized_split'
   usd_to_rmb_rate: string
 }
 
-type CalculationMode = 'profit-calc' | 'profit-reverse' | 'cost-reverse'
+type CalculationMode = 'profit-calc' | 'profit-reverse' | 'cost-reverse' | 'fbm-calc'
 type BusinessTab = 'new-product' | 'store-accounting'
 
 type StoreSkuDraft = {
@@ -330,6 +336,9 @@ const INITIAL_FORM: FormState = {
   advertising_rate: '12',
   return_loss_rate: '4',
   storage_months: '1',
+  delivery_fee_usd: '',
+  full_container_quantity: '',
+  full_container_price_rmb: '',
   inbound_placement_mode: 'single_destination',
   usd_to_rmb_rate: '',
 }
@@ -560,6 +569,15 @@ function formatCompactDate(value: string) {
 }
 
 function getCalculationTypeMeta(calculationType: PricingCalculationRunItem['calculation_type']) {
+  if (calculationType === 'fbm_calc') {
+    return {
+      label: 'FBM测算',
+      badgeClassName: 'border-violet-300 bg-violet-100 text-violet-900 dark:border-violet-900/80 dark:bg-violet-950/50 dark:text-violet-200',
+      cardClassName: 'border-violet-300 bg-violet-50/80 hover:border-violet-400 hover:bg-violet-50 dark:border-violet-900/70 dark:bg-violet-950/25 dark:hover:border-violet-800 dark:hover:bg-violet-950/40',
+      selectedClassName: 'border-violet-400 bg-violet-100 shadow-sm ring-1 ring-violet-200 dark:border-violet-700 dark:bg-violet-950/60 dark:ring-violet-900/80',
+    }
+  }
+
   if (calculationType === 'cost_reverse') {
     return {
       label: '成本倒推',
@@ -1411,6 +1429,10 @@ export default function PricingCalculationPage() {
     try {
       let createdRun: PricingCalculationRunItem
 
+      const fbmFirstLegCost = calculationMode === 'fbm-calc' && toNumber(form.full_container_quantity) > 0 && toNumber(form.full_container_price_rmb) > 0
+        ? toNumber(form.full_container_price_rmb) / toNumber(form.full_container_quantity)
+        : firstLegCostRmb
+
       createdRun = await requestPricingCalculation({
         calculationMode,
         product_name: form.product_name.trim(),
@@ -1419,7 +1441,7 @@ export default function PricingCalculationPage() {
         package_height_cm: Number(form.package_height_cm),
         weight_kg: Number(form.weight_kg),
         fob_product_cost_rmb: Number(form.fob_product_cost_rmb),
-        first_leg_cost_rmb: firstLegCostRmb,
+        first_leg_cost_rmb: fbmFirstLegCost,
         sale_price_usd: Number(form.sale_price_usd),
         target_profit_rate: Number(form.target_profit_rate) / 100,
         commission_rate: Number(form.commission_rate) / 100,
@@ -1428,6 +1450,11 @@ export default function PricingCalculationPage() {
         storage_months: Number(form.storage_months),
         inbound_placement_mode: form.inbound_placement_mode,
         usd_to_rmb_rate: form.usd_to_rmb_rate.trim() ? Number(form.usd_to_rmb_rate) : undefined,
+        ...(calculationMode === 'fbm-calc' && {
+          full_container_quantity: Number(form.full_container_quantity),
+          full_container_price_rmb: Number(form.full_container_price_rmb),
+          delivery_fee_usd: Number(form.delivery_fee_usd),
+        }),
       })
 
       setRuns((current) => [createdRun, ...current])
@@ -1699,7 +1726,7 @@ export default function PricingCalculationPage() {
                       <form className="space-y-4" onSubmit={handleSubmit}>
                         <Tabs value={calculationMode} onValueChange={(value) => setCalculationMode(value as CalculationMode)}>
                           <TabsMotionGroup id="pricing-calculation-mode-tabs">
-                            <TabsList className="grid w-full grid-cols-3 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-1">
+                            <TabsList className="grid w-full grid-cols-4 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-1">
                               <SlidingTabsTrigger value="profit-calc" activeValue={calculationMode} layoutId="pricing-calculation-mode-indicator">
                                 利润核算
                               </SlidingTabsTrigger>
@@ -1708,6 +1735,9 @@ export default function PricingCalculationPage() {
                               </SlidingTabsTrigger>
                               <SlidingTabsTrigger value="cost-reverse" activeValue={calculationMode} layoutId="pricing-calculation-mode-indicator">
                                 成本倒推
+                              </SlidingTabsTrigger>
+                              <SlidingTabsTrigger value="fbm-calc" activeValue={calculationMode} layoutId="pricing-calculation-mode-indicator">
+                                FBM测算
                               </SlidingTabsTrigger>
                             </TabsList>
                           </TabsMotionGroup>
@@ -1745,25 +1775,51 @@ export default function PricingCalculationPage() {
                             </div>
 
                             <div className="rounded-2xl border border-border/70 bg-[hsl(var(--surface-subtle))] p-4">
-                              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
-                                <div className="space-y-3">
-                                  <Field label="头程单价(RMB/kg)">
-                                    <Input type="number" step="0.01" value={form.first_leg_unit_price_rmb} onChange={(event) => updateField('first_leg_unit_price_rmb', event.target.value)} placeholder="请输入头程单价" />
-                                  </Field>
-                                  <p className="text-xs leading-5 text-muted-foreground">
-                                    实重 {formatMetric(toNumber(form.weight_kg), 3)} kg，体积重 {formatMetric(volumeWeightKg, 3)} kg，计费重 {formatMetric(chargeableWeightKg, 3)} kg。
-                                  </p>
+                              {calculationMode === 'fbm-calc' ? (
+                                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
+                                  <div className="space-y-3">
+                                    <Field label="整柜数量">
+                                      <Input type="number" step="1" value={form.full_container_quantity} onChange={(event) => updateField('full_container_quantity', event.target.value)} placeholder="请输入整柜数量" />
+                                    </Field>
+                                    <Field label="整柜价格(RMB)">
+                                      <Input type="number" step="0.01" value={form.full_container_price_rmb} onChange={(event) => updateField('full_container_price_rmb', event.target.value)} placeholder="请输入整柜价格" />
+                                    </Field>
+                                  </div>
+                                  <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))] p-3 dark:bg-[hsl(var(--surface-soft))]">
+                                    <p className="text-xs text-muted-foreground">单个产品头程(RMB)</p>
+                                    <p className="mt-2 text-2xl font-semibold text-foreground">
+                                      {toNumber(form.full_container_quantity) > 0 && toNumber(form.full_container_price_rmb) > 0
+                                        ? (toNumber(form.full_container_price_rmb) / toNumber(form.full_container_quantity)).toFixed(2)
+                                        : '0.00'}
+                                    </p>
+                                    <p className="mt-1 text-xs text-muted-foreground">整柜价格 ÷ 整柜数量</p>
+                                  </div>
                                 </div>
-                                <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))] p-3 dark:bg-[hsl(var(--surface-soft))]">
-                                  <p className="text-xs text-muted-foreground">头程成本(RMB)</p>
-                                  <p className="mt-2 text-2xl font-semibold text-foreground">{firstLegCostRmb.toFixed(2)}</p>
-                                  <p className="mt-1 text-xs text-muted-foreground">计费重 × 头程单价</p>
+                              ) : (
+                                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
+                                  <div className="space-y-3">
+                                    <Field label="头程单价(RMB/kg)">
+                                      <Input type="number" step="0.01" value={form.first_leg_unit_price_rmb} onChange={(event) => updateField('first_leg_unit_price_rmb', event.target.value)} placeholder="请输入头程单价" />
+                                    </Field>
+                                    <p className="text-xs leading-5 text-muted-foreground">
+                                      实重 {formatMetric(toNumber(form.weight_kg), 3)} kg，体积重 {formatMetric(volumeWeightKg, 3)} kg，计费重 {formatMetric(chargeableWeightKg, 3)} kg。
+                                    </p>
+                                  </div>
+                                  <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))] p-3 dark:bg-[hsl(var(--surface-soft))]">
+                                    <p className="text-xs text-muted-foreground">头程成本(RMB)</p>
+                                    <p className="mt-2 text-2xl font-semibold text-foreground">{firstLegCostRmb.toFixed(2)}</p>
+                                    <p className="mt-1 text-xs text-muted-foreground">计费重 × 头程单价</p>
+                                  </div>
                                 </div>
-                              </div>
+                              )}
                             </div>
 
                             <div className="grid gap-3 sm:grid-cols-2">
                               {calculationMode === 'profit-calc' ? (
+                                <Field label="售价(USD)">
+                                  <Input type="number" step="0.01" value={form.sale_price_usd} onChange={(event) => updateField('sale_price_usd', event.target.value)} required />
+                                </Field>
+                              ) : calculationMode === 'fbm-calc' ? (
                                 <Field label="售价(USD)">
                                   <Input type="number" step="0.01" value={form.sale_price_usd} onChange={(event) => updateField('sale_price_usd', event.target.value)} required />
                                 </Field>
@@ -1784,11 +1840,16 @@ export default function PricingCalculationPage() {
                               <Field label="仓储月数">
                                 <Input type="number" step="0.01" value={form.storage_months} onChange={(event) => updateField('storage_months', event.target.value)} required />
                               </Field>
+                              {calculationMode === 'fbm-calc' && (
+                                <Field label="配送费(USD)">
+                                  <Input type="number" step="0.01" value={form.delivery_fee_usd} onChange={(event) => updateField('delivery_fee_usd', event.target.value)} placeholder="请输入配送费" />
+                                </Field>
+                              )}
                             </div>
 
                             <Button type="submit" disabled={loading} className="h-10 w-full">
                               {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Calculator className="mr-2 h-4 w-4" />}
-                              {calculationMode === 'profit-reverse' ? '倒算售价' : calculationMode === 'cost-reverse' ? '倒推成本' : '开始测算'}
+                              {calculationMode === 'profit-reverse' ? '倒算售价' : calculationMode === 'cost-reverse' ? '倒推成本' : calculationMode === 'fbm-calc' ? 'FBM测算' : '开始测算'}
                             </Button>
                           </div>
                         </DirectionalTabTransition>
@@ -2135,13 +2196,18 @@ async function requestPricingCalculation(payload: {
   storage_months: number
   inbound_placement_mode: 'single_destination' | 'amazon_optimized_split'
   usd_to_rmb_rate?: number
+  full_container_quantity?: number
+  full_container_price_rmb?: number
+  delivery_fee_usd?: number
 }): Promise<PricingCalculationRunItem> {
   const endpoint =
     payload.calculationMode === 'profit-reverse'
       ? `${API_BASE}/api/v1/pricing-calculation/reverse-quote`
       : payload.calculationMode === 'cost-reverse'
         ? `${API_BASE}/api/v1/pricing-calculation/reverse-cost`
-        : `${API_BASE}/api/v1/pricing-calculation/quote`
+        : payload.calculationMode === 'fbm-calc'
+          ? `${API_BASE}/api/v1/pricing-calculation/fbm-quote`
+          : `${API_BASE}/api/v1/pricing-calculation/quote`
 
   const response = await fetch(endpoint, {
     method: 'POST',
@@ -2173,6 +2239,9 @@ async function requestPricingCalculation(payload: {
       storage_months: payload.storage_months,
       inbound_placement_mode: payload.inbound_placement_mode,
       ...(payload.usd_to_rmb_rate ? { usd_to_rmb_rate: payload.usd_to_rmb_rate } : {}),
+      ...(payload.full_container_quantity ? { full_container_quantity: payload.full_container_quantity } : {}),
+      ...(payload.full_container_price_rmb ? { full_container_price_rmb: payload.full_container_price_rmb } : {}),
+      ...(payload.delivery_fee_usd ? { delivery_fee_usd: payload.delivery_fee_usd } : {}),
     }),
   })
 

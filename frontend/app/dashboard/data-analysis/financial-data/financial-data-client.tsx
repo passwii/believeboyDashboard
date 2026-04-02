@@ -6,8 +6,6 @@ import {
   TrendingUp,
   TrendingDown,
   Wallet,
-  ArrowUpRight,
-  ArrowDownRight,
   Eye,
   EyeOff,
   Download,
@@ -18,18 +16,20 @@ import { useSession } from 'next-auth/react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
   type ChartConfig,
 } from '@/components/ui/chart'
+import {
+  DataCard,
+  DataCardHeader,
+  DataCardContent,
+  DataTableCard,
+  DataTableCardHeader,
+  DataTableCardBody,
+  DataTableCardStatBar,
+} from '@/components/ui/data-card'
 import { logClientOperation } from '@/lib/operation-audit'
 import {
   MonthPicker,
@@ -44,6 +44,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { StatCard } from '@/components/ui/stat-card'
 import {
   Table,
   TableBody,
@@ -539,99 +540,6 @@ function formatCompactCurrency(value: number): string {
     return `$${(value / 1000).toFixed(1)}K`
   }
   return formatCurrency(value)
-}
-
-interface StatCardProps {
-  title: string
-  value: string
-  rawValue: number
-  icon: React.ReactNode
-  color: 'emerald' | 'rose' | 'sky' | 'amber'
-  trend?: number
-  trendLabel?: string
-}
-
-function StatCard({
-  title,
-  value,
-  rawValue,
-  icon,
-  color,
-  trend,
-  trendLabel,
-}: StatCardProps) {
-  const colorClasses = {
-    emerald: {
-      bg: 'bg-emerald-500/10',
-      border: 'border-emerald-500/20',
-      text: 'text-emerald-600 dark:text-emerald-400',
-      gradient: 'from-emerald-500/5',
-      icon: 'text-emerald-600',
-    },
-    rose: {
-      bg: 'bg-rose-500/10',
-      border: 'border-rose-500/20',
-      text: 'text-rose-600 dark:text-rose-400',
-      gradient: 'from-rose-500/5',
-      icon: 'text-rose-600',
-    },
-    sky: {
-      bg: 'bg-sky-500/10',
-      border: 'border-sky-500/20',
-      text: 'text-sky-600 dark:text-sky-400',
-      gradient: 'from-sky-500/5',
-      icon: 'text-sky-600',
-    },
-    amber: {
-      bg: 'bg-amber-500/10',
-      border: 'border-amber-500/20',
-      text: 'text-amber-600 dark:text-amber-400',
-      gradient: 'from-amber-500/5',
-      icon: 'text-amber-600',
-    },
-  }
-
-  const colors = colorClasses[color]
-
-  return (
-    <Card
-      className={`dashboard-surface hover-lift animate-enter border ${colors.border} relative overflow-hidden`}
-    >
-      <div
-        className={`absolute inset-0 bg-gradient-to-br ${colors.gradient} via-transparent to-transparent opacity-60 dark:opacity-35`}
-      />
-      <CardHeader className='relative z-10 flex flex-row items-start justify-between space-y-0 pb-3'>
-        <CardTitle className='text-[13px] font-semibold uppercase tracking-[0.08em] text-muted-foreground'>
-          {title}
-        </CardTitle>
-        <div className={`rounded-lg ${colors.bg} p-2 ${colors.icon}`}>
-          {icon}
-        </div>
-      </CardHeader>
-      <CardContent className='relative z-10 pt-0'>
-        <div
-          className={`text-2xl font-semibold tracking-tight md:text-[1.7rem] ${colors.text}`}
-        >
-          {value}
-        </div>
-        {trend !== undefined && (
-          <p className='mt-2 text-xs text-muted-foreground'>
-            <span
-              className={`inline-flex items-center ${trend >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}
-            >
-              {trend >= 0 ? (
-                <ArrowUpRight className='mr-1 h-3 w-3' />
-              ) : (
-                <ArrowDownRight className='mr-1 h-3 w-3' />
-              )}
-              {Math.abs(trend).toFixed(1)}%
-            </span>
-            <span className='ml-1'>{trendLabel || '较上期'}</span>
-          </p>
-        )}
-      </CardContent>
-    </Card>
-  )
 }
 
 type FinancialDataClientProps = {
@@ -1592,197 +1500,173 @@ export default function FinancialDataClient({
 
   return (
     <div className='min-w-0 w-full space-y-6 overflow-x-hidden'>
-      <Card className='dashboard-surface overflow-hidden'>
-        <CardContent className='space-y-6 p-6 md:p-8'>
-          <div className='flex flex-wrap items-start justify-between gap-4'>
-            <div className='space-y-2'>
-              <p className='dashboard-kicker'>Analysis Console</p>
-              <Badge
-                variant='outline'
-                className='w-fit border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+      <DataCard>
+        <DataCardHeader
+          title='月度财务分析'
+          titleClassName='text-2xl tracking-tight'
+          badge={<p className='dashboard-kicker'>Analysis Console</p>}
+          description='收入、支出与亚马逊返款趋势'
+        />
+        <DataCardContent className='flex flex-wrap items-end gap-3'>
+          {projectsLoading ? (
+            <div className='min-w-[180px]'>
+              <FinancialFilterSkeleton />
+            </div>
+          ) : (
+            <div className='min-w-[180px] space-y-1.5'>
+              <label className='text-xs text-muted-foreground'>店铺</label>
+              <Select
+                value={projectId}
+                onValueChange={setProjectId}
+                disabled={projects.length === 0}
               >
-                月度财务分析
-              </Badge>
+                <SelectTrigger className='h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]'>
+                  <SelectValue placeholder='请选择店铺' />
+                </SelectTrigger>
+                <SelectContent>
+                  {projects.map((project) => (
+                    <SelectItem key={project.id} value={String(project.id)}>
+                      {project.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <div className='dashboard-toolbar flex flex-wrap items-end gap-2'>
-              {projectsLoading ? (
-                <div className='min-w-[180px]'>
-                  <FinancialFilterSkeleton />
-                </div>
-              ) : (
-                <div className='min-w-[180px] space-y-1.5'>
-                  <label className='text-xs text-muted-foreground'>店铺</label>
-                  <Select
-                    value={projectId}
-                    onValueChange={setProjectId}
-                    disabled={projects.length === 0}
-                  >
-                    <SelectTrigger className='h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]'>
-                      <SelectValue placeholder='请选择店铺' />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {projects.map((project) => (
-                        <SelectItem key={project.id} value={String(project.id)}>
-                          {project.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              <div className='space-y-1.5'>
-                <label
-                  htmlFor='financial_start_month'
-                  className='text-xs text-muted-foreground'
-                >
-                  开始月份
-                </label>
-                <MonthPicker
-                  value={parseMonthInputValue(startMonth)}
-                  onChange={(date) =>
-                    setStartMonth(formatMonthInputValue(date))
-                  }
-                  className='h-9 w-[170px]'
-                />
-              </div>
-              <div className='space-y-1.5'>
-                <label
-                  htmlFor='financial_end_month'
-                  className='text-xs text-muted-foreground'
-                >
-                  结束月份
-                </label>
-                <MonthPicker
-                  value={parseMonthInputValue(endMonth)}
-                  onChange={(date) => setEndMonth(formatMonthInputValue(date))}
-                  className='h-9 w-[170px]'
-                />
-              </div>
-              <Button
-                type='button'
-                variant='outline'
-                className='h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]'
-                onClick={() => void loadFinancialSeries({ force: true })}
-                disabled={loading || !projectId}
-              >
-                {loading ? '刷新中...' : '刷新数据'}
-              </Button>
-            </div>
-          </div>
-
-          {projectLoadError ? (
-            <div className='rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive'>
-              {projectLoadError}
-            </div>
-          ) : null}
-          {error ? (
-            <div className='rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive'>
-              {error}
-            </div>
-          ) : null}
-
-          {/* 优化后的统计卡片 */}
-          <div className='grid gap-4 md:grid-cols-3'>
-            <StatCard
-              title='收入合计'
-              value={
-                data ? formatCurrency(data.trend.income_total_sum) : '$0.00'
+          )}
+          <div className='space-y-1.5'>
+            <label
+              htmlFor='financial_start_month'
+              className='text-xs text-muted-foreground'
+            >
+              开始月份
+            </label>
+            <MonthPicker
+              value={parseMonthInputValue(startMonth)}
+              onChange={(date) =>
+                setStartMonth(formatMonthInputValue(date))
               }
-              rawValue={data?.trend.income_total_sum ?? 0}
-              icon={<TrendingUp className='h-5 w-5' />}
-              color='emerald'
-              trend={trends.income}
-              trendLabel='较上月'
-            />
-            <StatCard
-              title='支出合计'
-              value={
-                data ? formatCurrency(data.trend.expense_total_sum) : '$0.00'
-              }
-              rawValue={data?.trend.expense_total_sum ?? 0}
-              icon={<TrendingDown className='h-5 w-5' />}
-              color='rose'
-              trend={trends.expense}
-              trendLabel='较上月'
-            />
-            <StatCard
-              title='亚马逊返款'
-              value={
-                data ? formatCurrency(data.trend.amazon_pay_back_sum) : '$0.00'
-              }
-              rawValue={data?.trend.amazon_pay_back_sum ?? 0}
-              icon={<Wallet className='h-5 w-5' />}
-              color='sky'
-              trend={trends.amazon}
-              trendLabel='较上月'
+              className='h-9 w-[170px]'
             />
           </div>
+          <div className='space-y-1.5'>
+            <label
+              htmlFor='financial_end_month'
+              className='text-xs text-muted-foreground'
+            >
+              结束月份
+            </label>
+            <MonthPicker
+              value={parseMonthInputValue(endMonth)}
+              onChange={(date) => setEndMonth(formatMonthInputValue(date))}
+              className='h-9 w-[170px]'
+            />
+          </div>
+          <Button
+            type='button'
+            variant='outline'
+            className='h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]'
+            onClick={() => void loadFinancialSeries({ force: true })}
+            disabled={loading || !projectId}
+          >
+            {loading ? '刷新中...' : '刷新数据'}
+          </Button>
+        </DataCardContent>
+      </DataCard>
+
+      {projectLoadError ? (
+        <div className='rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive'>
+          {projectLoadError}
+        </div>
+      ) : null}
+      {error ? (
+        <div className='rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive'>
+          {error}
+        </div>
+      ) : null}
+
+      <DataTableCard>
+        <DataTableCardStatBar
+          className='border-b border-border/70 bg-[hsl(var(--surface-subtle))]'
+          items={[
+            {
+              label: '收入合计',
+              value: data ? formatCurrency(data.trend.income_total_sum) : '$0.00',
+              highlight: true,
+            },
+            {
+              label: '支出合计',
+              value: data ? formatCurrency(data.trend.expense_total_sum) : '$0.00',
+            },
+            {
+              label: '亚马逊返款',
+              value: data ? formatCurrency(data.trend.amazon_pay_back_sum) : '$0.00',
+            },
+          ]}
+        />
+      </DataTableCard>
 
           {/* 优化后的图表 - 使用 AreaChart 和渐变 */}
-          <Card className='dashboard-surface animate-enter'>
-            <CardHeader className='relative z-10 flex flex-col gap-4 space-y-0 py-5 sm:flex-row sm:items-center'>
-              <div className='grid flex-1 gap-1 text-center sm:text-left'>
-                <p className='dashboard-kicker'>Financial Trend</p>
-                <CardTitle className='text-lg'>月度趋势</CardTitle>
-                <CardDescription className='text-sm text-muted-foreground'>
-                  销售额、退款
-                </CardDescription>
-              </div>
-              {/* 可点击的图例按钮 */}
-              <div className='flex flex-wrap items-center justify-center gap-2 sm:justify-end'>
-                <button
-                  type='button'
-                  onClick={() =>
-                    setVisibleLines((prev) => ({
-                      ...prev,
-                      income_sales: !prev.income_sales,
-                    }))
-                  }
-                  className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${
-                    visibleLines.income_sales
-                      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-                      : 'border-border/70 bg-[hsl(var(--surface-soft))]/70 text-muted-foreground line-through dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]'
-                  }`}
-                >
-                  {visibleLines.income_sales ? (
-                    <Eye className='h-3 w-3' />
-                  ) : (
-                    <EyeOff className='h-3 w-3' />
-                  )}
-                  <span
-                    className='h-2 w-2 rounded-full'
-                    style={{ backgroundColor: 'hsl(var(--chart-2))' }}
-                  />
-                  销售额
-                </button>
-                <button
-                  type='button'
-                  onClick={() =>
-                    setVisibleLines((prev) => ({
-                      ...prev,
-                      income_refund: !prev.income_refund,
-                    }))
-                  }
-                  className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${
-                    visibleLines.income_refund
-                      ? 'border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300'
-                      : 'border-border/70 bg-[hsl(var(--surface-soft))]/70 text-muted-foreground line-through dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]'
-                  }`}
-                >
-                  {visibleLines.income_refund ? (
-                    <Eye className='h-3 w-3' />
-                  ) : (
-                    <EyeOff className='h-3 w-3' />
-                  )}
-                  <span
-                    className='h-2 w-2 rounded-full'
-                    style={{ backgroundColor: 'hsl(var(--destructive))' }}
-                  />
-                  退款
-                </button>
-              </div>
-            </CardHeader>
-            <CardContent className='relative z-10 px-2 pt-4 sm:px-6 sm:pt-6'>
+          <DataCard className='animate-enter'>
+            <DataCardHeader
+              title='月度趋势'
+              badge={<p className='dashboard-kicker'>Financial Trend</p>}
+              description='销售额、退款'
+              action={
+                <div className='flex flex-wrap items-center justify-center gap-2 sm:justify-end'>
+                  <button
+                    type='button'
+                    onClick={() =>
+                      setVisibleLines((prev) => ({
+                        ...prev,
+                        income_sales: !prev.income_sales,
+                      }))
+                    }
+                    className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${
+                      visibleLines.income_sales
+                        ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                        : 'border-border/70 bg-[hsl(var(--surface-soft))]/70 text-muted-foreground line-through dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]'
+                    }`}
+                  >
+                    {visibleLines.income_sales ? (
+                      <Eye className='h-3 w-3' />
+                    ) : (
+                      <EyeOff className='h-3 w-3' />
+                    )}
+                    <span
+                      className='h-2 w-2 rounded-full'
+                      style={{ backgroundColor: 'hsl(var(--chart-2))' }}
+                    />
+                    销售额
+                  </button>
+                  <button
+                    type='button'
+                    onClick={() =>
+                      setVisibleLines((prev) => ({
+                        ...prev,
+                        income_refund: !prev.income_refund,
+                      }))
+                    }
+                    className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${
+                      visibleLines.income_refund
+                        ? 'border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300'
+                        : 'border-border/70 bg-[hsl(var(--surface-soft))]/70 text-muted-foreground line-through dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]'
+                    }`}
+                  >
+                    {visibleLines.income_refund ? (
+                      <Eye className='h-3 w-3' />
+                    ) : (
+                      <EyeOff className='h-3 w-3' />
+                    )}
+                    <span
+                      className='h-2 w-2 rounded-full'
+                      style={{ backgroundColor: 'hsl(var(--destructive))' }}
+                    />
+                    退款
+                  </button>
+                </div>
+              }
+            />
+            <DataCardContent className='px-2 pt-4 sm:px-6 sm:pt-6'>
               {loading && data ? (
                 <div className='mb-4 inline-flex rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm'>
                   趋势图更新中...
@@ -1926,38 +1810,36 @@ export default function FinancialDataClient({
                   暂无趋势数据
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </DataCardContent>
+          </DataCard>
 
-          <Card className='dashboard-surface animate-enter'>
-            <CardHeader className='relative z-10 pb-2'>
-              <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
-                <div>
-                  <p className='dashboard-kicker'>Operational Ledger</p>
-                  <CardTitle className='text-base'>月度财务明细</CardTitle>
-                  <CardDescription className='text-sm text-muted-foreground'>
-                    {data
-                      ? `${data.project_name} · ${formatMonth(data.start_month)} 至 ${formatMonth(data.end_month)}`
-                      : '按月展示收入/支出结构与返款'}
-                  </CardDescription>
-                </div>
-                <Button
-                  type='button'
-                  variant='outline'
-                  className='h-8'
-                  onClick={() => void exportFinancialAnalysis()}
-                  disabled={exporting || !data || detailExportRows.length === 0}
-                >
-                  {exporting ? (
-                    <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                  ) : (
-                    <Download className='mr-2 h-4 w-4' />
-                  )}
-                  导出 Excel
-                </Button>
+          <DataTableCard className='animate-enter'>
+            <DataTableCardHeader className='flex flex-wrap items-start justify-between gap-3 px-6 py-4'>
+              <div>
+                <p className='dashboard-kicker'>Operational Ledger</p>
+                <div className='text-base font-semibold text-foreground'>月度财务明细</div>
+                <p className='text-sm text-muted-foreground'>
+                  {data
+                    ? `${data.project_name} · ${formatMonth(data.start_month)} 至 ${formatMonth(data.end_month)}`
+                    : '按月展示收入/支出结构与返款'}
+                </p>
               </div>
-            </CardHeader>
-            <CardContent className='relative z-10 min-w-0'>
+              <Button
+                type='button'
+                variant='outline'
+                className='h-8'
+                onClick={() => void exportFinancialAnalysis()}
+                disabled={exporting || !data || detailExportRows.length === 0}
+              >
+                {exporting ? (
+                  <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                ) : (
+                  <Download className='mr-2 h-4 w-4' />
+                )}
+                导出 Excel
+              </Button>
+            </DataTableCardHeader>
+            <DataTableCardBody>
               {loading && data ? (
                 <div className='mb-4 inline-flex rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm'>
                   财务明细更新中...
@@ -1970,10 +1852,11 @@ export default function FinancialDataClient({
                   ))}
                 </div>
               ) : data && data.rows.length > 0 ? (
-                <div className='w-full max-w-full overflow-x-auto rounded-lg border border-border/70 bg-[hsl(var(--surface-panel))]/96 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]/98'>
-                  <Table
-                    className={`w-max ${isAdmin ? 'min-w-[2500px]' : 'min-w-[2100px]'} table-fixed text-xs`}
-                  >
+                <Table
+                  noWrapperRounded
+                  containerClassName="w-full max-w-full overflow-x-auto"
+                  className={`w-max ${isAdmin ? 'min-w-[2500px]' : 'min-w-[2100px]'} table-fixed text-xs`}
+                >
                     <TableHeader>
                       <TableRow className='bg-muted/30 hover:bg-muted/30'>
                         <TableHead
@@ -2492,16 +2375,13 @@ export default function FinancialDataClient({
                       </TableRow>
                     </TableFooter>
                   </Table>
-                </div>
               ) : (
                 <div className='rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground'>
                   当前筛选条件暂无财务数据
                 </div>
               )}
-            </CardContent>
-          </Card>
-        </CardContent>
-      </Card>
+            </DataTableCardBody>
+          </DataTableCard>
     </div>
   )
 }

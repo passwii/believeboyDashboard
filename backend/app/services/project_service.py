@@ -12,11 +12,19 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.models import ProductCost, Project
+from app.services.redis_service import (
+    cache_delete_pattern,
+    cache_get,
+    cache_set,
+    _make_cache_key,
+)
 
-DEFAULT_PROJECTS_CSV_PATH = Path(__file__).resolve().parents[3] / 'Docs' / 'ModelFiles' / 'projects.csv'
-PROJECT_NAME_HEADER = '项目名称'
-ALLOWED_COMMISSION_BASIS = {'sales_amount', 'cash_received', 'profit_margin'}
-MULTI_NAME_SPLIT_RE = re.compile(r'[、,，;\n]+')
+DEFAULT_PROJECTS_CSV_PATH = (
+    Path(__file__).resolve().parents[3] / "Docs" / "ModelFiles" / "projects.csv"
+)
+PROJECT_NAME_HEADER = "项目名称"
+ALLOWED_COMMISSION_BASIS = {"sales_amount", "cash_received", "profit_margin"}
+MULTI_NAME_SPLIT_RE = re.compile(r"[、,，;\n]+")
 
 
 def _normalize_optional_text(value: str | None) -> str | None:
@@ -30,7 +38,9 @@ def _split_multi_names(value: str | None) -> list[str]:
     normalized = _normalize_optional_text(value)
     if normalized is None:
         return []
-    return [item.strip() for item in MULTI_NAME_SPLIT_RE.split(normalized) if item.strip()]
+    return [
+        item.strip() for item in MULTI_NAME_SPLIT_RE.split(normalized) if item.strip()
+    ]
 
 
 def _normalize_multi_name_text(value: str | None) -> str | None:
@@ -45,7 +55,7 @@ def _normalize_multi_name_text(value: str | None) -> str | None:
             continue
         seen.add(name)
         deduped.append(name)
-    return '、'.join(deduped)
+    return "、".join(deduped)
 
 
 def _text_contains_name(value: str | None, target: str | None) -> bool:
@@ -62,7 +72,7 @@ def _normalize_commission_basis(value: str | None) -> str | None:
     if normalized not in ALLOWED_COMMISSION_BASIS:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail='commission_basis must be one of sales_amount, cash_received, profit_margin',
+            detail="commission_basis must be one of sales_amount, cash_received, profit_margin",
         )
     return normalized
 
@@ -73,22 +83,25 @@ def _normalize_commission_rate(value: float | Decimal | None) -> Decimal | None:
     try:
         rate = Decimal(str(value))
     except (InvalidOperation, ValueError):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='commission_rate must be numeric')
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="commission_rate must be numeric",
+        )
     if rate < 0 or rate > 100:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail='commission_rate must be between 0 and 100 (points) or 0 and 1 (ratio)',
+            detail="commission_rate must be between 0 and 100 (points) or 0 and 1 (ratio)",
         )
     # Backward-compatible input:
     # - 0~1: ratio (e.g. 0.05 == 5%)
     # - 1~100: points/percent value (e.g. 5 == 5%)
     if rate > 1:
-        rate = rate / Decimal('100')
+        rate = rate / Decimal("100")
     return rate
 
 
 def _sync_projects_id_sequence(db: Session) -> None:
-    if db.bind is None or db.bind.dialect.name != 'postgresql':
+    if db.bind is None or db.bind.dialect.name != "postgresql":
         return
 
     db.execute(
@@ -121,21 +134,26 @@ def _sync_projects_id_sequence(db: Session) -> None:
 
 
 def _is_projects_primary_key_conflict(exc: IntegrityError) -> bool:
-    message = str(getattr(exc, 'orig', exc))
-    return 'projects_pkey' in message and 'Key (id)=' in message
+    message = str(getattr(exc, "orig", exc))
+    return "projects_pkey" in message and "Key (id)=" in message
 
 
-def read_projects_csv_file(csv_path: Path | None = None) -> tuple[list[str], str, int, int]:
+def read_projects_csv_file(
+    csv_path: Path | None = None,
+) -> tuple[list[str], str, int, int]:
     target = csv_path or DEFAULT_PROJECTS_CSV_PATH
     if not target.exists() or not target.is_file():
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f'CSV 文件不存在: {target}')
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"CSV 文件不存在: {target}",
+        )
 
     try:
         content = target.read_bytes()
     except OSError as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f'读取 CSV 文件失败: {exc}',
+            detail=f"读取 CSV 文件失败: {exc}",
         ) from exc
 
     project_names, skipped, total = parse_projects_csv(content)
@@ -144,17 +162,24 @@ def read_projects_csv_file(csv_path: Path | None = None) -> tuple[list[str], str
 
 def parse_projects_csv(content: bytes) -> tuple[list[str], int, int]:
     try:
-        text = content.decode('utf-8-sig')
+        text = content.decode("utf-8-sig")
     except UnicodeDecodeError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='CSV 编码必须为 UTF-8') from None
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="CSV 编码必须为 UTF-8"
+        ) from None
 
     reader = csv.DictReader(StringIO(text))
     if not reader.fieldnames:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='CSV 缺少表头')
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="CSV 缺少表头"
+        )
 
     available_headers = {name.strip() for name in reader.fieldnames if name}
     if PROJECT_NAME_HEADER not in available_headers:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f'CSV 缺少字段: {PROJECT_NAME_HEADER}')
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"CSV 缺少字段: {PROJECT_NAME_HEADER}",
+        )
 
     seen_names: set[str] = set()
     project_names: list[str] = []
@@ -162,8 +187,8 @@ def parse_projects_csv(content: bytes) -> tuple[list[str], int, int]:
     total = 0
     for row in reader:
         total += 1
-        normalized_row = {(key or '').strip(): value for key, value in row.items()}
-        project_name = (normalized_row.get(PROJECT_NAME_HEADER) or '').strip()
+        normalized_row = {(key or "").strip(): value for key, value in row.items()}
+        project_name = (normalized_row.get(PROJECT_NAME_HEADER) or "").strip()
         if not project_name or project_name in seen_names:
             skipped += 1
             continue
@@ -172,7 +197,9 @@ def parse_projects_csv(content: bytes) -> tuple[list[str], int, int]:
         project_names.append(project_name)
 
     if not project_names:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='CSV 没有可导入的有效数据')
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="CSV 没有可导入的有效数据"
+        )
 
     return project_names, skipped, total
 
@@ -184,13 +211,19 @@ def bulk_upsert_projects(
     updated = 0
     rows: list[Project] = []
 
-    max_sort_order = db.execute(select(func.coalesce(func.max(Project.sort_order), -1))).scalar_one()
+    max_sort_order = db.execute(
+        select(func.coalesce(func.max(Project.sort_order), -1))
+    ).scalar_one()
     next_sort_order = int(max_sort_order) + 1
 
     for name in project_names:
-        existing = db.execute(select(Project).where(Project.project_name == name)).scalars().first()
+        existing = (
+            db.execute(select(Project).where(Project.project_name == name))
+            .scalars()
+            .first()
+        )
         if existing:
-            existing.source_file = (source_file or '').strip() or None
+            existing.source_file = (source_file or "").strip() or None
             rows.append(existing)
             updated += 1
             continue
@@ -198,7 +231,7 @@ def bulk_upsert_projects(
         row = Project(
             project_name=name,
             sort_order=next_sort_order,
-            source_file=(source_file or '').strip() or None,
+            source_file=(source_file or "").strip() or None,
         )
         db.add(row)
         rows.append(row)
@@ -206,7 +239,37 @@ def bulk_upsert_projects(
         next_sort_order += 1
 
     db.flush()
+    invalidate_projects_cache()
     return rows, inserted, updated
+
+
+PROJECTS_CACHE_KEY_PREFIX = "projects:manage"
+
+
+def _projects_cache_key(*, operator: str | None, is_admin: bool) -> str:
+    op = (operator or "").strip() or "none"
+    return _make_cache_key(PROJECTS_CACHE_KEY_PREFIX, f"admin:{is_admin}", f"op:{op}")
+
+
+def _serialize_project_for_cache(row: Project) -> dict:
+    return {
+        "id": row.id,
+        "project_name": row.project_name,
+        "brand_name": row.brand_name,
+        "store_address": row.store_address,
+        "project_operator": row.project_operator,
+        "assistant_operator": row.assistant_operator,
+        "commission_basis": row.commission_basis,
+        "commission_rate": str(row.commission_rate)
+        if row.commission_rate is not None
+        else None,
+        "sort_order": row.sort_order,
+        "source_file": row.source_file,
+    }
+
+
+def invalidate_projects_cache() -> int:
+    return cache_delete_pattern(f"{_make_cache_key(PROJECTS_CACHE_KEY_PREFIX)}*")
 
 
 def list_project_items(
@@ -215,24 +278,41 @@ def list_project_items(
     operator: str | None = None,
     is_admin: bool = True,
 ) -> list[Project]:
-    normalized_operator = (operator or '').strip()
+    normalized_operator = (operator or "").strip()
     if not is_admin:
         if not normalized_operator:
             return []
+
+    cache_key = _projects_cache_key(operator=normalized_operator, is_admin=is_admin)
+    cached = cache_get(cache_key)
+    if cached is not None:
+        project_ids = [item["id"] for item in cached]
+        if project_ids:
+            rows = (
+                db.execute(select(Project).where(Project.id.in_(project_ids)))
+                .scalars()
+                .all()
+            )
+            id_to_row = {row.id: row for row in rows}
+            return [id_to_row[id] for id in project_ids if id in id_to_row]
+        return []
 
     stmt = select(Project)
     stmt = stmt.order_by(Project.sort_order.asc(), Project.id.asc())
     rows = db.execute(stmt).scalars().all()
 
     if is_admin:
-        return rows
+        result = rows
+    else:
+        result = [
+            row
+            for row in rows
+            if _text_contains_name(row.project_operator, normalized_operator)
+            or _text_contains_name(row.assistant_operator, normalized_operator)
+        ]
 
-    return [
-        row
-        for row in rows
-        if _text_contains_name(row.project_operator, normalized_operator)
-        or _text_contains_name(row.assistant_operator, normalized_operator)
-    ]
+    cache_set(cache_key, [_serialize_project_for_cache(r) for r in result])
+    return result
 
 
 def list_accessible_project_ids(
@@ -243,7 +323,10 @@ def list_accessible_project_ids(
 ) -> list[int] | None:
     if is_admin:
         return None
-    return [int(row.id) for row in list_project_items(db, operator=operator, is_admin=is_admin)]
+    return [
+        int(row.id)
+        for row in list_project_items(db, operator=operator, is_admin=is_admin)
+    ]
 
 
 def ensure_project_access(
@@ -255,21 +338,25 @@ def ensure_project_access(
 ) -> Project:
     row = db.execute(select(Project).where(Project.id == project_id)).scalars().first()
     if row is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='项目不存在')
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
 
     if is_admin:
         return row
 
-    normalized_operator = (operator or '').strip()
+    normalized_operator = (operator or "").strip()
     if not normalized_operator:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='无权限访问该项目')
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="无权限访问该项目"
+        )
 
-    if _text_contains_name(row.project_operator, normalized_operator) or _text_contains_name(
-        row.assistant_operator, normalized_operator
-    ):
+    if _text_contains_name(
+        row.project_operator, normalized_operator
+    ) or _text_contains_name(row.assistant_operator, normalized_operator):
         return row
 
-    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='无权限访问该项目')
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN, detail="无权限访问该项目"
+    )
 
 
 def ensure_project_creation_allowed(
@@ -282,44 +369,50 @@ def ensure_project_creation_allowed(
     if is_admin:
         return
 
-    normalized_operator = (operator or '').strip()
+    normalized_operator = (operator or "").strip()
     if not normalized_operator:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='无权限创建项目')
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="无权限创建项目"
+        )
 
     normalized_project_operator = _normalize_multi_name_text(project_operator)
     normalized_assistant_operator = _normalize_multi_name_text(assistant_operator)
-    if _text_contains_name(normalized_project_operator, normalized_operator) or _text_contains_name(
-        normalized_assistant_operator, normalized_operator
-    ):
+    if _text_contains_name(
+        normalized_project_operator, normalized_operator
+    ) or _text_contains_name(normalized_assistant_operator, normalized_operator):
         return
 
-    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='无权限创建项目')
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权限创建项目")
 
 
 def list_project_options(db: Session) -> list[dict[str, str | int | None]]:
     rows = list_project_items(db)
     if rows:
-        return [{'id': row.id, 'name': row.project_name} for row in rows]
+        return [{"id": row.id, "name": row.project_name} for row in rows]
 
     # Backward-compatible fallback: if projects table is empty, use product_costs distinct project names.
-    fallback_stmt = select(ProductCost.project_name).distinct().order_by(ProductCost.project_name.asc())
+    fallback_stmt = (
+        select(ProductCost.project_name)
+        .distinct()
+        .order_by(ProductCost.project_name.asc())
+    )
     try:
         names = [row[0] for row in db.execute(fallback_stmt).all()]
     except SQLAlchemyError:
         return []
-    return [{'id': None, 'name': name} for name in names]
+    return [{"id": None, "name": name} for name in names]
 
 
 def list_project_operator_options(db: Session) -> list[str]:
     rows = db.execute(
         text(
-            '''
+            """
             select distinct
               coalesce(nullif(trim(operator_name_zh), ''), nullif(trim(full_name), '')) as operator_name
             from public.user_accounts
             where coalesce(nullif(trim(operator_name_zh), ''), nullif(trim(full_name), '')) is not null
             order by operator_name asc
-            '''
+            """
         )
     ).all()
     return [str(row[0]) for row in rows if row and row[0] is not None]
@@ -338,11 +431,17 @@ def create_single_project(
 ) -> Project:
     project_name = name.strip()
     if not project_name:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='name is required')
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="name is required"
+        )
 
-    existing = db.execute(select(Project).where(Project.project_name == project_name)).scalars().first()
+    existing = (
+        db.execute(select(Project).where(Project.project_name == project_name))
+        .scalars()
+        .first()
+    )
     if existing:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='项目已存在')
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="项目已存在")
 
     normalized_brand_name = _normalize_optional_text(brand_name)
     normalized_store_address = _normalize_optional_text(store_address)
@@ -350,10 +449,12 @@ def create_single_project(
     normalized_assistant_operator = _normalize_multi_name_text(assistant_operator)
     normalized_commission_basis = _normalize_commission_basis(commission_basis)
     normalized_commission_rate = _normalize_commission_rate(commission_rate)
-    normalized_source_file = (source_file or '').strip() or 'manual_single_add'
+    normalized_source_file = (source_file or "").strip() or "manual_single_add"
 
     def _build_row() -> Project:
-        max_sort_order = db.execute(select(func.coalesce(func.max(Project.sort_order), -1))).scalar_one()
+        max_sort_order = db.execute(
+            select(func.coalesce(func.max(Project.sort_order), -1))
+        ).scalar_one()
         return Project(
             project_name=project_name,
             brand_name=normalized_brand_name,
@@ -374,9 +475,15 @@ def create_single_project(
         if _is_projects_primary_key_conflict(exc):
             db.rollback()
 
-            duplicate = db.execute(select(Project).where(Project.project_name == project_name)).scalars().first()
+            duplicate = (
+                db.execute(select(Project).where(Project.project_name == project_name))
+                .scalars()
+                .first()
+            )
             if duplicate:
-                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='项目已存在') from exc
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT, detail="项目已存在"
+                ) from exc
 
             _sync_projects_id_sequence(db)
             row = _build_row()
@@ -386,6 +493,7 @@ def create_single_project(
             raise
 
     db.refresh(row)
+    invalidate_projects_cache()
     return row
 
 
@@ -402,15 +510,27 @@ def update_project(
 ) -> Project:
     project_name = name.strip()
     if not project_name:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='name is required')
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="name is required"
+        )
 
     row = db.execute(select(Project).where(Project.id == project_id)).scalars().first()
     if not row:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='项目不存在')
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
 
-    duplicate = db.execute(select(Project).where(Project.project_name == project_name, Project.id != project_id)).scalars().first()
+    duplicate = (
+        db.execute(
+            select(Project).where(
+                Project.project_name == project_name, Project.id != project_id
+            )
+        )
+        .scalars()
+        .first()
+    )
     if duplicate:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='项目名称已存在')
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="项目名称已存在"
+        )
 
     row.project_name = project_name
     row.brand_name = _normalize_optional_text(brand_name)
@@ -421,4 +541,5 @@ def update_project(
     row.commission_rate = _normalize_commission_rate(commission_rate)
     db.flush()
     db.refresh(row)
+    invalidate_projects_cache()
     return row

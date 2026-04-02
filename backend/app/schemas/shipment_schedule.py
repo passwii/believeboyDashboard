@@ -50,6 +50,7 @@ class ShipmentScheduleItemRow(BaseModel):
     item_date: str | None = None
     sku: str
     quantity: int
+    carton_count: int | None = None
     remark: str | None = None
     volume_m3: float = 0
     actual_weight_kg: float = 0
@@ -62,6 +63,7 @@ class ShipmentScheduleItemRow(BaseModel):
 class ShipmentScheduleItemInput(BaseModel):
     sku: str = Field(min_length=1, max_length=100)
     quantity: int = Field(gt=0)
+    carton_count: int | None = Field(default=None, ge=0)
     item_date: str | None = None
     remark: str | None = None
 

@@ -6,7 +6,7 @@ import { useSession } from 'next-auth/react'
 
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { DataCard, DataCardHeader, DataCardContent, DataTableCard, DataTableCardHeader, DataTableCardBody, DataTableCardStatBar, DENSE_CELL, DENSE_HEAD } from '@/components/ui/data-card'
 import { EmptyTableState } from '@/components/ui/empty-state'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -62,6 +62,11 @@ type InventoryResponse = {
   summary: InventorySummary
   action_options: string[]
   items: InventoryItem[]
+}
+
+type SnapshotOption = {
+  snapshot_at: string
+  is_current: boolean
 }
 
 const COUNTRY_OPTIONS = [
@@ -134,6 +139,8 @@ export default function InventoryAnalysisPage() {
   const [country, setCountry] = useState('US')
 
   const [snapshotAt, setSnapshotAt] = useState<string | null>(null)
+  const [snapshotOptions, setSnapshotOptions] = useState<SnapshotOption[]>([])
+  const [selectedSnapshotDate, setSelectedSnapshotDate] = useState<string>('current')
   const [summary, setSummary] = useState<InventorySummary>({
     sku_count: 0,
     out_of_stock_count: 0,
@@ -205,6 +212,9 @@ export default function InventoryAnalysisPage() {
           project_id: String(currentProjectId),
           country,
         })
+        if (selectedSnapshotDate !== 'current') {
+          query.set('snapshot_at', selectedSnapshotDate)
+        }
         const response = await fetch(`${API_BASE}/inventory-analysis?${query.toString()}`, {
           headers: {},
           cache: 'no-store',
@@ -227,6 +237,34 @@ export default function InventoryAnalysisPage() {
       }
     }
     void loadData()
+    return () => {
+      active = false
+    }
+  }, [country, currentProjectId, selectedSnapshotDate])
+
+  useEffect(() => {
+    if (!currentProjectId) return
+    let active = true
+    async function loadSnapshotOptions() {
+      try {
+        const query = new URLSearchParams({
+          project_id: String(currentProjectId),
+          country,
+        })
+        const response = await fetch(`${API_BASE}/inventory-snapshot-options?${query.toString()}`, {
+          headers: {},
+          cache: 'no-store',
+        })
+        if (!active) return
+        if (response.ok) {
+          const payload = (await response.json()) as SnapshotOption[]
+          setSnapshotOptions(payload)
+        }
+      } catch {
+        // ignore error
+      }
+    }
+    void loadSnapshotOptions()
     return () => {
       active = false
     }
@@ -410,15 +448,14 @@ export default function InventoryAnalysisPage() {
 
   return (
     <div className="space-y-6">
-      <Card className="dashboard-surface overflow-hidden">
-        <CardHeader className="pb-3">
-          <div className="space-y-2">
-            <p className="dashboard-kicker">Analysis Console</p>
-            <CardTitle>库存分析</CardTitle>
-            <CardDescription>查看库存健康度、库龄结构和建议动作，把缺货与超龄风险放到同一个工作区里。</CardDescription>
-          </div>
-        </CardHeader>
-        <CardContent className="grid gap-4 lg:grid-cols-2">
+      <DataCard>
+        <DataCardHeader
+          title="库存分析"
+          titleClassName="text-2xl tracking-tight"
+          description="查看库存健康度、库龄结构和建议动作，把缺货与超龄风险放到同一个工作区里。"
+          badge={<p className="dashboard-kicker">Analysis Console</p>}
+        />
+        <DataCardContent className="grid gap-4 lg:grid-cols-2">
           <div className="dashboard-toolbar grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <div className="text-xs font-medium text-muted-foreground">项目</div>
@@ -454,166 +491,144 @@ export default function InventoryAnalysisPage() {
                 </SelectContent>
               </Select>
             </div>
-            <Card className="border-border/70 bg-[linear-gradient(135deg,hsl(var(--primary)/0.08),hsl(var(--surface-subtle))/0.96)] shadow-none sm:col-span-2 dark:border-border/85 dark:bg-[linear-gradient(135deg,hsl(var(--surface-overlay)),hsl(var(--surface-strong)))]">
-              <CardContent className="flex h-[88px] items-center justify-between py-6">
-                <div className="flex h-full flex-col justify-center">
-                  <div className="flex items-center gap-2 text-sm font-medium text-blue-700 dark:text-blue-300">
-                    <Clock4 className="h-4 w-4" />
-                    当前快照时间
-                  </div>
-                  <div className="mt-1.5 text-xl font-bold text-blue-900 dark:text-blue-100">
-                    {formatSnapshot(snapshotAt)}
-                  </div>
-                </div>
-                <div className="flex h-10 w-10 items-center justify-center rounded-md bg-blue-100 dark:bg-blue-900/50">
-                  <Clock4 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                </div>
-              </CardContent>
-            </Card>
+            <div className="space-y-1.5">
+              <div className="text-xs font-medium text-muted-foreground">快照时间</div>
+              <Select value={selectedSnapshotDate} onValueChange={setSelectedSnapshotDate}>
+                <SelectTrigger className="border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
+                  <SelectValue placeholder="选择快照时间" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="current">最新快照</SelectItem>
+                  {snapshotOptions.map((option) => (
+                    <SelectItem key={option.snapshot_at} value={option.snapshot_at}>
+                      {formatSnapshot(option.snapshot_at)}
+                      {option.is_current ? ' (当前)' : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-3 rounded-md border border-border/70 bg-[linear-gradient(135deg,hsl(var(--primary)/0.08),hsl(var(--surface-subtle))/0.96)] p-3 dark:border-border/85 dark:bg-[linear-gradient(135deg,hsl(var(--surface-overlay)),hsl(var(--surface-strong))]">
+              <div className="flex items-center gap-2 text-sm font-medium text-blue-700 dark:text-blue-300">
+                <Clock4 className="h-4 w-4" />
+                当前快照时间
+              </div>
+              <div className="text-lg font-bold text-blue-900 dark:text-blue-100">
+                {formatSnapshot(snapshotAt)}
+              </div>
+            </div>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Card className="hover-lift border-border/70 shadow-none dark:border-border/85">
-              <CardContent className="flex h-[88px] items-center justify-between py-6">
-                <div className="flex h-full flex-col justify-center">
-                  <div className="text-xs text-muted-foreground">SKU 总数</div>
-                  <div className="mt-1 text-lg font-semibold">{formatInt(summary.sku_count)}</div>
-                </div>
-                <PackageSearch className="h-5 w-5 text-muted-foreground" />
-              </CardContent>
-            </Card>
-            <Card className="hover-lift border-border/70 shadow-none dark:border-border/85">
-              <CardContent className="flex h-[88px] items-center justify-between py-6">
-                <div className="flex h-full flex-col justify-center">
-                  <div className="text-xs text-muted-foreground">可售库存总量</div>
-                  <div className="mt-1 text-lg font-semibold">{formatInt(summary.total_available_qty)}</div>
-                </div>
-                <Boxes className="h-5 w-5 text-muted-foreground" />
-              </CardContent>
-            </Card>
-            <Card className="hover-lift border-border/70 shadow-none dark:border-border/85">
-              <CardContent className="flex h-[88px] items-center justify-between py-6">
-                <div className="flex h-full flex-col justify-center">
-                  <div className="text-xs text-muted-foreground">缺货 SKU</div>
-                  <div className="mt-1 text-lg font-semibold text-rose-600">{formatInt(summary.out_of_stock_count)}</div>
-                </div>
-                <AlertTriangle className="h-5 w-5 text-rose-500" />
-              </CardContent>
-            </Card>
-            <Card className="hover-lift border-border/70 shadow-none dark:border-border/85">
-              <CardContent className="flex h-[88px] items-center justify-between py-6">
-                <div className="flex h-full flex-col justify-center">
-                  <div className="text-xs text-muted-foreground">365+ 库龄库存</div>
-                  <div className="mt-1 text-lg font-semibold text-amber-600">{formatInt(summary.total_age_365_plus_qty)}</div>
-                </div>
-                <Clock4 className="h-5 w-5 text-amber-500" />
-              </CardContent>
-            </Card>
-          </div>
-        </CardContent>
-      </Card>
+          <DataTableCardStatBar
+            items={[
+              { label: 'SKU 总数', value: formatInt(summary.sku_count) },
+              { label: '可售库存总量', value: formatInt(summary.total_available_qty) },
+              { label: '缺货 SKU', value: formatInt(summary.out_of_stock_count), highlight: summary.out_of_stock_count > 0 },
+              { label: '365+ 库龄库存', value: formatInt(summary.total_age_365_plus_qty), highlight: summary.total_age_365_plus_qty > 0 },
+            ]}
+          />
+        </DataCardContent>
+      </DataCard>
 
-      <Card className="dashboard-surface border-0">
-        <CardHeader className="flex flex-row items-start justify-between gap-3 pb-3">
+      <DataTableCard>
+        <DataTableCardHeader className="flex min-w-0 flex-col gap-1 px-4 py-3 xl:flex-row xl:items-center xl:justify-between xl:gap-3">
           <div>
             <p className="dashboard-kicker">Operational Ledger</p>
-            <CardTitle>库存明细表</CardTitle>
-            <CardDescription>承接当前项目和站点下的 SKU 库存明细、建议动作与风险状态。</CardDescription>
+            <div className="text-base font-semibold text-foreground">库存明细表</div>
+            <p className="text-sm text-muted-foreground">承接当前项目和站点下的 SKU 库存明细、建议动作与风险状态。</p>
           </div>
           <Button
             type="button"
             size="sm"
             variant="outline"
-            className="gap-1.5"
+            className="gap-1.5 shrink-0"
             onClick={exportToExcel}
             disabled={exporting || loading || rows.length === 0}
           >
             {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
             {exporting ? '导出中...' : '导出 Excel'}
           </Button>
-        </CardHeader>
-        <CardContent>
+        </DataTableCardHeader>
+        <DataTableCardBody>
           {error ? (
             <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
               {error}
             </div>
           ) : null}
-          <div className="rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-1.5 dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]">
-            <Table>
-              <TableHeader>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className={DENSE_HEAD}>SKU</TableHead>
+                <TableHead className={DENSE_HEAD}>ASIN</TableHead>
+                <TableHead className={`text-right ${DENSE_HEAD}`}>库存</TableHead>
+                <TableHead className={`text-right ${DENSE_HEAD}`}>0-90天</TableHead>
+                <TableHead className={`text-right ${DENSE_HEAD}`}>91-180天</TableHead>
+                <TableHead className={`text-right ${DENSE_HEAD}`}>181-270天</TableHead>
+                <TableHead className={`text-right ${DENSE_HEAD}`}>271-365天</TableHead>
+                <TableHead className={`text-right ${DENSE_HEAD}`}>超过365天</TableHead>
+                <TableHead className={DENSE_HEAD}>建议操作</TableHead>
+                <TableHead className={DENSE_HEAD}>库存状态</TableHead>
+                <TableHead className={DENSE_HEAD}>库龄状态</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
                 <TableRow>
-                  <TableHead>SKU</TableHead>
-                  <TableHead>ASIN</TableHead>
-                  <TableHead className="text-right">库存</TableHead>
-                  <TableHead className="text-right">0-90天</TableHead>
-                  <TableHead className="text-right">91-180天</TableHead>
-                  <TableHead className="text-right">181-270天</TableHead>
-                  <TableHead className="text-right">271-365天</TableHead>
-                  <TableHead className="text-right">超过365天</TableHead>
-                  <TableHead>建议操作</TableHead>
-                  <TableHead>库存状态</TableHead>
-                  <TableHead>库龄状态</TableHead>
+                  <TableCell colSpan={11} className="h-24 text-center text-muted-foreground">
+                    <span className="inline-flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      正在加载库存数据...
+                    </span>
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? (
-                  <TableRow>
-                    <TableCell colSpan={11} className="h-24 text-center text-muted-foreground">
-                      <span className="inline-flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        正在加载库存数据...
-                      </span>
-                    </TableCell>
+              ) : rows.length === 0 ? (
+                <EmptyTableState colSpan={11} message="当前筛选下暂无库存快照数据" />
+              ) : (
+                <>
+                  {rows.map((row) => {
+                    const stock = stockMeta(row.stock_status)
+                    const aging = agingMeta(row.aging_status)
+                    return (
+                      <TableRow key={`${row.sku}::${row.asin || 'na'}`}>
+                        <TableCell className={`font-medium ${DENSE_CELL}`}>{row.sku}</TableCell>
+                        <TableCell className={DENSE_CELL}>{row.asin || '--'}</TableCell>
+                        <TableCell className={`text-right ${DENSE_CELL}`}>{formatInt(row.available_qty)}</TableCell>
+                        <TableCell className={`text-right ${DENSE_CELL}`}>{formatInt(row.age_0_90_qty)}</TableCell>
+                        <TableCell className={`text-right ${DENSE_CELL}`}>{formatInt(row.age_91_180_qty)}</TableCell>
+                        <TableCell className={`text-right ${DENSE_CELL}`}>{formatInt(row.age_181_270_qty)}</TableCell>
+                        <TableCell className={`text-right ${DENSE_CELL}`}>{formatInt(row.age_271_365_qty)}</TableCell>
+                        <TableCell className={`text-right ${DENSE_CELL}`}>{formatInt(row.age_365_plus_qty)}</TableCell>
+                        <TableCell className={DENSE_CELL}>
+                          {row.recommended_action_label || '--'}
+                        </TableCell>
+                        <TableCell className={DENSE_CELL}>
+                          <Badge variant="outline" className={stock.className}>
+                            {stock.label}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className={DENSE_CELL}>
+                          <Badge variant="outline" className={aging.className}>
+                            {aging.label}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                  <TableRow className="bg-muted/40 font-semibold">
+                    <TableCell colSpan={2} className={DENSE_CELL}>合计</TableCell>
+                    <TableCell className={`text-right ${DENSE_CELL}`}>{formatInt(detailTotals.available_qty)}</TableCell>
+                    <TableCell className={`text-right ${DENSE_CELL}`}>{formatInt(detailTotals.age_0_90_qty)}</TableCell>
+                    <TableCell className={`text-right ${DENSE_CELL}`}>{formatInt(detailTotals.age_91_180_qty)}</TableCell>
+                    <TableCell className={`text-right ${DENSE_CELL}`}>{formatInt(detailTotals.age_181_270_qty)}</TableCell>
+                    <TableCell className={`text-right ${DENSE_CELL}`}>{formatInt(detailTotals.age_271_365_qty)}</TableCell>
+                    <TableCell className={`text-right ${DENSE_CELL}`}>{formatInt(detailTotals.age_365_plus_qty)}</TableCell>
+                    <TableCell colSpan={3} className={DENSE_CELL} />
                   </TableRow>
-                ) : rows.length === 0 ? (
-                  <EmptyTableState colSpan={11} message="当前筛选下暂无库存快照数据" />
-                ) : (
-                  <>
-                    {rows.map((row) => {
-                      const stock = stockMeta(row.stock_status)
-                      const aging = agingMeta(row.aging_status)
-                      return (
-                        <TableRow key={`${row.sku}::${row.asin || 'na'}`}>
-                          <TableCell className="font-medium">{row.sku}</TableCell>
-                          <TableCell>{row.asin || '--'}</TableCell>
-                          <TableCell className="text-right">{formatInt(row.available_qty)}</TableCell>
-                          <TableCell className="text-right">{formatInt(row.age_0_90_qty)}</TableCell>
-                          <TableCell className="text-right">{formatInt(row.age_91_180_qty)}</TableCell>
-                          <TableCell className="text-right">{formatInt(row.age_181_270_qty)}</TableCell>
-                          <TableCell className="text-right">{formatInt(row.age_271_365_qty)}</TableCell>
-                          <TableCell className="text-right">{formatInt(row.age_365_plus_qty)}</TableCell>
-                          <TableCell>
-                            {row.recommended_action_label || '--'}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className={stock.className}>
-                              {stock.label}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className={aging.className}>
-                              {aging.label}
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })}
-                    <TableRow className="bg-muted/40 font-semibold">
-                      <TableCell colSpan={2}>合计</TableCell>
-                      <TableCell className="text-right">{formatInt(detailTotals.available_qty)}</TableCell>
-                      <TableCell className="text-right">{formatInt(detailTotals.age_0_90_qty)}</TableCell>
-                      <TableCell className="text-right">{formatInt(detailTotals.age_91_180_qty)}</TableCell>
-                      <TableCell className="text-right">{formatInt(detailTotals.age_181_270_qty)}</TableCell>
-                      <TableCell className="text-right">{formatInt(detailTotals.age_271_365_qty)}</TableCell>
-                      <TableCell className="text-right">{formatInt(detailTotals.age_365_plus_qty)}</TableCell>
-                      <TableCell colSpan={3} />
-                    </TableRow>
-                  </>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+                </>
+              )}
+            </TableBody>
+          </Table>
+        </DataTableCardBody>
+      </DataTableCard>
     </div>
   )
 }

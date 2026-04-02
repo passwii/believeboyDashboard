@@ -3,7 +3,18 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, HTTPException, Header, Query, Request, Response, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    Header,
+    Query,
+    Request,
+    Response,
+    UploadFile,
+    status,
+)
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, get_request_operator, protected
@@ -22,8 +33,12 @@ from app.schemas.shipment_schedule import (
     ShipmentScheduleListResponse,
     ShipmentScheduleUpdate,
 )
-from app.services.audit_log_service import append_operation_audit_log, append_operation_view_log
+from app.services.audit_log_service import (
+    append_operation_audit_log,
+    append_operation_view_log,
+)
 from app.services import project_service, shipment_schedule_service
+from app.services import redis_service
 
 router = APIRouter(dependencies=[Depends(protected)])
 
@@ -34,7 +49,9 @@ def _date_text(value: object) -> str | None:
     return str(value)
 
 
-def _serialize_schedule_list_item(row: object, sku_count: int, total_quantity: int) -> ShipmentScheduleListItem:
+def _serialize_schedule_list_item(
+    row: object, sku_count: int, total_quantity: int
+) -> ShipmentScheduleListItem:
     return ShipmentScheduleListItem(
         id=int(row.id),
         project_id=int(row.project_id),
@@ -62,7 +79,9 @@ def _serialize_schedule_list_item(row: object, sku_count: int, total_quantity: i
     )
 
 
-def _build_shipment_schedule_detail(row: object, sku_count: int, total_quantity: int) -> ShipmentScheduleDetail:
+def _build_shipment_schedule_detail(
+    row: object, sku_count: int, total_quantity: int
+) -> ShipmentScheduleDetail:
     return ShipmentScheduleDetail(
         id=int(row.id),
         project_id=int(row.project_id),
@@ -88,17 +107,20 @@ def _build_shipment_schedule_detail(row: object, sku_count: int, total_quantity:
         include_in_history_shipping_calc=bool(row.include_in_history_shipping_calc),
         items=[
             {
-                'id': int(item.id),
-                'item_date': _date_text(item.item_date),
-                'sku': str(item.sku),
-                'quantity': int(item.quantity),
-                'remark': item.remark,
-                'volume_m3': float(item.volume_m3 or 0),
-                'actual_weight_kg': float(item.actual_weight_kg or 0),
-                'volumetric_weight_kg': float(item.volumetric_weight_kg or 0),
-                'chargeable_weight_kg': float(item.chargeable_weight_kg or 0),
-                'estimated_logistics_cost': float(item.estimated_logistics_cost or 0),
-                'average_logistics_unit_price': float(item.average_logistics_unit_price or 0),
+                "id": int(item.id),
+                "item_date": _date_text(item.item_date),
+                "sku": str(item.sku),
+                "quantity": int(item.quantity),
+                "carton_count": item.carton_count,
+                "remark": item.remark,
+                "volume_m3": float(item.volume_m3 or 0),
+                "actual_weight_kg": float(item.actual_weight_kg or 0),
+                "volumetric_weight_kg": float(item.volumetric_weight_kg or 0),
+                "chargeable_weight_kg": float(item.chargeable_weight_kg or 0),
+                "estimated_logistics_cost": float(item.estimated_logistics_cost or 0),
+                "average_logistics_unit_price": float(
+                    item.average_logistics_unit_price or 0
+                ),
             }
             for item in row.items
         ],
@@ -114,28 +136,59 @@ def _get_shipment_schedule_detail_payload(
     is_admin: bool,
     request: Request | None = None,
 ) -> ShipmentScheduleDetail:
-    row, sku_count, total_quantity = shipment_schedule_service.get_shipment_schedule_detail(db, schedule_id)
+    cached = redis_service.get_shipment_schedule_detail_cache(schedule_id)
+    if cached is not None:
+        if request is not None:
+            append_operation_view_log(
+                db,
+                action="shipment_schedules.detail.view",
+                target_type="shipment_schedule",
+                target_id=schedule_id,
+                operator=operator,
+                after={
+                    "shipment_no": cached.get("shipment_no"),
+                    "sku_count": len(cached.get("items", [])),
+                    "total_quantity": sum(
+                        item.get("quantity", 0) for item in cached.get("items", [])
+                    ),
+                    "source": "cache",
+                },
+                request=request,
+            )
+            db.commit()
+        return ShipmentScheduleDetail(**cached)
+
+    row, sku_count, total_quantity = (
+        shipment_schedule_service.get_shipment_schedule_detail(db, schedule_id)
+    )
     project_service.ensure_project_access(
         db,
         int(row.project_id),
         operator=operator,
         is_admin=is_admin,
     )
+    detail = _build_shipment_schedule_detail(row, sku_count, total_quantity)
+    redis_service.set_shipment_schedule_detail_cache(schedule_id, detail.model_dump())
     if request is not None:
         append_operation_view_log(
             db,
-            action='shipment_schedules.detail.view',
-            target_type='shipment_schedule',
+            action="shipment_schedules.detail.view",
+            target_type="shipment_schedule",
             target_id=schedule_id,
             operator=operator,
-            after={'shipment_no': row.shipment_no, 'sku_count': int(sku_count), 'total_quantity': int(total_quantity)},
+            after={
+                "shipment_no": row.shipment_no,
+                "sku_count": int(sku_count),
+                "total_quantity": int(total_quantity),
+                "source": "database",
+            },
             request=request,
         )
         db.commit()
-    return _build_shipment_schedule_detail(row, sku_count, total_quantity)
+    return detail
 
 
-@router.get('/shipment-schedules', response_model=ShipmentScheduleListResponse)
+@router.get("/shipment-schedules", response_model=ShipmentScheduleListResponse)
 def list_shipment_schedules(
     request: Request,
     project_id: int | None = Query(default=None, gt=0),
@@ -154,8 +207,47 @@ def list_shipment_schedules(
     include_total: bool = Query(default=False),
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
-    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> ShipmentScheduleListResponse:
+    cached = redis_service.get_shipment_schedule_list_cache(
+        project_id=project_id,
+        country=country,
+        shipment_status=shipment_status,
+        shipping_method=shipping_method,
+        shipment_nos=shipment_no,
+        created_date_from=created_date_from,
+        created_date_to=created_date_to,
+        etd_from=etd_from,
+        etd_to=etd_to,
+        eta_from=eta_from,
+        eta_to=eta_to,
+        page=page,
+        page_size=page_size,
+        include_total=include_total,
+    )
+    if cached is not None:
+        append_operation_view_log(
+            db,
+            action="shipment_schedules.list",
+            target_type="shipment_schedule",
+            operator=operator,
+            after={
+                "project_id": project_id,
+                "country": country,
+                "shipment_status": shipment_status,
+                "shipping_method": shipping_method,
+                "shipment_no": shipment_no,
+                "page": page,
+                "page_size": page_size,
+                "count": len(cached.get("items", [])),
+                "total": cached.get("total"),
+                "source": "cache",
+            },
+            request=request,
+        )
+        db.commit()
+        return ShipmentScheduleListResponse(**cached)
+
     if project_id is not None:
         project_service.ensure_project_access(
             db,
@@ -186,35 +278,59 @@ def list_shipment_schedules(
         page_size=page_size,
         include_total=include_total,
     )
-    append_operation_view_log(
-        db,
-        action='shipment_schedules.list',
-        target_type='shipment_schedule',
-        operator=operator,
-        after={
-            'project_id': project_id,
-            'country': country,
-            'shipment_status': shipment_status,
-            'shipping_method': shipping_method,
-            'shipment_no': shipment_no,
-            'page': page,
-            'page_size': page_size,
-            'count': len(rows),
-            'total': total,
-        },
-        request=request,
-    )
-    db.commit()
-    return ShipmentScheduleListResponse(
-        items=[_serialize_schedule_list_item(row, sku_count, total_quantity) for row, sku_count, total_quantity in rows],
+    response = ShipmentScheduleListResponse(
+        items=[
+            _serialize_schedule_list_item(row, sku_count, total_quantity)
+            for row, sku_count, total_quantity in rows
+        ],
         page=page,
         page_size=page_size,
         total=total,
         has_next=has_next,
     )
+    redis_service.set_shipment_schedule_list_cache(
+        project_id=project_id,
+        country=country,
+        shipment_status=shipment_status,
+        shipping_method=shipping_method,
+        shipment_nos=shipment_no,
+        created_date_from=created_date_from,
+        created_date_to=created_date_to,
+        etd_from=etd_from,
+        etd_to=etd_to,
+        eta_from=eta_from,
+        eta_to=eta_to,
+        page=page,
+        page_size=page_size,
+        include_total=include_total,
+        data=response.model_dump(),
+    )
+    append_operation_view_log(
+        db,
+        action="shipment_schedules.list",
+        target_type="shipment_schedule",
+        operator=operator,
+        after={
+            "project_id": project_id,
+            "country": country,
+            "shipment_status": shipment_status,
+            "shipping_method": shipping_method,
+            "shipment_no": shipment_no,
+            "page": page,
+            "page_size": page_size,
+            "count": len(rows),
+            "total": total,
+            "source": "database",
+        },
+        request=request,
+    )
+    db.commit()
+    return response
 
 
-@router.get('/shipment-schedules/cost-summary', response_model=ShipmentScheduleCostSummary)
+@router.get(
+    "/shipment-schedules/cost-summary", response_model=ShipmentScheduleCostSummary
+)
 def summarize_shipment_schedule_costs(
     request: Request,
     project_id: int | None = Query(default=None, gt=0),
@@ -226,8 +342,36 @@ def summarize_shipment_schedule_costs(
     created_date_to: str | None = Query(default=None),
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
-    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> ShipmentScheduleCostSummary:
+    cached = redis_service.get_shipment_schedule_cost_summary_cache(
+        project_id=project_id,
+        country=country,
+        shipment_status=shipment_status,
+        shipping_method=shipping_method,
+        shipment_nos=shipment_no,
+        created_date_from=created_date_from,
+        created_date_to=created_date_to,
+    )
+    if cached is not None:
+        append_operation_view_log(
+            db,
+            action="shipment_schedules.cost_summary.view",
+            target_type="shipment_schedule",
+            operator=operator,
+            after={
+                "project_id": project_id,
+                "country": country,
+                "shipment_status": shipment_status,
+                "shipping_method": shipping_method,
+                "shipment_no": shipment_no,
+                "source": "cache",
+            },
+            request=request,
+        )
+        db.commit()
+        return ShipmentScheduleCostSummary(**cached)
+
     if project_id is not None:
         project_service.ensure_project_access(
             db,
@@ -251,17 +395,28 @@ def summarize_shipment_schedule_costs(
         created_date_from=created_date_from,
         created_date_to=created_date_to,
     )
+    redis_service.set_shipment_schedule_cost_summary_cache(
+        project_id=project_id,
+        country=country,
+        shipment_status=shipment_status,
+        shipping_method=shipping_method,
+        shipment_nos=shipment_no,
+        created_date_from=created_date_from,
+        created_date_to=created_date_to,
+        data=summary,
+    )
     append_operation_view_log(
         db,
-        action='shipment_schedules.cost_summary.view',
-        target_type='shipment_schedule',
+        action="shipment_schedules.cost_summary.view",
+        target_type="shipment_schedule",
         operator=operator,
         after={
-            'project_id': project_id,
-            'country': country,
-            'shipment_status': shipment_status,
-            'shipping_method': shipping_method,
-            'shipment_no': shipment_no,
+            "project_id": project_id,
+            "country": country,
+            "shipment_status": shipment_status,
+            "shipping_method": shipping_method,
+            "shipment_no": shipment_no,
+            "source": "database",
         },
         request=request,
     )
@@ -269,17 +424,46 @@ def summarize_shipment_schedule_costs(
     return ShipmentScheduleCostSummary(**summary)
 
 
-@router.get('/shipment-schedules/sku-summary', response_model=ShipmentSkuSummaryResponse)
+@router.get(
+    "/shipment-schedules/sku-summary", response_model=ShipmentSkuSummaryResponse
+)
 def list_shipment_sku_summary(
     request: Request,
     project_id: int | None = Query(default=None, gt=0),
     country: str | None = Query(default=None),
     include_only_history_calc: bool = Query(default=True),
-    shipment_status: str | None = Query(default='completed'),
+    shipment_status: str | None = Query(default="completed"),
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
-    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> ShipmentSkuSummaryResponse:
+    cached = redis_service.get_shipment_sku_summary_cache(
+        project_id=project_id,
+        country=country,
+        include_only_history_calc=include_only_history_calc,
+        shipment_status=shipment_status,
+    )
+    if cached is not None:
+        append_operation_view_log(
+            db,
+            action="shipment_schedules.sku_summary.view",
+            target_type="shipment_schedule",
+            operator=operator,
+            after={
+                "project_id": project_id,
+                "country": country,
+                "shipment_status": shipment_status,
+                "include_only_history_calc": include_only_history_calc,
+                "count": len(cached),
+                "source": "cache",
+            },
+            request=request,
+        )
+        db.commit()
+        return ShipmentSkuSummaryResponse(
+            items=[ShipmentSkuSummaryItem(**row) for row in cached]
+        )
+
     if project_id is not None:
         project_service.ensure_project_access(
             db,
@@ -300,17 +484,25 @@ def list_shipment_sku_summary(
         include_only_history_calc=include_only_history_calc,
         shipment_status=shipment_status,
     )
+    redis_service.set_shipment_sku_summary_cache(
+        project_id=project_id,
+        country=country,
+        include_only_history_calc=include_only_history_calc,
+        shipment_status=shipment_status,
+        data=rows,
+    )
     append_operation_view_log(
         db,
-        action='shipment_schedules.sku_summary.view',
-        target_type='shipment_schedule',
+        action="shipment_schedules.sku_summary.view",
+        target_type="shipment_schedule",
         operator=operator,
         after={
-            'project_id': project_id,
-            'country': country,
-            'shipment_status': shipment_status,
-            'include_only_history_calc': include_only_history_calc,
-            'count': len(rows),
+            "project_id": project_id,
+            "country": country,
+            "shipment_status": shipment_status,
+            "include_only_history_calc": include_only_history_calc,
+            "count": len(rows),
+            "source": "database",
         },
         request=request,
     )
@@ -320,14 +512,33 @@ def list_shipment_sku_summary(
     )
 
 
-@router.get('/shipment-schedules/fba-box-details', response_model=ShipmentFbaBoxDetailResponse)
+@router.get(
+    "/shipment-schedules/fba-box-details", response_model=ShipmentFbaBoxDetailResponse
+)
 def list_shipment_fba_box_details(
     request: Request,
     shipment_no: Annotated[list[str], Query(min_length=1)],
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
-    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> ShipmentFbaBoxDetailResponse:
+    cached = redis_service.get_shipment_fba_box_details_cache(shipment_no)
+    if cached is not None:
+        append_operation_view_log(
+            db,
+            action="shipment_schedules.fba_box_details.view",
+            target_type="shipment_schedule",
+            operator=operator,
+            after={
+                "shipment_nos": shipment_no,
+                "count": len(cached.get("items", [])),
+                "source": "cache",
+            },
+            request=request,
+        )
+        db.commit()
+        return ShipmentFbaBoxDetailResponse(**cached)
+
     rows, items = shipment_schedule_service.list_shipment_fba_box_details(
         db,
         shipment_nos=shipment_no,
@@ -339,31 +550,33 @@ def list_shipment_fba_box_details(
             operator=operator,
             is_admin=bool(is_admin),
         )
-    append_operation_view_log(
-        db,
-        action='shipment_schedules.fba_box_details.view',
-        target_type='shipment_schedule',
-        operator=operator,
-        after={'shipment_nos': shipment_no, 'count': len(items)},
-        request=request,
-    )
-    db.commit()
-    return ShipmentFbaBoxDetailResponse(
+    response = ShipmentFbaBoxDetailResponse(
         project_ids=[int(row.project_id) for row in rows],
         project_names=[str(row.project_name_snapshot) for row in rows],
         countries=[str(row.country) for row in rows],
         shipment_nos=[str(row.shipment_no) for row in rows],
         items=[ShipmentFbaBoxDetailItem(**item) for item in items],
     )
+    redis_service.set_shipment_fba_box_details_cache(shipment_no, response.model_dump())
+    append_operation_view_log(
+        db,
+        action="shipment_schedules.fba_box_details.view",
+        target_type="shipment_schedule",
+        operator=operator,
+        after={"shipment_nos": shipment_no, "count": len(items), "source": "database"},
+        request=request,
+    )
+    db.commit()
+    return response
 
 
-@router.get('/shipment-schedules/{schedule_id}', response_model=ShipmentScheduleDetail)
+@router.get("/shipment-schedules/{schedule_id}", response_model=ShipmentScheduleDetail)
 def get_shipment_schedule_detail(
     schedule_id: int,
     request: Request,
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
-    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> ShipmentScheduleDetail:
     return _get_shipment_schedule_detail_payload(
         schedule_id=schedule_id,
@@ -374,21 +587,28 @@ def get_shipment_schedule_detail(
     )
 
 
-@router.post('/shipment-schedules', response_model=ShipmentScheduleDetail)
+@router.post("/shipment-schedules", response_model=ShipmentScheduleDetail)
 def create_shipment_schedule(
     payload: ShipmentScheduleCreate,
     request: Request,
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> ShipmentScheduleDetail:
-    row = shipment_schedule_service.create_shipment_schedule(db, payload, operator=operator)
+    row = shipment_schedule_service.create_shipment_schedule(
+        db, payload, operator=operator
+    )
+    redis_service.invalidate_all_shipment_schedules_cache()
     append_operation_audit_log(
         db,
-        action='shipment_schedules.create',
-        target_type='shipment_schedule',
+        action="shipment_schedules.create",
+        target_type="shipment_schedule",
         target_id=row.id,
         operator=operator,
-        after={'shipment_no': row.shipment_no, 'project_id': row.project_id, 'status': row.shipment_status},
+        after={
+            "shipment_no": row.shipment_no,
+            "project_id": row.project_id,
+            "status": row.shipment_status,
+        },
         request=request,
     )
     db.commit()
@@ -401,7 +621,9 @@ def create_shipment_schedule(
     )
 
 
-@router.post('/shipment-schedules/import-csv', response_model=ShipmentSchedulesImportResponse)
+@router.post(
+    "/shipment-schedules/import-csv", response_model=ShipmentSchedulesImportResponse
+)
 def import_shipment_schedules_csv(
     request: Request,
     file: UploadFile = File(...),
@@ -409,13 +631,20 @@ def import_shipment_schedules_csv(
     operator: str | None = Depends(get_request_operator),
 ) -> ShipmentSchedulesImportResponse:
     if not file.filename:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Missing filename')
-    if Path(file.filename).suffix.lower() != '.csv':
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Only .csv file is supported')
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Missing filename"
+        )
+    if Path(file.filename).suffix.lower() != ".csv":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only .csv file is supported",
+        )
 
     content = file.file.read()
     if not content:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='CSV 文件为空')
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="CSV 文件为空"
+        )
 
     rows = shipment_schedule_service.import_shipment_schedules_from_csv(
         db,
@@ -423,24 +652,29 @@ def import_shipment_schedules_csv(
         filename=file.filename,
         operator=operator,
     )
+    redis_service.invalidate_all_shipment_schedules_cache()
     append_operation_audit_log(
         db,
-        action='shipment_schedules.import_csv',
-        target_type='shipment_schedule',
+        action="shipment_schedules.import_csv",
+        target_type="shipment_schedule",
         target_id=rows[0].id if rows else None,
         operator=operator,
         after={
-            'filename': file.filename,
-            'inserted': len(rows),
-            'shipment_nos': [row.shipment_no for row in rows[:50]],
+            "filename": file.filename,
+            "inserted": len(rows),
+            "shipment_nos": [row.shipment_no for row in rows[:50]],
         },
         request=request,
     )
     db.commit()
-    return ShipmentSchedulesImportResponse(inserted=len(rows), shipment_nos=[str(row.shipment_no) for row in rows])
+    return ShipmentSchedulesImportResponse(
+        inserted=len(rows), shipment_nos=[str(row.shipment_no) for row in rows]
+    )
 
 
-@router.patch('/shipment-schedules/{schedule_id}', response_model=ShipmentScheduleDetail)
+@router.patch(
+    "/shipment-schedules/{schedule_id}", response_model=ShipmentScheduleDetail
+)
 def update_shipment_schedule(
     schedule_id: int,
     payload: ShipmentScheduleUpdate,
@@ -448,14 +682,25 @@ def update_shipment_schedule(
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> ShipmentScheduleDetail:
-    row = shipment_schedule_service.update_shipment_schedule(db, schedule_id, payload, operator=operator)
+    row = shipment_schedule_service.update_shipment_schedule(
+        db, schedule_id, payload, operator=operator
+    )
+    redis_service.invalidate_shipment_schedule_detail_cache(schedule_id)
+    redis_service.invalidate_shipment_schedules_list_cache()
+    redis_service.invalidate_shipment_schedules_cost_summary_cache()
+    redis_service.invalidate_shipment_sku_summary_cache()
+    redis_service.invalidate_shipment_fba_box_details_cache()
     append_operation_audit_log(
         db,
-        action='shipment_schedules.update',
-        target_type='shipment_schedule',
+        action="shipment_schedules.update",
+        target_type="shipment_schedule",
         target_id=row.id,
         operator=operator,
-        after={'shipment_no': row.shipment_no, 'project_id': row.project_id, 'status': row.shipment_status},
+        after={
+            "shipment_no": row.shipment_no,
+            "project_id": row.project_id,
+            "status": row.shipment_status,
+        },
         request=request,
     )
     db.commit()
@@ -468,32 +713,48 @@ def update_shipment_schedule(
     )
 
 
-@router.delete('/shipment-schedules/{schedule_id}', status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/shipment-schedules/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT
+)
 def delete_shipment_schedule(
     schedule_id: int,
     request: Request,
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
-    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> Response:
     if not is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='仅管理员可删除船期批次')
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="仅管理员可删除船期批次"
+        )
 
     row = shipment_schedule_service.delete_shipment_schedule(db, schedule_id)
+    redis_service.invalidate_shipment_schedule_detail_cache(schedule_id)
+    redis_service.invalidate_shipment_schedules_list_cache()
+    redis_service.invalidate_shipment_schedules_cost_summary_cache()
+    redis_service.invalidate_shipment_sku_summary_cache()
+    redis_service.invalidate_shipment_fba_box_details_cache()
     append_operation_audit_log(
         db,
-        action='shipment_schedules.delete',
-        target_type='shipment_schedule',
+        action="shipment_schedules.delete",
+        target_type="shipment_schedule",
         target_id=row.id,
         operator=operator,
-        before={'shipment_no': row.shipment_no, 'project_id': row.project_id, 'status': row.shipment_status},
+        before={
+            "shipment_no": row.shipment_no,
+            "project_id": row.project_id,
+            "status": row.shipment_status,
+        },
         request=request,
     )
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post('/shipment-schedules/{schedule_id}/items/import-csv', response_model=ShipmentItemsImportResponse)
+@router.post(
+    "/shipment-schedules/{schedule_id}/items/import-csv",
+    response_model=ShipmentItemsImportResponse,
+)
 def import_shipment_schedule_items_csv(
     schedule_id: int,
     request: Request,
@@ -502,32 +763,46 @@ def import_shipment_schedule_items_csv(
     operator: str | None = Depends(get_request_operator),
 ) -> ShipmentItemsImportResponse:
     if not file.filename:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Missing filename')
-    if Path(file.filename).suffix.lower() != '.csv':
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Only .csv file is supported')
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Missing filename"
+        )
+    if Path(file.filename).suffix.lower() != ".csv":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only .csv file is supported",
+        )
 
     content = file.file.read()
     if not content:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='CSV 文件为空')
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="CSV 文件为空"
+        )
 
-    row, inserted, replaced, total_quantity = shipment_schedule_service.replace_shipment_schedule_items_from_csv(
-        db,
-        schedule_id,
-        content,
-        filename=file.filename,
+    row, inserted, replaced, total_quantity = (
+        shipment_schedule_service.replace_shipment_schedule_items_from_csv(
+            db,
+            schedule_id,
+            content,
+            filename=file.filename,
+        )
     )
+    redis_service.invalidate_shipment_schedule_detail_cache(schedule_id)
+    redis_service.invalidate_shipment_schedules_list_cache()
+    redis_service.invalidate_shipment_schedules_cost_summary_cache()
+    redis_service.invalidate_shipment_sku_summary_cache()
+    redis_service.invalidate_shipment_fba_box_details_cache()
     append_operation_audit_log(
         db,
-        action='shipment_schedules.import_items_csv',
-        target_type='shipment_schedule',
+        action="shipment_schedules.import_items_csv",
+        target_type="shipment_schedule",
         target_id=row.id,
         operator=operator,
         after={
-            'shipment_no': row.shipment_no,
-            'filename': file.filename,
-            'inserted': inserted,
-            'replaced': replaced,
-            'total_quantity': total_quantity,
+            "shipment_no": row.shipment_no,
+            "filename": file.filename,
+            "inserted": inserted,
+            "replaced": replaced,
+            "total_quantity": total_quantity,
         },
         request=request,
     )
@@ -541,7 +816,10 @@ def import_shipment_schedule_items_csv(
     )
 
 
-@router.post('/shipment-schedules/{schedule_id}/costs/calculate', response_model=ShipmentScheduleDetail)
+@router.post(
+    "/shipment-schedules/{schedule_id}/costs/calculate",
+    response_model=ShipmentScheduleDetail,
+)
 def calculate_shipment_schedule_costs(
     schedule_id: int,
     payload: ShipmentCostCalculateRequest,
@@ -549,25 +827,32 @@ def calculate_shipment_schedule_costs(
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> ShipmentScheduleDetail:
-    row, sku_count, total_quantity = shipment_schedule_service.calculate_shipment_schedule_costs(
-        db,
-        schedule_id,
-        logistics_unit_price=payload.logistics_unit_price,
+    row, sku_count, total_quantity = (
+        shipment_schedule_service.calculate_shipment_schedule_costs(
+            db,
+            schedule_id,
+            logistics_unit_price=payload.logistics_unit_price,
+        )
     )
+    redis_service.invalidate_shipment_schedule_detail_cache(schedule_id)
+    redis_service.invalidate_shipment_schedules_list_cache()
+    redis_service.invalidate_shipment_schedules_cost_summary_cache()
+    redis_service.invalidate_shipment_sku_summary_cache()
+    redis_service.invalidate_shipment_fba_box_details_cache()
     append_operation_audit_log(
         db,
-        action='shipment_schedules.calculate_costs',
-        target_type='shipment_schedule',
+        action="shipment_schedules.calculate_costs",
+        target_type="shipment_schedule",
         target_id=row.id,
         operator=operator,
         after={
-            'shipment_no': row.shipment_no,
-            'logistics_unit_price': float(row.logistics_unit_price or 0),
-            'total_volume_m3': float(row.total_volume_m3 or 0),
-            'total_chargeable_weight_kg': float(row.total_chargeable_weight_kg or 0),
-            'logistics_total_price': float(row.logistics_total_price or 0),
-            'sku_count': sku_count,
-            'total_quantity': total_quantity,
+            "shipment_no": row.shipment_no,
+            "logistics_unit_price": float(row.logistics_unit_price or 0),
+            "total_volume_m3": float(row.total_volume_m3 or 0),
+            "total_chargeable_weight_kg": float(row.total_chargeable_weight_kg or 0),
+            "logistics_total_price": float(row.logistics_total_price or 0),
+            "sku_count": sku_count,
+            "total_quantity": total_quantity,
         },
         request=request,
     )

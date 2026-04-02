@@ -130,3 +130,8 @@ class InventoryAnalysisResponse(BaseModel):
     summary: InventoryAnalysisSummary
     action_options: list[str]
     items: list[InventoryAnalysisItem]
+
+
+class InventorySnapshotOption(BaseModel):
+    snapshot_at: datetime
+    is_current: bool

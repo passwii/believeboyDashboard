@@ -3,12 +3,13 @@
 import { type ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
-import { RefreshCcw, Upload, FileDown, Plus, Pencil, Trash2, X, ChevronsUpDown, Check } from 'lucide-react'
+import { RefreshCcw, Upload, FileDown, FileSpreadsheet, Plus, Pencil, Trash2, X, ChevronsUpDown, Check } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { DirectionalTabTransition, SlidingTabsTrigger, TabsMotionGroup } from '@/components/ui/tab-motion'
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { CardTitle } from '@/components/ui/card'
+import { DataCard, DataCardHeader, DataCardContent, DataTableCard, DataTableCardHeader, DataTableCardMetrics, DataTableCardBody } from '@/components/ui/data-card'
 import {
   Dialog,
   DialogContent,
@@ -26,10 +27,12 @@ import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
+import { useNotifications } from '@/components/notifications'
 import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { cn, formatLocalTimestampForFilename } from '@/lib/utils'
+import { DENSE_CELL, DENSE_HEAD, DataTableCardStatBar } from '@/components/ui/data-card'
 
 const API_BASE = '/api/backend'
 const HISTORY_SHIPMENT_STATUSES = ['completed', 'in_transit'] as const
@@ -70,6 +73,7 @@ type ShipmentScheduleItemRow = {
   item_date: string | null
   sku: string
   quantity: number
+  carton_count: number | null
   remark: string | null
   volume_m3: number
   actual_weight_kg: number
@@ -172,12 +176,19 @@ type ProjectSkuOption = {
   sku: string
   asin: string
   fnsku: string | null
+  product_name: string | null
+  units_per_carton: number
+  carton_length_cm: number | null
+  carton_width_cm: number | null
+  carton_height_cm: number | null
+  carton_weight_kg: number | null
 }
 
 type EditableShipmentItem = {
   tempId: string
   sku: string
-  quantity: string
+  cartonCount: string
+  originalQuantity: number | null
 }
 
 type ScheduleFormState = {
@@ -410,7 +421,8 @@ function createEmptyEditableShipmentItem(): EditableShipmentItem {
   return {
     tempId: `temp-${Math.random().toString(36).slice(2, 10)}`,
     sku: '',
-    quantity: '',
+    cartonCount: '',
+    originalQuantity: null,
   }
 }
 
@@ -421,7 +433,10 @@ function buildEditableItems(detail: ShipmentScheduleDetail): EditableShipmentIte
   return detail.items.map((item) => ({
     tempId: `item-${item.id}`,
     sku: item.sku,
-    quantity: String(item.quantity),
+    cartonCount: item.carton_count !== undefined && item.carton_count !== null
+      ? String(item.carton_count)
+      : '',
+    originalQuantity: item.quantity,
   }))
 }
 
@@ -430,16 +445,16 @@ function editableItemsChanged(detail: ShipmentScheduleDetail | null, rows: Edita
   const normalizedRows = rows
     .map((item) => ({
       sku: item.sku.trim(),
-      quantity: item.quantity.trim(),
+      originalQuantity: item.originalQuantity,
     }))
-    .filter((item) => item.sku || item.quantity)
+    .filter((item) => item.sku || item.originalQuantity !== null)
 
   if (normalizedRows.length !== detail.items.length) return true
   return normalizedRows.some((item, index) => {
     const source = detail.items[index]
     return (
       item.sku !== source.sku ||
-      item.quantity !== String(source.quantity)
+      item.originalQuantity !== source.quantity
     )
   })
 }
@@ -463,34 +478,51 @@ function SearchableSkuField({
       <Button
         type="button"
         variant="outline"
-        className="h-9 w-full justify-between px-3 font-normal"
+        className="h-7 w-full justify-between px-2 font-normal text-xs"
         onClick={() => setOpen(true)}
       >
         <span className="truncate text-left">
-          {selectedSku ? selectedSku.sku : loading ? 'SKU 加载中...' : '选择 SKU'}
+          {selectedSku ? selectedSku.sku : loading ? '加载中...' : '选择 SKU'}
         </span>
-        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
       </Button>
       <DialogContent className="overflow-hidden p-0 sm:max-w-xl">
         <Command className="max-h-[70vh]">
           <CommandInput placeholder="搜索 SKU" />
           <CommandList>
             <CommandEmpty>{loading ? 'SKU 加载中...' : '没有匹配的 SKU'}</CommandEmpty>
-            {options.map((option) => (
-              <CommandItem
-                key={option.sku}
-                value={option.sku}
-                onSelect={() => {
-                  onChange(option.sku)
-                  setOpen(false)
-                }}
-              >
-                <Check className={cn('h-4 w-4', value === option.sku ? 'opacity-100' : 'opacity-0')} />
-                <div className="flex min-w-0 flex-col">
-                  <span className="truncate">{option.sku}</span>
-                </div>
-              </CommandItem>
-            ))}
+            {options.map((option) => {
+              const missingUnits = !option.units_per_carton || option.units_per_carton <= 0
+              return (
+                <CommandItem
+                  key={option.sku}
+                  value={option.sku}
+                  disabled={missingUnits}
+                  onSelect={() => {
+                    if (!missingUnits) {
+                      onChange(option.sku)
+                      setOpen(false)
+                    }
+                  }}
+                  className={cn(missingUnits && 'opacity-50 cursor-not-allowed')}
+                >
+                  <Check className={cn('h-4 w-4 shrink-0', value === option.sku ? 'opacity-100' : 'opacity-0')} />
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <span className="truncate flex-1 font-medium">{option.sku}</span>
+                    {option.product_name && (
+                      <span className="shrink-0 truncate max-w-[200px] text-muted-foreground text-xs">
+                        {option.product_name}
+                      </span>
+                    )}
+                    {missingUnits && (
+                      <span className="shrink-0 rounded bg-amber-100 px-1 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                        未维护单箱数
+                      </span>
+                    )}
+                  </div>
+                </CommandItem>
+              )
+            })}
           </CommandList>
         </Command>
       </DialogContent>
@@ -628,6 +660,7 @@ function formatDimensionText(length: number, width: number, height: number): str
 export default function ShipmentManagementPage() {
   const { data: session, status } = useSession()
   const searchParams = useSearchParams()
+  const { notify } = useNotifications()
   const isAdmin = Boolean(session?.user?.isAdmin)
   const [activeTab, setActiveTab] = useState<ShipmentPageTab>('overview')
   const [projects, setProjects] = useState<ProjectOption[]>([])
@@ -646,8 +679,6 @@ export default function ShipmentManagementPage() {
   const [skuSummaryLoading, setSkuSummaryLoading] = useState(false)
   const [costSummaryLoading, setCostSummaryLoading] = useState(false)
   const [fbaBoxLoading, setFbaBoxLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [fbaBoxError, setFbaBoxError] = useState<string | null>(null)
 
   const [page, setPage] = useState(1)
   const [pageSize] = useState(20)
@@ -693,7 +724,6 @@ export default function ShipmentManagementPage() {
   const [costExporting, setCostExporting] = useState(false)
   const [skuSummaryExporting, setSkuSummaryExporting] = useState(false)
   const [fbaBoxExporting, setFbaBoxExporting] = useState(false)
-  const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [fbaBoxMeta, setFbaBoxMeta] = useState<{ projectNames: string[]; countries: string[]; shipmentNos: string[] } | null>(null)
   const [fbaBoxItems, setFbaBoxItems] = useState<ShipmentFbaBoxDetailItem[]>([])
 
@@ -731,15 +761,22 @@ export default function ShipmentManagementPage() {
     return normalized.reduce(
       (acc, item) => {
         acc.skuCount += 1
-        const quantity = Number(item.quantity)
-        if (Number.isFinite(quantity) && quantity > 0) {
-          acc.totalQuantity += quantity
+        if (item.originalQuantity !== null) {
+          acc.totalQuantity += item.originalQuantity
+        } else {
+          const cartonCount = Number(item.cartonCount)
+          const selectedSku = projectSkuOptions.find((o) => o.sku === item.sku)
+          const unitsPerCarton = selectedSku?.units_per_carton ?? 0
+          const computedQty = (Number.isFinite(cartonCount) && cartonCount > 0 && unitsPerCarton > 0)
+            ? cartonCount * unitsPerCarton
+            : (Number.isFinite(cartonCount) && cartonCount > 0 ? cartonCount : 0)
+          acc.totalQuantity += computedQty
         }
         return acc
       },
       { skuCount: 0, totalQuantity: 0 }
     )
-  }, [editableItems])
+  }, [editableItems, projectSkuOptions])
 
   const hasPendingItemChanges = useMemo(
     () => editableItemsChanged(detail, editableItems),
@@ -768,35 +805,35 @@ export default function ShipmentManagementPage() {
 
   const fbaBoxWarehouseGroups = useMemo(() => {
     const groups: { shipmentNo: string; warehouseCode: string | null; startIndex: number; endIndex: number }[] = []
-    let currentShipmentNo: string | null = null
-    let currentWarehouse: string | null = null
+    if (fbaBoxItems.length === 0) return groups
+
+    // Initialize with the first item so null warehouse_code is handled correctly
+    let currentShipmentNo = fbaBoxItems[0].shipment_no
+    let currentWarehouse: string | null = fbaBoxItems[0].warehouse_code
     let startIndex = 0
 
     fbaBoxItems.forEach((item, index) => {
+      if (index === 0) return // skip first, already initialized
       const warehouse = item.warehouse_code
       if (warehouse !== currentWarehouse || item.shipment_no !== currentShipmentNo) {
-        if (currentWarehouse !== null && currentShipmentNo !== null) {
-          groups.push({
-            shipmentNo: currentShipmentNo,
-            warehouseCode: currentWarehouse,
-            startIndex,
-            endIndex: index - 1,
-          })
-        }
+        groups.push({
+          shipmentNo: currentShipmentNo,
+          warehouseCode: currentWarehouse,
+          startIndex,
+          endIndex: index - 1,
+        })
         currentShipmentNo = item.shipment_no
         currentWarehouse = warehouse
         startIndex = index
       }
     })
 
-    if (currentWarehouse !== null && currentShipmentNo !== null) {
-      groups.push({
-        shipmentNo: currentShipmentNo,
-        warehouseCode: currentWarehouse,
-        startIndex,
-        endIndex: fbaBoxItems.length - 1,
-      })
-    }
+    groups.push({
+      shipmentNo: currentShipmentNo,
+      warehouseCode: currentWarehouse,
+      startIndex,
+      endIndex: fbaBoxItems.length - 1,
+    })
 
     return groups
   }, [fbaBoxItems])
@@ -814,7 +851,7 @@ export default function ShipmentManagementPage() {
         setProjectFilter(String(payload[0].id))
       }
     } catch (loadError) {
-      setError(normalizeErrorMessage(loadError, '项目列表加载失败'))
+      notify({ type: 'error', title: normalizeErrorMessage(loadError, '项目列表加载失败') })
     } finally {
       setProjectsLoading(false)
     }
@@ -848,7 +885,17 @@ export default function ShipmentManagementPage() {
         if (!response.ok) throw new Error(await parseError(response))
 
         const payload = (await response.json()) as {
-          items: Array<{ sku: string; asin: string; fnsku: string | null }>
+          items: Array<{
+            sku: string
+            asin: string
+            fnsku: string | null
+            product_name: string | null
+            units_per_carton: number
+            carton_length_cm: number | null
+            carton_width_cm: number | null
+            carton_height_cm: number | null
+            carton_weight_kg: number | null
+          }>
           has_next: boolean
         }
         allItems.push(
@@ -856,6 +903,12 @@ export default function ShipmentManagementPage() {
             sku: item.sku,
             asin: item.asin,
             fnsku: item.fnsku,
+            product_name: item.product_name,
+            units_per_carton: item.units_per_carton,
+            carton_length_cm: item.carton_length_cm,
+            carton_width_cm: item.carton_width_cm,
+            carton_height_cm: item.carton_height_cm,
+            carton_weight_kg: item.carton_weight_kg,
           }))
         )
         hasNextPage = payload.has_next
@@ -865,7 +918,7 @@ export default function ShipmentManagementPage() {
       setProjectSkuOptions(allItems)
     } catch (loadError) {
       setProjectSkuOptions([])
-      setError(normalizeErrorMessage(loadError, '项目 SKU 列表加载失败'))
+      notify({ type: 'error', title: normalizeErrorMessage(loadError, '项目 SKU 列表加载失败') })
     } finally {
       setProjectSkuLoading(false)
     }
@@ -873,7 +926,6 @@ export default function ShipmentManagementPage() {
 
   const loadList = useCallback(async (targetPage: number) => {
     setLoading(true)
-    setError(null)
     try {
       const params = new URLSearchParams({
         page: String(targetPage),
@@ -904,7 +956,7 @@ export default function ShipmentManagementPage() {
         return payload.items[0].id
       })
     } catch (loadError) {
-      setError(normalizeErrorMessage(loadError, '船期列表加载失败'))
+      notify({ type: 'error', title: normalizeErrorMessage(loadError, '船期列表加载失败') })
       setItems([])
     } finally {
       setLoading(false)
@@ -982,7 +1034,6 @@ export default function ShipmentManagementPage() {
 
   const loadSkuSummary = useCallback(async () => {
     setSkuSummaryLoading(true)
-    setError(null)
     try {
       const params = new URLSearchParams({
         include_only_history_calc: 'true',
@@ -999,7 +1050,7 @@ export default function ShipmentManagementPage() {
       setSkuSummaryItems(payload.items)
     } catch (loadError) {
       setSkuSummaryItems([])
-      setError(normalizeErrorMessage(loadError, 'SKU 汇总加载失败'))
+      notify({ type: 'error', title: normalizeErrorMessage(loadError, 'SKU 汇总加载失败') })
     } finally {
       setSkuSummaryLoading(false)
     }
@@ -1007,7 +1058,6 @@ export default function ShipmentManagementPage() {
 
   const loadCostSummary = useCallback(async () => {
     setCostSummaryLoading(true)
-    setError(null)
     try {
       const params = new URLSearchParams()
       if (projectFilter !== 'all') params.set('project_id', projectFilter)
@@ -1032,7 +1082,7 @@ export default function ShipmentManagementPage() {
         total_chargeable_weight_kg: 0,
         total_logistics_cost: 0,
       })
-      setError(normalizeErrorMessage(loadError, '发货费用汇总加载失败'))
+      notify({ type: 'error', title: normalizeErrorMessage(loadError, '发货费用汇总加载失败') })
     } finally {
       setCostSummaryLoading(false)
     }
@@ -1040,7 +1090,6 @@ export default function ShipmentManagementPage() {
 
   const loadFbaBoxDetails = useCallback(async (shipmentNos: string[]) => {
     setFbaBoxLoading(true)
-    setFbaBoxError(null)
     try {
       const params = new URLSearchParams()
       shipmentNos.forEach((shipmentNo) => params.append('shipment_no', shipmentNo))
@@ -1059,7 +1108,7 @@ export default function ShipmentManagementPage() {
     } catch (loadError) {
       setFbaBoxMeta(null)
       setFbaBoxItems([])
-      setFbaBoxError(normalizeErrorMessage(loadError, 'FBA 箱单明细加载失败'))
+      notify({ type: 'error', title: normalizeErrorMessage(loadError, 'FBA 箱单明细加载失败') })
     } finally {
       setFbaBoxLoading(false)
     }
@@ -1110,7 +1159,6 @@ export default function ShipmentManagementPage() {
     if (selectedShipmentNoFilter.length === 0) {
       setFbaBoxMeta(null)
       setFbaBoxItems([])
-      setFbaBoxError(null)
       return
     }
     void loadFbaBoxDetails(selectedShipmentNoFilter)
@@ -1245,6 +1293,16 @@ export default function ShipmentManagementPage() {
       setItems((current) =>
         current.map((item) => (item.id === payload.id ? { ...item, ...payload } : item))
       )
+      // Sync carton_count back into editableItems after calculation
+      setEditableItems((current) =>
+        current.map((editableItem) => {
+          const updatedItem = payload.items.find((p) => p.sku === editableItem.sku)
+          if (updatedItem?.carton_count !== undefined && updatedItem?.carton_count !== null) {
+            return { ...editableItem, cartonCount: String(updatedItem.carton_count) }
+          }
+          return editableItem
+        })
+      )
       const rows = payload.items.map((item) => ({
         id: item.id,
         sku: item.sku,
@@ -1267,42 +1325,52 @@ export default function ShipmentManagementPage() {
 
   const submitForm = async () => {
     if (!form.project_id) {
-      setError('请选择项目')
+      notify({ type: 'error', title: '请选择项目' })
       return
     }
     if (!form.shipment_no.trim()) {
-      setError('请输入货件编号')
+      notify({ type: 'error', title: '请输入货件编号' })
       return
     }
     const normalizedEditableItems =
       dialogMode === 'edit'
         ? editableItems
-            .map((item, index) => ({
-              index,
-              sku: item.sku.trim(),
-              quantity: item.quantity.trim(),
-            }))
-            .filter((item) => item.sku || item.quantity)
+            .map((item, index) => {
+              let quantity: number
+              let cartonCount: number | null = null
+              if (item.originalQuantity !== null) {
+                // 历史数据：直接用原始数量，不改 carton_count
+                quantity = item.originalQuantity
+              } else {
+                // 新数据：装箱率 × 外箱数
+                const selectedSku = projectSkuOptions.find((o) => o.sku === item.sku.trim())
+                const unitsPerCarton = selectedSku?.units_per_carton ?? 0
+                const cartonCountNum = Number(item.cartonCount.trim())
+                if (Number.isFinite(cartonCountNum) && cartonCountNum > 0) {
+                  cartonCount = cartonCountNum
+                  quantity = unitsPerCarton > 0 ? cartonCountNum * unitsPerCarton : cartonCountNum
+                } else {
+                  quantity = 0
+                }
+              }
+              return { index, sku: item.sku.trim(), quantity, cartonCount }
+            })
+            .filter((item) => item.sku || item.quantity > 0)
         : []
 
     if (dialogMode === 'edit') {
       const seenSkus = new Set<string>()
       for (const item of normalizedEditableItems) {
         if (!item.sku) {
-          setError(`第 ${item.index + 1} 行请选择 SKU`)
+          notify({ type: 'error', title: `第 ${item.index + 1} 行请选择 SKU` })
           return
         }
-        if (!item.quantity) {
-          setError(`第 ${item.index + 1} 行请输入数量`)
-          return
-        }
-        const quantity = Number(item.quantity)
-        if (!Number.isInteger(quantity) || quantity <= 0) {
-          setError(`第 ${item.index + 1} 行数量必须是大于 0 的整数`)
+        if (item.quantity <= 0) {
+          notify({ type: 'error', title: `第 ${item.index + 1} 行请输入有效的数量` })
           return
         }
         if (seenSkus.has(item.sku)) {
-          setError(`SKU 明细中存在重复 SKU：${item.sku}`)
+          notify({ type: 'error', title: `SKU 明细中存在重复 SKU：${item.sku}` })
           return
         }
         seenSkus.add(item.sku)
@@ -1310,8 +1378,6 @@ export default function ShipmentManagementPage() {
     }
 
     setSubmitting(true)
-    setError(null)
-    setSuccessMessage(null)
     try {
       const payload = {
         ...form,
@@ -1359,6 +1425,7 @@ export default function ShipmentManagementPage() {
                   ? normalizedEditableItems.map((item) => ({
                       sku: item.sku,
                       quantity: Number(item.quantity),
+                      carton_count: item.cartonCount,
                     }))
                   : undefined,
             }
@@ -1376,12 +1443,12 @@ export default function ShipmentManagementPage() {
       const saved = (await response.json()) as ShipmentScheduleDetail
       setDialogOpen(false)
       setSelectedId(saved.id)
-      setSuccessMessage(dialogMode === 'create' ? '船期记录已创建' : '船期记录已更新')
+      notify({ type: 'success', title: dialogMode === 'create' ? '船期记录已创建' : '船期记录已更新' })
       await loadList(dialogMode === 'create' ? 1 : page)
       await loadSkuSummary()
       await loadDetail(saved.id)
     } catch (submitError) {
-      setError(normalizeErrorMessage(submitError, '保存失败'))
+      notify({ type: 'error', title: normalizeErrorMessage(submitError, '保存失败') })
     } finally {
       setSubmitting(false)
     }
@@ -1441,8 +1508,6 @@ export default function ShipmentManagementPage() {
     if (!file || !selectedId) return
 
     setImporting(true)
-    setError(null)
-    setSuccessMessage(null)
     try {
       const formData = new FormData()
       formData.append('file', file)
@@ -1458,7 +1523,7 @@ export default function ShipmentManagementPage() {
         replaced: number
         total_quantity: number
       }
-      setSuccessMessage(`明细导入完成：新增 ${payload.inserted} 行，替换旧数据 ${payload.replaced} 行，总数量 ${payload.total_quantity}`)
+      notify({ type: 'success', title: `明细导入完成：新增 ${payload.inserted} 行，替换旧数据 ${payload.replaced} 行，总数量 ${payload.total_quantity}` })
       await loadList(page)
       await loadSkuSummary()
       const refreshedDetail = await loadDetail(selectedId)
@@ -1466,7 +1531,7 @@ export default function ShipmentManagementPage() {
         syncEditDialogFromDetail(refreshedDetail)
       }
     } catch (importError) {
-      setError(normalizeErrorMessage(importError, 'CSV 导入失败'))
+      notify({ type: 'error', title: normalizeErrorMessage(importError, 'CSV 导入失败') })
     } finally {
       setImporting(false)
     }
@@ -1478,8 +1543,6 @@ export default function ShipmentManagementPage() {
     if (!file) return
 
     setBatchImporting(true)
-    setError(null)
-    setSuccessMessage(null)
     try {
       const formData = new FormData()
       formData.append('file', file)
@@ -1493,11 +1556,11 @@ export default function ShipmentManagementPage() {
       const payload = (await response.json()) as ShipmentSchedulesImportResponse
       const preview = payload.shipment_nos.slice(0, 5).join('、')
       const suffix = payload.shipment_nos.length > 5 ? ` 等 ${payload.shipment_nos.length} 个批次` : ''
-      setSuccessMessage(`批量导入完成：新增 ${payload.inserted} 个发货批次${preview ? `（${preview}${suffix}）` : ''}`)
+      notify({ type: 'success', title: `批量导入完成：新增 ${payload.inserted} 个发货批次${preview ? `（${preview}${suffix}）` : ''}` })
       await loadList(1)
       await loadSkuSummary()
     } catch (importError) {
-      setError(normalizeErrorMessage(importError, '批量导入失败'))
+      notify({ type: 'error', title: normalizeErrorMessage(importError, '批量导入失败') })
     } finally {
       setBatchImporting(false)
     }
@@ -1507,8 +1570,6 @@ export default function ShipmentManagementPage() {
     if (!isAdmin || !detail) return
 
     setDeleting(true)
-    setError(null)
-    setSuccessMessage(null)
     try {
       const response = await fetch(`${API_BASE}/api/v1/shipment-schedules/${detail.id}`, {
         method: 'DELETE',
@@ -1522,11 +1583,11 @@ export default function ShipmentManagementPage() {
       setDetail(null)
       setDetailError(null)
       setSelectedId(null)
-      setSuccessMessage(`船期批次 ${deletedShipmentNo} 已删除`)
+      notify({ type: 'success', title: `船期批次 ${deletedShipmentNo} 已删除` })
       await loadList(1)
       await loadSkuSummary()
     } catch (deleteError) {
-      setError(normalizeErrorMessage(deleteError, '删除失败'))
+      notify({ type: 'error', title: normalizeErrorMessage(deleteError, '删除失败') })
     } finally {
       setDeleting(false)
     }
@@ -1534,12 +1595,11 @@ export default function ShipmentManagementPage() {
 
   const exportOverviewToExcel = async () => {
     if (items.length === 0) {
-      setError('当前没有可导出的船期批次数据')
+      notify({ type: 'error', title: '当前没有可导出的船期批次数据' })
       return
     }
 
     setExporting(true)
-    setError(null)
     try {
       const ExcelJS = await import('exceljs')
       const workbook = new ExcelJS.Workbook()
@@ -1701,7 +1761,7 @@ export default function ShipmentManagementPage() {
         },
       })
     } catch (exportError) {
-      setError(normalizeErrorMessage(exportError, '导出 Excel 失败'))
+      notify({ type: 'error', title: normalizeErrorMessage(exportError, '导出 Excel 失败') })
     } finally {
       setExporting(false)
     }
@@ -1709,12 +1769,11 @@ export default function ShipmentManagementPage() {
 
   const exportCostToExcel = async () => {
     if (items.length === 0) {
-      setError('当前没有可导出的发货费用数据')
+      notify({ type: 'error', title: '当前没有可导出的发货费用数据' })
       return
     }
 
     setCostExporting(true)
-    setError(null)
     try {
       const ExcelJS = await import('exceljs')
       const workbook = new ExcelJS.Workbook()
@@ -1877,7 +1936,7 @@ export default function ShipmentManagementPage() {
         },
       })
     } catch (exportError) {
-      setError(normalizeErrorMessage(exportError, '导出 Excel 失败'))
+      notify({ type: 'error', title: normalizeErrorMessage(exportError, '导出 Excel 失败') })
     } finally {
       setCostExporting(false)
     }
@@ -1885,12 +1944,11 @@ export default function ShipmentManagementPage() {
 
   const exportSkuSummaryToExcel = async () => {
     if (skuSummaryItems.length === 0) {
-      setError('当前没有可导出的 SKU 汇总数据')
+      notify({ type: 'error', title: '当前没有可导出的 SKU 汇总数据' })
       return
     }
 
     setSkuSummaryExporting(true)
-    setError(null)
     try {
       const ExcelJS = await import('exceljs')
       const workbook = new ExcelJS.Workbook()
@@ -2033,7 +2091,7 @@ export default function ShipmentManagementPage() {
         },
       })
     } catch (exportError) {
-      setError(normalizeErrorMessage(exportError, '导出 Excel 失败'))
+      notify({ type: 'error', title: normalizeErrorMessage(exportError, '导出 Excel 失败') })
     } finally {
       setSkuSummaryExporting(false)
     }
@@ -2041,12 +2099,11 @@ export default function ShipmentManagementPage() {
 
   const exportFbaBoxDetailsToExcel = async () => {
     if (fbaBoxItems.length === 0 || !fbaBoxMeta) {
-      setFbaBoxError('当前没有可导出的 FBA 箱单明细')
+      notify({ type: 'error', title: '当前没有可导出的 FBA 箱单明细' })
       return
     }
 
     setFbaBoxExporting(true)
-    setFbaBoxError(null)
     try {
       const ExcelJS = await import('exceljs')
       const workbook = new ExcelJS.Workbook()
@@ -2194,9 +2251,137 @@ export default function ShipmentManagementPage() {
         },
       })
     } catch (exportError) {
-      setFbaBoxError(normalizeErrorMessage(exportError, '导出 Excel 失败'))
+      notify({ type: 'error', title: normalizeErrorMessage(exportError, '导出 Excel 失败') })
     } finally {
       setFbaBoxExporting(false)
+    }
+  }
+
+  // FBA发货模板导出 (Create workflow – template)
+  const exportFbaDeliveryTemplateToExcel = async () => {
+    if (!detail) {
+      notify({ type: 'error', title: '请先选择一个船期批次' })
+      return
+    }
+
+    setExporting(true)
+    try {
+      const ExcelJS = await import('exceljs')
+      const workbook = new ExcelJS.Workbook()
+      workbook.creator = 'Codex'
+      workbook.created = new Date()
+
+      // Sheet name: Create workflow – template
+      const worksheet = workbook.addWorksheet('Create workflow – template', {
+        views: [{ state: 'frozen', ySplit: 1 }],
+      })
+
+      // 列定义：Merchant SKU, Quantity, Units per box, Number of boxes, Box length (in), Box width (in), Box height (in), Box weight (lb)
+      const columns = [
+        { header: 'Merchant SKU', key: 'merchant_sku', width: 24 },
+        { header: 'Quantity', key: 'quantity', width: 12 },
+        { header: 'Units per box', key: 'units_per_box', width: 14 },
+        { header: 'Number of boxes', key: 'number_of_boxes', width: 16 },
+        { header: 'Box length (in)', key: 'box_length_in', width: 16 },
+        { header: 'Box width (in)', key: 'box_width_in', width: 16 },
+        { header: 'Box height (in)', key: 'box_height_in', width: 16 },
+        { header: 'Box weight (lb)', key: 'box_weight_lb', width: 14 },
+      ] as const
+
+      worksheet.columns = columns.map((c) => ({ header: c.header, key: c.key, width: c.width }))
+
+      // 设置表头样式
+      const headerRow = worksheet.getRow(1)
+      headerRow.height = 22
+      headerRow.eachCell((cell) => {
+        cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
+        cell.alignment = { vertical: 'middle', horizontal: 'center' }
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        }
+      })
+
+      // cm to inches: 1 inch = 2.54 cm
+      // kg to lb: 1 kg = 2.20462 lb
+      const CM_TO_INCH = 2.54
+      const KG_TO_LB = 2.20462
+
+      // Build SKU info map from product costs (projectSkuOptions already loaded)
+      const skuInfoMap = new Map<string, (typeof projectSkuOptions)[0]>()
+      for (const opt of projectSkuOptions) {
+        skuInfoMap.set(opt.sku, opt)
+      }
+
+      // Build editable carton_count map: tempId → cartonCount string
+      const editableCartonMap = new Map<string, string>()
+      for (const item of editableItems) {
+        editableCartonMap.set(item.sku, item.cartonCount)
+      }
+
+      detail.items.forEach((item, index) => {
+        const row = worksheet.getRow(index + 2)
+        const skuInfo = skuInfoMap.get(item.sku)
+        const userCartonCount = editableCartonMap.get(item.sku)
+        const cartonCount = userCartonCount && Number(userCartonCount) > 0
+          ? Number(userCartonCount)
+          : (item.carton_count ?? 0)
+        const unitsPerBox = skuInfo?.units_per_carton ?? 0
+        const boxLengthIn = skuInfo?.carton_length_cm ? Number((skuInfo.carton_length_cm / CM_TO_INCH).toFixed(2)) : ''
+        const boxWidthIn = skuInfo?.carton_width_cm ? Number((skuInfo.carton_width_cm / CM_TO_INCH).toFixed(2)) : ''
+        const boxHeightIn = skuInfo?.carton_height_cm ? Number((skuInfo.carton_height_cm / CM_TO_INCH).toFixed(2)) : ''
+        const boxWeightLb = skuInfo?.carton_weight_kg ? Number((skuInfo.carton_weight_kg * KG_TO_LB).toFixed(2)) : ''
+
+        row.values = [
+          item.sku,
+          item.quantity,
+          unitsPerBox > 0 ? unitsPerBox : '',
+          cartonCount > 0 ? cartonCount : '',
+          boxLengthIn,
+          boxWidthIn,
+          boxHeightIn,
+          boxWeightLb,
+        ]
+        row.height = 18
+        row.eachCell((cell, colNumber) => {
+          cell.font = { name: 'Microsoft YaHei', size: 9, color: { argb: 'FF0F172A' } }
+          cell.alignment = { vertical: 'middle', horizontal: colNumber >= 5 ? 'right' : 'left' }
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          }
+        })
+      })
+
+      const buffer = await workbook.xlsx.writeBuffer()
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `FBA发货模板-${detail.shipment_no}.xlsx`
+      link.click()
+      window.URL.revokeObjectURL(url)
+
+      await logClientOperation({
+        action: 'shipment_schedules.fba_delivery_template.export',
+        targetType: 'shipment_schedule',
+        after: {
+          shipment_no: detail.shipment_no,
+          row_count: detail.items.length,
+          filename: link.download,
+        },
+      })
+    } catch (exportError) {
+      notify({ type: 'error', title: normalizeErrorMessage(exportError, '导出 FBA 发货模板失败') })
+    } finally {
+      setExporting(false)
     }
   }
 
@@ -2204,16 +2389,9 @@ export default function ShipmentManagementPage() {
 
   return (
     <div className="min-w-0 space-y-6 text-foreground">
-      <Card className="dashboard-surface">
-        <CardHeader className="gap-4 pb-5">
-          <div className="flex flex-col gap-4">
-            <div className="space-y-2">
-              
-              <CardTitle className="text-2xl tracking-tight">控制台</CardTitle>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_auto] xl:gap-5">
+      <DataCard>
+        <DataCardHeader title="控制台" titleClassName="text-2xl tracking-tight" />
+        <DataCardContent className="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_auto] xl:gap-5">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 xl:col-span-1">
           {projectsLoading ? (
             <ShipmentControlSkeleton />
@@ -2304,15 +2482,8 @@ export default function ShipmentManagementPage() {
               </Button>
             </div>
           </div>
-        </CardContent>
-      </Card>
-
-      {error ? (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900/70 dark:bg-rose-950/40 dark:text-rose-200">{error}</div>
-      ) : null}
-      {successMessage ? (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/40 dark:text-emerald-200">{successMessage}</div>
-      ) : null}
+        </DataCardContent>
+      </DataCard>
 
       <div className="grid min-w-0 gap-6">
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ShipmentPageTab)} className="min-w-0 w-full">
@@ -2330,33 +2501,32 @@ export default function ShipmentManagementPage() {
           <DirectionalTabTransition value={activeTab} order={SHIPMENT_TAB_ORDER}>
           <TabsContent forceMount value={activeTab} className="mt-0 min-w-0">
           {activeTab === 'overview' ? (
-            <Card className="dashboard-surface min-w-0">
-              <CardHeader className="border-b border-border/70 bg-[hsl(var(--surface-subtle))]">
-                <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div>
-                    
-                    <CardTitle>船期批次总览</CardTitle>
-                    <CardDescription>
-                      共 {total} 条记录，当前第 {page} / {pageCount} 页
-                    </CardDescription>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button variant="outline" disabled={loading || exporting || items.length === 0} onClick={() => void exportOverviewToExcel()}>
-                      <FileDown className="h-4 w-4" />
-                      {exporting ? '导出中...' : '导出 Excel'}
-                    </Button>
-                    <Button variant="outline" disabled={page <= 1 || loading} onClick={() => void loadList(page - 1)}>
-                      上一页
-                    </Button>
-                    <Button variant="outline" disabled={!hasNext || loading} onClick={() => void loadList(page + 1)}>
-                      下一页
-                    </Button>
-                  </div>
+            <DataTableCard className="min-w-0">
+              {/* 上半部分：标题 + 按钮 */}
+              <DataTableCardHeader className="flex min-w-0 flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <CardTitle className="text-base">船期批次总览</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    共 {total} 条记录，当前第 {page} / {pageCount} 页
+                  </p>
                 </div>
-              </CardHeader>
-              <CardContent className="p-0">
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" disabled={loading || exporting || items.length === 0} onClick={() => void exportOverviewToExcel()}>
+                    <FileDown className="h-4 w-4" />
+                    {exporting ? '导出中...' : '导出 Excel'}
+                  </Button>
+                  <Button variant="outline" disabled={page <= 1 || loading} onClick={() => void loadList(page - 1)}>
+                    上一页
+                  </Button>
+                  <Button variant="outline" disabled={!hasNext || loading} onClick={() => void loadList(page + 1)}>
+                    下一页
+                  </Button>
+                </div>
+              </DataTableCardHeader>
+              {/* 下半部分：表格 */}
+              <DataTableCardBody>
                 {items.length === 0 && !loading ? (
-                  <div className="rounded-[28px] border border-dashed border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-14 text-center text-sm text-muted-foreground">
+                  <div className="m-4 rounded-lg border border-dashed border-border/70 bg-[hsl(var(--surface-subtle))] py-14 text-center text-sm text-muted-foreground">
                     当前没有符合筛选条件的船期记录。
                   </div>
                 ) : (
@@ -2369,18 +2539,18 @@ export default function ShipmentManagementPage() {
                     <Table containerClassName={TABLE_SCROLL_CONTAINER_CLASS} className="w-full min-w-[1080px]">
                       <TableHeader>
                         <TableRow className="bg-[hsl(var(--surface-subtle))]">
-                          <TableHead className="w-[90px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0">项目</TableHead>
-                          <TableHead className="w-[72px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0">国家</TableHead>
-                          <TableHead className="w-[90px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0">发货时间</TableHead>
-                          <TableHead className="w-[120px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0">货件编号</TableHead>
-                          <TableHead className="w-[70px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0">状态</TableHead>
-                          <TableHead className="w-[80px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0">货代</TableHead>
-                          <TableHead className="w-[70px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0">仓库</TableHead>
-                          <TableHead className="w-[90px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0">ETD</TableHead>
-                          <TableHead className="w-[90px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0">ETA</TableHead>
-                          <TableHead className="w-[50px] whitespace-nowrap border-r border-border/70 text-right text-sm last:border-r-0">SKU</TableHead>
-                          <TableHead className="w-[60px] whitespace-nowrap border-r border-border/70 text-right text-sm last:border-r-0">数量</TableHead>
-                          <TableHead className="w-[60px] whitespace-nowrap text-sm">操作</TableHead>
+                          <TableHead className={`w-[90px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0 ${DENSE_HEAD}`}>项目</TableHead>
+                          <TableHead className={`w-[72px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0 ${DENSE_HEAD}`}>国家</TableHead>
+                          <TableHead className={`w-[90px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0 ${DENSE_HEAD}`}>发货时间</TableHead>
+                          <TableHead className={`w-[120px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0 ${DENSE_HEAD}`}>货件编号</TableHead>
+                          <TableHead className={`w-[70px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0 ${DENSE_HEAD}`}>状态</TableHead>
+                          <TableHead className={`w-[80px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0 ${DENSE_HEAD}`}>货代</TableHead>
+                          <TableHead className={`w-[70px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0 ${DENSE_HEAD}`}>仓库</TableHead>
+                          <TableHead className={`w-[90px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0 ${DENSE_HEAD}`}>ETD</TableHead>
+                          <TableHead className={`w-[90px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0 ${DENSE_HEAD}`}>ETA</TableHead>
+                          <TableHead className={`w-[50px] whitespace-nowrap border-r border-border/70 text-right text-sm last:border-r-0 ${DENSE_HEAD}`}>SKU</TableHead>
+                          <TableHead className={`w-[60px] whitespace-nowrap border-r border-border/70 text-right text-sm last:border-r-0 ${DENSE_HEAD}`}>数量</TableHead>
+                          <TableHead className={`w-[60px] whitespace-nowrap text-sm ${DENSE_HEAD}`}>操作</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -2390,24 +2560,24 @@ export default function ShipmentManagementPage() {
                           const country = countryMeta(item.country)
                           return (
                               <TableRow key={item.id} className={item.id === selectedId ? 'bg-primary/8 dark:bg-primary/10' : ''}>
-                              <TableCell className="border-r border-border/60 text-sm font-medium">{item.project_name}</TableCell>
-                              <TableCell className="border-r border-border/60 text-sm">
+                              <TableCell className={`border-r border-border/60 text-sm font-medium ${DENSE_CELL}`}>{item.project_name}</TableCell>
+                              <TableCell className={`border-r border-border/60 text-sm ${DENSE_CELL}`}>
                                 <Badge className={`${country.className} h-5 px-2 text-[11px]`}>
                                   {country.label}
                                 </Badge>
                               </TableCell>
-                              <TableCell className="border-r border-border/60 text-sm">{formatDate(item.created_date)}</TableCell>
-                              <TableCell className="border-r border-border/60 text-sm font-medium">{item.shipment_no}</TableCell>
-                              <TableCell className="border-r border-border/60">
+                              <TableCell className={`border-r border-border/60 text-sm ${DENSE_CELL}`}>{formatDate(item.created_date)}</TableCell>
+                              <TableCell className={`border-r border-border/60 text-sm font-medium ${DENSE_CELL}`}>{item.shipment_no}</TableCell>
+                              <TableCell className={`border-r border-border/60 ${DENSE_CELL}`}>
                                 <Badge className={`${status.className} text-[11px] py-0 h-5`}>{status.label}</Badge>
                               </TableCell>
-                              <TableCell className="border-r border-border/60 text-sm">{item.forwarder_name || '-'}</TableCell>
-                              <TableCell className="border-r border-border/60 text-sm">{item.warehouse_code || '-'}</TableCell>
-                              <TableCell className="border-r border-border/60 text-sm">{formatDate(item.etd_date)}</TableCell>
-                              <TableCell className="border-r border-border/60 text-sm">{formatDate(item.eta_date)}</TableCell>
-                              <TableCell className="border-r border-border/60 text-right text-sm">{item.sku_count}</TableCell>
-                              <TableCell className="border-r border-border/60 text-right text-sm">{item.total_quantity.toLocaleString()}</TableCell>
-                              <TableCell>
+                              <TableCell className={`border-r border-border/60 text-sm ${DENSE_CELL}`}>{item.forwarder_name || '-'}</TableCell>
+                              <TableCell className={`border-r border-border/60 text-sm ${DENSE_CELL}`}>{item.warehouse_code || '-'}</TableCell>
+                              <TableCell className={`border-r border-border/60 text-sm ${DENSE_CELL}`}>{formatDate(item.etd_date)}</TableCell>
+                              <TableCell className={`border-r border-border/60 text-sm ${DENSE_CELL}`}>{formatDate(item.eta_date)}</TableCell>
+                              <TableCell className={`border-r border-border/60 text-right text-sm ${DENSE_CELL}`}>{item.sku_count}</TableCell>
+                              <TableCell className={`border-r border-border/60 text-right text-sm ${DENSE_CELL}`}>{item.total_quantity.toLocaleString()}</TableCell>
+                              <TableCell className={DENSE_CELL}>
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -2427,78 +2597,58 @@ export default function ShipmentManagementPage() {
                     </Table>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </DataTableCardBody>
+            </DataTableCard>
           ) : activeTab === 'cost' ? (
-            <Card className="dashboard-surface min-w-0">
-              <CardHeader className="border-b border-border/70 bg-[hsl(var(--surface-subtle))]">
-                <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                  <div className="min-w-0">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Shipping Cost</div>
-                    <CardTitle>发货费用</CardTitle>
-                    
-                  </div>
-                  <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-center xl:justify-end">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end xl:flex-nowrap">
-                      <div className="min-w-[220px] space-y-1">
-                        <div className="text-[11px] font-medium text-muted-foreground">日期范围</div>
-                        <DateRangePicker
-                          value={parseDateRangeInputValue(shipmentDateFrom, shipmentDateTo)}
-                          onChange={(range) => {
-                            setShipmentDateFrom(formatPickerDateInputValue(range?.from))
-                            setShipmentDateTo(formatPickerDateInputValue(range?.to))
-                          }}
-                          className="h-9 w-full"
-                        />
-                      </div>
-                      <Button variant="outline" disabled={loading || costExporting || items.length === 0} onClick={() => void exportCostToExcel()}>
-                        <FileDown className="h-4 w-4" />
-                        {costExporting ? '导出中...' : '导出 Excel'}
-                      </Button>
-                    </div>
-                    <div className="grid min-w-0 grid-cols-2 gap-2 md:grid-cols-4 xl:shrink-0">
-                      {costSummaryLoading ? (
-                        <>
-                          <ShipmentMetricSkeleton />
-                          <ShipmentMetricSkeleton />
-                          <ShipmentMetricSkeleton />
-                          <ShipmentMetricSkeleton />
-                        </>
-                      ) : (
-                        <>
-                          <div className="rounded-2xl border border-sky-500/15 bg-sky-500/5 px-4 py-3 dark:bg-sky-500/10">
-                            <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">批次</div>
-                            <div className="mt-1 text-xl font-semibold">{costSummary.shipment_count}</div>
-                          </div>
-                          <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/5 px-4 py-3 dark:bg-emerald-500/10">
-                            <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">数量</div>
-                            <div className="mt-1 text-xl font-semibold">
-                              {costSummary.total_quantity.toLocaleString()}
-                            </div>
-                          </div>
-                          <div className="rounded-2xl border border-amber-500/15 bg-amber-500/5 px-4 py-3 dark:bg-amber-500/10">
-                            <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">重量</div>
-                            <div className="mt-1 text-xl font-semibold">
-                              {formatDecimal(costSummary.total_chargeable_weight_kg)}
-                            </div>
-                          </div>
-                          <div className="rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3 dark:bg-primary/10">
-                            <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">总运费</div>
-                            <div className="mt-1 text-xl font-semibold">
-                              {`¥ ${formatDecimal(costSummary.total_logistics_cost, 2)}`}
-                            </div>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
+            <DataTableCard className="min-w-0">
+              {/* Row1: 标题 + 筛选/按钮 */}
+              <DataTableCardHeader className="flex min-w-0 flex-col gap-3 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Shipping Cost</div>
+                  <CardTitle>发货费用</CardTitle>
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-4 p-0">
-                {items.length === 0 && !loading ? (
-                  <div className="px-4 py-14 text-center text-sm text-muted-foreground">
-                    当前没有符合筛选条件的发货批次。
+                <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end xl:flex-nowrap xl:gap-3">
+                  <div className="min-w-[220px] space-y-1">
+                    <div className="text-[11px] font-medium text-muted-foreground">日期范围</div>
+                    <DateRangePicker
+                      value={parseDateRangeInputValue(shipmentDateFrom, shipmentDateTo)}
+                      onChange={(range) => {
+                        setShipmentDateFrom(formatPickerDateInputValue(range?.from))
+                        setShipmentDateTo(formatPickerDateInputValue(range?.to))
+                      }}
+                      className="h-9 w-full"
+                    />
                   </div>
+                  <Button variant="outline" disabled={loading || costExporting || items.length === 0} onClick={() => void exportCostToExcel()}>
+                    <FileDown className="h-4 w-4" />
+                    {costExporting ? '导出中...' : '导出 Excel'}
+                  </Button>
+                </div>
+              </DataTableCardHeader>
+              {/* Row2: 统计条 */}
+              {costSummaryLoading ? (
+                <DataTableCardStatBar
+                  items={[
+                    { label: '批次', value: <Skeleton className="h-6 w-12" /> },
+                    { label: '数量', value: <Skeleton className="h-6 w-16" /> },
+                    { label: '重量', value: <Skeleton className="h-6 w-14" /> },
+                    { label: '总运费', value: <Skeleton className="h-6 w-16" /> },
+                  ]}
+                />
+              ) : (
+                <DataTableCardStatBar
+                  items={[
+                    { label: '批次', value: costSummary.shipment_count },
+                    { label: '数量', value: costSummary.total_quantity.toLocaleString() },
+                    { label: '重量', value: `${formatDecimal(costSummary.total_chargeable_weight_kg)} kg` },
+                    { label: '总运费', value: `¥ ${formatDecimal(costSummary.total_logistics_cost, 2)}`, highlight: true },
+                  ]}
+                />
+              )}
+              {/* 表格 */}
+              <DataTableCardBody>
+                {items.length === 0 && !loading ? (
+                  <div className="py-14 text-center text-sm text-muted-foreground">当前没有符合筛选条件的发货批次。</div>
                 ) : (
                   <div className="relative">
                     {loading && items.length > 0 ? (
@@ -2509,17 +2659,17 @@ export default function ShipmentManagementPage() {
                     <Table containerClassName={TABLE_SCROLL_CONTAINER_CLASS} className="w-full min-w-[1320px]">
                       <TableHeader>
                         <TableRow className="bg-[hsl(var(--surface-subtle))]">
-                          <TableHead className="whitespace-nowrap">项目</TableHead>
-                          <TableHead className="whitespace-nowrap">发货时间</TableHead>
-                          <TableHead className="whitespace-nowrap">货件编号</TableHead>
-                          <TableHead className="whitespace-nowrap">状态</TableHead>
-                          <TableHead className="whitespace-nowrap">货代</TableHead>
-                          <TableHead className="whitespace-nowrap text-right">总发货数量</TableHead>
-                          <TableHead className="whitespace-nowrap text-right">总重量(kg)</TableHead>
-                          <TableHead className="whitespace-nowrap text-right">总体积(m³)</TableHead>
-                          <TableHead className="whitespace-nowrap text-right">物流单价</TableHead>
-                          <TableHead className="whitespace-nowrap text-right">单品物流单价</TableHead>
-                          <TableHead className="whitespace-nowrap text-right">物流总价</TableHead>
+                          <TableHead className={`whitespace-nowrap ${DENSE_HEAD}`}>项目</TableHead>
+                          <TableHead className={`whitespace-nowrap ${DENSE_HEAD}`}>发货时间</TableHead>
+                          <TableHead className={`whitespace-nowrap ${DENSE_HEAD}`}>货件编号</TableHead>
+                          <TableHead className={`whitespace-nowrap ${DENSE_HEAD}`}>状态</TableHead>
+                          <TableHead className={`whitespace-nowrap ${DENSE_HEAD}`}>货代</TableHead>
+                          <TableHead className={`whitespace-nowrap text-right ${DENSE_HEAD}`}>总发货数量</TableHead>
+                          <TableHead className={`whitespace-nowrap text-right ${DENSE_HEAD}`}>总重量(kg)</TableHead>
+                          <TableHead className={`whitespace-nowrap text-right ${DENSE_HEAD}`}>总体积(m³)</TableHead>
+                          <TableHead className={`whitespace-nowrap text-right ${DENSE_HEAD}`}>物流单价</TableHead>
+                          <TableHead className={`whitespace-nowrap text-right ${DENSE_HEAD}`}>单品物流单价</TableHead>
+                          <TableHead className={`whitespace-nowrap text-right ${DENSE_HEAD}`}>物流总价</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -2528,25 +2678,25 @@ export default function ShipmentManagementPage() {
                           const status = statusMeta(item.shipment_status)
                           return (
                             <TableRow key={`cost-${item.id}`} className={item.id === selectedId ? 'bg-primary/8 dark:bg-primary/10' : ''}>
-                              <TableCell className="font-medium">{item.project_name}</TableCell>
-                              <TableCell>{formatDate(item.created_date || item.etd_date)}</TableCell>
-                              <TableCell className="font-medium">{item.shipment_no}</TableCell>
-                              <TableCell>
+                              <TableCell className={`font-medium ${DENSE_CELL}`}>{item.project_name}</TableCell>
+                              <TableCell className={DENSE_CELL}>{formatDate(item.created_date || item.etd_date)}</TableCell>
+                              <TableCell className={`font-medium ${DENSE_CELL}`}>{item.shipment_no}</TableCell>
+                              <TableCell className={DENSE_CELL}>
                                 <Badge className={`${status.className} text-[11px] py-0 h-5`}>{status.label}</Badge>
                               </TableCell>
-                              <TableCell>{item.forwarder_name || '-'}</TableCell>
-                              <TableCell className="text-right">{item.total_quantity.toLocaleString()}</TableCell>
-                              <TableCell className="text-right">{formatDecimal(item.total_chargeable_weight_kg)}</TableCell>
-                              <TableCell className="text-right">{formatDecimal(item.total_volume_m3, 4)}</TableCell>
-                              <TableCell className="text-right">
+                              <TableCell className={DENSE_CELL}>{item.forwarder_name || '-'}</TableCell>
+                              <TableCell className={`text-right ${DENSE_CELL}`}>{item.total_quantity.toLocaleString()}</TableCell>
+                              <TableCell className={`text-right ${DENSE_CELL}`}>{formatDecimal(item.total_chargeable_weight_kg)}</TableCell>
+                              <TableCell className={`text-right ${DENSE_CELL}`}>{formatDecimal(item.total_volume_m3, 4)}</TableCell>
+                              <TableCell className={`text-right ${DENSE_CELL}`}>
                                 {item.logistics_unit_price > 0 ? formatDecimal(item.logistics_unit_price, 2) : '-'}
                               </TableCell>
-                              <TableCell className="text-right">
+                              <TableCell className={`text-right ${DENSE_CELL}`}>
                                 {item.total_quantity > 0 && item.logistics_total_price > 0
                                   ? formatDecimal(item.logistics_total_price / item.total_quantity, 4)
                                   : '-'}
                               </TableCell>
-                              <TableCell className="text-right">
+                              <TableCell className={`text-right ${DENSE_CELL}`}>
                                 {item.logistics_total_price > 0 ? formatDecimal(item.logistics_total_price, 2) : '-'}
                               </TableCell>
                             </TableRow>
@@ -2556,59 +2706,51 @@ export default function ShipmentManagementPage() {
                     </Table>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </DataTableCardBody>
+            </DataTableCard>
           ) : activeTab === 'sku-summary' ? (
-            <Card className="dashboard-surface min-w-0">
-              <CardHeader className="border-b border-border/70 bg-[hsl(var(--surface-subtle))]">
-                <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                  <div className="min-w-0">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">SKU Summary</div>
-                    <CardTitle>SKU 汇总</CardTitle>
-                  </div>
-                  <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-center xl:justify-end">
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        disabled={skuSummaryLoading || skuSummaryExporting || skuSummaryItems.length === 0}
-                        onClick={() => void exportSkuSummaryToExcel()}
-                      >
-                        <FileDown className="h-4 w-4" />
-                        {skuSummaryExporting ? '导出中...' : '导出 Excel'}
-                      </Button>
-                    </div>
-                    <div className="grid min-w-0 grid-cols-2 gap-2 md:grid-cols-4 xl:shrink-0">
-                      <div className="rounded-2xl border border-sky-500/15 bg-sky-500/5 px-4 py-3 dark:bg-sky-500/10">
-                        <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">SKU 数</div>
-                        <div className="mt-1 text-xl font-semibold">{skuSummaryItems.length}</div>
-                      </div>
-                      <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/5 px-4 py-3 dark:bg-emerald-500/10">
-                        <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">总数量</div>
-                        <div className="mt-1 text-xl font-semibold">
-                          {skuSummaryItems.reduce((acc, item) => acc + item.total_quantity, 0).toLocaleString()}
-                        </div>
-                      </div>
-                      <div className="rounded-2xl border border-amber-500/15 bg-amber-500/5 px-4 py-3 dark:bg-amber-500/10">
-                        <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">总计费重</div>
-                        <div className="mt-1 text-xl font-semibold">
-                          {formatDecimal(skuSummaryItems.reduce((acc, item) => acc + item.total_chargeable_weight_kg, 0))}
-                        </div>
-                      </div>
-                      <div className="rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3 dark:bg-primary/10">
-                        <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">总费用</div>
-                        <div className="mt-1 text-xl font-semibold">
-                          ¥ {formatDecimal(skuSummaryItems.reduce((acc, item) => acc + item.total_logistics_cost, 0), 2)}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+            <DataTableCard className="min-w-0">
+              {/* Row1: 标题 + 按钮 */}
+              <DataTableCardHeader className="flex min-w-0 flex-col gap-3 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">SKU Summary</div>
+                  <CardTitle>SKU 汇总</CardTitle>
                 </div>
-              </CardHeader>
-              <CardContent className="p-0">
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    disabled={skuSummaryLoading || skuSummaryExporting || skuSummaryItems.length === 0}
+                    onClick={() => void exportSkuSummaryToExcel()}
+                  >
+                    <FileDown className="h-4 w-4" />
+                    {skuSummaryExporting ? '导出中...' : '导出 Excel'}
+                  </Button>
+                </div>
+              </DataTableCardHeader>
+              {/* Row2: 统计条 */}
+              {skuSummaryLoading ? (
+                <DataTableCardStatBar
+                  items={[
+                    { label: 'SKU 数', value: <Skeleton className="h-6 w-12" /> },
+                    { label: '总数量', value: <Skeleton className="h-6 w-16" /> },
+                    { label: '总计费重', value: <Skeleton className="h-6 w-14" /> },
+                    { label: '总费用', value: <Skeleton className="h-6 w-16" /> },
+                  ]}
+                />
+              ) : (
+                <DataTableCardStatBar
+                  items={[
+                    { label: 'SKU 数', value: skuSummaryItems.length },
+                    { label: '总数量', value: skuSummaryItems.reduce((acc, item) => acc + item.total_quantity, 0).toLocaleString() },
+                    { label: '总计费重', value: `${formatDecimal(skuSummaryItems.reduce((acc, item) => acc + item.total_chargeable_weight_kg, 0))} kg` },
+                    { label: '总费用', value: `¥ ${formatDecimal(skuSummaryItems.reduce((acc, item) => acc + item.total_logistics_cost, 0), 2)}`, highlight: true },
+                  ]}
+                />
+              )}
+              {/* 表格 */}
+              <DataTableCardBody>
                 {skuSummaryItems.length === 0 && !skuSummaryLoading ? (
-                  <div className="px-4 py-14 text-center text-sm text-muted-foreground">
-                    当前没有符合口径的 SKU 汇总数据。
-                  </div>
+                  <div className="py-14 text-center text-sm text-muted-foreground">当前没有符合口径的 SKU 汇总数据。</div>
                 ) : (
                   <div className="relative">
                     {skuSummaryLoading && skuSummaryItems.length > 0 ? (
@@ -2619,14 +2761,14 @@ export default function ShipmentManagementPage() {
                     <Table containerClassName={TABLE_SCROLL_CONTAINER_CLASS} className="w-full min-w-[1120px]">
                       <TableHeader>
                         <TableRow className="bg-[hsl(var(--surface-subtle))]">
-                          <TableHead className="whitespace-nowrap">项目</TableHead>
-                          <TableHead className="whitespace-nowrap">国家</TableHead>
-                          <TableHead className="whitespace-nowrap">SKU</TableHead>
-                          <TableHead className="whitespace-nowrap text-right">参与批次数</TableHead>
-                          <TableHead className="whitespace-nowrap text-right">总数量</TableHead>
-                          <TableHead className="whitespace-nowrap text-right">总计费重(kg)</TableHead>
-                          <TableHead className="whitespace-nowrap text-right">总发货费用</TableHead>
-                          <TableHead className="whitespace-nowrap text-right">平均发运单价</TableHead>
+                          <TableHead className={`whitespace-nowrap ${DENSE_HEAD}`}>项目</TableHead>
+                          <TableHead className={`whitespace-nowrap ${DENSE_HEAD}`}>国家</TableHead>
+                          <TableHead className={`whitespace-nowrap ${DENSE_HEAD}`}>SKU</TableHead>
+                          <TableHead className={`whitespace-nowrap text-right ${DENSE_HEAD}`}>参与批次数</TableHead>
+                          <TableHead className={`whitespace-nowrap text-right ${DENSE_HEAD}`}>总数量</TableHead>
+                          <TableHead className={`whitespace-nowrap text-right ${DENSE_HEAD}`}>总计费重(kg)</TableHead>
+                          <TableHead className={`whitespace-nowrap text-right ${DENSE_HEAD}`}>总发货费用</TableHead>
+                          <TableHead className={`whitespace-nowrap text-right ${DENSE_HEAD}`}>平均发运单价</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -2635,158 +2777,123 @@ export default function ShipmentManagementPage() {
                           const country = countryMeta(item.country)
                           return (
                           <TableRow key={`${item.project_id}-${item.country}-${item.sku}`}>
-                            <TableCell className="font-medium">{item.project_name}</TableCell>
-                            <TableCell>
+                            <TableCell className={`font-medium ${DENSE_CELL}`}>{item.project_name}</TableCell>
+                            <TableCell className={DENSE_CELL}>
                               <Badge className={`${country.className} h-5 px-2 text-[11px]`}>
                                 {country.label}
                               </Badge>
                             </TableCell>
-                            <TableCell className="font-medium">{item.sku}</TableCell>
-                            <TableCell className="text-right">{item.shipment_count}</TableCell>
-                            <TableCell className="text-right">{item.total_quantity.toLocaleString()}</TableCell>
-                            <TableCell className="text-right">{formatDecimal(item.total_chargeable_weight_kg)}</TableCell>
-                            <TableCell className="text-right">¥ {formatDecimal(item.total_logistics_cost, 2)}</TableCell>
-                            <TableCell className="text-right">¥ {formatDecimal(item.average_logistics_unit_price, 4)}</TableCell>
+                            <TableCell className={`font-medium ${DENSE_CELL}`}>{item.sku}</TableCell>
+                            <TableCell className={`text-right ${DENSE_CELL}`}>{item.shipment_count}</TableCell>
+                            <TableCell className={`text-right ${DENSE_CELL}`}>{item.total_quantity.toLocaleString()}</TableCell>
+                            <TableCell className={`text-right ${DENSE_CELL}`}>{formatDecimal(item.total_chargeable_weight_kg)}</TableCell>
+                            <TableCell className={`text-right ${DENSE_CELL}`}>¥ {formatDecimal(item.total_logistics_cost, 2)}</TableCell>
+                            <TableCell className={`text-right ${DENSE_CELL}`}>¥ {formatDecimal(item.average_logistics_unit_price, 4)}</TableCell>
                           </TableRow>
                         )})}
                       </TableBody>
                     </Table>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </DataTableCardBody>
+            </DataTableCard>
           ) : (
-            <Card className="dashboard-surface min-w-0">
-              <CardHeader>
-                <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <DataTableCard className="min-w-0">
+              {/* Row1: 标题 + 按钮 */}
+              <DataTableCardHeader className="flex min-w-0 flex-col gap-2 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
+                <div className="flex min-w-0 flex-col gap-1 xl:flex-row xl:items-center xl:gap-6">
                   <div className="min-w-0">
                     <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">FBA Box List</div>
                     <CardTitle>FBA 箱单明细</CardTitle>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      variant="outline"
-                      disabled={selectedShipmentNoFilter.length === 0 || fbaBoxLoading}
-                      onClick={() => {
-                        if (selectedShipmentNoFilter.length > 0) void loadFbaBoxDetails(selectedShipmentNoFilter)
-                      }}
-                    >
-                      <RefreshCcw className="h-4 w-4" />
-                      刷新
-                    </Button>
-                    <Button variant="outline" disabled={fbaBoxItems.length === 0 || fbaBoxExporting} onClick={() => void exportFbaBoxDetailsToExcel()}>
-                      <FileDown className="h-4 w-4" />
-                      {fbaBoxExporting ? '导出中...' : '导出 Excel'}
-                    </Button>
-                  </div>
+                  {/* Row2: 项目/国家/货件数量 — 扁平无边框 */}
+                  {fbaBoxMeta ? (
+                    <div className="flex items-center gap-4 xl:gap-5">
+                      <div className="flex items-center gap-1.5 text-sm">
+                        <span className="text-muted-foreground">项目:</span>
+                        <span className="font-medium">{fbaBoxMeta.projectNames.length === 1 ? fbaBoxMeta.projectNames[0] : `${fbaBoxMeta.projectNames.length} 个项目`}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-sm">
+                        <span className="text-muted-foreground">国家:</span>
+                        {(() => {
+                          const singleCountry = fbaBoxMeta.countries.length === 1 ? countryMeta(fbaBoxMeta.countries[0]) : null
+                          return singleCountry ? (
+                            <Badge className={`${singleCountry.className} h-5 px-2 text-[11px]`}>{singleCountry.label}</Badge>
+                          ) : (
+                            <Badge variant="secondary" className="h-5 px-2 text-[11px]">{fbaBoxMeta.countries.length} 个</Badge>
+                          )
+                        })()}
+                      </div>
+                      <div className="flex items-center gap-1.5 text-sm">
+                        <span className="text-muted-foreground">货件:</span>
+                        <span className="font-medium">{fbaBoxMeta.shipmentNos.length}</span>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-4 p-0">
-                {fbaBoxError ? (
-                  <div className="mx-4 mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900/70 dark:bg-rose-950/40 dark:text-rose-200">
-                    {fbaBoxError}
-                  </div>
-                ) : null}
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    disabled={selectedShipmentNoFilter.length === 0 || fbaBoxLoading}
+                    onClick={() => {
+                      if (selectedShipmentNoFilter.length > 0) void loadFbaBoxDetails(selectedShipmentNoFilter)
+                    }}
+                  >
+                    <RefreshCcw className="h-4 w-4" />
+                    刷新
+                  </Button>
+                  <Button variant="outline" disabled={fbaBoxItems.length === 0 || fbaBoxExporting} onClick={() => void exportFbaBoxDetailsToExcel()}>
+                    <FileDown className="h-4 w-4" />
+                    {fbaBoxExporting ? '导出中...' : '导出 Excel'}
+                  </Button>
+                </div>
+              </DataTableCardHeader>
+              {/* Row2: 统计条 */}
+              {fbaBoxLoading ? (
+                <DataTableCardStatBar
+                  items={[
+                    { label: 'SKU', value: <Skeleton className="h-6 w-12" /> },
+                    { label: '外箱数', value: <Skeleton className="h-6 w-12" /> },
+                    { label: '总重量', value: <Skeleton className="h-6 w-14" /> },
+                    { label: '总体积', value: <Skeleton className="h-6 w-14" /> },
+                  ]}
+                />
+              ) : (
+                <DataTableCardStatBar
+                  items={[
+                    { label: 'SKU', value: fbaBoxItems.length },
+                    { label: '外箱数', value: fbaBoxSummary.totalCartons },
+                    { label: '总重量', value: `${formatDecimal(fbaBoxSummary.totalWeightKg)} kg` },
+                    { label: '总体积', value: `${formatDecimal(fbaBoxSummary.totalVolumeM3, 4)} m³`, highlight: true },
+                  ]}
+                />
+              )}
+              {/* 表格 */}
+              <DataTableCardBody>
                 {selectedShipmentNoFilter.length === 0 ? (
-                  <div className="px-4 py-14 text-center text-sm text-muted-foreground">
-                    请选择一个或多个 FBA 货件编号后再加载箱单明细。
-                  </div>
+                  <div className="py-14 text-center text-sm text-muted-foreground">请选择一个或多个 FBA 货件编号后再加载箱单明细。</div>
                 ) : fbaBoxItems.length === 0 && !fbaBoxLoading ? (
-                  <div className="px-4 py-14 text-center text-sm text-muted-foreground">
-                    当前筛选货件暂无可展示的 FBA 箱单明细。
-                  </div>
+                  <div className="py-14 text-center text-sm text-muted-foreground">当前筛选货件暂无可展示的 FBA 箱单明细。</div>
                 ) : (
-                  <>
-                    <div className="grid gap-3 px-4 pb-4 md:grid-cols-6 xl:grid-cols-7">
-                      {fbaBoxLoading ? (
-                        <>
-                          <ShipmentMetricSkeleton />
-                          <ShipmentMetricSkeleton />
-                          <ShipmentMetricSkeleton />
-                          <ShipmentMetricSkeleton />
-                          <ShipmentMetricSkeleton />
-                          <ShipmentMetricSkeleton />
-                        </>
-                      ) : (
-                        <>
-                          {fbaBoxMeta ? (
-                            <>
-                              {(() => {
-                                const singleCountry = fbaBoxMeta.countries.length === 1 ? countryMeta(fbaBoxMeta.countries[0]) : null
-                                return (
-                                  <>
-                      <div className="rounded-2xl border border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3">
-                                <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">项目</div>
-                                <div
-                                  className="mt-1 text-lg font-semibold truncate"
-                                  title={fbaBoxMeta.projectNames.join('、')}
-                                >
-                                  {fbaBoxMeta.projectNames.length === 1 ? fbaBoxMeta.projectNames[0] : `${fbaBoxMeta.projectNames.length} 个项目`}
-                                </div>
-                              </div>
-                      <div className="rounded-2xl border border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3">
-                                <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">国家地区</div>
-                                <div className="mt-2">
-                                  {singleCountry ? (
-                                    <Badge className={`${singleCountry.className} h-6 px-2.5 text-xs`}>
-                                      {singleCountry.label}
-                                    </Badge>
-                                  ) : (
-                                    <Badge variant="secondary" className="h-6 px-2.5 text-xs">
-                                      {fbaBoxMeta.countries.length} 个国家
-                                    </Badge>
-                                  )}
-                                </div>
-                              </div>
-                      <div className="rounded-2xl border border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3">
-                                <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">货件数量</div>
-                                <div className="mt-1 text-lg font-semibold" title={fbaBoxMeta.shipmentNos.join('、')}>
-                                  {fbaBoxMeta.shipmentNos.length}
-                                </div>
-                              </div>
-                                  </>
-                                )
-                              })()}
-                            </>
-                          ) : null}
-                          <div className="rounded-2xl border border-sky-500/15 bg-sky-500/5 px-4 py-3 dark:bg-sky-500/10">
-                            <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">SKU</div>
-                            <div className="mt-1 text-xl font-semibold">{fbaBoxItems.length}</div>
-                          </div>
-                          <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/5 px-4 py-3 dark:bg-emerald-500/10">
-                            <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">外箱数</div>
-                            <div className="mt-1 text-xl font-semibold">{fbaBoxSummary.totalCartons}</div>
-                          </div>
-                          <div className="rounded-2xl border border-amber-500/15 bg-amber-500/5 px-4 py-3 dark:bg-amber-500/10">
-                            <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">总重量</div>
-                            <div className="mt-1 text-xl font-semibold">{formatDecimal(fbaBoxSummary.totalWeightKg)} kg</div>
-                          </div>
-                          <div className="rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3 dark:bg-primary/10">
-                            <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">总体积(m³)</div>
-                            <div className="mt-1 text-xl font-semibold">{formatDecimal(fbaBoxSummary.totalVolumeM3, 4)}</div>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                    <div className="relative">
-                      {fbaBoxLoading && fbaBoxItems.length > 0 ? (
-                    <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/70 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm">
-                      箱单明细更新中...
-                    </div>
-                      ) : null}
-                      <Table containerClassName={TABLE_SCROLL_CONTAINER_CLASS} className="w-full min-w-[1000px]">
+                  <div className="relative">
+                    {fbaBoxLoading && fbaBoxItems.length > 0 ? (
+                      <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/70 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm">
+                        箱单明细更新中...
+                      </div>
+                    ) : null}
+                    <Table containerClassName={TABLE_SCROLL_CONTAINER_CLASS} className="w-full min-w-[1100px]">
                         <TableHeader>
                           <TableRow className="bg-[hsl(var(--surface-subtle))]">
-                            <TableHead className="whitespace-nowrap w-[140px]">货件编号</TableHead>
-                            <TableHead className="whitespace-nowrap w-[80px]">仓库 ID</TableHead>
-                            <TableHead className="whitespace-nowrap w-[140px]">SKU</TableHead>
-                            <TableHead className="whitespace-nowrap w-[180px]">单品尺寸和重量</TableHead>
-                            <TableHead className="whitespace-nowrap w-[180px]">外箱尺寸和重量</TableHead>
-                            <TableHead className="whitespace-nowrap w-[80px] text-right">装箱率</TableHead>
-                            <TableHead className="whitespace-nowrap w-[60px] text-right">总箱数</TableHead>
-                            <TableHead className="whitespace-nowrap w-[80px] text-right">总数量</TableHead>
-                            <TableHead className="whitespace-nowrap w-[80px] text-right">总体积(m³)</TableHead>
-                            <TableHead className="whitespace-nowrap w-[80px] text-right">总重量(kg)</TableHead>
+                            <TableHead className={`whitespace-nowrap w-[140px] ${DENSE_HEAD}`}>货件编号</TableHead>
+                            <TableHead className={`whitespace-nowrap w-[80px] ${DENSE_HEAD}`}>仓库 ID</TableHead>
+                            <TableHead className={`whitespace-nowrap w-[140px] ${DENSE_HEAD}`}>SKU</TableHead>
+                            <TableHead className={`whitespace-nowrap w-[180px] ${DENSE_HEAD}`}>单品尺寸和重量</TableHead>
+                            <TableHead className={`whitespace-nowrap w-[180px] ${DENSE_HEAD}`}>外箱尺寸和重量</TableHead>
+                            <TableHead className={`whitespace-nowrap w-[80px] text-right ${DENSE_HEAD}`}>装箱率</TableHead>
+                            <TableHead className={`whitespace-nowrap w-[60px] text-right ${DENSE_HEAD}`}>总箱数</TableHead>
+                            <TableHead className={`whitespace-nowrap w-[80px] text-right ${DENSE_HEAD}`}>总数量</TableHead>
+                            <TableHead className={`whitespace-nowrap w-[80px] text-right ${DENSE_HEAD}`}>总体积(m³)</TableHead>
+                            <TableHead className={`whitespace-nowrap w-[80px] text-right ${DENSE_HEAD}`}>总重量(kg)</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -2807,33 +2914,32 @@ export default function ShipmentManagementPage() {
 
                             return (
                               <TableRow key={`fba-box-${item.shipment_no}-${item.sku}-${index}`}>
-                                <TableCell className="font-medium">{item.shipment_no}</TableCell>
+                                <TableCell className={`font-medium ${DENSE_CELL}`}>{item.shipment_no}</TableCell>
                                 {showWarehouse ? (
                                   <TableCell
-                                    className="font-medium font-semibold text-primary bg-primary/5"
+                                    className={`font-medium font-semibold text-primary bg-primary/5 ${DENSE_CELL}`}
                                     rowSpan={rowSpan}
                                   >
                                     {item.warehouse_code || '-'}
                                   </TableCell>
                                 ) : null}
-                                <TableCell className="font-medium">{item.sku}</TableCell>
-                                <TableCell>{packageInfo}</TableCell>
-                                <TableCell>{cartonInfo}</TableCell>
-                                <TableCell className="text-right">{item.units_per_carton > 0 ? `${item.units_per_carton} / 箱` : '-'}</TableCell>
-                                <TableCell className="text-right">{item.carton_count > 0 ? item.carton_count : '-'}</TableCell>
-                                <TableCell className="text-right">{item.quantity > 0 ? item.quantity : '-'}</TableCell>
-                                <TableCell className="text-right">{formatDecimal(item.total_volume_m3, 4)}</TableCell>
-                                <TableCell className="text-right">{formatDecimal(item.total_weight_kg)}</TableCell>
+                                <TableCell className={`font-medium ${DENSE_CELL}`}>{item.sku}</TableCell>
+                                <TableCell className={DENSE_CELL}>{packageInfo}</TableCell>
+                                <TableCell className={DENSE_CELL}>{cartonInfo}</TableCell>
+                                <TableCell className={`text-right ${DENSE_CELL}`}>{item.units_per_carton > 0 ? `${item.units_per_carton} / 箱` : '-'}</TableCell>
+                                <TableCell className={`text-right ${DENSE_CELL}`}>{item.carton_count > 0 ? item.carton_count : '-'}</TableCell>
+                                <TableCell className={`text-right ${DENSE_CELL}`}>{item.quantity > 0 ? item.quantity : '-'}</TableCell>
+                                <TableCell className={`text-right ${DENSE_CELL}`}>{formatDecimal(item.total_volume_m3, 4)}</TableCell>
+                                <TableCell className={`text-right ${DENSE_CELL}`}>{item.total_weight_kg > 0 ? formatDecimal(item.total_weight_kg) : '0'}</TableCell>
                               </TableRow>
                             )
                           })}
                         </TableBody>
                       </Table>
                     </div>
-                  </>
                 )}
-              </CardContent>
-            </Card>
+              </DataTableCardBody>
+            </DataTableCard>
           )}
           </TabsContent>
           </DirectionalTabTransition>
@@ -3015,8 +3121,8 @@ export default function ShipmentManagementPage() {
                         if (detail) {
                           downloadCsvFile(
                             `${detail.shipment_no}-items-template.csv`,
-                            ['project_name', 'shipment_no', 'SKU', 'quantity'],
-                            [[detail.project_name, detail.shipment_no, 'SKU-DEMO', 100]]
+                            ['project_name', 'shipment_no', 'SKU', 'carton_count', 'quantity'],
+                            [[detail.project_name, detail.shipment_no, 'SKU-DEMO', 10, '']]
                           )
                         }
                       }}
@@ -3036,6 +3142,15 @@ export default function ShipmentManagementPage() {
                           onChange={handleImportFile}
                         />
                       </label>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => void exportFbaDeliveryTemplateToExcel()}
+                      disabled={!detail || exporting}
+                      className="gap-2"
+                    >
+                      <FileSpreadsheet className="h-4 w-4" />
+                      {exporting ? '导出中...' : 'FBA发货模板'}
                     </Button>
                   </div>
                 </div>
@@ -3057,9 +3172,6 @@ export default function ShipmentManagementPage() {
                     <div className="mt-1 text-lg font-semibold">{costPreviewRows.length > 0 ? `¥ ${formatDecimal(costPreviewSummary.totalEstimatedCost, 2)}` : '待核算'}</div>
                   </div>
                 </div>
-                <div className="rounded-2xl border border-dashed border-border/70 bg-[hsl(var(--surface-soft))] px-4 py-3 text-xs text-muted-foreground">
-                  核算口径：体积按 SKU 信息中的单品长宽高换算为 m³，体积重按长 × 宽 × 高 / 6000，计费重取实际重量与体积重较大值。
-                </div>
                 {hasPendingItemChanges ? (
                   <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-200">
                     SKU 明细已修改，先点保存，再执行核算。
@@ -3070,62 +3182,85 @@ export default function ShipmentManagementPage() {
                     {costPreviewError}
                   </div>
                 ) : null}
-                <div className="overflow-hidden rounded-[28px] border border-border/70">
-                  <div className="max-h-[360px] overflow-auto">
+                <div className="overflow-hidden rounded-lg border border-border/70">
+                  <div className="max-h-[280px] overflow-auto">
                     <Table>
                       <TableHeader>
-                        <TableRow>
-                          <TableHead>SKU</TableHead>
-                          <TableHead className="w-24 text-right">数量</TableHead>
-                          <TableHead className="whitespace-nowrap min-w-[90px] text-right">实际重(kg)</TableHead>
-                          <TableHead className="whitespace-nowrap min-w-[90px] text-right">体积重(kg)</TableHead>
-                          <TableHead className="whitespace-nowrap min-w-[90px] text-right">体积(m³)</TableHead>
-                          <TableHead className="min-w-[100px] text-right">发货费用</TableHead>
-                          <TableHead className="min-w-[100px] text-right">平均单价</TableHead>
-                          <TableHead className="w-14 text-right">操作</TableHead>
+                        <TableRow className="border-border/70">
+                          <TableHead className="w-[140px] text-xs font-medium">SKU</TableHead>
+                          <TableHead className="w-20 text-right text-xs font-medium">装箱率</TableHead>
+                          <TableHead className="w-20 text-right text-xs font-medium">外箱数</TableHead>
+                          <TableHead className="w-20 text-right text-xs font-medium">数量</TableHead>
+                          <TableHead className="w-16 text-right text-xs font-medium">实际重</TableHead>
+                          <TableHead className="w-16 text-right text-xs font-medium">体积重</TableHead>
+                          <TableHead className="w-20 text-right text-xs font-medium">发货费用</TableHead>
+                          <TableHead className="w-16 text-right text-xs font-medium">单价</TableHead>
+                          <TableHead className="w-10 text-right text-xs font-medium">操作</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {editableItems.length === 0 ? (
-                          <EmptyTableState colSpan={8} message="还没有 SKU 明细" />
+                          <EmptyTableState colSpan={9} message="还没有 SKU 明细" />
                         ) : (
                           editableItems.map((item) => {
                             const preview = detail.items.find((detailItem) => detailItem.sku === item.sku)
                               ? costPreviewRows.find((row) => row.sku === item.sku)
                               : undefined
                             const selectedSku = projectSkuOptions.find((option) => option.sku === item.sku)
+                            const unitsPerCarton = selectedSku?.units_per_carton ?? 0
+                            const cartonCountNum = Number(item.cartonCount)
+                            const computedQty = (unitsPerCarton > 0 && Number.isFinite(cartonCountNum) && cartonCountNum > 0)
+                              ? cartonCountNum * unitsPerCarton
+                              : (Number.isFinite(cartonCountNum) && cartonCountNum > 0 ? cartonCountNum : 0)
+                            // 历史数据优先显示原始数量；新数据有箱数则显示换算值；均无则显示 -
+                            const displayQty = item.originalQuantity !== null
+                              ? item.originalQuantity
+                              : computedQty > 0
+                                ? computedQty
+                                : 0
                             return (
-                              <TableRow key={item.tempId}>
-                                <TableCell className="min-w-[220px]">
+                              <TableRow key={item.tempId} className="border-border/70">
+                                <TableCell className="py-1.5">
                                   <SearchableSkuField
                                     value={item.sku}
                                     options={projectSkuOptions}
                                     loading={projectSkuLoading}
                                     onChange={(value) => handleEditableItemChange(item.tempId, 'sku', value)}
                                   />
+                                  {item.originalQuantity === null && item.sku && selectedSku && (selectedSku.units_per_carton ?? 0) <= 0 ? (
+                                    <p className="mt-0.5 text-[10px] text-amber-600 dark:text-amber-400">
+                                      ⚠️ 该 SKU 未维护装箱率，请先在 SKU 信息中补充
+                                    </p>
+                                  ) : null}
                                 </TableCell>
-                                <TableCell className="w-24 text-right">
+                                <TableCell className="py-1.5 text-right text-xs text-muted-foreground">
+                                  {unitsPerCarton > 0 ? unitsPerCarton : '-'}
+                                </TableCell>
+                                <TableCell className="py-1.5 text-right">
                                   <Input
                                     inputMode="numeric"
-                                    value={item.quantity}
-                                    onChange={(event) => handleEditableItemChange(item.tempId, 'quantity', event.target.value)}
-                                    className="h-9 text-right"
-                                    placeholder="数量"
+                                    value={item.cartonCount}
+                                    onChange={(event) => handleEditableItemChange(item.tempId, 'cartonCount', event.target.value)}
+                                    className="h-7 w-full text-right text-xs"
+                                    placeholder="箱数"
                                   />
                                 </TableCell>
-                                <TableCell className="w-16 text-right">{preview ? formatDecimal(preview.actualWeightKg, 2) : '-'}</TableCell>
-                                <TableCell className="w-24 text-right">{preview ? formatDecimal(preview.volumetricWeightKg, 2) : '-'}</TableCell>
-                                <TableCell className="w-24 text-right">{preview ? formatDecimal(preview.volumeM3, 2) : '-'}</TableCell>
-                                <TableCell className="min-w-[100px] text-right">{preview ? `¥ ${formatDecimal(preview.estimatedCost, 2)}` : '-'}</TableCell>
-                                <TableCell className="min-w-[100px] text-right">{preview ? `¥ ${formatDecimal(preview.averageUnitPrice, 2)}` : '-'}</TableCell>
-                                <TableCell className="text-right">
+                                <TableCell className="py-1.5 text-right text-xs font-medium text-foreground">
+                                  {displayQty > 0 ? displayQty.toLocaleString() : '-'}
+                                </TableCell>
+                                <TableCell className="py-1.5 text-right text-xs text-muted-foreground">{preview ? formatDecimal(preview.actualWeightKg, 2) : '-'}</TableCell>
+                                <TableCell className="py-1.5 text-right text-xs text-muted-foreground">{preview ? formatDecimal(preview.volumetricWeightKg, 2) : '-'}</TableCell>
+                                <TableCell className="py-1.5 text-right text-xs text-muted-foreground">{preview ? `¥ ${formatDecimal(preview.estimatedCost, 2)}` : '-'}</TableCell>
+                                <TableCell className="py-1.5 text-right text-xs text-muted-foreground">{preview ? `¥ ${formatDecimal(preview.averageUnitPrice, 2)}` : '-'}</TableCell>
+                                <TableCell className="py-1.5 text-right">
                                   <Button
                                     type="button"
                                     variant="ghost"
                                     size="icon"
+                                    className="h-6 w-6"
                                     onClick={() => handleRemoveEditableItem(item.tempId)}
                                   >
-                                    <X className="h-4 w-4" />
+                                    <X className="h-3.5 w-3.5" />
                                   </Button>
                                 </TableCell>
                               </TableRow>
@@ -3183,7 +3318,7 @@ export default function ShipmentManagementPage() {
               <Skeleton className="h-12 w-full" />
             </div>
           ) : skuDialogDetail ? (
-            <div className="overflow-hidden rounded-[28px] border border-border/70">
+            <div className="overflow-hidden rounded-lg border border-border/70">
               <div className="max-h-[500px] overflow-auto">
                 <Table>
                   <TableHeader>

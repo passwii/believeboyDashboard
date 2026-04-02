@@ -2,14 +2,8 @@ import { NextResponse } from 'next/server'
 
 import { requireUserSession } from '@/lib/auth/server'
 import { normalizeErrorMessage } from '@/lib/error-utils'
-import {
-  buildSystemPrompt,
-  getAiProviderConfig,
-  proxyBackendJson,
-  requireBackendApiKey,
-  resolveAvailableModels,
-  validatePromptPresetIds,
-} from '@/lib/server/ai-chat'
+import { backendFetchJson, getBackendApiKey } from '@/lib/server/backend-api'
+import { buildSystemPrompt, validatePromptPresetIds } from '@/lib/server/ai-chat'
 
 type RouteContext = {
   params: {
@@ -24,8 +18,12 @@ export async function GET(_request: Request, { params }: RouteContext) {
   }
 
   try {
-    const apiKey = requireBackendApiKey()
-    const data = await proxyBackendJson(`/api/v1/ai/conversations/${params.conversationId}/messages`, {
+    const apiKey = getBackendApiKey()
+    if (!apiKey) {
+      throw new Error('缺少后端 API Key 配置')
+    }
+
+    const data = await backendFetchJson(`/api/v1/ai/conversations/${params.conversationId}/messages`, {
       method: 'GET',
       headers: { 'X-API-Key': apiKey },
       cache: 'no-store',
@@ -47,6 +45,7 @@ export async function POST(request: Request, { params }: RouteContext) {
     model?: string
     overviewPromptId?: string | null
     detailPromptId?: string | null
+    enableWebSearch?: boolean
   }
 
   const content = body.content?.trim() || ''
@@ -58,25 +57,13 @@ export async function POST(request: Request, { params }: RouteContext) {
     return NextResponse.json({ message: 'System Prompt 选项无效' }, { status: 400 })
   }
 
-  const providerConfig = getAiProviderConfig()
-  if (!providerConfig.baseUrl || !providerConfig.apiKey) {
-    return NextResponse.json({ message: 'AI Provider 未配置，请先在 .env.local 中设置' }, { status: 500 })
-  }
-
   try {
-    const { models, defaultModel } = await resolveAvailableModels()
-    const selectedModel = body.model?.trim() || defaultModel
-
-    if (!selectedModel) {
-      return NextResponse.json({ message: '没有可用模型，请检查 .env.local 配置' }, { status: 500 })
+    const apiKey = getBackendApiKey()
+    if (!apiKey) {
+      throw new Error('缺少后端 API Key 配置')
     }
 
-    if (models.length > 0 && !models.includes(selectedModel)) {
-      return NextResponse.json({ message: '所选模型不在允许列表中' }, { status: 400 })
-    }
-
-    const apiKey = requireBackendApiKey()
-    const data = await proxyBackendJson(`/api/v1/ai/conversations/${params.conversationId}/messages`, {
+    const data = await backendFetchJson(`/api/v1/ai/conversations/${params.conversationId}/messages`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -84,13 +71,9 @@ export async function POST(request: Request, { params }: RouteContext) {
       },
       body: JSON.stringify({
         content,
-        llm_config: {
-          base_url: providerConfig.baseUrl,
-          api_key: providerConfig.apiKey,
-          model: selectedModel,
-          timeout_seconds: providerConfig.timeoutSeconds,
-          system_prompt: buildSystemPrompt(body.overviewPromptId, body.detailPromptId),
-        },
+        model: body.model?.trim() || undefined,
+        system_prompt: buildSystemPrompt(body.overviewPromptId, body.detailPromptId),
+        enable_web_search: Boolean(body.enableWebSearch),
       }),
       cache: 'no-store',
     })

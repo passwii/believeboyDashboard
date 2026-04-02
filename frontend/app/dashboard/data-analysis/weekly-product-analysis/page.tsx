@@ -2,16 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
-import { Download, Eye, EyeOff, Loader2, ShoppingCart, TrendingDown, TrendingUp } from 'lucide-react'
+import { Download, Eye, EyeOff, Loader2, ShoppingCart } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart'
+import { DataCard, DataCardHeader, DataCardContent, DataTableCard, DataTableCardHeader, DataTableCardBody, DataTableCardStatBar } from '@/components/ui/data-card'
 import { DateRangePicker, formatDateInputValue, parseDateRangeInputValue } from '@/components/ui/date-picker'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { StatCard } from '@/components/ui/stat-card'
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { clearClientCache, getClientCache, setClientCache } from '@/lib/client-cache'
 import { logClientOperation } from '@/lib/operation-audit'
@@ -36,17 +36,6 @@ type WeeklyDataRow = {
   total_units: number
   total_ad_spend: number
   summary_row?: Record<string, unknown> | null
-}
-
-type WeeklyTrendPoint = {
-  week_label: string
-  start_date: string
-  end_date: string
-  sales_amount: number
-  units_sold: number
-  ad_spend: number
-  ad_clicks: number
-  organic_traffic: number
 }
 
 type WeeklySummaryItem = {
@@ -687,72 +676,6 @@ function fillDetailWorksheet(
   autosizeWorksheetColumns(worksheet)
 }
 
-interface StatCardProps {
-  title: string
-  value: string
-  icon: React.ReactNode
-  color: 'emerald' | 'rose' | 'sky' | 'amber'
-  trend?: number
-  trendLabel?: string
-}
-
-function StatCard({ title, value, icon, color, trend, trendLabel }: StatCardProps) {
-  const colorClasses = {
-    emerald: {
-      bg: 'bg-emerald-500/10',
-      border: 'border-emerald-500/20',
-      text: 'text-emerald-600 dark:text-emerald-400',
-      gradient: 'from-emerald-500/5',
-      icon: 'text-emerald-600',
-    },
-    rose: {
-      bg: 'bg-rose-500/10',
-      border: 'border-rose-500/20',
-      text: 'text-rose-600 dark:text-rose-400',
-      gradient: 'from-rose-500/5',
-      icon: 'text-rose-600',
-    },
-    sky: {
-      bg: 'bg-sky-500/10',
-      border: 'border-sky-500/20',
-      text: 'text-sky-600 dark:text-sky-400',
-      gradient: 'from-sky-500/5',
-      icon: 'text-sky-600',
-    },
-    amber: {
-      bg: 'bg-amber-500/10',
-      border: 'border-amber-500/20',
-      text: 'text-amber-600 dark:text-amber-400',
-      gradient: 'from-amber-500/5',
-      icon: 'text-amber-600',
-    },
-  }
-
-  const colors = colorClasses[color]
-
-  return (
-    <Card className={`dashboard-surface hover-lift animate-enter border ${colors.border} relative overflow-hidden`}>
-      <div className={`absolute inset-0 bg-gradient-to-br ${colors.gradient} via-transparent to-transparent opacity-60 dark:opacity-35`} />
-      <CardHeader className="relative z-10 flex flex-row items-start justify-between space-y-0 pb-3">
-        <CardTitle className="text-[13px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{title}</CardTitle>
-        <div className={`rounded-lg ${colors.bg} p-2 ${colors.icon}`}>{icon}</div>
-      </CardHeader>
-      <CardContent className="relative z-10 pt-0">
-        <div className={`text-2xl font-semibold tracking-tight md:text-[1.7rem] ${colors.text}`}>{value}</div>
-        {trend !== undefined ? (
-          <p className="mt-2 text-xs text-muted-foreground">
-            <span className={`inline-flex items-center ${trend >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-              {trend >= 0 ? <TrendingUp className="mr-1 h-3 w-3" /> : <TrendingDown className="mr-1 h-3 w-3" />}
-              {Math.abs(trend).toFixed(1)}%
-            </span>
-            <span className="ml-1">{trendLabel || '较上期'}</span>
-          </p>
-        ) : null}
-      </CardContent>
-    </Card>
-  )
-}
-
 export default function WeeklyProductAnalysisPage() {
   const { data: session } = useSession()
   const [projects, setProjects] = useState<ProjectOption[]>([])
@@ -1266,634 +1189,463 @@ export default function WeeklyProductAnalysisPage() {
 
   return (
     <div className="w-full space-y-6">
-      <Card className="dashboard-surface overflow-hidden">
-        <CardContent className="space-y-6 p-6 md:p-8">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="space-y-2">
-              <p className="dashboard-kicker">Analysis Console</p>
-              <Badge variant="outline" className="w-fit border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-300">
-                按周产品分析
-              </Badge>
-              <p className="max-w-3xl text-sm leading-7 text-muted-foreground">默认展示周汇总，支持切换到 SKU 明细，观察销售、流量、费用和利润在每周维度上的变化。</p>
+      <DataCard>
+        <DataCardHeader
+          title="按周产品分析"
+          titleClassName="text-2xl tracking-tight"
+          badge={<p className="dashboard-kicker">Analysis Console</p>}
+          description="默认展示周汇总，支持切换到 SKU 明细，观察销售、流量、费用和利润在每周维度上的变化。"
+        />
+        <DataCardContent className="flex flex-wrap items-end gap-3">
+          {projectsLoading ? (
+            <WeeklyFilterSkeleton width="min-w-[180px]" />
+          ) : (
+            <div className="min-w-[180px] space-y-1.5">
+              <label className="text-xs text-muted-foreground">店铺</label>
+              <Select value={projectId} onValueChange={setProjectId} disabled={projects.length === 0}>
+                <SelectTrigger className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
+                  <SelectValue placeholder="请选择店铺" />
+                </SelectTrigger>
+                <SelectContent>
+                  {projects.map((project) => (
+                    <SelectItem key={project.id} value={String(project.id)}>
+                      {project.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <div className="dashboard-toolbar flex flex-wrap items-end gap-2">
-              {projectsLoading ? (
-                <WeeklyFilterSkeleton width="min-w-[180px]" />
-              ) : (
-                <div className="min-w-[180px] space-y-1.5">
-                  <label className="text-xs text-muted-foreground">店铺</label>
-                  <Select value={projectId} onValueChange={setProjectId} disabled={projects.length === 0}>
-                    <SelectTrigger className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
-                      <SelectValue placeholder="请选择店铺" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {projects.map((project) => (
-                        <SelectItem key={project.id} value={String(project.id)}>
-                          {project.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              <div className="min-w-[170px] space-y-1.5">
-                <label className="text-xs text-muted-foreground">国家站点</label>
-                <Select value={country} onValueChange={(value) => setCountry(value as CountryOption)}>
+          )}
+          <div className="min-w-[170px] space-y-1.5">
+            <label className="text-xs text-muted-foreground">国家站点</label>
+            <Select value={country} onValueChange={(value) => setCountry(value as CountryOption)}>
+              <SelectTrigger className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
+                <SelectValue placeholder="请选择国家站点" />
+              </SelectTrigger>
+              <SelectContent>
+                {COUNTRY_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="min-w-[260px] space-y-1.5">
+            <label className="text-xs text-muted-foreground">日期范围</label>
+            <DateRangePicker
+              value={parseDateRangeInputValue(startDate, endDate)}
+              onChange={(range) => {
+                setStartDate(formatDateInputValue(range?.from))
+                setEndDate(formatDateInputValue(range?.to))
+              }}
+              className="h-9"
+            />
+          </div>
+          <Button type="button" variant="outline" className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]" onClick={() => void loadWeeklyData({ force: true })} disabled={loading || !projectId}>
+            {loading ? '刷新中...' : '刷新数据'}
+          </Button>
+        </DataCardContent>
+
+        {projectLoadError ? <div className="border-t border-border/70 px-6 pb-4 pt-2"><div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{projectLoadError}</div></div> : null}
+        {error ? <div className="border-t border-border/70 px-6 pb-4 pt-2"><div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div></div> : null}
+        {recomputeMessage ? <div className="border-t border-border/70 px-6 pb-4 pt-2"><div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">{recomputeMessage}</div></div> : null}
+      </DataCard>
+
+      <DataCard>
+        <DataCardHeader
+          title="周度趋势"
+          badge={<p className="dashboard-kicker">Weekly Trend</p>}
+          description="销售额、销量、广告花费、广告点击量、自然流量"
+          action={
+            <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setVisibleLines((prev) => ({ ...prev, sales_amount: !prev.sales_amount }))}
+                className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${
+                  visibleLines.sales_amount
+                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                    : 'border-border/70 bg-[hsl(var(--surface-soft))]/70 text-muted-foreground line-through dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]'
+                }`}
+              >
+                {visibleLines.sales_amount ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: 'hsl(var(--chart-2))' }} />
+                销售额
+              </button>
+              <button
+                type="button"
+                onClick={() => setVisibleLines((prev) => ({ ...prev, units_sold: !prev.units_sold }))}
+                className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${
+                  visibleLines.units_sold
+                    ? 'border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300'
+                    : 'border-border/70 bg-[hsl(var(--surface-soft))]/70 text-muted-foreground line-through dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]'
+                }`}
+              >
+                {visibleLines.units_sold ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: 'hsl(var(--primary))' }} />
+                销量
+              </button>
+              <button
+                type="button"
+                onClick={() => setVisibleLines((prev) => ({ ...prev, ad_spend: !prev.ad_spend }))}
+                className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${
+                  visibleLines.ad_spend
+                    ? 'border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300'
+                    : 'border-border/70 bg-[hsl(var(--surface-soft))]/70 text-muted-foreground line-through dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]'
+                }`}
+              >
+                {visibleLines.ad_spend ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: 'hsl(var(--destructive))' }} />
+                广告花费
+              </button>
+              <button
+                type="button"
+                onClick={() => setVisibleLines((prev) => ({ ...prev, ad_clicks: !prev.ad_clicks }))}
+                className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${
+                  visibleLines.ad_clicks
+                    ? 'border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300'
+                    : 'border-border/70 bg-[hsl(var(--surface-soft))]/70 text-muted-foreground line-through dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]'
+                }`}
+              >
+                {visibleLines.ad_clicks ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: 'hsl(var(--chart-4))' }} />
+                广告点击量
+              </button>
+              <button
+                type="button"
+                onClick={() => setVisibleLines((prev) => ({ ...prev, organic_traffic: !prev.organic_traffic }))}
+                className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${
+                  visibleLines.organic_traffic
+                    ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                    : 'border-muted bg-muted/30 text-muted-foreground line-through'
+                }`}
+              >
+                {visibleLines.organic_traffic ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: 'hsl(var(--chart-5))' }} />
+                自然流量
+              </button>
+            </div>
+          }
+        />
+        <DataTableCardStatBar
+          className="border-b border-border/70 bg-[hsl(var(--surface-subtle))]"
+          items={[
+            { label: '销售额合计', value: formatCurrency(totals.sales_amount), highlight: true },
+            { label: '销量合计', value: totals.units_sold.toLocaleString() },
+            { label: '广告花费合计', value: formatCurrency(totals.ad_spend) },
+          ]}
+        />
+        <div className="px-2 pt-4 sm:px-6 sm:pt-6">
+          {loading && data.length > 0 ? (
+            <div className="mb-4 inline-flex rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm">
+              趋势数据更新中...
+            </div>
+          ) : null}
+          {showSummarySkeleton ? (
+            <Skeleton className="h-[320px] w-full" />
+          ) : trendPoints.length > 0 ? (
+            <ChartContainer config={chartConfig} className="aspect-auto h-[320px] w-full">
+              <AreaChart accessibilityLayer data={trendPoints} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="fillSales" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="var(--color-sales_amount)" stopOpacity={0.7} />
+                    <stop offset="95%" stopColor="var(--color-sales_amount)" stopOpacity={0.05} />
+                  </linearGradient>
+                  <linearGradient id="fillUnits" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="var(--color-units_sold)" stopOpacity={0.7} />
+                    <stop offset="95%" stopColor="var(--color-units_sold)" stopOpacity={0.05} />
+                  </linearGradient>
+                  <linearGradient id="fillAd" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="var(--color-ad_spend)" stopOpacity={0.7} />
+                    <stop offset="95%" stopColor="var(--color-ad_spend)" stopOpacity={0.05} />
+                  </linearGradient>
+                  <linearGradient id="fillAdClicks" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="var(--color-ad_clicks)" stopOpacity={0.5} />
+                    <stop offset="95%" stopColor="var(--color-ad_clicks)" stopOpacity={0.05} />
+                  </linearGradient>
+                  <linearGradient id="fillOrganicTraffic" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="var(--color-organic_traffic)" stopOpacity={0.5} />
+                    <stop offset="95%" stopColor="var(--color-organic_traffic)" stopOpacity={0.05} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid vertical={false} stroke="hsl(var(--border))" strokeOpacity={0.5} />
+                <XAxis
+                  dataKey="week_label"
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={12}
+                  minTickGap={32}
+                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                />
+                <YAxis
+                  tickFormatter={(v) => Number(v).toLocaleString()}
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={12}
+                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                  width={70}
+                />
+                <ChartTooltip
+                  cursor={{ stroke: 'hsl(var(--muted-foreground))', strokeWidth: 1, strokeDasharray: '4 4' }}
+                  content={
+                    <ChartTooltipContent
+                      labelFormatter={(value) => String(value)}
+                      formatter={(value, name) => {
+                        const nameMap: Record<string, string> = {
+                          sales_amount: '销售额',
+                          units_sold: '销量',
+                          ad_spend: '广告花费',
+                          ad_clicks: '广告点击量',
+                          organic_traffic: '自然流量',
+                        }
+                        const displayName = nameMap[String(name)] || String(name)
+                        const metricKey = String(name)
+                        const isCurrencyMetric = metricKey === 'sales_amount' || metricKey === 'ad_spend'
+                        return (
+                          <div className="flex items-center justify-between gap-4">
+                            <span className="text-muted-foreground">{displayName}</span>
+                            <span className="font-medium">{isCurrencyMetric ? formatCurrency(Number(value)) : Number(value).toLocaleString()}</span>
+                          </div>
+                        )
+                      }}
+                      indicator="dot"
+                    />
+                  }
+                />
+                {visibleLines.sales_amount ? (
+                  <Area
+                    type="monotone"
+                    dataKey="sales_amount"
+                    stroke="var(--color-sales_amount)"
+                    fill="url(#fillSales)"
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{ r: 4, strokeWidth: 0 }}
+                  />
+                ) : null}
+                {visibleLines.units_sold ? (
+                  <Area
+                    type="monotone"
+                    dataKey="units_sold"
+                    stroke="var(--color-units_sold)"
+                    fill="url(#fillUnits)"
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{ r: 4, strokeWidth: 0 }}
+                  />
+                ) : null}
+                {visibleLines.ad_spend ? (
+                  <Area
+                    type="monotone"
+                    dataKey="ad_spend"
+                    stroke="var(--color-ad_spend)"
+                    fill="url(#fillAd)"
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{ r: 4, strokeWidth: 0 }}
+                  />
+                ) : null}
+                {visibleLines.ad_clicks ? (
+                  <Area
+                    type="monotone"
+                    dataKey="ad_clicks"
+                    stroke="var(--color-ad_clicks)"
+                    fill="url(#fillAdClicks)"
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{ r: 4, strokeWidth: 0 }}
+                  />
+                ) : null}
+                {visibleLines.organic_traffic ? (
+                  <Area
+                    type="monotone"
+                    dataKey="organic_traffic"
+                    stroke="var(--color-organic_traffic)"
+                    fill="url(#fillOrganicTraffic)"
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{ r: 4, strokeWidth: 0 }}
+                  />
+                ) : null}
+              </AreaChart>
+            </ChartContainer>
+          ) : (
+            <div className="rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">暂无趋势数据</div>
+          )}
+        </div>
+      </DataCard>
+
+        <DataTableCard className="animate-enter">
+          <DataTableCardHeader className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
+            <div>
+              <p className="dashboard-kicker">Operational Ledger</p>
+              <div className="text-base font-semibold text-foreground">每周分析明细</div>
+              <p className="text-sm text-muted-foreground">默认显示周汇总；可切换到 SKU明细 查看每周的行级结果。</p>
+              <div className="mt-2 rounded-md border border-amber-200/70 bg-amber-50/80 px-3 py-2 text-xs text-amber-900">
+                备注：利润 = 实际销售额 - 总成本 - 广告花费 - 实际退款额
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="button" variant="outline" className="h-8" onClick={() => void exportWeeklyAnalysis()} disabled={exporting || summaryRows.length === 0}>
+                {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                导出 Excel
+              </Button>
+              <Button type="button" variant="outline" className="h-8" onClick={() => void handleRecomputeHistory()} disabled={recomputing || loading || !projectId}>
+                {recomputing ? '重新核算中...' : '重新核算'}
+              </Button>
+              <div className="inline-flex rounded-md border border-border/70 bg-muted/20 p-1 dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]">
+                <button type="button" className={`rounded px-3 py-1.5 text-xs font-medium transition ${activeTab === 'summary' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`} onClick={() => setActiveTab('summary')}>
+                  周汇总
+                </button>
+                <button type="button" className={`rounded px-3 py-1.5 text-xs font-medium transition ${activeTab === 'details' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`} onClick={() => setActiveTab('details')}>
+                  SKU明细
+                </button>
+              </div>
+            </div>
+          </DataTableCardHeader>
+          {activeTab === 'details' ? (
+            <div className="flex flex-wrap items-end gap-3 px-6">
+              <div className="min-w-[280px] space-y-1.5">
+                <label className="text-xs text-muted-foreground">选择周次</label>
+                <Select value={selectedWeekId} onValueChange={setSelectedWeekId} disabled={summaryRows.length === 0}>
                   <SelectTrigger className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
-                    <SelectValue placeholder="请选择国家站点" />
+                    <SelectValue placeholder="请选择周次" />
                   </SelectTrigger>
                   <SelectContent>
-                    {COUNTRY_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
+                    {summaryRows.map((item, index) => (
+                      <SelectItem key={item.row.id} value={String(item.row.id)}>
+                        第{index + 1}周 · {formatDateRange(item.row.report_start_date, item.row.report_end_date)}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-              <div className="min-w-[260px] space-y-1.5">
-                <label className="text-xs text-muted-foreground">日期范围</label>
-                <DateRangePicker
-                  value={parseDateRangeInputValue(startDate, endDate)}
-                  onChange={(range) => {
-                    setStartDate(formatDateInputValue(range?.from))
-                    setEndDate(formatDateInputValue(range?.to))
-                  }}
-                  className="h-9"
-                />
-              </div>
-              <Button type="button" variant="outline" className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]" onClick={() => void loadWeeklyData({ force: true })} disabled={loading || !projectId}>
-                {loading ? '刷新中...' : '刷新数据'}
+              <Button type="button" variant="outline" className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]" onClick={() => void loadWeeklyDetails({ force: true })} disabled={!selectedWeekId || detailsLoading}>
+                {detailsLoading ? '加载中...' : '刷新 SKU明细'}
               </Button>
             </div>
-          </div>
-
-          {projectLoadError ? <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{projectLoadError}</div> : null}
-          {error ? <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div> : null}
-          {recomputeMessage ? <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">{recomputeMessage}</div> : null}
-
-          <div className="grid gap-4 md:grid-cols-3">
-            {showSummarySkeleton ? (
-              <>
-                <WeeklyStatSkeleton />
-                <WeeklyStatSkeleton />
-                <WeeklyStatSkeleton />
-              </>
-            ) : (
-              <>
-                <StatCard
-                  title="销售额合计"
-                  value={formatCurrency(totals.sales_amount)}
-                  icon={<TrendingUp className="h-5 w-5" />}
-                  color="emerald"
-                  trend={trends.sales}
-                  trendLabel="较上周"
-                />
-                <StatCard
-                  title="销量合计"
-                  value={totals.units_sold.toLocaleString()}
-                  icon={<ShoppingCart className="h-5 w-5" />}
-                  color="sky"
-                  trend={trends.units}
-                  trendLabel="较上周"
-                />
-                <StatCard
-                  title="广告花费合计"
-                  value={formatCurrency(totals.ad_spend)}
-                  icon={<TrendingDown className="h-5 w-5" />}
-                  color="rose"
-                  trend={trends.ad}
-                  trendLabel="较上周"
-                />
-              </>
-            )}
-          </div>
-
-          <Card className="dashboard-surface animate-enter">
-            <CardHeader className="relative z-10 flex flex-col gap-4 space-y-0 py-5 sm:flex-row sm:items-center">
-              <div className="grid flex-1 gap-1 text-center sm:text-left">
-                <p className="dashboard-kicker">Weekly Trend</p>
-                <CardTitle className="text-lg">周度趋势</CardTitle>
-                <CardDescription className="text-sm text-muted-foreground">销售额、销量、广告花费、广告点击量、自然流量</CardDescription>
-              </div>
-              <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
-                <button
-                  type="button"
-                  onClick={() => setVisibleLines((prev) => ({ ...prev, sales_amount: !prev.sales_amount }))}
-                  className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${
-                    visibleLines.sales_amount
-                      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-                      : 'border-border/70 bg-[hsl(var(--surface-soft))]/70 text-muted-foreground line-through dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]'
-                  }`}
-                >
-                  {visibleLines.sales_amount ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: 'hsl(var(--chart-2))' }} />
-                  销售额
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setVisibleLines((prev) => ({ ...prev, units_sold: !prev.units_sold }))}
-                  className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${
-                    visibleLines.units_sold
-                      ? 'border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300'
-                      : 'border-border/70 bg-[hsl(var(--surface-soft))]/70 text-muted-foreground line-through dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]'
-                  }`}
-                >
-                  {visibleLines.units_sold ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: 'hsl(var(--primary))' }} />
-                  销量
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setVisibleLines((prev) => ({ ...prev, ad_spend: !prev.ad_spend }))}
-                  className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${
-                    visibleLines.ad_spend
-                      ? 'border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300'
-                      : 'border-border/70 bg-[hsl(var(--surface-soft))]/70 text-muted-foreground line-through dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]'
-                  }`}
-                >
-                  {visibleLines.ad_spend ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: 'hsl(var(--destructive))' }} />
-                  广告花费
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setVisibleLines((prev) => ({ ...prev, ad_clicks: !prev.ad_clicks }))}
-                  className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${
-                    visibleLines.ad_clicks
-                      ? 'border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300'
-                      : 'border-border/70 bg-[hsl(var(--surface-soft))]/70 text-muted-foreground line-through dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]'
-                  }`}
-                >
-                  {visibleLines.ad_clicks ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: 'hsl(var(--chart-4))' }} />
-                  广告点击量
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setVisibleLines((prev) => ({ ...prev, organic_traffic: !prev.organic_traffic }))}
-                  className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${
-                    visibleLines.organic_traffic
-                      ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
-                      : 'border-muted bg-muted/30 text-muted-foreground line-through'
-                  }`}
-                >
-                  {visibleLines.organic_traffic ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: 'hsl(var(--chart-5))' }} />
-                  自然流量
-                </button>
-              </div>
-            </CardHeader>
-            <CardContent className="relative z-10 px-2 pt-4 sm:px-6 sm:pt-6">
-              {loading && data.length > 0 ? (
-                <div className="mb-4 inline-flex rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm">
-                  趋势数据更新中...
-                </div>
-              ) : null}
-              {showSummarySkeleton ? (
-                <Skeleton className="h-[320px] w-full" />
-              ) : trendPoints.length > 0 ? (
-                <ChartContainer config={chartConfig} className="aspect-auto h-[320px] w-full">
-                  <AreaChart accessibilityLayer data={trendPoints} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="fillSales" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--color-sales_amount)" stopOpacity={0.7} />
-                        <stop offset="95%" stopColor="var(--color-sales_amount)" stopOpacity={0.05} />
-                      </linearGradient>
-                      <linearGradient id="fillUnits" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--color-units_sold)" stopOpacity={0.7} />
-                        <stop offset="95%" stopColor="var(--color-units_sold)" stopOpacity={0.05} />
-                      </linearGradient>
-                      <linearGradient id="fillAd" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--color-ad_spend)" stopOpacity={0.7} />
-                        <stop offset="95%" stopColor="var(--color-ad_spend)" stopOpacity={0.05} />
-                      </linearGradient>
-                      <linearGradient id="fillAdClicks" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--color-ad_clicks)" stopOpacity={0.5} />
-                        <stop offset="95%" stopColor="var(--color-ad_clicks)" stopOpacity={0.05} />
-                      </linearGradient>
-                      <linearGradient id="fillOrganicTraffic" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--color-organic_traffic)" stopOpacity={0.5} />
-                        <stop offset="95%" stopColor="var(--color-organic_traffic)" stopOpacity={0.05} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid vertical={false} stroke="hsl(var(--border))" strokeOpacity={0.5} />
-                    <XAxis
-                      dataKey="week_label"
-                      tickLine={false}
-                      axisLine={false}
-                      tickMargin={12}
-                      minTickGap={32}
-                      tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
-                    />
-                    <YAxis
-                      tickFormatter={(v) => Number(v).toLocaleString()}
-                      tickLine={false}
-                      axisLine={false}
-                      tickMargin={12}
-                      tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
-                      width={70}
-                    />
-                    <ChartTooltip
-                      cursor={{ stroke: 'hsl(var(--muted-foreground))', strokeWidth: 1, strokeDasharray: '4 4' }}
-                      content={
-                        <ChartTooltipContent
-                          labelFormatter={(value) => String(value)}
-                          formatter={(value, name) => {
-                            const nameMap: Record<string, string> = {
-                              sales_amount: '销售额',
-                              units_sold: '销量',
-                              ad_spend: '广告花费',
-                              ad_clicks: '广告点击量',
-                              organic_traffic: '自然流量',
-                            }
-                            const displayName = nameMap[String(name)] || String(name)
-                            const metricKey = String(name)
-                            const isCurrencyMetric = metricKey === 'sales_amount' || metricKey === 'ad_spend'
-                            return (
-                              <div className="flex items-center justify-between gap-4">
-                                <span className="text-muted-foreground">{displayName}</span>
-                                <span className="font-medium">{isCurrencyMetric ? formatCurrency(Number(value)) : Number(value).toLocaleString()}</span>
-                              </div>
-                            )
-                          }}
-                          indicator="dot"
-                        />
-                      }
-                    />
-                    {visibleLines.sales_amount ? (
-                      <Area
-                        type="monotone"
-                        dataKey="sales_amount"
-                        stroke="var(--color-sales_amount)"
-                        fill="url(#fillSales)"
-                        strokeWidth={2}
-                        dot={false}
-                        activeDot={{ r: 4, strokeWidth: 0 }}
-                      />
-                    ) : null}
-                    {visibleLines.units_sold ? (
-                      <Area
-                        type="monotone"
-                        dataKey="units_sold"
-                        stroke="var(--color-units_sold)"
-                        fill="url(#fillUnits)"
-                        strokeWidth={2}
-                        dot={false}
-                        activeDot={{ r: 4, strokeWidth: 0 }}
-                      />
-                    ) : null}
-                    {visibleLines.ad_spend ? (
-                      <Area
-                        type="monotone"
-                        dataKey="ad_spend"
-                        stroke="var(--color-ad_spend)"
-                        fill="url(#fillAd)"
-                        strokeWidth={2}
-                        dot={false}
-                        activeDot={{ r: 4, strokeWidth: 0 }}
-                      />
-                    ) : null}
-                    {visibleLines.ad_clicks ? (
-                      <Area
-                        type="monotone"
-                        dataKey="ad_clicks"
-                        stroke="var(--color-ad_clicks)"
-                        fill="url(#fillAdClicks)"
-                        strokeWidth={2}
-                        dot={false}
-                        activeDot={{ r: 4, strokeWidth: 0 }}
-                      />
-                    ) : null}
-                    {visibleLines.organic_traffic ? (
-                      <Area
-                        type="monotone"
-                        dataKey="organic_traffic"
-                        stroke="var(--color-organic_traffic)"
-                        fill="url(#fillOrganicTraffic)"
-                        strokeWidth={2}
-                        dot={false}
-                        activeDot={{ r: 4, strokeWidth: 0 }}
-                      />
-                    ) : null}
-                  </AreaChart>
-                </ChartContainer>
-              ) : (
-                <div className="rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">暂无趋势数据</div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="dashboard-surface animate-enter">
-            <CardHeader className="relative z-10 pb-3">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="dashboard-kicker">Operational Ledger</p>
-                  <CardTitle className="text-base">每周分析明细</CardTitle>
-                  <CardDescription className="text-sm text-muted-foreground">
-                    默认显示周汇总；可切换到 SKU明细 查看每周的行级结果。
-                  </CardDescription>
-                  <div className="mt-2 rounded-md border border-amber-200/70 bg-amber-50/80 px-3 py-2 text-xs text-amber-900">
-                    备注：利润 = 实际销售额 - 总成本 - 广告花费 - 实际退款额
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-8"
-                    onClick={() => void exportWeeklyAnalysis()}
-                    disabled={exporting || summaryRows.length === 0}
-                  >
-                    {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                    导出 Excel
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-8"
-                    onClick={() => void handleRecomputeHistory()}
-                    disabled={recomputing || loading || !projectId}
-                  >
-                    {recomputing ? '重新核算中...' : '重新核算'}
-                  </Button>
-                  <div className="inline-flex rounded-md border border-border/70 bg-muted/20 p-1 dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]">
-                    <button
-                      type="button"
-                      className={`rounded px-3 py-1.5 text-xs font-medium transition ${activeTab === 'summary' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
-                      onClick={() => setActiveTab('summary')}
-                    >
-                      周汇总
-                    </button>
-                    <button
-                      type="button"
-                      className={`rounded px-3 py-1.5 text-xs font-medium transition ${activeTab === 'details' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
-                      onClick={() => setActiveTab('details')}
-                    >
-                      SKU明细
-                    </button>
-                  </div>
-                </div>
-              </div>
-              {activeTab === 'details' ? (
-                <div className="mt-3 flex flex-wrap items-end gap-3">
-                  <div className="min-w-[280px] space-y-1.5">
-                    <label className="text-xs text-muted-foreground">选择周次</label>
-                    <Select value={selectedWeekId} onValueChange={setSelectedWeekId} disabled={summaryRows.length === 0}>
-                    <SelectTrigger className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
-                        <SelectValue placeholder="请选择周次" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {summaryRows.map((item, index) => (
-                          <SelectItem key={item.row.id} value={String(item.row.id)}>
-                            第{index + 1}周 · {formatDateRange(item.row.report_start_date, item.row.report_end_date)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
-                    onClick={() => void loadWeeklyDetails({ force: true })}
-                    disabled={!selectedWeekId || detailsLoading}
-                  >
-                    {detailsLoading ? '加载中...' : '刷新 SKU明细'}
-                  </Button>
-                </div>
-              ) : null}
-            </CardHeader>
-            <CardContent className="relative z-10 pt-4">
-              {activeTab === 'summary' && loading && summaryRows.length > 0 ? (
-                <div className="mb-4 inline-flex rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm">
-                  周汇总更新中...
-                </div>
-              ) : null}
-              {activeTab === 'details' && detailsLoading && detailRows.length > 0 ? (
-                <div className="mb-4 inline-flex rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm">
-                  SKU 明细更新中...
-                </div>
-              ) : null}
-              {activeTab === 'summary' ? (
-                showSummarySkeleton ? (
-                  <div className="space-y-3">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <Skeleton key={i} className="h-10 w-full" />
-                    ))}
-                  </div>
-                ) : summaryRows.length > 0 ? (
-                  <div className="w-full overflow-x-auto rounded-md border">
-                    <Table className="min-w-[4200px] table-auto text-xs">
-                      <TableHeader>
-                        <TableRow className="bg-muted/30 hover:bg-muted/30">
-                          <TableHead
-                            ref={summaryWeekHeadRef}
-                            rowSpan={2}
-                            className="sticky z-40 border-r border-border bg-muted px-2 py-2 text-center whitespace-nowrap"
-                            style={{ left: 0 }}
-                          >
-                            周次
-                          </TableHead>
-                          <TableHead
-                            rowSpan={2}
-                            className="sticky z-40 border-r border-border bg-muted px-2 py-2 text-center whitespace-nowrap"
-                            style={{ left: summaryWeekColumnWidth }}
-                          >
-                            日期范围
-                          </TableHead>
-                          {SUMMARY_COLUMN_GROUPS.map((group) => (
-                            <TableHead key={group.title} colSpan={group.columns.length} className={`border-r px-2 py-2 text-center text-foreground ${group.groupClass}`}>
-                              {group.title}
-                            </TableHead>
-                          ))}
-                        </TableRow>
-                        <TableRow className="bg-muted/20 hover:bg-muted/20">
-                          {SUMMARY_COLUMN_GROUPS.map((group) =>
-                            group.columns.map((column) => (
-                              <TableHead key={column} className={`border-r px-2 py-1.5 text-center whitespace-nowrap ${group.headClass}`}>
-                                {column}
-                              </TableHead>
-                            ))
-                          )}
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {summaryRows.map((item, index) => {
-                          const row = item.row
-                          const rowBg = row.is_current ? 'bg-background' : 'bg-muted/20'
-                          return (
-                            <TableRow key={row.id} className={!row.is_current ? 'bg-muted/15' : undefined}>
-                              <TableCell
-                                className={`sticky z-20 border-r border-border px-2 py-1.5 text-center font-medium whitespace-nowrap ${rowBg}`}
-                                style={{ left: 0 }}
-                              >
-                                第{index + 1}周
-                              </TableCell>
-                              <TableCell
-                                className={`sticky z-20 border-r border-border px-2 py-1.5 text-center whitespace-nowrap ${rowBg}`}
-                                style={{ left: summaryWeekColumnWidth }}
-                              >
-                                {formatDateRange(row.report_start_date, row.report_end_date)}
-                              </TableCell>
-                              {SUMMARY_COLUMNS.map((column) => (
-                                <TableCell key={`${row.id}-${column}`} className="border-r px-2 py-1.5 text-right tabular-nums">
-                                  {formatSummaryCell(column, item.summary[column])}
-                                </TableCell>
-                              ))}
-                            </TableRow>
-                          )
-                        })}
-                      </TableBody>
-                      <TableFooter>
-                        <TableRow className="bg-muted font-semibold hover:bg-muted">
-                          <TableCell
-                            className="sticky z-30 border-r border-border bg-muted px-2 py-2 text-center whitespace-nowrap"
-                            style={{ left: 0 }}
-                          >
-                            合计
-                          </TableCell>
-                          <TableCell
-                            className="sticky z-30 border-r border-border bg-muted px-2 py-2 text-center whitespace-nowrap"
-                            style={{ left: summaryWeekColumnWidth }}
-                          >
-                            {summaryRows.length} 周
-                          </TableCell>
-                          {SUMMARY_COLUMNS.map((column) => (
-                            <TableCell key={`summary-total-${column}`} className="border-r px-2 py-2 text-right tabular-nums">
-                              {formatSummaryCell(column, summaryTotals[column])}
-                            </TableCell>
-                          ))}
-                        </TableRow>
-                      </TableFooter>
-                    </Table>
-                  </div>
-                ) : (
-                  <div className="rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">当前筛选条件暂无产品分析周汇总数据</div>
-                )
-              ) : showDetailsSkeleton ? (
+          ) : null}
+          <DataTableCardBody>
+            {activeTab === 'summary' && loading && summaryRows.length > 0 ? (
+              <div className="mb-4 inline-flex rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm">周汇总更新中...</div>
+            ) : null}
+            {activeTab === 'details' && detailsLoading && detailRows.length > 0 ? (
+              <div className="mb-4 inline-flex rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm">SKU 明细更新中...</div>
+            ) : null}
+            {activeTab === 'summary' ? (
+              showSummarySkeleton ? (
                 <div className="space-y-3">
-                  {Array.from({ length: 8 }).map((_, i) => (
+                  {Array.from({ length: 5 }).map((_, i) => (
                     <Skeleton key={i} className="h-10 w-full" />
                   ))}
                 </div>
-              ) : detailsError ? (
-                <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{detailsError}</div>
-              ) : detailRows.length > 0 ? (
-                <div className="relative w-full overflow-x-auto rounded-md border">
-                  <Table className="min-w-[3600px] table-auto text-xs">
+              ) : summaryRows.length > 0 ? (
+                <Table noWrapperRounded containerClassName="min-w-[4200px]" className="table-auto text-xs">
                     <TableHeader>
                       <TableRow className="bg-muted/30 hover:bg-muted/30">
-                        <TableHead
-                          rowSpan={2}
-                          className="sticky z-40 border-r border-border bg-muted px-3 py-2 text-center whitespace-nowrap"
-                          style={{ left: DETAIL_STICKY_LEFT[0], minWidth: DETAIL_STICKY_COLUMN_WIDTHS[0] }}
-                        >
-                          日期
-                        </TableHead>
-                        <TableHead
-                          rowSpan={2}
-                          className="sticky z-40 border-r border-border bg-muted px-3 py-2 text-center whitespace-nowrap"
-                          style={{ left: DETAIL_STICKY_LEFT[1], minWidth: DETAIL_STICKY_COLUMN_WIDTHS[1] }}
-                        >
-                          SKU
-                        </TableHead>
-                        {detailGroupMeta.groups.map((group) => (
-                          <TableHead key={group.title} colSpan={group.columns.length} className={`border-r px-2 py-2 text-center text-foreground ${group.groupClass}`}>
-                            {group.title}
-                          </TableHead>
-                        ))}
-                        {detailGroupMeta.extras.map((column) => (
-                          <TableHead key={`detail-extra-top-${column}`} rowSpan={2} className="border-r px-2 py-2 text-center whitespace-nowrap bg-muted/20">
-                            {column}
-                          </TableHead>
+                        <TableHead ref={summaryWeekHeadRef} rowSpan={2} className="sticky z-40 border-r border-border bg-muted px-2 py-2 text-center whitespace-nowrap" style={{ left: 0 }}>周次</TableHead>
+                        <TableHead rowSpan={2} className="sticky z-40 border-r border-border bg-muted px-2 py-2 text-center whitespace-nowrap" style={{ left: summaryWeekColumnWidth }}>日期范围</TableHead>
+                        {SUMMARY_COLUMN_GROUPS.map((group) => (
+                          <TableHead key={group.title} colSpan={group.columns.length} className={`border-r px-2 py-2 text-center text-foreground ${group.groupClass}`}>{group.title}</TableHead>
                         ))}
                       </TableRow>
                       <TableRow className="bg-muted/20 hover:bg-muted/20">
-                        {detailGroupMeta.groups.map((group) =>
+                        {SUMMARY_COLUMN_GROUPS.map((group) =>
                           group.columns.map((column) => (
-                            <TableHead key={column} className={`border-r px-2 py-1.5 text-center whitespace-nowrap ${detailGroupMeta.headClassByColumn[column] || ''}`}>
-                              {column}
-                            </TableHead>
+                            <TableHead key={column} className={`border-r px-2 py-1.5 text-center whitespace-nowrap ${group.headClass}`}>{column}</TableHead>
                           ))
                         )}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {detailRows.map((row, idx) => (
-                        <TableRow key={`detail-${idx}`}>
-                          {detailColumns.map((column) => (
-                            <TableCell
-                              key={`detail-${idx}-${column}`}
-                              className={`border-r px-2 py-1.5 tabular-nums whitespace-nowrap ${
-                                column === '日期' || column === 'SKU'
-                                  ? 'sticky z-20 border-border bg-background text-left'
-                                  : 'text-right'
-                              }`}
-                              style={
-                                column === '日期'
-                                  ? { left: DETAIL_STICKY_LEFT[0], minWidth: DETAIL_STICKY_COLUMN_WIDTHS[0] }
-                                  : column === 'SKU'
-                                    ? { left: DETAIL_STICKY_LEFT[1], minWidth: DETAIL_STICKY_COLUMN_WIDTHS[1] }
-                                    : undefined
-                              }
-                            >
-                              {formatDetailCell(column, row[column])}
-                            </TableCell>
-                          ))}
-                        </TableRow>
-                      ))}
+                      {summaryRows.map((item, index) => {
+                        const row = item.row
+                        const rowBg = row.is_current ? 'bg-background' : 'bg-muted/20'
+                        return (
+                          <TableRow key={row.id} className={!row.is_current ? 'bg-muted/15' : undefined}>
+                            <TableCell className={`sticky z-20 border-r border-border px-2 py-1.5 text-center font-medium whitespace-nowrap ${rowBg}`} style={{ left: 0 }}>第{index + 1}周</TableCell>
+                            <TableCell className={`sticky z-20 border-r border-border px-2 py-1.5 text-center whitespace-nowrap ${rowBg}`} style={{ left: summaryWeekColumnWidth }}>{formatDateRange(row.report_start_date, row.report_end_date)}</TableCell>
+                            {SUMMARY_COLUMNS.map((column) => (
+                              <TableCell key={`${row.id}-${column}`} className="border-r px-2 py-1.5 text-right tabular-nums">{formatSummaryCell(column, item.summary[column])}</TableCell>
+                            ))}
+                          </TableRow>
+                        )
+                      })}
                     </TableBody>
                     <TableFooter>
                       <TableRow className="bg-muted font-semibold hover:bg-muted">
-                        {detailColumns.map((column) => {
-                          if (column === '日期') {
-                            return (
-                              <TableCell
-                                key="detail-total-date"
-                                className="sticky z-30 border-r border-border bg-muted px-2 py-2 text-left"
-                                style={{ left: DETAIL_STICKY_LEFT[0], minWidth: DETAIL_STICKY_COLUMN_WIDTHS[0] }}
-                              >
-                                合计
-                              </TableCell>
-                            )
-                          }
-                          if (column === 'SKU') {
-                            return (
-                              <TableCell
-                                key="detail-total-sku"
-                                className="sticky z-30 border-r border-border bg-muted px-2 py-2 text-left"
-                                style={{ left: DETAIL_STICKY_LEFT[1], minWidth: DETAIL_STICKY_COLUMN_WIDTHS[1] }}
-                              >
-                                {detailRows.length} 行
-                              </TableCell>
-                            )
-                          }
-                          if (SUMMARY_COLUMN_SET.has(column)) {
-                            return (
-                              <TableCell key={`detail-total-${column}`} className="border-r px-2 py-2 text-right tabular-nums">
-                                {formatDetailCell(column, detailTotals[column])}
-                              </TableCell>
-                            )
-                          }
-                          const extraTotal = detailExtraTotals[column]
-                          return (
-                            <TableCell key={`detail-total-${column}`} className="border-r px-2 py-2 text-right tabular-nums">
-                              {extraTotal === null ? '-' : formatDetailCell(column, extraTotal)}
-                            </TableCell>
-                          )
-                        })}
+                        <TableCell className="sticky z-30 border-r border-border bg-muted px-2 py-2 text-center whitespace-nowrap" style={{ left: 0 }}>合计</TableCell>
+                        <TableCell className="sticky z-30 border-r border-border bg-muted px-2 py-2 text-center whitespace-nowrap" style={{ left: summaryWeekColumnWidth }}>{summaryRows.length} 周</TableCell>
+                        {SUMMARY_COLUMNS.map((column) => (
+                          <TableCell key={`summary-total-${column}`} className="border-r px-2 py-2 text-right tabular-nums">{formatSummaryCell(column, summaryTotals[column])}</TableCell>
+                        ))}
                       </TableRow>
                     </TableFooter>
                   </Table>
-                </div>
               ) : (
-                <div className="rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">当前周次暂无 SKU明细 数据</div>
-              )}
-            </CardContent>
-          </Card>
-        </CardContent>
-      </Card>
+                <div className="rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">当前筛选条件暂无产品分析周汇总数据</div>
+              )
+            ) : showDetailsSkeleton ? (
+              <div className="space-y-3">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <Skeleton key={i} className="h-10 w-full" />
+                ))}
+              </div>
+            ) : detailsError ? (
+              <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{detailsError}</div>
+            ) : detailRows.length > 0 ? (
+              <Table noWrapperRounded containerClassName="min-w-[3600px]" className="table-auto text-xs">
+                  <TableHeader>
+                    <TableRow className="bg-muted/30 hover:bg-muted/30">
+                      <TableHead rowSpan={2} className="sticky z-40 border-r border-border bg-muted px-3 py-2 text-center whitespace-nowrap" style={{ left: DETAIL_STICKY_LEFT[0], minWidth: DETAIL_STICKY_COLUMN_WIDTHS[0] }}>日期</TableHead>
+                      <TableHead rowSpan={2} className="sticky z-40 border-r border-border bg-muted px-3 py-2 text-center whitespace-nowrap" style={{ left: DETAIL_STICKY_LEFT[1], minWidth: DETAIL_STICKY_COLUMN_WIDTHS[1] }}>SKU</TableHead>
+                      {detailGroupMeta.groups.map((group) => (
+                        <TableHead key={group.title} colSpan={group.columns.length} className={`border-r px-2 py-2 text-center text-foreground ${group.groupClass}`}>{group.title}</TableHead>
+                      ))}
+                      {detailGroupMeta.extras.map((column) => (
+                        <TableHead key={`detail-extra-top-${column}`} rowSpan={2} className="border-r px-2 py-2 text-center whitespace-nowrap bg-muted/20">{column}</TableHead>
+                      ))}
+                    </TableRow>
+                    <TableRow className="bg-muted/20 hover:bg-muted/20">
+                      {detailGroupMeta.groups.map((group) =>
+                        group.columns.map((column) => (
+                          <TableHead key={column} className={`border-r px-2 py-1.5 text-center whitespace-nowrap ${detailGroupMeta.headClassByColumn[column] || ''}`}>{column}</TableHead>
+                        ))
+                      )}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {detailRows.map((row, idx) => (
+                      <TableRow key={`detail-${idx}`}>
+                        {detailColumns.map((column) => (
+                          <TableCell
+                            key={`detail-${idx}-${column}`}
+                            className={`border-r px-2 py-1.5 tabular-nums whitespace-nowrap ${column === '日期' || column === 'SKU' ? 'sticky z-20 border-border bg-background text-left' : 'text-right'}`}
+                            style={column === '日期' ? { left: DETAIL_STICKY_LEFT[0], minWidth: DETAIL_STICKY_COLUMN_WIDTHS[0] } : column === 'SKU' ? { left: DETAIL_STICKY_LEFT[1], minWidth: DETAIL_STICKY_COLUMN_WIDTHS[1] } : undefined}
+                          >
+                            {formatDetailCell(column, row[column])}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                  <TableFooter>
+                    <TableRow className="bg-muted font-semibold hover:bg-muted">
+                      {detailColumns.map((column) => {
+                        if (column === '日期') return <TableCell key="detail-total-date" className="sticky z-30 border-r border-border bg-muted px-2 py-2 text-left" style={{ left: DETAIL_STICKY_LEFT[0], minWidth: DETAIL_STICKY_COLUMN_WIDTHS[0] }}>合计</TableCell>
+                        if (column === 'SKU') return <TableCell key="detail-total-sku" className="sticky z-30 border-r border-border bg-muted px-2 py-2 text-left" style={{ left: DETAIL_STICKY_LEFT[1], minWidth: DETAIL_STICKY_COLUMN_WIDTHS[1] }}>{detailRows.length} 行</TableCell>
+                        if (SUMMARY_COLUMN_SET.has(column)) return <TableCell key={`detail-total-${column}`} className="border-r px-2 py-2 text-right tabular-nums">{formatDetailCell(column, detailTotals[column])}</TableCell>
+                        const extraTotal = detailExtraTotals[column]
+                        return <TableCell key={`detail-total-${column}`} className="border-r px-2 py-2 text-right tabular-nums">{extraTotal === null ? '-' : formatDetailCell(column, extraTotal)}</TableCell>
+                      })}
+                    </TableRow>
+                  </TableFooter>
+                </Table>
+            ) : (
+              <div className="rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">当前周次暂无 SKU明细 数据</div>
+            )}
+          </DataTableCardBody>
+        </DataTableCard>
     </div>
   )
 }

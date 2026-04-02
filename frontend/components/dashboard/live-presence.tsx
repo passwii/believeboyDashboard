@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { usePathname } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
@@ -38,12 +39,35 @@ function getInitials(name: string) {
   return parts.map((part) => part[0]?.toUpperCase() ?? '').join('')
 }
 
-async function sendHeartbeat(pathname: string, currentPageTitle: string) {
+type SessionUser = {
+  id?: string | null
+  name?: string | null
+  email?: string | null
+  operatorNameZh?: string | null
+}
+
+async function sendHeartbeat(
+  pathname: string,
+  currentPageTitle: string,
+  session: { user?: SessionUser | null } | null,
+) {
+  const headers = new Headers({ 'Content-Type': 'application/json' })
+  const userId = session?.user?.id?.trim()
+  if (userId) {
+    headers.set('X-User-Id', userId)
+  }
+  const userName = session?.user?.operatorNameZh?.trim() || session?.user?.name?.trim()
+  if (userName) {
+    headers.set('X-User-Name', encodeURIComponent(userName))
+  }
+  const userEmail = session?.user?.email?.trim()
+  if (userEmail) {
+    headers.set('X-User-Email', encodeURIComponent(userEmail))
+  }
+
   const response = await fetch('/api/backend/api/v1/system-management/presence/heartbeat', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers,
     body: JSON.stringify({
       current_path: pathname,
       current_page_title: currentPageTitle,
@@ -60,6 +84,7 @@ async function sendHeartbeat(pathname: string, currentPageTitle: string) {
 export function LivePresence() {
   const pathname = usePathname()
   const currentPageTitle = useMemo(() => getDashboardPageTitle(pathname), [pathname])
+  const { data: session } = useSession()
   const [items, setItems] = useState<PresenceUser[]>([])
   const [isLoaded, setIsLoaded] = useState(false)
 
@@ -68,7 +93,7 @@ export function LivePresence() {
 
     const syncPresence = async () => {
       try {
-        const payload = await sendHeartbeat(pathname, currentPageTitle)
+        const payload = await sendHeartbeat(pathname, currentPageTitle, session)
         if (!isDisposed) {
           setItems(payload.items)
           setIsLoaded(true)
@@ -89,7 +114,7 @@ export function LivePresence() {
       isDisposed = true
       window.clearInterval(timer)
     }
-  }, [pathname, currentPageTitle])
+  }, [pathname, currentPageTitle, session])
 
   const visibleUsers = items.slice(0, MAX_VISIBLE_USERS)
   const overflowUsers = items.slice(MAX_VISIBLE_USERS)

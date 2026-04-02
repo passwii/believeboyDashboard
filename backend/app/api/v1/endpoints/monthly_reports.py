@@ -20,12 +20,21 @@ from app.schemas.monthly_report import (
     MonthlyReportTaskStatusResponse,
 )
 from app.services.audit_log_service import append_operation_audit_log
-from app.services import monthly_report_runtime_service, monthly_report_service, project_service, upload_service
+from app.services import (
+    monthly_report_runtime_service,
+    monthly_report_service,
+    project_service,
+    upload_service,
+)
+from app.services.redis_service import (
+    get_financial_series_cache,
+    set_financial_series_cache,
+)
 
 router = APIRouter(dependencies=[Depends(protected)])
 
 
-@router.post('/monthly-reports', response_model=MonthlyReportResponse)
+@router.post("/monthly-reports", response_model=MonthlyReportResponse)
 def create_monthly_report(
     data: CreateMonthlyReportRequest,
     request: Request,
@@ -37,9 +46,9 @@ def create_monthly_report(
     started_at = perf_counter()
     monthly_report_service.parse_report_month(data.report_month)
 
-    provided_project_name = (data.project_name or '').strip()
+    provided_project_name = (data.project_name or "").strip()
     if not provided_project_name:
-        raise HTTPException(status_code=422, detail='project_name is required')
+        raise HTTPException(status_code=422, detail="project_name is required")
 
     project_id = data.project_id
     project_name = provided_project_name
@@ -48,14 +57,14 @@ def create_monthly_report(
     transaction_path = upload_service.build_upload_file_path(
         settings,
         project_name,
-        'payment_report',
+        "payment_report",
         data.transaction_file_id,
     )
     summary_pdf_path = (
         upload_service.build_upload_file_path(
             settings,
             project_name,
-            'monthly_summary_pdf',
+            "monthly_summary_pdf",
             data.summary_pdf_file_id,
         )
         if data.summary_pdf_file_id
@@ -71,21 +80,25 @@ def create_monthly_report(
         transaction_file_id=data.transaction_file_id,
         summary_pdf_file_id=data.summary_pdf_file_id,
         resolved_file_paths={
-            'transaction_report': str(transaction_path),
-            **({'monthly_summary_pdf': str(summary_pdf_path)} if summary_pdf_path else {}),
+            "transaction_report": str(transaction_path),
+            **(
+                {"monthly_summary_pdf": str(summary_pdf_path)}
+                if summary_pdf_path
+                else {}
+            ),
         },
     )
     append_operation_audit_log(
         db,
-        action='monthly_reports.create',
-        target_type='monthly_report_task',
+        action="monthly_reports.create",
+        target_type="monthly_report_task",
         target_id=task.id,
         operator=operator,
         after={
-            'job_id': task.id,
-            'project_id': project_id,
-            'project_name': project_name,
-            'report_month': data.report_month.strip(),
+            "job_id": task.id,
+            "project_id": project_id,
+            "project_name": project_name,
+            "report_month": data.report_month.strip(),
         },
         request=request,
     )
@@ -95,27 +108,33 @@ def create_monthly_report(
     enqueue_ms = int((after_enqueue_job - after_resolve_paths) * 1000)
     total_ms = int((after_enqueue_job - started_at) * 1000)
     if response is not None:
-        response.headers['X-Monthly-Create-Total-Ms'] = str(total_ms)
-        response.headers['X-Monthly-Create-Project-Ms'] = str(int((after_project - started_at) * 1000))
-        response.headers['X-Monthly-Create-Resolve-Ms'] = str(int((after_resolve_paths - after_project) * 1000))
-        response.headers['X-Monthly-Create-Prepare-Ms'] = str(prepare_ms)
-        response.headers['X-Monthly-Create-Enqueue-Ms'] = str(enqueue_ms)
+        response.headers["X-Monthly-Create-Total-Ms"] = str(total_ms)
+        response.headers["X-Monthly-Create-Project-Ms"] = str(
+            int((after_project - started_at) * 1000)
+        )
+        response.headers["X-Monthly-Create-Resolve-Ms"] = str(
+            int((after_resolve_paths - after_project) * 1000)
+        )
+        response.headers["X-Monthly-Create-Prepare-Ms"] = str(prepare_ms)
+        response.headers["X-Monthly-Create-Enqueue-Ms"] = str(enqueue_ms)
 
     return MonthlyReportResponse(
         job_id=task.id,
         monthly_report_id=None,
-        status_endpoint=f'/api/v1/monthly-reports/tasks/{task.id}',
-        result_endpoint=f'/api/v1/monthly-reports/tasks/{task.id}/result',
+        status_endpoint=f"/api/v1/monthly-reports/tasks/{task.id}",
+        result_endpoint=f"/api/v1/monthly-reports/tasks/{task.id}/result",
         status=task.status,
         created_at=task.created_at,
     )
 
 
-@router.get('/monthly-reports/tasks/{task_id}', response_model=MonthlyReportTaskStatusResponse)
+@router.get(
+    "/monthly-reports/tasks/{task_id}", response_model=MonthlyReportTaskStatusResponse
+)
 def get_monthly_report_task(task_id: int) -> MonthlyReportTaskStatusResponse:
     task = monthly_report_runtime_service.get_task(task_id)
     if task is None:
-        raise HTTPException(status_code=404, detail='Task not found')
+        raise HTTPException(status_code=404, detail="Task not found")
 
     return MonthlyReportTaskStatusResponse(
         task_id=task.id,
@@ -131,7 +150,7 @@ def get_monthly_report_task(task_id: int) -> MonthlyReportTaskStatusResponse:
     )
 
 
-@router.get('/monthly-reports/tasks/{task_id}/result')
+@router.get("/monthly-reports/tasks/{task_id}/result")
 def download_monthly_report_task_result(
     task_id: int,
     request: Request,
@@ -140,22 +159,22 @@ def download_monthly_report_task_result(
 ):
     task = monthly_report_runtime_service.get_task(task_id)
     if task is None:
-        raise HTTPException(status_code=404, detail='Task not found')
+        raise HTTPException(status_code=404, detail="Task not found")
     if task.status != JobStatus.success:
-        raise HTTPException(status_code=409, detail='Task not finished')
+        raise HTTPException(status_code=409, detail="Task not finished")
     if not task.result_path:
-        raise HTTPException(status_code=404, detail='Result file missing')
+        raise HTTPException(status_code=404, detail="Result file missing")
 
     result_path = Path(task.result_path)
     if not result_path.exists() or not result_path.is_file():
-        raise HTTPException(status_code=404, detail='Result file missing')
+        raise HTTPException(status_code=404, detail="Result file missing")
     append_operation_audit_log(
         db,
-        action='monthly_reports.result.export',
-        target_type='monthly_report_task',
+        action="monthly_reports.result.export",
+        target_type="monthly_report_task",
         target_id=task.id,
         operator=operator,
-        after={'job_id': task.id, 'filename': result_path.name},
+        after={"job_id": task.id, "filename": result_path.name},
         request=request,
     )
     db.commit()
@@ -163,7 +182,7 @@ def download_monthly_report_task_result(
     return FileResponse(path=str(result_path), filename=result_path.name)
 
 
-@router.get('/monthly-reports', response_model=list[MonthlyReportListItem])
+@router.get("/monthly-reports", response_model=list[MonthlyReportListItem])
 def list_monthly_reports(
     project_id: int | None = Query(default=None, gt=0),
     month: str | None = Query(default=None),
@@ -180,7 +199,9 @@ def list_monthly_reports(
     return [_to_report_item(row) for row in rows]
 
 
-@router.get('/monthly-reports/financial-series', response_model=MonthlyFinancialSeriesResponse)
+@router.get(
+    "/monthly-reports/financial-series", response_model=MonthlyFinancialSeriesResponse
+)
 def get_monthly_financial_series(
     project_id: int = Query(gt=0),
     start_month: str | None = Query(default=None),
@@ -188,7 +209,7 @@ def get_monthly_financial_series(
     fill_missing: bool = Query(default=True),
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
-    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> MonthlyFinancialSeriesResponse:
     project_service.ensure_project_access(
         db,
@@ -196,6 +217,11 @@ def get_monthly_financial_series(
         operator=operator,
         is_admin=bool(is_admin),
     )
+
+    cached = get_financial_series_cache(project_id, start_month, end_month)
+    if cached:
+        return MonthlyFinancialSeriesResponse(**cached)
+
     payload = monthly_report_service.get_financial_series(
         db,
         project_id=project_id,
@@ -203,10 +229,15 @@ def get_monthly_financial_series(
         end_month=end_month,
         fill_missing=fill_missing,
     )
+
+    set_financial_series_cache(project_id, start_month, end_month, payload)
+
     return MonthlyFinancialSeriesResponse(**payload)
 
 
-@router.get('/monthly-reports/{report_id:int}', response_model=MonthlyReportDetailResponse)
+@router.get(
+    "/monthly-reports/{report_id:int}", response_model=MonthlyReportDetailResponse
+)
 def get_monthly_report_detail(
     report_id: int,
     db: Session = Depends(get_db_session),
@@ -222,7 +253,7 @@ def get_monthly_report_detail(
     )
 
 
-@router.get('/monthly-reports/{report_id:int}/export')
+@router.get("/monthly-reports/{report_id:int}/export")
 def download_monthly_report_export(
     report_id: int,
     request: Request,
@@ -231,18 +262,22 @@ def download_monthly_report_export(
 ):
     report = monthly_report_service.get_report_or_404(db, report_id)
     if report.status != JobStatus.success:
-        raise HTTPException(status_code=409, detail='Monthly report is not finished')
+        raise HTTPException(status_code=409, detail="Monthly report is not finished")
 
     result_path = monthly_report_service.resolve_result_path(report)
     if result_path is None:
-        raise HTTPException(status_code=404, detail='Result file missing')
+        raise HTTPException(status_code=404, detail="Result file missing")
     append_operation_audit_log(
         db,
-        action='monthly_reports.export',
-        target_type='monthly_report',
+        action="monthly_reports.export",
+        target_type="monthly_report",
         target_id=report.id,
         operator=operator,
-        after={'report_id': report.id, 'project_id': report.project_id, 'filename': Path(result_path).name},
+        after={
+            "report_id": report.id,
+            "project_id": report.project_id,
+            "filename": Path(result_path).name,
+        },
         request=request,
     )
     db.commit()
@@ -285,7 +320,16 @@ def _to_float(value: Decimal | float | int | None) -> float:
 def _serialize_calculation_row(row) -> dict[str, float] | None:
     if row is None:
         return None
-    excluded = {'id', 'report_id', 'project_name', 'report_month', 'calculation_version', 'computed_at', 'created_at', 'updated_at'}
+    excluded = {
+        "id",
+        "report_id",
+        "project_name",
+        "report_month",
+        "calculation_version",
+        "computed_at",
+        "created_at",
+        "updated_at",
+    }
     payload: dict[str, float] = {}
     for column in row.__table__.columns:  # noqa: SLF001
         key = column.name

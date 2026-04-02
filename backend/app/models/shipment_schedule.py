@@ -179,6 +179,7 @@ class ShipmentScheduleItem(Base):
     item_date: Mapped[date | None] = mapped_column(Date(), nullable=True)
     sku: Mapped[str] = mapped_column(String(100), nullable=False)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    carton_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     remark: Mapped[str | None] = mapped_column(Text(), nullable=True)
     volume_m3: Mapped[float] = mapped_column(
         Numeric(14, 4), nullable=False, default=0, server_default="0"

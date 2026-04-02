@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, CheckCircle2, Database, Loader2, RefreshCw, Save, Server } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Database, Loader2, RefreshCw, Save, Server, Trash2 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 import { Badge } from '@/components/ui/badge'
@@ -129,6 +129,7 @@ export default function SystemDataManagementPage() {
 
   const [selectedStatus, setSelectedStatus] = useState<DataLifecycleStatus>('active')
   const [statusNote, setStatusNote] = useState('')
+  const [clearingCache, setClearingCache] = useState(false)
 
   const loadStatus = useCallback(async (): Promise<void> => {
     if (status === 'loading') return
@@ -230,6 +231,31 @@ export default function SystemDataManagementPage() {
     }
   }, [refreshAll, selectedStatus, session, statusNote])
 
+  const onClearCache = useCallback(async () => {
+    if (!confirm('确定要清理所有 Redis 缓存吗？')) return
+
+    setClearingCache(true)
+    setError(null)
+    setSuccess(null)
+
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/system-management/cache/clear-all`, {
+        method: 'POST',
+        headers: buildBackendHeaders(session),
+      })
+      if (!response.ok) {
+        throw new Error(await parseError(response))
+      }
+      const payload = (await response.json()) as { deleted_count: number; message: string }
+      setSuccess(payload.message)
+      await refreshAll()
+    } catch (clearErr) {
+      setError(clearErr instanceof Error ? clearErr.message : '缓存清理失败')
+    } finally {
+      setClearingCache(false)
+    }
+  }, [refreshAll, session])
+
   const summaryCards = useMemo(() => {
     const snapshot = overview ?? statusOverview
     if (!snapshot) return []
@@ -280,9 +306,13 @@ export default function SystemDataManagementPage() {
           <CardTitle>数据库状态</CardTitle>
           <CardDescription>支持修改数据状态，并实时查看数据库状态、表状态、数据状态与最近系统状态。</CardDescription>
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="outline" onClick={() => void refreshAll()} disabled={loading || detailsLoading || saving}>
+            <Button type="button" variant="outline" onClick={() => void refreshAll()} disabled={loading || detailsLoading || saving || clearingCache}>
               {loading || detailsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               {loading || detailsLoading ? '刷新中...' : '刷新状态'}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => void onClearCache()} disabled={loading || detailsLoading || saving || clearingCache}>
+              {clearingCache ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              {clearingCache ? '清理中...' : '清理缓存'}
             </Button>
           </div>
         </CardHeader>

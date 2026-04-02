@@ -13,6 +13,7 @@ from app.api.v1.endpoints.pricing_calculation import router as pricing_calculati
 from app.api.v1.endpoints.store_sku_pricing_snapshots import router as store_sku_pricing_snapshots_router
 from app.api.v1.endpoints.projects import router as projects_router
 from app.api.v1.endpoints.ai_chat import router as ai_chat_router
+from app.api.v1.endpoints.ai_file_upload import router as ai_file_upload_router
 from app.api.v1.endpoints.auth import router as auth_router
 from app.api.v1.endpoints.exchange_rates import router as exchange_rates_router
 from app.api.v1.endpoints.inventory_replenishment import router as inventory_replenishment_router
@@ -35,6 +36,7 @@ api_router.include_router(store_sku_pricing_snapshots_router)
 api_router.include_router(inventory_replenishment_router)
 api_router.include_router(shipment_schedules_router)
 api_router.include_router(ai_chat_router)
+api_router.include_router(ai_file_upload_router)
 api_router.include_router(uploads_router)
 api_router.include_router(ad_upload_router)
 api_router.include_router(ad_analysis_router)

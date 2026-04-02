@@ -7,11 +7,11 @@ client = TestClient(app)
 
 
 def test_health_ok():
-    response = client.get('/api/v1/health')
+    response = client.get("/api/v1/health")
     assert response.status_code == 200
-    assert response.json()['status'] == 'ok'
+    assert response.json()["status"] == "ok"
 
 
 def test_projects_requires_api_key():
-    response = client.get('/api/v1/projects')
+    response = client.get("/api/v1/projects/manage")
     assert response.status_code == 401

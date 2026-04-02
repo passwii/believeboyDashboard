@@ -4,17 +4,17 @@ from pydantic import BaseModel, Field
 
 
 class DataLifecycleStatus(str, Enum):
-    active = 'active'
-    maintenance = 'maintenance'
-    read_only = 'read_only'
-    paused = 'paused'
+    active = "active"
+    maintenance = "maintenance"
+    read_only = "read_only"
+    paused = "paused"
 
 
 class TableHealthStatus(str, Enum):
-    healthy = 'healthy'
-    empty = 'empty'
-    stale = 'stale'
-    error = 'error'
+    healthy = "healthy"
+    empty = "empty"
+    stale = "stale"
+    error = "error"
 
 
 class DatabaseStatus(BaseModel):
@@ -81,24 +81,24 @@ class UpdateDataStatusResponse(BaseModel):
 
 
 class CommissionIncomeCategory(str, Enum):
-    operator = 'operator'
-    assistant = 'assistant'
+    operator = "operator"
+    assistant = "assistant"
 
 
 class CommissionPaymentStatus(str, Enum):
-    paid = 'paid'
-    unpaid = 'unpaid'
+    paid = "paid"
+    unpaid = "unpaid"
 
 
 class CommissionProjectPaymentStatus(str, Enum):
-    paid = 'paid'
-    partial = 'partial'
-    unpaid = 'unpaid'
+    paid = "paid"
+    partial = "partial"
+    unpaid = "unpaid"
 
 
 class CommissionRatioSource(str, Enum):
-    rule = 'rule'
-    manual = 'manual'
+    rule = "rule"
+    manual = "manual"
 
 
 class CommissionRecordUpsertItem(BaseModel):
@@ -211,7 +211,9 @@ class CommissionProjectMonthlySummaryMonthItem(BaseModel):
 class CommissionProjectYearlySummaryItem(BaseModel):
     project_id: int
     project_name: str
-    months: dict[str, CommissionProjectMonthlySummaryMonthItem] = Field(default_factory=dict)
+    months: dict[str, CommissionProjectMonthlySummaryMonthItem] = Field(
+        default_factory=dict
+    )
     total_income_usd: float
     total_commission_rmb: float
     total_received_rmb: float
@@ -391,6 +393,11 @@ class OperationAuditClientActionRequest(BaseModel):
     action: str = Field(min_length=1, max_length=128)
     target_type: str = Field(min_length=1, max_length=64)
     target_id: str | None = Field(default=None, max_length=128)
-    result: str = Field(default='success', pattern='^(success|failure)$')
+    result: str = Field(default="success", pattern="^(success|failure)$")
     after: dict | list | None = None
     error_message: str | None = Field(default=None, max_length=4000)
+
+
+class ClearCacheResponse(BaseModel):
+    deleted_count: int
+    message: str

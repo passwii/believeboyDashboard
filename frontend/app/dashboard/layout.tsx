@@ -1,11 +1,17 @@
 'use client'
 
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { LivePresence } from '@/components/dashboard/live-presence'
 import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
 import { ProductUpdatesEntry } from '@/components/dashboard/product-updates-entry'
 import { ProductUpdatesSpotlight } from '@/components/dashboard/product-updates-spotlight'
+import {
+  NotificationsProvider,
+  NotificationToastContainer,
+  NotificationPanel,
+  useNotifications,
+} from '@/components/notifications'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/dashboard/app-sidebar'
 import { SearchCommand } from '@/components/dashboard/search-command'
@@ -14,12 +20,53 @@ import { ThemeToggle } from '@/components/theme-toggle'
 import { getDashboardPageTitle } from '@/lib/dashboard-route-meta'
 import { Bell, ChevronRight, CircleHelp, History, Search } from 'lucide-react'
 
+function NotificationBell() {
+  const { unreadCount } = useNotifications()
+  const [panelOpen, setPanelOpen] = useState(false)
+
+  const badgeLabel = useMemo(() => {
+    if (unreadCount <= 0) return null
+    return unreadCount > 9 ? '9+' : String(unreadCount)
+  }, [unreadCount])
+
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="relative h-10 w-10 rounded-xl border border-transparent bg-transparent text-secondary hover:bg-[hsl(var(--surface-subtle))]"
+        onClick={() => setPanelOpen(true)}
+        aria-label="打开通知中心"
+      >
+        <Bell className="h-4 w-4" />
+        {badgeLabel ? (
+          <span className="absolute right-1.5 top-1.5 inline-flex min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[0.62rem] font-semibold leading-4 text-primary-foreground shadow-sm">
+            {badgeLabel}
+          </span>
+        ) : null}
+      </Button>
+      <NotificationPanel open={panelOpen} onOpenChange={setPanelOpen} />
+    </>
+  )
+}
+
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
   const pathname = usePathname()
+  const isAiChatPage = pathname === '/dashboard/ai-panel/chat'
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+
+  // Navigate to AI chat page → auto-collapse sidebar
+  useEffect(() => {
+    if (isAiChatPage) {
+      setSidebarOpen(false)
+    } else {
+      setSidebarOpen(true)
+    }
+  }, [isAiChatPage])
   const pageTitle = useMemo(() => getDashboardPageTitle(pathname), [pathname])
   const breadcrumbLabel = useMemo(() => {
     if (pathname === '/dashboard') return '运营总览'
@@ -40,8 +87,9 @@ export default function DashboardLayout({
   }, [pageTitle])
 
   return (
-    <SidebarProvider>
-      <AppSidebar variant="inset" />
+    <NotificationsProvider>
+    <SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpen}>
+      <AppSidebar variant="sidebar" />
       <SidebarInset className="min-w-0 overflow-x-clip bg-[hsl(var(--surface-low))]">
         <header className="sticky top-0 z-20 border-b border-border/70 bg-[hsl(var(--surface-overlay)/0.82)] backdrop-blur-xl">
           <div className="flex min-h-[4.5rem] items-center gap-4 px-3 md:px-5 lg:px-6 xl:px-8">
@@ -87,14 +135,7 @@ export default function DashboardLayout({
                 <span className="sr-only">Search</span>
               </Button>
               <ThemeToggle />
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-10 w-10 rounded-xl border border-transparent bg-transparent text-secondary hover:bg-[hsl(var(--surface-subtle))]"
-              >
-                <Bell className="h-4 w-4" />
-                <span className="sr-only">Notifications</span>
-              </Button>
+              <NotificationBell />
               <ProductUpdatesEntry />
               <Button
                 asChild
@@ -121,14 +162,28 @@ export default function DashboardLayout({
             </div>
           </div>
         </header>
-        <main className="dashboard-full-width relative min-w-0 flex-1 overflow-x-clip px-1 pb-6 pt-4 md:px-2 md:pb-8 lg:px-3 xl:px-4">
-          <div className="dashboard-page-shell min-h-[calc(100vh-8.5rem)] px-0 py-1">
+        <main
+          className={
+            isAiChatPage
+              ? 'dashboard-full-width relative min-w-0 flex-1 overflow-x-clip px-0 pb-0 pt-0'
+              : 'dashboard-full-width relative min-w-0 flex-1 overflow-x-clip px-1 pb-6 pt-4 md:px-2 md:pb-8 lg:px-3 xl:px-4'
+          }
+        >
+          <div
+            className={
+              isAiChatPage
+                ? 'dashboard-page-shell h-[calc(100vh-4.5rem)] min-h-0 px-0 py-0'
+                : 'dashboard-page-shell min-h-[calc(100vh-8.5rem)] px-0 py-1'
+            }
+          >
             {children}
           </div>
         </main>
       </SidebarInset>
       <SearchCommand />
       <ProductUpdatesSpotlight />
+      <NotificationToastContainer />
     </SidebarProvider>
+    </NotificationsProvider>
   )
 }

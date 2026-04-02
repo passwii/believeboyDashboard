@@ -108,6 +108,25 @@ def _parse_date(value: str | None, field_name: str) -> date | None:
     )
 
 
+def _parse_carton_count(value: str | None, field_name: str) -> int | None:
+    """Parse carton_count from CSV. Returns None if field is absent/empty."""
+    if value is None:
+        return None
+    normalized = _normalize_text(value)
+    if normalized is None:
+        return None
+    try:
+        result = int(normalized)
+        if result < 0:
+            raise ValueError("negative")
+        return result
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"{field_name} 必须是大于等于 0 的整数",
+        )
+
+
 def _normalize_status(value: str) -> str:
     normalized = (value or "").strip()
     if normalized not in ALLOWED_SHIPMENT_STATUS:
@@ -292,6 +311,7 @@ def _normalize_manual_items(
                 "item_date": _parse_date(item.item_date, f"第 {index} 行 item_date"),
                 "sku": sku,
                 "quantity": int(item.quantity),
+                "carton_count": int(item.carton_count) if item.carton_count is not None else None,
                 "remark": _normalize_text(item.remark),
             }
         )
@@ -869,6 +889,8 @@ def calculate_shipment_schedule_costs(
         package_width = Decimal(str(sku_info.package_width_cm or 0))
         package_height = Decimal(str(sku_info.package_height_cm or 0))
         unit_weight = Decimal(str(sku_info.weight_kg or 0))
+        units_per_carton = int(sku_info.units_per_carton or 0)
+        carton_count = int(quantity) // units_per_carton if units_per_carton > 0 else 0
 
         unit_volume_m3 = (
             package_length * package_width * package_height / Decimal("1000000")
@@ -896,6 +918,7 @@ def calculate_shipment_schedule_costs(
         item.chargeable_weight_kg = chargeable_weight_kg
         item.estimated_logistics_cost = estimated_logistics_cost
         item.average_logistics_unit_price = average_logistics_unit_price
+        item.carton_count = carton_count
 
         total_volume += volume_m3
         total_chargeable_weight += chargeable_weight_kg
@@ -1075,9 +1098,16 @@ def parse_shipment_items_csv(content: bytes) -> list[dict[str, object]]:
         )
 
     available_headers = {str(name).strip() for name in reader.fieldnames if name}
-    required_headers = {"project_name", "shipment_no", "SKU", "quantity"}
-    if not required_headers.issubset(available_headers):
-        missing = ", ".join(sorted(required_headers - available_headers))
+    # quantity is required unless carton_count is present
+    has_quantity = "quantity" in available_headers
+    has_carton_count = "carton_count" in available_headers
+    if not has_quantity and not has_carton_count:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="CSV 必须包含 quantity 或 carton_count 字段（至少填一个）",
+        )
+    if "project_name" not in available_headers or "shipment_no" not in available_headers or "SKU" not in available_headers:
+        missing = ", ".join(sorted({"project_name", "shipment_no", "SKU"} - available_headers))
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=f"CSV 缺少字段: {missing}"
         )
@@ -1092,23 +1122,25 @@ def parse_shipment_items_csv(content: bytes) -> list[dict[str, object]]:
             continue
 
         quantity_text = _normalize_text(normalized.get("quantity"))
-        if quantity_text is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"第 {index} 行 quantity 不能为空",
-            )
-        try:
-            quantity = int(quantity_text)
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"第 {index} 行 quantity 必须是整数",
-            )
-        if quantity <= 0:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"第 {index} 行 quantity 必须大于 0",
-            )
+        carton_count_text = _normalize_text(normalized.get("carton_count"))
+        parsed_carton_count = _parse_carton_count(carton_count_text, f"第 {index} 行 carton_count")
+
+        # quantity must be computable later via _validate_items_against_product_costs
+        if quantity_text is not None:
+            try:
+                quantity = int(quantity_text)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"第 {index} 行 quantity 必须是整数",
+                )
+            if quantity <= 0:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"第 {index} 行 quantity 必须大于 0",
+                )
+        else:
+            quantity = None  # placeholder; will be computed in _validate_items_against_product_costs
 
         items.append(
             {
@@ -1118,6 +1150,7 @@ def parse_shipment_items_csv(content: bytes) -> list[dict[str, object]]:
                 "item_date": _parse_date(normalized.get("date"), f"第 {index} 行 date"),
                 "sku": sku,
                 "quantity": quantity,
+                "carton_count": parsed_carton_count,
                 "remark": _normalize_text(normalized.get("remark")),
             }
         )
@@ -1138,16 +1171,30 @@ def _validate_items_against_product_costs(
     if not sku_values:
         return
 
-    matched_skus = {
-        str(row[0])
-        for row in db.execute(
-            select(ProductCost.sku).where(
-                ProductCost.project_name == schedule.project_name_snapshot,
-                ProductCost.sku.in_(sku_values),
-                ProductCost.country == schedule.country,
-            )
-        ).all()
-    }
+    # Fetch product info for carton_count computation
+    product_rows = db.execute(
+        select(ProductCost.sku, ProductCost.units_per_carton).where(
+            ProductCost.project_name == schedule.project_name_snapshot,
+            ProductCost.sku.in_(sku_values),
+            ProductCost.country == schedule.country,
+        )
+    ).all()
+    product_map = {str(row[0]): int(row[1] or 0) for row in product_rows}
+
+    # Compute carton_count where not provided
+    for item in items:
+        sku = str(item["sku"])
+        units_per_carton = product_map.get(sku, 0)
+        if units_per_carton <= 0:
+            continue
+        # quantity -> carton_count
+        if item.get("carton_count") is None and item.get("quantity") is not None:
+            item["carton_count"] = int(item["quantity"]) // units_per_carton
+        # carton_count -> quantity
+        if item.get("quantity") is None and item.get("carton_count") is not None:
+            item["quantity"] = int(item["carton_count"]) * units_per_carton
+
+    matched_skus = set(product_map.keys())
 
     missing = [item for item in items if str(item["sku"]) not in matched_skus]
     if not missing:
@@ -1187,6 +1234,11 @@ def _replace_shipment_schedule_items(
 
     total_quantity = 0
     for item in items:
+        if item["quantity"] is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"第 {int(item['row_no'])} 行无法确定 quantity（请在 CSV 中填写 quantity 或 carton_count，并确保 SKU 在 SKU 信息中有装箱率）",
+            )
         total_quantity += int(item["quantity"])
         db.add(
             ShipmentScheduleItem(
@@ -1196,6 +1248,7 @@ def _replace_shipment_schedule_items(
                 item_date=item["item_date"],
                 sku=str(item["sku"]),
                 quantity=int(item["quantity"]),
+                carton_count=item.get("carton_count"),
                 remark=item["remark"],
                 source_type=source_type,
                 source_file=source_file,
