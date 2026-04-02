@@ -661,33 +661,6 @@ export default function ReportUploadPage() {
 
   return (
     <div className='w-full space-y-6 text-foreground'>
-      <Card className='overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90'>
-        <CardContent className='grid gap-5 px-6 py-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-end md:px-8'>
-          <div className='space-y-3'>
-            <div className='dashboard-kicker'>报表上传</div>
-            <div className='space-y-2'>
-              <h1 className='text-2xl font-semibold tracking-tight text-foreground md:text-3xl'>
-                上传、识别、入库，一条线完成
-              </h1>
-            </div>
-          </div>
-          <div className='grid grid-cols-2 gap-3 text-sm md:min-w-[360px]'>
-            <div className='rounded-xl border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-subtle)),hsl(var(--surface-soft)))] px-4 py-3 dark:border-border/90 dark:bg-[linear-gradient(180deg,hsl(var(--surface-soft)),hsl(var(--surface-low)))]'>
-              <p className='text-xs text-muted-foreground'>待确认卡片</p>
-              <p className='mt-1 text-lg font-semibold text-foreground'>
-                {REPORT_TYPES.length - readyCount}
-              </p>
-            </div>
-            <div className='rounded-xl border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-subtle)),hsl(var(--surface-soft)))] px-4 py-3 dark:border-border/90 dark:bg-[linear-gradient(180deg,hsl(var(--surface-soft)),hsl(var(--surface-low)))]'>
-              <p className='text-xs text-muted-foreground'>可直接上传</p>
-              <p className='mt-1 text-lg font-semibold text-foreground'>
-                {readyCount}
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       <Tabs
         value={workspaceTab}
         onValueChange={(value) => setWorkspaceTab(value as UploadWorkspaceTab)}

@@ -171,13 +171,13 @@ const PROJECT_COMMISSION_RULES = [
     code: 'Rule 01',
     title: '销售额佣金计算',
     tag: '按销售额',
-    description: '项目设置为按销售额计算时，按当月销售收入与项目佣金点数核算工厂佣金。',
+    description: '按销售额提成',
   },
   {
     code: 'Rule 02',
     title: '回款佣金核算',
     tag: '按回款率',
-    description: '项目设置为按回款核算时，按回款率阶梯自动计算项目佣金。',
+    description: '按回款提成',
     tiers: [
       '40% - 50% -> 7%',
       '50% - 60% -> 10%',

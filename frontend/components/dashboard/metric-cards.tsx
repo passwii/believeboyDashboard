@@ -14,7 +14,6 @@ interface MetricCardProps {
   value: string
   change: string
   changeType: 'up' | 'down' | 'neutral'
-  description: string
   trend: number[]
   icon: React.ReactNode
 }
@@ -24,7 +23,6 @@ function MetricCard({
   value,
   change,
   changeType,
-  description,
   trend,
   icon,
 }: MetricCardProps) {
@@ -76,7 +74,8 @@ function MetricCard({
             {change}
             {changeType === 'neutral' && <ArrowRight className="ml-1 h-3 w-3" />}
           </span>
-          <span>{description}</span>
+          <span>{change}</span>
+          {changeType === 'neutral' && <ArrowRight className="ml-1 h-3 w-3" />}
         </p>
       </CardContent>
     </Card>
@@ -90,7 +89,6 @@ export function MetricCards() {
       value: '$42.8k',
       change: '+12.4%',
       changeType: 'up' as const,
-      description: 'vs yesterday',
       trend: [15, 18, 16, 21, 20, 24, 28],
       icon: <DollarSign className="h-4 w-4" />,
     },
@@ -99,7 +97,6 @@ export function MetricCards() {
       value: '842',
       change: '+8.2%',
       changeType: 'up' as const,
-      description: 'order flow',
       trend: [10, 12, 11, 15, 14, 18, 17],
       icon: <Users className="h-4 w-4" />,
     },
@@ -108,7 +105,6 @@ export function MetricCards() {
       value: '21.4%',
       change: '-1.3%',
       changeType: 'down' as const,
-      description: 'cost efficiency',
       trend: [24, 25, 23, 24, 22, 22, 21],
       icon: <Activity className="h-4 w-4" />,
     },
@@ -117,7 +113,6 @@ export function MetricCards() {
       value: '+14.6%',
       change: '+4.8%',
       changeType: 'up' as const,
-      description: 'cross-border trend',
       trend: [8, 10, 13, 12, 16, 18, 21],
       icon: <TrendingUp className="h-4 w-4" />,
     },

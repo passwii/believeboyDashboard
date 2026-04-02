@@ -1,20 +1,68 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { AlertCircle, Calculator, Check, CheckCircle2, ChevronDown, Download, Loader2, RefreshCw, Search, Trash2, X } from 'lucide-react'
+import {
+  AlertCircle,
+  Calculator,
+  Check,
+  CheckCircle2,
+  ChevronDown,
+  Download,
+  Loader2,
+  RefreshCw,
+  Search,
+  Trash2,
+  X,
+} from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  DataCard,
+  DataCardContent,
+  DataCardHeader,
+  DataTableCard,
+  DataTableCardBody,
+  DataTableCardHeader,
+} from '@/components/ui/data-card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { DirectionalTabTransition, SlidingTabsTrigger, TabsMotionGroup } from '@/components/ui/tab-motion'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import {
+  DirectionalTabTransition,
+  SlidingTabsTrigger,
+  TabsMotionGroup,
+} from '@/components/ui/tab-motion'
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
 import { logClientOperation } from '@/lib/operation-audit'
 import { cn, formatLocalTimestampForFilename } from '@/lib/utils'
 
@@ -23,38 +71,42 @@ const MAX_VISIBLE_RUNS = 8
 const MAX_SELECTED_RUNS = 8
 const HISTORY_SHIPMENT_STATUSES = ['completed', 'in_transit'] as const
 const BUSINESS_TAB_ORDER = ['new-product', 'store-accounting'] as const
-const CALCULATION_MODE_ORDER = ['profit-calc', 'profit-reverse', 'cost-reverse', 'fbm-calc'] as const
-const STORE_CALCULATION_MODE_ORDER = ['profit-calc', 'profit-reverse'] as const
+const CALCULATION_MODE_ORDER = [
+  'profit-calc',
+  'profit-reverse',
+  'cost-reverse',
+  'fbm-calc',
+] as const
 
 function PricingFieldSkeleton() {
   return (
-    <div className="space-y-2">
-      <Skeleton className="h-4 w-16" />
-      <Skeleton className="h-10 w-full" />
+    <div className='space-y-2'>
+      <Skeleton className='h-4 w-16' />
+      <Skeleton className='h-10 w-full' />
     </div>
   )
 }
 
 function PricingRunCardSkeleton() {
   return (
-    <div className="min-w-[180px] rounded-xl border border-border/70 p-3">
-      <Skeleton className="h-3 w-20" />
-      <Skeleton className="mt-3 h-4 w-28" />
-      <div className="mt-3 flex gap-2">
-        <Skeleton className="h-5 w-16" />
-        <Skeleton className="h-5 w-12" />
+    <div className='min-w-[180px] rounded-xl border border-border/70 p-3'>
+      <Skeleton className='h-3 w-20' />
+      <Skeleton className='mt-3 h-4 w-28' />
+      <div className='mt-3 flex gap-2'>
+        <Skeleton className='h-5 w-16' />
+        <Skeleton className='h-5 w-12' />
       </div>
-      <Skeleton className="mt-3 h-6 w-24" />
-      <Skeleton className="mt-2 h-3 w-16" />
+      <Skeleton className='mt-3 h-6 w-24' />
+      <Skeleton className='mt-2 h-3 w-16' />
     </div>
   )
 }
 
 function PricingTableSkeleton({ rows = 6 }: { rows?: number }) {
   return (
-    <div className="space-y-3">
+    <div className='space-y-3'>
       {Array.from({ length: rows }).map((_, index) => (
-        <Skeleton key={index} className="h-11 w-full" />
+        <Skeleton key={index} className='h-11 w-full' />
       ))}
     </div>
   )
@@ -63,7 +115,11 @@ function PricingTableSkeleton({ rows = 6 }: { rows?: number }) {
 type PricingCalculationRunItem = {
   id: number
   product_name: string
-  calculation_type: 'profit_calc' | 'profit_reverse' | 'cost_reverse' | 'fbm_calc'
+  calculation_type:
+    | 'profit_calc'
+    | 'profit_reverse'
+    | 'cost_reverse'
+    | 'fbm_calc'
   project_id: number | null
   sku: string | null
   package_length_cm: number
@@ -297,7 +353,11 @@ type FormState = {
   usd_to_rmb_rate: string
 }
 
-type CalculationMode = 'profit-calc' | 'profit-reverse' | 'cost-reverse' | 'fbm-calc'
+type CalculationMode =
+  | 'profit-calc'
+  | 'profit-reverse'
+  | 'cost-reverse'
+  | 'fbm-calc'
 type BusinessTab = 'new-product' | 'store-accounting'
 
 type StoreSkuDraft = {
@@ -343,17 +403,29 @@ const INITIAL_FORM: FormState = {
   usd_to_rmb_rate: '',
 }
 
-function buildInitialStoreDraft(item: ProductCostItem, historicalFirstLegCost?: number, exchangeRate?: string): StoreSkuDraft {
-  const resolvedFirstLegCost = historicalFirstLegCost && historicalFirstLegCost > 0
-    ? historicalFirstLegCost
-    : item.first_leg_cost_rmb > 0 ? item.first_leg_cost_rmb : 5
-  const resolvedExchangeRate = exchangeRate && exchangeRate.trim() ? exchangeRate : ''
+function buildInitialStoreDraft(
+  item: ProductCostItem,
+  historicalFirstLegCost?: number,
+  exchangeRate?: string,
+): StoreSkuDraft {
+  const resolvedFirstLegCost =
+    historicalFirstLegCost && historicalFirstLegCost > 0
+      ? historicalFirstLegCost
+      : item.first_leg_cost_rmb > 0
+        ? item.first_leg_cost_rmb
+        : 5
+  const resolvedExchangeRate =
+    exchangeRate && exchangeRate.trim() ? exchangeRate : ''
   return {
-    package_length_cm: item.package_length_cm > 0 ? String(item.package_length_cm) : '',
-    package_width_cm: item.package_width_cm > 0 ? String(item.package_width_cm) : '',
-    package_height_cm: item.package_height_cm > 0 ? String(item.package_height_cm) : '',
+    package_length_cm:
+      item.package_length_cm > 0 ? String(item.package_length_cm) : '',
+    package_width_cm:
+      item.package_width_cm > 0 ? String(item.package_width_cm) : '',
+    package_height_cm:
+      item.package_height_cm > 0 ? String(item.package_height_cm) : '',
     weight_kg: item.weight_kg > 0 ? String(item.weight_kg) : '',
-    first_leg_cost_rmb: resolvedFirstLegCost > 0 ? String(resolvedFirstLegCost) : '5',
+    first_leg_cost_rmb:
+      resolvedFirstLegCost > 0 ? String(resolvedFirstLegCost) : '5',
     sale_price_usd: '',
     target_profit_rate: '25',
     advertising_rate: '12',
@@ -369,7 +441,7 @@ function buildSnapshotPayload(
   item: ProductCostItem,
   result: PricingCalculationRunItem,
   calculationType: 'profit-calc' | 'profit-reverse',
-  projectId: number
+  projectId: number,
 ): StoreSkuPricingSnapshotItem {
   return {
     id: 0, // 后端会自动生成
@@ -378,7 +450,8 @@ function buildSnapshotPayload(
     sku: item.sku,
     asin: item.asin,
     country: item.country,
-    calculation_type: calculationType === 'profit-calc' ? 'profit_calc' : 'profit_reverse',
+    calculation_type:
+      calculationType === 'profit-calc' ? 'profit_calc' : 'profit_reverse',
     package_length_cm: result.package_length_cm,
     package_width_cm: result.package_width_cm,
     package_height_cm: result.package_height_cm,
@@ -419,11 +492,16 @@ function buildSnapshotPayload(
 }
 
 // 将快照转换为计算结果格式（用于前端显示）
-function convertSnapshotToResult(snapshot: StoreSkuPricingSnapshotItem): PricingCalculationRunItem {
+function convertSnapshotToResult(
+  snapshot: StoreSkuPricingSnapshotItem,
+): PricingCalculationRunItem {
   return {
     id: snapshot.id,
     product_name: `${snapshot.project_name} / ${snapshot.sku}`,
-    calculation_type: snapshot.calculation_type === 'profit_reverse' ? 'profit_reverse' : 'profit_calc',
+    calculation_type:
+      snapshot.calculation_type === 'profit_reverse'
+        ? 'profit_reverse'
+        : 'profit_calc',
     project_id: snapshot.project_id,
     sku: snapshot.sku,
     package_length_cm: snapshot.package_length_cm,
@@ -466,70 +544,75 @@ function convertSnapshotToResult(snapshot: StoreSkuPricingSnapshotItem): Pricing
 
 // 保存店铺 SKU 核算快照
 async function requestSaveStoreSkuSnapshot(
-  payload: StoreSkuPricingSnapshotItem
+  payload: StoreSkuPricingSnapshotItem,
 ): Promise<StoreSkuPricingSnapshotItem> {
-  const response = await fetch(`${API_BASE}/api/v1/store-sku-pricing-snapshots`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
+  const response = await fetch(
+    `${API_BASE}/api/v1/store-sku-pricing-snapshots`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        project_id: payload.project_id,
+        project_name: payload.project_name,
+        sku: payload.sku,
+        asin: payload.asin,
+        country: payload.country,
+        calculation_type: payload.calculation_type,
+        package_length_cm: payload.package_length_cm,
+        package_width_cm: payload.package_width_cm,
+        package_height_cm: payload.package_height_cm,
+        weight_kg: payload.weight_kg,
+        fob_product_cost_rmb: payload.fob_product_cost_rmb,
+        first_leg_cost_rmb: payload.first_leg_cost_rmb,
+        ddp_cost_rmb: payload.profit.ddp_cost_rmb,
+        ddp_cost_usd: payload.profit.ddp_cost_usd,
+        sale_price_usd: payload.sale_price_usd,
+        target_profit_rate: payload.target_profit_rate,
+        advertising_rate: payload.advertising_rate,
+        return_loss_rate: payload.return_loss_rate,
+        storage_months: payload.storage_months,
+        inbound_placement_mode: payload.inbound_placement_mode,
+        usd_to_rmb_rate: payload.usd_to_rmb_rate,
+        usd_to_rmb_rate_source: payload.usd_to_rmb_rate_source,
+        size_tier: payload.size_tier,
+        size_tier_label: payload.size_tier_label,
+        price_band: payload.price_band,
+        price_band_label: payload.price_band_label,
+        longest_side_in: payload.dimensions.longest_side_in,
+        middle_side_in: payload.dimensions.middle_side_in,
+        shortest_side_in: payload.dimensions.shortest_side_in,
+        length_plus_girth_in: payload.dimensions.length_plus_girth_in,
+        volume_cubic_in: payload.dimensions.volume_cubic_in,
+        volume_cubic_ft: payload.dimensions.volume_cubic_ft,
+        product_weight_lb: payload.weights.product_weight_lb,
+        product_weight_oz: payload.weights.product_weight_oz,
+        dimensional_weight_lb: payload.weights.dimensional_weight_lb,
+        chargeable_weight_lb: payload.weights.chargeable_weight_lb,
+        chargeable_weight_oz: payload.weights.chargeable_weight_oz,
+        chargeable_weight_rule: payload.weights.chargeable_weight_rule,
+        fulfillment_fee_rule_label: payload.fulfillment_fee_rule_label,
+        inbound_config_fee_rule_label: payload.inbound_config_fee_rule_label,
+        storage_fee_rule_label: payload.storage_fee_rule_label,
+        referral_fee_usd: payload.fees.referral_fee_usd,
+        advertising_fee_usd: payload.fees.advertising_fee_usd,
+        return_loss_usd: payload.fees.return_loss_usd,
+        fba_fulfillment_fee_usd: payload.fees.fba_fulfillment_fee_usd,
+        inbound_config_fee_usd: payload.fees.inbound_config_fee_usd,
+        storage_fee_usd: payload.fees.storage_fee_usd,
+        total_fee_usd: payload.fees.total_fee_usd,
+        payout_usd: payload.profit.payout_usd,
+        profit_usd: payload.profit.profit_usd,
+        profit_rate: payload.profit.profit_rate,
+        warnings: payload.warnings,
+      }),
     },
-    body: JSON.stringify({
-      project_id: payload.project_id,
-      project_name: payload.project_name,
-      sku: payload.sku,
-      asin: payload.asin,
-      country: payload.country,
-      calculation_type: payload.calculation_type,
-      package_length_cm: payload.package_length_cm,
-      package_width_cm: payload.package_width_cm,
-      package_height_cm: payload.package_height_cm,
-      weight_kg: payload.weight_kg,
-      fob_product_cost_rmb: payload.fob_product_cost_rmb,
-      first_leg_cost_rmb: payload.first_leg_cost_rmb,
-      ddp_cost_rmb: payload.profit.ddp_cost_rmb,
-      ddp_cost_usd: payload.profit.ddp_cost_usd,
-      sale_price_usd: payload.sale_price_usd,
-      target_profit_rate: payload.target_profit_rate,
-      advertising_rate: payload.advertising_rate,
-      return_loss_rate: payload.return_loss_rate,
-      storage_months: payload.storage_months,
-      inbound_placement_mode: payload.inbound_placement_mode,
-      usd_to_rmb_rate: payload.usd_to_rmb_rate,
-      usd_to_rmb_rate_source: payload.usd_to_rmb_rate_source,
-      size_tier: payload.size_tier,
-      size_tier_label: payload.size_tier_label,
-      price_band: payload.price_band,
-      price_band_label: payload.price_band_label,
-      longest_side_in: payload.dimensions.longest_side_in,
-      middle_side_in: payload.dimensions.middle_side_in,
-      shortest_side_in: payload.dimensions.shortest_side_in,
-      length_plus_girth_in: payload.dimensions.length_plus_girth_in,
-      volume_cubic_in: payload.dimensions.volume_cubic_in,
-      volume_cubic_ft: payload.dimensions.volume_cubic_ft,
-      product_weight_lb: payload.weights.product_weight_lb,
-      product_weight_oz: payload.weights.product_weight_oz,
-      dimensional_weight_lb: payload.weights.dimensional_weight_lb,
-      chargeable_weight_lb: payload.weights.chargeable_weight_lb,
-      chargeable_weight_oz: payload.weights.chargeable_weight_oz,
-      chargeable_weight_rule: payload.weights.chargeable_weight_rule,
-      fulfillment_fee_rule_label: payload.fulfillment_fee_rule_label,
-      inbound_config_fee_rule_label: payload.inbound_config_fee_rule_label,
-      storage_fee_rule_label: payload.storage_fee_rule_label,
-      referral_fee_usd: payload.fees.referral_fee_usd,
-      advertising_fee_usd: payload.fees.advertising_fee_usd,
-      return_loss_usd: payload.fees.return_loss_usd,
-      fba_fulfillment_fee_usd: payload.fees.fba_fulfillment_fee_usd,
-      inbound_config_fee_usd: payload.fees.inbound_config_fee_usd,
-      storage_fee_usd: payload.fees.storage_fee_usd,
-      total_fee_usd: payload.fees.total_fee_usd,
-      payout_usd: payload.profit.payout_usd,
-      profit_usd: payload.profit.profit_usd,
-      profit_rate: payload.profit.profit_rate,
-      warnings: payload.warnings,
-    }),
-  })
+  )
   if (!response.ok) {
-    const errorPayload = await response.json().catch(() => ({ detail: '保存快照失败' }))
+    const errorPayload = await response
+      .json()
+      .catch(() => ({ detail: '保存快照失败' }))
     throw new Error(errorPayload.detail || '保存快照失败')
   }
   return response.json()
@@ -568,39 +651,53 @@ function formatCompactDate(value: string) {
   })
 }
 
-function getCalculationTypeMeta(calculationType: PricingCalculationRunItem['calculation_type']) {
+function getCalculationTypeMeta(
+  calculationType: PricingCalculationRunItem['calculation_type'],
+) {
   if (calculationType === 'fbm_calc') {
     return {
       label: 'FBM测算',
-      badgeClassName: 'border-violet-300 bg-violet-100 text-violet-900 dark:border-violet-900/80 dark:bg-violet-950/50 dark:text-violet-200',
-      cardClassName: 'border-violet-300 bg-violet-50/80 hover:border-violet-400 hover:bg-violet-50 dark:border-violet-900/70 dark:bg-violet-950/25 dark:hover:border-violet-800 dark:hover:bg-violet-950/40',
-      selectedClassName: 'border-violet-400 bg-violet-100 shadow-sm ring-1 ring-violet-200 dark:border-violet-700 dark:bg-violet-950/60 dark:ring-violet-900/80',
+      badgeClassName:
+        'border-violet-300 bg-violet-100 text-violet-900 dark:border-violet-900/80 dark:bg-violet-950/50 dark:text-violet-200',
+      cardClassName:
+        'border-violet-300 bg-violet-50/80 hover:border-violet-400 hover:bg-violet-50 dark:border-violet-900/70 dark:bg-violet-950/25 dark:hover:border-violet-800 dark:hover:bg-violet-950/40',
+      selectedClassName:
+        'border-violet-400 bg-violet-100 shadow-sm ring-1 ring-violet-200 dark:border-violet-700 dark:bg-violet-950/60 dark:ring-violet-900/80',
     }
   }
 
   if (calculationType === 'cost_reverse') {
     return {
       label: '成本倒推',
-      badgeClassName: 'border-emerald-300 bg-emerald-100 text-emerald-900 dark:border-emerald-900/80 dark:bg-emerald-950/50 dark:text-emerald-200',
-      cardClassName: 'border-emerald-300 bg-emerald-50/80 hover:border-emerald-400 hover:bg-emerald-50 dark:border-emerald-900/70 dark:bg-emerald-950/25 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/40',
-      selectedClassName: 'border-emerald-400 bg-emerald-100 shadow-sm ring-1 ring-emerald-200 dark:border-emerald-700 dark:bg-emerald-950/60 dark:ring-emerald-900/80',
+      badgeClassName:
+        'border-emerald-300 bg-emerald-100 text-emerald-900 dark:border-emerald-900/80 dark:bg-emerald-950/50 dark:text-emerald-200',
+      cardClassName:
+        'border-emerald-300 bg-emerald-50/80 hover:border-emerald-400 hover:bg-emerald-50 dark:border-emerald-900/70 dark:bg-emerald-950/25 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/40',
+      selectedClassName:
+        'border-emerald-400 bg-emerald-100 shadow-sm ring-1 ring-emerald-200 dark:border-emerald-700 dark:bg-emerald-950/60 dark:ring-emerald-900/80',
     }
   }
 
   if (calculationType === 'profit_reverse') {
     return {
       label: '利润倒算',
-      badgeClassName: 'border-amber-300 bg-amber-100 text-amber-900 dark:border-amber-900/80 dark:bg-amber-950/50 dark:text-amber-200',
-      cardClassName: 'border-amber-300 bg-amber-50/80 hover:border-amber-400 hover:bg-amber-50 dark:border-amber-900/70 dark:bg-amber-950/25 dark:hover:border-amber-800 dark:hover:bg-amber-950/40',
-      selectedClassName: 'border-amber-400 bg-amber-100 shadow-sm ring-1 ring-amber-200 dark:border-amber-700 dark:bg-amber-950/60 dark:ring-amber-900/80',
+      badgeClassName:
+        'border-amber-300 bg-amber-100 text-amber-900 dark:border-amber-900/80 dark:bg-amber-950/50 dark:text-amber-200',
+      cardClassName:
+        'border-amber-300 bg-amber-50/80 hover:border-amber-400 hover:bg-amber-50 dark:border-amber-900/70 dark:bg-amber-950/25 dark:hover:border-amber-800 dark:hover:bg-amber-950/40',
+      selectedClassName:
+        'border-amber-400 bg-amber-100 shadow-sm ring-1 ring-amber-200 dark:border-amber-700 dark:bg-amber-950/60 dark:ring-amber-900/80',
     }
   }
 
   return {
     label: '利润核算',
-    badgeClassName: 'border-sky-300 bg-sky-100 text-sky-900 dark:border-sky-900/80 dark:bg-sky-950/45 dark:text-sky-200',
-    cardClassName: 'border-sky-200 bg-sky-50/70 hover:border-sky-300 hover:bg-sky-50 dark:border-sky-900/70 dark:bg-sky-950/25 dark:hover:border-sky-800 dark:hover:bg-sky-950/40',
-    selectedClassName: 'border-sky-400 bg-sky-100 shadow-sm ring-1 ring-sky-200 dark:border-sky-700 dark:bg-sky-950/60 dark:ring-sky-900/80',
+    badgeClassName:
+      'border-sky-300 bg-sky-100 text-sky-900 dark:border-sky-900/80 dark:bg-sky-950/45 dark:text-sky-200',
+    cardClassName:
+      'border-sky-200 bg-sky-50/70 hover:border-sky-300 hover:bg-sky-50 dark:border-sky-900/70 dark:bg-sky-950/25 dark:hover:border-sky-800 dark:hover:bg-sky-950/40',
+    selectedClassName:
+      'border-sky-400 bg-sky-100 shadow-sm ring-1 ring-sky-200 dark:border-sky-700 dark:bg-sky-950/60 dark:ring-sky-900/80',
   }
 }
 
@@ -608,7 +705,12 @@ function getRunSummary(run: PricingCalculationRunItem) {
   return `${run.product_name} - ${getCalculationTypeMeta(run.calculation_type).label} - ${formatCompactDate(run.created_at)}`
 }
 
-type ComparisonValueType = 'text' | 'currency_usd' | 'currency_rmb' | 'percent' | 'number'
+type ComparisonValueType =
+  | 'text'
+  | 'currency_usd'
+  | 'currency_rmb'
+  | 'percent'
+  | 'number'
 
 type ComparisonRow = {
   label: string
@@ -627,63 +729,221 @@ function getComparisonSections(): ComparisonSection[] {
     {
       title: '货品数据',
       rows: [
-        { label: '产品名称', getDisplayValue: (run) => run.product_name, getExportValue: (run) => run.product_name },
-        { label: '测算类型', getDisplayValue: (run) => getCalculationTypeMeta(run.calculation_type).label, getExportValue: (run) => getCalculationTypeMeta(run.calculation_type).label },
-        { label: '包装尺寸(cm)', getDisplayValue: (run) => `${run.package_length_cm} × ${run.package_width_cm} × ${run.package_height_cm}`, getExportValue: (run) => `${run.package_length_cm} × ${run.package_width_cm} × ${run.package_height_cm}` },
-        { label: '重量(kg)', getDisplayValue: (run) => formatMetric(run.weight_kg, 3), getExportValue: (run) => run.weight_kg, valueType: 'number' },
+        {
+          label: '产品名称',
+          getDisplayValue: (run) => run.product_name,
+          getExportValue: (run) => run.product_name,
+        },
+        {
+          label: '测算类型',
+          getDisplayValue: (run) =>
+            getCalculationTypeMeta(run.calculation_type).label,
+          getExportValue: (run) =>
+            getCalculationTypeMeta(run.calculation_type).label,
+        },
+        {
+          label: '包装尺寸(cm)',
+          getDisplayValue: (run) =>
+            `${run.package_length_cm} × ${run.package_width_cm} × ${run.package_height_cm}`,
+          getExportValue: (run) =>
+            `${run.package_length_cm} × ${run.package_width_cm} × ${run.package_height_cm}`,
+        },
+        {
+          label: '重量(kg)',
+          getDisplayValue: (run) => formatMetric(run.weight_kg, 3),
+          getExportValue: (run) => run.weight_kg,
+          valueType: 'number',
+        },
       ],
     },
     {
       title: 'DDP 成本',
       rows: [
-        { label: 'FOB成本', getDisplayValue: (run) => formatRmb(run.fob_product_cost_rmb), getExportValue: (run) => run.fob_product_cost_rmb, valueType: 'currency_rmb' },
-        { label: '头程', getDisplayValue: (run) => formatRmb(run.first_leg_cost_rmb), getExportValue: (run) => run.first_leg_cost_rmb, valueType: 'currency_rmb' },
-        { label: 'DDP(RMB)', getDisplayValue: (run) => formatRmb(run.profit.ddp_cost_rmb), getExportValue: (run) => run.profit.ddp_cost_rmb, valueType: 'currency_rmb' },
-        { label: 'DDP(USD)', getDisplayValue: (run) => formatCurrency(run.profit.ddp_cost_usd), getExportValue: (run) => run.profit.ddp_cost_usd, valueType: 'currency_usd' },
+        {
+          label: 'FOB成本',
+          getDisplayValue: (run) => formatRmb(run.fob_product_cost_rmb),
+          getExportValue: (run) => run.fob_product_cost_rmb,
+          valueType: 'currency_rmb',
+        },
+        {
+          label: '头程',
+          getDisplayValue: (run) => formatRmb(run.first_leg_cost_rmb),
+          getExportValue: (run) => run.first_leg_cost_rmb,
+          valueType: 'currency_rmb',
+        },
+        {
+          label: 'DDP(RMB)',
+          getDisplayValue: (run) => formatRmb(run.profit.ddp_cost_rmb),
+          getExportValue: (run) => run.profit.ddp_cost_rmb,
+          valueType: 'currency_rmb',
+        },
+        {
+          label: 'DDP(USD)',
+          getDisplayValue: (run) => formatCurrency(run.profit.ddp_cost_usd),
+          getExportValue: (run) => run.profit.ddp_cost_usd,
+          valueType: 'currency_usd',
+        },
       ],
     },
     {
       title: '费用支出',
       rows: [
-        { label: '平台佣金', getDisplayValue: (run) => formatCurrency(run.fees.referral_fee_usd), getExportValue: (run) => run.fees.referral_fee_usd, valueType: 'currency_usd' },
-        { label: '平台佣金率', getDisplayValue: (run) => formatPercent(run.commission_rate), getExportValue: (run) => run.commission_rate, valueType: 'percent' },
-        { label: '广告费', getDisplayValue: (run) => formatCurrency(run.fees.advertising_fee_usd), getExportValue: (run) => run.fees.advertising_fee_usd, valueType: 'currency_usd' },
-        { label: '广告费率', getDisplayValue: (run) => formatPercent(run.advertising_rate), getExportValue: (run) => run.advertising_rate, valueType: 'percent' },
-        { label: '派送', getDisplayValue: (run) => formatCurrency(run.fees.fba_fulfillment_fee_usd), getExportValue: (run) => run.fees.fba_fulfillment_fee_usd, valueType: 'currency_usd' },
-        { label: '配置费', getDisplayValue: (run) => formatCurrency(run.fees.inbound_config_fee_usd), getExportValue: (run) => run.fees.inbound_config_fee_usd, valueType: 'currency_usd' },
-        { label: '仓储费', getDisplayValue: (run) => formatCurrency(run.fees.storage_fee_usd), getExportValue: (run) => run.fees.storage_fee_usd, valueType: 'currency_usd' },
-        { label: '仓储月数', getDisplayValue: (run) => `${run.storage_months} 月`, getExportValue: (run) => run.storage_months, valueType: 'number' },
-        { label: '退货损耗', getDisplayValue: (run) => formatCurrency(run.fees.return_loss_usd), getExportValue: (run) => run.fees.return_loss_usd, valueType: 'currency_usd' },
-        { label: '退货折损率', getDisplayValue: (run) => formatPercent(run.return_loss_rate), getExportValue: (run) => run.return_loss_rate, valueType: 'percent' },
-        { label: '费用合计', getDisplayValue: (run) => formatCurrency(run.fees.total_fee_usd), getExportValue: (run) => run.fees.total_fee_usd, valueType: 'currency_usd' },
+        {
+          label: '平台佣金',
+          getDisplayValue: (run) => formatCurrency(run.fees.referral_fee_usd),
+          getExportValue: (run) => run.fees.referral_fee_usd,
+          valueType: 'currency_usd',
+        },
+        {
+          label: '平台佣金率',
+          getDisplayValue: (run) => formatPercent(run.commission_rate),
+          getExportValue: (run) => run.commission_rate,
+          valueType: 'percent',
+        },
+        {
+          label: '广告费',
+          getDisplayValue: (run) =>
+            formatCurrency(run.fees.advertising_fee_usd),
+          getExportValue: (run) => run.fees.advertising_fee_usd,
+          valueType: 'currency_usd',
+        },
+        {
+          label: '广告费率',
+          getDisplayValue: (run) => formatPercent(run.advertising_rate),
+          getExportValue: (run) => run.advertising_rate,
+          valueType: 'percent',
+        },
+        {
+          label: '派送',
+          getDisplayValue: (run) =>
+            formatCurrency(run.fees.fba_fulfillment_fee_usd),
+          getExportValue: (run) => run.fees.fba_fulfillment_fee_usd,
+          valueType: 'currency_usd',
+        },
+        {
+          label: '配置费',
+          getDisplayValue: (run) =>
+            formatCurrency(run.fees.inbound_config_fee_usd),
+          getExportValue: (run) => run.fees.inbound_config_fee_usd,
+          valueType: 'currency_usd',
+        },
+        {
+          label: '仓储费',
+          getDisplayValue: (run) => formatCurrency(run.fees.storage_fee_usd),
+          getExportValue: (run) => run.fees.storage_fee_usd,
+          valueType: 'currency_usd',
+        },
+        {
+          label: '仓储月数',
+          getDisplayValue: (run) => `${run.storage_months} 月`,
+          getExportValue: (run) => run.storage_months,
+          valueType: 'number',
+        },
+        {
+          label: '退货损耗',
+          getDisplayValue: (run) => formatCurrency(run.fees.return_loss_usd),
+          getExportValue: (run) => run.fees.return_loss_usd,
+          valueType: 'currency_usd',
+        },
+        {
+          label: '退货折损率',
+          getDisplayValue: (run) => formatPercent(run.return_loss_rate),
+          getExportValue: (run) => run.return_loss_rate,
+          valueType: 'percent',
+        },
+        {
+          label: '费用合计',
+          getDisplayValue: (run) => formatCurrency(run.fees.total_fee_usd),
+          getExportValue: (run) => run.fees.total_fee_usd,
+          valueType: 'currency_usd',
+        },
       ],
     },
     {
       title: '售价与利润',
       rows: [
-        { label: '售价', getDisplayValue: (run) => formatCurrency(run.sale_price_usd), getExportValue: (run) => run.sale_price_usd, valueType: 'currency_usd' },
-        { label: '回款', getDisplayValue: (run) => formatCurrency(run.profit.payout_usd), getExportValue: (run) => run.profit.payout_usd, valueType: 'currency_usd' },
-        { label: '利润', getDisplayValue: (run) => formatCurrency(run.profit.profit_usd), getExportValue: (run) => run.profit.profit_usd, valueType: 'currency_usd' },
-        { label: '利润率', getDisplayValue: (run) => formatPercent(run.profit.profit_rate), getExportValue: (run) => run.profit.profit_rate, valueType: 'percent' },
+        {
+          label: '售价',
+          getDisplayValue: (run) => formatCurrency(run.sale_price_usd),
+          getExportValue: (run) => run.sale_price_usd,
+          valueType: 'currency_usd',
+        },
+        {
+          label: '回款',
+          getDisplayValue: (run) => formatCurrency(run.profit.payout_usd),
+          getExportValue: (run) => run.profit.payout_usd,
+          valueType: 'currency_usd',
+        },
+        {
+          label: '利润',
+          getDisplayValue: (run) => formatCurrency(run.profit.profit_usd),
+          getExportValue: (run) => run.profit.profit_usd,
+          valueType: 'currency_usd',
+        },
+        {
+          label: '利润率',
+          getDisplayValue: (run) => formatPercent(run.profit.profit_rate),
+          getExportValue: (run) => run.profit.profit_rate,
+          valueType: 'percent',
+        },
       ],
     },
     {
       title: '核算规则',
       rows: [
-        { label: '尺寸等级', getDisplayValue: (run) => run.size_tier_label, getExportValue: (run) => run.size_tier_label },
-        { label: '售价带', getDisplayValue: (run) => run.price_band_label, getExportValue: (run) => run.price_band_label },
-        { label: '计费重(lb)', getDisplayValue: (run) => formatMetric(run.weights.chargeable_weight_lb), getExportValue: (run) => run.weights.chargeable_weight_lb, valueType: 'number' },
-        { label: '体积(ft³)', getDisplayValue: (run) => formatMetric(run.dimensions.volume_cubic_ft, 2), getExportValue: (run) => run.dimensions.volume_cubic_ft, valueType: 'number' },
-        { label: '派送规则', getDisplayValue: (run) => run.fulfillment_fee_rule_label, getExportValue: (run) => run.fulfillment_fee_rule_label },
-        { label: '入库配置', getDisplayValue: (run) => run.inbound_config_fee_rule_label, getExportValue: (run) => run.inbound_config_fee_rule_label },
-        { label: '仓储规则', getDisplayValue: (run) => run.storage_fee_rule_label, getExportValue: (run) => run.storage_fee_rule_label },
-        { label: '汇率', getDisplayValue: (run) => formatMetric(run.usd_to_rmb_rate, 4), getExportValue: (run) => run.usd_to_rmb_rate, valueType: 'number' },
+        {
+          label: '尺寸等级',
+          getDisplayValue: (run) => run.size_tier_label,
+          getExportValue: (run) => run.size_tier_label,
+        },
+        {
+          label: '售价带',
+          getDisplayValue: (run) => run.price_band_label,
+          getExportValue: (run) => run.price_band_label,
+        },
+        {
+          label: '计费重(lb)',
+          getDisplayValue: (run) =>
+            formatMetric(run.weights.chargeable_weight_lb),
+          getExportValue: (run) => run.weights.chargeable_weight_lb,
+          valueType: 'number',
+        },
+        {
+          label: '体积(ft³)',
+          getDisplayValue: (run) =>
+            formatMetric(run.dimensions.volume_cubic_ft, 2),
+          getExportValue: (run) => run.dimensions.volume_cubic_ft,
+          valueType: 'number',
+        },
+        {
+          label: '派送规则',
+          getDisplayValue: (run) => run.fulfillment_fee_rule_label,
+          getExportValue: (run) => run.fulfillment_fee_rule_label,
+        },
+        {
+          label: '入库配置',
+          getDisplayValue: (run) => run.inbound_config_fee_rule_label,
+          getExportValue: (run) => run.inbound_config_fee_rule_label,
+        },
+        {
+          label: '仓储规则',
+          getDisplayValue: (run) => run.storage_fee_rule_label,
+          getExportValue: (run) => run.storage_fee_rule_label,
+        },
+        {
+          label: '汇率',
+          getDisplayValue: (run) => formatMetric(run.usd_to_rmb_rate, 4),
+          getExportValue: (run) => run.usd_to_rmb_rate,
+          valueType: 'number',
+        },
       ],
     },
   ]
 }
 
-async function exportComparisonMatrixToExcel(runs: PricingCalculationRunItem[]) {
+async function exportComparisonMatrixToExcel(
+  runs: PricingCalculationRunItem[],
+) {
   const ExcelJS = await import('exceljs')
   const workbook = new ExcelJS.Workbook()
   workbook.creator = 'Codex'
@@ -700,14 +960,32 @@ async function exportComparisonMatrixToExcel(runs: PricingCalculationRunItem[]) 
 
   worksheet.mergeCells(1, 1, 1, lastColumn)
   worksheet.getCell(1, 1).value = title
-  worksheet.getCell(1, 1).font = { name: 'Microsoft YaHei', size: 16, bold: true, color: { argb: 'FF0F172A' } }
-  worksheet.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
+  worksheet.getCell(1, 1).font = {
+    name: 'Microsoft YaHei',
+    size: 16,
+    bold: true,
+    color: { argb: 'FF0F172A' },
+  }
+  worksheet.getCell(1, 1).fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFE2E8F0' },
+  }
   worksheet.getCell(1, 1).alignment = { vertical: 'middle', horizontal: 'left' }
 
   worksheet.mergeCells(2, 1, 2, lastColumn)
-  worksheet.getCell(2, 1).value = `导出时间：${exportedAt}    说明：仅导出当前已选中的对比矩阵结果`
-  worksheet.getCell(2, 1).font = { name: 'Microsoft YaHei', size: 10, color: { argb: 'FF475569' } }
-  worksheet.getCell(2, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
+  worksheet.getCell(2, 1).value =
+    `导出时间：${exportedAt}    说明：仅导出当前已选中的对比矩阵结果`
+  worksheet.getCell(2, 1).font = {
+    name: 'Microsoft YaHei',
+    size: 10,
+    color: { argb: 'FF475569' },
+  }
+  worksheet.getCell(2, 1).fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFF8FAFC' },
+  }
   worksheet.getCell(2, 1).alignment = { vertical: 'middle', horizontal: 'left' }
 
   const headerRow = worksheet.getRow(4)
@@ -725,16 +1003,28 @@ async function exportComparisonMatrixToExcel(runs: PricingCalculationRunItem[]) 
   ]
 
   const palette: Record<string, { section: string; sub: string }> = {
-    '货品数据': { section: 'FFDCEEFF', sub: 'FFF4F9FF' },
+    货品数据: { section: 'FFDCEEFF', sub: 'FFF4F9FF' },
     'DDP 成本': { section: 'FFFEE7C7', sub: 'FFFFF8EB' },
-    '费用支出': { section: 'FFFFD9E2', sub: 'FFFFF1F4' },
-    '利润核算': { section: 'FFD8F7E7', sub: 'FFEEFDF4' },
+    费用支出: { section: 'FFFFD9E2', sub: 'FFFFF1F4' },
+    利润核算: { section: 'FFD8F7E7', sub: 'FFEEFDF4' },
   }
 
   headerRow.eachCell((cell, colNumber) => {
-    cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
-    cell.alignment = { vertical: 'middle', horizontal: colNumber <= 2 ? 'center' : 'left', wrapText: true }
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
+    cell.font = {
+      name: 'Microsoft YaHei',
+      bold: true,
+      color: { argb: 'FF0F172A' },
+    }
+    cell.alignment = {
+      vertical: 'middle',
+      horizontal: colNumber <= 2 ? 'center' : 'left',
+      wrapText: true,
+    }
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE2E8F0' },
+    }
     cell.border = {
       top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
       left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
@@ -746,39 +1036,87 @@ async function exportComparisonMatrixToExcel(runs: PricingCalculationRunItem[]) 
   let currentRowIndex = 5
   sections.forEach((section) => {
     const startRow = currentRowIndex
-    const colors = palette[section.title] ?? { section: 'FFE2E8F0', sub: 'FFF8FAFC' }
+    const colors = palette[section.title] ?? {
+      section: 'FFE2E8F0',
+      sub: 'FFF8FAFC',
+    }
 
     section.rows.forEach((row) => {
       const excelRow = worksheet.getRow(currentRowIndex)
       excelRow.getCell(2).value = row.label
-      excelRow.getCell(2).font = { name: 'Microsoft YaHei', bold: row.label === '售价' || row.label === '利润率', color: { argb: 'FF334155' } }
-      excelRow.getCell(2).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: row.label === '售价' || row.label === '利润率' ? 'FFFFEeba' : colors.sub } }
-      excelRow.getCell(2).alignment = { vertical: 'middle', horizontal: 'left', wrapText: true }
+      excelRow.getCell(2).font = {
+        name: 'Microsoft YaHei',
+        bold: row.label === '售价' || row.label === '利润率',
+        color: { argb: 'FF334155' },
+      }
+      excelRow.getCell(2).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: {
+          argb:
+            row.label === '售价' || row.label === '利润率'
+              ? 'FFFFEeba'
+              : colors.sub,
+        },
+      }
+      excelRow.getCell(2).alignment = {
+        vertical: 'middle',
+        horizontal: 'left',
+        wrapText: true,
+      }
 
       runs.forEach((run, index) => {
         const cell = excelRow.getCell(index + 3)
-        const value = row.getExportValue ? row.getExportValue(run) : row.getDisplayValue(run)
+        const value = row.getExportValue
+          ? row.getExportValue(run)
+          : row.getDisplayValue(run)
         cell.value = value
         cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF0F172A' } }
-        cell.alignment = { vertical: 'middle', horizontal: typeof value === 'number' ? 'right' : 'left', wrapText: true }
+        cell.alignment = {
+          vertical: 'middle',
+          horizontal: typeof value === 'number' ? 'right' : 'left',
+          wrapText: true,
+        }
 
         if (typeof value === 'number') {
-          if (row.valueType === 'currency_usd') cell.numFmt = '$#,##0.00;[Red]-$#,##0.00'
-          if (row.valueType === 'currency_rmb') cell.numFmt = '"RMB " #,##0.00;[Red]-"RMB " #,##0.00'
+          if (row.valueType === 'currency_usd')
+            cell.numFmt = '$#,##0.00;[Red]-$#,##0.00'
+          if (row.valueType === 'currency_rmb')
+            cell.numFmt = '"RMB " #,##0.00;[Red]-"RMB " #,##0.00'
           if (row.valueType === 'percent') cell.numFmt = '0.00%'
           if (row.valueType === 'number') cell.numFmt = '0.0000'
         }
 
         if (row.label === '利润' && typeof value === 'number') {
-          cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: value >= 0 ? 'FF047857' : 'FFBE123C' } }
+          cell.font = {
+            name: 'Microsoft YaHei',
+            bold: true,
+            color: { argb: value >= 0 ? 'FF047857' : 'FFBE123C' },
+          }
         }
         if (row.label === '利润率' && typeof value === 'number') {
-          cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: value >= 0 ? 'FF047857' : 'FFBE123C' } }
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEeba' } }
+          cell.font = {
+            name: 'Microsoft YaHei',
+            bold: true,
+            color: { argb: value >= 0 ? 'FF047857' : 'FFBE123C' },
+          }
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFFFEeba' },
+          }
         }
         if (row.label === '售价') {
-          cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEeba' } }
+          cell.font = {
+            name: 'Microsoft YaHei',
+            bold: true,
+            color: { argb: 'FF0F172A' },
+          }
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFFFEeba' },
+          }
         }
       })
 
@@ -797,9 +1135,21 @@ async function exportComparisonMatrixToExcel(runs: PricingCalculationRunItem[]) 
     worksheet.mergeCells(startRow, 1, currentRowIndex - 1, 1)
     const sectionCell = worksheet.getCell(startRow, 1)
     sectionCell.value = section.title
-    sectionCell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
-    sectionCell.alignment = { vertical: 'top', horizontal: 'center', wrapText: true }
-    sectionCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colors.section } }
+    sectionCell.font = {
+      name: 'Microsoft YaHei',
+      bold: true,
+      color: { argb: 'FF0F172A' },
+    }
+    sectionCell.alignment = {
+      vertical: 'top',
+      horizontal: 'center',
+      wrapText: true,
+    }
+    sectionCell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: colors.section },
+    }
     sectionCell.border = {
       top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
       left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
@@ -825,7 +1175,7 @@ async function exportStoreSkuTableToExcel(
   items: ProductCostItem[],
   rowStates: Record<number, StoreSkuRowState>,
   projectName: string,
-  calculationMode: 'profit-calc' | 'profit-reverse'
+  calculationMode: 'profit-calc' | 'profit-reverse',
 ) {
   const ExcelJS = await import('exceljs')
   const workbook = new ExcelJS.Workbook()
@@ -838,7 +1188,7 @@ async function exportStoreSkuTableToExcel(
 
   const title = `店铺SKU核算表 - ${projectName}`
   const exportedAt = new Date().toLocaleString('zh-CN', { hour12: false })
-  
+
   // 只导出有结果的SKU
   const itemsWithResults = items.filter((item) => {
     const rowState = rowStates[item.id]
@@ -847,14 +1197,32 @@ async function exportStoreSkuTableToExcel(
 
   worksheet.mergeCells(1, 1, 1, 29)
   worksheet.getCell(1, 1).value = title
-  worksheet.getCell(1, 1).font = { name: 'Microsoft YaHei', size: 16, bold: true, color: { argb: 'FF0F172A' } }
-  worksheet.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
+  worksheet.getCell(1, 1).font = {
+    name: 'Microsoft YaHei',
+    size: 16,
+    bold: true,
+    color: { argb: 'FF0F172A' },
+  }
+  worksheet.getCell(1, 1).fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFE2E8F0' },
+  }
   worksheet.getCell(1, 1).alignment = { vertical: 'middle', horizontal: 'left' }
 
   worksheet.mergeCells(2, 1, 2, 29)
-  worksheet.getCell(2, 1).value = `导出时间：${exportedAt} 核算模式：${calculationMode === 'profit-calc' ? '利润核算' : '利润倒算'} 导出数量：${itemsWithResults.length} 条`
-  worksheet.getCell(2, 1).font = { name: 'Microsoft YaHei', size: 10, color: { argb: 'FF475569' } }
-  worksheet.getCell(2, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
+  worksheet.getCell(2, 1).value =
+    `导出时间：${exportedAt} 核算模式：${calculationMode === 'profit-calc' ? '利润核算' : '利润倒算'} 导出数量：${itemsWithResults.length} 条`
+  worksheet.getCell(2, 1).font = {
+    name: 'Microsoft YaHei',
+    size: 10,
+    color: { argb: 'FF475569' },
+  }
+  worksheet.getCell(2, 1).fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFF8FAFC' },
+  }
   worksheet.getCell(2, 1).alignment = { vertical: 'middle', horizontal: 'left' }
 
   // 大分组表头（第3行）- 类似前端的分组效果
@@ -863,12 +1231,48 @@ async function exportStoreSkuTableToExcel(
 
   // 定义分组配置：名称、起始列、跨列数、颜色
   const groupConfigs = [
-    { name: '店铺产品', startCol: 1, span: 2, headerColor: 'FF6366F1', subColor: 'FFE0E7FF' },
-    { name: '货品数据', startCol: 3, span: 6, headerColor: 'FF0EA5E9', subColor: 'FFE0F2FE' },
-    { name: 'DDP 成本', startCol: 9, span: 4, headerColor: 'FFF59E0B', subColor: 'FFFEF3C7' },
-    { name: '费用支出', startCol: 13, span: 11, headerColor: 'FFF43F5E', subColor: 'FFFDE8E8' },
-    { name: '利润核算', startCol: 24, span: 3, headerColor: 'FF10B981', subColor: 'FFD1FAE5' },
-    { name: '产品核定', startCol: 27, span: 3, headerColor: 'FF8B5CF6', subColor: 'FFEDE9FE' },
+    {
+      name: '店铺产品',
+      startCol: 1,
+      span: 2,
+      headerColor: 'FF6366F1',
+      subColor: 'FFE0E7FF',
+    },
+    {
+      name: '货品数据',
+      startCol: 3,
+      span: 6,
+      headerColor: 'FF0EA5E9',
+      subColor: 'FFE0F2FE',
+    },
+    {
+      name: 'DDP 成本',
+      startCol: 9,
+      span: 4,
+      headerColor: 'FFF59E0B',
+      subColor: 'FFFEF3C7',
+    },
+    {
+      name: '费用支出',
+      startCol: 13,
+      span: 11,
+      headerColor: 'FFF43F5E',
+      subColor: 'FFFDE8E8',
+    },
+    {
+      name: '利润核算',
+      startCol: 24,
+      span: 3,
+      headerColor: 'FF10B981',
+      subColor: 'FFD1FAE5',
+    },
+    {
+      name: '产品核定',
+      startCol: 27,
+      span: 3,
+      headerColor: 'FF8B5CF6',
+      subColor: 'FFEDE9FE',
+    },
   ]
 
   // 设置分组表头（合并单元格）
@@ -877,9 +1281,22 @@ async function exportStoreSkuTableToExcel(
     worksheet.mergeCells(3, group.startCol, 3, endCol)
     const cell = worksheet.getCell(3, group.startCol)
     cell.value = group.name
-    cell.font = { name: 'Microsoft YaHei', size: 12, bold: true, color: { argb: group.name === '店铺产品' ? 'FFFFFFFF' : 'FF0F172A' } }
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: group.headerColor } }
-    cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
+    cell.font = {
+      name: 'Microsoft YaHei',
+      size: 12,
+      bold: true,
+      color: { argb: group.name === '店铺产品' ? 'FFFFFFFF' : 'FF0F172A' },
+    }
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: group.headerColor },
+    }
+    cell.alignment = {
+      vertical: 'middle',
+      horizontal: 'center',
+      wrapText: true,
+    }
     cell.border = {
       top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
       left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
@@ -989,10 +1406,24 @@ async function exportStoreSkuTableToExcel(
   }
 
   headerRow.eachCell((cell, colNumber) => {
-    const colorGroup = subHeaderColorMap[colNumber.toString()] || { bg: 'FFE2E8F0' }
-    cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
-    cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colorGroup.bg } }
+    const colorGroup = subHeaderColorMap[colNumber.toString()] || {
+      bg: 'FFE2E8F0',
+    }
+    cell.font = {
+      name: 'Microsoft YaHei',
+      bold: true,
+      color: { argb: 'FF0F172A' },
+    }
+    cell.alignment = {
+      vertical: 'middle',
+      horizontal: 'center',
+      wrapText: true,
+    }
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: colorGroup.bg },
+    }
     cell.border = {
       top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
       left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
@@ -1009,7 +1440,11 @@ async function exportStoreSkuTableToExcel(
 
     if (!result) return
 
-    const volumeKg = (toNumber(draft?.package_length_cm ?? '') * toNumber(draft?.package_width_cm ?? '') * toNumber(draft?.package_height_cm ?? '')) / 6000
+    const volumeKg =
+      (toNumber(draft?.package_length_cm ?? '') *
+        toNumber(draft?.package_width_cm ?? '') *
+        toNumber(draft?.package_height_cm ?? '')) /
+      6000
     const chargeableKg = Math.max(toNumber(draft?.weight_kg ?? ''), volumeKg)
     const firstLegCost = toNumber(draft?.first_leg_cost_rmb ?? '')
     const fobCost = item.fob_unit_cost
@@ -1018,7 +1453,7 @@ async function exportStoreSkuTableToExcel(
     const ddpUsd = exchangeRate > 0 ? ddpRmb / exchangeRate : 0
 
     const excelRow = worksheet.getRow(currentRowIndex)
-    
+
     excelRow.getCell(1).value = item.sku
     excelRow.getCell(2).value = item.project_name
     excelRow.getCell(3).value = fobCost
@@ -1038,15 +1473,17 @@ async function exportStoreSkuTableToExcel(
     excelRow.getCell(11).numFmt = '$#,##0.00'
     excelRow.getCell(12).value = exchangeRate
     excelRow.getCell(12).numFmt = '0.0000'
-    
+
     if (calculationMode === 'profit-calc') {
       excelRow.getCell(13).value = result.sale_price_usd
       excelRow.getCell(13).numFmt = '$#,##0.00'
     } else {
-      excelRow.getCell(13).value = draft ? toNumber(draft.target_profit_rate) : 0
+      excelRow.getCell(13).value = draft
+        ? toNumber(draft.target_profit_rate)
+        : 0
       excelRow.getCell(13).numFmt = '0.00'
     }
-    
+
     excelRow.getCell(14).value = result.advertising_rate * 100
     excelRow.getCell(14).numFmt = '0.00'
     excelRow.getCell(15).value = result.fees.advertising_fee_usd
@@ -1068,21 +1505,29 @@ async function exportStoreSkuTableToExcel(
     excelRow.getCell(23).numFmt = '$#,##0.00'
     excelRow.getCell(24).value = result.profit.payout_usd
     excelRow.getCell(24).numFmt = '$#,##0.00'
-    
+
     if (calculationMode === 'profit-calc') {
       excelRow.getCell(25).value = result.profit.profit_usd
       excelRow.getCell(25).numFmt = '$#,##0.00'
-      excelRow.getCell(25).font = { color: { argb: result.profit.profit_usd >= 0 ? 'FF047857' : 'FFBE123C' } }
-      
+      excelRow.getCell(25).font = {
+        color: {
+          argb: result.profit.profit_usd >= 0 ? 'FF047857' : 'FFBE123C',
+        },
+      }
+
       excelRow.getCell(26).value = result.profit.profit_rate
       excelRow.getCell(26).numFmt = '0.00%'
-      excelRow.getCell(26).font = { color: { argb: result.profit.profit_rate >= 0 ? 'FF047857' : 'FFBE123C' } }
+      excelRow.getCell(26).font = {
+        color: {
+          argb: result.profit.profit_rate >= 0 ? 'FF047857' : 'FFBE123C',
+        },
+      }
     } else {
       excelRow.getCell(25).value = result.sale_price_usd
       excelRow.getCell(25).numFmt = '$#,##0.00'
       excelRow.getCell(26).value = '-'
     }
-    
+
     excelRow.getCell(27).value = result.size_tier_label
     excelRow.getCell(28).value = result.price_band_label
 
@@ -1127,10 +1572,21 @@ async function exportStoreSkuTableToExcel(
     }
 
     excelRow.eachCell((cell, colNumber) => {
-      const colorGroup = colorMap[colNumber.toString()] || { header: 'FFE2E8F0', sub: 'FFF8FAFC' }
+      const colorGroup = colorMap[colNumber.toString()] || {
+        header: 'FFE2E8F0',
+        sub: 'FFF8FAFC',
+      }
       cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF0F172A' } }
-      cell.alignment = { vertical: 'middle', horizontal: colNumber <= 2 ? 'left' : 'right', wrapText: true }
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colorGroup.sub } }
+      cell.alignment = {
+        vertical: 'middle',
+        horizontal: colNumber <= 2 ? 'left' : 'right',
+        wrapText: true,
+      }
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: colorGroup.sub },
+      }
       cell.border = {
         top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
         left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
@@ -1156,9 +1612,11 @@ async function exportStoreSkuTableToExcel(
 }
 
 export default function PricingCalculationPage() {
-  const [activeBusinessTab, setActiveBusinessTab] = useState<BusinessTab>('new-product')
+  const [activeBusinessTab, setActiveBusinessTab] =
+    useState<BusinessTab>('new-product')
   const [form, setForm] = useState<FormState>(INITIAL_FORM)
-  const [calculationMode, setCalculationMode] = useState<CalculationMode>('profit-calc')
+  const [calculationMode, setCalculationMode] =
+    useState<CalculationMode>('profit-calc')
   const [runs, setRuns] = useState<PricingCalculationRunItem[]>([])
   const [productKeyword, setProductKeyword] = useState('')
   const [selectedRunIds, setSelectedRunIds] = useState<number[]>([])
@@ -1167,7 +1625,9 @@ export default function PricingCalculationPage() {
   const [runsLoading, setRunsLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
   const [deletingRunId, setDeletingRunId] = useState<number | null>(null)
-  const [recalculatingRunId, setRecalculatingRunId] = useState<number | null>(null)
+  const [recalculatingRunId, setRecalculatingRunId] = useState<number | null>(
+    null,
+  )
   const [error, setError] = useState<string | null>(null)
 
   const [projects, setProjects] = useState<ProjectOption[]>([])
@@ -1178,29 +1638,41 @@ export default function PricingCalculationPage() {
   const [storeSkus, setStoreSkus] = useState<ProductCostItem[]>([])
   const [storeSkusLoading, setStoreSkusLoading] = useState(false)
   const [storeSkusError, setStoreSkusError] = useState<string | null>(null)
-  const [storeRows, setStoreRows] = useState<Record<number, StoreSkuRowState>>({})
-  const [storeCalculationMode, setStoreCalculationMode] = useState<'profit-calc' | 'profit-reverse'>('profit-calc')
+  const [storeRows, setStoreRows] = useState<Record<number, StoreSkuRowState>>(
+    {},
+  )
+  const storeCalculationMode: 'profit-calc' | 'profit-reverse' = 'profit-calc'
   const [systemExchangeRate, setSystemExchangeRate] = useState<string>('')
   const selectedProject = useMemo(
-    () => projects.find((project) => project.name === selectedProjectName) ?? null,
-    [projects, selectedProjectName]
+    () =>
+      projects.find((project) => project.name === selectedProjectName) ?? null,
+    [projects, selectedProjectName],
   )
 
   useEffect(() => {
     async function loadRuns() {
       setRunsLoading(true)
       try {
-        const response = await fetch(`${API_BASE}/api/v1/pricing-calculation/runs?page=1&page_size=100`, {
-          cache: 'no-store',
-        })
-        const payload = (await response.json()) as ListResponse | { detail?: string; message?: string }
+        const response = await fetch(
+          `${API_BASE}/api/v1/pricing-calculation/runs?page=1&page_size=100`,
+          {
+            cache: 'no-store',
+          },
+        )
+        const payload = (await response.json()) as
+          | ListResponse
+          | { detail?: string; message?: string }
         if (!response.ok) {
           const errorPayload = payload as { detail?: string; message?: string }
-          throw new Error(errorPayload.detail || errorPayload.message || '测算记录加载失败')
+          throw new Error(
+            errorPayload.detail || errorPayload.message || '测算记录加载失败',
+          )
         }
         setRuns((payload as ListResponse).items)
       } catch (loadError) {
-        setError(loadError instanceof Error ? loadError.message : '测算记录加载失败')
+        setError(
+          loadError instanceof Error ? loadError.message : '测算记录加载失败',
+        )
       } finally {
         setRunsLoading(false)
       }
@@ -1213,14 +1685,25 @@ export default function PricingCalculationPage() {
         const response = await fetch(`${API_BASE}/api/v1/projects/manage`, {
           cache: 'no-store',
         })
-        const payload = (await response.json()) as ProjectManageOption[] | { detail?: string; message?: string }
+        const payload = (await response.json()) as
+          | ProjectManageOption[]
+          | { detail?: string; message?: string }
         if (!response.ok) {
           const errorPayload = payload as { detail?: string; message?: string }
-          throw new Error(errorPayload.detail || errorPayload.message || '项目列表加载失败')
+          throw new Error(
+            errorPayload.detail || errorPayload.message || '项目列表加载失败',
+          )
         }
-        setProjects((payload as ProjectManageOption[]).map((project) => ({ id: project.id, name: project.name })))
+        setProjects(
+          (payload as ProjectManageOption[]).map((project) => ({
+            id: project.id,
+            name: project.name,
+          })),
+        )
       } catch (loadError) {
-        setProjectsError(loadError instanceof Error ? loadError.message : '项目列表加载失败')
+        setProjectsError(
+          loadError instanceof Error ? loadError.message : '项目列表加载失败',
+        )
       } finally {
         setProjectsLoading(false)
       }
@@ -1262,35 +1745,67 @@ export default function PricingCalculationPage() {
         if (selectedProject?.id) {
           summarySearch.set('project_id', String(selectedProject.id))
         }
-        const [skuResponse, summaryResponse, exchangeRateResponse] = await Promise.all([
-          fetch(`${API_BASE}/api/v1/sku-info?${search.toString()}`, { cache: 'no-store' }),
-          fetch(`${API_BASE}/api/v1/shipment-schedules/sku-summary?${summarySearch.toString()}`, { cache: 'no-store' }),
-          fetch(`/api/exchange-rates?${exchangeRateSearch.toString()}`, { cache: 'no-store' }),
-        ])
-        const skuPayload = (await skuResponse.json()) as ProductCostsResponse | { detail?: string; message?: string }
+        const [skuResponse, summaryResponse, exchangeRateResponse] =
+          await Promise.all([
+            fetch(`${API_BASE}/api/v1/sku-info?${search.toString()}`, {
+              cache: 'no-store',
+            }),
+            fetch(
+              `${API_BASE}/api/v1/shipment-schedules/sku-summary?${summarySearch.toString()}`,
+              { cache: 'no-store' },
+            ),
+            fetch(`/api/exchange-rates?${exchangeRateSearch.toString()}`, {
+              cache: 'no-store',
+            }),
+          ])
+        const skuPayload = (await skuResponse.json()) as
+          | ProductCostsResponse
+          | { detail?: string; message?: string }
         if (!skuResponse.ok) {
-          const errorPayload = skuPayload as { detail?: string; message?: string }
-          throw new Error(errorPayload.detail || errorPayload.message || 'SKU 列表加载失败')
+          const errorPayload = skuPayload as {
+            detail?: string
+            message?: string
+          }
+          throw new Error(
+            errorPayload.detail || errorPayload.message || 'SKU 列表加载失败',
+          )
         }
-        const shipmentSummaryPayload = (await summaryResponse.json()) as ShipmentSkuSummaryResponse | { detail?: string; message?: string }
+        const shipmentSummaryPayload = (await summaryResponse.json()) as
+          | ShipmentSkuSummaryResponse
+          | { detail?: string; message?: string }
         if (!summaryResponse.ok) {
-          const errorPayload = shipmentSummaryPayload as { detail?: string; message?: string }
-          throw new Error(errorPayload.detail || errorPayload.message || '头程历史加权成本加载失败')
+          const errorPayload = shipmentSummaryPayload as {
+            detail?: string
+            message?: string
+          }
+          throw new Error(
+            errorPayload.detail ||
+              errorPayload.message ||
+              '头程历史加权成本加载失败',
+          )
         }
         const summaryBySku = new Map(
-          (shipmentSummaryPayload as ShipmentSkuSummaryResponse).items.map((item) => [item.sku, item.average_logistics_unit_price])
+          (shipmentSummaryPayload as ShipmentSkuSummaryResponse).items.map(
+            (item) => [item.sku, item.average_logistics_unit_price],
+          ),
         )
-        
+
         let systemRateValue = ''
         const exchangeRatePayload = await exchangeRateResponse.json()
-        const exchangeRateItems = (exchangeRatePayload as { items?: Array<{ rate: number }> })?.items
-        if (exchangeRateResponse.ok && exchangeRateItems && exchangeRateItems.length > 0) {
+        const exchangeRateItems = (
+          exchangeRatePayload as { items?: Array<{ rate: number }> }
+        )?.items
+        if (
+          exchangeRateResponse.ok &&
+          exchangeRateItems &&
+          exchangeRateItems.length > 0
+        ) {
           systemRateValue = String(exchangeRateItems[0].rate)
           setSystemExchangeRate(systemRateValue)
         } else {
           setSystemExchangeRate('')
         }
-        
+
         const items = (skuPayload as ProductCostsResponse).items
         setStoreSkus(items)
 
@@ -1300,15 +1815,23 @@ export default function PricingCalculationPage() {
           try {
             const snapshotSearch = new URLSearchParams({
               project_id: String(selectedProject.id),
-              calculation_type: storeCalculationMode === 'profit-calc' ? 'profit_calc' : 'profit_reverse',
+              calculation_type:
+                storeCalculationMode === 'profit-calc'
+                  ? 'profit_calc'
+                  : 'profit_reverse',
               page: '1',
               page_size: '200',
             })
-            const snapshotResponse = await fetch(`${API_BASE}/api/v1/store-sku-pricing-snapshots?${snapshotSearch.toString()}`, { cache: 'no-store' })
+            const snapshotResponse = await fetch(
+              `${API_BASE}/api/v1/store-sku-pricing-snapshots?${snapshotSearch.toString()}`,
+              { cache: 'no-store' },
+            )
             if (snapshotResponse.ok) {
-              const snapshotPayload = (await snapshotResponse.json()) as StoreSkuPricingSnapshotListResponse
+              const snapshotPayload =
+                (await snapshotResponse.json()) as StoreSkuPricingSnapshotListResponse
               snapshotPayload.items.forEach((snapshot) => {
-                snapshotsMap[`${snapshot.sku}_${snapshot.calculation_type}`] = snapshot
+                snapshotsMap[`${snapshot.sku}_${snapshot.calculation_type}`] =
+                  snapshot
               })
             }
           } catch (snapshotError) {
@@ -1324,32 +1847,60 @@ export default function PricingCalculationPage() {
             // 优先使用快照数据，如果没有快照则使用初始草稿
             const snapshotKey = `${item.sku}_${storeCalculationMode === 'profit-calc' ? 'profit_calc' : 'profit_reverse'}`
             const snapshot = snapshotsMap[snapshotKey]
-            
+
             // 如果有快照，从快照中读取动态参数来初始化 draft
             let initialDraft: StoreSkuDraft
             if (snapshot) {
               initialDraft = {
-                package_length_cm: snapshot.package_length_cm > 0 ? String(snapshot.package_length_cm) : '',
-                package_width_cm: snapshot.package_width_cm > 0 ? String(snapshot.package_width_cm) : '',
-                package_height_cm: snapshot.package_height_cm > 0 ? String(snapshot.package_height_cm) : '',
-                weight_kg: snapshot.weight_kg > 0 ? String(snapshot.weight_kg) : '',
-                first_leg_cost_rmb: snapshot.first_leg_cost_rmb > 0 ? String(snapshot.first_leg_cost_rmb) : '',
-                sale_price_usd: snapshot.sale_price_usd > 0 ? String(snapshot.sale_price_usd) : '',
-                target_profit_rate: snapshot.target_profit_rate !== null ? String(snapshot.target_profit_rate) : '25',
+                package_length_cm:
+                  snapshot.package_length_cm > 0
+                    ? String(snapshot.package_length_cm)
+                    : '',
+                package_width_cm:
+                  snapshot.package_width_cm > 0
+                    ? String(snapshot.package_width_cm)
+                    : '',
+                package_height_cm:
+                  snapshot.package_height_cm > 0
+                    ? String(snapshot.package_height_cm)
+                    : '',
+                weight_kg:
+                  snapshot.weight_kg > 0 ? String(snapshot.weight_kg) : '',
+                first_leg_cost_rmb:
+                  snapshot.first_leg_cost_rmb > 0
+                    ? String(snapshot.first_leg_cost_rmb)
+                    : '',
+                sale_price_usd:
+                  snapshot.sale_price_usd > 0
+                    ? String(snapshot.sale_price_usd)
+                    : '',
+                target_profit_rate:
+                  snapshot.target_profit_rate !== null
+                    ? String(snapshot.target_profit_rate)
+                    : '25',
                 advertising_rate: String(snapshot.advertising_rate * 100),
                 return_loss_rate: String(snapshot.return_loss_rate * 100),
                 storage_months: String(snapshot.storage_months),
                 inbound_placement_mode: snapshot.inbound_placement_mode,
-                usd_to_rmb_rate: snapshot.usd_to_rmb_rate > 0 ? String(snapshot.usd_to_rmb_rate) : systemRateValue,
+                usd_to_rmb_rate:
+                  snapshot.usd_to_rmb_rate > 0
+                    ? String(snapshot.usd_to_rmb_rate)
+                    : systemRateValue,
               }
             } else {
-              initialDraft = buildInitialStoreDraft(item, historicalFirstLegCost, systemRateValue)
+              initialDraft = buildInitialStoreDraft(
+                item,
+                historicalFirstLegCost,
+                systemRateValue,
+              )
             }
-            
+
             next[item.id] = {
               draft: existing?.draft ?? initialDraft,
               loading: false,
-              result: existing?.result ?? (snapshot ? convertSnapshotToResult(snapshot) : null),
+              result:
+                existing?.result ??
+                (snapshot ? convertSnapshotToResult(snapshot) : null),
               error: existing?.error ?? null,
             }
           })
@@ -1358,7 +1909,9 @@ export default function PricingCalculationPage() {
       } catch (loadError) {
         setStoreSkus([])
         setStoreRows({})
-        setStoreSkusError(loadError instanceof Error ? loadError.message : 'SKU 列表加载失败')
+        setStoreSkusError(
+          loadError instanceof Error ? loadError.message : 'SKU 列表加载失败',
+        )
       } finally {
         setStoreSkusLoading(false)
       }
@@ -1387,7 +1940,10 @@ export default function PricingCalculationPage() {
       summary: getRunSummary(run),
     }))
   }, [filteredRuns])
-  const visibleRuns = useMemo(() => filteredRuns.slice(0, MAX_VISIBLE_RUNS), [filteredRuns])
+  const visibleRuns = useMemo(
+    () => filteredRuns.slice(0, MAX_VISIBLE_RUNS),
+    [filteredRuns],
+  )
 
   const selectedRuns = useMemo(() => {
     if (selectedRunIds.length === 0) {
@@ -1400,7 +1956,12 @@ export default function PricingCalculationPage() {
       .slice(0, MAX_SELECTED_RUNS)
   }, [runs, selectedRunIds])
   const volumeWeightKg = useMemo(() => {
-    return (toNumber(form.package_length_cm) * toNumber(form.package_width_cm) * toNumber(form.package_height_cm)) / 6000
+    return (
+      (toNumber(form.package_length_cm) *
+        toNumber(form.package_width_cm) *
+        toNumber(form.package_height_cm)) /
+      6000
+    )
   }, [form.package_height_cm, form.package_length_cm, form.package_width_cm])
   const chargeableWeightKg = useMemo(() => {
     return Math.max(toNumber(form.weight_kg), volumeWeightKg)
@@ -1417,7 +1978,9 @@ export default function PricingCalculationPage() {
       return storeSkus
     }
     return storeSkus.filter((item) => {
-      return [item.sku, item.asin, item.project_name].some((value) => value.toLowerCase().includes(normalizedKeyword))
+      return [item.sku, item.asin, item.project_name].some((value) =>
+        value.toLowerCase().includes(normalizedKeyword),
+      )
     })
   }, [skuKeyword, storeSkus])
 
@@ -1429,9 +1992,13 @@ export default function PricingCalculationPage() {
     try {
       let createdRun: PricingCalculationRunItem
 
-      const fbmFirstLegCost = calculationMode === 'fbm-calc' && toNumber(form.full_container_quantity) > 0 && toNumber(form.full_container_price_rmb) > 0
-        ? toNumber(form.full_container_price_rmb) / toNumber(form.full_container_quantity)
-        : firstLegCostRmb
+      const fbmFirstLegCost =
+        calculationMode === 'fbm-calc' &&
+        toNumber(form.full_container_quantity) > 0 &&
+        toNumber(form.full_container_price_rmb) > 0
+          ? toNumber(form.full_container_price_rmb) /
+            toNumber(form.full_container_quantity)
+          : firstLegCostRmb
 
       createdRun = await requestPricingCalculation({
         calculationMode,
@@ -1449,7 +2016,9 @@ export default function PricingCalculationPage() {
         return_loss_rate: Number(form.return_loss_rate) / 100,
         storage_months: Number(form.storage_months),
         inbound_placement_mode: form.inbound_placement_mode,
-        usd_to_rmb_rate: form.usd_to_rmb_rate.trim() ? Number(form.usd_to_rmb_rate) : undefined,
+        usd_to_rmb_rate: form.usd_to_rmb_rate.trim()
+          ? Number(form.usd_to_rmb_rate)
+          : undefined,
         ...(calculationMode === 'fbm-calc' && {
           full_container_quantity: Number(form.full_container_quantity),
           full_container_price_rmb: Number(form.full_container_price_rmb),
@@ -1458,9 +2027,16 @@ export default function PricingCalculationPage() {
       })
 
       setRuns((current) => [createdRun, ...current])
-      setSelectedRunIds((current) => [createdRun.id, ...current.filter((id) => id !== createdRun.id)].slice(0, MAX_SELECTED_RUNS))
+      setSelectedRunIds((current) =>
+        [createdRun.id, ...current.filter((id) => id !== createdRun.id)].slice(
+          0,
+          MAX_SELECTED_RUNS,
+        ),
+      )
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : '定价测算失败')
+      setError(
+        submitError instanceof Error ? submitError.message : '定价测算失败',
+      )
     } finally {
       setLoading(false)
     }
@@ -1492,26 +2068,38 @@ export default function PricingCalculationPage() {
     setError(null)
 
     try {
-      const response = await fetch(`${API_BASE}/api/v1/pricing-calculation/runs/${runId}`, {
-        method: 'DELETE',
-      })
+      const response = await fetch(
+        `${API_BASE}/api/v1/pricing-calculation/runs/${runId}`,
+        {
+          method: 'DELETE',
+        },
+      )
 
       if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as { detail?: string; message?: string } | null
-        throw new Error(payload?.detail || payload?.message || '删除测算记录失败')
+        const payload = (await response.json().catch(() => null)) as {
+          detail?: string
+          message?: string
+        } | null
+        throw new Error(
+          payload?.detail || payload?.message || '删除测算记录失败',
+        )
       }
 
       setRuns((current) => current.filter((run) => run.id !== runId))
       setSelectedRunIds((current) => current.filter((id) => id !== runId))
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : '删除测算记录失败')
+      setError(
+        deleteError instanceof Error ? deleteError.message : '删除测算记录失败',
+      )
     } finally {
       setDeletingRunId(null)
     }
   }
 
   async function handleRecalculateRun(runId: number) {
-    const confirmed = window.confirm('确认使用最新计算逻辑重新计算这条记录吗？\\n\\n新的计算逻辑：回款 = 售价 - 费用合计（含广告费）')
+    const confirmed = window.confirm(
+      '确认使用最新计算逻辑重新计算这条记录吗？\\n\\n新的计算逻辑：回款 = 售价 - 费用合计（含广告费）',
+    )
     if (!confirmed) {
       return
     }
@@ -1520,17 +2108,25 @@ export default function PricingCalculationPage() {
     setError(null)
 
     try {
-      const response = await fetch(`${API_BASE}/api/v1/pricing-calculation/runs/${runId}/recalculate`, {
-        method: 'POST',
-      })
+      const response = await fetch(
+        `${API_BASE}/api/v1/pricing-calculation/runs/${runId}/recalculate`,
+        {
+          method: 'POST',
+        },
+      )
 
       if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as { detail?: string; message?: string } | null
+        const payload = (await response.json().catch(() => null)) as {
+          detail?: string
+          message?: string
+        } | null
         throw new Error(payload?.detail || payload?.message || '重算失败')
       }
 
       const updatedRun = (await response.json()) as PricingCalculationRunItem
-      setRuns((current) => current.map((run) => run.id === runId ? updatedRun : run))
+      setRuns((current) =>
+        current.map((run) => (run.id === runId ? updatedRun : run)),
+      )
     } catch (recalcError) {
       setError(recalcError instanceof Error ? recalcError.message : '重算失败')
     } finally {
@@ -1557,7 +2153,9 @@ export default function PricingCalculationPage() {
         },
       })
     } catch (exportError) {
-      setError(exportError instanceof Error ? exportError.message : '导出 Excel 失败')
+      setError(
+        exportError instanceof Error ? exportError.message : '导出 Excel 失败',
+      )
     } finally {
       setExporting(false)
     }
@@ -1583,7 +2181,12 @@ export default function PricingCalculationPage() {
     setExporting(true)
     setError(null)
     try {
-      await exportStoreSkuTableToExcel(filteredStoreSkus, storeRows, selectedProjectName, storeCalculationMode)
+      await exportStoreSkuTableToExcel(
+        filteredStoreSkus,
+        storeRows,
+        selectedProjectName,
+        storeCalculationMode,
+      )
       await logClientOperation({
         action: 'pricing_calculation.store_table.export',
         targetType: 'store_sku_pricing_snapshot',
@@ -1596,13 +2199,19 @@ export default function PricingCalculationPage() {
         },
       })
     } catch (exportError) {
-      setError(exportError instanceof Error ? exportError.message : '导出 Excel 失败')
+      setError(
+        exportError instanceof Error ? exportError.message : '导出 Excel 失败',
+      )
     } finally {
       setExporting(false)
     }
   }
 
-  function updateStoreDraft(rowId: number, key: keyof StoreSkuDraft, value: string) {
+  function updateStoreDraft(
+    rowId: number,
+    key: keyof StoreSkuDraft,
+    value: string,
+  ) {
     setStoreRows((current) => {
       const row = current[rowId]
       if (!row) return current
@@ -1619,7 +2228,10 @@ export default function PricingCalculationPage() {
     })
   }
 
-  async function handleStoreSkuCalculate(item: ProductCostItem, calculationMode: 'profit-calc' | 'profit-reverse' = 'profit-calc') {
+  async function handleStoreSkuCalculate(
+    item: ProductCostItem,
+    calculationMode: 'profit-calc' | 'profit-reverse' = 'profit-calc',
+  ) {
     const rowState = storeRows[item.id]
     if (!rowState) return
 
@@ -1652,14 +2264,20 @@ export default function PricingCalculationPage() {
         project_id: selectedProject?.id ?? undefined,
         sku: item.sku,
         use_historical_shipping_cost: true,
-        sale_price_usd: calculationMode === 'profit-calc' ? Number(draft.sale_price_usd) : 0,
-        target_profit_rate: calculationMode === 'profit-reverse' ? Number(draft.target_profit_rate) / 100 : 0,
+        sale_price_usd:
+          calculationMode === 'profit-calc' ? Number(draft.sale_price_usd) : 0,
+        target_profit_rate:
+          calculationMode === 'profit-reverse'
+            ? Number(draft.target_profit_rate) / 100
+            : 0,
         commission_rate: 0.15,
         advertising_rate: Number(draft.advertising_rate) / 100,
         return_loss_rate: Number(draft.return_loss_rate) / 100,
         storage_months: Number(draft.storage_months),
         inbound_placement_mode: draft.inbound_placement_mode,
-        usd_to_rmb_rate: draft.usd_to_rmb_rate.trim() ? Number(draft.usd_to_rmb_rate) : undefined,
+        usd_to_rmb_rate: draft.usd_to_rmb_rate.trim()
+          ? Number(draft.usd_to_rmb_rate)
+          : undefined,
       })
 
       setStoreRows((current) => ({
@@ -1675,7 +2293,12 @@ export default function PricingCalculationPage() {
       // 保存快照到后端（不添加到新品核算的历史列表）
       if (selectedProject?.id) {
         try {
-          const snapshotPayload = buildSnapshotPayload(item, createdRun, calculationMode, selectedProject.id)
+          const snapshotPayload = buildSnapshotPayload(
+            item,
+            createdRun,
+            calculationMode,
+            selectedProject.id,
+          )
           await requestSaveStoreSkuSnapshot(snapshotPayload)
         } catch (snapshotError) {
           console.warn('保存快照失败:', snapshotError)
@@ -1687,169 +2310,445 @@ export default function PricingCalculationPage() {
         [item.id]: {
           ...current[item.id],
           loading: false,
-          error: submitError instanceof Error ? submitError.message : '店铺核算失败',
+          error:
+            submitError instanceof Error ? submitError.message : '店铺核算失败',
         },
       }))
     }
   }
 
   return (
-    <div className="space-y-4">
-      <Tabs value={activeBusinessTab} onValueChange={(value) => setActiveBusinessTab(value as BusinessTab)} className="space-y-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h1 className="text-xl font-semibold text-foreground">定价测算</h1>
-            <p className="text-sm text-muted-foreground">在同一个工作台里完成新品核算与店铺维度 SKU 测算。</p>
-          </div>
-          <TabsMotionGroup id="pricing-business-tabs">
-            <TabsList className="grid w-full grid-cols-2 rounded-xl border border-border/70 bg-[hsl(var(--surface-subtle))] p-1 lg:w-[320px]">
-              <SlidingTabsTrigger value="new-product" activeValue={activeBusinessTab} layoutId="pricing-business-tab-indicator">
+    <div className='space-y-4'>
+      <Tabs
+        value={activeBusinessTab}
+        onValueChange={(value) => setActiveBusinessTab(value as BusinessTab)}
+        className='space-y-4'
+      >
+        <div className='flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between'>
+          <TabsMotionGroup id='pricing-business-tabs'>
+            <TabsList className='grid w-full grid-cols-2 rounded-xl border border-border/70 bg-[hsl(var(--surface-subtle))] p-1 lg:w-[320px]'>
+              <SlidingTabsTrigger
+                value='new-product'
+                activeValue={activeBusinessTab}
+                layoutId='pricing-business-tab-indicator'
+              >
                 新品核算
               </SlidingTabsTrigger>
-              <SlidingTabsTrigger value="store-accounting" activeValue={activeBusinessTab} layoutId="pricing-business-tab-indicator">
+              <SlidingTabsTrigger
+                value='store-accounting'
+                activeValue={activeBusinessTab}
+                layoutId='pricing-business-tab-indicator'
+              >
                 店铺核算
               </SlidingTabsTrigger>
             </TabsList>
           </TabsMotionGroup>
         </div>
 
-        <DirectionalTabTransition value={activeBusinessTab} order={BUSINESS_TAB_ORDER}>
-          <TabsContent forceMount value={activeBusinessTab} className="space-y-4">
+        <DirectionalTabTransition
+          value={activeBusinessTab}
+          order={BUSINESS_TAB_ORDER}
+        >
+          <TabsContent
+            forceMount
+            value={activeBusinessTab}
+            className='space-y-4'
+          >
             {activeBusinessTab === 'new-product' ? (
               <>
-                <div className="grid gap-4 xl:grid-cols-[520px_minmax(0,1fr)]">
-                  <Card className="border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-lg">测算输入</CardTitle>
+                <div className='grid gap-4 xl:grid-cols-[520px_minmax(0,1fr)]'>
+                  <Card className='border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90'>
+                    <CardHeader className='pb-3'>
+                      <CardTitle className='text-lg'>测算输入</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <form className="space-y-4" onSubmit={handleSubmit}>
-                        <Tabs value={calculationMode} onValueChange={(value) => setCalculationMode(value as CalculationMode)}>
-                          <TabsMotionGroup id="pricing-calculation-mode-tabs">
-                            <TabsList className="grid w-full grid-cols-4 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-1">
-                              <SlidingTabsTrigger value="profit-calc" activeValue={calculationMode} layoutId="pricing-calculation-mode-indicator">
+                      <form className='space-y-4' onSubmit={handleSubmit}>
+                        <Tabs
+                          value={calculationMode}
+                          onValueChange={(value) =>
+                            setCalculationMode(value as CalculationMode)
+                          }
+                        >
+                          <TabsMotionGroup id='pricing-calculation-mode-tabs'>
+                            <TabsList className='grid w-full grid-cols-4 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-1'>
+                              <SlidingTabsTrigger
+                                value='profit-calc'
+                                activeValue={calculationMode}
+                                layoutId='pricing-calculation-mode-indicator'
+                              >
                                 利润核算
                               </SlidingTabsTrigger>
-                              <SlidingTabsTrigger value="profit-reverse" activeValue={calculationMode} layoutId="pricing-calculation-mode-indicator">
+                              <SlidingTabsTrigger
+                                value='profit-reverse'
+                                activeValue={calculationMode}
+                                layoutId='pricing-calculation-mode-indicator'
+                              >
                                 利润倒算
                               </SlidingTabsTrigger>
-                              <SlidingTabsTrigger value="cost-reverse" activeValue={calculationMode} layoutId="pricing-calculation-mode-indicator">
+                              <SlidingTabsTrigger
+                                value='cost-reverse'
+                                activeValue={calculationMode}
+                                layoutId='pricing-calculation-mode-indicator'
+                              >
                                 成本倒推
                               </SlidingTabsTrigger>
-                              <SlidingTabsTrigger value="fbm-calc" activeValue={calculationMode} layoutId="pricing-calculation-mode-indicator">
+                              <SlidingTabsTrigger
+                                value='fbm-calc'
+                                activeValue={calculationMode}
+                                layoutId='pricing-calculation-mode-indicator'
+                              >
                                 FBM测算
                               </SlidingTabsTrigger>
                             </TabsList>
                           </TabsMotionGroup>
                         </Tabs>
 
-                        <DirectionalTabTransition value={calculationMode} order={CALCULATION_MODE_ORDER}>
-                          <div className="space-y-4">
-                            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
-                              <Field label="产品名称">
-                                <Input value={form.product_name} onChange={(event) => updateField('product_name', event.target.value)} placeholder="例如：桌面置物架" required />
+                        <DirectionalTabTransition
+                          value={calculationMode}
+                          order={CALCULATION_MODE_ORDER}
+                        >
+                          <div className='space-y-4'>
+                            <div className='grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]'>
+                              <Field label='产品名称'>
+                                <Input
+                                  value={form.product_name}
+                                  onChange={(event) =>
+                                    updateField(
+                                      'product_name',
+                                      event.target.value,
+                                    )
+                                  }
+                                  placeholder='例如：桌面置物架'
+                                  required
+                                />
                               </Field>
                               {calculationMode === 'cost-reverse' ? (
-                                <Field label="售价(USD)">
-                                  <Input type="number" step="0.01" value={form.sale_price_usd} onChange={(event) => updateField('sale_price_usd', event.target.value)} required />
+                                <Field label='售价(USD)'>
+                                  <Input
+                                    type='number'
+                                    step='0.01'
+                                    value={form.sale_price_usd}
+                                    onChange={(event) =>
+                                      updateField(
+                                        'sale_price_usd',
+                                        event.target.value,
+                                      )
+                                    }
+                                    required
+                                  />
                                 </Field>
                               ) : (
-                                <Field label="FOB 产品成本(RMB)">
-                                  <Input type="number" step="0.01" value={form.fob_product_cost_rmb} onChange={(event) => updateField('fob_product_cost_rmb', event.target.value)} required />
+                                <Field label='FOB 产品成本(RMB)'>
+                                  <Input
+                                    type='number'
+                                    step='0.01'
+                                    value={form.fob_product_cost_rmb}
+                                    onChange={(event) =>
+                                      updateField(
+                                        'fob_product_cost_rmb',
+                                        event.target.value,
+                                      )
+                                    }
+                                    required
+                                  />
                                 </Field>
                               )}
                             </div>
-                            <div className="grid gap-3 sm:grid-cols-4">
-                              <Field label="长(cm)">
-                                <Input type="number" step="0.01" value={form.package_length_cm} onChange={(event) => updateField('package_length_cm', event.target.value)} required />
+                            <div className='grid gap-3 sm:grid-cols-4'>
+                              <Field label='长(cm)'>
+                                <Input
+                                  type='number'
+                                  step='0.01'
+                                  value={form.package_length_cm}
+                                  onChange={(event) =>
+                                    updateField(
+                                      'package_length_cm',
+                                      event.target.value,
+                                    )
+                                  }
+                                  required
+                                />
                               </Field>
-                              <Field label="宽(cm)">
-                                <Input type="number" step="0.01" value={form.package_width_cm} onChange={(event) => updateField('package_width_cm', event.target.value)} required />
+                              <Field label='宽(cm)'>
+                                <Input
+                                  type='number'
+                                  step='0.01'
+                                  value={form.package_width_cm}
+                                  onChange={(event) =>
+                                    updateField(
+                                      'package_width_cm',
+                                      event.target.value,
+                                    )
+                                  }
+                                  required
+                                />
                               </Field>
-                              <Field label="高(cm)">
-                                <Input type="number" step="0.01" value={form.package_height_cm} onChange={(event) => updateField('package_height_cm', event.target.value)} required />
+                              <Field label='高(cm)'>
+                                <Input
+                                  type='number'
+                                  step='0.01'
+                                  value={form.package_height_cm}
+                                  onChange={(event) =>
+                                    updateField(
+                                      'package_height_cm',
+                                      event.target.value,
+                                    )
+                                  }
+                                  required
+                                />
                               </Field>
-                              <Field label="重量(kg)">
-                                <Input type="number" step="0.001" value={form.weight_kg} onChange={(event) => updateField('weight_kg', event.target.value)} required />
+                              <Field label='重量(kg)'>
+                                <Input
+                                  type='number'
+                                  step='0.001'
+                                  value={form.weight_kg}
+                                  onChange={(event) =>
+                                    updateField('weight_kg', event.target.value)
+                                  }
+                                  required
+                                />
                               </Field>
                             </div>
 
-                            <div className="rounded-2xl border border-border/70 bg-[hsl(var(--surface-subtle))] p-4">
+                            <div className='rounded-2xl border border-border/70 bg-[hsl(var(--surface-subtle))] p-4'>
                               {calculationMode === 'fbm-calc' ? (
-                                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
-                                  <div className="space-y-3">
-                                    <Field label="整柜数量">
-                                      <Input type="number" step="1" value={form.full_container_quantity} onChange={(event) => updateField('full_container_quantity', event.target.value)} placeholder="请输入整柜数量" />
+                                <div className='grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]'>
+                                  <div className='space-y-3'>
+                                    <Field label='整柜数量'>
+                                      <Input
+                                        type='number'
+                                        step='1'
+                                        value={form.full_container_quantity}
+                                        onChange={(event) =>
+                                          updateField(
+                                            'full_container_quantity',
+                                            event.target.value,
+                                          )
+                                        }
+                                        placeholder='请输入整柜数量'
+                                      />
                                     </Field>
-                                    <Field label="整柜价格(RMB)">
-                                      <Input type="number" step="0.01" value={form.full_container_price_rmb} onChange={(event) => updateField('full_container_price_rmb', event.target.value)} placeholder="请输入整柜价格" />
+                                    <Field label='整柜价格(RMB)'>
+                                      <Input
+                                        type='number'
+                                        step='0.01'
+                                        value={form.full_container_price_rmb}
+                                        onChange={(event) =>
+                                          updateField(
+                                            'full_container_price_rmb',
+                                            event.target.value,
+                                          )
+                                        }
+                                        placeholder='请输入整柜价格'
+                                      />
                                     </Field>
                                   </div>
-                                  <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))] p-3 dark:bg-[hsl(var(--surface-soft))]">
-                                    <p className="text-xs text-muted-foreground">单个产品头程(RMB)</p>
-                                    <p className="mt-2 text-2xl font-semibold text-foreground">
-                                      {toNumber(form.full_container_quantity) > 0 && toNumber(form.full_container_price_rmb) > 0
-                                        ? (toNumber(form.full_container_price_rmb) / toNumber(form.full_container_quantity)).toFixed(2)
+                                  <div className='rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))] p-3 dark:bg-[hsl(var(--surface-soft))]'>
+                                    <p className='text-xs text-muted-foreground'>
+                                      单个产品头程(RMB)
+                                    </p>
+                                    <p className='mt-2 text-2xl font-semibold text-foreground'>
+                                      {toNumber(form.full_container_quantity) >
+                                        0 &&
+                                      toNumber(form.full_container_price_rmb) >
+                                        0
+                                        ? (
+                                            toNumber(
+                                              form.full_container_price_rmb,
+                                            ) /
+                                            toNumber(
+                                              form.full_container_quantity,
+                                            )
+                                          ).toFixed(2)
                                         : '0.00'}
                                     </p>
-                                    <p className="mt-1 text-xs text-muted-foreground">整柜价格 ÷ 整柜数量</p>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
-                                  <div className="space-y-3">
-                                    <Field label="头程单价(RMB/kg)">
-                                      <Input type="number" step="0.01" value={form.first_leg_unit_price_rmb} onChange={(event) => updateField('first_leg_unit_price_rmb', event.target.value)} placeholder="请输入头程单价" />
-                                    </Field>
-                                    <p className="text-xs leading-5 text-muted-foreground">
-                                      实重 {formatMetric(toNumber(form.weight_kg), 3)} kg，体积重 {formatMetric(volumeWeightKg, 3)} kg，计费重 {formatMetric(chargeableWeightKg, 3)} kg。
+                                    <p className='mt-1 text-xs text-muted-foreground'>
+                                      整柜价格 ÷ 整柜数量
                                     </p>
                                   </div>
-                                  <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))] p-3 dark:bg-[hsl(var(--surface-soft))]">
-                                    <p className="text-xs text-muted-foreground">头程成本(RMB)</p>
-                                    <p className="mt-2 text-2xl font-semibold text-foreground">{firstLegCostRmb.toFixed(2)}</p>
-                                    <p className="mt-1 text-xs text-muted-foreground">计费重 × 头程单价</p>
+                                </div>
+                              ) : (
+                                <div className='grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]'>
+                                  <div className='space-y-3'>
+                                    <Field label='头程单价(RMB/kg)'>
+                                      <Input
+                                        type='number'
+                                        step='0.01'
+                                        value={form.first_leg_unit_price_rmb}
+                                        onChange={(event) =>
+                                          updateField(
+                                            'first_leg_unit_price_rmb',
+                                            event.target.value,
+                                          )
+                                        }
+                                        placeholder='请输入头程单价'
+                                      />
+                                    </Field>
+                                    <p className='text-xs leading-5 text-muted-foreground'>
+                                      实重{' '}
+                                      {formatMetric(
+                                        toNumber(form.weight_kg),
+                                        3,
+                                      )}{' '}
+                                      kg，体积重{' '}
+                                      {formatMetric(volumeWeightKg, 3)}{' '}
+                                      kg，计费重{' '}
+                                      {formatMetric(chargeableWeightKg, 3)} kg。
+                                    </p>
+                                  </div>
+                                  <div className='rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))] p-3 dark:bg-[hsl(var(--surface-soft))]'>
+                                    <p className='text-xs text-muted-foreground'>
+                                      头程成本(RMB)
+                                    </p>
+                                    <p className='mt-2 text-2xl font-semibold text-foreground'>
+                                      {firstLegCostRmb.toFixed(2)}
+                                    </p>
+                                    <p className='mt-1 text-xs text-muted-foreground'>
+                                      计费重 × 头程单价
+                                    </p>
                                   </div>
                                 </div>
                               )}
                             </div>
 
-                            <div className="grid gap-3 sm:grid-cols-2">
+                            <div className='grid gap-3 sm:grid-cols-2'>
                               {calculationMode === 'profit-calc' ? (
-                                <Field label="售价(USD)">
-                                  <Input type="number" step="0.01" value={form.sale_price_usd} onChange={(event) => updateField('sale_price_usd', event.target.value)} required />
+                                <Field label='售价(USD)'>
+                                  <Input
+                                    type='number'
+                                    step='0.01'
+                                    value={form.sale_price_usd}
+                                    onChange={(event) =>
+                                      updateField(
+                                        'sale_price_usd',
+                                        event.target.value,
+                                      )
+                                    }
+                                    required
+                                  />
                                 </Field>
                               ) : calculationMode === 'fbm-calc' ? (
-                                <Field label="售价(USD)">
-                                  <Input type="number" step="0.01" value={form.sale_price_usd} onChange={(event) => updateField('sale_price_usd', event.target.value)} required />
+                                <Field label='售价(USD)'>
+                                  <Input
+                                    type='number'
+                                    step='0.01'
+                                    value={form.sale_price_usd}
+                                    onChange={(event) =>
+                                      updateField(
+                                        'sale_price_usd',
+                                        event.target.value,
+                                      )
+                                    }
+                                    required
+                                  />
                                 </Field>
                               ) : (
-                                <Field label="目标利润率(%)">
-                                  <Input type="number" step="0.01" value={form.target_profit_rate} onChange={(event) => updateField('target_profit_rate', event.target.value)} required />
+                                <Field label='目标利润率(%)'>
+                                  <Input
+                                    type='number'
+                                    step='0.01'
+                                    value={form.target_profit_rate}
+                                    onChange={(event) =>
+                                      updateField(
+                                        'target_profit_rate',
+                                        event.target.value,
+                                      )
+                                    }
+                                    required
+                                  />
                                 </Field>
                               )}
-                              <Field label="平台佣金率(%)">
-                                <Input type="number" step="0.01" value={form.commission_rate} onChange={(event) => updateField('commission_rate', event.target.value)} required />
+                              <Field label='平台佣金率(%)'>
+                                <Input
+                                  type='number'
+                                  step='0.01'
+                                  value={form.commission_rate}
+                                  onChange={(event) =>
+                                    updateField(
+                                      'commission_rate',
+                                      event.target.value,
+                                    )
+                                  }
+                                  required
+                                />
                               </Field>
-                              <Field label="广告费率(%)">
-                                <Input type="number" step="0.01" value={form.advertising_rate} onChange={(event) => updateField('advertising_rate', event.target.value)} required />
+                              <Field label='广告费率(%)'>
+                                <Input
+                                  type='number'
+                                  step='0.01'
+                                  value={form.advertising_rate}
+                                  onChange={(event) =>
+                                    updateField(
+                                      'advertising_rate',
+                                      event.target.value,
+                                    )
+                                  }
+                                  required
+                                />
                               </Field>
-                              <Field label="退货折损率(%)">
-                                <Input type="number" step="0.01" value={form.return_loss_rate} onChange={(event) => updateField('return_loss_rate', event.target.value)} required />
+                              <Field label='退货折损率(%)'>
+                                <Input
+                                  type='number'
+                                  step='0.01'
+                                  value={form.return_loss_rate}
+                                  onChange={(event) =>
+                                    updateField(
+                                      'return_loss_rate',
+                                      event.target.value,
+                                    )
+                                  }
+                                  required
+                                />
                               </Field>
-                              <Field label="仓储月数">
-                                <Input type="number" step="0.01" value={form.storage_months} onChange={(event) => updateField('storage_months', event.target.value)} required />
+                              <Field label='仓储月数'>
+                                <Input
+                                  type='number'
+                                  step='0.01'
+                                  value={form.storage_months}
+                                  onChange={(event) =>
+                                    updateField(
+                                      'storage_months',
+                                      event.target.value,
+                                    )
+                                  }
+                                  required
+                                />
                               </Field>
                               {calculationMode === 'fbm-calc' && (
-                                <Field label="配送费(USD)">
-                                  <Input type="number" step="0.01" value={form.delivery_fee_usd} onChange={(event) => updateField('delivery_fee_usd', event.target.value)} placeholder="请输入配送费" />
+                                <Field label='配送费(USD)'>
+                                  <Input
+                                    type='number'
+                                    step='0.01'
+                                    value={form.delivery_fee_usd}
+                                    onChange={(event) =>
+                                      updateField(
+                                        'delivery_fee_usd',
+                                        event.target.value,
+                                      )
+                                    }
+                                    placeholder='请输入配送费'
+                                  />
                                 </Field>
                               )}
                             </div>
 
-                            <Button type="submit" disabled={loading} className="h-10 w-full">
-                              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Calculator className="mr-2 h-4 w-4" />}
-                              {calculationMode === 'profit-reverse' ? '倒算售价' : calculationMode === 'cost-reverse' ? '倒推成本' : calculationMode === 'fbm-calc' ? 'FBM测算' : '开始测算'}
+                            <Button
+                              type='submit'
+                              disabled={loading}
+                              className='h-10 w-full'
+                            >
+                              {loading ? (
+                                <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                              ) : (
+                                <Calculator className='mr-2 h-4 w-4' />
+                              )}
+                              {calculationMode === 'profit-reverse'
+                                ? '倒算售价'
+                                : calculationMode === 'cost-reverse'
+                                  ? '倒推成本'
+                                  : calculationMode === 'fbm-calc'
+                                    ? 'FBM测算'
+                                    : '开始测算'}
                             </Button>
                           </div>
                         </DirectionalTabTransition>
@@ -1857,90 +2756,146 @@ export default function PricingCalculationPage() {
                     </CardContent>
                   </Card>
 
-                  <div className="space-y-4">
-                    <Card className="border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-lg">筛选产品</CardTitle>
-                        <CardDescription>支持关键词搜索和下拉多选；最近测算卡片只展示前 {MAX_VISIBLE_RUNS} 条，未展示的记录也能在下拉中快速选中。</CardDescription>
+                  <div className='space-y-4'>
+                    <Card className='border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90'>
+                      <CardHeader className='pb-3'>
+                        <CardTitle className='text-lg'>筛选产品</CardTitle>
                       </CardHeader>
-                      <CardContent className="space-y-3">
-                        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(300px,420px)_auto]">
-                          <div className="relative flex-1">
-                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <CardContent className='space-y-3'>
+                        <div className='grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(300px,420px)_auto]'>
+                          <div className='relative flex-1'>
+                            <Search className='pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
                             <Input
                               value={productKeyword}
-                              onChange={(event) => setProductKeyword(event.target.value)}
-                              placeholder="按产品名、测算类型、日期、创建人筛选"
-                              className="pl-9"
+                              onChange={(event) =>
+                                setProductKeyword(event.target.value)
+                              }
+                              placeholder='按产品名、测算类型、日期、创建人筛选'
+                              className='pl-9'
                             />
                           </div>
-                          <Popover open={runPickerOpen} onOpenChange={setRunPickerOpen}>
+                          <Popover
+                            open={runPickerOpen}
+                            onOpenChange={setRunPickerOpen}
+                          >
                             <PopoverTrigger asChild>
-                              <Button type="button" variant="outline" className="w-full justify-between">
-                                <span className="truncate">
-                                  {selectedRunIds.length > 0 ? `已选 ${selectedRunIds.length} 个测算结果` : '下拉选择测算结果'}
+                              <Button
+                                type='button'
+                                variant='outline'
+                                className='w-full justify-between'
+                              >
+                                <span className='truncate'>
+                                  {selectedRunIds.length > 0
+                                    ? `已选 ${selectedRunIds.length} 个测算结果`
+                                    : '下拉选择测算结果'}
                                 </span>
-                                <ChevronDown className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                                <ChevronDown className='ml-2 h-4 w-4 shrink-0 text-muted-foreground' />
                               </Button>
                             </PopoverTrigger>
-                            <PopoverContent align="start" className="w-[min(92vw,420px)] p-0">
+                            <PopoverContent
+                              align='start'
+                              className='w-[min(92vw,420px)] p-0'
+                            >
                               <Command>
-                                <CommandInput placeholder="搜索产品名称、测算类型、日期" />
+                                <CommandInput placeholder='搜索产品名称、测算类型、日期' />
                                 <CommandList>
-                                  <CommandEmpty>没有匹配的测算结果</CommandEmpty>
-                                  <CommandGroup heading={`可选记录 ${runPickerOptions.length} 条`}>
-                                    {runPickerOptions.map(({ run, summary }) => {
-                                      const isSelected = selectedRunIds.includes(run.id)
-                                      const disabled = !isSelected && selectedRunIds.length >= MAX_SELECTED_RUNS
-                                      return (
-                                        <CommandItem
-                                          key={run.id}
-                                          value={`${run.id} ${summary} ${run.created_by ?? ''}`}
-                                          disabled={disabled}
-                                          onSelect={() => toggleRunSelection(run.id)}
-                                          className="items-start gap-3 py-3"
-                                        >
-                                          <span
-                                            className={cn(
-                                              'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border',
-                                              isSelected ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-background'
-                                            )}
+                                  <CommandEmpty>
+                                    没有匹配的测算结果
+                                  </CommandEmpty>
+                                  <CommandGroup
+                                    heading={`可选记录 ${runPickerOptions.length} 条`}
+                                  >
+                                    {runPickerOptions.map(
+                                      ({ run, summary }) => {
+                                        const isSelected =
+                                          selectedRunIds.includes(run.id)
+                                        const disabled =
+                                          !isSelected &&
+                                          selectedRunIds.length >=
+                                            MAX_SELECTED_RUNS
+                                        return (
+                                          <CommandItem
+                                            key={run.id}
+                                            value={`${run.id} ${summary} ${run.created_by ?? ''}`}
+                                            disabled={disabled}
+                                            onSelect={() =>
+                                              toggleRunSelection(run.id)
+                                            }
+                                            className='items-start gap-3 py-3'
                                           >
-                                            {isSelected ? <Check className="h-3 w-3" /> : null}
-                                          </span>
-                                          <div className="min-w-0 flex-1">
-                                            <div className="truncate text-sm font-medium text-foreground">{run.product_name}</div>
-                                            <div className="mt-1 text-xs text-muted-foreground">{getCalculationTypeMeta(run.calculation_type).label} · {formatCompactDate(run.created_at)}</div>
-                                            {run.created_by ? <div className="mt-1 text-[11px] text-muted-foreground">创建人：{run.created_by}</div> : null}
-                                          </div>
-                                        </CommandItem>
-                                      )
-                                    })}
+                                            <span
+                                              className={cn(
+                                                'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border',
+                                                isSelected
+                                                  ? 'border-primary bg-primary text-primary-foreground'
+                                                  : 'border-border bg-background',
+                                              )}
+                                            >
+                                              {isSelected ? (
+                                                <Check className='h-3 w-3' />
+                                              ) : null}
+                                            </span>
+                                            <div className='min-w-0 flex-1'>
+                                              <div className='truncate text-sm font-medium text-foreground'>
+                                                {run.product_name}
+                                              </div>
+                                              <div className='mt-1 text-xs text-muted-foreground'>
+                                                {
+                                                  getCalculationTypeMeta(
+                                                    run.calculation_type,
+                                                  ).label
+                                                }{' '}
+                                                ·{' '}
+                                                {formatCompactDate(
+                                                  run.created_at,
+                                                )}
+                                              </div>
+                                              {run.created_by ? (
+                                                <div className='mt-1 text-[11px] text-muted-foreground'>
+                                                  创建人：{run.created_by}
+                                                </div>
+                                              ) : null}
+                                            </div>
+                                          </CommandItem>
+                                        )
+                                      },
+                                    )}
                                   </CommandGroup>
                                 </CommandList>
                               </Command>
                             </PopoverContent>
                           </Popover>
-                          <Button type="button" variant="outline" onClick={() => setSelectedRunIds([])} disabled={selectedRunIds.length === 0}>
+                          <Button
+                            type='button'
+                            variant='outline'
+                            onClick={() => setSelectedRunIds([])}
+                            disabled={selectedRunIds.length === 0}
+                          >
                             清空选择
                           </Button>
                         </div>
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <div className='flex flex-wrap items-center gap-2 text-xs text-muted-foreground'>
                           <span>筛选结果 {filteredRuns.length} 条</span>
-                          <span>已选 {selectedRuns.length}/{MAX_SELECTED_RUNS}</span>
-                          {productKeyword ? <span>关键词: {productKeyword}</span> : null}
+                          <span>
+                            已选 {selectedRuns.length}/{MAX_SELECTED_RUNS}
+                          </span>
+                          {productKeyword ? (
+                            <span>关键词: {productKeyword}</span>
+                          ) : null}
                         </div>
                         {selectedRuns.length > 0 ? (
-                          <div className="flex flex-wrap gap-2">
+                          <div className='flex flex-wrap gap-2'>
                             {selectedRuns.map((run) => (
                               <button
                                 key={run.id}
-                                type="button"
+                                type='button'
                                 onClick={() => toggleRunSelection(run.id)}
-                                className="inline-flex max-w-full items-center gap-2 rounded-full border border-border/70 bg-[hsl(var(--surface-subtle))] px-3 py-1 text-xs text-foreground transition-colors hover:bg-[hsl(var(--surface-panel))]"
+                                className='inline-flex max-w-full items-center gap-2 rounded-full border border-border/70 bg-[hsl(var(--surface-subtle))] px-3 py-1 text-xs text-foreground transition-colors hover:bg-[hsl(var(--surface-panel))]'
                               >
-                                <span className="truncate">{getRunSummary(run)}</span>
-                                <X className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                <span className='truncate'>
+                                  {getRunSummary(run)}
+                                </span>
+                                <X className='h-3.5 w-3.5 shrink-0 text-muted-foreground' />
                               </button>
                             ))}
                           </div>
@@ -1949,21 +2904,20 @@ export default function PricingCalculationPage() {
                     </Card>
 
                     {error ? (
-                      <Card className="border-destructive/40">
-                        <CardContent className="flex items-start gap-3 p-4 text-sm text-destructive">
-                          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                      <Card className='border-destructive/40'>
+                        <CardContent className='flex items-start gap-3 p-4 text-sm text-destructive'>
+                          <AlertCircle className='mt-0.5 h-4 w-4 shrink-0' />
                           <span>{error}</span>
                         </CardContent>
                       </Card>
                     ) : null}
 
-                    <Card className="border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-lg">最近测算</CardTitle>
-                        <CardDescription>点击卡片即可加入或移出对比矩阵。</CardDescription>
+                    <Card className='border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90'>
+                      <CardHeader className='pb-3'>
+                        <CardTitle className='text-lg'>最近测算</CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className="flex flex-wrap gap-3">
+                        <div className='flex flex-wrap gap-3'>
                           {runsLoading ? (
                             <>
                               <PricingRunCardSkeleton />
@@ -1972,73 +2926,111 @@ export default function PricingCalculationPage() {
                               <PricingRunCardSkeleton />
                             </>
                           ) : visibleRuns.length === 0 ? (
-                            <div className="rounded-2xl border border-dashed px-4 py-6 text-sm text-muted-foreground">
-                              {runs.length === 0 ? '暂无测算记录' : '没有匹配当前筛选条件的产品'}
+                            <div className='rounded-2xl border border-dashed px-4 py-6 text-sm text-muted-foreground'>
+                              {runs.length === 0
+                                ? '暂无测算记录'
+                                : '没有匹配当前筛选条件的产品'}
                             </div>
                           ) : (
                             visibleRuns.map((run) => {
-                              const typeMeta = getCalculationTypeMeta(run.calculation_type ?? 'profit_calc')
+                              const typeMeta = getCalculationTypeMeta(
+                                run.calculation_type ?? 'profit_calc',
+                              )
                               const isSelected = selectedRunIds.includes(run.id)
 
                               return (
                                 <button
                                   key={run.id}
-                                  type="button"
+                                  type='button'
                                   onClick={() => toggleRunSelection(run.id)}
                                   className={cn(
                                     'flex min-h-[152px] w-full max-w-[240px] flex-col rounded-xl border p-3 text-left transition-colors sm:w-[220px]',
-                                    isSelected ? typeMeta.selectedClassName : typeMeta.cardClassName
+                                    isSelected
+                                      ? typeMeta.selectedClassName
+                                      : typeMeta.cardClassName,
                                   )}
                                 >
-                                  <div className="flex items-start justify-between gap-2">
-                                    <div className="min-w-0">
-                                      <p className="text-xs text-muted-foreground">{formatCompactDate(run.created_at)}</p>
-                                      <p className="mt-1 line-clamp-2 break-all text-sm font-semibold text-foreground">{run.product_name}</p>
-                                      {run.created_by ? <p className="mt-1 truncate text-[11px] text-muted-foreground">创建人：{run.created_by}</p> : null}
+                                  <div className='flex items-start justify-between gap-2'>
+                                    <div className='min-w-0'>
+                                      <p className='text-xs text-muted-foreground'>
+                                        {formatCompactDate(run.created_at)}
+                                      </p>
+                                      <p className='mt-1 line-clamp-2 break-all text-sm font-semibold text-foreground'>
+                                        {run.product_name}
+                                      </p>
+                                      {run.created_by ? (
+                                        <p className='mt-1 truncate text-[11px] text-muted-foreground'>
+                                          创建人：{run.created_by}
+                                        </p>
+                                      ) : null}
                                     </div>
-                                    <div className="flex items-center gap-1">
+                                    <div className='flex items-center gap-1'>
                                       {isSelected ? (
-                                        <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                                        <CheckCircle2 className='h-4 w-4 text-emerald-600 dark:text-emerald-400' />
                                       ) : (
-                                        <X className="h-4 w-4 text-muted-foreground" />
+                                        <X className='h-4 w-4 text-muted-foreground' />
                                       )}
                                       <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-7 w-7 rounded-full text-muted-foreground hover:bg-background/80 hover:text-amber-600 dark:hover:text-amber-400"
+                                        type='button'
+                                        variant='ghost'
+                                        size='icon'
+                                        className='h-7 w-7 rounded-full text-muted-foreground hover:bg-background/80 hover:text-amber-600 dark:hover:text-amber-400'
                                         disabled={recalculatingRunId === run.id}
                                         onClick={(event) => {
                                           event.stopPropagation()
                                           void handleRecalculateRun(run.id)
                                         }}
-                                        title="使用最新计算逻辑重算"
+                                        title='使用最新计算逻辑重算'
                                       >
-                                        {recalculatingRunId === run.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                                        {recalculatingRunId === run.id ? (
+                                          <Loader2 className='h-3.5 w-3.5 animate-spin' />
+                                        ) : (
+                                          <RefreshCw className='h-3.5 w-3.5' />
+                                        )}
                                       </Button>
                                       <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-7 w-7 rounded-full text-muted-foreground hover:bg-background/80 hover:text-rose-600 dark:hover:text-rose-400"
+                                        type='button'
+                                        variant='ghost'
+                                        size='icon'
+                                        className='h-7 w-7 rounded-full text-muted-foreground hover:bg-background/80 hover:text-rose-600 dark:hover:text-rose-400'
                                         disabled={deletingRunId === run.id}
                                         onClick={(event) => {
                                           event.stopPropagation()
                                           void handleDeleteRun(run.id)
                                         }}
                                       >
-                                        {deletingRunId === run.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                                        {deletingRunId === run.id ? (
+                                          <Loader2 className='h-3.5 w-3.5 animate-spin' />
+                                        ) : (
+                                          <Trash2 className='h-3.5 w-3.5' />
+                                        )}
                                       </Button>
                                     </div>
                                   </div>
-                                  <div className="mt-2 flex items-center gap-2">
-                                    <Badge className={cn('border text-[10px]', typeMeta.badgeClassName)}>{typeMeta.label}</Badge>
-                                    <Badge variant="secondary" className="text-[10px]">{run.size_tier_label}</Badge>
+                                  <div className='mt-2 flex items-center gap-2'>
+                                    <Badge
+                                      className={cn(
+                                        'border text-[10px]',
+                                        typeMeta.badgeClassName,
+                                      )}
+                                    >
+                                      {typeMeta.label}
+                                    </Badge>
+                                    <Badge
+                                      variant='secondary'
+                                      className='text-[10px]'
+                                    >
+                                      {run.size_tier_label}
+                                    </Badge>
                                   </div>
-                                  <p className={`mt-auto pt-3 text-lg font-semibold ${run.profit.profit_usd >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                                  <p
+                                    className={`mt-auto pt-3 text-lg font-semibold ${run.profit.profit_usd >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}
+                                  >
                                     {formatCurrency(run.profit.profit_usd)}
                                   </p>
-                                  <p className="text-xs text-muted-foreground">{formatPercent(run.profit.profit_rate)}</p>
+                                  <p className='text-xs text-muted-foreground'>
+                                    {formatPercent(run.profit.profit_rate)}
+                                  </p>
                                 </button>
                               )
                             })
@@ -2049,15 +3041,23 @@ export default function PricingCalculationPage() {
                   </div>
                 </div>
 
-                <Card className="border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
-                  <CardHeader className="pb-3">
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="space-y-1">
-                        <CardTitle className="text-lg">测算对比矩阵</CardTitle>
-                        <CardDescription>只展示当前已选中的产品，方便横向比较成本、费用与利润。</CardDescription>
+                <Card className='border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90'>
+                  <CardHeader className='pb-3'>
+                    <div className='flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between'>
+                      <div className='space-y-1'>
+                        <CardTitle className='text-lg'>测算对比矩阵</CardTitle>
                       </div>
-                      <Button type="button" variant="outline" onClick={() => void handleExportComparisonMatrix()} disabled={selectedRuns.length === 0 || exporting}>
-                        {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                      <Button
+                        type='button'
+                        variant='outline'
+                        onClick={() => void handleExportComparisonMatrix()}
+                        disabled={selectedRuns.length === 0 || exporting}
+                      >
+                        {exporting ? (
+                          <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                        ) : (
+                          <Download className='mr-2 h-4 w-4' />
+                        )}
                         导出 Excel
                       </Button>
                     </div>
@@ -2069,28 +3069,34 @@ export default function PricingCalculationPage() {
               </>
             ) : (
               <>
-                <Card className="border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-lg">项目筛选</CardTitle>
-                    <CardDescription>先选择项目，再按 SKU 逐行填写测算参数并生成结果；头程加权成本会自动从发货汇总带入。</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid gap-3 lg:grid-cols-[260px_minmax(0,1fr)_140px]">
+                <DataCard>
+                  <DataCardHeader title='项目筛选' />
+                  <DataCardContent className='space-y-4'>
+                    <div className='grid gap-3 lg:grid-cols-[260px_minmax(0,1fr)_140px]'>
                       {projectsLoading ? (
                         <PricingFieldSkeleton />
                       ) : (
-                        <Field label="项目">
+                        <Field label='项目'>
                           <Select
                             value={selectedProjectName}
                             onValueChange={setSelectedProjectName}
                             disabled={projects.length === 0}
                           >
-                            <SelectTrigger className="h-10 transition-all duration-200 data-[state=open]:ring-2 data-[state=open]:ring-blue-500/30">
-                              <SelectValue placeholder={projects.length ? '请选择项目' : '暂无可选项目'} />
+                            <SelectTrigger className='h-10 transition-all duration-200 data-[state=open]:ring-2 data-[state=open]:ring-blue-500/30'>
+                              <SelectValue
+                                placeholder={
+                                  projects.length
+                                    ? '请选择项目'
+                                    : '暂无可选项目'
+                                }
+                              />
                             </SelectTrigger>
-                            <SelectContent className="max-h-64 overflow-y-auto">
+                            <SelectContent className='max-h-64 overflow-y-auto'>
                               {projects.map((project) => (
-                                <SelectItem key={`${project.id ?? project.name}-${project.name}`} value={project.name}>
+                                <SelectItem
+                                  key={`${project.id ?? project.name}-${project.name}`}
+                                  value={project.name}
+                                >
                                   {project.name}
                                 </SelectItem>
                               ))}
@@ -2098,75 +3104,98 @@ export default function PricingCalculationPage() {
                           </Select>
                         </Field>
                       )}
-                      <Field label="SKU / ASIN 搜索">
-                        <div className="relative">
-                          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                          <Input value={skuKeyword} onChange={(event) => setSkuKeyword(event.target.value)} placeholder="输入 SKU、ASIN 或项目名" className="pl-9" />
+                      <Field label='SKU / ASIN 搜索'>
+                        <div className='relative'>
+                          <Search className='pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
+                          <Input
+                            value={skuKeyword}
+                            onChange={(event) =>
+                              setSkuKeyword(event.target.value)
+                            }
+                            placeholder='输入 SKU、ASIN 或项目名'
+                            className='pl-9'
+                          />
                         </div>
                       </Field>
-                      <div className="flex items-end">
-                        <div className="w-full rounded-xl border border-border/70 bg-[hsl(var(--surface-subtle))] px-3 py-2 text-sm text-muted-foreground">
-                          {projectsLoading ? '项目准备中...' : storeSkusLoading ? 'SKU 数据同步中...' : `SKU 数量 ${filteredStoreSkus.length}`}
+                      <div className='flex items-end'>
+                        <div className='w-full rounded-xl border border-border/70 bg-[hsl(var(--surface-subtle))] px-3 py-2 text-sm text-muted-foreground'>
+                          {projectsLoading
+                            ? '项目准备中...'
+                            : storeSkusLoading
+                              ? 'SKU 数据同步中...'
+                              : `SKU 数量 ${filteredStoreSkus.length}`}
                         </div>
                       </div>
                     </div>
 
                     {projectsError ? (
-                      <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{projectsError}</div>
+                      <div className='rounded-xl border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive'>
+                        {projectsError}
+                      </div>
                     ) : null}
                     {storeSkusError ? (
-                      <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{storeSkusError}</div>
-                    ) : null}
-                  </CardContent>
-                </Card>
-
-                <Card className="border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
-                  <CardHeader className="pb-3">
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="space-y-1">
-                        <CardTitle className="text-lg">店铺 SKU 核算表</CardTitle>
+                      <div className='rounded-xl border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive'>
+                        {storeSkusError}
                       </div>
-                      <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
-                        <Tabs value={storeCalculationMode} onValueChange={(value) => setStoreCalculationMode(value as 'profit-calc' | 'profit-reverse')} className="w-auto">
-                          <TabsMotionGroup id="pricing-store-mode-tabs">
-                            <TabsList className="grid w-full grid-cols-2 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-1">
-                              <SlidingTabsTrigger value="profit-calc" activeValue={storeCalculationMode} layoutId="pricing-store-mode-indicator">
-                                利润核算
-                              </SlidingTabsTrigger>
-                              <SlidingTabsTrigger value="profit-reverse" activeValue={storeCalculationMode} layoutId="pricing-store-mode-indicator">
-                                利润倒算
-                              </SlidingTabsTrigger>
-                            </TabsList>
-                          </TabsMotionGroup>
-                        </Tabs>
-                        <Button type="button" variant="outline" onClick={() => void handleExportStoreSkuTable()} disabled={!selectedProjectName || exporting}>
-                          {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                    ) : null}
+                  </DataCardContent>
+                </DataCard>
+
+                <DataTableCard>
+                  <DataTableCardHeader>
+                    <div className='flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between'>
+                      <div className='space-y-1'>
+                        <h2 className='text-base font-semibold text-foreground'>
+                          店铺 SKU 核算表
+                        </h2>
+                      </div>
+                      <div className='flex flex-col gap-2 lg:flex-row lg:items-center'>
+                        <Button
+                          type='button'
+                          variant='outline'
+                          onClick={() => void handleExportStoreSkuTable()}
+                          disabled={!selectedProjectName || exporting}
+                        >
+                          {exporting ? (
+                            <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                          ) : (
+                            <Download className='mr-2 h-4 w-4' />
+                          )}
                           导出 Excel
                         </Button>
                       </div>
                     </div>
-                  </CardHeader>
-                  <CardContent>
-                    <DirectionalTabTransition value={storeCalculationMode} order={STORE_CALCULATION_MODE_ORDER}>
-                      {!selectedProjectName ? (
-                        <div className="rounded-2xl border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">请选择项目后查看对应 SKU。</div>
-                      ) : storeSkusLoading && filteredStoreSkus.length === 0 ? (
-                        <PricingTableSkeleton rows={8} />
-                      ) : filteredStoreSkus.length === 0 ? (
-                        <div className="rounded-2xl border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">当前项目下暂无匹配的 SKU。</div>
-                      ) : (
-                        <div className="relative">
-                          {storeSkusLoading ? (
-                            <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/70 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm">
-                              SKU 数据更新中...
-                            </div>
-                          ) : null}
-                          <StoreAccountingTable items={filteredStoreSkus} rowStates={storeRows} onDraftChange={updateStoreDraft} onCalculate={handleStoreSkuCalculate} systemExchangeRate={systemExchangeRate} calculationMode={storeCalculationMode} />
-                        </div>
-                      )}
-                    </DirectionalTabTransition>
-                  </CardContent>
-                </Card>
+                  </DataTableCardHeader>
+                  <DataTableCardBody>
+                    {!selectedProjectName ? (
+                      <div className='rounded-2xl border border-dashed px-4 py-10 text-center text-sm text-muted-foreground'>
+                        请选择项目后查看对应 SKU。
+                      </div>
+                    ) : storeSkusLoading && filteredStoreSkus.length === 0 ? (
+                      <PricingTableSkeleton rows={8} />
+                    ) : filteredStoreSkus.length === 0 ? (
+                      <div className='rounded-2xl border border-dashed px-4 py-10 text-center text-sm text-muted-foreground'>
+                        当前项目下暂无匹配的 SKU。
+                      </div>
+                    ) : (
+                      <div className='relative'>
+                        {storeSkusLoading ? (
+                          <div className='pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/70 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm'>
+                            SKU 数据更新中...
+                          </div>
+                        ) : null}
+                        <StoreAccountingTable
+                          items={filteredStoreSkus}
+                          rowStates={storeRows}
+                          onDraftChange={updateStoreDraft}
+                          onCalculate={handleStoreSkuCalculate}
+                          systemExchangeRate={systemExchangeRate}
+                          calculationMode={storeCalculationMode}
+                        />
+                      </div>
+                    )}
+                  </DataTableCardBody>
+                </DataTableCard>
               </>
             )}
           </TabsContent>
@@ -2224,7 +3253,9 @@ async function requestPricingCalculation(payload: {
       first_leg_cost_rmb: payload.first_leg_cost_rmb,
       ...(payload.project_id ? { project_id: payload.project_id } : {}),
       ...(payload.sku ? { sku: payload.sku } : {}),
-      ...(payload.use_historical_shipping_cost ? { use_historical_shipping_cost: payload.use_historical_shipping_cost } : {}),
+      ...(payload.use_historical_shipping_cost
+        ? { use_historical_shipping_cost: payload.use_historical_shipping_cost }
+        : {}),
       ...(payload.calculationMode === 'profit-reverse'
         ? { target_profit_rate: payload.target_profit_rate }
         : payload.calculationMode === 'cost-reverse'
@@ -2238,25 +3269,43 @@ async function requestPricingCalculation(payload: {
       return_loss_rate: payload.return_loss_rate,
       storage_months: payload.storage_months,
       inbound_placement_mode: payload.inbound_placement_mode,
-      ...(payload.usd_to_rmb_rate ? { usd_to_rmb_rate: payload.usd_to_rmb_rate } : {}),
-      ...(payload.full_container_quantity ? { full_container_quantity: payload.full_container_quantity } : {}),
-      ...(payload.full_container_price_rmb ? { full_container_price_rmb: payload.full_container_price_rmb } : {}),
-      ...(payload.delivery_fee_usd ? { delivery_fee_usd: payload.delivery_fee_usd } : {}),
+      ...(payload.usd_to_rmb_rate
+        ? { usd_to_rmb_rate: payload.usd_to_rmb_rate }
+        : {}),
+      ...(payload.full_container_quantity
+        ? { full_container_quantity: payload.full_container_quantity }
+        : {}),
+      ...(payload.full_container_price_rmb
+        ? { full_container_price_rmb: payload.full_container_price_rmb }
+        : {}),
+      ...(payload.delivery_fee_usd
+        ? { delivery_fee_usd: payload.delivery_fee_usd }
+        : {}),
     }),
   })
 
-  const body = (await response.json()) as PricingCalculationRunItem | { detail?: string; message?: string }
+  const body = (await response.json()) as
+    | PricingCalculationRunItem
+    | { detail?: string; message?: string }
   if (!response.ok) {
     const errorPayload = body as { detail?: string; message?: string }
-    throw new Error(errorPayload.detail || errorPayload.message || '定价测算失败')
+    throw new Error(
+      errorPayload.detail || errorPayload.message || '定价测算失败',
+    )
   }
   return body as PricingCalculationRunItem
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
   return (
-    <div className="space-y-1.5">
-      <Label className="text-xs">{label}</Label>
+    <div className='space-y-1.5'>
+      <Label className='text-xs'>{label}</Label>
       {children}
     </div>
   )
@@ -2272,217 +3321,737 @@ function StoreAccountingTable({
 }: {
   items: ProductCostItem[]
   rowStates: Record<number, StoreSkuRowState>
-  onDraftChange: (rowId: number, key: keyof StoreSkuDraft, value: string) => void
-  onCalculate: (item: ProductCostItem, calculationMode: 'profit-calc' | 'profit-reverse') => void
+  onDraftChange: (
+    rowId: number,
+    key: keyof StoreSkuDraft,
+    value: string,
+  ) => void
+  onCalculate: (
+    item: ProductCostItem,
+    calculationMode: 'profit-calc' | 'profit-reverse',
+  ) => void
   systemExchangeRate: string
   calculationMode: 'profit-calc' | 'profit-reverse'
 }) {
-  const groupStyles: Record<string, { header: string; subHeader: string; sticky?: string }> = {
-    '店铺产品': {
-      header: 'bg-indigo-100 text-indigo-950 dark:bg-indigo-950 dark:text-indigo-100',
+  const groupStyles: Record<
+    string,
+    { header: string; subHeader: string; sticky?: string }
+  > = {
+    店铺产品: {
+      header:
+        'bg-indigo-100 text-indigo-950 dark:bg-indigo-950 dark:text-indigo-100',
       subHeader: 'bg-indigo-50 dark:bg-indigo-950',
     },
-    '货品数据': {
+    货品数据: {
       header: 'bg-sky-100 text-sky-950 dark:bg-sky-950 dark:text-sky-100',
       subHeader: 'bg-sky-50 dark:bg-sky-950',
     },
     'DDP 成本': {
-      header: 'bg-amber-100 text-amber-950 dark:bg-amber-950 dark:text-amber-100',
+      header:
+        'bg-amber-100 text-amber-950 dark:bg-amber-950 dark:text-amber-100',
       subHeader: 'bg-amber-50 dark:bg-amber-950',
     },
-    '费用支出': {
+    费用支出: {
       header: 'bg-rose-100 text-rose-950 dark:bg-rose-950 dark:text-rose-100',
       subHeader: 'bg-rose-50 dark:bg-rose-950',
     },
-    '利润核算': {
-      header: 'bg-emerald-100 text-emerald-950 dark:bg-emerald-950 dark:text-emerald-100',
+    利润核算: {
+      header:
+        'bg-emerald-100 text-emerald-950 dark:bg-emerald-950 dark:text-emerald-100',
       subHeader: 'bg-emerald-50 dark:bg-emerald-950',
     },
-    '产品核定': {
-      header: 'bg-violet-100 text-violet-950 dark:bg-violet-950 dark:text-violet-100',
+    产品核定: {
+      header:
+        'bg-violet-100 text-violet-950 dark:bg-violet-950 dark:text-violet-100',
       subHeader: 'bg-violet-50 dark:bg-violet-950',
     },
-    '操作': {
-      header: 'bg-[hsl(var(--surface-subtle))] text-foreground dark:bg-[hsl(var(--surface-soft))]',
-      subHeader: 'bg-[hsl(var(--surface-subtle))] dark:bg-[hsl(var(--surface-soft))]',
+    操作: {
+      header:
+        'bg-[hsl(var(--surface-subtle))] text-foreground dark:bg-[hsl(var(--surface-soft))]',
+      subHeader:
+        'bg-[hsl(var(--surface-subtle))] dark:bg-[hsl(var(--surface-soft))]',
     },
   }
 
-  const compactInputClassName = 'h-8 w-[52px] min-w-[52px] whitespace-nowrap px-1.5 text-center text-xs tabular-nums sm:w-[60px] sm:min-w-[60px]'
-  const compactSelectClassName = 'flex h-8 w-[84px] min-w-[84px] rounded-md border border-input bg-background px-1.5 py-1 text-xs ring-offset-background sm:w-[96px] sm:min-w-[96px]'
+  const compactInputClassName =
+    'h-8 w-[52px] min-w-[52px] whitespace-nowrap px-1.5 text-center text-xs tabular-nums sm:w-[60px] sm:min-w-[60px]'
+  const compactSelectClassName =
+    'flex h-8 w-[84px] min-w-[84px] rounded-md border border-input bg-background px-1.5 py-1 text-xs ring-offset-background sm:w-[96px] sm:min-w-[96px]'
 
   return (
-    <Table className="w-max min-w-full text-xs" containerClassName="rounded-xl border border-border/70">
-      <TableHeader className="bg-[hsl(var(--surface-subtle))]">
-        <TableRow className="hover:bg-transparent">
-          <TableHead colSpan={1} className={cn('sticky left-0 z-50 border-r px-3 py-2 text-center font-semibold', groupStyles['店铺产品'].header)}>店铺产品</TableHead>
-          <TableHead colSpan={6} className={cn('border-r px-3 py-2 text-center font-semibold', groupStyles['货品数据'].header)}>货品数据</TableHead>
-          <TableHead colSpan={4} className={cn('border-r px-3 py-2 text-center font-semibold', groupStyles['DDP 成本'].header)}>DDP 成本</TableHead>
-          <TableHead colSpan={10} className={cn('border-r px-3 py-2 text-center font-semibold', groupStyles['费用支出'].header)}>费用支出</TableHead>
-          <TableHead colSpan={4} className={cn('border-r px-3 py-2 text-center font-semibold', groupStyles['利润核算'].header)}>利润核算</TableHead>
-          <TableHead colSpan={2} className={cn('border-r px-3 py-2 text-center font-semibold', groupStyles['产品核定'].header)}>产品核定</TableHead>
-          <TableHead colSpan={2} className={cn('px-3 py-2 text-center font-semibold', groupStyles['操作'].header)}>操作</TableHead>
+    <Table
+      className='w-max min-w-full text-xs'
+      noWrapperRounded={true}
+    >
+      <TableHeader className='bg-[hsl(var(--surface-subtle))]'>
+        <TableRow className='hover:bg-transparent'>
+          <TableHead
+            colSpan={1}
+            className={cn(
+              'sticky left-0 z-50 border-r px-3 py-2 text-center font-semibold',
+              groupStyles['店铺产品'].header,
+            )}
+          >
+            店铺产品
+          </TableHead>
+          <TableHead
+            colSpan={6}
+            className={cn(
+              'border-r px-3 py-2 text-center font-semibold',
+              groupStyles['货品数据'].header,
+            )}
+          >
+            货品数据
+          </TableHead>
+          <TableHead
+            colSpan={4}
+            className={cn(
+              'border-r px-3 py-2 text-center font-semibold',
+              groupStyles['DDP 成本'].header,
+            )}
+          >
+            DDP 成本
+          </TableHead>
+          <TableHead
+            colSpan={10}
+            className={cn(
+              'border-r px-3 py-2 text-center font-semibold',
+              groupStyles['费用支出'].header,
+            )}
+          >
+            费用支出
+          </TableHead>
+          <TableHead
+            colSpan={4}
+            className={cn(
+              'border-r px-3 py-2 text-center font-semibold',
+              groupStyles['利润核算'].header,
+            )}
+          >
+            利润核算
+          </TableHead>
+          <TableHead
+            colSpan={2}
+            className={cn(
+              'border-r px-3 py-2 text-center font-semibold',
+              groupStyles['产品核定'].header,
+            )}
+          >
+            产品核定
+          </TableHead>
+          <TableHead
+            colSpan={2}
+            className={cn(
+              'px-3 py-2 text-center font-semibold',
+              groupStyles['操作'].header,
+            )}
+          >
+            操作
+          </TableHead>
         </TableRow>
         <TableRow>
-          <TableHead className={cn('sticky left-0 z-40 min-w-[160px] whitespace-nowrap border-r px-3 py-2', groupStyles['店铺产品'].subHeader)}>SKU / 项目</TableHead>
-          <TableHead className={cn('min-w-[86px] whitespace-nowrap border-r px-3 py-2 text-right', groupStyles['货品数据'].subHeader)}>FOB(RMB)</TableHead>
-          <TableHead className={cn('min-w-[84px] whitespace-nowrap border-r px-3 py-2', groupStyles['货品数据'].subHeader)}>长(cm)</TableHead>
-          <TableHead className={cn('min-w-[84px] whitespace-nowrap border-r px-3 py-2', groupStyles['货品数据'].subHeader)}>宽(cm)</TableHead>
-          <TableHead className={cn('min-w-[84px] whitespace-nowrap border-r px-3 py-2', groupStyles['货品数据'].subHeader)}>高(cm)</TableHead>
-          <TableHead className={cn('min-w-[84px] whitespace-nowrap border-r px-3 py-2', groupStyles['货品数据'].subHeader)}>重量(kg)</TableHead>
-          <TableHead className={cn('min-w-[96px] whitespace-nowrap border-r px-3 py-2 text-right', groupStyles['货品数据'].subHeader)}>计费重</TableHead>
+          <TableHead
+            className={cn(
+              'sticky left-0 z-40 min-w-[160px] whitespace-nowrap border-r px-3 py-2',
+              groupStyles['店铺产品'].subHeader,
+            )}
+          >
+            SKU / 项目
+          </TableHead>
+          <TableHead
+            className={cn(
+              'min-w-[86px] whitespace-nowrap border-r px-3 py-2 text-right',
+              groupStyles['货品数据'].subHeader,
+            )}
+          >
+            FOB(RMB)
+          </TableHead>
+          <TableHead
+            className={cn(
+              'min-w-[84px] whitespace-nowrap border-r px-3 py-2',
+              groupStyles['货品数据'].subHeader,
+            )}
+          >
+            长(cm)
+          </TableHead>
+          <TableHead
+            className={cn(
+              'min-w-[84px] whitespace-nowrap border-r px-3 py-2',
+              groupStyles['货品数据'].subHeader,
+            )}
+          >
+            宽(cm)
+          </TableHead>
+          <TableHead
+            className={cn(
+              'min-w-[84px] whitespace-nowrap border-r px-3 py-2',
+              groupStyles['货品数据'].subHeader,
+            )}
+          >
+            高(cm)
+          </TableHead>
+          <TableHead
+            className={cn(
+              'min-w-[84px] whitespace-nowrap border-r px-3 py-2',
+              groupStyles['货品数据'].subHeader,
+            )}
+          >
+            重量(kg)
+          </TableHead>
+          <TableHead
+            className={cn(
+              'min-w-[96px] whitespace-nowrap border-r px-3 py-2 text-right',
+              groupStyles['货品数据'].subHeader,
+            )}
+          >
+            计费重
+          </TableHead>
 
-          <TableHead className={cn('min-w-[96px] whitespace-nowrap border-r px-3 py-2 text-right', groupStyles['DDP 成本'].subHeader)}>头程(RMB)</TableHead>
-          <TableHead className={cn('min-w-[92px] whitespace-nowrap border-r px-3 py-2 text-right', groupStyles['DDP 成本'].subHeader)}>DDP(RMB)</TableHead>
-          <TableHead className={cn('min-w-[92px] whitespace-nowrap border-r px-3 py-2 text-right', groupStyles['DDP 成本'].subHeader)}>DDP(USD)</TableHead>
-          <TableHead className={cn('min-w-[88px] whitespace-nowrap border-r px-3 py-2', groupStyles['DDP 成本'].subHeader)}>汇率</TableHead>
+          <TableHead
+            className={cn(
+              'min-w-[96px] whitespace-nowrap border-r px-3 py-2 text-right',
+              groupStyles['DDP 成本'].subHeader,
+            )}
+          >
+            头程(RMB)
+          </TableHead>
+          <TableHead
+            className={cn(
+              'min-w-[92px] whitespace-nowrap border-r px-3 py-2 text-right',
+              groupStyles['DDP 成本'].subHeader,
+            )}
+          >
+            DDP(RMB)
+          </TableHead>
+          <TableHead
+            className={cn(
+              'min-w-[92px] whitespace-nowrap border-r px-3 py-2 text-right',
+              groupStyles['DDP 成本'].subHeader,
+            )}
+          >
+            DDP(USD)
+          </TableHead>
+          <TableHead
+            className={cn(
+              'min-w-[88px] whitespace-nowrap border-r px-3 py-2',
+              groupStyles['DDP 成本'].subHeader,
+            )}
+          >
+            汇率
+          </TableHead>
 
-          <TableHead className={cn('min-w-[88px] whitespace-nowrap border-r px-3 py-2', groupStyles['费用支出'].subHeader)}>
-                {calculationMode === 'profit-calc' ? '售价(USD)' : '目标利润率%'}
-              </TableHead>
-          <TableHead className={cn('min-w-[88px] whitespace-nowrap border-r px-3 py-2', groupStyles['费用支出'].subHeader)}>广告费率%</TableHead>
-          <TableHead className={cn('min-w-[88px] whitespace-nowrap border-r px-3 py-2 text-right', groupStyles['费用支出'].subHeader)}>广告费</TableHead>
-          <TableHead className={cn('min-w-[96px] whitespace-nowrap border-r px-3 py-2', groupStyles['费用支出'].subHeader)}>退货折损率%</TableHead>
-          <TableHead className={cn('min-w-[96px] whitespace-nowrap border-r px-3 py-2 text-right', groupStyles['费用支出'].subHeader)}>退货损耗</TableHead>
-          <TableHead className={cn('min-w-[88px] whitespace-nowrap border-r px-3 py-2 text-right', groupStyles['费用支出'].subHeader)}>佣金</TableHead>
-          <TableHead className={cn('min-w-[88px] whitespace-nowrap border-r px-3 py-2 text-right', groupStyles['费用支出'].subHeader)}>派送费</TableHead>
-          <TableHead className={cn('min-w-[88px] whitespace-nowrap border-r px-3 py-2 text-right', groupStyles['费用支出'].subHeader)}>配置费</TableHead>
-          <TableHead className={cn('min-w-[84px] whitespace-nowrap border-r px-3 py-2', groupStyles['费用支出'].subHeader)}>仓储月数</TableHead>
-          <TableHead className={cn('min-w-[88px] whitespace-nowrap border-r px-3 py-2 text-right', groupStyles['费用支出'].subHeader)}>仓储费</TableHead>
+          <TableHead
+            className={cn(
+              'min-w-[88px] whitespace-nowrap border-r px-3 py-2',
+              groupStyles['费用支出'].subHeader,
+            )}
+          >
+            {calculationMode === 'profit-calc' ? '售价(USD)' : '目标利润率%'}
+          </TableHead>
+          <TableHead
+            className={cn(
+              'min-w-[88px] whitespace-nowrap border-r px-3 py-2',
+              groupStyles['费用支出'].subHeader,
+            )}
+          >
+            广告费率%
+          </TableHead>
+          <TableHead
+            className={cn(
+              'min-w-[88px] whitespace-nowrap border-r px-3 py-2 text-right',
+              groupStyles['费用支出'].subHeader,
+            )}
+          >
+            广告费
+          </TableHead>
+          <TableHead
+            className={cn(
+              'min-w-[96px] whitespace-nowrap border-r px-3 py-2',
+              groupStyles['费用支出'].subHeader,
+            )}
+          >
+            退货折损率%
+          </TableHead>
+          <TableHead
+            className={cn(
+              'min-w-[96px] whitespace-nowrap border-r px-3 py-2 text-right',
+              groupStyles['费用支出'].subHeader,
+            )}
+          >
+            退货损耗
+          </TableHead>
+          <TableHead
+            className={cn(
+              'min-w-[88px] whitespace-nowrap border-r px-3 py-2 text-right',
+              groupStyles['费用支出'].subHeader,
+            )}
+          >
+            佣金
+          </TableHead>
+          <TableHead
+            className={cn(
+              'min-w-[88px] whitespace-nowrap border-r px-3 py-2 text-right',
+              groupStyles['费用支出'].subHeader,
+            )}
+          >
+            派送费
+          </TableHead>
+          <TableHead
+            className={cn(
+              'min-w-[88px] whitespace-nowrap border-r px-3 py-2 text-right',
+              groupStyles['费用支出'].subHeader,
+            )}
+          >
+            配置费
+          </TableHead>
+          <TableHead
+            className={cn(
+              'min-w-[84px] whitespace-nowrap border-r px-3 py-2',
+              groupStyles['费用支出'].subHeader,
+            )}
+          >
+            仓储月数
+          </TableHead>
+          <TableHead
+            className={cn(
+              'min-w-[88px] whitespace-nowrap border-r px-3 py-2 text-right',
+              groupStyles['费用支出'].subHeader,
+            )}
+          >
+            仓储费
+          </TableHead>
 
-          <TableHead className={cn('min-w-[92px] whitespace-nowrap border-r px-3 py-2 text-right', groupStyles['利润核算'].subHeader)}>费用合计</TableHead>
-          <TableHead className={cn('min-w-[92px] whitespace-nowrap border-r px-3 py-2 text-right', groupStyles['利润核算'].subHeader)}>回款</TableHead>
-          <TableHead className={cn('min-w-[88px] whitespace-nowrap border-r px-3 py-2 text-right', groupStyles['利润核算'].subHeader)}>利润</TableHead>
-          <TableHead className={cn('min-w-[92px] whitespace-nowrap border-r px-3 py-2 text-right', groupStyles['利润核算'].subHeader)}>利润率</TableHead>
+          <TableHead
+            className={cn(
+              'min-w-[92px] whitespace-nowrap border-r px-3 py-2 text-right',
+              groupStyles['利润核算'].subHeader,
+            )}
+          >
+            费用合计
+          </TableHead>
+          <TableHead
+            className={cn(
+              'min-w-[92px] whitespace-nowrap border-r px-3 py-2 text-right',
+              groupStyles['利润核算'].subHeader,
+            )}
+          >
+            回款
+          </TableHead>
+          <TableHead
+            className={cn(
+              'min-w-[88px] whitespace-nowrap border-r px-3 py-2 text-right',
+              groupStyles['利润核算'].subHeader,
+            )}
+          >
+            利润
+          </TableHead>
+          <TableHead
+            className={cn(
+              'min-w-[92px] whitespace-nowrap border-r px-3 py-2 text-right',
+              groupStyles['利润核算'].subHeader,
+            )}
+          >
+            利润率
+          </TableHead>
 
-          <TableHead className={cn('min-w-[112px] whitespace-nowrap border-r px-3 py-2', groupStyles['产品核定'].subHeader)}>尺寸等级 / 售价带</TableHead>
-          <TableHead className={cn('min-w-[208px] whitespace-nowrap border-r px-3 py-2', groupStyles['产品核定'].subHeader)}>规则</TableHead>
+          <TableHead
+            className={cn(
+              'min-w-[112px] whitespace-nowrap border-r px-3 py-2',
+              groupStyles['产品核定'].subHeader,
+            )}
+          >
+            尺寸等级 / 售价带
+          </TableHead>
+          <TableHead
+            className={cn(
+              'min-w-[208px] whitespace-nowrap border-r px-3 py-2',
+              groupStyles['产品核定'].subHeader,
+            )}
+          >
+            规则
+          </TableHead>
 
-          <TableHead className={cn('min-w-[100px] whitespace-nowrap px-3 py-2 text-center', groupStyles['操作'].subHeader)}>状态</TableHead>
-          <TableHead className={cn('min-w-[108px] whitespace-nowrap px-3 py-2 text-center', groupStyles['操作'].subHeader)}>测算</TableHead>
+          <TableHead
+            className={cn(
+              'min-w-[100px] whitespace-nowrap px-3 py-2 text-center',
+              groupStyles['操作'].subHeader,
+            )}
+          >
+            状态
+          </TableHead>
+          <TableHead
+            className={cn(
+              'min-w-[108px] whitespace-nowrap px-3 py-2 text-center',
+              groupStyles['操作'].subHeader,
+            )}
+          >
+            测算
+          </TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {items.map((item) => {
           const rowState = rowStates[item.id]
           const draft = rowState?.draft ?? buildInitialStoreDraft(item)
-          const volumeKg = (toNumber(draft.package_length_cm) * toNumber(draft.package_width_cm) * toNumber(draft.package_height_cm)) / 6000
+          const volumeKg =
+            (toNumber(draft.package_length_cm) *
+              toNumber(draft.package_width_cm) *
+              toNumber(draft.package_height_cm)) /
+            6000
           const chargeableKg = Math.max(toNumber(draft.weight_kg), volumeKg)
           const firstLegCost = toNumber(draft.first_leg_cost_rmb)
           const result = rowState?.result
           const fobCost = item.fob_unit_cost
           const hasFob = fobCost > 0
           const hasFirstLeg = firstLegCost > 0
-          const exchangeRate = draft.usd_to_rmb_rate ? toNumber(draft.usd_to_rmb_rate) : (result?.usd_to_rmb_rate ?? 0)
+          const exchangeRate = draft.usd_to_rmb_rate
+            ? toNumber(draft.usd_to_rmb_rate)
+            : (result?.usd_to_rmb_rate ?? 0)
           const ddpRmb = hasFob && hasFirstLeg ? fobCost + firstLegCost : null
-          const ddpUsd = ddpRmb && exchangeRate > 0 ? ddpRmb / exchangeRate : null
+          const ddpUsd =
+            ddpRmb && exchangeRate > 0 ? ddpRmb / exchangeRate : null
 
           return (
-            <TableRow key={item.id} className="align-middle hover:bg-[hsl(var(--surface-subtle))]">
-              <TableCell className={cn('sticky left-0 z-20 whitespace-nowrap border-r px-3 py-2', groupStyles['店铺产品'].subHeader)}>
-                <div className="min-w-[136px]">
-                  <p className="truncate font-semibold text-foreground">{item.sku}</p>
-                  <p className="truncate text-[11px] text-muted-foreground">{item.project_name}</p>
+            <TableRow
+              key={item.id}
+              className='align-middle hover:bg-[hsl(var(--surface-subtle))]'
+            >
+              <TableCell
+                className={cn(
+                  'sticky left-0 z-20 whitespace-nowrap border-r px-3 py-2',
+                  groupStyles['店铺产品'].subHeader,
+                )}
+              >
+                <div className='min-w-[136px]'>
+                  <p className='truncate font-semibold text-foreground'>
+                    {item.sku}
+                  </p>
+                  <p className='truncate text-[11px] text-muted-foreground'>
+                    {item.project_name}
+                  </p>
                 </div>
               </TableCell>
-              <TableCell className="whitespace-nowrap border-r px-3 py-2 text-right font-medium tabular-nums">{item.fob_unit_cost.toFixed(2)}</TableCell>
-              <TableCell className="whitespace-nowrap border-r px-2 py-2">
-                <Input type="number" step="0.01" className={compactInputClassName} value={draft.package_length_cm} onChange={(event) => onDraftChange(item.id, 'package_length_cm', event.target.value)} />
+              <TableCell className='whitespace-nowrap border-r px-3 py-2 text-right font-medium tabular-nums'>
+                {item.fob_unit_cost.toFixed(2)}
               </TableCell>
-              <TableCell className="whitespace-nowrap border-r px-2 py-2">
-                <Input type="number" step="0.01" className={compactInputClassName} value={draft.package_width_cm} onChange={(event) => onDraftChange(item.id, 'package_width_cm', event.target.value)} />
+              <TableCell className='whitespace-nowrap border-r px-2 py-2'>
+                <Input
+                  type='number'
+                  step='0.01'
+                  className={compactInputClassName}
+                  value={draft.package_length_cm}
+                  onChange={(event) =>
+                    onDraftChange(
+                      item.id,
+                      'package_length_cm',
+                      event.target.value,
+                    )
+                  }
+                />
               </TableCell>
-              <TableCell className="whitespace-nowrap border-r px-2 py-2">
-                <Input type="number" step="0.01" className={compactInputClassName} value={draft.package_height_cm} onChange={(event) => onDraftChange(item.id, 'package_height_cm', event.target.value)} />
+              <TableCell className='whitespace-nowrap border-r px-2 py-2'>
+                <Input
+                  type='number'
+                  step='0.01'
+                  className={compactInputClassName}
+                  value={draft.package_width_cm}
+                  onChange={(event) =>
+                    onDraftChange(
+                      item.id,
+                      'package_width_cm',
+                      event.target.value,
+                    )
+                  }
+                />
               </TableCell>
-              <TableCell className="whitespace-nowrap border-r px-2 py-2">
-                <Input type="number" step="0.001" className={compactInputClassName} value={draft.weight_kg} onChange={(event) => onDraftChange(item.id, 'weight_kg', event.target.value)} />
+              <TableCell className='whitespace-nowrap border-r px-2 py-2'>
+                <Input
+                  type='number'
+                  step='0.01'
+                  className={compactInputClassName}
+                  value={draft.package_height_cm}
+                  onChange={(event) =>
+                    onDraftChange(
+                      item.id,
+                      'package_height_cm',
+                      event.target.value,
+                    )
+                  }
+                />
               </TableCell>
-              <TableCell className="whitespace-nowrap border-r px-3 py-2 text-right tabular-nums">{formatMetric(chargeableKg, 2)} kg</TableCell>
+              <TableCell className='whitespace-nowrap border-r px-2 py-2'>
+                <Input
+                  type='number'
+                  step='0.001'
+                  className={compactInputClassName}
+                  value={draft.weight_kg}
+                  onChange={(event) =>
+                    onDraftChange(item.id, 'weight_kg', event.target.value)
+                  }
+                />
+              </TableCell>
+              <TableCell className='whitespace-nowrap border-r px-3 py-2 text-right tabular-nums'>
+                {formatMetric(chargeableKg, 2)} kg
+              </TableCell>
 
-              <TableCell className="whitespace-nowrap border-r px-3 py-2 text-right tabular-nums">
-                {firstLegCost > 0 ? firstLegCost.toFixed(2) : <span className="text-[11px] text-muted-foreground">待补</span>}
-              </TableCell>
-              <TableCell className="whitespace-nowrap border-r px-3 py-2 text-right tabular-nums">{ddpRmb !== null ? ddpRmb.toFixed(2) : '-'}</TableCell>
-              <TableCell className="whitespace-nowrap border-r px-3 py-2 text-right tabular-nums">{ddpUsd !== null ? formatCurrency(ddpUsd) : '-'}</TableCell>
-              <TableCell className="whitespace-nowrap border-r px-2 py-2">
-                <Input type="number" step="0.0001" className={compactInputClassName} value={draft.usd_to_rmb_rate} onChange={(event) => onDraftChange(item.id, 'usd_to_rmb_rate', event.target.value)} placeholder={result ? formatMetric(result.usd_to_rmb_rate, 4) : (systemExchangeRate || '自动')} />
-              </TableCell>
-
-              <TableCell className="whitespace-nowrap border-r px-2 py-2">
-                {calculationMode === 'profit-calc' ? (
-                  <Input type="number" step="0.01" className={compactInputClassName} value={draft.sale_price_usd} onChange={(event) => onDraftChange(item.id, 'sale_price_usd', event.target.value)} />
+              <TableCell className='whitespace-nowrap border-r px-3 py-2 text-right tabular-nums'>
+                {firstLegCost > 0 ? (
+                  firstLegCost.toFixed(2)
                 ) : (
-                  <Input type="number" step="0.01" className={compactInputClassName} value={draft.target_profit_rate} onChange={(event) => onDraftChange(item.id, 'target_profit_rate', event.target.value)} />
+                  <span className='text-[11px] text-muted-foreground'>
+                    待补
+                  </span>
                 )}
               </TableCell>
-              <TableCell className="whitespace-nowrap border-r px-2 py-2">
-                <Input type="number" step="0.01" className={compactInputClassName} value={draft.advertising_rate} onChange={(event) => onDraftChange(item.id, 'advertising_rate', event.target.value)} />
+              <TableCell className='whitespace-nowrap border-r px-3 py-2 text-right tabular-nums'>
+                {ddpRmb !== null ? ddpRmb.toFixed(2) : '-'}
               </TableCell>
-              <TableCell className="whitespace-nowrap border-r px-3 py-2 text-right tabular-nums">{result ? formatCurrency(result.fees.advertising_fee_usd) : '-'}</TableCell>
-              <TableCell className="whitespace-nowrap border-r px-2 py-2">
-                <Input type="number" step="0.01" className={compactInputClassName} value={draft.return_loss_rate} onChange={(event) => onDraftChange(item.id, 'return_loss_rate', event.target.value)} />
+              <TableCell className='whitespace-nowrap border-r px-3 py-2 text-right tabular-nums'>
+                {ddpUsd !== null ? formatCurrency(ddpUsd) : '-'}
               </TableCell>
-              <TableCell className="whitespace-nowrap border-r px-3 py-2 text-right tabular-nums">{result ? formatCurrency(result.fees.return_loss_usd) : '-'}</TableCell>
-              <TableCell className="whitespace-nowrap border-r px-3 py-2 text-right tabular-nums">{result ? formatCurrency(result.fees.referral_fee_usd) : '-'}</TableCell>
-              <TableCell className="whitespace-nowrap border-r px-3 py-2 text-right tabular-nums">{result ? formatCurrency(result.fees.fba_fulfillment_fee_usd) : '-'}</TableCell>
-              <TableCell className="whitespace-nowrap border-r px-3 py-2 text-right tabular-nums">{result ? formatCurrency(result.fees.inbound_config_fee_usd) : '-'}</TableCell>
-              <TableCell className="whitespace-nowrap border-r px-2 py-2">
-                <Input type="number" step="0.01" className={compactInputClassName} value={draft.storage_months} onChange={(event) => onDraftChange(item.id, 'storage_months', event.target.value)} />
+              <TableCell className='whitespace-nowrap border-r px-2 py-2'>
+                <Input
+                  type='number'
+                  step='0.0001'
+                  className={compactInputClassName}
+                  value={draft.usd_to_rmb_rate}
+                  onChange={(event) =>
+                    onDraftChange(
+                      item.id,
+                      'usd_to_rmb_rate',
+                      event.target.value,
+                    )
+                  }
+                  placeholder={
+                    result
+                      ? formatMetric(result.usd_to_rmb_rate, 4)
+                      : systemExchangeRate || '自动'
+                  }
+                />
               </TableCell>
-              <TableCell className="whitespace-nowrap border-r px-3 py-2 text-right tabular-nums">{result ? formatCurrency(result.fees.storage_fee_usd) : '-'}</TableCell>
 
-              <TableCell className="whitespace-nowrap border-r px-3 py-2 text-right tabular-nums">{result ? formatCurrency(result.fees.total_fee_usd) : '-'}</TableCell>
-              <TableCell className="whitespace-nowrap border-r px-3 py-2 text-right font-medium tabular-nums">{result ? formatCurrency(result.profit.payout_usd) : '-'}</TableCell>
-              <TableCell className={cn('whitespace-nowrap border-r px-3 py-2 text-right font-semibold tabular-nums', result ? (result.profit.profit_usd >= 0 ? 'text-emerald-600 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-400') : 'text-muted-foreground')}>
-                {result ? (calculationMode === 'profit-reverse' ? formatCurrency(result.sale_price_usd) : formatCurrency(result.profit.profit_usd)) : '-'}
+              <TableCell className='whitespace-nowrap border-r px-2 py-2'>
+                {calculationMode === 'profit-calc' ? (
+                  <Input
+                    type='number'
+                    step='0.01'
+                    className={compactInputClassName}
+                    value={draft.sale_price_usd}
+                    onChange={(event) =>
+                      onDraftChange(
+                        item.id,
+                        'sale_price_usd',
+                        event.target.value,
+                      )
+                    }
+                  />
+                ) : (
+                  <Input
+                    type='number'
+                    step='0.01'
+                    className={compactInputClassName}
+                    value={draft.target_profit_rate}
+                    onChange={(event) =>
+                      onDraftChange(
+                        item.id,
+                        'target_profit_rate',
+                        event.target.value,
+                      )
+                    }
+                  />
+                )}
               </TableCell>
-              <TableCell className={cn('whitespace-nowrap border-r px-3 py-2 text-right font-semibold tabular-nums', result ? (result.profit.profit_rate >= 0 ? 'text-emerald-600 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-400') : 'text-muted-foreground')}>
-                {result ? (calculationMode === 'profit-reverse' ? '-' : formatPercent(result.profit.profit_rate)) : '-'}
+              <TableCell className='whitespace-nowrap border-r px-2 py-2'>
+                <Input
+                  type='number'
+                  step='0.01'
+                  className={compactInputClassName}
+                  value={draft.advertising_rate}
+                  onChange={(event) =>
+                    onDraftChange(
+                      item.id,
+                      'advertising_rate',
+                      event.target.value,
+                    )
+                  }
+                />
               </TableCell>
-              <TableCell className={cn('whitespace-nowrap border-r px-3 py-2', groupStyles['产品核定'].subHeader)}>
+              <TableCell className='whitespace-nowrap border-r px-3 py-2 text-right tabular-nums'>
+                {result ? formatCurrency(result.fees.advertising_fee_usd) : '-'}
+              </TableCell>
+              <TableCell className='whitespace-nowrap border-r px-2 py-2'>
+                <Input
+                  type='number'
+                  step='0.01'
+                  className={compactInputClassName}
+                  value={draft.return_loss_rate}
+                  onChange={(event) =>
+                    onDraftChange(
+                      item.id,
+                      'return_loss_rate',
+                      event.target.value,
+                    )
+                  }
+                />
+              </TableCell>
+              <TableCell className='whitespace-nowrap border-r px-3 py-2 text-right tabular-nums'>
+                {result ? formatCurrency(result.fees.return_loss_usd) : '-'}
+              </TableCell>
+              <TableCell className='whitespace-nowrap border-r px-3 py-2 text-right tabular-nums'>
+                {result ? formatCurrency(result.fees.referral_fee_usd) : '-'}
+              </TableCell>
+              <TableCell className='whitespace-nowrap border-r px-3 py-2 text-right tabular-nums'>
+                {result
+                  ? formatCurrency(result.fees.fba_fulfillment_fee_usd)
+                  : '-'}
+              </TableCell>
+              <TableCell className='whitespace-nowrap border-r px-3 py-2 text-right tabular-nums'>
+                {result
+                  ? formatCurrency(result.fees.inbound_config_fee_usd)
+                  : '-'}
+              </TableCell>
+              <TableCell className='whitespace-nowrap border-r px-2 py-2'>
+                <Input
+                  type='number'
+                  step='0.01'
+                  className={compactInputClassName}
+                  value={draft.storage_months}
+                  onChange={(event) =>
+                    onDraftChange(item.id, 'storage_months', event.target.value)
+                  }
+                />
+              </TableCell>
+              <TableCell className='whitespace-nowrap border-r px-3 py-2 text-right tabular-nums'>
+                {result ? formatCurrency(result.fees.storage_fee_usd) : '-'}
+              </TableCell>
+
+              <TableCell className='whitespace-nowrap border-r px-3 py-2 text-right tabular-nums'>
+                {result ? formatCurrency(result.fees.total_fee_usd) : '-'}
+              </TableCell>
+              <TableCell className='whitespace-nowrap border-r px-3 py-2 text-right font-medium tabular-nums'>
+                {result ? formatCurrency(result.profit.payout_usd) : '-'}
+              </TableCell>
+              <TableCell
+                className={cn(
+                  'whitespace-nowrap border-r px-3 py-2 text-right font-semibold tabular-nums',
+                  result
+                    ? result.profit.profit_usd >= 0
+                      ? 'text-emerald-600 dark:text-emerald-300'
+                      : 'text-rose-600 dark:text-rose-400'
+                    : 'text-muted-foreground',
+                )}
+              >
+                {result
+                  ? calculationMode === 'profit-reverse'
+                    ? formatCurrency(result.sale_price_usd)
+                    : formatCurrency(result.profit.profit_usd)
+                  : '-'}
+              </TableCell>
+              <TableCell
+                className={cn(
+                  'whitespace-nowrap border-r px-3 py-2 text-right font-semibold tabular-nums',
+                  result
+                    ? result.profit.profit_rate >= 0
+                      ? 'text-emerald-600 dark:text-emerald-300'
+                      : 'text-rose-600 dark:text-rose-400'
+                    : 'text-muted-foreground',
+                )}
+              >
+                {result
+                  ? calculationMode === 'profit-reverse'
+                    ? '-'
+                    : formatPercent(result.profit.profit_rate)
+                  : '-'}
+              </TableCell>
+              <TableCell
+                className={cn(
+                  'whitespace-nowrap border-r px-3 py-2',
+                  groupStyles['产品核定'].subHeader,
+                )}
+              >
                 {result ? (
-                  <div className="leading-5">
+                  <div className='leading-5'>
                     <div>{result.size_tier_label}</div>
-                    <div className="text-[11px] text-muted-foreground">{result.price_band_label}</div>
+                    <div className='text-[11px] text-muted-foreground'>
+                      {result.price_band_label}
+                    </div>
                   </div>
-                ) : '-'}
+                ) : (
+                  '-'
+                )}
               </TableCell>
-              <TableCell className={cn('whitespace-nowrap border-r px-3 py-2', groupStyles['产品核定'].subHeader)}>
+              <TableCell
+                className={cn(
+                  'whitespace-nowrap border-r px-3 py-2',
+                  groupStyles['产品核定'].subHeader,
+                )}
+              >
                 {result ? (
-                  <div className="max-w-[196px] space-y-0.5 overflow-hidden text-ellipsis text-[11px] text-muted-foreground">
-                    <p className="truncate">派送: {result.fulfillment_fee_rule_label}</p>
-                    <p className="truncate">配置: {result.inbound_config_fee_rule_label}</p>
-                    <p className="truncate">仓储: {result.storage_fee_rule_label}</p>
+                  <div className='max-w-[196px] space-y-0.5 overflow-hidden text-ellipsis text-[11px] text-muted-foreground'>
+                    <p className='truncate'>
+                      派送: {result.fulfillment_fee_rule_label}
+                    </p>
+                    <p className='truncate'>
+                      配置: {result.inbound_config_fee_rule_label}
+                    </p>
+                    <p className='truncate'>
+                      仓储: {result.storage_fee_rule_label}
+                    </p>
                   </div>
-                ) : '-'}
+                ) : (
+                  '-'
+                )}
               </TableCell>
 
-              <TableCell className="px-3 py-2 text-center">
+              <TableCell className='px-3 py-2 text-center'>
                 {rowState?.error ? (
-                  <div className="max-w-[88px] text-[11px] leading-4 text-destructive">{rowState.error}</div>
+                  <div className='max-w-[88px] text-[11px] leading-4 text-destructive'>
+                    {rowState.error}
+                  </div>
                 ) : result?.warnings.length ? (
-                  <div className="max-w-[88px] text-[11px] leading-4 text-amber-600 dark:text-amber-300" title={result.warnings.join('；')}>
+                  <div
+                    className='max-w-[88px] text-[11px] leading-4 text-amber-600 dark:text-amber-300'
+                    title={result.warnings.join('；')}
+                  >
                     {result.warnings[0]}
                   </div>
                 ) : result ? (
-                  <Badge variant="secondary" className="whitespace-nowrap">已测算</Badge>
+                  <Badge variant='secondary' className='whitespace-nowrap'>
+                    已测算
+                  </Badge>
                 ) : (
-                  <span className="text-[11px] text-muted-foreground">待测算</span>
+                  <span className='text-[11px] text-muted-foreground'>
+                    待测算
+                  </span>
                 )}
               </TableCell>
-              <TableCell className="px-3 py-2 text-center">
-                <div className="flex flex-col items-center gap-2">
+              <TableCell className='px-3 py-2 text-center'>
+                <div className='flex flex-col items-center gap-2'>
                   <select
                     value={draft.inbound_placement_mode}
-                    onChange={(event) => onDraftChange(item.id, 'inbound_placement_mode', event.target.value)}
+                    onChange={(event) =>
+                      onDraftChange(
+                        item.id,
+                        'inbound_placement_mode',
+                        event.target.value,
+                      )
+                    }
                     className={compactSelectClassName}
                   >
-                    <option value="single_destination">单仓</option>
-                    <option value="amazon_optimized_split">优化拆仓</option>
+                    <option value='single_destination'>单仓</option>
+                    <option value='amazon_optimized_split'>优化拆仓</option>
                   </select>
-                  <Button type="button" onClick={() => onCalculate(item, calculationMode)} disabled={rowState?.loading} className="h-8 min-w-[92px]">
-                    {rowState?.loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Calculator className="mr-2 h-4 w-4" />}
+                  <Button
+                    type='button'
+                    onClick={() => onCalculate(item, calculationMode)}
+                    disabled={rowState?.loading}
+                    className='h-8 min-w-[92px]'
+                  >
+                    {rowState?.loading ? (
+                      <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                    ) : (
+                      <Calculator className='mr-2 h-4 w-4' />
+                    )}
                     {calculationMode === 'profit-reverse' ? '倒算售价' : '测算'}
                   </Button>
                 </div>
@@ -2497,99 +4066,132 @@ function StoreAccountingTable({
 
 function ComparisonTable({ runs }: { runs: PricingCalculationRunItem[] }) {
   if (runs.length === 0) {
-    return <div className="rounded-2xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">暂无可对比的测算结果</div>
+    return (
+      <div className='rounded-2xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground'>
+        暂无可对比的测算结果
+      </div>
+    )
   }
 
   const sections = getComparisonSections()
 
-  const sectionStyles: Record<string, { categoryCell: string; subCell: string }> = {
-    '货品数据': {
-      categoryCell: 'border-sky-200 bg-sky-100 text-sky-950 dark:border-sky-900 dark:bg-sky-950 dark:text-sky-100',
+  const sectionStyles: Record<
+    string,
+    { categoryCell: string; subCell: string }
+  > = {
+    货品数据: {
+      categoryCell:
+        'border-sky-200 bg-sky-100 text-sky-950 dark:border-sky-900 dark:bg-sky-950 dark:text-sky-100',
       subCell: 'bg-sky-50 dark:bg-sky-950',
     },
     'DDP 成本': {
-      categoryCell: 'border-amber-200 bg-amber-100 text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100',
+      categoryCell:
+        'border-amber-200 bg-amber-100 text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100',
       subCell: 'bg-amber-50 dark:bg-amber-950',
     },
-    '费用支出': {
-      categoryCell: 'border-rose-200 bg-rose-100 text-rose-950 dark:border-rose-900 dark:bg-rose-950 dark:text-rose-100',
+    费用支出: {
+      categoryCell:
+        'border-rose-200 bg-rose-100 text-rose-950 dark:border-rose-900 dark:bg-rose-950 dark:text-rose-100',
       subCell: 'bg-rose-50 dark:bg-rose-950',
     },
-    '售价与利润': {
-      categoryCell: 'border-emerald-200 bg-emerald-100 text-emerald-950 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-100',
+    售价与利润: {
+      categoryCell:
+        'border-emerald-200 bg-emerald-100 text-emerald-950 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-100',
       subCell: 'bg-emerald-50 dark:bg-emerald-950',
     },
-    '核算规则': {
-      categoryCell: 'border-violet-200 bg-violet-100 text-violet-950 dark:border-violet-900 dark:bg-violet-950 dark:text-violet-100',
+    核算规则: {
+      categoryCell:
+        'border-violet-200 bg-violet-100 text-violet-950 dark:border-violet-900 dark:bg-violet-950 dark:text-violet-100',
       subCell: 'bg-violet-50 dark:bg-violet-950',
     },
   }
 
   return (
-    <div className="max-h-[600px] overflow-auto rounded-xl border border-border/70">
-      <table className="w-max min-w-full text-xs border-collapse">
-        <thead className="sticky top-0 z-30 bg-[hsl(var(--surface-subtle))]">
+    <div className='max-h-[600px] overflow-auto rounded-xl border border-border/70'>
+      <table className='w-max min-w-full text-xs border-collapse'>
+        <thead className='sticky top-0 z-30 bg-[hsl(var(--surface-subtle))]'>
           <tr>
-            <th className="sticky left-0 z-20 min-w-[116px] whitespace-nowrap bg-[hsl(var(--surface-subtle))] px-3 py-2 border-b border-r font-semibold text-left">分类</th>
-            <th className="sticky left-[116px] z-20 min-w-[150px] whitespace-nowrap bg-[hsl(var(--surface-subtle))] px-3 py-2 border-b border-l font-semibold text-left">明细项</th>
-          {runs.map((run) => (
-            <th key={run.id} className="min-w-[210px] whitespace-nowrap bg-[hsl(var(--surface-subtle))] px-3 py-2 border-b border-l align-top">
-              <div className="space-y-1 py-1">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="max-w-[150px] truncate font-semibold text-foreground">{run.product_name}</span>
-                  <Badge variant="outline" className="text-[10px]">#{run.id}</Badge>
-                </div>
-                <div className="text-[10px] text-muted-foreground">{formatCompactDate(run.created_at)}</div>
-              </div>
+            <th className='sticky left-0 z-20 min-w-[116px] whitespace-nowrap bg-[hsl(var(--surface-subtle))] px-3 py-2 border-b border-r font-semibold text-left'>
+              分类
             </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {sections.flatMap((section) =>
-          section.rows.map((row, index) => (
-            <tr 
-              key={`${section.title}-${row.label}`} 
-              className={cn(
-                'hover:bg-[hsl(var(--surface-subtle))]',
-                row.label === '售价' || row.label === '利润率' ? 'bg-yellow-50 dark:bg-yellow-950/20' : ''
-              )}
-            >
-              {index === 0 ? (
-                <td
-                  rowSpan={section.rows.length}
-                  className={cn(
-                    'sticky left-0 z-10 min-w-[116px] whitespace-nowrap border-r border-b align-top font-semibold bg-[hsl(var(--surface-subtle))] p-2',
-                    sectionStyles[section.title]?.categoryCell ?? 'border-border/70 bg-[hsl(var(--surface-subtle))] text-foreground dark:bg-[hsl(var(--surface-soft))]'
-                  )}
-                >
-                  {section.title}
-                </td>
-              ) : null}
-              <td
+            <th className='sticky left-[116px] z-20 min-w-[150px] whitespace-nowrap bg-[hsl(var(--surface-subtle))] px-3 py-2 border-b border-l font-semibold text-left'>
+              明细项
+            </th>
+            {runs.map((run) => (
+              <th
+                key={run.id}
+                className='min-w-[210px] whitespace-nowrap bg-[hsl(var(--surface-subtle))] px-3 py-2 border-b border-l align-top'
+              >
+                <div className='space-y-1 py-1'>
+                  <div className='flex items-center justify-between gap-2'>
+                    <span className='max-w-[150px] truncate font-semibold text-foreground'>
+                      {run.product_name}
+                    </span>
+                    <Badge variant='outline' className='text-[10px]'>
+                      #{run.id}
+                    </Badge>
+                  </div>
+                  <div className='text-[10px] text-muted-foreground'>
+                    {formatCompactDate(run.created_at)}
+                  </div>
+                </div>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {sections.flatMap((section) =>
+            section.rows.map((row, index) => (
+              <tr
+                key={`${section.title}-${row.label}`}
                 className={cn(
-                  'sticky left-[116px] z-10 min-w-[150px] whitespace-nowrap border-l border-b font-medium p-2',
-                  row.label === '售价' || row.label === '利润率' ? 'bg-yellow-50 font-bold text-slate-900 dark:bg-yellow-950/30 dark:text-yellow-100' : 'text-muted-foreground',
-                  sectionStyles[section.title]?.subCell ?? 'bg-[hsl(var(--surface-panel))]'
+                  'hover:bg-[hsl(var(--surface-subtle))]',
+                  row.label === '售价' || row.label === '利润率'
+                    ? 'bg-yellow-50 dark:bg-yellow-950/20'
+                    : '',
                 )}
               >
-                {row.label}
-              </td>
-              {runs.map((run) => (
-                <td 
-                  key={`${row.label}-${run.id}`} 
+                {index === 0 ? (
+                  <td
+                    rowSpan={section.rows.length}
+                    className={cn(
+                      'sticky left-0 z-10 min-w-[116px] whitespace-nowrap border-r border-b align-top font-semibold bg-[hsl(var(--surface-subtle))] p-2',
+                      sectionStyles[section.title]?.categoryCell ??
+                        'border-border/70 bg-[hsl(var(--surface-subtle))] text-foreground dark:bg-[hsl(var(--surface-soft))]',
+                    )}
+                  >
+                    {section.title}
+                  </td>
+                ) : null}
+                <td
                   className={cn(
-                    'whitespace-nowrap border-l border-b align-top leading-5 p-2',
-                    row.label === '售价' && 'bg-yellow-50 font-semibold text-foreground dark:bg-yellow-950/30',
-                    row.label === '利润率' && 'bg-yellow-50 font-semibold text-foreground dark:bg-yellow-950/30'
+                    'sticky left-[116px] z-10 min-w-[150px] whitespace-nowrap border-l border-b font-medium p-2',
+                    row.label === '售价' || row.label === '利润率'
+                      ? 'bg-yellow-50 font-bold text-slate-900 dark:bg-yellow-950/30 dark:text-yellow-100'
+                      : 'text-muted-foreground',
+                    sectionStyles[section.title]?.subCell ??
+                      'bg-[hsl(var(--surface-panel))]',
                   )}
                 >
-                  {row.getDisplayValue(run)}
+                  {row.label}
                 </td>
-              ))}
-            </tr>
-          ))
-        )}
+                {runs.map((run) => (
+                  <td
+                    key={`${row.label}-${run.id}`}
+                    className={cn(
+                      'whitespace-nowrap border-l border-b align-top leading-5 p-2',
+                      row.label === '售价' &&
+                        'bg-yellow-50 font-semibold text-foreground dark:bg-yellow-950/30',
+                      row.label === '利润率' &&
+                        'bg-yellow-50 font-semibold text-foreground dark:bg-yellow-950/30',
+                    )}
+                  >
+                    {row.getDisplayValue(run)}
+                  </td>
+                ))}
+              </tr>
+            )),
+          )}
         </tbody>
       </table>
     </div>

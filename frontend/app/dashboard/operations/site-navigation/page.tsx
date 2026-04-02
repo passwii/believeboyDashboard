@@ -10,7 +10,6 @@ import {
 type Platform = {
   name: string
   href: string
-  description: string
   region: string
   category: string
   tone: string
@@ -21,7 +20,6 @@ const platforms: Platform[] = [
   {
     name: 'Amazon',
     href: 'https://www.amazon.com',
-    description: '全球头部电商平台，覆盖北美、欧洲与日本等核心市场。',
     region: 'Global',
     category: 'Marketplace',
     tone: 'from-[#ff9900]/25 via-[#ffb84d]/10 to-transparent',
@@ -30,7 +28,6 @@ const platforms: Platform[] = [
   {
     name: 'Walmart',
     href: 'https://www.walmart.com',
-    description: '美国本土流量平台，适合品牌拓展与稳定订单增长。',
     region: 'United States',
     category: 'Marketplace',
     tone: 'from-[#0071ce]/25 via-[#4aa2ef]/10 to-transparent',
@@ -39,7 +36,6 @@ const platforms: Platform[] = [
   {
     name: 'AMZ123',
     href: 'https://www.amz123.com',
-    description: '亚马逊卖家资讯与工具导航站，快速获取实操资源。',
     region: 'China',
     category: 'Media & Tools',
     tone: 'from-[#22c55e]/20 via-[#86efac]/10 to-transparent',
@@ -48,7 +44,6 @@ const platforms: Platform[] = [
   {
     name: 'SHEIN',
     href: 'https://us.shein.com',
-    description: '快时尚跨境平台，节奏快、爆款驱动明显。',
     region: 'Global',
     category: 'Fashion',
     tone: 'from-[#111827]/25 via-[#6b7280]/10 to-transparent',
@@ -57,7 +52,6 @@ const platforms: Platform[] = [
   {
     name: 'TEMU',
     href: 'https://www.temu.com',
-    description: '高增长平台，强调供应链效率与价格竞争力。',
     region: 'Global',
     category: 'Marketplace',
     tone: 'from-[#f43f5e]/25 via-[#fb7185]/10 to-transparent',
@@ -66,7 +60,6 @@ const platforms: Platform[] = [
   {
     name: 'Etsy',
     href: 'https://www.etsy.com',
-    description: '手工和设计类目优势明显，品牌故事型产品更易沉淀。',
     region: 'Global',
     category: 'Niche',
     tone: 'from-[#f97316]/20 via-[#fdba74]/10 to-transparent',
@@ -75,7 +68,6 @@ const platforms: Platform[] = [
   {
     name: 'TikTok Shop',
     href: 'https://www.tiktok.com/shop',
-    description: '内容电商增长引擎，适合短视频与直播带货联动。',
     region: 'Global',
     category: 'Social Commerce',
     tone: 'from-[#0f172a]/25 via-[#334155]/10 to-transparent',
@@ -124,7 +116,7 @@ function PlatformGrid({ items }: PlatformGridProps) {
               </div>
             </div>
 
-            <p className="min-h-12 flex-1 text-sm leading-6 text-muted-foreground">{platform.description}</p>
+            <p className="min-h-12 flex-1 text-sm leading-6 text-muted-foreground">{platform.category}</p>
 
             <div className="mt-auto flex items-center justify-between border-t border-border/70 pt-3 dark:border-border/80">
               <span className="inline-flex items-center rounded-full border border-border/70 px-2.5 py-1 text-xs text-foreground/85 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">

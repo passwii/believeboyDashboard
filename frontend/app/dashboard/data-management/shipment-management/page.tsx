@@ -230,7 +230,7 @@ const COUNTRY_OPTIONS = [
 ] as const
 
 const TABLE_SCROLL_CONTAINER_CLASS =
-  'w-full max-w-full overflow-x-auto overflow-y-visible rounded-[inherit] [-webkit-overflow-scrolling:touch] touch-pan-x overscroll-x-contain'
+  'w-full max-w-full overflow-x-auto overflow-y-visible rounded-[inherit] [-webkit-overflow-scrolling:touch] overscroll-x-contain'
 
 function formatDateInputValue(value: Date): string {
   const year = value.getFullYear()
@@ -2487,7 +2487,7 @@ export default function ShipmentManagementPage() {
 
       <div className="grid min-w-0 gap-6">
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ShipmentPageTab)} className="min-w-0 w-full">
-          <div className="mb-4 overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch] touch-pan-x">
+          <div className="mb-4 overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch]">
             <TabsMotionGroup id="shipment-management-tabs">
               <TabsList className="flex w-max min-w-full justify-start border border-border/70 bg-[hsl(var(--surface-subtle))] p-1">
                 <SlidingTabsTrigger value="overview" activeValue={activeTab} layoutId="shipment-management-tab-indicator">总览</SlidingTabsTrigger>

@@ -724,7 +724,6 @@ export default function MonthlyReportPage() {
         <Card className="overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
           <CardHeader>
             <CardTitle className="text-lg">控制台</CardTitle>
-            <CardDescription>项目名称必填，账期月份默认上个月。</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-3 md:grid-cols-2">
@@ -819,7 +818,6 @@ export default function MonthlyReportPage() {
         <Card className="overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
           <CardHeader>
             <CardTitle className="text-lg">文件识别与上传</CardTitle>
-            <CardDescription>左侧投递文件，右侧两行状态栏实时展示匹配情况，失败时显示手动匹配。</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
           <div className="grid gap-5 xl:grid-cols-[300px_1fr]">
@@ -938,7 +936,6 @@ export default function MonthlyReportPage() {
       <Card className="h-fit border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90 xl:sticky xl:top-6">
         <CardHeader>
           <CardTitle className="text-lg">处理状态</CardTitle>
-          <CardDescription>默认展示全部步骤，执行时高亮当前进度。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-3 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-3">

@@ -28,6 +28,7 @@ from app.services import (
 )
 from app.services.redis_service import (
     get_financial_series_cache,
+    invalidate_financial_series_cache,
     set_financial_series_cache,
 )
 
@@ -221,6 +222,39 @@ def get_monthly_financial_series(
     cached = get_financial_series_cache(project_id, start_month, end_month)
     if cached:
         return MonthlyFinancialSeriesResponse(**cached)
+
+    payload = monthly_report_service.get_financial_series(
+        db,
+        project_id=project_id,
+        start_month=start_month,
+        end_month=end_month,
+        fill_missing=fill_missing,
+    )
+
+    set_financial_series_cache(project_id, start_month, end_month, payload)
+
+    return MonthlyFinancialSeriesResponse(**payload)
+
+
+@router.post("/monthly-reports/financial-series/recalculate")
+def recalculate_monthly_financial_series(
+    project_id: int = Query(gt=0),
+    start_month: str | None = Query(default=None),
+    end_month: str | None = Query(default=None),
+    fill_missing: bool = Query(default=True),
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
+) -> MonthlyFinancialSeriesResponse:
+    """重新核算月度财务数据：清除缓存后重新计算"""
+    project_service.ensure_project_access(
+        db,
+        project_id,
+        operator=operator,
+        is_admin=bool(is_admin),
+    )
+
+    invalidate_financial_series_cache(project_id)
 
     payload = monthly_report_service.get_financial_series(
         db,

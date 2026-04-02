@@ -10,7 +10,6 @@ import {
   HelpCircle,
   Loader2,
   Radar,
-  RefreshCw,
   ShieldCheck,
   Upload,
 } from 'lucide-react'
@@ -27,7 +26,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Separator } from '@/components/ui/separator'
 import {
   Table,
   TableBody,
@@ -157,15 +155,6 @@ function formatUpdatedAt(value?: string | null) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleString()
-}
-
-function isSingleDayRecognition(recognition: RecognitionResponse | null) {
-  if (!recognition) return false
-  return Boolean(
-    recognition.detected_start_date &&
-      recognition.detected_end_date &&
-      recognition.detected_start_date === recognition.detected_end_date,
-  )
 }
 
 function getRecognitionSingleDayDate(recognition: RecognitionResponse | null) {
@@ -583,51 +572,6 @@ export default function AdUploadPage() {
 
   return (
     <div className='space-y-5'>
-      <div className='flex flex-col gap-3 rounded-[28px] border border-border/70 bg-[linear-gradient(135deg,rgba(15,23,42,0.045),rgba(15,23,42,0.015))] px-5 py-5 shadow-[var(--shadow-soft)] md:px-6'>
-        <div className='flex flex-wrap items-start justify-between gap-4'>
-          <div className='space-y-2'>
-            <div className='flex flex-wrap items-center gap-2'>
-              <p className='text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground'>Ad Upload</p>
-              <Badge variant='outline'>数据上传工作台</Badge>
-            </div>
-            <div className='flex flex-wrap items-end gap-3'>
-              <h1 className='text-2xl font-semibold tracking-tight md:text-3xl'>广告管理</h1>
-              <p className='pb-1 text-sm text-muted-foreground'>上传、识别、锁定项目、批量入库</p>
-            </div>
-          </div>
-          <div className='flex flex-wrap items-center gap-2'>
-            <Badge variant='secondary'>{queue.length} 个待处理文件</Badge>
-            <Button type='button' variant='outline' onClick={() => void refreshStatuses()} disabled={statusLoading}>
-              {statusLoading ? <Loader2 className='mr-2 h-4 w-4 animate-spin' /> : <RefreshCw className='mr-2 h-4 w-4' />}
-              刷新状态
-            </Button>
-          </div>
-        </div>
-
-        <div className='grid gap-3 md:grid-cols-4'>
-          <div className='rounded-2xl border border-border/70 bg-background/80 px-4 py-3'>
-            <p className='text-xs text-muted-foreground'>当前站点</p>
-            <p className='mt-1 text-lg font-semibold'>{country}</p>
-          </div>
-          <div className='rounded-2xl border border-border/70 bg-background/80 px-4 py-3'>
-            <p className='text-xs text-muted-foreground'>可操作项目</p>
-            <p className='mt-1 text-lg font-semibold'>
-              {projectsLoading ? '加载中' : projectsError ? '异常' : `${projects.length} 个`}
-            </p>
-          </div>
-          <div className='rounded-2xl border border-border/70 bg-background/80 px-4 py-3'>
-            <p className='text-xs text-muted-foreground'>已识别</p>
-            <p className='mt-1 text-lg font-semibold'>
-              {queue.filter((item) => item.recognitionStatus === 'recognized').length} 个
-            </p>
-          </div>
-          <div className='rounded-2xl border border-border/70 bg-background/80 px-4 py-3'>
-            <p className='text-xs text-muted-foreground'>批次状态</p>
-            <p className='mt-1 text-lg font-semibold'>{getBatchStatusLabel(batchProject.status)}</p>
-          </div>
-        </div>
-      </div>
-
       <div className='grid gap-5 xl:grid-cols-[420px_minmax(0,1fr)]'>
         <div ref={uploadPanelRef} className='space-y-5'>
           <Card className='overflow-hidden'>

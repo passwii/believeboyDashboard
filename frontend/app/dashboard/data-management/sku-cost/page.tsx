@@ -6,12 +6,29 @@ import { FileDown, Package2, Ruler, Upload } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
+import {
+  DataCard,
+  DataCardHeader,
+  DataCardContent,
+  DataTableCard,
+  DataTableCardHeader,
+  DataTableCardBody,
+} from '@/components/ui/data-card'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { DirectionalTabTransition, SlidingTabsTrigger, TabsMotionGroup } from '@/components/ui/tab-motion'
+import {
+  DirectionalTabTransition,
+  SlidingTabsTrigger,
+  TabsMotionGroup,
+} from '@/components/ui/tab-motion'
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
@@ -80,9 +97,28 @@ const COUNTRY_OPTIONS = [
 function normalizeCountry(raw: string): 'US' | 'DE' | 'UK' | null {
   const normalized = raw.trim().toUpperCase()
   if (!normalized) return null
-  if (normalized === 'US' || normalized === 'USA' || normalized === '美国' || normalized === '美国站') return 'US'
-  if (normalized === 'DE' || normalized === 'GERMANY' || normalized === '德国' || normalized === '德国站') return 'DE'
-  if (normalized === 'UK' || normalized === 'GB' || normalized === 'UNITED KINGDOM' || normalized === '英国' || normalized === '英国站') return 'UK'
+  if (
+    normalized === 'US' ||
+    normalized === 'USA' ||
+    normalized === '美国' ||
+    normalized === '美国站'
+  )
+    return 'US'
+  if (
+    normalized === 'DE' ||
+    normalized === 'GERMANY' ||
+    normalized === '德国' ||
+    normalized === '德国站'
+  )
+    return 'DE'
+  if (
+    normalized === 'UK' ||
+    normalized === 'GB' ||
+    normalized === 'UNITED KINGDOM' ||
+    normalized === '英国' ||
+    normalized === '英国站'
+  )
+    return 'UK'
   return null
 }
 
@@ -96,8 +132,14 @@ function escapeCsvCell(value: string | number | null | undefined): string {
   return text
 }
 
-function downloadCsvFile(filename: string, header: string[], rows: Array<Array<string | number | null | undefined>>) {
-  const csvBody = [header, ...rows].map((row) => row.map(escapeCsvCell).join(',')).join('\n')
+function downloadCsvFile(
+  filename: string,
+  header: string[],
+  rows: Array<Array<string | number | null | undefined>>,
+) {
+  const csvBody = [header, ...rows]
+    .map((row) => row.map(escapeCsvCell).join(','))
+    .join('\n')
   const csv = `\uFEFF${csvBody}\n`
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
@@ -111,21 +153,65 @@ function downloadCsvFile(filename: string, header: string[], rows: Array<Array<s
 function downloadCostTemplate() {
   downloadCsvFile(
     'sku-info-base-template.csv',
-    ['project_name', 'SKU', 'ASIN(可留空，后续维护)', 'FNSKU(可留空，后续维护)', '品名(可留空)', 'FOB单价(RMB)', '国家'],
-    [['创酷', 'JDB-M35-13PCS', '', '', '', '2.57', 'US']]
+    [
+      'project_name',
+      'SKU',
+      'ASIN(可留空，后续维护)',
+      'FNSKU(可留空，后续维护)',
+      '品名(可留空)',
+      'FOB单价(RMB)',
+      '国家',
+    ],
+    [['创酷', 'JDB-M35-13PCS', '', '', '', '2.57', 'US']],
   )
 }
 
 function downloadDimensionTemplate() {
   downloadCsvFile(
     'sku-info-dimension-template.csv',
-    ['project_name', 'SKU', 'ASIN(可留空，后续维护)', 'FNSKU(可留空，后续维护)', '品名(可留空)', '国家', '单品长(cm)', '单品宽(cm)', '单品高(cm)', '单品重量(kg)', '外箱长(cm)', '外箱宽(cm)', '外箱高(cm)', '外箱重量(kg)', '装箱数量'],
-    [['创酷', 'JDB-M35-13PCS', '', '', '', 'US', '18.5', '12.0', '5.2', '0.68', '42', '28', '30', '9.2', '12']]
+    [
+      'project_name',
+      'SKU',
+      'ASIN(可留空，后续维护)',
+      'FNSKU(可留空，后续维护)',
+      '品名(可留空)',
+      '国家',
+      '单品长(cm)',
+      '单品宽(cm)',
+      '单品高(cm)',
+      '单品重量(kg)',
+      '外箱长(cm)',
+      '外箱宽(cm)',
+      '外箱高(cm)',
+      '外箱重量(kg)',
+      '装箱数量',
+    ],
+    [
+      [
+        '创酷',
+        'JDB-M35-13PCS',
+        '',
+        '',
+        '',
+        'US',
+        '18.5',
+        '12.0',
+        '5.2',
+        '0.68',
+        '42',
+        '28',
+        '30',
+        '9.2',
+        '12',
+      ],
+    ],
   )
 }
 
 function sortProductCosts(rows: ProductCostItem[]): ProductCostItem[] {
-  return [...rows].sort((a, b) => (a.sort_order !== b.sort_order ? a.sort_order - b.sort_order : a.id - b.id))
+  return [...rows].sort((a, b) =>
+    a.sort_order !== b.sort_order ? a.sort_order - b.sort_order : a.id - b.id,
+  )
 }
 
 async function parseError(response: Response): Promise<string> {
@@ -155,9 +241,9 @@ const EMPTY_EDIT_ROW = {
 
 function FilterFieldSkeleton() {
   return (
-    <div className="grid gap-2">
-      <Skeleton className="h-4 w-16" />
-      <Skeleton className="h-10 w-full" />
+    <div className='grid gap-2'>
+      <Skeleton className='h-4 w-16' />
+      <Skeleton className='h-10 w-full' />
     </div>
   )
 }
@@ -174,9 +260,9 @@ function TableSkeletonRows({
   return (
     <>
       {Array.from({ length: rows }).map((_, rowIndex) => (
-        <tr key={`table-skeleton-${rowIndex}`} className="border-b">
+        <tr key={`table-skeleton-${rowIndex}`} className='border-b'>
           {Array.from({ length: columns }).map((__, cellIndex) => (
-            <td key={cellIndex} className="p-4">
+            <td key={cellIndex} className='p-4'>
               <Skeleton className={`h-4 ${cellWidth}`} />
             </td>
           ))}
@@ -205,19 +291,28 @@ export default function SkuInfoPage() {
   const [projectFilter, setProjectFilter] = useState('')
   const [skuFilter, setSkuFilter] = useState('')
   const [asinFilter, setAsinFilter] = useState('')
-  const [countryFilter, setCountryFilter] = useState<'all' | 'US' | 'DE' | 'UK'>('all')
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
+  const [countryFilter, setCountryFilter] = useState<
+    'all' | 'US' | 'DE' | 'UK'
+  >('all')
+  const [statusFilter, setStatusFilter] = useState<
+    'all' | 'active' | 'inactive'
+  >('all')
 
   const [batchImporting, setBatchImporting] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editRow, setEditRow] = useState(EMPTY_EDIT_ROW)
 
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize])
-  const visibleActiveCount = useMemo(() => items.filter((item) => item.is_active).length, [items])
-  const visibleInactiveCount = useMemo(() => items.length - visibleActiveCount, [items.length, visibleActiveCount])
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(total / pageSize)),
+    [total, pageSize],
+  )
+  const visibleActiveCount = useMemo(
+    () => items.filter((item) => item.is_active).length,
+    [items],
+  )
   const selectedProject = useMemo(
     () => projects.find((project) => project.name === projectFilter) ?? null,
-    [projectFilter, projects]
+    [projectFilter, projects],
   )
 
   useEffect(() => {
@@ -232,7 +327,9 @@ export default function SkuInfoPage() {
         const data = await fetchManagedProjectsCached<ProjectOption[]>(session)
         setProjects(data)
       } catch (loadError) {
-        setProjectLoadError(normalizeErrorMessage(loadError, '项目列表加载失败'))
+        setProjectLoadError(
+          normalizeErrorMessage(loadError, '项目列表加载失败'),
+        )
       } finally {
         setProjectsLoading(false)
       }
@@ -249,7 +346,11 @@ export default function SkuInfoPage() {
       country?: 'all' | 'US' | 'DE' | 'UK'
       status?: 'all' | 'active' | 'inactive'
     },
-    options?: { resetPage?: boolean; pageOverride?: number; clearOnMissingProject?: boolean }
+    options?: {
+      resetPage?: boolean
+      pageOverride?: number
+      clearOnMissingProject?: boolean
+    },
   ) => {
     const projectValue = (filters?.project_name ?? projectFilter).trim()
     const skuValue = (filters?.sku ?? skuFilter).trim()
@@ -299,10 +400,13 @@ export default function SkuInfoPage() {
       ]
       if (selectedProject?.id) {
         requests.push(
-          fetch(`${API_BASE}/api/v1/shipment-schedules/sku-summary?${summarySearch.toString()}`, {
-            headers: authHeaders(),
-            cache: 'no-store',
-          })
+          fetch(
+            `${API_BASE}/api/v1/shipment-schedules/sku-summary?${summarySearch.toString()}`,
+            {
+              headers: authHeaders(),
+              cache: 'no-store',
+            },
+          ),
         )
       }
 
@@ -311,17 +415,25 @@ export default function SkuInfoPage() {
       const payload = (await response.json()) as ProductCostsPage
       let summaryBySku = new Map<string, number>()
       if (summaryResponse) {
-        if (!summaryResponse.ok) throw new Error(await parseError(summaryResponse))
-        const summaryPayload = (await summaryResponse.json()) as ShipmentSkuSummaryResponse
-        summaryBySku = new Map(summaryPayload.items.map((item) => [item.sku, item.average_logistics_unit_price]))
+        if (!summaryResponse.ok)
+          throw new Error(await parseError(summaryResponse))
+        const summaryPayload =
+          (await summaryResponse.json()) as ShipmentSkuSummaryResponse
+        summaryBySku = new Map(
+          summaryPayload.items.map((item) => [
+            item.sku,
+            item.average_logistics_unit_price,
+          ]),
+        )
       }
       setItems(
         sortProductCosts(
           payload.items.map((item) => ({
             ...item,
-            historical_first_leg_cost_rmb: summaryBySku.get(item.sku) ?? item.first_leg_cost_rmb,
-          }))
-        )
+            historical_first_leg_cost_rmb:
+              summaryBySku.get(item.sku) ?? item.first_leg_cost_rmb,
+          })),
+        ),
       )
       setTotal(Math.max(0, payload.total ?? 0))
       setHasNextPage(payload.has_next)
@@ -335,14 +447,12 @@ export default function SkuInfoPage() {
 
   useEffect(() => {
     if (!projectFilter.trim()) return
-    void loadData(undefined, { pageOverride: page, clearOnMissingProject: true })
+    void loadData(undefined, {
+      pageOverride: page,
+      clearOnMissingProject: true,
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, pageSize, projectFilter, selectedProject])
-
-  const onRefresh = async () => {
-    setSuccessMessage(null)
-    await loadData(undefined, { pageOverride: page, clearOnMissingProject: true })
-  }
 
   const onSearch = async () => {
     setSuccessMessage(null)
@@ -367,7 +477,16 @@ export default function SkuInfoPage() {
     setProjectFilter(value)
     setError(null)
     setSuccessMessage(null)
-    await loadData({ project_name: value, sku: skuFilter, asin: asinFilter, country: countryFilter, status: statusFilter }, { resetPage: true, clearOnMissingProject: true })
+    await loadData(
+      {
+        project_name: value,
+        sku: skuFilter,
+        asin: asinFilter,
+        country: countryFilter,
+        status: statusFilter,
+      },
+      { resetPage: true, clearOnMissingProject: true },
+    )
   }
 
   const onPageSizeChange = (value: string) => {
@@ -388,7 +507,10 @@ export default function SkuInfoPage() {
     return search
   }
 
-  const handleBatchImportFile = async (event: ChangeEvent<HTMLInputElement>, importMode: ImportMode) => {
+  const handleBatchImportFile = async (
+    event: ChangeEvent<HTMLInputElement>,
+    importMode: ImportMode,
+  ) => {
     const file = event.target.files?.[0]
     event.target.value = ''
     if (!file) return
@@ -398,11 +520,24 @@ export default function SkuInfoPage() {
     try {
       const formData = new FormData()
       formData.append('file', file)
-      const response = await fetch(`${API_BASE}/api/v1/sku-info/import-csv?import_mode=${importMode}`, { method: 'POST', headers: authHeaders(), body: formData })
+      const response = await fetch(
+        `${API_BASE}/api/v1/sku-info/import-csv?import_mode=${importMode}`,
+        { method: 'POST', headers: authHeaders(), body: formData },
+      )
       if (!response.ok) throw new Error(await parseError(response))
-      const payload = (await response.json()) as { inserted: number; updated: number; skipped?: number }
-      setSuccessMessage(`CSV ${importMode === 'create' ? '批量上新' : '批量修改'}完成：新增 ${payload.inserted} 条，更新 ${payload.updated} 条，跳过 ${payload.skipped ?? 0} 条`)
-      if (projectFilter.trim()) await loadData(undefined, { resetPage: true, clearOnMissingProject: true })
+      const payload = (await response.json()) as {
+        inserted: number
+        updated: number
+        skipped?: number
+      }
+      setSuccessMessage(
+        `CSV ${importMode === 'create' ? '批量上新' : '批量修改'}完成：新增 ${payload.inserted} 条，更新 ${payload.updated} 条，跳过 ${payload.skipped ?? 0} 条`,
+      )
+      if (projectFilter.trim())
+        await loadData(undefined, {
+          resetPage: true,
+          clearOnMissingProject: true,
+        })
     } catch (importError) {
       setError(normalizeErrorMessage(importError, 'CSV 批量导入失败'))
     } finally {
@@ -420,16 +555,22 @@ export default function SkuInfoPage() {
     try {
       const search = buildFilterSearchParams()
       search.set('export_type', activeTab)
-      const response = await fetch(`${API_BASE}/api/v1/sku-info/export?${search.toString()}`, {
-        headers: authHeaders(),
-        cache: 'no-store',
-      })
+      const response = await fetch(
+        `${API_BASE}/api/v1/sku-info/export?${search.toString()}`,
+        {
+          headers: authHeaders(),
+          cache: 'no-store',
+        },
+      )
       if (!response.ok) throw new Error(await parseError(response))
       const blob = await response.blob()
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = activeTab === 'cost' ? 'sku-info-cost-update-export.csv' : 'sku-info-dimension-update-export.csv'
+      link.download =
+        activeTab === 'cost'
+          ? 'sku-info-cost-update-export.csv'
+          : 'sku-info-dimension-update-export.csv'
       link.click()
       URL.revokeObjectURL(url)
       setSuccessMessage('已导出当前筛选结果的批量修改模板')
@@ -456,7 +597,10 @@ export default function SkuInfoPage() {
       carton_height_cm: String(row.carton_height_cm),
       carton_weight_kg: String(row.carton_weight_kg),
       units_per_carton: String(row.units_per_carton),
-      country: (normalizeCountry(row.country || 'US') ?? 'US') as 'US' | 'DE' | 'UK',
+      country: (normalizeCountry(row.country || 'US') ?? 'US') as
+        | 'US'
+        | 'DE'
+        | 'UK',
       sort_order: String(row.sort_order),
       is_active: Boolean(row.is_active),
     })
@@ -497,7 +641,10 @@ export default function SkuInfoPage() {
       if (!response.ok) throw new Error(await parseError(response))
       await response.json()
       setEditingId(null)
-      await loadData(undefined, { pageOverride: page, clearOnMissingProject: true })
+      await loadData(undefined, {
+        pageOverride: page,
+        clearOnMissingProject: true,
+      })
       setSuccessMessage('该行已更新')
     } catch (saveError) {
       setError(normalizeErrorMessage(saveError, '保存失败'))
@@ -505,81 +652,43 @@ export default function SkuInfoPage() {
   }
 
   return (
-    <div className="w-full space-y-6 text-foreground">
-      <Card className="overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
-        <CardContent className="space-y-6 p-6 md:p-8">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-3xl space-y-4">
-              <Badge variant="outline" className="w-fit border-sky-500/20 bg-sky-500/10 text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/15 dark:text-sky-300">
-                数据管理 / SKU 成本
-              </Badge>
-              <div className="space-y-2">
-                <h1 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">SKU 信息管理</h1>
-                <CardDescription className="max-w-2xl text-sm leading-6 text-muted-foreground md:text-base">
-                  在同一页里维护成本、尺寸与状态信息。先选定项目，再通过筛选和表格批量调整 SKU 主数据。
-                </CardDescription>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-subtle))] p-4 shadow-none">
-                  <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">当前页 SKU</div>
-                  <div className="mt-2 text-2xl font-semibold text-foreground">{items.length}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">随筛选条件实时变化</div>
-                </div>
-                <div className="rounded-xl border border-emerald-500/15 bg-emerald-500/10 p-4 shadow-none dark:bg-emerald-500/12">
-                  <div className="text-xs uppercase tracking-[0.18em] text-emerald-700/80 dark:text-emerald-300/90">活跃</div>
-                  <div className="mt-2 text-2xl font-semibold text-foreground">{visibleActiveCount}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">当前页可用记录</div>
-                </div>
-                <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-subtle))] p-4 shadow-none">
-                  <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">不活跃</div>
-                  <div className="mt-2 text-2xl font-semibold text-foreground">{visibleInactiveCount}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">当前页暂停维护记录</div>
-                </div>
-                <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-subtle))] p-4 shadow-none">
-                  <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">当前项目</div>
-                  <div className="mt-2 truncate text-2xl font-semibold text-foreground">{projectFilter || '未选择'}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">选择项目后自动加载数据</div>
-                </div>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2 lg:justify-end">
-              <Button type="button" variant="outline" onClick={onResetFilters}>
-                重置筛选
-              </Button>
-              <Button type="button" onClick={() => void onRefresh()} disabled={loading}>
-                {loading ? '刷新中...' : '刷新数据'}
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
-        <CardHeader className="space-y-2 border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-6 py-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="space-y-1">
-              <CardTitle className="text-base font-semibold">筛选条件</CardTitle>
-              <CardDescription>优先选择项目，再按 SKU、ASIN、国家和状态收窄结果范围。</CardDescription>
-            </div>
-            <Badge variant="outline" className="border-border/60 bg-[hsl(var(--surface-panel))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))]">
+    <div className='w-full space-y-6 text-foreground'>
+      <DataCard className='overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90'>
+        <DataCardHeader
+          title='筛选条件'
+          action={
+            <Badge
+              variant='outline'
+              className='border-border/60 bg-[hsl(var(--surface-panel))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))]'
+            >
               {projectFilter ? `已选项目：${projectFilter}` : '未选择项目'}
             </Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="p-6">
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-12">
+          }
+        />
+        <DataCardContent className='p-6'>
+          <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-4'>
             {projectsLoading ? (
-              <div className="xl:col-span-3">
+              <div className='col-span-1'>
                 <FilterFieldSkeleton />
               </div>
             ) : (
-              <div className="grid gap-2 xl:col-span-3">
-                <label className="text-sm font-medium text-foreground">项目名</label>
-                <Select value={projectFilter} onValueChange={(value) => void onProjectFilterChange(value)} disabled={projects.length === 0}>
-                  <SelectTrigger className="h-10 dark:bg-[hsl(var(--surface-soft))]">
-                    <SelectValue placeholder={projects.length ? '请选择项目名' : '暂无可选项目'} />
+              <div className='grid gap-2'>
+                <label className='text-sm font-medium text-foreground'>
+                  项目名
+                </label>
+                <Select
+                  value={projectFilter}
+                  onValueChange={(value) => void onProjectFilterChange(value)}
+                  disabled={projects.length === 0}
+                >
+                  <SelectTrigger className='h-10 dark:bg-[hsl(var(--surface-soft))]'>
+                    <SelectValue
+                      placeholder={
+                        projects.length ? '请选择项目名' : '暂无可选项目'
+                      }
+                    />
                   </SelectTrigger>
-                  <SelectContent className="max-h-64 overflow-y-auto">
+                  <SelectContent className='max-h-64 overflow-y-auto'>
                     {projects.map((project) => (
                       <SelectItem key={project.name} value={project.name}>
                         {project.name}
@@ -587,25 +696,34 @@ export default function SkuInfoPage() {
                     ))}
                   </SelectContent>
                 </Select>
-                {projectLoadError ? <p className="text-xs text-destructive">{projectLoadError}</p> : null}
+                {projectLoadError ? (
+                  <p className='text-xs text-destructive'>{projectLoadError}</p>
+                ) : null}
               </div>
             )}
-            <div className="grid gap-2 xl:col-span-2">
-              <label className="text-sm font-medium text-foreground">SKU</label>
-              <Input placeholder="输入 SKU" value={skuFilter} onChange={(e) => setSkuFilter(e.target.value)} />
+            <div className='grid gap-2'>
+              <label className='text-sm font-medium text-foreground'>SKU</label>
+              <Input
+                placeholder='输入 SKU'
+                value={skuFilter}
+                onChange={(e) => setSkuFilter(e.target.value)}
+              />
             </div>
-            <div className="grid gap-2 xl:col-span-2">
-              <label className="text-sm font-medium text-foreground">ASIN</label>
-              <Input placeholder="输入 ASIN" value={asinFilter} onChange={(e) => setAsinFilter(e.target.value)} />
-            </div>
-            <div className="grid gap-2 xl:col-span-2">
-              <label className="text-sm font-medium text-foreground">国家站点</label>
-              <Select value={countryFilter} onValueChange={(value) => setCountryFilter(value as 'all' | 'US' | 'DE' | 'UK')}>
-              <SelectTrigger className="h-10 dark:bg-[hsl(var(--surface-soft))]">
-                  <SelectValue placeholder="全部国家站点" />
+            <div className='grid gap-2'>
+              <label className='text-sm font-medium text-foreground'>
+                国家站点
+              </label>
+              <Select
+                value={countryFilter}
+                onValueChange={(value) =>
+                  setCountryFilter(value as 'all' | 'US' | 'DE' | 'UK')
+                }
+              >
+                <SelectTrigger className='h-10 dark:bg-[hsl(var(--surface-soft))]'>
+                  <SelectValue placeholder='全部国家站点' />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">全部</SelectItem>
+                  <SelectItem value='all'>全部</SelectItem>
                   {COUNTRY_OPTIONS.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
@@ -614,271 +732,708 @@ export default function SkuInfoPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid gap-2 xl:col-span-2">
-              <label className="text-sm font-medium text-foreground">状态</label>
-              <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as 'all' | 'active' | 'inactive')}>
-              <SelectTrigger className="h-10 dark:bg-[hsl(var(--surface-soft))]">
-                  <SelectValue placeholder="全部状态" />
+            <div className='grid gap-2'>
+              <label className='text-sm font-medium text-foreground'>
+                状态
+              </label>
+              <Select
+                value={statusFilter}
+                onValueChange={(value) =>
+                  setStatusFilter(value as 'all' | 'active' | 'inactive')
+                }
+              >
+                <SelectTrigger className='h-10 dark:bg-[hsl(var(--surface-soft))]'>
+                  <SelectValue placeholder='全部状态' />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">全部</SelectItem>
-                  <SelectItem value="active">活跃</SelectItem>
-                  <SelectItem value="inactive">不活跃</SelectItem>
+                  <SelectItem value='all'>全部</SelectItem>
+                  <SelectItem value='active'>活跃</SelectItem>
+                  <SelectItem value='inactive'>不活跃</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid gap-2 xl:col-span-2">
-              <label className="text-sm font-medium text-foreground">每页显示</label>
-              <Select value={String(pageSize)} onValueChange={onPageSizeChange}>
-              <SelectTrigger className="h-10 dark:bg-[hsl(var(--surface-soft))]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PAGE_SIZE_OPTIONS.map((option) => (
-                    <SelectItem key={option} value={String(option)}>
-                      {option} 条
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-end gap-2 xl:col-span-12 xl:justify-end">
-              <Button type="button" variant="outline" onClick={onResetFilters}>
+            <div className='col-span-1 flex items-end gap-2 md:col-span-2 xl:col-span-4 xl:justify-end'>
+              <Button type='button' variant='outline' onClick={onResetFilters}>
                 重置
               </Button>
-              <Button type="button" onClick={() => void onSearch()}>
+              <Button type='button' onClick={() => void onSearch()}>
                 查询
               </Button>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </DataCardContent>
+      </DataCard>
 
-      {error ? <div className="rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive shadow-sm">{error}</div> : null}
-      {successMessage ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700 shadow-sm">{successMessage}</div> : null}
+      {error ? (
+        <div className='rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive shadow-sm'>
+          {error}
+        </div>
+      ) : null}
+      {successMessage ? (
+        <div className='rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700 shadow-sm'>
+          {successMessage}
+        </div>
+      ) : null}
 
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ActiveTab)} className="space-y-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <TabsMotionGroup id="sku-cost-tabs">
-          <TabsList className="inline-flex h-auto w-full max-w-[360px] rounded-xl border border-border/70 bg-[hsl(var(--surface-subtle))] p-1 shadow-none">
-            <SlidingTabsTrigger value="cost" activeValue={activeTab} layoutId="sku-cost-tab-indicator" className="flex-1 gap-2 px-4 py-2">
-              <Package2 className="h-4 w-4" />
-              成本管理
-            </SlidingTabsTrigger>
-            <SlidingTabsTrigger value="dimension" activeValue={activeTab} layoutId="sku-cost-tab-indicator" className="flex-1 gap-2 px-4 py-2">
-              <Ruler className="h-4 w-4" />
-              尺寸管理
-            </SlidingTabsTrigger>
-          </TabsList>
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(value as ActiveTab)}
+        className='space-y-4'
+      >
+        <div className='flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between'>
+          <TabsMotionGroup id='sku-cost-tabs'>
+            <TabsList className='inline-flex h-auto w-full max-w-[360px] rounded-xl border border-border/70 bg-[hsl(var(--surface-subtle))] p-1 shadow-none'>
+              <SlidingTabsTrigger
+                value='cost'
+                activeValue={activeTab}
+                layoutId='sku-cost-tab-indicator'
+                className='flex-1 gap-2 px-4 py-2'
+              >
+                <Package2 className='h-4 w-4' />
+                成本管理
+              </SlidingTabsTrigger>
+              <SlidingTabsTrigger
+                value='dimension'
+                activeValue={activeTab}
+                layoutId='sku-cost-tab-indicator'
+                className='flex-1 gap-2 px-4 py-2'
+              >
+                <Ruler className='h-4 w-4' />
+                尺寸管理
+              </SlidingTabsTrigger>
+            </TabsList>
           </TabsMotionGroup>
-          <div className="flex flex-wrap gap-2">
-            <Badge variant="outline" className="border-border/60 bg-[hsl(var(--surface-panel))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))]">
-              {loading && items.length === 0 ? '数据准备中...' : `第 ${page} / ${totalPages} 页，共 ${total} 条`}
+          <div className='flex flex-wrap gap-2'>
+            <Badge
+              variant='outline'
+              className='border-border/60 bg-[hsl(var(--surface-panel))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))]'
+            >
+              {loading && items.length === 0
+                ? '数据准备中...'
+                : `第 ${page} / ${totalPages} 页，共 ${total} 条`}
             </Badge>
-            <Badge variant="outline" className="border-border/60 bg-[hsl(var(--surface-panel))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))]">
+            <Badge
+              variant='outline'
+              className='border-border/60 bg-[hsl(var(--surface-panel))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))]'
+            >
               {projectFilter ? `项目：${projectFilter}` : '请先选择项目'}
             </Badge>
           </div>
         </div>
 
         <DirectionalTabTransition value={activeTab} order={ACTIVE_TAB_ORDER}>
-        <TabsContent forceMount value={activeTab}>
-        {activeTab === 'cost' ? (
-          <Card className="overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
-            <CardHeader className="space-y-3 border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-6 py-5">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="space-y-1">
-                  <CardTitle className="text-base font-semibold">成本管理</CardTitle>
-                  <CardDescription>维护 FOB 与头程成本，并支持模板下载、导出和批量导入。</CardDescription>
-                </div>
-                <ActionsBar
-                  batchImporting={batchImporting}
-                  onDownloadCreateTemplate={downloadCostTemplate}
-                  onDownloadUpdateTemplate={handleExportCurrentFiltered}
-                  onUpload={handleBatchImportFile}
-                />
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="relative max-h-[560px] overflow-auto rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))]">
-                {loading && items.length > 0 ? (
-                  <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/60 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
-                    数据更新中...
+          <TabsContent forceMount value={activeTab}>
+            {activeTab === 'cost' ? (
+              <DataTableCard className='overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90'>
+                <DataTableCardHeader className='px-6 py-5'>
+                  <div className='flex flex-wrap items-center justify-between gap-3'>
+                    <div className='space-y-1'>
+                      <h2 className='text-base font-semibold'>成本管理</h2>
+                    </div>
+                    <ActionsBar
+                      batchImporting={batchImporting}
+                      onDownloadCreateTemplate={downloadCostTemplate}
+                      onDownloadUpdateTemplate={handleExportCurrentFiltered}
+                      onUpload={handleBatchImportFile}
+                    />
                   </div>
-                ) : null}
-                <table className="w-full border-separate border-spacing-0 text-sm">
-                  <thead className="[&_tr]:border-b">
-                    <tr className="border-b bg-[hsl(var(--surface-subtle))]">
-                      <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">排序</th>
-                      <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">项目名</th>
-                      <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">SKU / ASIN / FNSKU</th>
-                      <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">品名</th>
-                      <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-right text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">头程成本(历史加权)</th>
-                      <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-right text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">FOB</th>
-                      <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">国家</th>
-                      <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">状态</th>
-                      <th className="sticky top-0 z-10 h-12 border-b border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">操作</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loading && items.length === 0 ? <TableSkeletonRows columns={9} /> : null}
-                    {items.map((row) => (
-                      <tr key={row.id} className={`border-b border-border/50 transition-colors ${editingId === row.id ? 'bg-[hsl(var(--surface-subtle))]' : 'hover:bg-[hsl(var(--surface-subtle))]'} `}>
-                        <td className="border-b border-r border-border/60 p-4 align-top">{editingId === row.id ? <Input className="h-8 w-16" value={editRow.sort_order} onChange={(e) => setEditRow((current) => ({ ...current, sort_order: e.target.value }))} /> : row.sort_order}</td>
-                        <td className="border-b border-r border-border/60 p-4 align-top font-medium">{row.project_name}</td>
-                        <td className="border-b border-r border-border/60 p-4 align-top">
-                          <div className="space-y-1">
-                            <div className="font-medium">{editingId === row.id ? <Input className="h-8 w-24" value={editRow.sku} onChange={(e) => setEditRow((current) => ({ ...current, sku: e.target.value }))} /> : row.sku}</div>
-                            <div>{editingId === row.id ? <Input className="h-8 w-28" value={editRow.asin} onChange={(e) => setEditRow((current) => ({ ...current, asin: e.target.value }))} /> : row.asin}</div>
-                            <div>{editingId === row.id ? <Input className="h-8 w-32" value={editRow.fnsku} onChange={(e) => setEditRow((current) => ({ ...current, fnsku: e.target.value }))} /> : (row.fnsku || '-')}</div>
-                          </div>
-                        </td>
-                        <td className="border-b border-r border-border/60 p-4 align-top">{editingId === row.id ? <Input className="h-8 w-28" value={editRow.product_name} onChange={(e) => setEditRow((current) => ({ ...current, product_name: e.target.value }))} placeholder="品名" /> : (row.product_name || '-')}</td>
-                        <td className="border-b border-r border-border/60 p-4 align-top text-right">{(row.historical_first_leg_cost_rmb ?? row.first_leg_cost_rmb).toFixed(2)}</td>
-                        <td className="border-b border-r border-border/60 p-4 align-top text-right">{editingId === row.id ? <Input className="h-8 w-20" value={editRow.fob_unit_cost} onChange={(e) => setEditRow((current) => ({ ...current, fob_unit_cost: e.target.value }))} /> : row.fob_unit_cost.toFixed(2)}</td>
-                        <td className="border-b border-r border-border/60 p-4 align-top">
-                          {editingId === row.id ? (
-                            <Select value={editRow.country} onValueChange={(value) => setEditRow((current) => ({ ...current, country: value as 'US' | 'DE' | 'UK' }))}>
-                              <SelectTrigger className="h-8 w-28"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                {COUNTRY_OPTIONS.map((option) => (
-                                  <SelectItem key={option.value} value={option.value}>
-                                    {option.label}
+                </DataTableCardHeader>
+                <DataTableCardBody
+                  className='relative overflow-auto'
+                  style={{ maxHeight: '560px' }}
+                >
+                  {loading && items.length > 0 ? (
+                    <div className='pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/60 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm'>
+                      数据更新中...
+                    </div>
+                  ) : null}
+                  <table className='w-full border-separate border-spacing-0 text-sm'>
+                    <thead className='[&_tr]:border-b'>
+                      <tr className='border-b bg-[hsl(var(--surface-subtle))]'>
+                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                          排序
+                        </th>
+                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                          项目名
+                        </th>
+                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                          SKU / ASIN / FNSKU
+                        </th>
+                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                          品名
+                        </th>
+                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-right text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                          头程成本(历史加权)
+                        </th>
+                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-right text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                          FOB
+                        </th>
+                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                          国家
+                        </th>
+                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                          状态
+                        </th>
+                        <th className='sticky top-0 z-10 h-12 border-b border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                          操作
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loading && items.length === 0 ? (
+                        <TableSkeletonRows columns={9} />
+                      ) : null}
+                      {items.map((row) => (
+                        <tr
+                          key={row.id}
+                          className={`border-b border-border/50 transition-colors ${editingId === row.id ? 'bg-[hsl(var(--surface-subtle))]' : 'hover:bg-[hsl(var(--surface-subtle))]'} `}
+                        >
+                          <td className='border-b border-r border-border/60 p-4 align-top'>
+                            {editingId === row.id ? (
+                              <Input
+                                className='h-8 w-16'
+                                value={editRow.sort_order}
+                                onChange={(e) =>
+                                  setEditRow((current) => ({
+                                    ...current,
+                                    sort_order: e.target.value,
+                                  }))
+                                }
+                              />
+                            ) : (
+                              row.sort_order
+                            )}
+                          </td>
+                          <td className='border-b border-r border-border/60 p-4 align-top font-medium'>
+                            {row.project_name}
+                          </td>
+                          <td className='border-b border-r border-border/60 p-4 align-top'>
+                            <div className='space-y-1'>
+                              <div className='font-medium'>
+                                {editingId === row.id ? (
+                                  <Input
+                                    className='h-8 w-24'
+                                    value={editRow.sku}
+                                    onChange={(e) =>
+                                      setEditRow((current) => ({
+                                        ...current,
+                                        sku: e.target.value,
+                                      }))
+                                    }
+                                  />
+                                ) : (
+                                  row.sku
+                                )}
+                              </div>
+                              <div>
+                                {editingId === row.id ? (
+                                  <Input
+                                    className='h-8 w-28'
+                                    value={editRow.asin}
+                                    onChange={(e) =>
+                                      setEditRow((current) => ({
+                                        ...current,
+                                        asin: e.target.value,
+                                      }))
+                                    }
+                                  />
+                                ) : (
+                                  row.asin
+                                )}
+                              </div>
+                              <div>
+                                {editingId === row.id ? (
+                                  <Input
+                                    className='h-8 w-32'
+                                    value={editRow.fnsku}
+                                    onChange={(e) =>
+                                      setEditRow((current) => ({
+                                        ...current,
+                                        fnsku: e.target.value,
+                                      }))
+                                    }
+                                  />
+                                ) : (
+                                  row.fnsku || '-'
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className='border-b border-r border-border/60 p-4 align-top'>
+                            {editingId === row.id ? (
+                              <Input
+                                className='h-8 w-28'
+                                value={editRow.product_name}
+                                onChange={(e) =>
+                                  setEditRow((current) => ({
+                                    ...current,
+                                    product_name: e.target.value,
+                                  }))
+                                }
+                                placeholder='品名'
+                              />
+                            ) : (
+                              row.product_name || '-'
+                            )}
+                          </td>
+                          <td className='border-b border-r border-border/60 p-4 align-top text-right'>
+                            {(
+                              row.historical_first_leg_cost_rmb ??
+                              row.first_leg_cost_rmb
+                            ).toFixed(2)}
+                          </td>
+                          <td className='border-b border-r border-border/60 p-4 align-top text-right'>
+                            {editingId === row.id ? (
+                              <Input
+                                className='h-8 w-20'
+                                value={editRow.fob_unit_cost}
+                                onChange={(e) =>
+                                  setEditRow((current) => ({
+                                    ...current,
+                                    fob_unit_cost: e.target.value,
+                                  }))
+                                }
+                              />
+                            ) : (
+                              row.fob_unit_cost.toFixed(2)
+                            )}
+                          </td>
+                          <td className='border-b border-r border-border/60 p-4 align-top'>
+                            {editingId === row.id ? (
+                              <Select
+                                value={editRow.country}
+                                onValueChange={(value) =>
+                                  setEditRow((current) => ({
+                                    ...current,
+                                    country: value as 'US' | 'DE' | 'UK',
+                                  }))
+                                }
+                              >
+                                <SelectTrigger className='h-8 w-28'>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {COUNTRY_OPTIONS.map((option) => (
+                                    <SelectItem
+                                      key={option.value}
+                                      value={option.value}
+                                    >
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              COUNTRY_OPTIONS.find(
+                                (option) => option.value === row.country,
+                              )?.label || row.country
+                            )}
+                          </td>
+                          <td className='border-b border-r border-border/60 p-4 align-top'>
+                            {editingId === row.id ? (
+                              <Select
+                                value={
+                                  editRow.is_active ? 'active' : 'inactive'
+                                }
+                                onValueChange={(value) =>
+                                  setEditRow((current) => ({
+                                    ...current,
+                                    is_active: value === 'active',
+                                  }))
+                                }
+                              >
+                                <SelectTrigger className='h-8 w-24'>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value='active'>活跃</SelectItem>
+                                  <SelectItem value='inactive'>
+                                    不活跃
                                   </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          ) : (COUNTRY_OPTIONS.find((option) => option.value === row.country)?.label || row.country)}
-                        </td>
-                        <td className="border-b border-r border-border/60 p-4 align-top">
-                          {editingId === row.id ? (
-                            <Select value={editRow.is_active ? 'active' : 'inactive'} onValueChange={(value) => setEditRow((current) => ({ ...current, is_active: value === 'active' }))}>
-                              <SelectTrigger className="h-8 w-24"><SelectValue /></SelectTrigger>
-                              <SelectContent><SelectItem value="active">活跃</SelectItem><SelectItem value="inactive">不活跃</SelectItem></SelectContent>
-                            </Select>
-                          ) : <Badge variant="outline" className={row.is_active ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' : 'border-border/70 bg-[hsl(var(--surface-subtle))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))] dark:text-foreground'}>{row.is_active ? '活跃' : '不活跃'}</Badge>}
-                        </td>
-                        <td className="border-b border-border/60 p-4 align-top">
-                          <div className="flex gap-2">
-                            {editingId === row.id ? (
-                              <>
-                                <Button type="button" size="sm" onClick={() => void saveRow(row.id)}>保存</Button>
-                                <Button type="button" size="sm" variant="outline" onClick={() => setEditingId(null)}>取消</Button>
-                              </>
-                            ) : <Button type="button" size="sm" variant="outline" onClick={() => startEditRow(row)}>编辑</Button>}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                    {!loading && items.length === 0 ? (
-                      <EmptyState colSpan={9} message={projectFilter ? '当前筛选条件下暂无 SKU 数据。' : '请选择项目后再查询 SKU 数据。'} />
-                    ) : null}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-      <Card className="overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
-        <CardHeader className="space-y-3 border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-6 py-5">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="space-y-1">
-                  <CardTitle className="text-base font-semibold">尺寸管理</CardTitle>
-                  <CardDescription>同步维护单品和外箱尺寸，支持同样的模板下载、导出与批量导入流程。</CardDescription>
-                </div>
-                <ActionsBar
-                  batchImporting={batchImporting}
-                  onDownloadCreateTemplate={downloadDimensionTemplate}
-                  onDownloadUpdateTemplate={handleExportCurrentFiltered}
-                  onUpload={handleBatchImportFile}
-                />
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="relative max-h-[560px] overflow-auto rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))]">
-                {loading && items.length > 0 ? (
-                  <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/60 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
-                    数据更新中...
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <Badge
+                                variant='outline'
+                                className={
+                                  row.is_active
+                                    ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
+                                    : 'border-border/70 bg-[hsl(var(--surface-subtle))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))] dark:text-foreground'
+                                }
+                              >
+                                {row.is_active ? '活跃' : '不活跃'}
+                              </Badge>
+                            )}
+                          </td>
+                          <td className='border-b border-border/60 p-4 align-top'>
+                            <div className='flex gap-2'>
+                              {editingId === row.id ? (
+                                <>
+                                  <Button
+                                    type='button'
+                                    size='sm'
+                                    onClick={() => void saveRow(row.id)}
+                                  >
+                                    保存
+                                  </Button>
+                                  <Button
+                                    type='button'
+                                    size='sm'
+                                    variant='outline'
+                                    onClick={() => setEditingId(null)}
+                                  >
+                                    取消
+                                  </Button>
+                                </>
+                              ) : (
+                                <Button
+                                  type='button'
+                                  size='sm'
+                                  variant='outline'
+                                  onClick={() => startEditRow(row)}
+                                >
+                                  编辑
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {!loading && items.length === 0 ? (
+                        <EmptyState
+                          colSpan={9}
+                          message={
+                            projectFilter
+                              ? '当前筛选条件下暂无 SKU 数据。'
+                              : '请先选择项目后再查询 SKU 数据。'
+                          }
+                        />
+                      ) : null}
+                    </tbody>
+                  </table>
+                </DataTableCardBody>
+              </DataTableCard>
+            ) : (
+              <DataTableCard className='overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90'>
+                <DataTableCardHeader className='px-6 py-5'>
+                  <div className='flex flex-wrap items-center justify-between gap-3'>
+                    <div className='space-y-1'>
+                      <h2 className='text-base font-semibold'>尺寸管理</h2>
+                    </div>
+                    <ActionsBar
+                      batchImporting={batchImporting}
+                      onDownloadCreateTemplate={downloadDimensionTemplate}
+                      onDownloadUpdateTemplate={handleExportCurrentFiltered}
+                      onUpload={handleBatchImportFile}
+                    />
                   </div>
-                ) : null}
-                <table className="w-full border-separate border-spacing-0 text-sm">
-                  <thead className="[&_tr]:border-b">
-                    <tr className="border-b bg-[hsl(var(--surface-subtle))]">
-                      <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">项目名</th>
-                      <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">SKU / ASIN / FNSKU</th>
-                      <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">单品尺寸</th>
-                      <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">单品重量</th>
-                      <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">外箱尺寸</th>
-                      <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">外箱重量</th>
-                      <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">装箱数量</th>
-                      <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">状态</th>
-                      <th className="sticky top-0 z-10 h-12 border-b border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">操作</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loading && items.length === 0 ? <TableSkeletonRows columns={9} cellWidth="w-24" /> : null}
-                    {items.map((row) => (
-                      <tr key={row.id} className={`border-b border-border/50 transition-colors ${editingId === row.id ? 'bg-[hsl(var(--surface-subtle))]' : 'hover:bg-[hsl(var(--surface-subtle))]'} `}>
-                        <td className="border-b border-r border-border/60 p-4 align-top font-medium">{row.project_name}</td>
-                        <td className="border-b border-r border-border/60 p-4 align-top">
-                          <div className="space-y-1">
-                            <div className="font-medium">{editingId === row.id ? <Input className="h-8 w-24" value={editRow.sku} onChange={(e) => setEditRow((current) => ({ ...current, sku: e.target.value }))} /> : row.sku}</div>
-                            <div>{editingId === row.id ? <Input className="h-8 w-28" value={editRow.asin} onChange={(e) => setEditRow((current) => ({ ...current, asin: e.target.value }))} /> : row.asin}</div>
-                            <div>{editingId === row.id ? <Input className="h-8 w-32" value={editRow.fnsku} onChange={(e) => setEditRow((current) => ({ ...current, fnsku: e.target.value }))} /> : (row.fnsku || '-')}</div>
-                          </div>
-                        </td>
-                        <td className="border-b border-r border-border/60 p-4 align-top">
-                          {editingId === row.id ? (
-                            <TripleInput values={[editRow.package_length_cm, editRow.package_width_cm, editRow.package_height_cm]} onChange={(values) => setEditRow((current) => ({ ...current, package_length_cm: values[0], package_width_cm: values[1], package_height_cm: values[2] }))} />
-                          ) : `${row.package_length_cm} × ${row.package_width_cm} × ${row.package_height_cm} cm`}
-                        </td>
-                        <td className="border-b border-r border-border/60 p-4 align-top">{editingId === row.id ? <Input className="h-8 w-24" value={editRow.weight_kg} onChange={(e) => setEditRow((current) => ({ ...current, weight_kg: e.target.value }))} /> : `${row.weight_kg} kg`}</td>
-                        <td className="border-b border-r border-border/60 p-4 align-top">
-                          {editingId === row.id ? (
-                            <TripleInput values={[editRow.carton_length_cm, editRow.carton_width_cm, editRow.carton_height_cm]} onChange={(values) => setEditRow((current) => ({ ...current, carton_length_cm: values[0], carton_width_cm: values[1], carton_height_cm: values[2] }))} />
-                          ) : `${row.carton_length_cm} × ${row.carton_width_cm} × ${row.carton_height_cm} cm`}
-                        </td>
-                        <td className="border-b border-r border-border/60 p-4 align-top">{editingId === row.id ? <Input className="h-8 w-24" value={editRow.carton_weight_kg} onChange={(e) => setEditRow((current) => ({ ...current, carton_weight_kg: e.target.value }))} /> : `${row.carton_weight_kg} kg`}</td>
-                        <td className="border-b border-r border-border/60 p-4 align-top">{editingId === row.id ? <Input className="h-8 w-24" value={editRow.units_per_carton} onChange={(e) => setEditRow((current) => ({ ...current, units_per_carton: e.target.value }))} /> : `${row.units_per_carton} pcs/箱`}</td>
-                        <td className="border-b border-r border-border/60 p-4 align-top">
-                          {editingId === row.id ? (
-                            <Select value={editRow.is_active ? 'active' : 'inactive'} onValueChange={(value) => setEditRow((current) => ({ ...current, is_active: value === 'active' }))}>
-                              <SelectTrigger className="h-8 w-24"><SelectValue /></SelectTrigger>
-                              <SelectContent><SelectItem value="active">活跃</SelectItem><SelectItem value="inactive">不活跃</SelectItem></SelectContent>
-                            </Select>
-                          ) : <Badge variant="outline" className={row.is_active ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' : 'border-border/70 bg-[hsl(var(--surface-subtle))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))] dark:text-foreground'}>{row.is_active ? '活跃' : '不活跃'}</Badge>}
-                        </td>
-                        <td className="border-b border-border/60 p-4 align-top">
-                          <div className="flex gap-2">
-                            {editingId === row.id ? (
-                              <>
-                                <Button type="button" size="sm" onClick={() => void saveRow(row.id)}>保存</Button>
-                                <Button type="button" size="sm" variant="outline" onClick={() => setEditingId(null)}>取消</Button>
-                              </>
-                            ) : <Button type="button" size="sm" variant="outline" onClick={() => startEditRow(row)}>编辑</Button>}
-                          </div>
-                        </td>
+                </DataTableCardHeader>
+                <DataTableCardBody
+                  className='relative overflow-auto'
+                  style={{ maxHeight: '560px' }}
+                >
+                  {loading && items.length > 0 ? (
+                    <div className='pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/60 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm'>
+                      数据更新中...
+                    </div>
+                  ) : null}
+                  <table className='w-full border-separate border-spacing-0 text-sm'>
+                    <thead className='[&_tr]:border-b'>
+                      <tr className='border-b bg-[hsl(var(--surface-subtle))]'>
+                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                          项目名
+                        </th>
+                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                          SKU / ASIN / FNSKU
+                        </th>
+                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                          单品尺寸
+                        </th>
+                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                          单品重量
+                        </th>
+                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                          外箱尺寸
+                        </th>
+                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                          外箱重量
+                        </th>
+                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                          装箱数量
+                        </th>
+                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                          状态
+                        </th>
+                        <th className='sticky top-0 z-10 h-12 border-b border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                          操作
+                        </th>
                       </tr>
-                    ))}
-                    {!loading && items.length === 0 ? (
-                      <EmptyState colSpan={9} message={projectFilter ? '当前筛选条件下暂无尺寸数据。' : '请选择项目后再查询尺寸数据。'} />
-                    ) : null}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-        </TabsContent>
+                    </thead>
+                    <tbody>
+                      {loading && items.length === 0 ? (
+                        <TableSkeletonRows columns={9} cellWidth='w-24' />
+                      ) : null}
+                      {items.map((row) => (
+                        <tr
+                          key={row.id}
+                          className={`border-b border-border/50 transition-colors ${editingId === row.id ? 'bg-[hsl(var(--surface-subtle))]' : 'hover:bg-[hsl(var(--surface-subtle))]'} `}
+                        >
+                          <td className='border-b border-r border-border/60 p-4 align-top font-medium'>
+                            {row.project_name}
+                          </td>
+                          <td className='border-b border-r border-border/60 p-4 align-top'>
+                            <div className='space-y-1'>
+                              <div className='font-medium'>
+                                {editingId === row.id ? (
+                                  <Input
+                                    className='h-8 w-24'
+                                    value={editRow.sku}
+                                    onChange={(e) =>
+                                      setEditRow((current) => ({
+                                        ...current,
+                                        sku: e.target.value,
+                                      }))
+                                    }
+                                  />
+                                ) : (
+                                  row.sku
+                                )}
+                              </div>
+                              <div>
+                                {editingId === row.id ? (
+                                  <Input
+                                    className='h-8 w-28'
+                                    value={editRow.asin}
+                                    onChange={(e) =>
+                                      setEditRow((current) => ({
+                                        ...current,
+                                        asin: e.target.value,
+                                      }))
+                                    }
+                                  />
+                                ) : (
+                                  row.asin
+                                )}
+                              </div>
+                              <div>
+                                {editingId === row.id ? (
+                                  <Input
+                                    className='h-8 w-32'
+                                    value={editRow.fnsku}
+                                    onChange={(e) =>
+                                      setEditRow((current) => ({
+                                        ...current,
+                                        fnsku: e.target.value,
+                                      }))
+                                    }
+                                  />
+                                ) : (
+                                  row.fnsku || '-'
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className='border-b border-r border-border/60 p-4 align-top'>
+                            {editingId === row.id ? (
+                              <TripleInput
+                                values={[
+                                  editRow.package_length_cm,
+                                  editRow.package_width_cm,
+                                  editRow.package_height_cm,
+                                ]}
+                                onChange={(values) =>
+                                  setEditRow((current) => ({
+                                    ...current,
+                                    package_length_cm: values[0],
+                                    package_width_cm: values[1],
+                                    package_height_cm: values[2],
+                                  }))
+                                }
+                              />
+                            ) : (
+                              `${row.package_length_cm} × ${row.package_width_cm} × ${row.package_height_cm} cm`
+                            )}
+                          </td>
+                          <td className='border-b border-r border-border/60 p-4 align-top'>
+                            {editingId === row.id ? (
+                              <Input
+                                className='h-8 w-24'
+                                value={editRow.weight_kg}
+                                onChange={(e) =>
+                                  setEditRow((current) => ({
+                                    ...current,
+                                    weight_kg: e.target.value,
+                                  }))
+                                }
+                              />
+                            ) : (
+                              `${row.weight_kg} kg`
+                            )}
+                          </td>
+                          <td className='border-b border-r border-border/60 p-4 align-top'>
+                            {editingId === row.id ? (
+                              <TripleInput
+                                values={[
+                                  editRow.carton_length_cm,
+                                  editRow.carton_width_cm,
+                                  editRow.carton_height_cm,
+                                ]}
+                                onChange={(values) =>
+                                  setEditRow((current) => ({
+                                    ...current,
+                                    carton_length_cm: values[0],
+                                    carton_width_cm: values[1],
+                                    carton_height_cm: values[2],
+                                  }))
+                                }
+                              />
+                            ) : (
+                              `${row.carton_length_cm} × ${row.carton_width_cm} × ${row.carton_height_cm} cm`
+                            )}
+                          </td>
+                          <td className='border-b border-r border-border/60 p-4 align-top'>
+                            {editingId === row.id ? (
+                              <Input
+                                className='h-8 w-24'
+                                value={editRow.carton_weight_kg}
+                                onChange={(e) =>
+                                  setEditRow((current) => ({
+                                    ...current,
+                                    carton_weight_kg: e.target.value,
+                                  }))
+                                }
+                              />
+                            ) : (
+                              `${row.carton_weight_kg} kg`
+                            )}
+                          </td>
+                          <td className='border-b border-r border-border/60 p-4 align-top'>
+                            {editingId === row.id ? (
+                              <Input
+                                className='h-8 w-24'
+                                value={editRow.units_per_carton}
+                                onChange={(e) =>
+                                  setEditRow((current) => ({
+                                    ...current,
+                                    units_per_carton: e.target.value,
+                                  }))
+                                }
+                              />
+                            ) : (
+                              `${row.units_per_carton} pcs/箱`
+                            )}
+                          </td>
+                          <td className='border-b border-r border-border/60 p-4 align-top'>
+                            {editingId === row.id ? (
+                              <Select
+                                value={
+                                  editRow.is_active ? 'active' : 'inactive'
+                                }
+                                onValueChange={(value) =>
+                                  setEditRow((current) => ({
+                                    ...current,
+                                    is_active: value === 'active',
+                                  }))
+                                }
+                              >
+                                <SelectTrigger className='h-8 w-24'>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value='active'>活跃</SelectItem>
+                                  <SelectItem value='inactive'>
+                                    不活跃
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <Badge
+                                variant='outline'
+                                className={
+                                  row.is_active
+                                    ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
+                                    : 'border-border/70 bg-[hsl(var(--surface-subtle))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))] dark:text-foreground'
+                                }
+                              >
+                                {row.is_active ? '活跃' : '不活跃'}
+                              </Badge>
+                            )}
+                          </td>
+                          <td className='border-b border-border/60 p-4 align-top'>
+                            <div className='flex gap-2'>
+                              {editingId === row.id ? (
+                                <>
+                                  <Button
+                                    type='button'
+                                    size='sm'
+                                    onClick={() => void saveRow(row.id)}
+                                  >
+                                    保存
+                                  </Button>
+                                  <Button
+                                    type='button'
+                                    size='sm'
+                                    variant='outline'
+                                    onClick={() => setEditingId(null)}
+                                  >
+                                    取消
+                                  </Button>
+                                </>
+                              ) : (
+                                <Button
+                                  type='button'
+                                  size='sm'
+                                  variant='outline'
+                                  onClick={() => startEditRow(row)}
+                                >
+                                  编辑
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {!loading && items.length === 0 ? (
+                        <EmptyState
+                          colSpan={9}
+                          message={
+                            projectFilter
+                              ? '当前筛选条件下暂无尺寸数据。'
+                              : '请选择项目后再查询尺寸数据。'
+                          }
+                        />
+                      ) : null}
+                    </tbody>
+                  </table>
+                </DataTableCardBody>
+              </DataTableCard>
+            )}
+          </TabsContent>
         </DirectionalTabTransition>
       </Tabs>
 
       {projectFilter ? (
-      <div className="flex items-center justify-between rounded-xl border border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3 text-sm text-muted-foreground shadow-none">
+        <div className='flex items-center justify-between rounded-xl border border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3 text-sm text-muted-foreground shadow-none'>
           <span>当前项目：{projectFilter}</span>
-          <div className="flex items-center gap-2">
-            <Button type="button" variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>上一页</Button>
-            <Button type="button" variant="outline" size="sm" disabled={!hasNextPage} onClick={() => setPage((current) => current + 1)}>下一页</Button>
+          <div className='flex items-center gap-2'>
+            <Button
+              type='button'
+              variant='outline'
+              size='sm'
+              disabled={page <= 1}
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+            >
+              上一页
+            </Button>
+            <Button
+              type='button'
+              variant='outline'
+              size='sm'
+              disabled={!hasNextPage}
+              onClick={() => setPage((current) => current + 1)}
+            >
+              下一页
+            </Button>
           </div>
         </div>
       ) : null}
@@ -895,30 +1450,53 @@ function ActionsBar({
   batchImporting: boolean
   onDownloadCreateTemplate: () => void
   onDownloadUpdateTemplate: () => void
-  onUpload: (event: ChangeEvent<HTMLInputElement>, importMode: ImportMode) => void
+  onUpload: (
+    event: ChangeEvent<HTMLInputElement>,
+    importMode: ImportMode,
+  ) => void
 }) {
   return (
-    <div className="flex flex-wrap gap-2">
-      <Button type="button" size="sm" variant="outline" onClick={onDownloadCreateTemplate}>
-        <FileDown className="mr-2 h-4 w-4" />
+    <div className='flex flex-wrap gap-2'>
+      <Button
+        type='button'
+        size='sm'
+        variant='outline'
+        onClick={onDownloadCreateTemplate}
+      >
+        <FileDown className='mr-2 h-4 w-4' />
         下载上新模板
       </Button>
-      <Button type="button" size="sm" variant="outline" onClick={onDownloadUpdateTemplate}>
-        <FileDown className="mr-2 h-4 w-4" />
+      <Button
+        type='button'
+        size='sm'
+        variant='outline'
+        onClick={onDownloadUpdateTemplate}
+      >
+        <FileDown className='mr-2 h-4 w-4' />
         导出批量修改
       </Button>
-      <Button asChild size="sm" variant="outline" disabled={batchImporting}>
+      <Button asChild size='sm' variant='outline' disabled={batchImporting}>
         <label>
-          <Upload className="mr-2 h-4 w-4" />
+          <Upload className='mr-2 h-4 w-4' />
           {batchImporting ? '导入中...' : '批量上新'}
-          <input type="file" accept=".csv" className="hidden" onChange={(event) => onUpload(event, 'create')} />
+          <input
+            type='file'
+            accept='.csv'
+            className='hidden'
+            onChange={(event) => onUpload(event, 'create')}
+          />
         </label>
       </Button>
-      <Button asChild size="sm" variant="outline" disabled={batchImporting}>
+      <Button asChild size='sm' variant='outline' disabled={batchImporting}>
         <label>
-          <Upload className="mr-2 h-4 w-4" />
+          <Upload className='mr-2 h-4 w-4' />
           {batchImporting ? '导入中...' : '批量修改'}
-          <input type="file" accept=".csv" className="hidden" onChange={(event) => onUpload(event, 'update')} />
+          <input
+            type='file'
+            accept='.csv'
+            className='hidden'
+            onChange={(event) => onUpload(event, 'update')}
+          />
         </label>
       </Button>
     </div>
@@ -933,10 +1511,22 @@ function TripleInput({
   onChange: (values: [string, string, string]) => void
 }) {
   return (
-    <div className="grid grid-cols-3 gap-2">
-      <Input className="h-8" value={values[0]} onChange={(e) => onChange([e.target.value, values[1], values[2]])} />
-      <Input className="h-8" value={values[1]} onChange={(e) => onChange([values[0], e.target.value, values[2]])} />
-      <Input className="h-8" value={values[2]} onChange={(e) => onChange([values[0], values[1], e.target.value])} />
+    <div className='grid grid-cols-3 gap-2'>
+      <Input
+        className='h-8'
+        value={values[0]}
+        onChange={(e) => onChange([e.target.value, values[1], values[2]])}
+      />
+      <Input
+        className='h-8'
+        value={values[1]}
+        onChange={(e) => onChange([values[0], e.target.value, values[2]])}
+      />
+      <Input
+        className='h-8'
+        value={values[2]}
+        onChange={(e) => onChange([values[0], values[1], e.target.value])}
+      />
     </div>
   )
 }

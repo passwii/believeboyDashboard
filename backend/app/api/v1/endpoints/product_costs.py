@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, get_request_operator, protected
 from app.models.product_cost import ProductCost
+from app.models.project import Project
 from app.schemas.product_cost import (
     ProductCostBulkCreate,
     ProductCostBulkUpsertResponse,
@@ -33,6 +34,7 @@ from app.schemas.product_cost import (
 )
 from app.services.audit_log_service import append_operation_audit_log, append_operation_view_log
 from app.services import product_cost_service
+from app.services.redis_service import invalidate_financial_series_cache
 
 router = APIRouter(dependencies=[Depends(protected)])
 
@@ -61,6 +63,23 @@ def _serialize_product_cost(row: ProductCost | ProductCostItem) -> dict[str, obj
         "sort_order": int(row.sort_order),
         "is_active": bool(row.is_active),
     }
+
+
+def _get_project_id_by_name(db: Session, project_name: str) -> int | None:
+    """Query project id by project_name. Returns None if not found."""
+    row = (
+        db.execute(select(Project.id).where(Project.project_name == project_name))
+        .scalars()
+        .first()
+    )
+    return int(row) if row is not None else None
+
+
+def _invalidate_financial_cache(db: Session, project_name: str) -> None:
+    """Invalidate monthly financial series cache for a project."""
+    project_id = _get_project_id_by_name(db, project_name)
+    if project_id is not None:
+        invalidate_financial_series_cache(project_id)
 
 
 @router.get("/sku-info", response_model=ProductCostsPage)
@@ -165,6 +184,7 @@ def create_or_update_product_cost(
         after=snapshot,
         request=request,
     )
+    _invalidate_financial_cache(db, payload.project_name)
     db.commit()
     return ProductCostUpsertResponse(
         item=ProductCostItem(**snapshot),
@@ -185,12 +205,13 @@ def bulk_create_or_update_product_costs(
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> ProductCostImportResponse:
-    _, inserted, updated, skipped = product_cost_service.import_product_costs(
+    rows, inserted, updated, skipped = product_cost_service.import_product_costs(
         db,
         payload.items,
         import_mode=import_mode,
         source_file=payload.source_file,
     )
+    project_names = {row.project_name for row in rows}
     append_operation_audit_log(
         db,
         action="sku_info.bulk_upsert",
@@ -205,6 +226,8 @@ def bulk_create_or_update_product_costs(
         },
         request=request,
     )
+    for project_name in project_names:
+        _invalidate_financial_cache(db, project_name)
     db.commit()
     return ProductCostImportResponse(
         inserted=inserted, updated=updated, skipped=skipped, total=inserted + updated
@@ -243,6 +266,7 @@ def update_product_cost(
         after=after,
         request=request,
     )
+    _invalidate_financial_cache(db, row.project_name)
     db.commit()
     return ProductCostItem(**after)
 
@@ -472,9 +496,10 @@ def import_default_blf_basic_info(
     operator: str | None = Depends(get_request_operator),
 ) -> ProductCostBulkUpsertResponse:
     items, source_file = product_cost_service.read_product_cost_csv_file()
-    _, inserted, updated = product_cost_service.bulk_upsert_product_costs(
+    rows, inserted, updated = product_cost_service.bulk_upsert_product_costs(
         db, items, source_file
     )
+    project_names = {row.project_name for row in rows}
     append_operation_audit_log(
         db,
         action="sku_info.import_default_file",
@@ -488,6 +513,8 @@ def import_default_blf_basic_info(
         },
         request=request,
     )
+    for project_name in project_names:
+        _invalidate_financial_cache(db, project_name)
     db.commit()
     return ProductCostBulkUpsertResponse(
         inserted=inserted, updated=updated, total=inserted + updated

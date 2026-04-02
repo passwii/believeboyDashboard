@@ -766,7 +766,6 @@ def _load_monthly_cost_totals(
             select(ProductCost)
             .where(
                 ProductCost.project_name == project_name,
-                ProductCost.is_active.is_(True),
             )
             .order_by(ProductCost.updated_at.desc(), ProductCost.id.desc())
         )

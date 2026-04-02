@@ -43,7 +43,6 @@ export default function DailyReportLoading() {
         <Card className="overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
           <CardHeader>
             <CardTitle className="text-lg">控制台</CardTitle>
-            <CardDescription>页面已切换，正在准备项目与报表上下文。</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -83,7 +82,6 @@ export default function DailyReportLoading() {
         <Card className="border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
           <CardHeader>
             <CardTitle className="text-lg">文件映射与上传</CardTitle>
-            <CardDescription>路由已完成切换，上传区正在初始化。</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="rounded-2xl border border-dashed border-border/70 bg-[hsl(var(--surface-subtle))] px-5 py-8">
@@ -110,7 +108,6 @@ export default function DailyReportLoading() {
         <Card className="border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
           <CardHeader>
             <CardTitle className="text-lg">处理状态</CardTitle>
-            <CardDescription>后端任务与数据库数据加载中。</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <Skeleton className="h-24 w-full" />

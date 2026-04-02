@@ -710,7 +710,7 @@ export default function DailyAnalysisPage() {
           title="销售数据策展台"
           titleClassName="text-2xl tracking-tight"
           badge={<p className="dashboard-kicker">Analysis Console</p>}
-          description="项目与时间维度下的核心指标趋势、周期对比与明细穿透。"
+          
           action={
             <>
               <Badge variant="outline" className="border-border/60 bg-background/80 px-3 py-1 text-foreground">

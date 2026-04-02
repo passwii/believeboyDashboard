@@ -1,7 +1,7 @@
 'use client'
 
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
-import { Boxes, CalendarClock, CircleAlert, FileDown, Loader2, PackageSearch, RefreshCw, Save, Send, ShipWheel } from 'lucide-react'
+import { CalendarClock, FileDown, Loader2, RefreshCw, Save, Send } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 import { Badge } from '@/components/ui/badge'
@@ -18,6 +18,15 @@ import {
 } from '@/components/ui/sheet'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import {
+  DataCard,
+  DataCardContent,
+  DataCardHeader,
+  DataTableCard,
+  DataTableCardBody,
+  DataTableCardHeader,
+  DataTableCardStatBar,
+} from '@/components/ui/data-card'
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
@@ -170,27 +179,7 @@ const stickySkuHeadClassName =
 const stickySkuCellClassName =
   'sticky left-0 z-[1] bg-[hsl(var(--surface-panel))/0.99] shadow-[inset_-1px_0_0_0_hsl(var(--border)/0.2)] group-hover:bg-sky-50/90 dark:bg-[hsl(var(--surface-panel))/0.99] dark:shadow-[inset_-1px_0_0_0_hsl(var(--border)/0.65)] dark:group-hover:bg-sky-950/40'
 
-const islandSectionClassName =
-  'space-y-4 rounded-lg border border-border/70 bg-[hsl(var(--surface-overlay))/0.92] p-5 shadow-[var(--shadow-soft)] backdrop-blur-sm dark:border-border/80 dark:bg-[hsl(var(--surface-panel))/0.92] dark:shadow-[var(--shadow-soft)]'
 
-const islandHeaderClassName =
-  'flex flex-col gap-3 pb-4 sm:flex-row sm:items-start sm:justify-between'
-
-const islandTitleWrapClassName = 'space-y-1'
-
-const islandEyebrowClassName = 'text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground'
-
-const islandTitleClassName = 'text-lg font-semibold text-foreground'
-
-const islandDescriptionClassName = 'text-sm text-muted-foreground'
-
-const toolbarButtonClassName =
-  'h-9 rounded-md border-border/70 bg-[hsl(var(--surface-soft))] px-4 text-xs shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground'
-
-const filterFieldClassName = 'w-full min-w-0'
-
-const statCardClassName =
-  'flex min-h-[112px] flex-col justify-center rounded-lg border border-border/70 p-4 shadow-none dark:border-border/85'
 
 function riskMeta(riskStatus: string): { label: string; className: string } {
   const map: Record<string, { label: string; className: string }> = {
@@ -737,174 +726,131 @@ export default function InventoryReplenishmentPage() {
     }
   }
 
-  const cards = [
-    {
-      title: 'SKU 总数',
-      value: formatInt(summary.sku_count),
-      description: '当前筛选结果',
-      icon: <Boxes className="h-4 w-4" />,
-      className: 'from-slate-100 via-white to-slate-50 dark:from-slate-900 dark:via-slate-950 dark:to-slate-900',
-    },
-    {
-      title: '断货风险',
-      value: formatInt(summary.out_of_stock_risk_count),
-      description: '需优先处理',
-      icon: <CircleAlert className="h-4 w-4" />,
-      className: 'from-rose-100 via-white to-rose-50 dark:from-rose-950/35 dark:via-slate-950 dark:to-slate-900',
-    },
-    {
-      title: '总店铺库存',
-      value: formatInt(summary.total_available_inventory),
-      description: '最新库存快照',
-      icon: <PackageSearch className="h-4 w-4" />,
-      className: 'from-sky-100 via-white to-cyan-50 dark:from-sky-950/35 dark:via-slate-950 dark:to-slate-900',
-    },
-    {
-      title: '总在途库存',
-      value: formatInt(summary.total_in_transit_quantity),
-      description: '来自发货管理',
-      icon: <ShipWheel className="h-4 w-4" />,
-      className: 'from-amber-100 via-white to-yellow-50 dark:from-amber-950/35 dark:via-slate-950 dark:to-slate-900',
-    },
+  const statBarItems = [
+    { label: 'SKU 总数', value: formatInt(summary.sku_count), highlight: false },
+    { label: '断货风险', value: formatInt(summary.out_of_stock_risk_count), highlight: summary.out_of_stock_risk_count > 0 },
+    { label: '总店铺库存', value: formatInt(summary.total_available_inventory), highlight: false },
+    { label: '总在途库存', value: formatInt(summary.total_in_transit_quantity), highlight: false },
+    { label: '健康', value: formatInt(summary.healthy_count), highlight: false },
+    { label: '滞销', value: formatInt(summary.slow_moving_count), highlight: summary.slow_moving_count > 0 },
+    { label: '待补数据', value: formatInt(summary.pending_data_count), highlight: false },
   ]
 
   return (
     <div className="w-full space-y-6">
-      <section className={islandSectionClassName}>
-        <div className={islandHeaderClassName}>
-          <div className={islandTitleWrapClassName}>
-            <p className="dashboard-kicker">Analysis Console</p>
-            <h2 className="break-keep whitespace-nowrap text-3xl font-semibold tracking-tight text-foreground">补货分析控制台</h2>
-            <p className={islandDescriptionClassName}>把库存风险、在途信息和建议补货动作放进同一个工作区里，优先识别高风险 SKU。</p>
-          </div>
-          <div className="flex items-center">
+      <DataCard>
+        <DataCardHeader
+          title="补货分析控制台"
+          badge={<p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Analysis Console</p>}
+          action={
             <Button
               type="button"
               variant="outline"
               size="sm"
-              className={toolbarButtonClassName}
               disabled={!currentProjectId || loading || refreshingAll}
               onClick={() => void refreshWithSave()}
             >
               <RefreshCw className={`mr-1.5 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
               {loading || refreshingAll ? '重算中...' : '刷新重算'}
             </Button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div className="grid grid-cols-2 gap-2">
-            <div className={filterFieldClassName}>
-              {projectsLoading ? (
-                <Skeleton className="h-9 w-full rounded-lg" />
-              ) : (
-                <Select value={projectId} onValueChange={setProjectId}>
+          }
+        />
+        <DataCardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="w-full min-w-0">
+                {projectsLoading ? (
+                  <Skeleton className="h-9 w-full rounded-lg" />
+                ) : (
+                  <Select value={projectId} onValueChange={setProjectId}>
+                    <SelectTrigger className="h-9 rounded-md border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground">
+                      <SelectValue placeholder="选择项目" />
+                    </SelectTrigger>
+                    <SelectContent align="start" side="bottom" sideOffset={8} collisionPadding={16}>
+                      {projects.map((project) => (
+                        <SelectItem key={project.id} value={String(project.id)}>
+                          {project.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+              <div className="w-full min-w-0">
+                <Input
+                  value={keyword}
+                  onChange={(event) => setKeyword(event.target.value)}
+                  placeholder="搜索 SKU / ASIN"
+                  className="h-9 rounded-md border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
+                />
+              </div>
+              <div className="w-full min-w-0">
+                <Select value={country} onValueChange={setCountry}>
                   <SelectTrigger className="h-9 rounded-md border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground">
-                    <SelectValue placeholder="选择项目" />
+                    <SelectValue placeholder="国家站点" />
                   </SelectTrigger>
                   <SelectContent align="start" side="bottom" sideOffset={8} collisionPadding={16}>
-                    {projects.map((project) => (
-                      <SelectItem key={project.id} value={String(project.id)}>
-                        {project.name}
+                    {COUNTRY_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="w-full min-w-0">
+                <Select value={riskFilter} onValueChange={setRiskFilter}>
+                  <SelectTrigger className="h-9 rounded-md border-border/70 bg-[hsl(var(--surface-panel))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground">
+                    <SelectValue placeholder="风险状态" />
+                  </SelectTrigger>
+                  <SelectContent align="start" side="bottom" sideOffset={8} collisionPadding={16}>
+                    <SelectItem value="all">全部状态</SelectItem>
+                    <SelectItem value="长期断货">长期断货</SelectItem>
+                    <SelectItem value="短期断货">短期断货</SelectItem>
+                    <SelectItem value="断货风险">断货风险</SelectItem>
+                    <SelectItem value="健康库存">健康库存</SelectItem>
+                    <SelectItem value="滞销">滞销</SelectItem>
+                    <SelectItem value="严重滞销">严重滞销</SelectItem>
+                    <SelectItem value="待补数据">待补数据</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              {loading && rows.length === 0 ? (
+                <div className="grid grid-cols-7 gap-2">
+                  <Skeleton className="h-16 w-full rounded-xl" />
+                  <Skeleton className="h-16 w-full rounded-xl" />
+                  <Skeleton className="h-16 w-full rounded-xl" />
+                  <Skeleton className="h-16 w-full rounded-xl" />
+                  <Skeleton className="h-16 w-full rounded-xl" />
+                  <Skeleton className="h-16 w-full rounded-xl" />
+                  <Skeleton className="h-16 w-full rounded-xl" />
+                </div>
+              ) : (
+                <DataTableCardStatBar items={statBarItems} />
               )}
             </div>
-            <div className={filterFieldClassName}>
-              <Input
-                value={keyword}
-                onChange={(event) => setKeyword(event.target.value)}
-                placeholder="搜索 SKU / ASIN"
-                className="h-9 rounded-md border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
-              />
-            </div>
-            <div className={filterFieldClassName}>
-              <Select value={country} onValueChange={setCountry}>
-                <SelectTrigger className="h-9 rounded-md border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground">
-                  <SelectValue placeholder="国家站点" />
-                </SelectTrigger>
-                <SelectContent align="start" side="bottom" sideOffset={8} collisionPadding={16}>
-                  {COUNTRY_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className={filterFieldClassName}>
-              <Select value={riskFilter} onValueChange={setRiskFilter}>
-                <SelectTrigger className="h-9 rounded-md border-border/70 bg-[hsl(var(--surface-panel))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground">
-                  <SelectValue placeholder="风险状态" />
-                </SelectTrigger>
-                <SelectContent align="start" side="bottom" sideOffset={8} collisionPadding={16}>
-                  <SelectItem value="all">全部状态</SelectItem>
-                  <SelectItem value="长期断货">长期断货</SelectItem>
-                  <SelectItem value="短期断货">短期断货</SelectItem>
-                  <SelectItem value="断货风险">断货风险</SelectItem>
-                  <SelectItem value="健康库存">健康库存</SelectItem>
-                  <SelectItem value="滞销">滞销</SelectItem>
-                  <SelectItem value="严重滞销">严重滞销</SelectItem>
-                  <SelectItem value="待补数据">待补数据</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </div>
-          <div className="grid grid-cols-5 gap-2">
-            {loading && rows.length === 0 ? (
-              <>
-                <Skeleton className="h-16 w-full rounded-xl" />
-                <Skeleton className="h-16 w-full rounded-xl" />
-                <Skeleton className="h-16 w-full rounded-xl" />
-                <Skeleton className="h-16 w-full rounded-xl" />
-                <Skeleton className="h-16 w-full rounded-xl" />
-              </>
-            ) : (
-              <>
-                {cards.map((card) => (
-                  <div
-                    key={card.title}
-                    className={`flex min-h-[64px] flex-col justify-center rounded-md border border-border/70 p-2.5 shadow-[var(--shadow-soft)] bg-gradient-to-br ${card.className} dark:border-border/85`}
-                  >
-                    <div className="flex items-center gap-1 text-muted-foreground dark:text-foreground/72">
-                      {card.icon}
-                      <span className="text-[11px] font-medium">{card.title}</span>
-                    </div>
-                    <div className="text-lg font-bold tracking-tight text-foreground">{card.value}</div>
-                  </div>
-                ))}
-                <div className="flex min-h-[64px] flex-col justify-center rounded-md border border-border/70 p-2.5 shadow-[var(--shadow-soft)] bg-gradient-to-br from-violet-100 via-white to-sky-50 dark:border-border/85 dark:from-slate-900 dark:via-slate-950 dark:to-sky-950/30">
-                  <div className="flex items-center gap-1 text-muted-foreground dark:text-foreground/72">
-                    <CalendarClock className="h-4 w-4" />
-                    <span className="text-[11px] font-medium">分析状态</span>
-                  </div>
-                  <div className="text-sm font-semibold text-foreground">{loading ? '刷新中' : '已就绪'}</div>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      </section>
+        </DataCardContent>
+      </DataCard>
 
-      <section className={islandSectionClassName}>
-        <div className={islandHeaderClassName}>
-          <div className={islandTitleWrapClassName}>
-            <h3 className={islandTitleClassName}>SKU 补货主表</h3>
+      <DataTableCard>
+        <DataTableCardHeader className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1">
+            <h3 className="text-base font-semibold text-foreground">SKU 补货主表</h3>
           </div>
           <Button
             variant="outline"
-            className={toolbarButtonClassName}
+            size="sm"
             disabled={loading || exporting || rows.length === 0}
             onClick={() => void exportToExcel()}
           >
             <FileDown className="h-3.5 w-3.5" />
             {exporting ? '导出中...' : '导出 Excel'}
           </Button>
-        </div>
-
-        <div className="p-0">
+        </DataTableCardHeader>
+        <DataTableCardBody>
           {error ? (
             <div className="border-b border-rose-100 bg-rose-50 px-6 py-3 text-sm text-rose-700 dark:border-rose-900/70 dark:bg-rose-950/40 dark:text-rose-200">{error}</div>
           ) : null}
@@ -926,7 +872,7 @@ export default function InventoryReplenishmentPage() {
                 </div>
               ) : null}
               <Table
-                containerClassName="max-h-[72vh] overflow-auto border-t border-border/70 bg-transparent dark:border-border/85"
+                containerClassName="max-h-[72vh] overflow-auto border-t border-border/70 bg-transparent dark:border-border/85 rounded-none"
                 className="min-w-[2050px] table-auto border-separate border-spacing-0 bg-transparent text-[13px]"
               >
                 <TableHeader>
@@ -1086,8 +1032,8 @@ export default function InventoryReplenishmentPage() {
               </Table>
             </div>
           )}
-        </div>
-      </section>
+        </DataTableCardBody>
+      </DataTableCard>
 
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent side="right" className="w-full overflow-y-auto dark:border-border/85 dark:bg-[hsl(var(--surface-panel))] sm:max-w-2xl">

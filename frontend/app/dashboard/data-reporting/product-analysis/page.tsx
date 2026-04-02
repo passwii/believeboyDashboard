@@ -841,7 +841,6 @@ export default function ProductAnalysisPage() {
         <Card className="overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
           <CardHeader>
             <CardTitle className="text-lg">控制台</CardTitle>
-            <CardDescription>项目名称与国家站点必填，日期支持快捷填充上周区间。</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-wrap items-end gap-3">
@@ -942,7 +941,6 @@ export default function ProductAnalysisPage() {
         <Card className="overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
           <CardHeader>
             <CardTitle className="text-lg">文件识别与上传</CardTitle>
-            <CardDescription>左侧投递文件，右侧四行状态栏显示匹配结果；匹配失败时显示手动匹配。</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
           <div className="grid gap-5 xl:grid-cols-[300px_1fr]">
@@ -1063,7 +1061,6 @@ export default function ProductAnalysisPage() {
       <Card className="h-fit border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90 xl:sticky xl:top-6">
         <CardHeader>
           <CardTitle className="text-lg">处理状态</CardTitle>
-          <CardDescription>默认展示全部步骤，执行时高亮当前进度。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-3 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-3">

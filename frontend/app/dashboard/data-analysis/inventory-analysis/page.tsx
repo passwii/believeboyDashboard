@@ -452,7 +452,6 @@ export default function InventoryAnalysisPage() {
         <DataCardHeader
           title="库存分析"
           titleClassName="text-2xl tracking-tight"
-          description="查看库存健康度、库龄结构和建议动作，把缺货与超龄风险放到同一个工作区里。"
           badge={<p className="dashboard-kicker">Analysis Console</p>}
         />
         <DataCardContent className="grid gap-4 lg:grid-cols-2">
@@ -534,7 +533,6 @@ export default function InventoryAnalysisPage() {
           <div>
             <p className="dashboard-kicker">Operational Ledger</p>
             <div className="text-base font-semibold text-foreground">库存明细表</div>
-            <p className="text-sm text-muted-foreground">承接当前项目和站点下的 SKU 库存明细、建议动作与风险状态。</p>
           </div>
           <Button
             type="button"
@@ -548,13 +546,13 @@ export default function InventoryAnalysisPage() {
             {exporting ? '导出中...' : '导出 Excel'}
           </Button>
         </DataTableCardHeader>
-        <DataTableCardBody>
+        <DataTableCardBody className="overflow-auto" style={{ maxHeight: '600px' }}>
           {error ? (
             <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
               {error}
             </div>
           ) : null}
-          <Table>
+          <Table noWrapperRounded>
             <TableHeader>
               <TableRow>
                 <TableHead className={DENSE_HEAD}>SKU</TableHead>

@@ -31,7 +31,8 @@ import { useSession } from 'next-auth/react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
+import { DataCard, DataCardHeader, DataCardContent } from '@/components/ui/data-card'
 import {
   ChartContainer,
   ChartLegend,
@@ -913,13 +914,13 @@ function buildMarketChartModels(
             name: 'Peak3 月份占比',
             value: normalizeToPercent(overview.advanced_metrics.seasonality.peak3_month_sales_share),
             fill: PIE_COLORS[3],
-            description: '销量最高的 3 个月合计占比，越高说明旺季越集中。',
+            description: '旺季集中度',
           },
           {
             name: '其他月份',
             value: 100 - normalizeToPercent(overview.advanced_metrics.seasonality.peak3_month_sales_share),
             fill: 'hsl(var(--muted))',
-            description: '除旺季外的其余月份销量占比。',
+            description: '淡季占比',
           },
         ],
         primaryText: `${seasonalityTierText(overview.advanced_metrics.seasonality.seasonality_tier)} · ${formatPercent(overview.advanced_metrics.seasonality.peak3_month_sales_share)}`,
@@ -933,13 +934,13 @@ function buildMarketChartModels(
             name: '增长得分',
             value: clamp((overview.advanced_metrics.market_growth.last12_vs_prev12_growth + 1) * 50),
             fill: PIE_COLORS[0],
-            description: '把近 12 个月相对上一轮 12 个月的增幅折算成 0-100 分。',
+            description: '增长评分',
           },
           {
             name: '剩余区间',
             value: 100 - clamp((overview.advanced_metrics.market_growth.last12_vs_prev12_growth + 1) * 50),
             fill: 'hsl(var(--muted))',
-            description: '距离满分区间的剩余部分，用于直观看增长强弱。',
+            description: '增长空间',
           },
         ],
         primaryText: `${growthTierText(overview.advanced_metrics.market_growth.growth_tier)} · ${formatSignedPercent(overview.advanced_metrics.market_growth.last12_vs_prev12_growth)}`,
@@ -1001,8 +1002,8 @@ function buildBrandChartModels(overview: CategoryResearchOverview | null) {
   return {
     top10,
     pieData: [
-      { name: 'Top10 品牌', value: totalTop10Share * 100, fill: PIE_COLORS[0], description: '前 10 品牌合计销量份额。' },
-      { name: '其他品牌', value: Math.max(0, (1 - totalTop10Share) * 100), fill: PIE_COLORS[3], description: '除 Top10 外其余品牌合计销量份额。' },
+      { name: 'Top10 品牌', value: totalTop10Share * 100, fill: PIE_COLORS[0], description: 'Top10份额' },
+      { name: '其他品牌', value: Math.max(0, (1 - totalTop10Share) * 100), fill: PIE_COLORS[3], description: '其他品牌' },
     ],
     radarData,
     bandCoverageData: bandLabels.map((bandLabel) => {
@@ -1062,8 +1063,8 @@ function buildSellerChartModels(overview: CategoryResearchOverview | null) {
 
   return {
     nationalityPieData: [
-      { name: '中国卖家', value: china.china_seller_sales_share * 100, fill: PIE_COLORS[0], description: '中国卖家贡献的销量占比。' },
-      { name: '非中国卖家', value: (1 - china.china_seller_sales_share) * 100, fill: PIE_COLORS[2], description: '非中国卖家贡献的销量占比。' },
+      { name: '中国卖家', value: china.china_seller_sales_share * 100, fill: PIE_COLORS[0], description: '中国卖家占比' },
+      { name: '非中国卖家', value: (1 - china.china_seller_sales_share) * 100, fill: PIE_COLORS[2], description: '非中国卖家占比' },
     ],
     nationalityBarData: [
       {
@@ -1143,8 +1144,8 @@ function buildReviewChartModels(overview: CategoryResearchOverview | null) {
   return {
     ratingDistribution: buckets,
     lowReviewPieData: [
-      { name: '末尾25%产品数', value: (review.bottom_quartile_product_share ?? 0) * 100, fill: PIE_COLORS[0], description: '评论数处于样本底部 25% 的产品占比。' },
-      { name: '其他产品数', value: (1 - (review.bottom_quartile_product_share ?? 0)) * 100, fill: PIE_COLORS[3], description: '不在末尾评论层的其他产品占比。' },
+      { name: '末尾25%产品数', value: (review.bottom_quartile_product_share ?? 0) * 100, fill: PIE_COLORS[0], description: '低评论产品' },
+      { name: '其他产品数', value: (1 - (review.bottom_quartile_product_share ?? 0)) * 100, fill: PIE_COLORS[3], description: '其他产品' },
     ],
     cumulativeShareData,
     radialData: [
@@ -1260,12 +1261,13 @@ function buildPriceChartModels(overview: CategoryResearchOverview | null) {
 
 function MetricGridCard({ title, description, items }: { title: string; description: string; items: MetricItem[] }) {
   return (
-    <Card className="dashboard-surface border-border/70">
-      <CardHeader>
-        <CardTitle className="text-base">{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+    <DataCard className="dashboard-surface border-border/70">
+      <DataCardHeader
+        title={title}
+        description={description}
+        titleClassName="text-base"
+      />
+      <DataCardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {items.map((item) => (
           <div key={item.label} className="rounded-xl border border-border/70 bg-muted/[0.14] p-3 transition-colors duration-200 hover:border-primary/30 hover:bg-muted/[0.2]">
             <p className="text-xs text-muted-foreground">{item.label}</p>
@@ -1281,8 +1283,8 @@ function MetricGridCard({ title, description, items }: { title: string; descript
             {item.hint ? <p className="mt-1 text-xs text-muted-foreground">{item.hint}</p> : null}
           </div>
         ))}
-      </CardContent>
-    </Card>
+      </DataCardContent>
+    </DataCard>
   )
 }
 
@@ -1302,16 +1304,17 @@ function InsightChartCard({
   contentClassName?: string
 }) {
   return (
-    <Card className={cn('dashboard-surface border-border/70', className)}>
-      <CardHeader>
-        <CardTitle className="text-base">{title}</CardTitle>
-        {description ? <CardDescription>{description}</CardDescription> : null}
-      </CardHeader>
-      <CardContent className={cn('space-y-4', contentClassName)}>
+    <DataCard className={cn('dashboard-surface border-border/70', className)}>
+      <DataCardHeader
+        title={title}
+        description={description}
+        titleClassName="text-base"
+      />
+      <DataCardContent className={cn('space-y-4', contentClassName)}>
         {children}
         {footer ? <div className="border-t border-border/60 pt-3 text-xs text-muted-foreground">{footer}</div> : null}
-      </CardContent>
-    </Card>
+      </DataCardContent>
+    </DataCard>
   )
 }
 
@@ -2010,15 +2013,14 @@ export default function CategoryResearchPage() {
       <TabsContent forceMount value={workspaceTab} className="space-y-6">
       {workspaceTab === 'research' ? (
         <>
-        <Card className="overflow-hidden border-border/80 shadow-[0_20px_45px_-24px_rgba(15,23,42,0.3)]">
-          <CardHeader className="border-b bg-gradient-to-r from-cyan-500/10 via-sky-500/5 to-transparent">
-            <CardTitle className="flex items-center gap-2 text-xl">
-              <Upload className="h-5 w-5" />
-              调研工作台
-            </CardTitle>
-            <CardDescription>上传 BestSeller 类目表并完成核算，生成可复用的调研版本。</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5 p-6">
+        <DataCard className="overflow-hidden border-border/80 shadow-[0_20px_45px_-24px_rgba(15,23,42,0.3)]">
+          <DataCardHeader
+            title="调研工作台"
+            description="上传 BestSeller 类目表并完成核算，生成可复用的调研版本。"
+            titleClassName="flex items-center gap-2 text-xl"
+            action={<Upload className="h-5 w-5" />}
+          />
+          <DataCardContent className="space-y-5">
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
               <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">站点</p>
@@ -2057,15 +2059,16 @@ export default function CategoryResearchPage() {
 
             {formError ? <p className="text-sm text-rose-600">{formError}</p> : null}
             {formSuccess ? <p className="text-sm text-emerald-600">{formSuccess}</p> : null}
-          </CardContent>
-        </Card>
+          </DataCardContent>
+        </DataCard>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">核心过程</CardTitle>
-            <CardDescription>保持上传与版本流转逻辑不变，分析端升级为图表工作台。</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <DataCard>
+          <DataCardHeader
+            title="核心过程"
+            description="保持上传与版本流转逻辑不变，分析端升级为图表工作台。"
+            titleClassName="text-base"
+          />
+          <DataCardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             {[
               '填写站点与关键词',
               '上传 xlsx 原始数据',
@@ -2077,20 +2080,19 @@ export default function CategoryResearchPage() {
                 <p className="text-sm font-medium">{item}</p>
               </div>
             ))}
-          </CardContent>
-        </Card>
+          </DataCardContent>
+        </DataCard>
         </>
       ) : (
         <>
-        <Card className="overflow-hidden border-border/80 shadow-[0_20px_45px_-24px_rgba(15,23,42,0.3)]">
-          <CardHeader className="border-b bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-transparent">
-            <CardTitle className="flex items-center gap-2 text-xl">
-              <Database className="h-5 w-5" />
-              分析工作台
-            </CardTitle>
-            <CardDescription>按官方 shadcn 图表体系重构的高密度分析界面，聚焦机会、风险与结构判断。</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5 p-6">
+        <DataCard className="overflow-hidden border-border/80 shadow-[0_20px_45px_-24px_rgba(15,23,42,0.3)]">
+          <DataCardHeader
+            title="分析工作台"
+            description="按官方 shadcn 图表体系重构的高密度分析界面，聚焦机会、风险与结构判断。"
+            titleClassName="flex items-center gap-2 text-xl"
+            action={<Database className="h-5 w-5" />}
+          />
+          <DataCardContent className="space-y-5">
             <div className="grid gap-4 xl:grid-cols-[1fr_1.35fr_220px]">
               <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">站点</p>
@@ -2227,8 +2229,8 @@ export default function CategoryResearchPage() {
                 </Button>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </DataCardContent>
+        </DataCard>
 
         {overviewLoading ? (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -3200,12 +3202,10 @@ export default function CategoryResearchPage() {
             </div>
           </div>
         ) : (
-          <Card className="border-dashed">
-            <CardContent className="flex h-48 flex-col items-center justify-center gap-2 text-center">
-              <Lightbulb className="h-6 w-6 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">请先在上方分析工作台选择关键词和版本，或在“调研”标签页先上传生成调研版本。</p>
-            </CardContent>
-          </Card>
+          <div className="flex h-48 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border/70 bg-muted/10 text-center">
+            <Lightbulb className="h-6 w-6 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">请先在上方分析工作台选择关键词和版本，或在"调研"标签页先上传生成调研版本。</p>
+          </div>
         )}
         </>
       )}
