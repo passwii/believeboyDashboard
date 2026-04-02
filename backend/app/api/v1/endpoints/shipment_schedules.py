@@ -604,11 +604,11 @@ def get_shipment_schedule_detail(
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> ShipmentScheduleDetail:
     return _get_shipment_schedule_detail_payload(
-        schedule_id=schedule_id,
+        schedule_id=row.id,
         request=request,
         db=db,
         operator=operator,
-        is_admin=bool(is_admin),
+        is_admin=is_admin,
     )
 
 
@@ -712,6 +712,7 @@ def update_shipment_schedule(
     request: Request,
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> ShipmentScheduleDetail:
     row = shipment_schedule_service.update_shipment_schedule(
         db, schedule_id, payload, operator=operator
@@ -740,7 +741,7 @@ def update_shipment_schedule(
         request=request,
         db=db,
         operator=operator,
-        is_admin=False,
+        is_admin=is_admin,
     )
 
 

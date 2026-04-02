@@ -32,9 +32,15 @@ from app.schemas.product_cost import (
     ProductCostUpdate,
     ProductCostUpsertResponse,
 )
-from app.services.audit_log_service import append_operation_audit_log, append_operation_view_log
+from app.services.audit_log_service import (
+    append_operation_audit_log,
+    append_operation_view_log,
+)
 from app.services import product_cost_service
 from app.services.redis_service import invalidate_financial_series_cache
+from app.services.shipment_schedule_service import (
+    sync_first_leg_cost_from_shipment_summary,
+)
 
 router = APIRouter(dependencies=[Depends(protected)])
 
@@ -110,19 +116,19 @@ def list_product_costs(
     )
     append_operation_view_log(
         db,
-        action='sku_info.list',
-        target_type='product_cost',
+        action="sku_info.list",
+        target_type="product_cost",
         operator=operator,
         after={
-            'page': page,
-            'page_size': page_size,
-            'project_name': project_name,
-            'sku': sku,
-            'asin': asin,
-            'country': country,
-            'is_active': is_active,
-            'count': len(rows),
-            'total': total,
+            "page": page,
+            "page_size": page_size,
+            "project_name": project_name,
+            "sku": sku,
+            "asin": asin,
+            "country": country,
+            "is_active": is_active,
+            "count": len(rows),
+            "total": total,
         },
         request=request,
     )
@@ -456,18 +462,18 @@ def export_product_costs_csv(
 
     append_operation_audit_log(
         db,
-        action='sku_info.export',
-        target_type='product_cost',
+        action="sku_info.export",
+        target_type="product_cost",
         operator=operator,
         after={
-            'project_name': project_name,
-            'sku': sku,
-            'asin': asin,
-            'country': country,
-            'is_active': is_active,
-            'export_type': normalized_export_type,
-            'count': len(rows),
-            'filename': filename,
+            "project_name": project_name,
+            "sku": sku,
+            "asin": asin,
+            "country": country,
+            "is_active": is_active,
+            "export_type": normalized_export_type,
+            "count": len(rows),
+            "filename": filename,
         },
         request=request,
     )
@@ -564,3 +570,35 @@ def recalculate_first_leg_costs(
     return ProductCostFirstLegRecalculateResponse(
         updated=updated, unit_price_per_kg_rmb=payload.unit_price_per_kg_rmb
     )
+
+
+@router.get(
+    "/sku-info/sync-first-leg-from-shipment",
+)
+def sync_first_leg_cost_from_shipment(
+    project_id: int | None = Query(default=None),
+    sku: str | None = Query(default=None),
+    country: str | None = Query(default=None),
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+) -> dict:
+    """
+    将 shipment_sku_summaries 的历史加权物流单价（average_logistics_unit_price）
+    同步到 product_costs.first_leg_cost_rmb。
+
+    - 仅同步 is_active=True 的 product_cost 记录
+    - 仅同步 average_logistics_unit_price > 0 的 shipment summary 记录
+    - 与 product_costs.first_leg_cost_rmb 值相同的记录不会被更新
+
+    可指定 project_id / sku / country 进行局部同步，不指定则同步全部。
+    """
+    updated = sync_first_leg_cost_from_shipment_summary(
+        db,
+        project_id=project_id,
+        sku=sku,
+        country=country,
+    )
+    if project_id is not None:
+        invalidate_financial_series_cache(project_id)
+    db.commit()
+    return {"updated": updated}

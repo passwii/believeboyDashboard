@@ -2,7 +2,7 @@
 
 import { type ChangeEvent, useEffect, useMemo, useState } from 'react'
 import { useSession } from 'next-auth/react'
-import { FileDown, Package2, Ruler, Upload } from 'lucide-react'
+import { FileDown, Package2, RefreshCw, Ruler, Upload } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -299,6 +299,7 @@ export default function SkuInfoPage() {
   >('all')
 
   const [batchImporting, setBatchImporting] = useState(false)
+  const [syncing, setSyncing] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editRow, setEditRow] = useState(EMPTY_EDIT_ROW)
 
@@ -542,6 +543,30 @@ export default function SkuInfoPage() {
       setError(normalizeErrorMessage(importError, 'CSV 批量导入失败'))
     } finally {
       setBatchImporting(false)
+    }
+  }
+
+  const handleSyncFirstLeg = async () => {
+    if (!selectedProject?.id) {
+      setError('请先选择项目后再同步头程成本')
+      return
+    }
+    setError(null)
+    setSuccessMessage(null)
+    setSyncing(true)
+    try {
+      const response = await fetch(
+        `${API_BASE}/api/v1/sku-info/sync-first-leg-from-shipment?project_id=${selectedProject.id}`,
+        { headers: authHeaders() },
+      )
+      if (!response.ok) throw await parseError(response)
+      const data = await response.json()
+      setSuccessMessage(`头程成本同步完成：更新了 ${data.updated} 条记录`)
+      await loadData(undefined, { resetPage: true })
+    } catch (syncError) {
+      setError(normalizeErrorMessage(syncError, '同步失败'))
+    } finally {
+      setSyncing(false)
     }
   }
 
@@ -832,9 +857,11 @@ export default function SkuInfoPage() {
                     </div>
                     <ActionsBar
                       batchImporting={batchImporting}
+                      syncing={syncing}
                       onDownloadCreateTemplate={downloadCostTemplate}
                       onDownloadUpdateTemplate={handleExportCurrentFiltered}
                       onUpload={handleBatchImportFile}
+                      onSync={handleSyncFirstLeg}
                     />
                   </div>
                 </DataTableCardHeader>
@@ -1122,9 +1149,11 @@ export default function SkuInfoPage() {
                     </div>
                     <ActionsBar
                       batchImporting={batchImporting}
+                      syncing={syncing}
                       onDownloadCreateTemplate={downloadDimensionTemplate}
                       onDownloadUpdateTemplate={handleExportCurrentFiltered}
                       onUpload={handleBatchImportFile}
+                      onSync={handleSyncFirstLeg}
                     />
                   </div>
                 </DataTableCardHeader>
@@ -1443,20 +1472,34 @@ export default function SkuInfoPage() {
 
 function ActionsBar({
   batchImporting,
+  syncing,
   onDownloadCreateTemplate,
   onDownloadUpdateTemplate,
   onUpload,
+  onSync,
 }: {
   batchImporting: boolean
+  syncing: boolean
   onDownloadCreateTemplate: () => void
   onDownloadUpdateTemplate: () => void
   onUpload: (
     event: ChangeEvent<HTMLInputElement>,
     importMode: ImportMode,
   ) => void
+  onSync: () => void
 }) {
   return (
     <div className='flex flex-wrap gap-2'>
+      <Button
+        type='button'
+        size='sm'
+        variant='default'
+        onClick={onSync}
+        disabled={syncing}
+      >
+        <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+        {syncing ? '同步中...' : '同步头程'}
+      </Button>
       <Button
         type='button'
         size='sm'

@@ -267,6 +267,69 @@ def refresh_shipment_sku_summary(db: Session) -> None:
     db.flush()
 
 
+def sync_first_leg_cost_from_shipment_summary(
+    db: Session,
+    *,
+    project_id: int | None = None,
+    sku: str | None = None,
+    country: str | None = None,
+) -> int:
+    """
+    将 shipment_sku_summaries 的 average_logistics_unit_price
+    同步到 product_costs.first_leg_cost_rmb。
+
+    只同步 is_active=True 的 product_cost 记录。
+    只同步 average_logistics_unit_price > 0 的 shipment summary 记录。
+
+    返回：更新的记录数
+    """
+    # Build shipment_sku_summaries lookup
+    summary_stmt = select(ShipmentSkuSummary)
+    if project_id is not None:
+        summary_stmt = summary_stmt.where(ShipmentSkuSummary.project_id == project_id)
+    if sku:
+        summary_stmt = summary_stmt.where(ShipmentSkuSummary.sku == sku)
+    if country:
+        summary_stmt = summary_stmt.where(ShipmentSkuSummary.country == country.upper())
+
+    summaries: dict[tuple[str, str, str], Decimal] = {}
+    for s in db.execute(summary_stmt).scalars().all():
+        if s.average_logistics_unit_price and s.average_logistics_unit_price > 0:
+            summaries[(s.project_name_snapshot, s.sku, s.country)] = Decimal(
+                str(s.average_logistics_unit_price)
+            )
+
+    if not summaries:
+        return 0
+
+    # Build product_cost query
+    cost_stmt = select(ProductCost).where(ProductCost.is_active.is_(True))
+    if project_id is not None:
+        project_name_from_id = db.execute(
+            select(Project.project_name).where(Project.id == project_id)
+        ).scalar_one_or_none()
+        if project_name_from_id:
+            cost_stmt = cost_stmt.where(
+                ProductCost.project_name == project_name_from_id
+            )
+    if sku:
+        cost_stmt = cost_stmt.where(ProductCost.sku == sku)
+    if country:
+        cost_stmt = cost_stmt.where(ProductCost.country == country.upper())
+
+    updated = 0
+    for cost in db.execute(cost_stmt).scalars().all():
+        key = (cost.project_name, cost.sku, cost.country)
+        if key in summaries:
+            new_val = summaries[key]
+            if float(cost.first_leg_cost_rmb) != float(new_val):
+                cost.first_leg_cost_rmb = new_val
+                updated += 1
+
+    db.flush()
+    return updated
+
+
 def _header_value(row: dict[str, str | None], key: str) -> str | None:
     for candidate in (key, key.lower(), key.upper()):
         if candidate in row:
@@ -586,6 +649,7 @@ def list_shipment_sku_summary(
             )
             if eligible_count > 0:
                 refresh_shipment_sku_summary(db)
+                sync_first_leg_cost_from_shipment_summary(db)
 
         stmt = select(ShipmentSkuSummary).order_by(
             ShipmentSkuSummary.project_name_snapshot.asc(),
@@ -975,6 +1039,7 @@ def calculate_shipment_schedule_costs(
     )
     db.flush()
     refresh_shipment_sku_summary(db)
+    sync_first_leg_cost_from_shipment_summary(db, project_id=row.project_id)
     db.refresh(row)
     row.items.sort(key=lambda item: (item.item_date or date.min, item.sku, item.id))
     sku_count = len(row.items)
@@ -1114,6 +1179,7 @@ def update_shipment_schedule(
 
     db.flush()
     refresh_shipment_sku_summary(db)
+    sync_first_leg_cost_from_shipment_summary(db, project_id=row.project_id)
     db.refresh(row)
     return row
 
@@ -1126,6 +1192,7 @@ def delete_shipment_schedule(
     db.delete(row)
     db.flush()
     refresh_shipment_sku_summary(db)
+    sync_first_leg_cost_from_shipment_summary(db, project_id=row.project_id)
     return row
 
 
@@ -1385,6 +1452,7 @@ def replace_shipment_schedule_items_from_csv(
     )
     db.flush()
     refresh_shipment_sku_summary(db)
+    sync_first_leg_cost_from_shipment_summary(db, project_id=schedule.project_id)
     db.refresh(schedule)
     return schedule, len(items), int(replaced), total_quantity
 
