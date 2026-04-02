@@ -604,7 +604,7 @@ def get_shipment_schedule_detail(
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> ShipmentScheduleDetail:
     return _get_shipment_schedule_detail_payload(
-        schedule_id=row.id,
+        schedule_id=schedule_id,
         request=request,
         db=db,
         operator=operator,
