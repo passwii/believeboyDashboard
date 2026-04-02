@@ -3204,7 +3204,7 @@ export default function CategoryResearchPage() {
         ) : (
           <div className="flex h-48 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border/70 bg-muted/10 text-center">
             <Lightbulb className="h-6 w-6 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">请先在上方分析工作台选择关键词和版本，或在"调研"标签页先上传生成调研版本。</p>
+            <p className="text-sm text-muted-foreground">请先在上方分析工作台选择关键词和版本，或在&quot;调研&quot;标签页先上传生成调研版本。</p>
           </div>
         )}
         </>
