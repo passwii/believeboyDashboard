@@ -679,19 +679,9 @@ export default function SkuInfoPage() {
   return (
     <div className='w-full space-y-6 text-foreground'>
       <DataCard className='overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90'>
-        <DataCardHeader
-          title='筛选条件'
-          action={
-            <Badge
-              variant='outline'
-              className='border-border/60 bg-[hsl(var(--surface-panel))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))]'
-            >
-              {projectFilter ? `已选项目：${projectFilter}` : '未选择项目'}
-            </Badge>
-          }
-        />
+        <DataCardHeader title='筛选条件' />
         <DataCardContent className='p-6'>
-          <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-4'>
+          <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-6 xl:items-end'>
             {projectsLoading ? (
               <div className='col-span-1'>
                 <FilterFieldSkeleton />
@@ -732,6 +722,16 @@ export default function SkuInfoPage() {
                 placeholder='输入 SKU'
                 value={skuFilter}
                 onChange={(e) => setSkuFilter(e.target.value)}
+              />
+            </div>
+            <div className='grid gap-2'>
+              <label className='text-sm font-medium text-foreground'>
+                ASIN
+              </label>
+              <Input
+                placeholder='输入 ASIN'
+                value={asinFilter}
+                onChange={(e) => setAsinFilter(e.target.value)}
               />
             </div>
             <div className='grid gap-2'>
@@ -777,7 +777,7 @@ export default function SkuInfoPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className='col-span-1 flex items-end gap-2 md:col-span-2 xl:col-span-4 xl:justify-end'>
+            <div className='flex items-center justify-end gap-2'>
               <Button type='button' variant='outline' onClick={onResetFilters}>
                 重置
               </Button>
@@ -828,7 +828,7 @@ export default function SkuInfoPage() {
               </SlidingTabsTrigger>
             </TabsList>
           </TabsMotionGroup>
-          <div className='flex flex-wrap gap-2'>
+          <div className='flex gap-2'>
             <Badge
               variant='outline'
               className='border-border/60 bg-[hsl(var(--surface-panel))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))]'
@@ -836,12 +836,6 @@ export default function SkuInfoPage() {
               {loading && items.length === 0
                 ? '数据准备中...'
                 : `第 ${page} / ${totalPages} 页，共 ${total} 条`}
-            </Badge>
-            <Badge
-              variant='outline'
-              className='border-border/60 bg-[hsl(var(--surface-panel))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))]'
-            >
-              {projectFilter ? `项目：${projectFilter}` : '请先选择项目'}
             </Badge>
           </div>
         </div>
@@ -935,7 +929,7 @@ export default function SkuInfoPage() {
                             {row.project_name}
                           </td>
                           <td className='border-b border-r border-border/60 p-4 align-top'>
-                            <div className='space-y-1'>
+                            <div>
                               <div className='font-medium'>
                                 {editingId === row.id ? (
                                   <Input
@@ -952,37 +946,41 @@ export default function SkuInfoPage() {
                                   row.sku
                                 )}
                               </div>
-                              <div>
-                                {editingId === row.id ? (
-                                  <Input
-                                    className='h-8 w-28'
-                                    value={editRow.asin}
-                                    onChange={(e) =>
-                                      setEditRow((current) => ({
-                                        ...current,
-                                        asin: e.target.value,
-                                      }))
-                                    }
-                                  />
-                                ) : (
-                                  row.asin
-                                )}
-                              </div>
-                              <div>
-                                {editingId === row.id ? (
-                                  <Input
-                                    className='h-8 w-32'
-                                    value={editRow.fnsku}
-                                    onChange={(e) =>
-                                      setEditRow((current) => ({
-                                        ...current,
-                                        fnsku: e.target.value,
-                                      }))
-                                    }
-                                  />
-                                ) : (
-                                  row.fnsku || '-'
-                                )}
+                              <div className='mt-0.5 flex gap-3 text-xs text-muted-foreground'>
+                                <span>
+                                  ASIN:{' '}
+                                  {editingId === row.id ? (
+                                    <Input
+                                      className='h-6 w-20 text-xs'
+                                      value={editRow.asin}
+                                      onChange={(e) =>
+                                        setEditRow((current) => ({
+                                          ...current,
+                                          asin: e.target.value,
+                                        }))
+                                      }
+                                    />
+                                  ) : (
+                                    row.asin || '-'
+                                  )}
+                                </span>
+                                <span>
+                                  FNSKU:{' '}
+                                  {editingId === row.id ? (
+                                    <Input
+                                      className='h-6 w-24 text-xs'
+                                      value={editRow.fnsku}
+                                      onChange={(e) =>
+                                        setEditRow((current) => ({
+                                          ...current,
+                                          fnsku: e.target.value,
+                                        }))
+                                      }
+                                    />
+                                  ) : (
+                                    row.fnsku || '-'
+                                  )}
+                                </span>
                               </div>
                             </div>
                           </td>
@@ -1211,7 +1209,7 @@ export default function SkuInfoPage() {
                             {row.project_name}
                           </td>
                           <td className='border-b border-r border-border/60 p-4 align-top'>
-                            <div className='space-y-1'>
+                            <div>
                               <div className='font-medium'>
                                 {editingId === row.id ? (
                                   <Input
@@ -1228,37 +1226,41 @@ export default function SkuInfoPage() {
                                   row.sku
                                 )}
                               </div>
-                              <div>
-                                {editingId === row.id ? (
-                                  <Input
-                                    className='h-8 w-28'
-                                    value={editRow.asin}
-                                    onChange={(e) =>
-                                      setEditRow((current) => ({
-                                        ...current,
-                                        asin: e.target.value,
-                                      }))
-                                    }
-                                  />
-                                ) : (
-                                  row.asin
-                                )}
-                              </div>
-                              <div>
-                                {editingId === row.id ? (
-                                  <Input
-                                    className='h-8 w-32'
-                                    value={editRow.fnsku}
-                                    onChange={(e) =>
-                                      setEditRow((current) => ({
-                                        ...current,
-                                        fnsku: e.target.value,
-                                      }))
-                                    }
-                                  />
-                                ) : (
-                                  row.fnsku || '-'
-                                )}
+                              <div className='mt-0.5 flex gap-3 text-xs text-muted-foreground'>
+                                <span>
+                                  ASIN:{' '}
+                                  {editingId === row.id ? (
+                                    <Input
+                                      className='h-6 w-20 text-xs'
+                                      value={editRow.asin}
+                                      onChange={(e) =>
+                                        setEditRow((current) => ({
+                                          ...current,
+                                          asin: e.target.value,
+                                        }))
+                                      }
+                                    />
+                                  ) : (
+                                    row.asin || '-'
+                                  )}
+                                </span>
+                                <span>
+                                  FNSKU:{' '}
+                                  {editingId === row.id ? (
+                                    <Input
+                                      className='h-6 w-24 text-xs'
+                                      value={editRow.fnsku}
+                                      onChange={(e) =>
+                                        setEditRow((current) => ({
+                                          ...current,
+                                          fnsku: e.target.value,
+                                        }))
+                                      }
+                                    />
+                                  ) : (
+                                    row.fnsku || '-'
+                                  )}
+                                </span>
                               </div>
                             </div>
                           </td>
@@ -1440,32 +1442,6 @@ export default function SkuInfoPage() {
           </TabsContent>
         </DirectionalTabTransition>
       </Tabs>
-
-      {projectFilter ? (
-        <div className='flex items-center justify-between rounded-xl border border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3 text-sm text-muted-foreground shadow-none'>
-          <span>当前项目：{projectFilter}</span>
-          <div className='flex items-center gap-2'>
-            <Button
-              type='button'
-              variant='outline'
-              size='sm'
-              disabled={page <= 1}
-              onClick={() => setPage((current) => Math.max(1, current - 1))}
-            >
-              上一页
-            </Button>
-            <Button
-              type='button'
-              variant='outline'
-              size='sm'
-              disabled={!hasNextPage}
-              onClick={() => setPage((current) => current + 1)}
-            >
-              下一页
-            </Button>
-          </div>
-        </div>
-      ) : null}
     </div>
   )
 }

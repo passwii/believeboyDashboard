@@ -84,6 +84,8 @@ type CountryOption = 'US' | 'DE' | 'UK'
 
 type PT1DetailsResponse = {
   pt1_id: number
+  report_start_date: string
+  report_end_date: string
   has_next: boolean
   rows: Array<{
     id: number
@@ -262,7 +264,7 @@ const DETAIL_COLUMN_GROUPS = [
     headClass: 'bg-violet-500/10',
   },
 ] as const
-const DETAIL_BASE_COLUMNS = [...DETAIL_CORE_COLUMNS, ...SUMMARY_COLUMNS]
+const DETAIL_BASE_COLUMNS = [...DETAIL_CORE_COLUMNS, ...SUMMARY_COLUMNS, '库存']
 const DETAIL_BASE_COLUMN_SET = new Set<string>(DETAIL_BASE_COLUMNS)
 const SUMMARY_PERCENT_COLUMNS = new Set([
   '总转化',
@@ -1006,6 +1008,7 @@ export default function WeeklyProductAnalysisPage() {
   const [detailRows, setDetailRows] = useState<Array<Record<string, unknown>>>(
     [],
   )
+  const [inventorySnapshotAt, setInventorySnapshotAt] = useState<string | null>(null)
   const [recomputing, setRecomputing] = useState(false)
   const [recomputeMessage, setRecomputeMessage] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
@@ -1125,6 +1128,7 @@ export default function WeeklyProductAnalysisPage() {
       if (!pt1Id) {
         setDetailRows([])
         setDetailsError(null)
+        setInventorySnapshotAt(null)
         return
       }
 
@@ -1150,6 +1154,8 @@ export default function WeeklyProductAnalysisPage() {
         const merged: Array<Record<string, unknown>> = []
         let page = 1
         let hasNext = true
+        let pt1StartDate = ''
+        let pt1EndDate = ''
 
         while (hasNext) {
           const search = new URLSearchParams({
@@ -1171,12 +1177,71 @@ export default function WeeklyProductAnalysisPage() {
           }
 
           const payload = (await response.json()) as PT1DetailsResponse
+          if (page === 1) {
+            pt1StartDate = payload.report_start_date
+            pt1EndDate = payload.report_end_date
+          }
           merged.push(...payload.rows.map((row) => buildDetailRow(row.raw_row)))
           hasNext = payload.has_next
           page += 1
         }
 
+        // Fetch current inventory snapshot to get per-SKU inventory qty
+        let hasInventoryForPeriod = false
+        try {
+          const parsedProjectId = Number(projectId)
+          if (parsedProjectId && pt1StartDate && pt1EndDate) {
+            const invResponse = await fetch(
+              `${API_BASE}/api/v1/product-analysis/inventory/current?project_id=${parsedProjectId}`,
+              { cache: 'no-store', headers: authHeaders() },
+            )
+            if (invResponse.ok) {
+              const invPayload = (await invResponse.json()) as {
+                source?: {
+                  period_start_date?: string | null
+                  period_end_date?: string | null
+                }
+                rows?: Array<{ sku?: string | null; available_qty?: number | null }>
+              }
+              const invPeriodStart = invPayload?.source?.period_start_date
+              const invPeriodEnd = invPayload?.source?.period_end_date
+
+              // Check if inventory period overlaps with PT1 period
+              if (
+                invPeriodStart &&
+                invPeriodEnd &&
+                invPeriodStart <= pt1EndDate &&
+                invPeriodEnd >= pt1StartDate
+              ) {
+                hasInventoryForPeriod = true
+                const invRows = invPayload?.rows ?? []
+                const skuInventoryMap: Record<string, number> = {}
+                invRows.forEach((invRow) => {
+                  if (invRow.sku) {
+                    skuInventoryMap[String(invRow.sku).toLowerCase()] =
+                      Number(invRow.available_qty) || 0
+                  }
+                })
+                merged.forEach((row) => {
+                  const rowSku = String(row['SKU'] || '').toLowerCase()
+                  row['库存'] = skuInventoryMap[rowSku] ?? null
+                })
+              }
+            }
+          }
+        } catch {
+          // inventory snapshot is optional, ignore errors
+        }
+
+        // Mark rows without inventory as null for display
+        if (!hasInventoryForPeriod) {
+          merged.forEach((row) => {
+            row['库存'] = null
+          })
+        }
+
         setDetailRows(merged)
+        setInventorySnapshotAt(hasInventoryForPeriod ? 'available' : null)
         setClientCache(cacheKey, merged, { persist: false })
       } catch (loadError) {
         if (!hasCachedRows) {
@@ -1189,7 +1254,7 @@ export default function WeeklyProductAnalysisPage() {
         setDetailsLoading(false)
       }
     },
-    [selectedWeekId, country],
+    [selectedWeekId, country, projectId],
   )
 
   const handleRecomputeHistory = useCallback(async () => {
@@ -1397,6 +1462,17 @@ export default function WeeklyProductAnalysisPage() {
       ...group,
       columns: group.columns.filter((column) => detailColumnSet.has(column)),
     })).filter((group) => group.columns.length > 0)
+
+    const salesGroup = groups.find((g) => g.title === '销售')
+    if (salesGroup && detailColumnSet.has('库存')) {
+      const cols = [...salesGroup.columns]
+      const totalConversionIdx = cols.indexOf('总转化' as never)
+      if (totalConversionIdx >= 0 && !(cols as Array<string>).includes('库存')) {
+        ;(cols as Array<string>).splice(totalConversionIdx + 1, 0, '库存' as never)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ;(salesGroup as any).columns = cols
+      }
+    }
 
     const groupedColumns = new Set<string>(
       groups.flatMap((group) => group.columns),

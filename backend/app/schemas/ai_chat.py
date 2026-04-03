@@ -56,6 +56,8 @@ class AIChatConfigResponse(BaseModel):
     web_search_configured: bool
     models: list[str]
     default_model: str
+    premium_models: list[str] = Field(default_factory=list)
+    basic_models: list[str] = Field(default_factory=list)
     timeout_seconds: int
     max_conversation_turns: int = Field(default=10, ge=1, le=50)
 

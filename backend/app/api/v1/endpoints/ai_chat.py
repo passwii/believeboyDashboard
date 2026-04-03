@@ -40,11 +40,17 @@ def encode_stream_event(payload: dict[str, object]) -> bytes:
 @router.get("/config", response_model=AIChatConfigResponse)
 def get_ai_config(settings: Settings = Depends(get_settings)) -> AIChatConfigResponse:
     models, default_model = ai_chat_service.resolve_available_models(settings)
+    premium_set = {m.lower() for m in ai_chat_service.get_premium_models(settings)}
+    basic_set = {m.lower() for m in ai_chat_service.get_basic_models(settings)}
+    premium_visible = [m for m in models if m.lower() in premium_set]
+    basic_visible = [m for m in models if m.lower() in basic_set]
     return AIChatConfigResponse(
         provider_configured=ai_chat_service.is_provider_configured(settings),
         web_search_configured=ai_chat_service.is_web_search_configured(settings),
         models=models,
         default_model=default_model,
+        premium_models=premium_visible,
+        basic_models=basic_visible,
         timeout_seconds=settings.ai_chat_timeout_seconds,
         max_conversation_turns=settings.ai_chat_max_conversation_turns,
     )
@@ -447,7 +453,9 @@ def stream_message(
                     "type": "done",
                     "user_message": serialize_message(user_row),
                     "assistant_message": serialize_message(assistant_row),
-                    "conversation_title": conversation.title if title_regenerated else None,
+                    "conversation_title": conversation.title
+                    if title_regenerated
+                    else None,
                     "token_usage": token_usage,
                     "duration_ms": duration_ms,
                     "title_regenerated": title_regenerated,

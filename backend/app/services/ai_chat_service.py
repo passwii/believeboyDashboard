@@ -17,8 +17,6 @@ from app.schemas.ai_chat import LLMConfigInput
 SEARCH_SNIPPET_MAX_LENGTH = 1200
 SEARCH_SOURCE_CARD_MAX_LENGTH = 280
 
-AI_CHAT_MODEL_BLOCKLIST = {"Hunyuan-MT-7B", "Qwen3-8B"}
-
 # Tool Calling: Web Search function schema
 WEB_SEARCH_TOOL_SCHEMA = {
     "type": "function",
@@ -729,9 +727,19 @@ def extract_message_content(data: dict[str, Any]) -> str:
     return content.strip()
 
 
-def get_allowed_models(settings: Settings) -> list[str]:
-    models = [item.strip() for item in settings.ai_chat_model_allowlist.split(",")]
-    return list(dict.fromkeys(item for item in models if item))
+def get_blocked_models(settings: Settings) -> set[str]:
+    models = [item.strip() for item in settings.ai_chat_model_blocklist.split(",")]
+    return {item for item in models if item}
+
+
+def get_premium_models(settings: Settings) -> set[str]:
+    models = [item.strip() for item in settings.ai_chat_premium_models.split(",")]
+    return {item for item in models if item}
+
+
+def get_basic_models(settings: Settings) -> set[str]:
+    models = [item.strip() for item in settings.ai_chat_basic_models.split(",")]
+    return {item for item in models if item}
 
 
 def is_provider_configured(settings: Settings) -> bool:
@@ -766,15 +774,15 @@ def fetch_models_from_provider(
 
 
 def resolve_available_models(settings: Settings) -> tuple[list[str], str]:
-    allowed_models = get_allowed_models(settings)
+    blocklist = get_blocked_models(settings)
     default_model = settings.ai_chat_default_model.strip()
 
+    models: list[str] = []
     if not is_provider_configured(settings):
-        models = allowed_models or ([default_model] if default_model else [])
+        models = [default_model] if default_model else []
         resolved_default = default_model or (models[0] if models else "")
         return models, resolved_default
 
-    models: list[str] = []
     try:
         models = fetch_models_from_provider(
             settings.ai_chat_provider_base_url.strip(),
@@ -784,23 +792,12 @@ def resolve_available_models(settings: Settings) -> tuple[list[str], str]:
     except httpx.HTTPError:
         models = []
 
-    if allowed_models:
-        remote_set = set(models)
-        filtered = [
-            model for model in allowed_models if not models or model in remote_set
-        ]
-        models = filtered or allowed_models
-
     if not models and default_model:
         models = [default_model]
 
     unique_models = list(dict.fromkeys(models))
-    filtered_models = [m for m in unique_models if m not in AI_CHAT_MODEL_BLOCKLIST]
-    if (
-        not filtered_models
-        and default_model
-        and default_model not in AI_CHAT_MODEL_BLOCKLIST
-    ):
+    filtered_models = [m for m in unique_models if m not in blocklist]
+    if not filtered_models and default_model and default_model not in blocklist:
         filtered_models = [default_model]
     resolved_default = (
         default_model
@@ -824,7 +821,7 @@ def build_llm_config(
     if not selected_model:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="没有可用模型，请检查 backend/.env 中的 AI_CHAT_DEFAULT_MODEL 或 AI_CHAT_MODEL_ALLOWLIST",
+            detail="没有可用模型，请检查 backend/.env 中的 AI_CHAT_DEFAULT_MODEL",
         )
 
     if models and selected_model not in models:
@@ -906,7 +903,7 @@ def resolve_title_model(settings: Settings) -> str:
     if default_model:
         return default_model
 
-    allowed_models = get_allowed_models(settings)
+    allowed_models, _ = resolve_available_models(settings)
     return allowed_models[0] if allowed_models else ""
 
 

@@ -23,7 +23,9 @@ class Settings(BaseSettings):
     ai_chat_provider_api_key: str = Field(default="", max_length=500)
     ai_chat_default_model: str = Field(default="", max_length=200)
     ai_chat_title_model: str = Field(default="", max_length=200)
-    ai_chat_model_allowlist: str = Field(default="")
+    ai_chat_model_blocklist: str = Field(default="")
+    ai_chat_premium_models: str = Field(default="")
+    ai_chat_basic_models: str = Field(default="")
     ai_chat_timeout_seconds: int = Field(default=90, ge=10, le=300)
     ai_chat_web_search_base_url: str = Field(
         default="https://search.believeboy.com", max_length=500

@@ -27,7 +27,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { parseResponseError } from '@/lib/error-utils'
 import { cn } from '@/lib/utils'
 
@@ -102,6 +102,8 @@ type ChatConfigResponse = {
   webSearchConfigured: boolean
   models: string[]
   defaultModel: string
+  premiumModels: string[]
+  basicModels: string[]
   timeoutSeconds: number
   maxConversationTurns: number
   overviewOptions: PromptOption[]
@@ -132,6 +134,9 @@ type AttachedFile = {
 
 const CHAT_SETTINGS_STORAGE_KEY = 'believeboy-ai-chat-settings-v4'
 const SCROLL_BOTTOM_THRESHOLD = 48
+
+const isDefaultModel = (model: string, defaultModel?: string) =>
+  defaultModel ? model.toLowerCase() === defaultModel.toLowerCase() : false
 
 
 const defaultChatSettings: ChatSettings = {
@@ -322,10 +327,14 @@ export default function AIChatPage() {
       }
 
       setChatConfig(payload)
-      setChatSettings((prev) => ({
-        ...prev,
-        model: payload.models.includes(prev.model) ? prev.model : payload.defaultModel || payload.models[0] || '',
-        overviewPromptId:
+      setChatSettings((prev) => {
+        // Filter out the default (server-only) model from user-selectable options
+        const userModels = payload.models.filter((m) => !isDefaultModel(m, payload.defaultModel))
+        const defaultModel = userModels[0] || payload.defaultModel || payload.models[0] || ''
+        return {
+          ...prev,
+          model: userModels.includes(prev.model) ? prev.model : defaultModel,
+          overviewPromptId:
           payload.overviewOptions.some((item) => item.id === prev.overviewPromptId)
             ? prev.overviewPromptId
             : defaultChatSettings.overviewPromptId,
@@ -334,7 +343,8 @@ export default function AIChatPage() {
             ? prev.detailPromptId
             : defaultChatSettings.detailPromptId,
         maxConversationTurns: payload.maxConversationTurns || 10,
-      }))
+        }
+      })
       if (payload.message) {
         setError(payload.message)
       }
@@ -1049,7 +1059,7 @@ export default function AIChatPage() {
               ) : null}
             </div>
 
-            <div className="sticky bottom-0 z-20 border-t border-surface-outline/80 bg-surface-subtle px-5 py-2">
+            <div className="sticky bottom-0 z-20 bg-surface-subtle px-5 py-2">
               <form onSubmit={handleSend} className="mx-auto flex w-full max-w-5xl flex-col gap-3">
                 <div className="rounded-[26px] border border-surface-outline/80 bg-surface-subtle/90 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
                   <div className="flex items-center gap-2">
@@ -1081,7 +1091,7 @@ export default function AIChatPage() {
                       className={cn(
                         'h-10 w-10 shrink-0 rounded-full',
                         chatSettings.enableWebSearch
-                          ? 'bg-surface-panel text-foreground hover:bg-surface-soft'
+                          ? 'bg-primary/15 text-primary hover:bg-primary/25'
                           : 'border-surface-outline/80 bg-surface-panel text-muted-foreground'
                       )}
                       disabled={!activeConversationId || submitting || !chatConfig?.webSearchConfigured}
@@ -1192,11 +1202,34 @@ export default function AIChatPage() {
                       <SelectValue placeholder={loadingConfig ? '加载模型中...' : '选择模型'} />
                     </SelectTrigger>
                     <SelectContent>
-                      {(chatConfig?.models || []).map((model) => (
-                        <SelectItem key={model} value={model}>
-                          {model}
-                        </SelectItem>
-                      ))}
+                      {(() => {
+                        const premiumModels = chatConfig?.premiumModels || []
+                        const basicModels = chatConfig?.basicModels || []
+                        return (
+                          <>
+                            {premiumModels.length > 0 && (
+                              <SelectGroup>
+                                <SelectLabel>高级模型</SelectLabel>
+                                {premiumModels.map((model) => (
+                                  <SelectItem key={model} value={model}>
+                                    {model}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            )}
+                            {basicModels.length > 0 && (
+                              <SelectGroup>
+                                <SelectLabel>基础模型</SelectLabel>
+                                {basicModels.map((model) => (
+                                  <SelectItem key={model} value={model}>
+                                    {model}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            )}
+                          </>
+                        )
+                      })()}
                     </SelectContent>
                   </Select>
                 </div>

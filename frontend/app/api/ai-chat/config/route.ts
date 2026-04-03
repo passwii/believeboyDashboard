@@ -24,6 +24,8 @@ export async function GET() {
       web_search_configured: boolean
       models: string[]
       default_model: string
+      premium_models: string[]
+      basic_models: string[]
       timeout_seconds: number
     }>('/api/v1/ai/config', {
       method: 'GET',
@@ -36,6 +38,8 @@ export async function GET() {
       webSearchConfigured: payload.web_search_configured,
       models: payload.models,
       defaultModel: payload.default_model,
+      premiumModels: payload.premium_models,
+      basicModels: payload.basic_models,
       timeoutSeconds: payload.timeout_seconds,
       ...promptPresets,
     })
