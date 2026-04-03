@@ -411,6 +411,11 @@ export default function AIChatPage() {
   const createConversation = useCallback(async () => {
     setError(null)
     try {
+      // Abort any in-flight streaming request so pending messages persist
+      // in the old conversation's message list and complete in the background.
+      if (activeRequestControllerRef.current) {
+        activeRequestControllerRef.current.abort()
+      }
       const response = await fetch('/api/ai-chat/conversations', {
         method: 'POST',
         headers: {
@@ -1005,7 +1010,7 @@ export default function AIChatPage() {
                                 </div>
                               ) : null}
                               {isToolSearching && message.streaming ? (
-                                <div className="mt-3 flex items-center gap-2 text-xs text-amber-500">
+                                <div className="mt-3 flex items-center gap-2 text-xs text-blue-500 dark:text-blue-400">
                                   <Globe className="h-3.5 w-3.5 animate-pulse" />
                                   <span>搜索中: {searchingQuery}...</span>
                                 </div>

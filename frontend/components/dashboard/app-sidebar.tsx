@@ -212,7 +212,7 @@ function SidebarGroupBlock({ group }: { group: NavGroup }) {
             hasActiveItem ? group.activeAccent : group.accent
           }`}
         >
-          <span style={{ color: hasActiveItem ? 'inherit' : undefined, filter: hasActiveItem ? 'none' : 'grayscale(100%)', opacity: hasActiveItem ? 1 : 0.2 }}>
+          <span style={{ color: hasActiveItem ? 'inherit' : undefined, filter: hasActiveItem ? 'none' : 'grayscale(100%)' }}>
             {group.icon}
           </span>
         </div>
