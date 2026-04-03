@@ -816,17 +816,17 @@ export default function AIChatPage() {
   }, [autoScrollEnabled, messages, scrollToBottom])
 
   return (
-    <div className="h-full min-h-0 overflow-hidden bg-white">
+    <div className="h-full min-h-0 overflow-hidden bg-background">
       <div className="grid h-full min-h-0 grid-cols-[72px_minmax(0,1fr)] lg:grid-cols-[272px_minmax(0,1fr)]">
-        <aside className="min-h-0 border-r border-slate-200/80 bg-[#f5f5f3]">
+        <aside className="min-h-0 border-r border-surface-outline/80 bg-surface-subtle">
           <div className="flex h-full min-h-0 flex-col">
-            <div className="flex items-center justify-between border-b border-slate-200/80 px-3 py-3">
+              <div className="flex items-center justify-between border-b border-surface-outline/80 px-3 py-3">
               <div className="flex items-center gap-2">
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 rounded-full text-slate-600"
+                  className="h-8 w-8 rounded-full text-muted-foreground"
                   onClick={() => setLeftPanelOpen((prev) => !prev)}
                   title={leftPanelOpen ? '收起会话列表' : '展开会话列表'}
                 >
@@ -837,7 +837,7 @@ export default function AIChatPage() {
                 type="button"
                 size="sm"
                 className={cn(
-                  'rounded-full bg-slate-900 text-white hover:bg-slate-800',
+                  'rounded-full bg-surface-panel text-foreground hover:bg-surface-soft',
                   leftPanelOpen ? 'px-3' : 'h-8 w-8 p-0'
                 )}
                 onClick={() => void createConversation()}
@@ -854,7 +854,7 @@ export default function AIChatPage() {
                   <div className="space-y-1.5 px-2 py-2">
 
                     {loadingConversations ? (
-                      <div className="flex items-center gap-2 px-2 py-2 text-sm text-slate-500">
+                      <div className="flex items-center gap-2 px-2 py-2 text-sm text-muted-foreground">
                         <Loader2 className="h-4 w-4 animate-spin" />
                         <span>加载中</span>
                       </div>
@@ -870,19 +870,19 @@ export default function AIChatPage() {
                           className={cn(
                             'group rounded-lg px-2 py-1 transition-all',
                             active
-                              ? 'bg-white shadow-[0_1px_2px_rgba(15,23,42,0.08)]'
-                              : 'hover:bg-white/80'
+                              ? 'bg-surface-panel shadow-[0_1px_2px_rgba(15,23,42,0.08)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.3)]'
+                              : 'hover:bg-surface-panel/80'
                           )}
                         >
                           <div className="flex items-center gap-1.5">
                             <button type="button" onClick={() => setActiveConversationId(item.id)} className="min-w-0 flex-1 text-left">
-                              <p className="truncate text-[0.79rem] font-medium leading-5 text-slate-900">{item.title}</p>
+                              <p className="truncate text-[0.79rem] font-medium leading-5 text-foreground">{item.title}</p>
                             </button>
                             <Button
                               type="button"
                               variant="ghost"
                               size="icon"
-                              className="h-6 w-6 shrink-0 rounded-full text-slate-500 opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
+                              className="h-6 w-6 shrink-0 rounded-full text-muted-foreground opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
                               disabled={titleActionBusy || deleteActionBusy}
                               onClick={() => void handleRegenerateTitle(item.id)}
                               title="重生成话题"
@@ -893,7 +893,7 @@ export default function AIChatPage() {
                               type="button"
                               variant="ghost"
                               size="icon"
-                              className="h-6 w-6 shrink-0 rounded-full text-slate-500 hover:text-red-600 opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
+                              className="h-6 w-6 shrink-0 rounded-full text-muted-foreground hover:text-red-500 opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
                               disabled={titleActionBusy || deleteActionBusy || submitting}
                               onClick={() => void handleDeleteConversation(item.id)}
                               title="删除会话"
@@ -905,14 +905,14 @@ export default function AIChatPage() {
                       )
                     })}
                     {!loadingConversations && conversations.length === 0 ? (
-                      <p className="px-2 py-2 text-sm text-slate-500">暂无会话，请先新建。</p>
+                      <p className="px-2 py-2 text-sm text-muted-foreground">暂无会话，请先新建。</p>
                     ) : null}
                   </div>
                 </ScrollArea>
               </div>
             ) : (
               <div className="flex flex-1 items-start justify-center pt-3">
-                <div className="writing-mode-vertical text-xs tracking-[0.2em] text-slate-400 [writing-mode:vertical-rl]">
+                <div className="writing-mode-vertical text-xs tracking-[0.2em] text-muted-foreground [writing-mode:vertical-rl]">
                   AI CHAT
                 </div>
               </div>
@@ -920,16 +920,16 @@ export default function AIChatPage() {
           </div>
         </aside>
 
-        <section className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_auto] bg-white">
-          <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-white">
-            <header className="border-b border-slate-200/80 px-5 py-2">
+        <section className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_auto] bg-background">
+          <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-background">
+            <header className="border-b border-surface-outline/80 px-5 py-2">
               <div className="flex items-center justify-between gap-4">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <h1 className="truncate text-[1.3rem] font-semibold tracking-tight text-slate-950">
+                    <h1 className="truncate text-[1.3rem] font-semibold tracking-tight text-foreground">
                       {activeConversation?.title || 'AI 聊天面板'}
                     </h1>
-                    {refreshingPanel ? <Loader2 className="h-4 w-4 animate-spin text-slate-400" /> : loadingMessages ? <Loader2 className="h-4 w-4 animate-spin text-slate-400" /> : null}
+                    {refreshingPanel ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : loadingMessages ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : null}
                   </div>
                 </div>
 
@@ -941,7 +941,7 @@ export default function AIChatPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="rounded-full text-red-600 hover:text-red-600"
+                    className="rounded-full text-red-500 hover:text-red-500"
                     disabled={!activeConversationId || submitting || busyConversationAction === `delete-${activeConversationId}`}
                     onClick={() => activeConversationId && void handleDeleteConversation(activeConversationId)}
                   >
@@ -976,7 +976,7 @@ export default function AIChatPage() {
                         )}
                       >
                         <div className="pt-0.5">
-                          {message.role === 'assistant' ? <Bot className="h-4 w-4 text-slate-500" /> : <User className="h-4 w-4 text-amber-700" />}
+                          {message.role === 'assistant' ? <Bot className="h-4 w-4 text-muted-foreground" /> : <User className="h-4 w-4 text-amber-600" />}
                         </div>
                         <div className={cn('min-w-0', message.role === 'assistant' ? 'flex-1' : '')}>
                           {message.role === 'assistant' ? (
@@ -988,24 +988,24 @@ export default function AIChatPage() {
                               {message.content ? (
                                 <AIChatMessageContent content={message.content} className="[&_p]:text-[15px] [&_p]:leading-7" />
                               ) : message.search_sources?.length ? (
-                                <div className="flex items-center gap-2 text-sm text-slate-500">
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                   <Loader2 className="h-4 w-4 animate-spin" />
                                   <span>AI 正在基于搜索结果生成回答...</span>
                                 </div>
                               ) : (
-                                <div className="flex items-center gap-2 text-sm text-slate-500">
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                   <Loader2 className="h-4 w-4 animate-spin" />
                                   <span>模型正在思考中...</span>
                                 </div>
                               )}
                               {message.streaming ? (
-                                <div className="mt-3 flex items-center gap-2 text-xs text-slate-400">
+                                <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
                                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                   <span>持续生成中</span>
                                 </div>
                               ) : null}
                               {isToolSearching && message.streaming ? (
-                                <div className="mt-3 flex items-center gap-2 text-xs text-amber-600">
+                                <div className="mt-3 flex items-center gap-2 text-xs text-amber-500">
                                   <Globe className="h-3.5 w-3.5 animate-pulse" />
                                   <span>搜索中: {searchingQuery}...</span>
                                 </div>
@@ -1021,8 +1021,8 @@ export default function AIChatPage() {
 
                   {!loadingMessages && messages.length === 0 ? (
                     <div className="mx-auto flex max-w-2xl flex-col items-center py-12 text-center">
-                      <h2 className="mt-4 text-3xl font-semibold tracking-tight text-slate-950">直接输入你的问题开始对话</h2>
-                      <p className="mt-3 text-sm leading-6 text-slate-500">右侧区域只保留聊天内容和输入，不再额外包一层画布。</p>
+                      <h2 className="mt-4 text-3xl font-semibold tracking-tight text-foreground">直接输入你的问题开始对话</h2>
+                      <p className="mt-3 text-sm leading-6 text-muted-foreground">右侧区域只保留聊天内容和输入，不再额外包一层画布。</p>
                     </div>
                   ) : null}
                 </div>
@@ -1044,17 +1044,17 @@ export default function AIChatPage() {
               ) : null}
             </div>
 
-            <div className="sticky bottom-0 z-20 border-t border-slate-200/80 bg-white px-5 py-2">
+            <div className="sticky bottom-0 z-20 border-t border-surface-outline/80 bg-surface-subtle px-5 py-2">
               <form onSubmit={handleSend} className="mx-auto flex w-full max-w-5xl flex-col gap-3">
-                <div className="rounded-[26px] border border-slate-200 bg-slate-50/90 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
+                <div className="rounded-[26px] border border-surface-outline/80 bg-surface-subtle/90 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
                   <div className="flex items-center gap-2">
                     <Button
                       type="button"
                       variant="outline"
                       size="icon"
                       className={cn(
-                        'h-10 w-10 shrink-0 rounded-full border-slate-200 bg-white',
-                        attachedFile ? 'text-slate-900 bg-slate-100' : 'text-slate-600'
+                        'h-10 w-10 shrink-0 rounded-full border-surface-outline/80 bg-surface-panel',
+                        attachedFile ? 'text-foreground bg-surface-subtle' : 'text-muted-foreground'
                       )}
                       disabled={!activeConversationId || submitting || uploadingFile}
                       onClick={() => fileInputRef.current?.click()}
@@ -1076,8 +1076,8 @@ export default function AIChatPage() {
                       className={cn(
                         'h-10 w-10 shrink-0 rounded-full',
                         chatSettings.enableWebSearch
-                          ? 'bg-slate-900 text-white hover:bg-slate-800'
-                          : 'border-slate-200 bg-white text-slate-600'
+                          ? 'bg-surface-panel text-foreground hover:bg-surface-soft'
+                          : 'border-surface-outline/80 bg-surface-panel text-muted-foreground'
                       )}
                       disabled={!activeConversationId || submitting || !chatConfig?.webSearchConfigured}
                       onClick={() =>
@@ -1108,7 +1108,7 @@ export default function AIChatPage() {
                         type="button"
                         variant="outline"
                         size="icon"
-                        className="h-10 w-10 shrink-0 rounded-full border-slate-200 bg-white"
+                        className="h-10 w-10 shrink-0 rounded-full border-surface-outline/80 bg-surface-panel"
                         onClick={() => void handleRegenerateReply()}
                         title="重新生成回答"
                       >
@@ -1120,7 +1120,7 @@ export default function AIChatPage() {
                         type="button"
                         variant="outline"
                         size="icon"
-                        className="h-10 w-10 shrink-0 rounded-full border-slate-200 bg-white"
+                        className="h-10 w-10 shrink-0 rounded-full border-surface-outline/80 bg-surface-panel"
                         onClick={handleStopGenerating}
                         title="停止生成"
                       >
@@ -1130,7 +1130,7 @@ export default function AIChatPage() {
                     <Button
                       type="submit"
                       size="icon"
-                      className="h-10 w-10 shrink-0 rounded-full bg-slate-900 text-white hover:bg-slate-800"
+                      className="h-10 w-10 shrink-0 rounded-full bg-surface-panel text-foreground hover:bg-surface-soft"
                       disabled={!activeConversationId || submitting || !prompt.trim() || !chatSettings.model}
                       title="发送"
                     >
@@ -1141,18 +1141,18 @@ export default function AIChatPage() {
                 {error ? <p className="text-sm text-red-600">{error}</p> : null}
                 {fileUploadError ? <p className="text-sm text-red-600">附件：{fileUploadError}</p> : null}
                 {attachedFile ? (
-                  <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-                    <FileText className="h-4 w-4 shrink-0 text-slate-500" />
+                  <div className="flex items-center gap-2 rounded-xl border border-surface-outline/80 bg-surface-subtle px-3 py-2 text-sm">
+                    <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium text-slate-700">{attachedFile.fileName}</p>
+                      <p className="truncate font-medium text-foreground">{attachedFile.fileName}</p>
                       {attachedFile.truncatedNote ? (
-                        <p className="text-xs text-amber-600">{attachedFile.truncatedNote}</p>
+                        <p className="text-xs text-amber-500">{attachedFile.truncatedNote}</p>
                       ) : null}
                     </div>
                     <button
                       type="button"
                       onClick={handleRemoveAttachedFile}
-                      className="shrink-0 rounded-full p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-600"
+                      className="shrink-0 rounded-full p-1 text-muted-foreground hover:bg-surface-soft hover:text-foreground"
                       title="移除附件"
                     >
                       <X className="h-3.5 w-3.5" />
@@ -1163,12 +1163,12 @@ export default function AIChatPage() {
             </div>
           </div>
 
-          <aside className={cn('hidden border-l border-slate-200/80 bg-[#fafaf8] transition-all duration-300 lg:block', settingsOpen ? 'w-[320px] opacity-100' : 'w-0 overflow-hidden opacity-0')}>
+          <aside className={cn('hidden border-l border-surface-outline/80 bg-surface-subtle transition-all duration-300 lg:block', settingsOpen ? 'w-[320px] opacity-100' : 'w-0 overflow-hidden opacity-0')}>
             <div className="flex h-full min-h-0 flex-col">
-              <div className="flex items-center justify-between border-b border-slate-200/80 px-4 py-4">
+              <div className="flex items-center justify-between border-b border-surface-outline/80 px-4 py-4">
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">聊天设置</p>
-                  <p className="mt-1 text-xs text-slate-500">右侧独立折叠，不打断中间聊天阅读。</p>
+                  <p className="text-sm font-semibold text-foreground">聊天设置</p>
+                  <p className="mt-1 text-xs text-muted-foreground">右侧独立折叠，不打断中间聊天阅读。</p>
                 </div>
                 <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => setSettingsOpen(false)}>
                   <ChevronRight className="h-4 w-4" />
@@ -1183,7 +1183,7 @@ export default function AIChatPage() {
                     onValueChange={(value) => setChatSettings((prev) => ({ ...prev, model: value }))}
                     disabled={loadingConfig || !chatConfig?.models.length || submitting}
                   >
-                    <SelectTrigger className="bg-white">
+                    <SelectTrigger className="bg-surface-panel">
                       <SelectValue placeholder={loadingConfig ? '加载模型中...' : '选择模型'} />
                     </SelectTrigger>
                     <SelectContent>
@@ -1203,7 +1203,7 @@ export default function AIChatPage() {
                     onValueChange={(value) => setChatSettings((prev) => ({ ...prev, overviewPromptId: value }))}
                     disabled={loadingConfig || submitting}
                   >
-                    <SelectTrigger className="bg-white">
+                    <SelectTrigger className="bg-surface-panel">
                       <SelectValue placeholder="选择总结总览模板" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1215,7 +1215,7 @@ export default function AIChatPage() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-xs leading-5 text-slate-500">
+                  <p className="text-xs leading-5 text-muted-foreground">
                     {chatConfig?.overviewOptions.find((item) => item.id === chatSettings.overviewPromptId)?.description || '不追加总结总览段落'}
                   </p>
                 </div>
@@ -1227,7 +1227,7 @@ export default function AIChatPage() {
                     onValueChange={(value) => setChatSettings((prev) => ({ ...prev, detailPromptId: value }))}
                     disabled={loadingConfig || submitting}
                   >
-                    <SelectTrigger className="bg-white">
+                    <SelectTrigger className="bg-surface-panel">
                       <SelectValue placeholder="选择明细模板" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1239,14 +1239,14 @@ export default function AIChatPage() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-xs leading-5 text-slate-500">
+                  <p className="text-xs leading-5 text-muted-foreground">
                     {chatConfig?.detailOptions.find((item) => item.id === chatSettings.detailPromptId)?.description || '不追加明细段落'}
                   </p>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <p className="text-sm font-medium text-slate-900">运行状态</p>
-                  <div className="mt-3 space-y-2 text-sm text-slate-600">
+                <div className="rounded-2xl border border-surface-outline/80 bg-surface-panel p-4">
+                  <p className="text-sm font-medium text-foreground">运行状态</p>
+                  <div className="mt-3 space-y-2 text-sm text-muted-foreground">
                     <div className="flex items-center justify-between">
                       <span>AI Provider</span>
                       <span>{chatConfig?.providerConfigured ? '已就绪' : '未配置'}</span>
@@ -1267,9 +1267,9 @@ export default function AIChatPage() {
                 </div>
 
                 {lastTokenUsage ? (
-                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                    <p className="text-sm font-medium text-slate-900">上次对话统计</p>
-                    <div className="mt-3 space-y-2 text-sm text-slate-600">
+                  <div className="rounded-2xl border border-surface-outline/80 bg-surface-panel p-4">
+                    <p className="text-sm font-medium text-foreground">上次对话统计</p>
+                    <div className="mt-3 space-y-2 text-sm text-muted-foreground">
                       <div className="flex items-center justify-between">
                         <span>Prompt Tokens</span>
                         <span>{lastTokenUsage.prompt_tokens}</span>

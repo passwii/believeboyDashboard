@@ -25,7 +25,7 @@ export function AIChatMessageContent({ content, className }: AIChatMessageConten
         '[&_li]:ml-5 [&_li]:list-disc',
         '[&_ol]:space-y-1 [&_ol]:pl-5 [&_ol>li]:list-decimal',
         '[&_p]:whitespace-pre-wrap [&_p]:break-words',
-        '[&_pre]:overflow-x-auto [&_pre]:rounded-2xl [&_pre]:border [&_pre]:bg-slate-950 [&_pre]:p-3 [&_pre]:text-slate-50',
+        '[&_pre]:overflow-x-auto [&_pre]:rounded-2xl [&_pre]:border [&_pre]:border-border/80 [&_pre]:bg-surface-panel [&_pre]:p-3',
         '[&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-inherit',
         '[&_table]:my-3 [&_table]:w-full [&_table]:border-collapse [&_table]:overflow-hidden [&_table]:rounded-xl',
         '[&_tbody_tr]:border-t [&_tbody_tr]:border-border/60',
