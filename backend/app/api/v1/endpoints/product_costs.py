@@ -98,7 +98,7 @@ def list_product_costs(
     country: str | None = Query(default=None),
     is_active: bool | None = Query(default=None),
     page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=200),
+    page_size: int = Query(default=10000, ge=1, le=100000),
     include_total: bool = Query(default=False),
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
@@ -275,6 +275,42 @@ def update_product_cost(
     _invalidate_financial_cache(db, row.project_name)
     db.commit()
     return ProductCostItem(**after)
+
+
+@router.delete("/sku-info/{product_cost_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/product-costs/{product_cost_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    include_in_schema=False,
+)
+def delete_product_cost(
+    product_cost_id: int,
+    request: Request,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+) -> Response:
+    before_row = (
+        db.execute(select(ProductCost).where(ProductCost.id == product_cost_id))
+        .scalars()
+        .first()
+    )
+    if not before_row:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="SKU 成本记录不存在"
+        )
+    product_cost_service.delete_product_cost(db, product_cost_id)
+    append_operation_audit_log(
+        db,
+        action="sku_info.delete",
+        target_type="product_cost",
+        target_id=product_cost_id,
+        operator=operator,
+        before=_serialize_product_cost(before_row),
+        request=request,
+    )
+    _invalidate_financial_cache(db, before_row.project_name)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/sku-info/{product_cost_id}/move", response_model=ProductCostItem)

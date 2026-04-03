@@ -727,6 +727,21 @@ def update_product_cost_by_id(
     return row
 
 
+def delete_product_cost(db: Session, product_cost_id: int) -> ProductCost:
+    row = (
+        db.execute(select(ProductCost).where(ProductCost.id == product_cost_id))
+        .scalars()
+        .first()
+    )
+    if not row:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="SKU 成本记录不存在"
+        )
+    db.delete(row)
+    db.flush()
+    return row
+
+
 def bulk_upsert_product_costs(
     db: Session, items: list[ProductCostCreate], source_file: str | None = None
 ) -> tuple[list[ProductCost], int, int]:
@@ -1040,10 +1055,10 @@ def parse_product_cost_csv(content: bytes) -> list[ProductCostCreate]:
     for row in reader:
         normalized_row = {(key or "").strip(): value for key, value in row.items()}
         asin_value, asin_present = _csv_value(
-            normalized_row, "ASIN", "ASIN(可留空)", "asin"
+            normalized_row, "ASIN", "ASIN(可留空)", "ASIN(可留空，后续维护)", "asin"
         )
         fnsku_value, fnsku_present = _csv_value(
-            normalized_row, "FNSKU", "FNSKU(可留空)", "fnsku"
+            normalized_row, "FNSKU", "FNSKU(可留空)", "FNSKU(可留空，后续维护)", "fnsku"
         )
         product_name_value, product_name_present = _csv_value(
             normalized_row, "品名", "品名(可留空)", "product_name"

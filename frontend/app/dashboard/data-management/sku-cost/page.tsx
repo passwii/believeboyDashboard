@@ -86,8 +86,8 @@ const ACTIVE_TAB_ORDER: ActiveTab[] = ['cost', 'dimension']
 
 const API_BASE = '/api/backend'
 const HISTORY_SHIPMENT_STATUSES = ['completed', 'in_transit'] as const
-const PAGE_SIZE_OPTIONS = [20, 50, 100]
-const DEFAULT_PAGE_SIZE = 20
+const PAGE_SIZE_OPTIONS = [20, 50, 100, 10000]
+const DEFAULT_PAGE_SIZE = 10000
 const COUNTRY_OPTIONS = [
   { value: 'US', label: '美国站 (US)' },
   { value: 'DE', label: '德国站 (DE)' },
@@ -676,6 +676,27 @@ export default function SkuInfoPage() {
     }
   }
 
+  const deleteRow = async (rowId: number) => {
+    if (!window.confirm('确定要删除该 SKU 记录吗？')) return
+    setError(null)
+    setSuccessMessage(null)
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/sku-info/${rowId}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      })
+      if (!response.ok) throw new Error(await parseError(response))
+      setEditingId(null)
+      await loadData(undefined, {
+        pageOverride: page,
+        clearOnMissingProject: true,
+      })
+      setSuccessMessage('该行已删除')
+    } catch (deleteError) {
+      setError(normalizeErrorMessage(deleteError, '删除失败'))
+    }
+  }
+
   return (
     <div className='w-full space-y-6 text-foreground'>
       <DataCard className='overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90'>
@@ -1093,33 +1114,41 @@ export default function SkuInfoPage() {
                           <td className='border-b border-border/60 p-4 align-top'>
                             <div className='flex gap-2'>
                               {editingId === row.id ? (
-                                <>
-                                  <Button
-                                    type='button'
-                                    size='sm'
-                                    onClick={() => void saveRow(row.id)}
-                                  >
-                                    保存
-                                  </Button>
+                                  <>
+                                    <Button
+                                      type='button'
+                                      size='sm'
+                                      onClick={() => void saveRow(row.id)}
+                                    >
+                                      保存
+                                    </Button>
+                                    <Button
+                                      type='button'
+                                      size='sm'
+                                      variant='outline'
+                                      onClick={() => setEditingId(null)}
+                                    >
+                                      取消
+                                    </Button>
+                                    <Button
+                                      type='button'
+                                      size='sm'
+                                      variant='destructive'
+                                      onClick={() => void deleteRow(row.id)}
+                                    >
+                                      删除
+                                    </Button>
+                                  </>
+                                ) : (
                                   <Button
                                     type='button'
                                     size='sm'
                                     variant='outline'
-                                    onClick={() => setEditingId(null)}
+                                    onClick={() => startEditRow(row)}
                                   >
-                                    取消
+                                    编辑
                                   </Button>
-                                </>
-                              ) : (
-                                <Button
-                                  type='button'
-                                  size='sm'
-                                  variant='outline'
-                                  onClick={() => startEditRow(row)}
-                                >
-                                  编辑
-                                </Button>
-                              )}
+                                )}
                             </div>
                           </td>
                         </tr>
@@ -1393,33 +1422,41 @@ export default function SkuInfoPage() {
                           <td className='border-b border-border/60 p-4 align-top'>
                             <div className='flex gap-2'>
                               {editingId === row.id ? (
-                                <>
-                                  <Button
-                                    type='button'
-                                    size='sm'
-                                    onClick={() => void saveRow(row.id)}
-                                  >
-                                    保存
-                                  </Button>
+                                  <>
+                                    <Button
+                                      type='button'
+                                      size='sm'
+                                      onClick={() => void saveRow(row.id)}
+                                    >
+                                      保存
+                                    </Button>
+                                    <Button
+                                      type='button'
+                                      size='sm'
+                                      variant='outline'
+                                      onClick={() => setEditingId(null)}
+                                    >
+                                      取消
+                                    </Button>
+                                    <Button
+                                      type='button'
+                                      size='sm'
+                                      variant='destructive'
+                                      onClick={() => void deleteRow(row.id)}
+                                    >
+                                      删除
+                                    </Button>
+                                  </>
+                                ) : (
                                   <Button
                                     type='button'
                                     size='sm'
                                     variant='outline'
-                                    onClick={() => setEditingId(null)}
+                                    onClick={() => startEditRow(row)}
                                   >
-                                    取消
+                                    编辑
                                   </Button>
-                                </>
-                              ) : (
-                                <Button
-                                  type='button'
-                                  size='sm'
-                                  variant='outline'
-                                  onClick={() => startEditRow(row)}
-                                >
-                                  编辑
-                                </Button>
-                              )}
+                                )}
                             </div>
                           </td>
                         </tr>
