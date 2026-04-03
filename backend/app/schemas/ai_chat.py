@@ -72,3 +72,4 @@ class StreamDoneResponse(BaseModel):
     conversation_title: str | None = None
     token_usage: TokenUsage | None = None
     duration_ms: int | None = None
+    title_regenerated: bool = False

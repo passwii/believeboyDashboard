@@ -44,15 +44,19 @@ type NavGroup = {
   icon: React.ReactNode
   accent: string
   activeAccent: string
+  iconAccent?: string
+  activeIconAccent?: string
   items: NavLink[]
 }
 
 const primaryGroups: NavGroup[] = [
   {
     label: '运营导航',
-    icon: <LayoutDashboard className='h-4 w-4' />,
+    icon: <LayoutDashboard className='h-6 w-6' />,
     accent: 'bg-[linear-gradient(180deg,#505050,#686868)] text-[#f5f5f5]',
     activeAccent: 'bg-[linear-gradient(180deg,#6a6a6a,#818181)] text-white',
+    iconAccent: '#888888',
+    activeIconAccent: 'rgba(255,255,255,0.95)',
     items: [
       { title: '站点导航', url: '/dashboard/operations/site-navigation' },
       { title: '店铺导航', url: '/dashboard/operations/store-navigation' },
@@ -60,16 +64,20 @@ const primaryGroups: NavGroup[] = [
   },
   {
     label: 'AI 面板',
-    icon: <Bot className='h-4 w-4' />,
+    icon: <Bot className='h-6 w-6' />,
     accent: 'bg-[linear-gradient(180deg,#5a2f8f,#7b43c2)] text-[#efe0ff]',
     activeAccent: 'bg-[linear-gradient(180deg,#7340b4,#9558e0)] text-white',
+    iconAccent: '#888888',
+    activeIconAccent: 'rgba(255,255,255,0.95)',
     items: [{ title: 'AI 聊天', url: '/dashboard/ai-panel/chat' }],
   },
   {
     label: '运营核算',
-    icon: <Calculator className='h-4 w-4' />,
+    icon: <Calculator className='h-6 w-6' />,
     accent: 'bg-[linear-gradient(180deg,#6a5411,#92741a)] text-[#f9e6a6]',
-    activeAccent: 'bg-[linear-gradient(180deg,#886b16,#b18c1e)] text-[#fff4c6]',
+    activeAccent: 'bg-[linear-gradient(180deg,#886b16,#b18c1e)] text-white',
+    iconAccent: '#888888',
+    activeIconAccent: 'rgba(255,255,255,0.95)',
     items: [
       { title: '销售日报', url: '/dashboard/data-reporting/daily-report' },
       { title: '财务月报', url: '/dashboard/data-reporting/monthly-report' },
@@ -82,9 +90,11 @@ const primaryGroups: NavGroup[] = [
   },
   {
     label: '数据分析',
-    icon: <ChartColumnBig className='h-4 w-4' />,
+    icon: <ChartColumnBig className='h-6 w-6' />,
     accent: 'bg-[linear-gradient(180deg,#0f527a,#1675ae)] text-[#b3e3ff]',
-    activeAccent: 'bg-[linear-gradient(180deg,#156896,#1b90cf)] text-[#def3ff]',
+    activeAccent: 'bg-[linear-gradient(180deg,#156896,#1b90cf)] text-white',
+    iconAccent: '#888888',
+    activeIconAccent: 'rgba(255,255,255,0.95)',
     items: [
       { title: '销售数据', url: '/dashboard/data-analysis/daily-analysis' },
       {
@@ -106,16 +116,20 @@ const primaryGroups: NavGroup[] = [
   },
   {
     label: '工具集',
-    icon: <Wrench className='h-4 w-4' />,
+    icon: <Wrench className='h-6 w-6' />,
     accent: 'bg-[linear-gradient(180deg,#0d6a53,#159271)] text-[#c7fff0]',
     activeAccent: 'bg-[linear-gradient(180deg,#118166,#1cab86)] text-white',
+    iconAccent: '#888888',
+    activeIconAccent: 'rgba(255,255,255,0.95)',
     items: [{ title: '调研分析', url: '/dashboard/tools/research-analysis' }],
   },
   {
     label: '数据管理',
-    icon: <Database className='h-4 w-4' />,
+    icon: <Database className='h-6 w-6' />,
     accent: 'bg-[linear-gradient(180deg,#8c3b5e,#bb5682)] text-[#ffe1ee]',
     activeAccent: 'bg-[linear-gradient(180deg,#aa4b72,#d46797)] text-white',
+    iconAccent: '#888888',
+    activeIconAccent: 'rgba(255,255,255,0.95)',
     items: [
       { title: '广告管理', url: '/dashboard/data-management/ad-upload' },
       { title: '报表上传', url: '/dashboard/data-management/report-upload' },
@@ -133,20 +147,22 @@ const utilityLinks: Array<NavLink & { icon: React.ReactNode }> = [
   {
     title: '产品更新',
     url: '/dashboard/feature-updates',
-    icon: <BellRing className='h-4 w-4' />,
+    icon: <BellRing className='h-6 w-6' />,
   },
   {
     title: '更新日志',
     url: '/dashboard/changelog',
-    icon: <Database className='h-4 w-4' />,
+    icon: <Database className='h-6 w-6' />,
   },
 ]
 
 const adminGroup: NavGroup = {
   label: '系统管理',
-  icon: <ShieldUser className='h-4 w-4' />,
+  icon: <ShieldUser className='h-6 w-6' />,
   accent: 'bg-[linear-gradient(180deg,#4d4f8d,#676cc3)] text-[#e2e4ff]',
   activeAccent: 'bg-[linear-gradient(180deg,#6166ae,#7c82dd)] text-white',
+  iconAccent: '#888888',
+  activeIconAccent: 'rgba(255,255,255,0.95)',
   items: [
     { title: '项目信息', url: '/dashboard/system-management/project-info' },
     {
@@ -196,7 +212,9 @@ function SidebarGroupBlock({ group }: { group: NavGroup }) {
             hasActiveItem ? group.activeAccent : group.accent
           }`}
         >
-          {group.icon}
+          <span style={{ color: hasActiveItem ? 'inherit' : undefined, filter: hasActiveItem ? 'none' : 'grayscale(100%)', opacity: hasActiveItem ? 1 : 0.2 }}>
+            {group.icon}
+          </span>
         </div>
         <div className='min-w-0 flex-1 group-data-[collapsible=icon]:hidden'>
           <p className='truncate text-[0.82rem] font-semibold tracking-[-0.015em] text-sidebar-foreground/86'>

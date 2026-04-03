@@ -70,6 +70,7 @@ type StreamEvent =
       user_message: ChatMessage
       assistant_message: ChatMessage
       conversation_title?: string
+      title_regenerated?: boolean
       token_usage?: TokenUsage
       duration_ms?: number
     }
@@ -707,7 +708,9 @@ export default function AIChatPage() {
                 created_at: streamEvent.user_message.created_at,
                 updated_at: streamEvent.assistant_message.created_at,
               }),
-              title: streamEvent.conversation_title || prev.find((item) => item.id === conversationId)?.title || '新对话',
+              ...(streamEvent.title_regenerated && streamEvent.conversation_title
+                ? { title: streamEvent.conversation_title }
+                : {}),
               updated_at: streamEvent.assistant_message.created_at,
             })
           )

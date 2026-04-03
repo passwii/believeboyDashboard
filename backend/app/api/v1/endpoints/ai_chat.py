@@ -394,13 +394,14 @@ def stream_message(
                 if not assistant_content:
                     raise ValueError("LLM returned empty content")
 
-            generated_title = None
+            title_regenerated = False
             if not context_messages:
                 generated_title = ai_chat_service.generate_conversation_title(
                     settings, user_content, assistant_content
                 )
                 if generated_title:
                     conversation.title = generated_title
+                    title_regenerated = True
 
             if regenerate:
                 user_row = history_rows[-2]
@@ -446,9 +447,10 @@ def stream_message(
                     "type": "done",
                     "user_message": serialize_message(user_row),
                     "assistant_message": serialize_message(assistant_row),
-                    "conversation_title": conversation.title,
+                    "conversation_title": conversation.title if title_regenerated else None,
                     "token_usage": token_usage,
                     "duration_ms": duration_ms,
+                    "title_regenerated": title_regenerated,
                 }
             )
         except Exception as exc:
