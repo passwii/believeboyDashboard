@@ -43,6 +43,7 @@ class DataManagementStatusResponse(BaseModel):
 
 class TableStatusItem(BaseModel):
     table_name: str
+    table_name_cn: str | None = None
     row_count: int | None = None
     last_updated_at: str | None = None
     status: TableHealthStatus

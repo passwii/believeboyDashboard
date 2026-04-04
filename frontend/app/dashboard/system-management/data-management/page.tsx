@@ -37,6 +37,7 @@ type DataManagementOverview = {
   data_status_updated_by: string | null
   tables: Array<{
     table_name: string
+    table_name_cn: string | null
     row_count: number | null
     last_updated_at: string | null
     status: TableHealthStatus
@@ -308,6 +309,7 @@ export default function SystemDataManagementPage() {
             <TableHeader className="sticky top-0 z-10">
               <TableRow>
                 <TableHead>表名</TableHead>
+                <TableHead>中文名</TableHead>
                 <TableHead>行数</TableHead>
                 <TableHead>最后更新</TableHead>
                 <TableHead>状态</TableHead>
@@ -317,15 +319,16 @@ export default function SystemDataManagementPage() {
               {!overview || overview.tables.length === 0 ? (
                 detailsLoading ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground">加载中...</TableCell>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground">加载中...</TableCell>
                   </TableRow>
                 ) : (
-                  <EmptyTableState colSpan={4} message="暂无表状态数据" />
+                  <EmptyTableState colSpan={5} message="暂无表状态数据" />
                 )
               ) : (
                 overview.tables.map((item) => (
                   <TableRow key={item.table_name}>
                     <TableCell className="font-medium">{item.table_name}</TableCell>
+                    <TableCell>{item.table_name_cn ?? '-'}</TableCell>
                     <TableCell>{item.row_count == null ? '-' : formatNumber(item.row_count)}</TableCell>
                     <TableCell>{formatDateTime(item.last_updated_at)}</TableCell>
                     <TableCell>
