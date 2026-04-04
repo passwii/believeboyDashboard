@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/data-card'
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+import { useNotifications } from '@/components/notifications'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
 
 const API_BASE = '/api/backend'
@@ -228,6 +229,7 @@ function buildEditState(row: AnalysisRow): RowEditState {
 }
 
 export default function InventoryReplenishmentPage() {
+  const { notify } = useNotifications()
   const { data: session } = useSession()
 
   const [projects, setProjects] = useState<ProjectOption[]>([])
@@ -241,7 +243,6 @@ export default function InventoryReplenishmentPage() {
   const [rows, setRows] = useState<AnalysisRow[]>([])
   const [summary, setSummary] = useState<Summary>(EMPTY_SUMMARY)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
   const [refreshingAll, setRefreshingAll] = useState(false)
   const [refreshNonce, setRefreshNonce] = useState(0)
@@ -253,7 +254,6 @@ export default function InventoryReplenishmentPage() {
   const [selectedRow, setSelectedRow] = useState<AnalysisRow | null>(null)
   const [shipments, setShipments] = useState<ShipmentItem[]>([])
   const [shipmentsLoading, setShipmentsLoading] = useState(false)
-  const [shipmentsError, setShipmentsError] = useState<string | null>(null)
 
   const currentProjectId = useMemo(() => {
     const parsed = Number(projectId)
@@ -303,7 +303,7 @@ export default function InventoryReplenishmentPage() {
         }
       } catch (loadError) {
         if (!active) return
-        setError(loadError instanceof Error ? loadError.message : '项目列表加载失败')
+        notify({ type: 'error', title: '项目列表加载失败', message: loadError instanceof Error ? loadError.message : '项目列表加载失败' })
       } finally {
         if (active) setProjectsLoading(false)
       }
@@ -323,7 +323,6 @@ export default function InventoryReplenishmentPage() {
     let active = true
     async function loadAnalysis() {
       setLoading(true)
-      setError(null)
       try {
         const params = new URLSearchParams({
           project_id: String(currentProjectId),
@@ -355,7 +354,7 @@ export default function InventoryReplenishmentPage() {
         if (!active) return
         setRows([])
         setSummary(EMPTY_SUMMARY)
-        setError(loadError instanceof Error ? loadError.message : '分析数据加载失败')
+        notify({ type: 'error', title: '分析数据加载失败', message: loadError instanceof Error ? loadError.message : '分析数据加载失败' })
       } finally {
         if (active) setLoading(false)
       }
@@ -370,7 +369,6 @@ export default function InventoryReplenishmentPage() {
     setSelectedRow(row)
     setSheetOpen(true)
     setShipmentsLoading(true)
-    setShipmentsError(null)
     try {
       const params = new URLSearchParams({
         project_id: String(row.project_id),
@@ -385,7 +383,7 @@ export default function InventoryReplenishmentPage() {
       setShipments(payload.items)
     } catch (loadError) {
       setShipments([])
-      setShipmentsError(loadError instanceof Error ? loadError.message : '发货信息加载失败')
+      notify({ type: 'error', title: '发货信息加载失败', message: loadError instanceof Error ? loadError.message : '发货信息加载失败' })
     } finally {
       setShipmentsLoading(false)
     }
@@ -468,12 +466,11 @@ export default function InventoryReplenishmentPage() {
     const edit = edits[key] || buildEditState(row)
 
     setSavingSku(key)
-    setError(null)
     try {
       await persistRowSettings(row, edit)
       await reloadAnalysis()
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : '保存失败')
+      notify({ type: 'error', title: '保存失败', message: saveError instanceof Error ? saveError.message : '保存失败' })
     } finally {
       setSavingSku(null)
     }
@@ -482,7 +479,6 @@ export default function InventoryReplenishmentPage() {
   async function refreshWithSave() {
     if (!currentProjectId || loading || refreshingAll) return
     setRefreshingAll(true)
-    setError(null)
     try {
       const changedRows = rows.filter((row) => {
         const edit = edits[rowKey(row)] || buildEditState(row)
@@ -502,7 +498,7 @@ export default function InventoryReplenishmentPage() {
       setSavingSku(null)
       await reloadAnalysis()
     } catch (refreshError) {
-      setError(refreshError instanceof Error ? refreshError.message : '刷新失败')
+      notify({ type: 'error', title: '刷新失败', message: refreshError instanceof Error ? refreshError.message : '刷新失败' })
     } finally {
       setSavingSku(null)
       setRefreshingAll(false)
@@ -511,12 +507,11 @@ export default function InventoryReplenishmentPage() {
 
   async function exportToExcel() {
     if (rows.length === 0) {
-      setError('当前没有可导出的补货分析数据')
+      notify({ type: 'error', title: '当前没有可导出的补货分析数据' })
       return
     }
 
     setExporting(true)
-    setError(null)
     try {
       const ExcelJS = await import('exceljs')
       const workbook = new ExcelJS.Workbook()
@@ -720,7 +715,7 @@ export default function InventoryReplenishmentPage() {
         },
       })
     } catch (exportError) {
-      setError(exportError instanceof Error ? exportError.message : '导出 Excel 失败')
+      notify({ type: 'error', title: '导出 Excel 失败', message: exportError instanceof Error ? exportError.message : '导出 Excel 失败' })
     } finally {
       setExporting(false)
     }
@@ -851,9 +846,6 @@ export default function InventoryReplenishmentPage() {
           </Button>
         </DataTableCardHeader>
         <DataTableCardBody>
-          {error ? (
-            <div className="border-b border-rose-100 bg-rose-50 px-6 py-3 text-sm text-rose-700 dark:border-rose-900/70 dark:bg-rose-950/40 dark:text-rose-200">{error}</div>
-          ) : null}
           {!currentProjectId && !projectsLoading ? (
             <div className="px-6 py-16 text-center text-sm text-muted-foreground">请先选择项目。</div>
           ) : loading && rows.length === 0 ? (
@@ -1067,7 +1059,6 @@ export default function InventoryReplenishmentPage() {
                 </Card>
               </div>
 
-              {shipmentsError ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900/70 dark:bg-rose-950/40 dark:text-rose-200">{shipmentsError}</div> : null}
               {shipmentsLoading ? (
                 <div className="space-y-3">
                   <Skeleton className="h-24 w-full" />

@@ -6,7 +6,6 @@ import { useSession } from 'next-auth/react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
@@ -17,6 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import { DataTableCard, DataTableCardBody, DataTableCardHeader } from '@/components/ui/data-card'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -220,8 +220,6 @@ export default function StoreInfoPage() {
   const [items, setItems] = useState<ProjectItem[]>([])
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [operatorOptions, setOperatorOptions] = useState<string[]>([])
 
   const [addDialogOpen, setAddDialogOpen] = useState(false)
@@ -259,12 +257,11 @@ export default function StoreInfoPage() {
       return
     }
     setLoading(true)
-    setError(null)
     try {
       const payload = await fetchManagedProjectsCached<ProjectItem[]>(session)
       setItems(payload)
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : '加载失败')
+      notify({ type: 'error', title: '加载失败', message: loadError instanceof Error ? loadError.message : '加载失败' })
     } finally {
       setLoading(false)
     }
@@ -281,13 +278,11 @@ export default function StoreInfoPage() {
   const onAddSingle = async () => {
     const normalizedName = addName.trim()
     if (!normalizedName) {
-      setError('项目名称不能为空')
+      notify({ type: 'error', title: '项目名称不能为空' })
       return
     }
 
     setSubmitting(true)
-    setError(null)
-    setSuccessMessage(null)
     startGlobalLoading('blocking')
     try {
       const response = await fetch(`${API_BASE}/api/v1/projects`, {
@@ -321,7 +316,6 @@ export default function StoreInfoPage() {
       notify({ type: 'success', title: '项目已新增', message: normalizedName })
       await loadProjects()
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : '新增失败')
       notify({ type: 'error', title: '新增项目失败', message: submitError instanceof Error ? submitError.message : '新增失败' })
     } finally {
       endGlobalLoading('blocking')
@@ -340,7 +334,6 @@ export default function StoreInfoPage() {
     const points = toCommissionPoints(item.commission_rate)
     setEditCommissionRate(points?.toString() ?? '')
     setEditDialogOpen(true)
-    setError(null)
   }
 
   const onEditSingle = async () => {
@@ -350,13 +343,11 @@ export default function StoreInfoPage() {
 
     const normalizedName = editName.trim()
     if (!normalizedName) {
-      setError('项目名称不能为空')
+      notify({ type: 'error', title: '项目名称不能为空' })
       return
     }
 
     setSubmitting(true)
-    setError(null)
-    setSuccessMessage(null)
     startGlobalLoading('blocking')
     try {
       const response = await fetch(`${API_BASE}/api/v1/projects/${editingItem.id}`, {
@@ -390,7 +381,6 @@ export default function StoreInfoPage() {
       notify({ type: 'success', title: '项目已更新', message: normalizedName })
       await loadProjects()
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : '更新失败')
       notify({ type: 'error', title: '更新项目失败', message: submitError instanceof Error ? submitError.message : '更新失败' })
     } finally {
       endGlobalLoading('blocking')
@@ -399,237 +389,225 @@ export default function StoreInfoPage() {
   }
 
   return (
-    <div className="w-full space-y-6">
-      <Card className="overflow-hidden border-border/80 shadow-[0_20px_40px_-22px_rgba(15,23,42,0.22)] dark:border-border/80 dark:bg-[hsl(var(--surface-panel))] dark:shadow-[0_24px_50px_-30px_rgba(0,0,0,0.45)]">
-        <CardContent className="space-y-6 p-6 md:p-8">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="space-y-2">
-              <Badge variant="outline" className="w-fit rounded-md">
-                数据管理
-              </Badge>
-              <p className="text-sm text-muted-foreground dark:text-muted-foreground/80">维护项目主数据，支持单个新增与项目信息编辑。</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button type="button" variant="outline" onClick={() => void loadProjects()} disabled={loading || submitting}>
-                {loading ? '刷新中...' : '刷新数据'}
-              </Button>
-              <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button type="button" disabled={submitting}>
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    单个新增
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
-                  <DialogHeader>
-                    <DialogTitle>新增项目</DialogTitle>
-                    <DialogDescription>一次仅新增一个项目名称，不支持批量导入。</DialogDescription>
-                  </DialogHeader>
-                  <div className="grid gap-2">
-                    <label htmlFor="project-add-name" className="text-sm font-medium text-foreground">
-                      项目名称
-                    </label>
-                    <Input
-                      id="project-add-name"
-                      value={addName}
-                      onChange={(e) => setAddName(e.target.value)}
-                      placeholder="例如：宝勒3店"
-                      disabled={submitting}
-                    />
-                    <label htmlFor="project-add-brand" className="text-sm font-medium text-foreground">
-                      品牌名称
-                    </label>
-                    <Input
-                      id="project-add-brand"
-                      value={addBrandName}
-                      onChange={(e) => setAddBrandName(e.target.value)}
-                      placeholder="例如：BelieveBoy"
-                      disabled={submitting}
-                    />
-                    <label htmlFor="project-add-operator" className="text-sm font-medium text-foreground">
-                      运营
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1">
-                        <OperatorMultiSelect
-                          buttonId="project-add-operator"
-                          value={addProjectOperators}
-                          options={operatorOptions}
-                          placeholder="选择一个或多个运营"
-                          disabled={submitting}
-                          onChange={setAddProjectOperators}
-                        />
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setAddProjectOperators([])}
-                        disabled={submitting || addProjectOperators.length === 0}
-                      >
-                        清空
-                      </Button>
+    <div className="w-full h-[calc(100vh-8.5rem)] overflow-hidden">
+      <DataTableCard className="h-full flex flex-col overflow-hidden border-border/80 shadow-[0_20px_40px_-22px_rgba(15,23,42,0.22)] dark:border-border/80 dark:shadow-[0_24px_50px_-30px_rgba(0,0,0,0.45)]">
+        <DataTableCardHeader className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex min-w-0 flex-col gap-1">
+            <Badge variant="outline" className="w-fit rounded-md">数据管理</Badge>
+            <p className="text-sm text-muted-foreground">维护项目主数据，支持单个新增与项目信息编辑。</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" onClick={() => void loadProjects()} disabled={loading || submitting}>
+              {loading ? '刷新中...' : '刷新数据'}
+            </Button>
+            <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+              <DialogTrigger asChild>
+                <Button type="button" disabled={submitting}>
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  单个新增
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
+                <DialogHeader>
+                  <DialogTitle>新增项目</DialogTitle>
+                  <DialogDescription>一次仅新增一个项目名称，不支持批量导入。</DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-2">
+                  <label htmlFor="project-add-name" className="text-sm font-medium text-foreground">
+                    项目名称
+                  </label>
+                  <Input
+                    id="project-add-name"
+                    value={addName}
+                    onChange={(e) => setAddName(e.target.value)}
+                    placeholder="例如：宝勒3店"
+                    disabled={submitting}
+                  />
+                  <label htmlFor="project-add-brand" className="text-sm font-medium text-foreground">
+                    品牌名称
+                  </label>
+                  <Input
+                    id="project-add-brand"
+                    value={addBrandName}
+                    onChange={(e) => setAddBrandName(e.target.value)}
+                    placeholder="例如：BelieveBoy"
+                    disabled={submitting}
+                  />
+                  <label htmlFor="project-add-operator" className="text-sm font-medium text-foreground">
+                    运营
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <OperatorMultiSelect
+                        buttonId="project-add-operator"
+                        value={addProjectOperators}
+                        options={operatorOptions}
+                        placeholder="选择一个或多个运营"
+                        disabled={submitting}
+                        onChange={setAddProjectOperators}
+                      />
                     </div>
-                    {addProjectOperators.length > 0 ? (
-                      <p className="text-xs text-muted-foreground">已选择：{addProjectOperators.join('、')}</p>
-                    ) : null}
-                    <label htmlFor="project-add-assistant-operator" className="text-sm font-medium text-foreground">
-                      助理运营
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1">
-                        <OperatorMultiSelect
-                          buttonId="project-add-assistant-operator"
-                          value={addAssistantOperators}
-                          options={operatorOptions}
-                          placeholder="选择一个或多个助理运营"
-                          disabled={submitting}
-                          onChange={setAddAssistantOperators}
-                        />
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setAddAssistantOperators([])}
-                        disabled={submitting || addAssistantOperators.length === 0}
-                      >
-                        清空
-                      </Button>
-                    </div>
-                    {addAssistantOperators.length > 0 ? (
-                      <p className="text-xs text-muted-foreground">已选择：{addAssistantOperators.join('、')}</p>
-                    ) : null}
-                    <label htmlFor="project-add-commission-mode" className="text-sm font-medium text-foreground">
-                      佣金方式
-                    </label>
-                    <Select value={addCommissionMode} onValueChange={setAddCommissionMode} disabled={submitting}>
-                      <SelectTrigger id="project-add-commission-mode">
-                        <SelectValue placeholder="选择佣金方式" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {COMMISSION_BASIS_OPTIONS.map((option) => (
-                          <SelectItem key={`commission-basis-add-${option.value}`} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <label htmlFor="project-add-commission-rate" className="text-sm font-medium text-foreground">
-                      佣金点数
-                    </label>
-                    <Input
-                      id="project-add-commission-rate"
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.01"
-                      value={addCommissionRate}
-                      onChange={(e) => setAddCommissionRate(e.target.value)}
-                      placeholder={isAddCashReceivedCommission ? '平台回款按回款率阶梯自动计算' : '例如：5（表示 5%）'}
-                      disabled={submitting || isAddCashReceivedCommission}
-                    />
-                    {isAddCashReceivedCommission ? (
-                      <p className="text-xs text-muted-foreground">回款率阶梯：40%-50%→7%，50%-60%→10%，60%-70%→13%，70%以上→15%</p>
-                    ) : null}
-                    <label htmlFor="project-add-address" className="text-sm font-medium text-foreground">
-                      店铺地址
-                    </label>
-                    <Input
-                      id="project-add-address"
-                      value={addStoreAddress}
-                      onChange={(e) => setAddStoreAddress(e.target.value)}
-                      placeholder="例如：https://www.amazon.com/..."
-                      disabled={submitting}
-                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setAddProjectOperators([])}
+                      disabled={submitting || addProjectOperators.length === 0}
+                    >
+                      清空
+                    </Button>
                   </div>
-                  <DialogFooter>
-                    <Button type="button" variant="outline" onClick={() => setAddDialogOpen(false)} disabled={submitting}>
-                      取消
+                  {addProjectOperators.length > 0 ? (
+                    <p className="text-xs text-muted-foreground">已选择：{addProjectOperators.join('、')}</p>
+                  ) : null}
+                  <label htmlFor="project-add-assistant-operator" className="text-sm font-medium text-foreground">
+                    助理运营
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <OperatorMultiSelect
+                        buttonId="project-add-assistant-operator"
+                        value={addAssistantOperators}
+                        options={operatorOptions}
+                        placeholder="选择一个或多个助理运营"
+                        disabled={submitting}
+                        onChange={setAddAssistantOperators}
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setAddAssistantOperators([])}
+                      disabled={submitting || addAssistantOperators.length === 0}
+                    >
+                      清空
                     </Button>
-                    <Button type="button" onClick={() => void onAddSingle()} disabled={submitting}>
-                      {submitting ? '提交中...' : '确认新增'}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            </div>
-          </div>
-
-          {error ? <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive dark:border-destructive/30 dark:bg-destructive/12">{error}</div> : null}
-          {successMessage ? (
-            <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/12 dark:text-emerald-300">
-              {successMessage}
-            </div>
-          ) : null}
-
-          <div className="rounded-lg border border-border/70 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
-            <div className="max-h-[calc(100vh-320px)] overflow-y-auto relative">
-              {loading && items.length > 0 ? (
-                <div className="pointer-events-none absolute right-4 top-4 z-30 rounded-full border border-border/70 bg-background/95 px-3 py-1 text-xs text-muted-foreground shadow-sm dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
-                  项目列表更新中...
+                  </div>
+                  {addAssistantOperators.length > 0 ? (
+                    <p className="text-xs text-muted-foreground">已选择：{addAssistantOperators.join('、')}</p>
+                  ) : null}
+                  <label htmlFor="project-add-commission-mode" className="text-sm font-medium text-foreground">
+                    佣金方式
+                  </label>
+                  <Select value={addCommissionMode} onValueChange={setAddCommissionMode} disabled={submitting}>
+                    <SelectTrigger id="project-add-commission-mode">
+                      <SelectValue placeholder="选择佣金方式" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {COMMISSION_BASIS_OPTIONS.map((option) => (
+                        <SelectItem key={`commission-basis-add-${option.value}`} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <label htmlFor="project-add-commission-rate" className="text-sm font-medium text-foreground">
+                    佣金点数
+                  </label>
+                  <Input
+                    id="project-add-commission-rate"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={addCommissionRate}
+                    onChange={(e) => setAddCommissionRate(e.target.value)}
+                    placeholder={isAddCashReceivedCommission ? '平台回款按回款率阶梯自动计算' : '例如：5（表示 5%）'}
+                    disabled={submitting || isAddCashReceivedCommission}
+                  />
+                  {isAddCashReceivedCommission ? (
+                    <p className="text-xs text-muted-foreground">回款率阶梯：40%-50%→7%，50%-60%→10%，60%-70%→13%，70%以上→15%</p>
+                  ) : null}
+                  <label htmlFor="project-add-address" className="text-sm font-medium text-foreground">
+                    店铺地址
+                  </label>
+                  <Input
+                    id="project-add-address"
+                    value={addStoreAddress}
+                    onChange={(e) => setAddStoreAddress(e.target.value)}
+                    placeholder="例如：https://www.amazon.com/..."
+                    disabled={submitting}
+                  />
                 </div>
-              ) : null}
-              <table className="w-full border-separate border-spacing-0 caption-bottom text-sm">
-                <thead className="[&_tr]:border-b-0">
-                  <tr className="border-b border-border/70 shadow-sm">
-                    <th className="sticky top-0 z-20 h-12 w-[80px] border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">ID</th>
-                    <th className="sticky top-0 z-20 h-12 border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">项目名称</th>
-                    <th className="sticky top-0 z-20 h-12 border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">品牌名称</th>
-                    <th className="sticky top-0 z-20 h-12 border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">运营</th>
-                    <th className="sticky top-0 z-20 h-12 border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">助理运营</th>
-                    <th className="sticky top-0 z-20 h-12 border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">佣金方式</th>
-                    <th className="sticky top-0 z-20 h-12 border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">佣金点数</th>
-                    <th className="sticky top-0 z-20 h-12 w-[120px] border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">店铺地址</th>
-                    <th className="sticky top-0 z-20 h-12 w-[100px] border-b border-border/60 bg-background px-4 text-right align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">操作</th>
-                  </tr>
-                </thead>
-                <tbody className="[&_tr:last-child]:border-0">
-                {loading ? (
-                  Array.from({ length: 6 }).map((_, index) => (
-                    <tr key={`skeleton-${index}`} className="border-b transition-colors hover:bg-muted/50 dark:hover:bg-[hsl(var(--surface-strong)/0.35)]">
-                      <td colSpan={10} className="p-4 align-middle">
-                        <Skeleton className="h-6 w-full" />
-                      </td>
-                    </tr>
-                  ))
-                ) : items.length === 0 ? (
-                  <EmptyState colSpan={10} message="暂无项目数据，请先新增一个项目。" />
-                ) : (
-                  items.map((item) => (
-                    <tr key={item.id} className="border-b transition-colors hover:bg-muted/50 dark:hover:bg-[hsl(var(--surface-strong)/0.35)]">
-                      <td className="border-b border-r border-border/60 p-4 align-middle text-muted-foreground">{item.id}</td>
-                      <td className="border-b border-r border-border/60 p-4 align-middle font-medium text-foreground">{item.name}</td>
-                      <td className="border-b border-r border-border/60 p-4 align-middle">{item.brand_name || '-'}</td>
-                      <td className="border-b border-r border-border/60 p-4 align-middle whitespace-pre-wrap break-words">{item.project_operator || '-'}</td>
-                      <td className="border-b border-r border-border/60 p-4 align-middle whitespace-pre-wrap break-words">{item.assistant_operator || '-'}</td>
-                      <td className="border-b border-r border-border/60 p-4 align-middle">{item.commission_basis ? COMMISSION_BASIS_LABEL[item.commission_basis] ?? item.commission_basis : '-'}</td>
-                      <td className="border-b border-r border-border/60 p-4 align-middle">{item.commission_basis === 'cash_received' ? '阶梯(7/10/13/15%)' : (toCommissionPoints(item.commission_rate) ?? '-')}</td>
-                      <td className="border-b border-r border-border/60 p-4 align-middle max-w-[120px] truncate" title={item.store_address || ''}>
-                        {item.store_address ? `${item.store_address.slice(0, 15)}...` : '-'}
-                      </td>
-                      <td className="border-b border-border/60 p-4 align-middle text-right">
-                        <div className="flex justify-end">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            onClick={() => onOpenEdit(item)}
-                            disabled={submitting}
-                            aria-label={`编辑项目 ${item.name}`}
-                            title="编辑"
-                          >
-                            <PencilLine className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-            </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setAddDialogOpen(false)} disabled={submitting}>
+                    取消
+                  </Button>
+                  <Button type="button" onClick={() => void onAddSingle()} disabled={submitting}>
+                    {submitting ? '提交中...' : '确认新增'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
-        </CardContent>
-      </Card>
+        </DataTableCardHeader>
+        <DataTableCardBody className="flex-1 min-h-0">
+          <div className="h-full overflow-auto relative">
+            {loading && items.length > 0 ? (
+              <div className="pointer-events-none absolute right-4 top-4 z-30 rounded-full border border-border/70 bg-background/95 px-3 py-1 text-xs text-muted-foreground shadow-sm dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
+                项目列表更新中...
+              </div>
+            ) : null}
+            <table className="w-full border-separate border-spacing-0 caption-bottom text-sm">
+              <thead className="[&_tr]:border-b-0">
+                <tr className="border-b border-border/70 shadow-sm">
+                  <th className="sticky top-0 z-20 h-12 w-[80px] border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">ID</th>
+                  <th className="sticky top-0 z-20 h-12 border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">项目名称</th>
+                  <th className="sticky top-0 z-20 h-12 border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">品牌名称</th>
+                  <th className="sticky top-0 z-20 h-12 border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">运营</th>
+                  <th className="sticky top-0 z-20 h-12 border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">助理运营</th>
+                  <th className="sticky top-0 z-20 h-12 border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">佣金方式</th>
+                  <th className="sticky top-0 z-20 h-12 border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">佣金点数</th>
+                  <th className="sticky top-0 z-20 h-12 w-[120px] border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">店铺地址</th>
+                  <th className="sticky top-0 z-20 h-12 w-[100px] border-b border-border/60 bg-background px-4 text-right align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">操作</th>
+                </tr>
+              </thead>
+              <tbody className="[&_tr:last-child]:border-0">
+              {loading ? (
+                Array.from({ length: 6 }).map((_, index) => (
+                  <tr key={`skeleton-${index}`} className="border-b transition-colors hover:bg-muted/50 dark:hover:bg-[hsl(var(--surface-strong)/0.35)]">
+                    <td colSpan={10} className="p-4 align-middle">
+                      <Skeleton className="h-6 w-full" />
+                    </td>
+                  </tr>
+                ))
+              ) : items.length === 0 ? (
+                <EmptyState colSpan={10} message="暂无项目数据，请先新增一个项目。" />
+              ) : (
+                items.map((item) => (
+                  <tr key={item.id} className="border-b transition-colors hover:bg-muted/50 dark:hover:bg-[hsl(var(--surface-strong)/0.35)]">
+                    <td className="border-b border-r border-border/60 p-4 align-middle text-muted-foreground">{item.id}</td>
+                    <td className="border-b border-r border-border/60 p-4 align-middle font-medium text-foreground">{item.name}</td>
+                    <td className="border-b border-r border-border/60 p-4 align-middle">{item.brand_name || '-'}</td>
+                    <td className="border-b border-r border-border/60 p-4 align-middle whitespace-pre-wrap break-words">{item.project_operator || '-'}</td>
+                    <td className="border-b border-r border-border/60 p-4 align-middle whitespace-pre-wrap break-words">{item.assistant_operator || '-'}</td>
+                    <td className="border-b border-r border-border/60 p-4 align-middle">{item.commission_basis ? COMMISSION_BASIS_LABEL[item.commission_basis] ?? item.commission_basis : '-'}</td>
+                    <td className="border-b border-r border-border/60 p-4 align-middle">{item.commission_basis === 'cash_received' ? '阶梯(7/10/13/15%)' : (toCommissionPoints(item.commission_rate) ?? '-')}</td>
+                    <td className="border-b border-r border-border/60 p-4 align-middle max-w-[120px] truncate" title={item.store_address || ''}>
+                      {item.store_address ? `${item.store_address.slice(0, 15)}...` : '-'}
+                    </td>
+                    <td className="border-b border-border/60 p-4 align-middle text-right">
+                      <div className="flex justify-end">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => onOpenEdit(item)}
+                          disabled={submitting}
+                          aria-label={`编辑项目 ${item.name}`}
+                          title="编辑"
+                        >
+                          <PencilLine className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+          </div>
+        </DataTableCardBody>
+      </DataTableCard>
 
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">

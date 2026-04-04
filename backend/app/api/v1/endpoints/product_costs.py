@@ -619,7 +619,7 @@ def sync_first_leg_cost_from_shipment(
     operator: str | None = Depends(get_request_operator),
 ) -> dict:
     """
-    将 shipment_sku_summaries 的历史加权物流单价（average_logistics_unit_price）
+    将历史出运汇总得到的历史加权物流单价（average_logistics_unit_price）
     同步到 product_costs.first_leg_cost_rmb。
 
     - 仅同步 is_active=True 的 product_cost 记录

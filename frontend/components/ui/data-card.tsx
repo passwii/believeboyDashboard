@@ -58,7 +58,15 @@ function DataTableCard({ className, ...props }: React.HTMLAttributes<HTMLDivElem
 
 // 标题行容器（border-b 分隔）— 接收任意子元素
 function DataTableCardHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("border-b border-border/70 bg-[hsl(var(--surface-subtle))]", className)} {...props} />
+  return (
+    <div
+      className={cn(
+        "border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-6 py-4 md:px-7 md:py-5",
+        className
+      )}
+      {...props}
+    />
+  )
 }
 
 // 指标卡行（内置响应式 grid）— 接收任意子元素

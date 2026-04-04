@@ -1,16 +1,17 @@
 'use client'
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import { FormEvent, useCallback, useEffect, useState } from 'react'
 import { Loader2, RefreshCw, Shield } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { DataCard, DataCardContent, DataCardHeader } from '@/components/ui/data-card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { EmptyTableState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { useNotifications } from '@/components/notifications'
 
 type UserItem = {
   id: string
@@ -41,11 +42,10 @@ function getAccountDisplayName(item: Pick<UserItem, 'name' | 'email'>) {
 }
 
 export default function AccountManagementPage() {
+  const { notify } = useNotifications()
   const [items, setItems] = useState<UserItem[]>([])
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
 
   const [createOpen, setCreateOpen] = useState(false)
   const [createName, setCreateName] = useState('')
@@ -60,11 +60,10 @@ export default function AccountManagementPage() {
   const [resetUser, setResetUser] = useState<UserItem | null>(null)
   const [resetting, setResetting] = useState(false)
 
-  const adminCount = useMemo(() => items.filter((item) => item.isAdmin).length, [items])
+
 
   const load = useCallback(async () => {
     setLoading(true)
-    setError(null)
     try {
       const response = await fetch('/api/admin/users', { cache: 'no-store' })
       const data = (await response.json()) as { items?: UserItem[]; message?: string }
@@ -73,7 +72,7 @@ export default function AccountManagementPage() {
       }
       setItems(data.items || [])
     } catch (err) {
-      setError(err instanceof Error ? err.message : '加载失败')
+      notify({ type: 'error', title: '加载失败', message: err instanceof Error ? err.message : '加载失败' })
     } finally {
       setLoading(false)
     }
@@ -86,14 +85,11 @@ export default function AccountManagementPage() {
   const updateOne = async (id: string, patch: Partial<Pick<UserItem, 'isAdmin' | 'isActive'>>) => {
     const target = items.find((item) => item.id === id)
     if (target && isYaweiAccount(target) && (patch.isAdmin === false || patch.isActive === false)) {
-      setError('Yawei 账号不允许取消管理员或停用')
-      setSuccess(null)
+      notify({ type: 'error', title: 'Yawei 账号不允许取消管理员或停用' })
       return
     }
 
     setBusyId(id)
-    setError(null)
-    setSuccess(null)
     try {
       const response = await fetch(`/api/admin/users/${id}`, {
         method: 'PATCH',
@@ -105,9 +101,9 @@ export default function AccountManagementPage() {
         throw new Error(data.message || '更新失败')
       }
       setItems((prev) => prev.map((item) => (item.id === id ? data.item! : item)))
-      setSuccess('更新成功')
+      notify({ type: 'success', title: '更新成功' })
     } catch (err) {
-      setError(err instanceof Error ? err.message : '更新失败')
+      notify({ type: 'error', title: '更新失败', message: err instanceof Error ? err.message : '更新失败' })
     } finally {
       setBusyId(null)
     }
@@ -116,8 +112,6 @@ export default function AccountManagementPage() {
   const onCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setCreating(true)
-    setError(null)
-    setSuccess(null)
     try {
       const response = await fetch('/api/admin/users', {
         method: 'POST',
@@ -141,9 +135,9 @@ export default function AccountManagementPage() {
       setCreateEmail('')
       setCreatePassword('')
       setCreateIsAdmin(false)
-      setSuccess('用户创建成功')
+      notify({ type: 'success', title: '用户创建成功' })
     } catch (err) {
-      setError(err instanceof Error ? err.message : '创建失败')
+      notify({ type: 'error', title: '创建失败', message: err instanceof Error ? err.message : '创建失败' })
     } finally {
       setCreating(false)
     }
@@ -153,8 +147,6 @@ export default function AccountManagementPage() {
     event.preventDefault()
     if (!resetUser) return
     setResetting(true)
-    setError(null)
-    setSuccess(null)
     try {
       const response = await fetch(`/api/admin/users/${resetUser.id}`, {
         method: 'PATCH',
@@ -169,9 +161,9 @@ export default function AccountManagementPage() {
       setResetOpen(false)
       setResetPassword('')
       setResetUser(null)
-      setSuccess('密码已重置')
+      notify({ type: 'success', title: '密码已重置' })
     } catch (err) {
-      setError(err instanceof Error ? err.message : '重置失败')
+      notify({ type: 'error', title: '重置失败', message: err instanceof Error ? err.message : '重置失败' })
     } finally {
       setResetting(false)
     }
@@ -179,17 +171,16 @@ export default function AccountManagementPage() {
 
   return (
     <div className="w-full space-y-6">
-      <Card className="border-border/80 shadow-[0_20px_40px_-22px_rgba(15,23,42,0.22)] dark:border-border/80 dark:bg-[hsl(var(--surface-panel))] dark:shadow-[0_24px_50px_-30px_rgba(0,0,0,0.45)]">
-        <CardHeader className="space-y-3">
-          <Badge variant="outline" className="w-fit rounded-md border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300">
-            系统管理
-          </Badge>
-          <CardTitle>账号管理</CardTitle>
-          <CardDescription>管理员可手动维护普通用户/管理员权限，以及账号启停和密码重置。</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="text-sm text-muted-foreground dark:text-muted-foreground/80">共 {items.length} 个账号，其中管理员 {adminCount} 个。</div>
+      <DataCard>
+        <DataCardHeader
+          badge={
+            <Badge variant="outline" className="w-fit rounded-md border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300">
+              系统管理
+            </Badge>
+          }
+          title="账号管理"
+          description="管理员可手动维护普通用户/管理员权限，以及账号启停和密码重置。"
+          action={
             <div className="flex items-center gap-2">
               <Button variant="outline" onClick={() => void load()} disabled={loading}>
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
@@ -197,19 +188,11 @@ export default function AccountManagementPage() {
               </Button>
               <Button onClick={() => setCreateOpen(true)}>新增账号</Button>
             </div>
-          </div>
-
-          {error ? (
-            <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive dark:border-destructive/30 dark:bg-destructive/12">{error}</div>
-          ) : null}
-          {success ? (
-            <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/12 dark:text-emerald-300">
-              {success}
-            </div>
-          ) : null}
-
-          <div className="rounded-lg border border-border/70 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
-            <Table>
+          }
+        />
+        <DataCardContent className="!p-0 space-y-0">
+          <div className="border-t border-border/70 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
+            <Table noWrapperRounded>
               <TableHeader>
                 <TableRow>
                   <TableHead>名称</TableHead>
@@ -287,8 +270,8 @@ export default function AccountManagementPage() {
               </TableBody>
             </Table>
           </div>
-        </CardContent>
-      </Card>
+        </DataCardContent>
+      </DataCard>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">

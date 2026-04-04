@@ -275,7 +275,7 @@ def sync_first_leg_cost_from_shipment_summary(
     country: str | None = None,
 ) -> int:
     """
-    将 shipment_sku_summaries 的 average_logistics_unit_price
+    将历史出运汇总得到的 average_logistics_unit_price
     同步到 product_costs.first_leg_cost_rmb。
 
     只同步 is_active=True 的 product_cost 记录。
@@ -283,21 +283,25 @@ def sync_first_leg_cost_from_shipment_summary(
 
     返回：更新的记录数
     """
-    # Build shipment_sku_summaries lookup
-    summary_stmt = select(ShipmentSkuSummary)
-    if project_id is not None:
-        summary_stmt = summary_stmt.where(ShipmentSkuSummary.project_id == project_id)
-    if sku:
-        summary_stmt = summary_stmt.where(ShipmentSkuSummary.sku == sku)
-    if country:
-        summary_stmt = summary_stmt.where(ShipmentSkuSummary.country == country.upper())
-
+    money_precision = Decimal("0.01")
     summaries: dict[tuple[str, str, str], Decimal] = {}
-    for s in db.execute(summary_stmt).scalars().all():
-        if s.average_logistics_unit_price and s.average_logistics_unit_price > 0:
-            summaries[(s.project_name_snapshot, s.sku, s.country)] = Decimal(
-                str(s.average_logistics_unit_price)
-            )
+    summary_rows = list_shipment_sku_summary(
+        db,
+        project_id=project_id,
+        country=country,
+        include_only_history_calc=True,
+        shipment_status="completed,in_transit",
+    )
+    for row in summary_rows:
+        average_logistics_unit_price = row["average_logistics_unit_price"]
+        if average_logistics_unit_price and average_logistics_unit_price > 0:
+            summaries[
+                (
+                    str(row["project_name"]),
+                    str(row["sku"]),
+                    str(row["country"]),
+                )
+            ] = Decimal(str(average_logistics_unit_price)).quantize(money_precision)
 
     if not summaries:
         return 0
@@ -322,7 +326,10 @@ def sync_first_leg_cost_from_shipment_summary(
         key = (cost.project_name, cost.sku, cost.country)
         if key in summaries:
             new_val = summaries[key]
-            if float(cost.first_leg_cost_rmb) != float(new_val):
+            current_val = Decimal(str(cost.first_leg_cost_rmb)).quantize(
+                money_precision
+            )
+            if current_val != new_val:
                 cost.first_leg_cost_rmb = new_val
                 updated += 1
 

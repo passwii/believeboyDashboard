@@ -8,7 +8,8 @@ type GlobalLoadingContextValue = {
   isLoading: boolean
   isBlockingLoading: boolean
   isNavigationLoading: boolean
-  startGlobalLoading: (kind?: GlobalLoadingKind) => void
+  navigationTargetPath: string | null
+  startGlobalLoading: (kind?: GlobalLoadingKind, options?: { targetPath?: string | null }) => void
   endGlobalLoading: (kind?: GlobalLoadingKind) => void
   withGlobalLoading: <T>(task: () => Promise<T>) => Promise<T>
 }
@@ -22,9 +23,14 @@ export function GlobalLoadingProvider({
 }) {
   const [blockingPendingCount, setBlockingPendingCount] = useState(0)
   const [navigationPendingCount, setNavigationPendingCount] = useState(0)
+  const [navigationTargetPath, setNavigationTargetPath] = useState<string | null>(null)
 
-  const startGlobalLoading = useCallback((kind: GlobalLoadingKind = 'blocking') => {
+  const startGlobalLoading = useCallback((
+    kind: GlobalLoadingKind = 'blocking',
+    options?: { targetPath?: string | null }
+  ) => {
     if (kind === 'navigation') {
+      setNavigationTargetPath(options?.targetPath?.trim() || null)
       setNavigationPendingCount((count) => count + 1)
       return
     }
@@ -33,7 +39,13 @@ export function GlobalLoadingProvider({
 
   const endGlobalLoading = useCallback((kind: GlobalLoadingKind = 'blocking') => {
     if (kind === 'navigation') {
-      setNavigationPendingCount((count) => Math.max(0, count - 1))
+      setNavigationPendingCount((count) => {
+        const nextCount = Math.max(0, count - 1)
+        if (nextCount === 0) {
+          setNavigationTargetPath(null)
+        }
+        return nextCount
+      })
       return
     }
     setBlockingPendingCount((count) => Math.max(0, count - 1))
@@ -53,11 +65,12 @@ export function GlobalLoadingProvider({
       isLoading: blockingPendingCount > 0 || navigationPendingCount > 0,
       isBlockingLoading: blockingPendingCount > 0,
       isNavigationLoading: navigationPendingCount > 0,
+      navigationTargetPath,
       startGlobalLoading,
       endGlobalLoading,
       withGlobalLoading,
     }),
-    [blockingPendingCount, endGlobalLoading, navigationPendingCount, startGlobalLoading, withGlobalLoading]
+    [blockingPendingCount, endGlobalLoading, navigationPendingCount, navigationTargetPath, startGlobalLoading, withGlobalLoading]
   )
 
   return (

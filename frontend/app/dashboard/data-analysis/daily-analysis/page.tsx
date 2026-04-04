@@ -19,6 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+import { useNotifications } from '@/components/notifications'
 import { cn } from '@/lib/utils'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
 
@@ -483,10 +484,10 @@ function FilterSkeleton() {
 }
 
 export default function DailyAnalysisPage() {
+  const { notify } = useNotifications()
   const { data: session } = useSession()
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
-  const [projectsError, setProjectsError] = useState<string | null>(null)
 
   const defaultRange = useMemo(() => lastSevenDaysRange(), [])
   const [projectId, setProjectId] = useState('')
@@ -500,17 +501,15 @@ export default function DailyAnalysisPage() {
   const [comparisonSummaryRows, setComparisonSummaryRows] = useState<DailyAnalysisRow[]>(EMPTY_SUMMARY_ROWS)
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const loadProjects = async () => {
       setProjectsLoading(true)
-      setProjectsError(null)
       try {
         const rows = await fetchManagedProjectsCached<ProjectOption[]>(session)
         setProjects(rows.filter((item) => item.id !== null))
       } catch (fetchError) {
-        setProjectsError(fetchError instanceof Error ? fetchError.message : '项目列表加载失败')
+        notify({ type: 'error', title: '项目列表加载失败', message: fetchError instanceof Error ? fetchError.message : '项目列表加载失败' })
       } finally {
         setProjectsLoading(false)
       }
@@ -526,12 +525,12 @@ export default function DailyAnalysisPage() {
 
   const loadData = async (rangeOverride?: DateRange) => {
     if (!projectId) {
-      setError('请先选择项目')
+      notify({ type: 'error', title: '请先选择项目' })
       return
     }
     const effectiveRange = normalizeDateRange(rangeOverride ?? dateRange)
     if (!effectiveRange?.from || !effectiveRange?.to) {
-      setError('请选择开始和结束日期')
+      notify({ type: 'error', title: '请选择开始和结束日期' })
       return
     }
 
@@ -540,7 +539,6 @@ export default function DailyAnalysisPage() {
     const previousRange = getPreviousPeriodRange(effectiveRange)
 
     setLoading(true)
-    setError(null)
     try {
       const search = new URLSearchParams({
         project_id: projectId,
@@ -583,7 +581,7 @@ export default function DailyAnalysisPage() {
       setData(payload)
       setComparisonSummaryRows(comparePayload?.summary_rows ?? EMPTY_SUMMARY_ROWS)
     } catch (fetchError) {
-      setError(fetchError instanceof Error ? fetchError.message : '销售数据加载失败')
+      notify({ type: 'error', title: '销售数据加载失败', message: fetchError instanceof Error ? fetchError.message : '销售数据加载失败' })
       setData(null)
       setComparisonSummaryRows(EMPTY_SUMMARY_ROWS)
     } finally {
@@ -786,9 +784,6 @@ export default function DailyAnalysisPage() {
             刷新视图
           </Button>
         </div>
-
-        {projectsError ? <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">{projectsError}</div> : null}
-        {error ? <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div> : null}
       </DataCard>
 
       <DataCard>

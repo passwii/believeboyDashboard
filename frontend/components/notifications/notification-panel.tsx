@@ -14,9 +14,6 @@ import { useNotifications } from './notifications-context'
 import {
   Sheet,
   SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
 } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -151,26 +148,23 @@ export function NotificationPanel({ open, onOpenChange }: NotificationPanelProps
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="flex w-80 flex-col p-0 sm:max-w-sm">
-        <SheetHeader className="border-b border-border/70 px-4 py-4">
-          <div className="flex items-center justify-between">
-            <SheetTitle className="flex items-center gap-2 text-base">
-              <Bell className="h-4 w-4" />
-              通知中心
-            </SheetTitle>
-            {hasNotifications && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-                onClick={clearAll}
-              >
-                <Trash2 className="h-3 w-3" />
-                清空全部
-              </Button>
-            )}
+        <div className="flex items-center justify-between px-4 py-4">
+          <div className="flex items-center gap-2">
+            <Bell className="h-4 w-4" />
+            <h2 className="text-base font-semibold">通知中心</h2>
           </div>
-          <SheetDescription className="sr-only">查看所有历史通知</SheetDescription>
-        </SheetHeader>
+          {hasNotifications && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+              onClick={clearAll}
+            >
+              <Trash2 className="h-3 w-3" />
+              清空全部
+            </Button>
+          )}
+        </div>
 
         <ScrollArea className="flex-1">
           {!hasNotifications ? (

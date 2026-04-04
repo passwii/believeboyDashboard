@@ -1,15 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, CheckCircle2, Database, Loader2, RefreshCw, Save, Server, Trash2 } from 'lucide-react'
+import { CheckCircle2, Database, Loader2, RefreshCw, Server, Trash2 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { DataCard, DataCardContent, DataCardHeader } from '@/components/ui/data-card'
+import { DataTableCard, DataTableCardBody, DataTableCardHeader, DataTableCardStatBar } from '@/components/ui/data-card'
 import { EmptyTableState } from '@/components/ui/empty-state'
-import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useNotifications } from '@/components/notifications'
 import { buildBackendHeaders } from '@/lib/backend-auth'
@@ -125,9 +124,6 @@ export default function SystemDataManagementPage() {
   const [statusOverview, setStatusOverview] = useState<DataManagementStatusPayload | null>(null)
   const [loading, setLoading] = useState(false)
   const [detailsLoading, setDetailsLoading] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [selectedStatus, setSelectedStatus] = useState<DataLifecycleStatus>('active')
-  const [statusNote, setStatusNote] = useState('')
   const [clearingCache, setClearingCache] = useState(false)
 
   const loadStatus = useCallback(async (): Promise<void> => {
@@ -148,8 +144,6 @@ export default function SystemDataManagementPage() {
         throw new Error('数据状态接口返回缺少 summary 字段')
       }
       setStatusOverview(payload)
-      setSelectedStatus(payload.summary.data_status)
-      setStatusNote(payload.data_status_note || '')
     } catch (loadErr) {
       notify({ type: 'error', title: loadErr instanceof Error ? loadErr.message : '状态加载失败' })
     } finally {
@@ -201,30 +195,6 @@ export default function SystemDataManagementPage() {
   const refreshAll = useCallback(async () => {
     await Promise.all([loadStatus(), loadOverview()])
   }, [loadOverview, loadStatus])
-
-  const onSaveStatus = useCallback(async () => {
-    setSaving(true)
-
-    try {
-      const response = await fetch(`${API_BASE}/api/v1/system-management/data-management/data-status`, {
-        method: 'PATCH',
-        headers: buildBackendHeaders(session, { contentType: 'application/json' }),
-        body: JSON.stringify({
-          status: selectedStatus,
-          note: statusNote.trim() || null,
-        }),
-      })
-      if (!response.ok) {
-        throw new Error(await parseError(response))
-      }
-      notify({ type: 'success', title: '数据状态更新成功' })
-      await refreshAll()
-    } catch (saveErr) {
-      notify({ type: 'error', title: saveErr instanceof Error ? saveErr.message : '状态更新失败' })
-    } finally {
-      setSaving(false)
-    }
-  }, [refreshAll, selectedStatus, session, statusNote, notify])
 
   const onClearCache = useCallback(async () => {
     if (!confirm('确定要清理所有 Redis 缓存吗？')) return
@@ -291,147 +261,89 @@ export default function SystemDataManagementPage() {
 
   return (
     <div className="w-full space-y-6">
-      <Card className="overflow-hidden border-border/80 shadow-[0_20px_45px_-24px_rgba(15,23,42,0.26)] dark:border-border/80 dark:bg-[hsl(var(--surface-panel))] dark:shadow-[0_24px_50px_-30px_rgba(0,0,0,0.45)]">
-        <CardHeader className="space-y-3 bg-gradient-to-r from-cyan-500/10 via-sky-500/10 to-transparent dark:from-cyan-500/8 dark:via-sky-500/6 dark:to-transparent">
-          <Badge variant="outline" className="w-fit rounded-md border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300">
-            系统管理
-          </Badge>
-          <CardTitle>数据库状态</CardTitle>
-          <CardDescription>支持修改数据状态，并实时查看数据库状态、表状态、数据状态与最近系统状态。</CardDescription>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="outline" onClick={() => void refreshAll()} disabled={loading || detailsLoading || saving || clearingCache}>
-              {loading || detailsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              {loading || detailsLoading ? '刷新中...' : '刷新状态'}
-            </Button>
-            <Button type="button" variant="outline" onClick={() => void onClearCache()} disabled={loading || detailsLoading || saving || clearingCache}>
-              {clearingCache ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              {clearingCache ? '清理中...' : '清理缓存'}
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-6 p-5 sm:p-7">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {summaryCards.map((card) => (
-              <div key={card.key} className="rounded-xl border border-border/70 bg-card/70 p-4 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
-                <div className="flex items-center justify-between text-muted-foreground">
-                  <p className="text-xs">{card.title}</p>
-                  {card.icon}
-                </div>
-                <p className={cn('mt-2 text-xl font-semibold', card.tone)}>{card.value}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{card.hint}</p>
-              </div>
-            ))}
-          </div>
-
-          <Card className="border-border/70 bg-muted/20 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
-            <CardHeader>
-              <CardTitle className="text-base">修改数据状态</CardTitle>
-              <CardDescription>用于控制当前业务数据是否开放写入、维护或暂停。</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-3 md:grid-cols-[220px_1fr_auto]">
-              <Select value={selectedStatus} onValueChange={(value: DataLifecycleStatus) => setSelectedStatus(value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="选择状态" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">正常运行</SelectItem>
-                  <SelectItem value="maintenance">维护中</SelectItem>
-                  <SelectItem value="read_only">只读模式</SelectItem>
-                  <SelectItem value="paused">暂停更新</SelectItem>
-                </SelectContent>
-              </Select>
-              <Input placeholder="变更备注（可选）" value={statusNote} onChange={(event) => setStatusNote(event.target.value)} maxLength={500} />
-              <Button onClick={() => void onSaveStatus()} disabled={saving || loading}>
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                {saving ? '保存中...' : '保存状态'}
+      <DataCard>
+        <DataCardHeader
+          badge={
+            <Badge variant="outline" className="w-fit rounded-md border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300">
+              系统管理
+            </Badge>
+          }
+          title="数据库状态"
+          description="实时查看数据库状态、表状态、数据状态与最近系统状态。"
+          action={
+            <>
+              <Button type="button" variant="outline" onClick={() => void refreshAll()} disabled={loading || detailsLoading || clearingCache}>
+                {loading || detailsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                {loading || detailsLoading ? '刷新中...' : '刷新状态'}
               </Button>
-            </CardContent>
-          </Card>
+              <Button type="button" variant="outline" onClick={() => void onClearCache()} disabled={loading || detailsLoading || clearingCache}>
+                {clearingCache ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                {clearingCache ? '清理中...' : '清理缓存'}
+              </Button>
+            </>
+          }
+        />
+        <DataTableCardStatBar
+          items={summaryCards.map((card) => ({
+            label: card.title,
+            value: card.value,
+            highlight: card.key === 'status' || (card.key === 'db' && (overview ?? statusOverview)?.database.healthy),
+          }))}
+          className={cn(
+            "border-t border-border/70",
+            detailsLoading && "opacity-60"
+          )}
+        />
+      </DataCard>
 
-          <div className="grid gap-6 xl:grid-cols-[1.35fr_1fr]">
-            <Card className="border-border/70 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
-              <CardHeader>
-                <CardTitle className="text-base">数据表状态</CardTitle>
-                <CardDescription>检查各表数据规模、最近更新时间和健康状态。</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="rounded-lg border border-border/70 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>表名</TableHead>
-                        <TableHead>行数</TableHead>
-                        <TableHead>最后更新</TableHead>
-                        <TableHead>状态</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {!overview || overview.tables.length === 0 ? (
-                        detailsLoading ? (
-                          <TableRow>
-                            <TableCell colSpan={4} className="text-center text-muted-foreground">加载中...</TableCell>
-                          </TableRow>
-                        ) : (
-                          <EmptyTableState colSpan={4} message="暂无表状态数据" />
-                        )
-                      ) : (
-                        overview.tables.map((item) => (
-                          <TableRow key={item.table_name}>
-                            <TableCell className="font-medium">{item.table_name}</TableCell>
-                            <TableCell>{item.row_count == null ? '-' : formatNumber(item.row_count)}</TableCell>
-                            <TableCell>{formatDateTime(item.last_updated_at)}</TableCell>
-                            <TableCell>
-                              <span className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-xs', tableStatusTone(item.status))}>
-                                {item.status}
-                              </span>
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-border/70 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
-              <CardHeader>
-                <CardTitle className="text-base">最近系统状态</CardTitle>
-                <CardDescription>展示数据状态和最近任务执行反馈。</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {!overview || overview.recent_statuses.length === 0 ? (
-                  <div className="rounded-md border border-border/70 p-3 text-sm text-muted-foreground dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">暂无系统状态记录</div>
-                ) : (
-                  overview.recent_statuses.map((item, index) => (
-                    <div key={`${item.source}-${index}`} className="rounded-lg border border-border/70 bg-card/60 p-3 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 text-sm font-medium">
-                          {item.level === 'failed' || item.level === 'error' ? (
-                            <AlertTriangle className="h-4 w-4 text-destructive" />
-                          ) : (
-                            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                          )}
-                          <span>{item.source}</span>
-                        </div>
-                        <Badge variant="outline" className="text-[11px]">
-                          {item.level}
-                        </Badge>
-                      </div>
-                      <p className="mt-2 text-sm text-muted-foreground">{item.message}</p>
-                      <p className="mt-2 text-xs text-muted-foreground">{formatDateTime(item.occurred_at)}</p>
-                    </div>
-                  ))
-                )}
-              </CardContent>
-            </Card>
+      <DataTableCard>
+        <DataTableCardHeader>
+          <div className="flex flex-col gap-1">
+            <h2 className="text-base font-semibold text-foreground">数据表状态</h2>
+            <p className="text-sm text-muted-foreground">检查各表数据规模、最近更新时间和健康状态。</p>
           </div>
+        </DataTableCardHeader>
+        <DataTableCardBody className="overflow-auto" style={{ maxHeight: '600px' }}>
+          <Table noWrapperRounded className="[&_td]:!py-2.5">
+            <TableHeader className="sticky top-0 z-10">
+              <TableRow>
+                <TableHead>表名</TableHead>
+                <TableHead>行数</TableHead>
+                <TableHead>最后更新</TableHead>
+                <TableHead>状态</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {!overview || overview.tables.length === 0 ? (
+                detailsLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center text-muted-foreground">加载中...</TableCell>
+                  </TableRow>
+                ) : (
+                  <EmptyTableState colSpan={4} message="暂无表状态数据" />
+                )
+              ) : (
+                overview.tables.map((item) => (
+                  <TableRow key={item.table_name}>
+                    <TableCell className="font-medium">{item.table_name}</TableCell>
+                    <TableCell>{item.row_count == null ? '-' : formatNumber(item.row_count)}</TableCell>
+                    <TableCell>{formatDateTime(item.last_updated_at)}</TableCell>
+                    <TableCell>
+                      <span className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-xs', tableStatusTone(item.status))}>
+                        {item.status}
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </DataTableCardBody>
+      </DataTableCard>
 
-          <p className="text-xs leading-5 text-muted-foreground">
-            数据源：{(overview ?? statusOverview)?.database.source || '-'}，检查时间：{formatDateTime((overview ?? statusOverview)?.database.checked_at || null)}。
-          </p>
-        </CardContent>
-      </Card>
+      <p className="text-xs leading-5 text-muted-foreground">
+        数据源：{(overview ?? statusOverview)?.database.source || '-'}，检查时间：{formatDateTime((overview ?? statusOverview)?.database.checked_at || null)}。
+      </p>
     </div>
   )
 }

@@ -24,6 +24,7 @@ export function GlobalErrorBridge() {
             type: 'error',
             title: BACKEND_UNAVAILABLE_TITLE,
             message: BACKEND_UNAVAILABLE_MESSAGE,
+            skipHistory: true,
           }, 6000)
           throw new Error(BACKEND_UNAVAILABLE_MESSAGE)
         }
@@ -37,6 +38,7 @@ export function GlobalErrorBridge() {
           type: 'error',
           title: BACKEND_UNAVAILABLE_TITLE,
           message: BACKEND_UNAVAILABLE_MESSAGE,
+          skipHistory: true,
         }, 6000)
       }
     }
@@ -47,6 +49,7 @@ export function GlobalErrorBridge() {
           type: 'error',
           title: BACKEND_UNAVAILABLE_TITLE,
           message: BACKEND_UNAVAILABLE_MESSAGE,
+          skipHistory: true,
         }, 6000)
       }
     }

@@ -7,6 +7,7 @@ import { FileDown, Package2, RefreshCw, Ruler, Upload } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
+import { useNotifications } from '@/components/notifications'
 import {
   DataCard,
   DataCardHeader,
@@ -150,9 +151,9 @@ function downloadCsvFile(
   URL.revokeObjectURL(url)
 }
 
-function downloadCostTemplate() {
+function downloadCostTemplate(projectName: string) {
   downloadCsvFile(
-    'sku-info-base-template.csv',
+    `${projectName}-sku-info-base-template.csv`,
     [
       'project_name',
       'SKU',
@@ -162,13 +163,13 @@ function downloadCostTemplate() {
       'FOB单价(RMB)',
       '国家',
     ],
-    [['创酷', 'JDB-M35-13PCS', '', '', '', '2.57', 'US']],
+    [[projectName, 'JDB-M35-13PCS', '', '', '', '2.57', 'US']],
   )
 }
 
-function downloadDimensionTemplate() {
+function downloadDimensionTemplate(projectName: string) {
   downloadCsvFile(
-    'sku-info-dimension-template.csv',
+    `${projectName}-sku-info-dimension-template.csv`,
     [
       'project_name',
       'SKU',
@@ -188,7 +189,7 @@ function downloadDimensionTemplate() {
     ],
     [
       [
-        '创酷',
+        projectName,
         'JDB-M35-13PCS',
         '',
         '',
@@ -212,6 +213,10 @@ function sortProductCosts(rows: ProductCostItem[]): ProductCostItem[] {
   return [...rows].sort((a, b) =>
     a.sort_order !== b.sort_order ? a.sort_order - b.sort_order : a.id - b.id,
   )
+}
+
+function normalizeMoneyToCent(value: number | null | undefined): number {
+  return Math.round(Number(value ?? 0) * 100)
 }
 
 async function parseError(response: Response): Promise<string> {
@@ -273,6 +278,7 @@ function TableSkeletonRows({
 }
 
 export default function SkuInfoPage() {
+  const { notify } = useNotifications()
   const [activeTab, setActiveTab] = useState<ActiveTab>('cost')
   const [items, setItems] = useState<ProductCostItem[]>([])
   const [page, setPage] = useState(1)
@@ -280,8 +286,6 @@ export default function SkuInfoPage() {
   const [total, setTotal] = useState(0)
   const [hasNextPage, setHasNextPage] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
@@ -309,6 +313,19 @@ export default function SkuInfoPage() {
   )
   const visibleActiveCount = useMemo(
     () => items.filter((item) => item.is_active).length,
+    [items],
+  )
+  const pendingFirstLegSyncCount = useMemo(
+    () =>
+      items.filter((item) => {
+        if (!item.is_active) return false
+        const historicalValue = item.historical_first_leg_cost_rmb
+        if (historicalValue == null || historicalValue <= 0) return false
+        return (
+          normalizeMoneyToCent(item.first_leg_cost_rmb) !==
+          normalizeMoneyToCent(historicalValue)
+        )
+      }).length,
     [items],
   )
   const selectedProject = useMemo(
@@ -366,12 +383,11 @@ export default function SkuInfoPage() {
         setTotal(0)
         setHasNextPage(false)
       }
-      setError('请先在筛选区域选择项目名')
+      notify({ type: 'error', title: '请先在筛选区域选择项目名' })
       return
     }
 
     setLoading(true)
-    setError(null)
     try {
       const search = new URLSearchParams({
         page: String(nextPage),
@@ -440,7 +456,7 @@ export default function SkuInfoPage() {
       setHasNextPage(payload.has_next)
       setPage(nextPage)
     } catch (loadError) {
-      setError(normalizeErrorMessage(loadError, '加载失败'))
+      notify({ type: 'error', title: '加载失败', message: normalizeErrorMessage(loadError, '加载失败') })
     } finally {
       setLoading(false)
     }
@@ -456,7 +472,6 @@ export default function SkuInfoPage() {
   }, [page, pageSize, projectFilter, selectedProject])
 
   const onSearch = async () => {
-    setSuccessMessage(null)
     await loadData(undefined, { resetPage: true, clearOnMissingProject: true })
   }
 
@@ -470,14 +485,10 @@ export default function SkuInfoPage() {
     setTotal(0)
     setHasNextPage(false)
     setPage(1)
-    setError(null)
-    setSuccessMessage(null)
   }
 
   const onProjectFilterChange = async (value: string) => {
     setProjectFilter(value)
-    setError(null)
-    setSuccessMessage(null)
     await loadData(
       {
         project_name: value,
@@ -516,8 +527,6 @@ export default function SkuInfoPage() {
     event.target.value = ''
     if (!file) return
     setBatchImporting(true)
-    setError(null)
-    setSuccessMessage(null)
     try {
       const formData = new FormData()
       formData.append('file', file)
@@ -531,16 +540,14 @@ export default function SkuInfoPage() {
         updated: number
         skipped?: number
       }
-      setSuccessMessage(
-        `CSV ${importMode === 'create' ? '批量上新' : '批量修改'}完成：新增 ${payload.inserted} 条，更新 ${payload.updated} 条，跳过 ${payload.skipped ?? 0} 条`,
-      )
+      notify({ type: 'success', title: `CSV ${importMode === 'create' ? '批量上新' : '批量修改'}完成`, message: `新增 ${payload.inserted} 条，更新 ${payload.updated} 条，跳过 ${payload.skipped ?? 0} 条` })
       if (projectFilter.trim())
         await loadData(undefined, {
           resetPage: true,
           clearOnMissingProject: true,
         })
     } catch (importError) {
-      setError(normalizeErrorMessage(importError, 'CSV 批量导入失败'))
+      notify({ type: 'error', title: 'CSV 批量导入失败', message: normalizeErrorMessage(importError, 'CSV 批量导入失败') })
     } finally {
       setBatchImporting(false)
     }
@@ -548,11 +555,9 @@ export default function SkuInfoPage() {
 
   const handleSyncFirstLeg = async () => {
     if (!selectedProject?.id) {
-      setError('请先选择项目后再同步头程成本')
+      notify({ type: 'error', title: '请先选择项目后再同步头程成本' })
       return
     }
-    setError(null)
-    setSuccessMessage(null)
     setSyncing(true)
     try {
       const response = await fetch(
@@ -560,11 +565,17 @@ export default function SkuInfoPage() {
         { headers: authHeaders() },
       )
       if (!response.ok) throw await parseError(response)
-      const data = await response.json()
-      setSuccessMessage(`头程成本同步完成：更新了 ${data.updated} 条记录`)
+      const data = (await response.json()) as { updated?: number }
+      if ((data.updated ?? 0) > 0) {
+        notify({
+          type: 'success',
+          title: '头程成本同步完成',
+          message: `更新了 ${data.updated} 条记录`,
+        })
+      }
       await loadData(undefined, { resetPage: true })
     } catch (syncError) {
-      setError(normalizeErrorMessage(syncError, '同步失败'))
+      notify({ type: 'error', title: '同步失败', message: normalizeErrorMessage(syncError, '同步失败') })
     } finally {
       setSyncing(false)
     }
@@ -572,11 +583,9 @@ export default function SkuInfoPage() {
 
   const handleExportCurrentFiltered = async () => {
     if (!projectFilter.trim()) {
-      setError('请先选择项目后再导出批量修改模板')
+      notify({ type: 'error', title: '请先选择项目后再导出批量修改模板' })
       return
     }
-    setError(null)
-    setSuccessMessage(null)
     try {
       const search = buildFilterSearchParams()
       search.set('export_type', activeTab)
@@ -598,9 +607,9 @@ export default function SkuInfoPage() {
           : 'sku-info-dimension-update-export.csv'
       link.click()
       URL.revokeObjectURL(url)
-      setSuccessMessage('已导出当前筛选结果的批量修改模板')
+      notify({ type: 'success', title: '已导出当前筛选结果的批量修改模板' })
     } catch (exportError) {
-      setError(normalizeErrorMessage(exportError, '导出失败'))
+      notify({ type: 'error', title: '导出失败', message: normalizeErrorMessage(exportError, '导出失败') })
     }
   }
 
@@ -633,10 +642,9 @@ export default function SkuInfoPage() {
 
   const saveRow = async (rowId: number) => {
     if (!editRow.sku.trim()) {
-      setError('SKU 不能为空')
+      notify({ type: 'error', title: 'SKU 不能为空' })
       return
     }
-    setError(null)
     try {
       const response = await fetch(`${API_BASE}/api/v1/sku-info/${rowId}`, {
         method: 'PATCH',
@@ -670,16 +678,14 @@ export default function SkuInfoPage() {
         pageOverride: page,
         clearOnMissingProject: true,
       })
-      setSuccessMessage('该行已更新')
+      notify({ type: 'success', title: '该行已更新' })
     } catch (saveError) {
-      setError(normalizeErrorMessage(saveError, '保存失败'))
+      notify({ type: 'error', title: '保存失败', message: normalizeErrorMessage(saveError, '保存失败') })
     }
   }
 
   const deleteRow = async (rowId: number) => {
     if (!window.confirm('确定要删除该 SKU 记录吗？')) return
-    setError(null)
-    setSuccessMessage(null)
     try {
       const response = await fetch(`${API_BASE}/api/v1/sku-info/${rowId}`, {
         method: 'DELETE',
@@ -691,9 +697,9 @@ export default function SkuInfoPage() {
         pageOverride: page,
         clearOnMissingProject: true,
       })
-      setSuccessMessage('该行已删除')
+      notify({ type: 'success', title: '该行已删除' })
     } catch (deleteError) {
-      setError(normalizeErrorMessage(deleteError, '删除失败'))
+      notify({ type: 'error', title: '删除失败', message: normalizeErrorMessage(deleteError, '删除失败') })
     }
   }
 
@@ -810,17 +816,6 @@ export default function SkuInfoPage() {
         </DataCardContent>
       </DataCard>
 
-      {error ? (
-        <div className='rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive shadow-sm'>
-          {error}
-        </div>
-      ) : null}
-      {successMessage ? (
-        <div className='rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700 shadow-sm'>
-          {successMessage}
-        </div>
-      ) : null}
-
       <Tabs
         value={activeTab}
         onValueChange={(value) => setActiveTab(value as ActiveTab)}
@@ -873,6 +868,10 @@ export default function SkuInfoPage() {
                     <ActionsBar
                       batchImporting={batchImporting}
                       syncing={syncing}
+                      hasSelectedProject={Boolean(selectedProject?.id)}
+                      syncDisabled={!selectedProject?.id || pendingFirstLegSyncCount === 0}
+                      syncPendingCount={pendingFirstLegSyncCount}
+                      projectName={projectFilter}
                       onDownloadCreateTemplate={downloadCostTemplate}
                       onDownloadUpdateTemplate={handleExportCurrentFiltered}
                       onUpload={handleBatchImportFile}
@@ -1177,6 +1176,7 @@ export default function SkuInfoPage() {
                     <ActionsBar
                       batchImporting={batchImporting}
                       syncing={syncing}
+                      projectName={projectFilter}
                       onDownloadCreateTemplate={downloadDimensionTemplate}
                       onDownloadUpdateTemplate={handleExportCurrentFiltered}
                       onUpload={handleBatchImportFile}
@@ -1486,6 +1486,10 @@ export default function SkuInfoPage() {
 function ActionsBar({
   batchImporting,
   syncing,
+  hasSelectedProject,
+  syncDisabled,
+  syncPendingCount,
+  projectName,
   onDownloadCreateTemplate,
   onDownloadUpdateTemplate,
   onUpload,
@@ -1493,7 +1497,11 @@ function ActionsBar({
 }: {
   batchImporting: boolean
   syncing: boolean
-  onDownloadCreateTemplate: () => void
+  hasSelectedProject: boolean
+  syncDisabled: boolean
+  syncPendingCount: number
+  projectName: string
+  onDownloadCreateTemplate: (projectName: string) => void
   onDownloadUpdateTemplate: () => void
   onUpload: (
     event: ChangeEvent<HTMLInputElement>,
@@ -1508,16 +1516,29 @@ function ActionsBar({
         size='sm'
         variant='default'
         onClick={onSync}
-        disabled={syncing}
+        disabled={syncing || syncDisabled}
+        title={
+          syncDisabled && !syncing
+            ? hasSelectedProject
+              ? '当前没有可同步的头程成本变更'
+              : '请先选择项目'
+            : undefined
+        }
       >
         <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
-        {syncing ? '同步中...' : '同步头程'}
+        {syncing
+          ? '同步中...'
+          : syncPendingCount > 0
+            ? `同步头程 (${syncPendingCount})`
+            : '同步头程'}
       </Button>
       <Button
         type='button'
         size='sm'
         variant='outline'
-        onClick={onDownloadCreateTemplate}
+        onClick={() => onDownloadCreateTemplate(projectName)}
+        disabled={!projectName}
+        title={!projectName ? '请先选择项目' : undefined}
       >
         <FileDown className='mr-2 h-4 w-4' />
         下载上新模板

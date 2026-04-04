@@ -30,16 +30,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { EmptyTableState } from "@/components/ui/empty-state"
-import {
-  Pagination,
-  PaginationContent,
-  PaginationEllipsis,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { DataCard, DataCardHeader, DataCardContent } from "@/components/ui/data-card"
 import { Badge } from "@/components/ui/badge"
 import { Pencil, Trash2, Plus, RotateCcw, ImagePlus, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -365,89 +356,24 @@ export default function ExchangeRatePage() {
     return `${(size / (1024 * 1024)).toFixed(1)}MB`
   }
 
-  // 生成分页按钮
-  const renderPagination = () => {
-    const { page, totalPages } = pagination
-    const pages: (number | string)[] = []
 
-    if (totalPages <= 7) {
-      for (let i = 1; i <= totalPages; i++) {
-        pages.push(i)
-      }
-    } else {
-      if (page <= 3) {
-        pages.push(1, 2, 3, 4, "...", totalPages)
-      } else if (page >= totalPages - 2) {
-        pages.push(1, "...", totalPages - 3, totalPages - 2, totalPages - 1, totalPages)
-      } else {
-        pages.push(1, "...", page - 1, page, page + 1, "...", totalPages)
-      }
-    }
-
-    return (
-      <Pagination>
-        <PaginationContent>
-          <PaginationItem>
-            <PaginationPrevious
-              onClick={() =>
-                setPagination((prev) => ({
-                  ...prev,
-                  page: Math.max(1, prev.page - 1),
-                }))
-              }
-              className={page <= 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-            />
-          </PaginationItem>
-          {pages.map((p, index) => (
-            <PaginationItem key={index}>
-              {p === "..." ? (
-                <PaginationEllipsis />
-              ) : (
-                <PaginationLink
-                  onClick={() =>
-                    setPagination((prev) => ({ ...prev, page: p as number }))
-                  }
-                  isActive={page === p}
-                  className="cursor-pointer"
-                >
-                  {p}
-                </PaginationLink>
-              )}
-            </PaginationItem>
-          ))}
-          <PaginationItem>
-            <PaginationNext
-              onClick={() =>
-                setPagination((prev) => ({
-                  ...prev,
-                  page: Math.min(prev.totalPages, prev.page + 1),
-                }))
-              }
-              className={page >= totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
-            />
-          </PaginationItem>
-        </PaginationContent>
-      </Pagination>
-    )
-  }
 
   return (
-    <div className="container mx-auto py-6 text-foreground">
-      <Card className="border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>汇率信息管理</CardTitle>
-            {isAdmin ? (
+    <div className="min-w-0 space-y-6 text-foreground">
+      <DataCard className="overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
+        <DataCardHeader
+          title="汇率信息管理"
+          action={
+            isAdmin ? (
               <Button onClick={handleAdd}>
                 <Plus className="mr-2 h-4 w-4" />
                 新增汇率
               </Button>
-            ) : null}
-          </div>
-        </CardHeader>
-        <CardContent>
-          {/* 筛选区域 */}
-          <div className="mb-6 flex flex-wrap gap-4 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-4">
+            ) : null
+          }
+        />
+        <DataCardContent className="p-0 px-4 pb-4 pt-4">
+          <div className="flex flex-wrap gap-4 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-4">
             <div className="flex items-center gap-2">
               <Label className="whitespace-nowrap text-sm font-medium">货币种类</Label>
               <Select
@@ -521,9 +447,12 @@ export default function ExchangeRatePage() {
               </Button>
             </div>
           </div>
+        </DataCardContent>
+      </DataCard>
 
-          {/* 数据表格 */}
-          <div className="overflow-hidden rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))]">
+      <DataCard className="overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
+        <DataCardContent className="p-0">
+          <div className="border-border/70 bg-[hsl(var(--surface-panel))]">
             <Table>
               <TableHeader className="bg-[hsl(var(--surface-subtle))]">
                 <TableRow>
@@ -638,22 +567,36 @@ export default function ExchangeRatePage() {
             </Table>
           </div>
 
-          {/* 分页 */}
-          {pagination.totalPages > 1 && (
-            <div className="mt-4 flex justify-center">{renderPagination()}</div>
-          )}
-
-          {/* 数据汇总 */}
-          <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
-            <div>
-              共 <span className="font-medium text-foreground">{pagination.total}</span> 条记录
-            </div>
-            <div>
-              每页 <span className="font-medium text-foreground">{pagination.pageSize}</span> 条
-            </div>
+          <div className="flex items-center justify-center gap-2 px-4 py-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                setPagination((prev) => ({
+                  ...prev,
+                  page: Math.max(1, prev.page - 1),
+                }))
+              }
+              disabled={pagination.page <= 1}
+            >
+              上一页
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                setPagination((prev) => ({
+                  ...prev,
+                  page: Math.min(prev.totalPages, prev.page + 1),
+                }))
+              }
+              disabled={pagination.page >= pagination.totalPages}
+            >
+              下一页
+            </Button>
           </div>
-        </CardContent>
-      </Card>
+        </DataCardContent>
+      </DataCard>
 
       {/* 新增/编辑弹窗 */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

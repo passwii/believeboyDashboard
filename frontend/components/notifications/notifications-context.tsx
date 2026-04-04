@@ -41,7 +41,9 @@ function reducer(state: State, action: Action): State {
       return {
         ...state,
         toasts: [action.payload, ...state.toasts],
-        history: [action.payload, ...state.history].slice(0, MAX_HISTORY_SIZE),
+        history: action.payload.skipHistory
+          ? state.history
+          : [action.payload, ...state.history].slice(0, MAX_HISTORY_SIZE),
       }
     case 'DISMISS_TOAST':
       return { ...state, toasts: state.toasts.filter((t) => t.id !== action.payload) }

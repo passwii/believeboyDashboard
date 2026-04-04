@@ -198,7 +198,6 @@ export default function CommissionOverviewPage() {
   const [loading, setLoading] = useState(true)
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [recomputing, setRecomputing] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   const [rows, setRows] = useState<CommissionProjectMonth[]>([])
   const [monthlySummary, setMonthlySummary] = useState<CommissionYearlyMonthlySummaryItem[]>([])
@@ -210,7 +209,6 @@ export default function CommissionOverviewPage() {
 
   const loadData = useCallback(async () => {
     setLoading(true)
-    setError(null)
     try {
       const response = await fetch(`${API_BASE}/api/v1/system-management/commission-management/project-months?report_month=${month}`, {
         cache: 'no-store',
@@ -229,7 +227,7 @@ export default function CommissionOverviewPage() {
         }, {})
       )
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : '佣金数据加载失败')
+      notify({ type: 'error', title: '佣金数据加载失败', message: loadError instanceof Error ? loadError.message : '佣金数据加载失败' })
       setRows([])
       setReceivedDraftById({})
     } finally {
@@ -264,7 +262,6 @@ export default function CommissionOverviewPage() {
 
   const loadYearlySummary = useCallback(async () => {
     setSummaryLoading(true)
-    setError(null)
     try {
       const [monthlyResp, projectResp] = await Promise.all([
         fetch(`${API_BASE}/api/v1/system-management/commission-management/summary/monthly?year=${summaryYear}`, {
@@ -289,7 +286,7 @@ export default function CommissionOverviewPage() {
       setMonthlySummary(Array.isArray(monthlyPayload.items) ? monthlyPayload.items : [])
       setProjectSummary(Array.isArray(projectPayload.items) ? projectPayload.items : [])
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : '汇总数据加载失败')
+      notify({ type: 'error', title: '汇总数据加载失败', message: loadError instanceof Error ? loadError.message : '汇总数据加载失败' })
       setMonthlySummary([])
       setProjectSummary([])
     } finally {
@@ -361,14 +358,13 @@ export default function CommissionOverviewPage() {
 
   const updatePaymentStatus = async (row: CommissionProjectMonth, status: PaymentStatus) => {
     setUpdatingId(row.id)
-    setError(null)
     try {
       const draftValue = Number(receivedDraftById[row.id] ?? row.received_rmb)
       const normalizedDraft = Number.isFinite(draftValue) ? Math.max(0, draftValue) : row.received_rmb
       const receivedRmb = status === 'paid' ? getOverviewCommissionRmb(row) : status === 'unpaid' ? 0 : normalizedDraft
       await patchProjectMonthPayment(row, status, receivedRmb)
     } catch (updateError) {
-      setError(updateError instanceof Error ? updateError.message : '回款状态更新失败')
+      notify({ type: 'error', title: '回款状态更新失败', message: updateError instanceof Error ? updateError.message : '回款状态更新失败' })
     } finally {
       setUpdatingId(null)
     }
@@ -376,7 +372,6 @@ export default function CommissionOverviewPage() {
 
   const updateReceivedAmount = async (row: CommissionProjectMonth) => {
     setUpdatingId(row.id)
-    setError(null)
     try {
       const parsed = Number(receivedDraftById[row.id])
       if (!Number.isFinite(parsed) || parsed < 0) {
@@ -384,7 +379,7 @@ export default function CommissionOverviewPage() {
       }
       await patchProjectMonthPayment(row, row.payment_status, parsed)
     } catch (updateError) {
-      setError(updateError instanceof Error ? updateError.message : '已回款金额更新失败')
+      notify({ type: 'error', title: '已回款金额更新失败', message: updateError instanceof Error ? updateError.message : '已回款金额更新失败' })
     } finally {
       setUpdatingId(null)
     }
@@ -400,7 +395,6 @@ export default function CommissionOverviewPage() {
 
   const handleRecompute = async () => {
     setRecomputing(true)
-    setError(null)
     try {
       const response = await fetch(`${API_BASE}/api/v1/system-management/commission-management/recompute`, {
         method: 'POST',
@@ -419,7 +413,6 @@ export default function CommissionOverviewPage() {
       ])
       notify({ type: 'success', title: '佣金重新核算完成' })
     } catch (recomputeError) {
-      setError(recomputeError instanceof Error ? recomputeError.message : '佣金核算失败')
       notify({ type: 'error', title: '佣金核算失败', message: recomputeError instanceof Error ? recomputeError.message : '佣金核算失败' })
     } finally {
       setRecomputing(false)
@@ -648,9 +641,6 @@ export default function CommissionOverviewPage() {
             </div>
           </div>
 
-          {error ? (
-            <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive dark:border-destructive/30 dark:bg-destructive/12">{error}</div>
-          ) : null}
         </CardContent>
       </Card>
 

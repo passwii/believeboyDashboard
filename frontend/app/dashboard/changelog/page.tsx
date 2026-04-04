@@ -1,6 +1,5 @@
-import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
-import { getChangelogSnapshot, ReleaseStatus, ReleaseVersion } from '@/lib/server/changelog'
+import { getChangelogSnapshot, ReleaseVersion } from '@/lib/server/changelog'
 import { cn } from '@/lib/utils'
 import {
   ArrowUpRight,
@@ -19,39 +18,12 @@ function formatDateLabel(dateValue: string): string {
   }).format(date)
 }
 
-function formatFullDate(dateValue: string): string {
-  const date = new Date(`${dateValue}T00:00:00`)
-  if (Number.isNaN(date.getTime())) return dateValue
-
-  return new Intl.DateTimeFormat('zh-CN', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  }).format(date)
-}
-
 function formatDateRange(release: ReleaseVersion): string {
   if (release.status === 'current') {
     return `${formatDateLabel(release.startDate)} - 至今`
   }
 
   return `${formatDateLabel(release.startDate)} - ${formatDateLabel(release.endDate)}`
-}
-
-function statusLabel(status: ReleaseStatus): string {
-  if (status === 'current') return '当前版本'
-  if (status === 'stable') return '稳定版本'
-  return '历史版本'
-}
-
-function statusStyle(status: ReleaseStatus): string {
-  if (status === 'current') {
-    return 'border-emerald-500/30 bg-emerald-500/12 text-emerald-700 dark:text-emerald-300'
-  }
-  if (status === 'stable') {
-    return 'border-cyan-500/30 bg-cyan-500/12 text-cyan-700 dark:text-cyan-300'
-  }
-  return 'border-border/70 bg-background/80 text-muted-foreground dark:border-border/90 dark:bg-[hsl(var(--surface-soft)/0.88)]'
 }
 
 const releaseAccents = [
@@ -65,75 +37,11 @@ const releaseAccents = [
 
 export default function ChangelogPage() {
   const snapshot = getChangelogSnapshot()
-  const { releases, currentRelease, stats } = snapshot
+  const { releases } = snapshot
   const releasesDesc = [...releases].reverse()
 
   return (
     <div className="space-y-6 md:space-y-7">
-      <section className="dashboard-surface relative overflow-hidden px-5 py-5 md:px-7 md:py-7 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.20),transparent_28%),radial-gradient(circle_at_85%_18%,rgba(249,115,22,0.16),transparent_22%),linear-gradient(135deg,rgba(255,255,255,0.02),transparent_58%)] dark:bg-[radial-gradient(circle_at_top_left,rgba(96,165,250,0.22),transparent_26%),radial-gradient(circle_at_82%_20%,rgba(249,115,22,0.16),transparent_20%),linear-gradient(135deg,rgba(255,255,255,0.04),transparent_58%)]" />
-        <div className="relative z-10 space-y-5">
-          <div className="space-y-5">
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center gap-3">
-                <h2 className="text-2xl font-semibold tracking-tight md:text-3xl">版本更新日志</h2>
-                <span className="font-mono text-sm font-semibold text-primary">{currentRelease.version}</span>
-              </div>
-              <p className="max-w-3xl text-sm leading-6 text-muted-foreground md:text-base">
-                聚焦系统在不同阶段完成的核心业务能力升级，方便快速查看每个版本带来的模块变化和使用价值。
-              </p>
-            </div>
-            <div className="grid gap-3 md:grid-cols-3">
-              <div className="rounded-2xl border border-border/70 bg-background/78 px-4 py-4 dark:border-border/90 dark:bg-[hsl(var(--surface-soft)/0.84)]">
-                <div className="text-[0.72rem] uppercase tracking-[0.16em] text-muted-foreground">当前版本</div>
-                <div className="mt-2 flex items-center gap-3">
-                  <span className="font-mono text-xl font-semibold text-foreground">{currentRelease.version}</span>
-                  <span className="text-sm text-muted-foreground">{currentRelease.codename}</span>
-                </div>
-              </div>
-              <div className="rounded-2xl border border-border/70 bg-background/78 px-4 py-4 dark:border-border/90 dark:bg-[hsl(var(--surface-soft)/0.84)]">
-                <div className="text-[0.72rem] uppercase tracking-[0.16em] text-muted-foreground">版本阶段</div>
-                <div className="mt-2 text-sm leading-6 text-foreground">{formatDateRange(currentRelease)}</div>
-              </div>
-              <div className="rounded-2xl border border-border/70 bg-background/78 px-4 py-4 dark:border-border/90 dark:bg-[hsl(var(--surface-soft)/0.84)]">
-                <div className="text-[0.72rem] uppercase tracking-[0.16em] text-muted-foreground">当前重点</div>
-                <div className="mt-2 text-sm leading-6 text-foreground">{currentRelease.focus.slice(0, 3).join('、')}</div>
-              </div>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <Card className="border-border/70 bg-background/78 shadow-none dark:border-border/90 dark:bg-[hsl(var(--surface-soft)/0.84)]">
-                <CardContent className="p-4">
-                  <div className="text-[0.72rem] uppercase tracking-[0.16em] text-muted-foreground">当前版本</div>
-                  <div className="mt-2 text-2xl font-semibold tracking-tight">{currentRelease.version}</div>
-                  <div className="mt-1 text-sm text-muted-foreground">{currentRelease.codename}</div>
-                </CardContent>
-              </Card>
-              <Card className="border-border/70 bg-background/78 shadow-none dark:border-border/90 dark:bg-[hsl(var(--surface-soft)/0.84)]">
-                <CardContent className="p-4">
-                  <div className="text-[0.72rem] uppercase tracking-[0.16em] text-muted-foreground">大版本数</div>
-                  <div className="mt-2 text-2xl font-semibold tracking-tight">{stats.versionCount}</div>
-                  <div className="mt-1 text-sm text-muted-foreground">从 V1 归档到 V6</div>
-                </CardContent>
-              </Card>
-              <Card className="border-border/70 bg-background/78 shadow-none dark:border-border/90 dark:bg-[hsl(var(--surface-soft)/0.84)]">
-                <CardContent className="p-4">
-                  <div className="text-[0.72rem] uppercase tracking-[0.16em] text-muted-foreground">模块覆盖</div>
-                  <div className="mt-2 text-2xl font-semibold tracking-tight">{stats.moduleCount}</div>
-                  <div className="mt-1 text-sm text-muted-foreground">按业务模块重新聚合</div>
-                </CardContent>
-              </Card>
-              <Card className="border-border/70 bg-background/78 shadow-none dark:border-border/90 dark:bg-[hsl(var(--surface-soft)/0.84)]">
-                <CardContent className="p-4">
-                  <div className="text-[0.72rem] uppercase tracking-[0.16em] text-muted-foreground">历史线索</div>
-                  <div className="mt-2 text-2xl font-semibold tracking-tight">{stats.logCount}</div>
-                  <div className="mt-1 text-sm text-muted-foreground">来自已整理开发 log</div>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        </div>
-      </section>
-
       <div className="grid gap-6 xl:grid-cols-[16.5rem_minmax(0,1fr)]">
         <aside className="space-y-4 xl:sticky xl:top-24 xl:self-start">
           <Card className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">

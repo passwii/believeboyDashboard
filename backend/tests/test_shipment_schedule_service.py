@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.db.session import Base
 from app.models import ProductCost, Project
 from app.models.shipment_schedule import ShipmentSchedule, ShipmentScheduleItem
+from app.models.shipment_sku_summary import ShipmentSkuSummary
 from app.schemas.shipment_schedule import ShipmentScheduleUpdate
 from app.services import shipment_schedule_service
 
@@ -910,3 +911,150 @@ def test_list_shipment_sku_summary_supports_multiple_status_filters():
         assert rows[0]['total_chargeable_weight_kg'] == pytest.approx(5.0)
         assert rows[0]['total_logistics_cost'] == pytest.approx(50.0)
         assert rows[0]['average_logistics_unit_price'] == pytest.approx(50 / 30, rel=1e-4)
+
+
+def test_sync_first_leg_cost_from_shipment_summary_skips_when_two_decimal_value_is_unchanged():
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        project = Project(project_name='宝勒1店', sort_order=1, source_file='seed.csv')
+        db.add(project)
+        db.flush()
+
+        db.add(
+            ProductCost(
+                project_name='宝勒1店',
+                sku='SKU-001',
+                asin='ASIN-001',
+                country='US',
+                first_leg_cost_rmb=1.23,
+                fob_unit_cost=2,
+                currency='USD',
+                sort_order=1,
+                is_active=True,
+            )
+        )
+        db.add(
+            ShipmentSkuSummary(
+                project_id=project.id,
+                project_name_snapshot='宝勒1店',
+                sku='SKU-001',
+                country='US',
+                shipment_count=1,
+                total_quantity=10,
+                total_chargeable_weight_kg=2,
+                total_logistics_cost=12.34,
+                average_logistics_unit_price=1.2344,
+            )
+        )
+        db.commit()
+
+        updated = shipment_schedule_service.sync_first_leg_cost_from_shipment_summary(
+            db,
+            project_id=project.id,
+        )
+        db.commit()
+
+        refreshed = db.execute(
+            select(ProductCost).where(
+                ProductCost.project_name == '宝勒1店',
+                ProductCost.sku == 'SKU-001',
+                ProductCost.country == 'US',
+            )
+        ).scalar_one()
+
+        assert updated == 0
+        assert float(refreshed.first_leg_cost_rmb) == pytest.approx(1.23)
+
+
+def test_sync_first_leg_cost_from_shipment_summary_uses_live_history_summary_scope():
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        project = Project(project_name='铨富', sort_order=1, source_file='seed.csv')
+        db.add(project)
+        db.flush()
+
+        db.add(
+            ProductCost(
+                project_name='铨富',
+                sku='SKU-001',
+                asin='ASIN-001',
+                country='US',
+                first_leg_cost_rmb=10,
+                fob_unit_cost=2,
+                currency='USD',
+                sort_order=1,
+                is_active=True,
+            )
+        )
+
+        completed = ShipmentSchedule(
+            project_id=project.id,
+            country='US',
+            project_name_snapshot='铨富',
+            shipment_no='SHP-COMPLETED-001',
+            shipping_method='sea',
+            shipment_status='completed',
+            include_in_history_shipping_calc=True,
+            source_type='manual',
+        )
+        in_transit = ShipmentSchedule(
+            project_id=project.id,
+            country='US',
+            project_name_snapshot='铨富',
+            shipment_no='SHP-TRANSIT-001',
+            shipping_method='sea',
+            shipment_status='in_transit',
+            include_in_history_shipping_calc=True,
+            source_type='manual',
+        )
+        db.add_all([completed, in_transit])
+        db.flush()
+
+        db.add_all(
+            [
+                ShipmentScheduleItem(
+                    shipment_schedule_id=completed.id,
+                    project_id=project.id,
+                    shipment_no=completed.shipment_no,
+                    sku='SKU-001',
+                    quantity=10,
+                    chargeable_weight_kg=2,
+                    estimated_logistics_cost=20,
+                    average_logistics_unit_price=2.0,
+                    source_type='manual',
+                ),
+                ShipmentScheduleItem(
+                    shipment_schedule_id=in_transit.id,
+                    project_id=project.id,
+                    shipment_no=in_transit.shipment_no,
+                    sku='SKU-001',
+                    quantity=10,
+                    chargeable_weight_kg=3,
+                    estimated_logistics_cost=30,
+                    average_logistics_unit_price=3.0,
+                    source_type='manual',
+                ),
+            ]
+        )
+        db.commit()
+
+        updated = shipment_schedule_service.sync_first_leg_cost_from_shipment_summary(
+            db,
+            project_id=project.id,
+        )
+        db.commit()
+
+        refreshed = db.execute(
+            select(ProductCost).where(
+                ProductCost.project_name == '铨富',
+                ProductCost.sku == 'SKU-001',
+                ProductCost.country == 'US',
+            )
+        ).scalar_one()
+
+        assert updated == 1
+        assert float(refreshed.first_leg_cost_rmb) == pytest.approx(2.5)

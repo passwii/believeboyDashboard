@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+import { useNotifications } from '@/components/notifications'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
 
 const API_BASE = '/api/backend/api/v1'
@@ -131,6 +132,7 @@ function agingExcelFontColor(status: string): string {
 }
 
 export default function InventoryAnalysisPage() {
+  const { notify } = useNotifications()
   const { data: session } = useSession()
 
   const [projects, setProjects] = useState<ProjectOption[]>([])
@@ -157,7 +159,6 @@ export default function InventoryAnalysisPage() {
   const [rows, setRows] = useState<InventoryItem[]>([])
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   const currentProjectId = useMemo(() => {
     const parsed = Number(projectId)
@@ -180,7 +181,6 @@ export default function InventoryAnalysisPage() {
     let active = true
     async function loadProjects() {
       setProjectsLoading(true)
-      setError(null)
       try {
         const payload = await fetchManagedProjectsCached<ProjectOption[]>(session)
         if (!active) return
@@ -190,7 +190,7 @@ export default function InventoryAnalysisPage() {
         }
       } catch (loadError) {
         if (!active) return
-        setError(loadError instanceof Error ? loadError.message : '项目列表加载失败')
+        notify({ type: 'error', title: '项目列表加载失败', message: loadError instanceof Error ? loadError.message : '项目列表加载失败' })
       } finally {
         if (active) setProjectsLoading(false)
       }
@@ -206,7 +206,6 @@ export default function InventoryAnalysisPage() {
     let active = true
     async function loadData() {
       setLoading(true)
-      setError(null)
       try {
         const query = new URLSearchParams({
           project_id: String(currentProjectId),
@@ -230,7 +229,7 @@ export default function InventoryAnalysisPage() {
         setRows(payload.items)
       } catch (loadError) {
         if (!active) return
-        setError(loadError instanceof Error ? loadError.message : '库存分析加载失败')
+        notify({ type: 'error', title: '库存分析加载失败', message: loadError instanceof Error ? loadError.message : '库存分析加载失败' })
         setRows([])
       } finally {
         if (active) setLoading(false)
@@ -272,12 +271,11 @@ export default function InventoryAnalysisPage() {
 
   const exportToExcel = async () => {
     if (rows.length === 0) {
-      setError('当前没有可导出的库存明细数据')
+      notify({ type: 'error', title: '当前没有可导出的库存明细数据' })
       return
     }
 
     setExporting(true)
-    setError(null)
     try {
       const ExcelJS = await import('exceljs')
       const workbook = new ExcelJS.Workbook()
@@ -440,7 +438,7 @@ export default function InventoryAnalysisPage() {
         },
       })
     } catch (exportError) {
-      setError(exportError instanceof Error ? exportError.message : '导出 Excel 失败')
+      notify({ type: 'error', title: '导出 Excel 失败', message: exportError instanceof Error ? exportError.message : '导出 Excel 失败' })
     } finally {
       setExporting(false)
     }
@@ -547,11 +545,6 @@ export default function InventoryAnalysisPage() {
           </Button>
         </DataTableCardHeader>
         <DataTableCardBody className="overflow-auto" style={{ maxHeight: '600px' }}>
-          {error ? (
-            <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-              {error}
-            </div>
-          ) : null}
           <Table noWrapperRounded>
             <TableHeader>
               <TableRow>

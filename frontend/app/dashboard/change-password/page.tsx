@@ -8,34 +8,32 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useNotifications } from '@/components/notifications'
 
 export default function ChangePasswordPage() {
+  const { notify } = useNotifications()
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    setError(null)
-    setSuccess(null)
 
     if (!currentPassword || !newPassword || !confirmPassword) {
-      setError('请完整填写密码信息')
+      notify({ type: 'error', title: '请完整填写密码信息' })
       return
     }
     if (newPassword.length < 8) {
-      setError('新密码长度至少 8 位')
+      notify({ type: 'error', title: '新密码长度至少 8 位' })
       return
     }
     if (newPassword !== confirmPassword) {
-      setError('两次输入的新密码不一致')
+      notify({ type: 'error', title: '两次输入的新密码不一致' })
       return
     }
     if (currentPassword === newPassword) {
-      setError('新密码不能与当前密码一致')
+      notify({ type: 'error', title: '新密码不能与当前密码一致' })
       return
     }
 
@@ -54,9 +52,9 @@ export default function ChangePasswordPage() {
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
-      setSuccess('密码修改成功，请使用新密码重新登录。')
+      notify({ type: 'success', title: '密码修改成功，请使用新密码重新登录。' })
     } catch (err) {
-      setError(err instanceof Error ? err.message : '修改失败')
+      notify({ type: 'error', title: err instanceof Error ? err.message : '修改失败' })
     } finally {
       setSubmitting(false)
     }
@@ -114,17 +112,6 @@ export default function ChangePasswordPage() {
                 disabled={submitting}
               />
             </div>
-
-            {error ? (
-              <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive dark:border-destructive/30 dark:bg-destructive/12">
-                {error}
-              </div>
-            ) : null}
-            {success ? (
-              <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/12 dark:text-emerald-300">
-                {success}
-              </div>
-            ) : null}
 
             <Button type="submit" disabled={submitting}>
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}

@@ -6,9 +6,19 @@ import { type MouseEvent, useCallback, useEffect, useRef } from 'react'
 import { useGlobalLoading } from '@/components/global-loading-provider'
 
 const NAVIGATION_LOADING_WATCHDOG_MS = 30000
+const IDLE_PREFETCH_DELAY_MS = 120
 
 type RouteLoadingLinkProps = LinkProps &
   Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, 'href'>
+
+type RequestIdleCallbackHandle = ReturnType<typeof setTimeout> | number
+
+type RequestIdleCallbackFn = (
+  callback: IdleRequestCallback,
+  options?: IdleRequestOptions
+) => RequestIdleCallbackHandle
+
+type CancelIdleCallbackFn = (handle: RequestIdleCallbackHandle) => void
 
 function canHandleNavigationClick(event: MouseEvent<HTMLAnchorElement>, target?: string) {
   if (event.defaultPrevented) return false
@@ -57,11 +67,11 @@ export function RouteLoadingLink({
   const beginNavigationLoading = useCallback(() => {
     if (pendingRef.current) return
     pendingRef.current = true
-    startGlobalLoading('navigation')
+    startGlobalLoading('navigation', { targetPath: hrefString })
     watchdogTimerRef.current = setTimeout(() => {
       finishNavigationLoading()
     }, NAVIGATION_LOADING_WATCHDOG_MS)
-  }, [finishNavigationLoading, startGlobalLoading])
+  }, [finishNavigationLoading, hrefString, startGlobalLoading])
 
   useEffect(() => {
     finishNavigationLoading()
@@ -76,6 +86,34 @@ export function RouteLoadingLink({
   useEffect(() => {
     prefetchedRef.current = false
   }, [hrefString])
+
+  useEffect(() => {
+    if (!hrefString.startsWith('/dashboard')) return
+    if (hrefString === pathname || hrefString.startsWith(`${pathname}#`)) return
+
+    const requestIdle =
+      (window.requestIdleCallback as RequestIdleCallbackFn | undefined) ??
+      ((callback: IdleRequestCallback) =>
+        window.setTimeout(
+          () =>
+            callback({
+              didTimeout: false,
+              timeRemaining: () => 0,
+            } as IdleDeadline),
+          IDLE_PREFETCH_DELAY_MS
+        ))
+    const cancelIdle =
+      (window.cancelIdleCallback as CancelIdleCallbackFn | undefined) ??
+      ((handle: RequestIdleCallbackHandle) => window.clearTimeout(handle))
+
+    const idleHandle = requestIdle(() => {
+      prefetchRoute()
+    })
+
+    return () => {
+      cancelIdle(idleHandle)
+    }
+  }, [hrefString, pathname, prefetchRoute])
 
   return (
     <Link

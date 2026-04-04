@@ -3,9 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { LivePresence } from '@/components/dashboard/live-presence'
+import { DashboardPageLoading } from '@/components/dashboard/dashboard-page-loading'
 import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
-import { ProductUpdatesEntry } from '@/components/dashboard/product-updates-entry'
-import { ProductUpdatesSpotlight } from '@/components/dashboard/product-updates-spotlight'
 import { NotificationPanel, useNotifications } from '@/components/notifications'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/dashboard/app-sidebar'
@@ -13,7 +12,22 @@ import { SearchCommand } from '@/components/dashboard/search-command'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { getDashboardPageTitle } from '@/lib/dashboard-route-meta'
-import { Bell, ChevronRight, CircleHelp, History, Search } from 'lucide-react'
+import { useGlobalLoading } from '@/components/global-loading-provider'
+import { Bell, ChevronRight, Heart, History, Search } from 'lucide-react'
+
+function getDashboardBreadcrumbLabel(pathname: string, pageTitle: string) {
+  if (pathname === '/dashboard') return '运营总览'
+
+  if (pathname.includes('/data-reporting/')) return `运营核算 > ${pageTitle}`
+  if (pathname.includes('/data-analysis/')) return `数据分析 > ${pageTitle}`
+  if (pathname.includes('/data-management/')) return `数据管理 > ${pageTitle}`
+  if (pathname.includes('/system-management/')) return `系统管理 > ${pageTitle}`
+  if (pathname.includes('/operations/')) return `运营导航 > ${pageTitle}`
+  if (pathname.includes('/ai-panel/')) return `AI 面板 > ${pageTitle}`
+  if (pathname.includes('/tools/')) return `工具集 > ${pageTitle}`
+
+  return pageTitle
+}
 
 function NotificationBell() {
   const { unreadCount } = useNotifications()
@@ -51,6 +65,8 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   const pathname = usePathname()
+  const { isNavigationLoading, navigationTargetPath } = useGlobalLoading()
+  const effectivePathname = isNavigationLoading && navigationTargetPath ? navigationTargetPath : pathname
   const isAiChatPage = pathname === '/dashboard/ai-panel/chat'
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
@@ -62,20 +78,11 @@ export default function DashboardLayout({
       setSidebarOpen(true)
     }
   }, [isAiChatPage])
-  const pageTitle = useMemo(() => getDashboardPageTitle(pathname), [pathname])
-  const breadcrumbLabel = useMemo(() => {
-    if (pathname === '/dashboard') return '运营总览'
-
-    if (pathname.includes('/data-reporting/')) return `运营核算 > ${pageTitle}`
-    if (pathname.includes('/data-analysis/')) return `数据分析 > ${pageTitle}`
-    if (pathname.includes('/data-management/')) return `数据管理 > ${pageTitle}`
-    if (pathname.includes('/system-management/')) return `系统管理 > ${pageTitle}`
-    if (pathname.includes('/operations/')) return `运营导航 > ${pageTitle}`
-    if (pathname.includes('/ai-panel/')) return `AI 面板 > ${pageTitle}`
-    if (pathname.includes('/tools/')) return `工具集 > ${pageTitle}`
-
-    return pageTitle
-  }, [pathname, pageTitle])
+  const pageTitle = useMemo(() => getDashboardPageTitle(effectivePathname), [effectivePathname])
+  const breadcrumbLabel = useMemo(
+    () => getDashboardBreadcrumbLabel(effectivePathname, pageTitle),
+    [effectivePathname, pageTitle]
+  )
 
   useEffect(() => {
     document.title = `${pageTitle} | BelieveBoy Dashboard`
@@ -130,7 +137,6 @@ export default function DashboardLayout({
               </Button>
               <ThemeToggle />
               <NotificationBell />
-              <ProductUpdatesEntry />
               <Button
                 asChild
                 variant="ghost"
@@ -148,8 +154,8 @@ export default function DashboardLayout({
                 size="icon"
                 className="h-10 w-10 rounded-xl border border-transparent bg-transparent text-secondary hover:bg-[hsl(var(--surface-subtle))]"
               >
-                <RouteLoadingLink href="/dashboard/feature-updates#support" aria-label="帮助与功能说明">
-                  <CircleHelp className="h-4 w-4" />
+                <RouteLoadingLink href="/dashboard/changelog" aria-label="帮助与功能说明">
+                  <Heart className="h-4 w-4" />
                   <span className="sr-only">Help</span>
                 </RouteLoadingLink>
               </Button>
@@ -170,12 +176,11 @@ export default function DashboardLayout({
                 : 'dashboard-page-shell min-h-[calc(100vh-8.5rem)] px-0 py-1'
             }
           >
-            {children}
+            {isNavigationLoading ? <DashboardPageLoading /> : children}
           </div>
         </main>
       </SidebarInset>
       <SearchCommand />
-      <ProductUpdatesSpotlight />
     </SidebarProvider>
   )
 }

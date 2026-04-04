@@ -2,7 +2,6 @@
 
 import * as React from 'react'
 import {
-  BellRing,
   Bot,
   Calculator,
   ChartColumnBig,
@@ -10,7 +9,10 @@ import {
   Command,
   Database,
   LayoutDashboard,
+  Package,
   ShieldUser,
+  TrendingUp,
+  Upload,
   Wrench,
 } from 'lucide-react'
 import { signOut, useSession } from 'next-auth/react'
@@ -32,6 +34,11 @@ import {
   SidebarSeparator,
   SidebarRail,
 } from '@/components/ui/sidebar'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 type NavLink = {
   title: string
@@ -144,11 +151,6 @@ const primaryGroups: NavGroup[] = [
 ]
 
 const utilityLinks: Array<NavLink & { icon: React.ReactNode }> = [
-  {
-    title: '产品更新',
-    url: '/dashboard/feature-updates',
-    icon: <BellRing className='h-6 w-6' />,
-  },
   {
     title: '更新日志',
     url: '/dashboard/changelog',
@@ -269,30 +271,63 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   return (
     <Sidebar collapsible='offcanvas' {...props}>
-      <SidebarHeader className='gap-1.5 px-3 py-2.5'>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              size='lg'
-              className='h-[44px] rounded-[0.75rem] bg-[hsl(var(--sidebar-background))] px-2.5 py-2 shadow-none hover:bg-[hsl(var(--sidebar-foreground)/0.02)] data-[active=true]:bg-[hsl(var(--sidebar-foreground)/0.03)]'
-            >
-              <div className='flex h-8 w-8 shrink-0 items-center justify-center rounded-[0.65rem] bg-[linear-gradient(135deg,hsl(var(--primary)),hsl(var(--chart-2)))] text-sidebar-primary-foreground shadow-none'>
-                <Command className='size-4' />
-              </div>
-              <div className='grid min-w-0 flex-1 text-left leading-tight'>
-                <span className='truncate text-[0.82rem] font-semibold text-sidebar-foreground'>
-                  BelieveBoy
-                </span>
-                <span className='truncate text-[0.72rem] text-sidebar-foreground/56'>
-                  运营控制台
-                </span>
-              </div>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-
-
+      <SidebarHeader className='flex items-center px-3 py-3'>
+        <div className='grid w-full text-left leading-tight'>
+          <span className='truncate text-[0.82rem] font-semibold text-sidebar-foreground'>
+            BelieveBoy
+          </span>
+          <span className='truncate text-[0.72rem] text-sidebar-foreground/56'>
+            运营控制台
+          </span>
+        </div>
       </SidebarHeader>
+
+      {/* Quick Access Bar */}
+      <div className="px-3 py-2">
+        <div className="flex items-center justify-around gap-1">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <RouteLoadingLink
+                href="/dashboard/data-management/shipment-management"
+                className="flex h-9 w-9 items-center justify-center rounded-[0.65rem] border border-[hsl(var(--sidebar-foreground)/0.08)] bg-[hsl(var(--sidebar-foreground)/0.03)] text-sidebar-foreground/72 shadow-none transition-all duration-200 hover:bg-[hsl(var(--sidebar-foreground)/0.08)] hover:text-sidebar-foreground group-data-[collapsible=icon]:hidden"
+              >
+                <Package className="h-4 w-4" />
+              </RouteLoadingLink>
+            </TooltipTrigger>
+            <TooltipContent side="right" className="group-data-[collapsible=icon]:hidden">
+              发货管理
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <RouteLoadingLink
+                href="/dashboard/data-analysis/daily-analysis"
+                className="flex h-9 w-9 items-center justify-center rounded-[0.65rem] border border-[hsl(var(--sidebar-foreground)/0.08)] bg-[hsl(var(--sidebar-foreground)/0.03)] text-sidebar-foreground/72 shadow-none transition-all duration-200 hover:bg-[hsl(var(--sidebar-foreground)/0.08)] hover:text-sidebar-foreground group-data-[collapsible=icon]:hidden"
+              >
+                <TrendingUp className="h-4 w-4" />
+              </RouteLoadingLink>
+            </TooltipTrigger>
+            <TooltipContent side="right" className="group-data-[collapsible=icon]:hidden">
+              销售数据
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <RouteLoadingLink
+                href="/dashboard/data-management/report-upload"
+                className="flex h-9 w-9 items-center justify-center rounded-[0.65rem] border border-[hsl(var(--sidebar-foreground)/0.08)] bg-[hsl(var(--sidebar-foreground)/0.03)] text-sidebar-foreground/72 shadow-none transition-all duration-200 hover:bg-[hsl(var(--sidebar-foreground)/0.08)] hover:text-sidebar-foreground group-data-[collapsible=icon]:hidden"
+              >
+                <Upload className="h-4 w-4" />
+              </RouteLoadingLink>
+            </TooltipTrigger>
+            <TooltipContent side="right" className="group-data-[collapsible=icon]:hidden">
+              报表上传
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      </div>
 
       <SidebarSeparator className='mx-4 bg-[hsl(var(--sidebar-foreground)/0.08)]' />
 

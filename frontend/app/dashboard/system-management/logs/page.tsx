@@ -16,6 +16,14 @@ import { useSession } from 'next-auth/react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  DataCard,
+  DataCardHeader,
+  DataTableCard,
+  DataTableCardBody,
+  DataTableCardHeader,
+  DataTableCardStatBar,
+} from '@/components/ui/data-card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { EmptyTableState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
@@ -23,6 +31,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { buildBackendHeaders } from '@/lib/backend-auth'
 import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
+import { useNotifications } from '@/components/notifications'
 
 type OperationAuditLogItem = {
   id: number
@@ -339,12 +348,12 @@ function getResultMeta(result: string) {
 }
 
 export default function SystemOperationLogsPage() {
+  const { notify } = useNotifications()
   const { data: session, status } = useSession()
 
   const [rows, setRows] = useState<OperationAuditLogItem[]>([])
   const [summary, setSummary] = useState<OperationAuditLogsSummaryResponse | null>(null)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   const [page, setPage] = useState(1)
   const pageSize = 20
@@ -364,7 +373,6 @@ export default function SystemOperationLogsPage() {
   const fetchLogs = useCallback(async () => {
     if (status === 'loading') return
     setLoading(true)
-    setError(null)
 
     try {
       const params = new URLSearchParams()
@@ -405,7 +413,7 @@ export default function SystemOperationLogsPage() {
       setHasNext(Boolean(logsPayload.has_next))
       setSummary(summaryPayload)
     } catch (err) {
-      setError(normalizeErrorMessage(err, '加载日志失败'))
+      notify({ type: 'error', title: '加载日志失败', message: normalizeErrorMessage(err, '加载日志失败') })
     } finally {
       setLoading(false)
     }
@@ -477,87 +485,35 @@ export default function SystemOperationLogsPage() {
 
   return (
     <div className="w-full space-y-6">
-      <Card className="dashboard-surface overflow-hidden border-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.9),rgba(241,244,247,0.96))] dark:border-border/80 dark:bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))]">
-        <CardHeader className="space-y-4">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="space-y-3">
-              <p className="dashboard-kicker">Management Workspace</p>
-              <Badge variant="outline" className="w-fit border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300">
-                系统管理
-              </Badge>
-              <div className="space-y-1">
-                <CardTitle>日志查看</CardTitle>
-                <CardDescription>
-                  前端统一将后端动作反馈转换为中文，并按系统运维、项目、报表、发货、补货、提成等类别集中查看。
-                </CardDescription>
-              </div>
-            </div>
+      <DataCard>
+        <DataCardHeader
+          title="统计概览"
+          description="当前筛选条件下的日志统计"
+        />
+        <div className="px-6 py-5">
+          <DataTableCardStatBar
+            items={[
+              { label: '日志总量', value: summary?.total ?? 0, highlight: true },
+              { label: '成功', value: summary?.success_count ?? 0 },
+              { label: '失败', value: summary?.failure_count ?? 0 },
+              { label: '活跃操作人', value: summary?.unique_operator_count ?? 0 },
+            ]}
+          />
+        </div>
+      </DataCard>
 
-            <div className="flex justify-end">
-              <Button type="button" variant="outline" onClick={() => void fetchLogs()} disabled={loading}>
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                {loading ? '刷新中...' : '刷新'}
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-
-        <CardContent className="space-y-5 p-5 sm:p-7">
-          {error ? (
-            <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-sm text-destructive dark:border-destructive/30 dark:bg-destructive/12">
-              {error}
-            </div>
-          ) : null}
-
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {summaryCards.map((card) => (
-              <div key={card.key} className={`rounded-lg bg-gradient-to-br ${card.accent} p-[1px] text-left`}>
-                <div className="flex h-full min-h-[138px] flex-col justify-between rounded-[calc(0.75rem-1px)] bg-black/10 p-4 backdrop-blur-sm dark:border dark:border-white/10 dark:bg-[hsl(var(--surface-soft)/0.88)]">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/72">{card.title}</p>
-                      <p className="mt-3 text-3xl font-semibold tracking-tight">{card.value}</p>
-                    </div>
-                    <div className="rounded-md border border-white/15 bg-white/10 p-2 text-white/90">{card.icon}</div>
-                  </div>
-                  <p className="text-sm text-white/78">{card.detail}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <Input
-              value={keywordInput}
-              onChange={(event) => setKeywordInput(event.target.value)}
-              placeholder="关键词（动作/路径/资源ID/trace）"
-            />
-            <Input value={operatorInput} onChange={(event) => setOperatorInput(event.target.value)} placeholder="操作人" />
-            <Select value={categoryInput} onValueChange={(value: CategoryKey) => setCategoryInput(value)}>
-              <SelectTrigger>
-                <SelectValue placeholder="日志分类" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部分类</SelectItem>
-                {CATEGORY_OPTIONS.map((item) => (
-                  <SelectItem key={item.key} value={item.key}>
-                    {item.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <div className="flex gap-2">
-              <Button className="flex-1" onClick={applyFilters}>
-                <Search className="h-4 w-4" />
-                查询
-              </Button>
-              <Button type="button" variant="outline" onClick={resetFilters}>
-                重置
-              </Button>
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-white/45 bg-[hsl(var(--surface-subtle))] p-1.5 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
+      <DataTableCard>
+        <DataCardHeader
+          title="日志列表"
+          action={
+            <Button type="button" variant="outline" onClick={() => void fetchLogs()} disabled={loading}>
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              {loading ? '刷新中...' : '刷新'}
+            </Button>
+          }
+        />
+        <DataTableCardBody>
+          <div className="border border-white/45 bg-[hsl(var(--surface-subtle))] p-1.5 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -626,7 +582,7 @@ export default function SystemOperationLogsPage() {
             </Table>
           </div>
 
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between px-4 py-3">
             <p className="text-sm text-muted-foreground">
               共 {total} 条，当前第 {page} / {totalPages} 页
             </p>
@@ -636,6 +592,41 @@ export default function SystemOperationLogsPage() {
               </Button>
               <Button variant="outline" onClick={() => setPage((prev) => prev + 1)} disabled={!hasNext || loading}>
                 下一页
+              </Button>
+            </div>
+          </div>
+        </DataTableCardBody>
+      </DataTableCard>
+
+      <Card className="dashboard-surface">
+        <CardContent className="p-4">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <Input
+              value={keywordInput}
+              onChange={(event) => setKeywordInput(event.target.value)}
+              placeholder="关键词（动作/路径/资源ID/trace）"
+            />
+            <Input value={operatorInput} onChange={(event) => setOperatorInput(event.target.value)} placeholder="操作人" />
+            <Select value={categoryInput} onValueChange={(value: CategoryKey) => setCategoryInput(value)}>
+              <SelectTrigger>
+                <SelectValue placeholder="日志分类" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部分类</SelectItem>
+                {CATEGORY_OPTIONS.map((item) => (
+                  <SelectItem key={item.key} value={item.key}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="flex gap-2">
+              <Button className="flex-1" onClick={applyFilters}>
+                <Search className="h-4 w-4" />
+                查询
+              </Button>
+              <Button type="button" variant="outline" onClick={resetFilters}>
+                重置
               </Button>
             </div>
           </div>
