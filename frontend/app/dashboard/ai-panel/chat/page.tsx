@@ -6,12 +6,16 @@ import {
   Bot,
   ChevronLeft,
   ChevronRight,
+  Copy,
   FileText,
   Globe,
   Loader2,
   MessageCirclePlus,
   Paperclip,
+  Pencil,
+  Pin,
   RefreshCw,
+  Search,
   SendHorizontal,
   Settings2,
   Sparkles,
@@ -36,6 +40,7 @@ type ConversationItem = {
   title: string
   created_at: string
   updated_at: string
+  pinned_at?: string | null
 }
 
 type ChatMessage = {
@@ -44,9 +49,14 @@ type ChatMessage = {
   role: 'user' | 'assistant'
   content: string
   search_sources?: SearchSource[]
+  is_complete?: boolean
   created_at: string
   streaming?: boolean
   failed?: boolean
+  prompt_tokens?: number
+  completion_tokens?: number
+  total_tokens?: number
+  duration_ms?: number
 }
 
 type SearchSource = {
@@ -145,6 +155,42 @@ const defaultChatSettings: ChatSettings = {
   detailPromptId: 'none',
   enableWebSearch: false,
   maxConversationTurns: 10,
+}
+
+function formatMessageTime(isoString: string): string {
+  const date = new Date(isoString)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMs / 3600000)
+  const diffDays = Math.floor(diffMs / 86400000)
+
+  if (diffMins < 1) return '刚刚'
+  if (diffMins < 60) return `${diffMins}分钟前`
+  if (diffHours < 24) return `${diffHours}小时前`
+  if (diffDays < 7) return `${diffDays}天前`
+  return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+}
+
+function TypingIndicator() {
+  return (
+    <div className="flex items-center gap-0.5">
+      <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: '0ms' }} />
+      <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: '150ms' }} />
+      <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: '300ms' }} />
+    </div>
+  )
+}
+
+function SearchProgress({ query }: { query: string }) {
+  return (
+    <div className="flex items-center gap-2 min-w-24">
+      <div className="flex-1 h-1 rounded-full bg-muted-foreground/20 overflow-hidden">
+        <div className="h-full w-2/3 bg-blue-500/60 rounded-full animate-pulse" />
+      </div>
+      <span className="text-xs truncate max-w-20">{query}</span>
+    </div>
+  )
 }
 
 function buildTempMessage(
@@ -270,16 +316,59 @@ export default function AIChatPage() {
   const [attachedFile, setAttachedFile] = useState<AttachedFile | null>(null)
   const [uploadingFile, setUploadingFile] = useState(false)
   const [fileUploadError, setFileUploadError] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [pinnedConversationIds, setPinnedConversationIds] = useState<Set<number>>(new Set())
+  const [editingConversationId, setEditingConversationId] = useState<number | null>(null)
+  const [editingTitle, setEditingTitle] = useState('')
   const chatScrollRef = useRef<HTMLDivElement | null>(null)
   const messageRequestRef = useRef(0)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const activeRequestControllerRef = useRef<AbortController | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const activeRequestControllerRef = useRef<Map<number, AbortController>>(new Map())
   const nextScrollBehaviorRef = useRef<ScrollBehavior | null>(null)
 
   const activeConversation = useMemo(
     () => conversations.find((item) => item.id === activeConversationId) ?? null,
     [activeConversationId, conversations]
   )
+
+  const filteredConversations = useMemo(() => {
+    if (!searchQuery.trim()) return conversations
+    return conversations.filter((item) =>
+      item.title.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+  }, [conversations, searchQuery])
+
+  const groupedConversations = useMemo(() => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+
+    const groups: { label: string; items: ConversationItem[] }[] = [
+      { label: '置顶', items: [] },
+      { label: '今天', items: [] },
+      { label: '昨天', items: [] },
+      { label: '更早', items: [] },
+    ]
+
+    filteredConversations.forEach((item) => {
+      const itemDate = new Date(item.updated_at)
+      itemDate.setHours(0, 0, 0, 0)
+
+      if (pinnedConversationIds.has(item.id)) {
+        groups[0].items.push(item)
+      } else if (itemDate.getTime() === today.getTime()) {
+        groups[1].items.push(item)
+      } else if (itemDate.getTime() === yesterday.getTime()) {
+        groups[2].items.push(item)
+      } else {
+        groups[3].items.push(item)
+      }
+    })
+
+    return groups.filter((g) => g.items.length > 0)
+  }, [filteredConversations, pinnedConversationIds])
 
   const regenerationTarget = useMemo(() => {
     if (messages.length < 2) {
@@ -328,12 +417,11 @@ export default function AIChatPage() {
 
       setChatConfig(payload)
       setChatSettings((prev) => {
-        // Filter out the default (server-only) model from user-selectable options
         const userModels = payload.models.filter((m) => !isDefaultModel(m, payload.defaultModel))
-        const defaultModel = userModels[0] || payload.defaultModel || payload.models[0] || ''
+        const defaultModel = payload.defaultModel || (userModels[0] && userModels[0].trim()) || payload.models[0] || ''
         return {
           ...prev,
-          model: userModels.includes(prev.model) ? prev.model : defaultModel,
+          model: (userModels[0] && userModels.includes(prev.model)) ? prev.model : defaultModel,
           overviewPromptId:
           payload.overviewOptions.some((item) => item.id === prev.overviewPromptId)
             ? prev.overviewPromptId
@@ -403,8 +491,14 @@ export default function AIChatPage() {
       if (messageRequestRef.current !== requestId) {
         return
       }
+      const processedPayload = payload.map((msg) => {
+        if (msg.role === 'assistant' && msg.is_complete === false) {
+          return { ...msg, streaming: true }
+        }
+        return msg
+      })
       nextScrollBehaviorRef.current = 'auto'
-      setMessages(payload)
+      setMessages(processedPayload)
       setAutoScrollEnabled(true)
     } catch (loadError) {
       if (messageRequestRef.current !== requestId) {
@@ -421,11 +515,6 @@ export default function AIChatPage() {
   const createConversation = useCallback(async () => {
     setError(null)
     try {
-      // Abort any in-flight streaming request so pending messages persist
-      // in the old conversation's message list and complete in the background.
-      if (activeRequestControllerRef.current) {
-        activeRequestControllerRef.current.abort()
-      }
       const response = await fetch('/api/ai-chat/conversations', {
         method: 'POST',
         headers: {
@@ -568,7 +657,7 @@ export default function AIChatPage() {
   }, [])
 
   const runMessageStream = useCallback(
-    async (options: { content?: string; regenerate?: boolean }) => {
+    async (options: { content?: string; regenerate?: boolean; targetMessageId?: number | string }) => {
       if (!activeConversationId || submitting) {
         return
       }
@@ -586,9 +675,22 @@ export default function AIChatPage() {
       if (!regenerate && !content) {
         return
       }
-      if (regenerate && !regenerationTarget) {
-        setError('当前没有可重新生成的回答')
-        return
+
+      let currentRegenTarget = null
+      if (regenerate) {
+        if (options.targetMessageId) {
+          const targetIndex = messages.findIndex((m) => m.id === options.targetMessageId)
+          if (targetIndex > 0 && messages[targetIndex - 1].role === 'user') {
+            currentRegenTarget = { assistant: messages[targetIndex], userIndex: targetIndex - 1 }
+          }
+        }
+        if (!currentRegenTarget && !regenerationTarget) {
+          setError('当前没有可重新生成的回答')
+          return
+        }
+        if (!currentRegenTarget) {
+          currentRegenTarget = regenerationTarget
+        }
       }
 
       const maxTurns = chatSettings.maxConversationTurns || chatConfig?.maxConversationTurns || 10
@@ -601,7 +703,7 @@ export default function AIChatPage() {
       const userTempId = regenerate ? null : `user-${Date.now()}`
       const assistantTempId = `assistant-${Date.now()}`
       const controller = new AbortController()
-      activeRequestControllerRef.current = controller
+      activeRequestControllerRef.current.set(conversationId, controller)
 
       setSubmitting(true)
       setError(null)
@@ -627,6 +729,7 @@ export default function AIChatPage() {
           body: JSON.stringify({
             content,
             regenerate,
+            target_message_id: regenerate && options.targetMessageId ? Number(options.targetMessageId) : null,
             model: chatSettings.model,
             overviewPromptId: chatSettings.overviewPromptId,
             detailPromptId: chatSettings.detailPromptId,
@@ -712,8 +815,16 @@ export default function AIChatPage() {
             }
 
             return prev
-              .filter((item) => item.id !== assistantTempId && item.id !== regenerationTarget?.assistant.id)
-              .concat({ ...streamEvent.assistant_message, streaming: false, failed: false })
+              .filter((item) => item.id !== assistantTempId && item.id !== currentRegenTarget?.assistant.id)
+              .concat({
+                ...streamEvent.assistant_message,
+                streaming: false,
+                failed: false,
+                prompt_tokens: streamEvent.token_usage?.prompt_tokens,
+                completion_tokens: streamEvent.token_usage?.completion_tokens,
+                total_tokens: streamEvent.token_usage?.total_tokens,
+                duration_ms: streamEvent.duration_ms,
+              })
           })
           setConversations((prev) =>
             upsertConversation(prev, {
@@ -759,11 +870,30 @@ export default function AIChatPage() {
           setError(sendError instanceof Error ? sendError.message : regenerate ? '重新生成失败' : '发送失败')
         }
       } finally {
-        activeRequestControllerRef.current = null
+        activeRequestControllerRef.current.delete(conversationId)
         setSubmitting(false)
       }
     },
-    [activeConversationId, chatConfig?.providerConfigured, chatSettings, regenerationTarget, submitting, attachedFile]
+    [activeConversationId, chatConfig?.providerConfigured, chatSettings, chatConfig, messages, regenerationTarget, submitting, attachedFile]
+  )
+
+  const handleTextareaChange = useCallback((event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setPrompt(event.target.value)
+    const textarea = event.target
+    textarea.style.height = 'auto'
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 150)}px`
+  }, [])
+
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault()
+        if (prompt.trim() && activeConversationId && !submitting) {
+          void runMessageStream({ content: prompt })
+        }
+      }
+    },
+    [prompt, activeConversationId, submitting, runMessageStream]
   )
 
   const handleSend = useCallback(
@@ -775,12 +905,74 @@ export default function AIChatPage() {
   )
 
   const handleStopGenerating = useCallback(() => {
-    activeRequestControllerRef.current?.abort()
-  }, [])
+    if (activeConversationId) {
+      activeRequestControllerRef.current?.get(activeConversationId)?.abort()
+    }
+  }, [activeConversationId])
 
   const handleRegenerateReply = useCallback(async () => {
     await runMessageStream({ regenerate: true })
   }, [runMessageStream])
+
+  const handleRegenerateMessage = useCallback(
+    async (messageId: number | string) => {
+      await runMessageStream({ regenerate: true, targetMessageId: messageId })
+    },
+    [runMessageStream]
+  )
+
+  const handleTogglePin = useCallback((conversationId: number) => {
+    setPinnedConversationIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(conversationId)) {
+        next.delete(conversationId)
+      } else {
+        next.add(conversationId)
+      }
+      return next
+    })
+  }, [])
+
+  const handleStartRename = useCallback((conversationId: number, currentTitle: string) => {
+    setEditingConversationId(conversationId)
+    setEditingTitle(currentTitle)
+  }, [])
+
+  const handleRenameConversation = useCallback(async (conversationId: number, newTitle: string) => {
+    if (!newTitle.trim()) {
+      setEditingConversationId(null)
+      return
+    }
+    setBusyConversationAction(`rename-${conversationId}`)
+    try {
+      const response = await fetch(`/api/ai-chat/conversations/${conversationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newTitle.trim() }),
+      })
+      if (!response.ok) {
+        throw new Error('重命名失败')
+      }
+      const payload = (await response.json()) as ConversationItem
+      setConversations((prev) => upsertConversation(prev, payload))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '重命名失败')
+    } finally {
+      setBusyConversationAction(null)
+      setEditingConversationId(null)
+    }
+  }, [])
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem('believeboy-ai-chat-pinned-v1')
+      if (!raw) return
+      const parsed = JSON.parse(raw) as number[]
+      setPinnedConversationIds(new Set(parsed))
+    } catch {
+      // Ignore
+    }
+  }, [])
 
   useEffect(() => {
     try {
@@ -799,10 +991,29 @@ export default function AIChatPage() {
   }, [])
 
   useEffect(() => {
+    window.localStorage.setItem(
+      'believeboy-ai-chat-pinned-v1',
+      JSON.stringify(Array.from(pinnedConversationIds))
+    )
+  }, [pinnedConversationIds])
+
+  useEffect(() => {
     window.localStorage.setItem(CHAT_SETTINGS_STORAGE_KEY, JSON.stringify(chatSettings))
   }, [chatSettings])
 
-  useEffect(() => () => activeRequestControllerRef.current?.abort(), [])
+  useEffect(() => {
+    if (!prompt && textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+    }
+  }, [prompt])
+
+  useEffect(() => {
+    return () => {
+      const controllers = activeRequestControllerRef.current
+      controllers.forEach((controller) => controller.abort())
+      controllers.clear()
+    }
+  }, [])
 
   useEffect(() => {
     void loadConfig()
@@ -813,8 +1024,17 @@ export default function AIChatPage() {
     if (!activeConversationId) {
       setMessages([])
       setLoadingMessages(false)
+      setSubmitting(false)
       return
     }
+    const prevConversationId = activeRequestControllerRef.current.size > 0
+      ? Array.from(activeRequestControllerRef.current.keys()).find((id) => id !== activeConversationId)
+      : undefined
+    if (prevConversationId) {
+      activeRequestControllerRef.current.get(prevConversationId)?.abort()
+      activeRequestControllerRef.current.delete(prevConversationId)
+    }
+    setSubmitting(false)
     void loadMessages(activeConversationId)
   }, [activeConversationId, loadMessages])
 
@@ -865,7 +1085,18 @@ export default function AIChatPage() {
 
             {leftPanelOpen ? (
               <div className="min-h-0 flex-1">
-                <ScrollArea className="h-full">
+                <div className="px-2 py-2">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="搜索会话..."
+                      className="h-8 pl-8 text-xs"
+                    />
+                  </div>
+                </div>
+                <ScrollArea className="h-[calc(100%-56px)]">
                   <div className="space-y-1.5 px-2 py-2">
 
                     {loadingConversations ? (
@@ -874,53 +1105,108 @@ export default function AIChatPage() {
                         <span>加载中</span>
                       </div>
                     ) : null}
-                    {conversations.map((item) => {
-                      const titleActionBusy = busyConversationAction === `title-${item.id}`
-                      const deleteActionBusy = busyConversationAction === `delete-${item.id}`
-                      const active = activeConversationId === item.id
+                    {groupedConversations.length > 0 ? (
+                      groupedConversations.map((group) => (
+                        <div key={group.label}>
+                          <p className="px-2 py-1 text-xs font-medium text-muted-foreground">{group.label}</p>
+                          {group.items.map((item) => {
+                            const titleActionBusy = busyConversationAction === `title-${item.id}`
+                            const deleteActionBusy = busyConversationAction === `delete-${item.id}`
+                            const renameActionBusy = busyConversationAction === `rename-${item.id}`
+                            const active = activeConversationId === item.id
+                            const isPinned = pinnedConversationIds.has(item.id)
+                            const isEditing = editingConversationId === item.id
 
-                      return (
-                        <div
-                          key={item.id}
-                          className={cn(
-                            'group rounded-lg px-2 py-1 transition-all',
-                            active
-                              ? 'bg-surface-panel shadow-[0_1px_2px_rgba(15,23,42,0.08)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.3)]'
-                              : 'hover:bg-surface-panel/80'
-                          )}
-                        >
-                          <div className="flex items-center gap-1.5">
-                            <button type="button" onClick={() => setActiveConversationId(item.id)} className="min-w-0 flex-1 text-left">
-                              <p className="truncate text-[0.79rem] font-medium leading-5 text-foreground">{item.title}</p>
-                            </button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 shrink-0 rounded-full text-muted-foreground opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
-                              disabled={titleActionBusy || deleteActionBusy}
-                              onClick={() => void handleRegenerateTitle(item.id)}
-                              title="重生成话题"
-                            >
-                              {titleActionBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 shrink-0 rounded-full text-muted-foreground hover:text-red-500 opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
-                              disabled={titleActionBusy || deleteActionBusy || submitting}
-                              onClick={() => void handleDeleteConversation(item.id)}
-                              title="删除会话"
-                            >
-                              {deleteActionBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                            </Button>
-                          </div>
+                            return (
+                              <div
+                                key={item.id}
+                                className={cn(
+                                  'group rounded-lg px-2 py-2 transition-all',
+                                  active
+                                    ? 'bg-surface-panel shadow-[0_1px_2px_rgba(15,23,42,0.08)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.3)]'
+                                    : 'hover:bg-surface-panel/80'
+                                )}
+                              >
+                                <div className="flex items-start gap-2">
+                                  {isEditing ? (
+                                    <Input
+                                      value={editingTitle}
+                                      onChange={(e) => setEditingTitle(e.target.value)}
+                                      onBlur={() => void handleRenameConversation(item.id, editingTitle)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                          void handleRenameConversation(item.id, editingTitle)
+                                        } else if (e.key === 'Escape') {
+                                          setEditingConversationId(null)
+                                        }
+                                      }}
+                                      className="h-6 flex-1 px-1 text-xs"
+                                      autoFocus
+                                    />
+                                  ) : (
+                                    <button type="button" onClick={() => setActiveConversationId(item.id)} className="min-w-0 flex-1 text-left">
+                                      <p className="truncate text-[0.79rem] font-medium leading-5 text-foreground">{item.title}</p>
+                                      <p className="text-[0.65rem] text-muted-foreground/60 mt-0.5">{formatMessageTime(item.updated_at)}</p>
+                                    </button>
+                                  )}
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className={cn(
+                                      'h-6 w-6 shrink-0 rounded-full opacity-100 lg:opacity-0 lg:group-hover:opacity-100',
+                                      isPinned ? 'text-primary' : 'text-muted-foreground'
+                                    )}
+                                    disabled={titleActionBusy || deleteActionBusy || renameActionBusy || submitting}
+                                    onClick={() => handleTogglePin(item.id)}
+                                    title={isPinned ? '取消置顶' : '置顶'}
+                                  >
+                                    <Pin className={cn('h-3.5 w-3.5', isPinned && 'fill-current')} />
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 shrink-0 rounded-full text-muted-foreground opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
+                                    disabled={titleActionBusy || deleteActionBusy || renameActionBusy || submitting}
+                                    onClick={() => handleStartRename(item.id, item.title)}
+                                    title="重命名"
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 shrink-0 rounded-full text-muted-foreground opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
+                                    disabled={titleActionBusy || deleteActionBusy || renameActionBusy}
+                                    onClick={() => void handleRegenerateTitle(item.id)}
+                                    title="重生成话题"
+                                  >
+                                    {titleActionBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 shrink-0 rounded-full text-muted-foreground hover:text-red-500 opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
+                                    disabled={titleActionBusy || deleteActionBusy || renameActionBusy || submitting}
+                                    onClick={() => void handleDeleteConversation(item.id)}
+                                    title="删除会话"
+                                  >
+                                    {deleteActionBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                                  </Button>
+                                </div>
+                              </div>
+                            )
+                          })}
                         </div>
-                      )
-                    })}
-                    {!loadingConversations && conversations.length === 0 ? (
-                      <p className="px-2 py-2 text-sm text-muted-foreground">暂无会话，请先新建。</p>
+                      ))
+                    ) : null}
+                    {!loadingConversations && filteredConversations.length === 0 ? (
+                      <p className="px-2 py-2 text-sm text-muted-foreground">
+                        {searchQuery ? '未找到匹配的会话' : '暂无会话，请先新建。'}
+                      </p>
                     ) : null}
                   </div>
                 </ScrollArea>
@@ -937,40 +1223,84 @@ export default function AIChatPage() {
 
         <section className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_auto] bg-background">
           <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-background">
-            <header className="border-b border-surface-outline/80 px-5 py-2">
+            <header className="border-b border-surface-outline/40 bg-surface-subtle/50 backdrop-blur-sm px-5 py-3">
               <div className="flex items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h1 className="truncate text-[1.3rem] font-semibold tracking-tight text-foreground">
-                      {activeConversation?.title || 'AI 聊天面板'}
-                    </h1>
-                    {refreshingPanel ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : loadingMessages ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : null}
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="relative">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20 shadow-sm">
+                      <Bot className="h-5 w-5 text-primary/80" />
+                    </div>
+                    {submitting && (
+                      <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-green-500 text-white shadow-sm">
+                        <span className="h-2 w-2 rounded-full bg-white/90 animate-pulse" />
+                      </span>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h1 className="truncate text-[1.1rem] font-semibold tracking-tight text-foreground">
+                        {activeConversation?.title || 'AI 聊天面板'}
+                      </h1>
+                      {refreshingPanel ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground shrink-0" />
+                      ) : loadingMessages ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground shrink-0" />
+                      ) : submitting ? (
+                        <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+                          <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                          AI 输入中
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground/70 mt-0.5">
+                      {activeConversationId ? (
+                        <>
+                          <span>{messages.length} 条消息</span>
+                          {lastTokenUsage && (
+                            <>
+                              <span className="text-muted-foreground/40">•</span>
+                              <span>{lastTokenUsage.total_tokens} tokens</span>
+                            </>
+                          )}
+                        </>
+                      ) : (
+                        <span>选择或创建会话开始对话</span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" className="rounded-full" onClick={() => void handleRefreshPanel()} disabled={refreshingPanel}>
+                  {lastTokenUsage && !submitting && (
+                    <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-panel/80 border border-surface-outline/30 text-xs text-muted-foreground/80">
+                      <span>速度:</span>
+                      <span className="font-medium text-foreground/90">
+                        {(lastTokenUsage.total_tokens / ((lastDurationMs || 1) / 1000)).toFixed(1)}
+                      </span>
+                      <span>t/s</span>
+                    </div>
+                  )}
+                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-muted-foreground" onClick={() => void handleRefreshPanel()} disabled={refreshingPanel} title="刷新">
                     {refreshingPanel ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                    刷新
                   </Button>
                   <Button
-                    variant="outline"
-                    size="sm"
-                    className="rounded-full text-red-500 hover:text-red-500"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 rounded-full text-muted-foreground hover:text-red-500"
                     disabled={!activeConversationId || submitting || busyConversationAction === `delete-${activeConversationId}`}
                     onClick={() => activeConversationId && void handleDeleteConversation(activeConversationId)}
+                    title="删除会话"
                   >
                     {busyConversationAction === `delete-${activeConversationId}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                    删除当前
                   </Button>
                   <Button
-                    variant={settingsOpen ? 'default' : 'outline'}
-                    size="sm"
-                    className="rounded-full"
+                    variant={settingsOpen ? 'default' : 'ghost'}
+                    size="icon"
+                    className={cn('h-8 w-8 rounded-full', settingsOpen ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')}
                     onClick={() => setSettingsOpen((prev) => !prev)}
+                    title="设置"
                   >
                     <Settings2 className="h-4 w-4" />
-                    设置
                   </Button>
                 </div>
               </div>
@@ -978,66 +1308,158 @@ export default function AIChatPage() {
 
             <div className="min-h-0 flex-1 overflow-hidden">
               <div ref={chatScrollRef} onScroll={(event) => setAutoScrollEnabled(isNearBottom(event.currentTarget))} className="h-full overflow-y-auto px-6 py-2">
-                <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col justify-end space-y-5">
-                  {messages.map((message) => (
-                    <div key={message.id} className={cn('flex', message.role === 'user' ? 'justify-end' : 'justify-start')}>
+                <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col justify-end space-y-6">
+                  {messages.map((message, msgIndex) => {
+                    const isLastAssistantMessage = message.role === 'assistant' && msgIndex === messages.map((m, i) => m.role === 'assistant' ? i : -1).filter(i => i !== -1).at(-1);
+                    return (
+                    <div key={message.id} className={cn('flex animate-enter', message.role === 'user' ? 'justify-end' : 'justify-start')}>
                       <div
                         className={cn(
-                          'gap-3 rounded-[28px] text-sm',
-                          message.role === 'assistant'
-                            ? 'flex w-full max-w-4xl px-4 py-3'
-                            : 'inline-flex w-fit max-w-[70%] flex-row-reverse border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950',
-                          message.failed ? 'border border-red-300 bg-red-50' : ''
+                          'group relative max-w-[85%] flex gap-2',
+                          message.role === 'user' && 'flex-row-reverse',
+                          message.failed && 'animate-shake'
                         )}
                       >
-                        <div className="pt-0.5">
-                          {message.role === 'assistant' ? <Bot className="h-4 w-4 text-muted-foreground" /> : <User className="h-4 w-4 text-amber-600" />}
-                        </div>
-                        <div className={cn('min-w-0', message.role === 'assistant' ? 'flex-1' : '')}>
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-panel/80 border border-surface-outline/40 shadow-sm">
                           {message.role === 'assistant' ? (
-                            <>
-                              {/* 搜索来源显示在顶部 */}
-                              {message.search_sources?.length ? (
-                                <AIChatSearchSources sources={message.search_sources} className="mt-0 mb-3" />
-                              ) : null}
-                              {message.content ? (
-                                <AIChatMessageContent content={message.content} className="[&_p]:text-[15px] [&_p]:leading-7" />
-                              ) : message.search_sources?.length ? (
-                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                  <span>AI 正在基于搜索结果生成回答...</span>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                  <span>模型正在思考中...</span>
-                                </div>
-                              )}
-                              {message.streaming ? (
-                                <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  <span>持续生成中</span>
-                                </div>
-                              ) : null}
-                              {isToolSearching && message.streaming ? (
-                                <div className="mt-3 flex items-center gap-2 text-xs text-blue-500 dark:text-blue-400">
-                                  <Globe className="h-3.5 w-3.5 animate-pulse" />
-                                  <span>搜索中: {searchingQuery}...</span>
-                                </div>
-                              ) : null}
-                            </>
+                            <Bot className="h-4 w-4 text-muted-foreground/70" />
                           ) : (
-                            <p className="whitespace-pre-wrap break-words text-[15px] leading-7">{message.content}</p>
+                            <User className="h-4 w-4 text-amber-600/80" />
                           )}
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <div
+                            className={cn(
+                              'relative w-full px-4 py-3 shadow-sm',
+                              message.role === 'assistant'
+                                ? 'bg-surface-panel border border-surface-outline/40 rounded-2xl rounded-tl-md'
+                                : 'bg-gradient-to-br from-amber-50 to-amber-100/70 border border-amber-200/60 rounded-2xl rounded-tr-md',
+                              message.failed ? 'bg-red-50/80 border-red-200/60' : ''
+                            )}
+                          >
+                            {message.role === 'assistant' ? (
+                              <>
+                                {message.search_sources?.length ? (
+                                  <AIChatSearchSources sources={message.search_sources} className="mt-0 mb-2" />
+                                ) : null}
+                                {message.content ? (
+                                  <AIChatMessageContent content={message.content} className="[&_p]:text-[15px] [&_p]:leading-7" />
+                                ) : message.search_sources?.length ? (
+                                  <div className="flex items-center gap-2 text-sm text-muted-foreground/80">
+                                    <TypingIndicator />
+                                    <span>AI 正在基于搜索结果生成回答...</span>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-2 text-sm text-muted-foreground/80">
+                                    <TypingIndicator />
+                                    <span>模型正在思考中...</span>
+                                  </div>
+                                )}
+                                {message.streaming && (
+                                  <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground/60">
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                    <span>持续生成中</span>
+                                  </div>
+                                )}
+                                {isToolSearching && message.streaming ? (
+                                  <div className="mt-2 flex items-center gap-2 text-xs text-blue-500/80 dark:text-blue-400/80">
+                                    <Globe className="h-3 w-3 animate-pulse" />
+                                    <SearchProgress query={searchingQuery} />
+                                  </div>
+                                ) : null}
+                              </>
+                            ) : (
+                              <p className="whitespace-pre-wrap break-words text-[15px] leading-7 text-amber-900/90">{message.content}</p>
+                            )}
+                          </div>
+                          <div className={cn(
+                            'flex items-center justify-between gap-1.5 text-[0.65rem] text-muted-foreground/50',
+                            message.role === 'user' && 'flex-row-reverse'
+                          )}>
+                            <div className={cn('flex items-center gap-1.5', message.role === 'user' && 'flex-row-reverse')}>
+                              <span>{formatMessageTime(message.created_at)}</span>
+                              {message.role === 'assistant' && !message.streaming && message.content && (
+                                <>
+                                  <button
+                                    onClick={() => void navigator.clipboard.writeText(message.content)}
+                                    className="opacity-0 group-hover:opacity-100 transition-opacity hover:text-foreground/70"
+                                    title="复制"
+                                  >
+                                    <Copy className="h-3 w-3" />
+                                  </button>
+                                  <button
+                                    onClick={() => void handleRegenerateMessage(message.id)}
+                                    className="opacity-0 group-hover:opacity-100 transition-opacity hover:text-foreground/70"
+                                    title="重新生成"
+                                  >
+                                    <RefreshCw className="h-3 w-3" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                            {isLastAssistantMessage && message.total_tokens && message.duration_ms && (
+                              <span className="text-muted-foreground/40">
+                                {message.total_tokens >= 1000
+                                  ? `${(message.total_tokens / 1000).toFixed(1)}K`
+                                  : message.total_tokens} tokens · {(message.total_tokens / (message.duration_ms / 1000)).toFixed(1)} t/s
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
 
                   {!loadingMessages && messages.length === 0 ? (
-                    <div className="mx-auto flex max-w-2xl flex-col items-center py-12 text-center">
-                      <h2 className="mt-4 text-3xl font-semibold tracking-tight text-foreground">直接输入你的问题开始对话</h2>
-                      <p className="mt-3 text-sm leading-6 text-muted-foreground">右侧区域只保留聊天内容和输入，不再额外包一层画布。</p>
+                    <div className="mx-auto flex max-w-2xl flex-col items-center py-16 text-center animate-enter">
+                      <div className="relative mb-8">
+                        <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20 shadow-lg">
+                          <Bot className="h-10 w-10 text-primary/80" />
+                        </div>
+                        <div className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-green-500 text-white shadow-md">
+                          <Sparkles className="h-3.5 w-3.5" />
+                        </div>
+                      </div>
+                      
+                      <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+                        有什么可以帮你的？
+                      </h2>
+                      <p className="mt-3 text-sm leading-6 text-muted-foreground/80 max-w-md">
+                        输入你的问题，AI 会尽力为你解答。支持联网搜索、文件分析等功能
+                      </p>
+                      
+                      <div className="mt-6 flex items-center gap-3 text-xs text-muted-foreground/60">
+                        <kbd className="flex items-center gap-1 rounded-md border border-surface-outline/40 bg-surface-panel px-2.5 py-1.5 font-mono shadow-sm">
+                          <span className="text-[0.6rem]">⌘</span>
+                          <span>Enter</span>
+                        </kbd>
+                        <span>发送消息</span>
+                        <span className="text-muted-foreground/30">|</span>
+                        <kbd className="flex items-center gap-1 rounded-md border border-surface-outline/40 bg-surface-panel px-2.5 py-1.5 font-mono shadow-sm">
+                          <span className="text-[0.6rem]">⇧</span>
+                          <span>Enter</span>
+                        </kbd>
+                        <span>换行</span>
+                      </div>
+                      
+                      <div className="mt-8 flex flex-wrap justify-center gap-2">
+                        {[
+                          { icon: '📊', text: '分析数据趋势' },
+                          { icon: '✍️', text: '帮我写作' },
+                          { icon: '💡', text: '获取建议' },
+                          { icon: '🔍', text: '搜索信息' },
+                        ].map((item) => (
+                          <button
+                            key={item.text}
+                            onClick={() => setPrompt(item.text)}
+                            className="flex items-center gap-2 rounded-full border border-surface-outline/40 bg-surface-panel/60 px-4 py-2 text-sm text-muted-foreground/80 shadow-sm transition-all hover:border-primary/30 hover:bg-surface-panel hover:text-foreground hover:shadow-md hover:-translate-y-0.5"
+                          >
+                            <span>{item.icon}</span>
+                            <span>{item.text}</span>
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   ) : null}
                 </div>
@@ -1059,122 +1481,160 @@ export default function AIChatPage() {
               ) : null}
             </div>
 
-            <div className="sticky bottom-0 z-20 bg-surface-subtle px-5 py-2">
-              <form onSubmit={handleSend} className="mx-auto flex w-full max-w-5xl flex-col gap-3">
-                <div className="rounded-[26px] border border-surface-outline/80 bg-surface-subtle/90 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      className={cn(
-                        'h-10 w-10 shrink-0 rounded-full border-surface-outline/80 bg-surface-panel',
-                        attachedFile ? 'text-foreground bg-surface-subtle' : 'text-muted-foreground'
-                      )}
-                      disabled={!activeConversationId || submitting || uploadingFile}
-                      onClick={() => fileInputRef.current?.click()}
-                      title="附加文件"
-                    >
-                      {uploadingFile ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
-                    </Button>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept=".csv,.xlsx,.xls,.jpg,.jpeg,.png,.pdf,.txt"
-                      className="hidden"
-                      onChange={handleFileChange}
-                    />
-                    <Button
-                      type="button"
-                      variant={chatSettings.enableWebSearch ? 'default' : 'outline'}
-                      size="icon"
-                      className={cn(
-                        'h-10 w-10 shrink-0 rounded-full',
-                        chatSettings.enableWebSearch
-                          ? 'bg-primary/15 text-primary hover:bg-primary/25'
-                          : 'border-surface-outline/80 bg-surface-panel text-muted-foreground'
-                      )}
-                      disabled={!activeConversationId || submitting || !chatConfig?.webSearchConfigured}
-                      onClick={() =>
-                        setChatSettings((prev) => ({
-                          ...prev,
-                          enableWebSearch: !prev.enableWebSearch,
-                        }))
-                      }
-                      title={
-                        chatConfig?.webSearchConfigured
-                          ? chatSettings.enableWebSearch
-                            ? '已开启联网搜索'
-                            : '开启联网搜索'
-                          : '联网搜索未配置'
-                      }
-                    >
-                      <Globe className="h-4 w-4" />
-                    </Button>
-                    <Input
-                      value={prompt}
-                      onChange={(event) => setPrompt(event.target.value)}
-                      placeholder="输入你的问题，或附加文件后提问"
-                      disabled={!activeConversationId || submitting}
-                      className="border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
-                    />
-                    {canRegenerate ? (
-                      <Button
+            <div className="relative z-20">
+              <div className="bg-surface-subtle/95 backdrop-blur-sm px-5 py-3">
+                {attachedFile && (
+                  <div className="mx-auto max-w-5xl mb-3 animate-enter">
+                    <div className="flex items-center gap-3 rounded-xl border border-surface-outline/60 bg-surface-panel/80 px-4 py-3 shadow-sm">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                        <FileText className="h-5 w-5 text-primary/70" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium text-foreground text-sm">{attachedFile.fileName}</p>
+                        {attachedFile.truncatedNote ? (
+                          <p className="text-xs text-amber-500">{attachedFile.truncatedNote}</p>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">{attachedFile.fileType}</p>
+                        )}
+                      </div>
+                      <button
                         type="button"
-                        variant="outline"
-                        size="icon"
-                        className="h-10 w-10 shrink-0 rounded-full border-surface-outline/80 bg-surface-panel"
-                        onClick={() => void handleRegenerateReply()}
-                        title="重新生成回答"
+                        onClick={handleRemoveAttachedFile}
+                        className="shrink-0 rounded-full p-2 text-muted-foreground hover:bg-surface-soft hover:text-foreground transition-colors"
+                        title="移除附件"
                       >
-                        <RefreshCw className="h-4 w-4" />
-                      </Button>
-                    ) : null}
-                    {submitting ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        className="h-10 w-10 shrink-0 rounded-full border-surface-outline/80 bg-surface-panel"
-                        onClick={handleStopGenerating}
-                        title="停止生成"
-                      >
-                        <Square className="h-4 w-4" />
-                      </Button>
-                    ) : null}
-                    <Button
-                      type="submit"
-                      size="icon"
-                      className="h-10 w-10 shrink-0 rounded-full bg-surface-panel text-foreground hover:bg-surface-soft"
-                      disabled={!activeConversationId || submitting || !prompt.trim() || !chatSettings.model}
-                      title="发送"
-                    >
-                      <SendHorizontal className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-                {error ? <p className="text-sm text-red-600">{error}</p> : null}
-                {fileUploadError ? <p className="text-sm text-red-600">附件：{fileUploadError}</p> : null}
-                {attachedFile ? (
-                  <div className="flex items-center gap-2 rounded-xl border border-surface-outline/80 bg-surface-subtle px-3 py-2 text-sm">
-                    <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium text-foreground">{attachedFile.fileName}</p>
-                      {attachedFile.truncatedNote ? (
-                        <p className="text-xs text-amber-500">{attachedFile.truncatedNote}</p>
-                      ) : null}
+                        <X className="h-4 w-4" />
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={handleRemoveAttachedFile}
-                      className="shrink-0 rounded-full p-1 text-muted-foreground hover:bg-surface-soft hover:text-foreground"
-                      title="移除附件"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
                   </div>
-                ) : null}
-              </form>
+                )}
+                
+                <form onSubmit={handleSend} className="mx-auto flex w-full max-w-5xl">
+                  <div className="relative w-full rounded-2xl border-2 border-surface-outline/60 bg-surface-panel shadow-[inset_0_2px_4px_rgba(0,0,0,0.04),0_1px_0_rgba(255,255,255,0.8)] dark:shadow-[inset_0_2px_4px_rgba(0,0,0,0.2),0_1px_0_rgba(255,255,255,0.05)] transition-all focus-within:border-primary/40">
+                    <div className="flex items-center gap-1.5 px-3 py-2 border-b border-surface-outline/30">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className={cn(
+                          'h-8 w-8 shrink-0 rounded-full',
+                          attachedFile ? 'text-primary bg-primary/10' : 'text-muted-foreground'
+                        )}
+                        disabled={!activeConversationId || submitting || uploadingFile}
+                        onClick={() => fileInputRef.current?.click()}
+                        title="附加文件"
+                      >
+                        {uploadingFile ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+                      </Button>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".csv,.xlsx,.xls,.jpg,.jpeg,.png,.pdf,.txt"
+                        className="hidden"
+                        onChange={handleFileChange}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className={cn(
+                          'h-8 w-8 shrink-0 rounded-full transition-all',
+                          chatSettings.enableWebSearch
+                            ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-md'
+                            : 'text-muted-foreground'
+                        )}
+                        disabled={!activeConversationId || submitting || !chatConfig?.webSearchConfigured}
+                        onClick={() =>
+                          setChatSettings((prev) => ({
+                            ...prev,
+                            enableWebSearch: !prev.enableWebSearch,
+                          }))
+                        }
+                        title={
+                          chatConfig?.webSearchConfigured
+                            ? chatSettings.enableWebSearch
+                              ? '已开启联网搜索'
+                              : '开启联网搜索'
+                            : '联网搜索未配置'
+                        }
+                      >
+                        <Globe className="h-4 w-4" />
+                      </Button>
+                      <div className="h-4 w-px bg-surface-outline/30 mx-1" />
+                      <textarea
+                        ref={textareaRef}
+                        value={prompt}
+                        onChange={handleTextareaChange}
+                        onKeyDown={handleKeyDown}
+                        placeholder="输入你的问题..."
+                        disabled={!activeConversationId || submitting}
+                        rows={1}
+                        className="flex-1 border-0 bg-transparent py-1.5 px-1 shadow-none focus-visible:ring-0 resize-none min-h-[24px] max-h-[150px] text-sm placeholder:text-muted-foreground/50"
+                      />
+                      <div className="flex items-center gap-1">
+                        {canRegenerate && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 shrink-0 rounded-full text-muted-foreground hover:text-foreground"
+                            onClick={() => void handleRegenerateReply()}
+                            title="重新生成"
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {submitting && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 shrink-0 rounded-full text-red-500 hover:text-red-600 hover:bg-red-50"
+                            onClick={handleStopGenerating}
+                            title="停止生成"
+                          >
+                            <Square className="h-4 w-4 fill-current" />
+                          </Button>
+                        )}
+                        <Button
+                          type="submit"
+                          size="icon"
+                          className={cn(
+                            'h-8 w-8 shrink-0 rounded-full transition-all',
+                            prompt.trim() && activeConversationId && !submitting
+                              ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-md'
+                              : 'bg-surface-soft text-muted-foreground'
+                          )}
+                          disabled={!activeConversationId || submitting || !prompt.trim() || !chatSettings.model}
+                          title="发送 (⌘Enter)"
+                        >
+                          <SendHorizontal className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </form>
+                
+                {error && (
+                  <div className="mx-auto max-w-5xl mt-2 animate-enter">
+                    <p className="text-sm text-red-500 flex items-center gap-2">
+                      <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
+                      {error}
+                    </p>
+                  </div>
+                )}
+                {fileUploadError && (
+                  <div className="mx-auto max-w-5xl mt-2 animate-enter">
+                    <p className="text-sm text-red-500">附件上传失败：{fileUploadError}</p>
+                  </div>
+                )}
+                
+                {!activeConversationId && (
+                  <p className="mx-auto max-w-5xl mt-2 text-xs text-muted-foreground/60 text-center">
+                    请先选择或创建一个会话开始对话
+                  </p>
+                )}
+              </div>
             </div>
           </div>
 

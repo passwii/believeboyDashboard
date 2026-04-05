@@ -515,7 +515,7 @@ export default function DailyAnalysisPage() {
       }
     }
     void loadProjects()
-  }, [session])
+  }, [notify, session])
 
   useEffect(() => {
     if (projectId || projects.length === 0) return

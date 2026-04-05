@@ -1176,6 +1176,9 @@ export default function SkuInfoPage() {
                     <ActionsBar
                       batchImporting={batchImporting}
                       syncing={syncing}
+                      hasSelectedProject={Boolean(selectedProject?.id)}
+                      syncDisabled={!selectedProject?.id || pendingFirstLegSyncCount === 0}
+                      syncPendingCount={pendingFirstLegSyncCount}
                       projectName={projectFilter}
                       onDownloadCreateTemplate={downloadDimensionTemplate}
                       onDownloadUpdateTemplate={handleExportCurrentFiltered}

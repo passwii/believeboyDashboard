@@ -20,6 +20,7 @@ export async function POST(request: Request, { params }: RouteContext) {
     content?: string
     model?: string
     regenerate?: boolean
+    target_message_id?: number
     overviewPromptId?: string | null
     detailPromptId?: string | null
     enableWebSearch?: boolean
@@ -46,6 +47,7 @@ export async function POST(request: Request, { params }: RouteContext) {
       content: body.content?.trim() || '',
       model: body.model?.trim() || undefined,
       regenerate: Boolean(body.regenerate),
+      target_message_id: body.target_message_id ?? null,
       system_prompt: buildSystemPrompt(body.overviewPromptId, body.detailPromptId),
       enable_web_search: Boolean(body.enableWebSearch),
       attached_file_content: body.attachedFileContent?.trim() || null,

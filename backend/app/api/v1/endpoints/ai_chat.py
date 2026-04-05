@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from typing import Any
 import json
 
 from fastapi import APIRouter, Depends
@@ -29,6 +30,11 @@ def serialize_message(row: ai_chat_service.AIMessage) -> dict[str, object]:
         "role": row.role,
         "content": row.content,
         "search_sources": ai_chat_service.parse_search_sources(row.search_sources),
+        "is_complete": row.is_complete,
+        "prompt_tokens": row.prompt_tokens,
+        "completion_tokens": row.completion_tokens,
+        "total_tokens": row.total_tokens,
+        "duration_ms": row.duration_ms,
         "created_at": row.created_at.isoformat(),
     }
 
@@ -95,6 +101,27 @@ def delete_conversation(
     row = ai_chat_service.get_conversation_or_404(db, conversation_id)
     ai_chat_service.delete_conversation(db, row)
     db.commit()
+
+
+@router.patch("/conversations/{conversation_id}", response_model=ConversationItem)
+def update_conversation(
+    conversation_id: int,
+    payload: ConversationCreate,
+    db: Session = Depends(get_db_session),
+) -> ConversationItem:
+    ai_chat_service.ensure_tables(db)
+    row = ai_chat_service.get_conversation_or_404(db, conversation_id)
+    if payload.title is not None:
+        row.title = payload.title.strip() or "新对话"
+    row.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(row)
+    return ConversationItem(
+        id=row.id,
+        title=row.title,
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+    )
 
 
 @router.post(
@@ -260,16 +287,36 @@ def stream_message(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="没有可重新生成的消息"
             )
 
-        last_assistant = history_rows[-1]
-        last_user = history_rows[-2]
-        if last_assistant.role != "assistant" or last_user.role != "user":
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="当前会话末尾消息不支持重新生成",
-            )
-
-        context_messages = history_rows[:-2]
-        user_content = last_user.content.strip()
+        if payload.target_message_id is not None:
+            target_idx = None
+            for i, row in enumerate(history_rows):
+                if row.id == payload.target_message_id:
+                    target_idx = i
+                    break
+            if target_idx is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="指定的消息不存在"
+                )
+            if target_idx == 0 or history_rows[target_idx - 1].role != "user":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="指定消息的前一条不是用户消息，无法重新生成",
+                )
+            target_assistant = history_rows[target_idx]
+            target_user = history_rows[target_idx - 1]
+            context_messages = history_rows[: target_idx - 1]
+            user_content = target_user.content.strip()
+        else:
+            last_assistant = history_rows[-1]
+            last_user = history_rows[-2]
+            if last_assistant.role != "assistant" or last_user.role != "user":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="当前会话末尾消息不支持重新生成",
+                )
+            context_messages = history_rows[:-2]
+            user_content = last_user.content.strip()
+            target_assistant = last_assistant
     else:
         if not user_content:
             raise HTTPException(
@@ -305,9 +352,27 @@ def stream_message(
         start_time = datetime.now(timezone.utc)
         tool_call_count = 0
         collected_usage: dict[str, Any] = {}
+        user_row = None
+        assistant_row = None
 
         try:
             yield encode_stream_event({"type": "start"})
+
+            if regenerate:
+                user_row = history_rows[-2]
+                db.delete(target_assistant)
+                db.flush()
+                assistant_row = ai_chat_service.append_message(
+                    db, conversation_id, "assistant", ""
+                )
+            else:
+                user_row = ai_chat_service.append_message(
+                    db, conversation_id, "user", user_content
+                )
+                assistant_row = ai_chat_service.append_message(
+                    db, conversation_id, "assistant", ""
+                )
+            db.flush()
 
             if payload.enable_web_search:
                 payload_messages, tools = (
@@ -327,6 +392,10 @@ def stream_message(
                             delta = event.get("delta", "")
                             if delta:
                                 assistant_parts.append(delta)
+                                if assistant_row:
+                                    ai_chat_service.update_message_content(
+                                        db, assistant_row.id, "".join(assistant_parts)
+                                    )
                                 yield encode_stream_event(
                                     {"type": "chunk", "delta": delta}
                                 )
@@ -382,6 +451,10 @@ def stream_message(
                         web_search_context=web_search_context,
                     ):
                         assistant_parts.append(chunk)
+                        if assistant_row:
+                            ai_chat_service.update_message_content(
+                                db, assistant_row.id, "".join(assistant_parts)
+                            )
                         yield encode_stream_event({"type": "chunk", "delta": chunk})
 
                     assistant_content = "".join(assistant_parts).strip()
@@ -394,6 +467,10 @@ def stream_message(
                     user_content=user_content,
                 ):
                     assistant_parts.append(chunk)
+                    if assistant_row:
+                        ai_chat_service.update_message_content(
+                            db, assistant_row.id, "".join(assistant_parts)
+                        )
                     yield encode_stream_event({"type": "chunk", "delta": chunk})
 
                 assistant_content = "".join(assistant_parts).strip()
@@ -409,33 +486,16 @@ def stream_message(
                     conversation.title = generated_title
                     title_regenerated = True
 
-            if regenerate:
-                user_row = history_rows[-2]
-                db.delete(history_rows[-1])
-                db.flush()
-                assistant_row = ai_chat_service.append_message(
-                    db,
-                    conversation_id,
-                    "assistant",
-                    assistant_content,
-                    search_sources=search_source_cards,
+            if assistant_row:
+                ai_chat_service.update_message_content(
+                    db, assistant_row.id, assistant_content
                 )
-            else:
-                user_row = ai_chat_service.append_message(
-                    db, conversation_id, "user", user_content
-                )
-                assistant_row = ai_chat_service.append_message(
-                    db,
-                    conversation_id,
-                    "assistant",
-                    assistant_content,
-                    search_sources=search_source_cards,
-                )
+                if search_source_cards:
+                    assistant_row.search_sources = json.dumps(
+                        search_source_cards, ensure_ascii=False
+                    )
+
             conversation.updated_at = datetime.now(timezone.utc)
-            db.commit()
-            if not regenerate:
-                db.refresh(user_row)
-            db.refresh(assistant_row)
 
             end_time = datetime.now(timezone.utc)
             duration_ms = int((end_time - start_time).total_seconds() * 1000)
@@ -447,6 +507,26 @@ def stream_message(
                     "completion_tokens": collected_usage.get("completion_tokens", 0),
                     "total_tokens": collected_usage.get("total_tokens", 0),
                 }
+
+            if assistant_row:
+                ai_chat_service.mark_message_complete(
+                    db,
+                    assistant_row.id,
+                    prompt_tokens=token_usage.get("prompt_tokens", 0)
+                    if token_usage
+                    else 0,
+                    completion_tokens=token_usage.get("completion_tokens", 0)
+                    if token_usage
+                    else 0,
+                    total_tokens=token_usage.get("total_tokens", 0)
+                    if token_usage
+                    else 0,
+                    duration_ms=duration_ms,
+                )
+
+            db.commit()
+            if assistant_row:
+                db.refresh(assistant_row)
 
             yield encode_stream_event(
                 {

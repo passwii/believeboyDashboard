@@ -1,0 +1,49 @@
+- generic:
+  - generic:
+    - generic:
+      - generic:
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - generic:
+                  - img
+              - heading [level=2]: 彼励扶跨境
+              - paragraph: 我们专注跨境品牌服务，帮助企业做好跨境销售与全球推广
+        - generic:
+          - generic:
+            - heading [level=1]: 欢迎登录
+            - paragraph: 为跨境销售与全球推广团队提供高效、可执行的品牌增长支持
+            - generic:
+              - generic:
+                - generic: 企业邮箱 *
+                - textbox:
+                  - /placeholder: 请输入企业邮箱
+              - generic:
+                - generic: 登录密码 *
+                - generic:
+                  - textbox:
+                    - /placeholder: 请输入登录密码
+                  - button:
+                    - img
+              - generic:
+                - button:
+                  - generic:
+                    - text: 立即登录
+                    - img
+              - paragraph: 品牌跨境，连接全球
+  - generic "通知"
+  - alert
+  - dialog "新增功能更新通知系统" [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - img [ref=e5]
+        - generic [ref=e8]: 2026-04-03
+      - heading "新增功能更新通知系统" [level=2] [ref=e9]
+    - generic [ref=e10]:
+      - paragraph [ref=e11]: 本次更新
+      - generic [ref=e12]: 本次更新包含以下内容： 1. 新增更新日志弹窗通知 2. 用户可以在下次打开页面时看到最新功能介绍 3. 优化了整体用户体验
+    - button "我知道了" [active] [ref=e14] [cursor=pointer]
+    - button "Close" [ref=e15] [cursor=pointer]:
+      - img [ref=e16]
+      - generic [ref=e19]: Close

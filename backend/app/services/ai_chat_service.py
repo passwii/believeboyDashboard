@@ -115,6 +115,33 @@ def append_message(
     return row
 
 
+def update_message_content(
+    db: Session, message_id: int, content: str
+) -> AIMessage | None:
+    row = db.get(AIMessage, message_id)
+    if row:
+        row.content = content
+    return row
+
+
+def mark_message_complete(
+    db: Session,
+    message_id: int,
+    prompt_tokens: int = 0,
+    completion_tokens: int = 0,
+    total_tokens: int = 0,
+    duration_ms: int | None = None,
+) -> AIMessage | None:
+    row = db.get(AIMessage, message_id)
+    if row:
+        row.is_complete = True
+        row.prompt_tokens = prompt_tokens
+        row.completion_tokens = completion_tokens
+        row.total_tokens = total_tokens
+        row.duration_ms = duration_ms
+    return row
+
+
 def trim_trailing_slash(value: str) -> str:
     return value[:-1] if value.endswith("/") else value
 

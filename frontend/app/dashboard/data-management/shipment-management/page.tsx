@@ -855,7 +855,7 @@ export default function ShipmentManagementPage() {
     } finally {
       setProjectsLoading(false)
     }
-  }, [isAdmin, session, status])
+  }, [notify, isAdmin, session, status])
 
   const loadProjectSkus = useCallback(async (projectIdText: string, country: string) => {
     const projectId = Number(projectIdText)
@@ -922,7 +922,7 @@ export default function ShipmentManagementPage() {
     } finally {
       setProjectSkuLoading(false)
     }
-  }, [projects])
+  }, [notify, projects])
 
   const loadList = useCallback(async (targetPage: number) => {
     setLoading(true)
@@ -961,7 +961,7 @@ export default function ShipmentManagementPage() {
     } finally {
       setLoading(false)
     }
-  }, [countryFilter, pageSize, projectFilter, selectedShipmentNoFilter, shipmentDateFrom, shipmentDateTo, statusFilter])
+  }, [notify, countryFilter, pageSize, projectFilter, selectedShipmentNoFilter, shipmentDateFrom, shipmentDateTo, statusFilter])
 
   const loadShipmentNoOptions = useCallback(async () => {
     setShipmentNoOptionsLoading(true)
@@ -1055,7 +1055,7 @@ export default function ShipmentManagementPage() {
     } finally {
       setSkuSummaryLoading(false)
     }
-  }, [countryFilter, projectFilter, selectedShipmentNoFilter, shipmentDateFrom, shipmentDateTo, statusFilter])
+  }, [notify, countryFilter, projectFilter, selectedShipmentNoFilter, shipmentDateFrom, shipmentDateTo, statusFilter])
 
   const loadCostSummary = useCallback(async () => {
     setCostSummaryLoading(true)
@@ -1087,7 +1087,7 @@ export default function ShipmentManagementPage() {
     } finally {
       setCostSummaryLoading(false)
     }
-  }, [countryFilter, projectFilter, selectedShipmentNoFilter, shipmentDateFrom, shipmentDateTo, statusFilter])
+  }, [notify, countryFilter, projectFilter, selectedShipmentNoFilter, shipmentDateFrom, shipmentDateTo, statusFilter])
 
   const loadFbaBoxDetails = useCallback(async (shipmentNos: string[]) => {
     setFbaBoxLoading(true)
@@ -1113,7 +1113,7 @@ export default function ShipmentManagementPage() {
     } finally {
       setFbaBoxLoading(false)
     }
-  }, [])
+  }, [notify])
 
   useEffect(() => {
     void loadProjects()

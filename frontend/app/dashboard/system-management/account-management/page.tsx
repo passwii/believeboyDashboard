@@ -76,7 +76,7 @@ export default function AccountManagementPage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [notify])
 
   useEffect(() => {
     void load()

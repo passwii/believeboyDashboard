@@ -435,7 +435,7 @@ export default function OperatorManagementPage() {
     } catch (loadError) {
       notify({ type: 'error', title: '数据加载失败', message: loadError instanceof Error ? loadError.message : '加载失败' })
     }
-  }, [loadBaseOptions, loadCommission, loadPerformance, loadRoleInfo])
+  }, [loadBaseOptions, loadCommission, loadPerformance, loadRoleInfo, notify])
 
   useEffect(() => {
     void refreshAll()

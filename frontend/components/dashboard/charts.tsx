@@ -83,7 +83,7 @@ export function VisitorsChart() {
         </div>
         <Select value={timeRange} onValueChange={setTimeRange}>
           <SelectTrigger
-            className="h-10 w-full min-w-touch rounded-md border-white/45 bg-[hsl(var(--surface-subtle))] text-sm shadow-none sm:w-[170px]"
+            className="h-11 min-h-touch min-w-touch w-full rounded-md border-white/45 bg-[hsl(var(--surface-subtle))] text-sm shadow-none sm:w-[170px]"
             aria-label="Select a time range"
           >
             <SelectValue placeholder="Last 30 days" />

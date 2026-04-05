@@ -8,6 +8,7 @@ import { GlobalLoadingOverlay } from '@/components/global-loading-overlay'
 import { NotificationWrapper } from '@/components/system/notification-wrapper'
 import { ThemeProvider } from '@/components/theme-provider'
 import { AuthSessionProvider } from '@/components/auth/session-provider'
+import { SkipLink } from '@/components/ui/skip-link'
 
 const manrope = Manrope({
   subsets: ['latin'],
@@ -32,6 +33,8 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${manrope.variable} ${spaceGrotesk.variable} min-h-screen antialiased`}>
+        <SkipLink href="#main-content">Skip to main content</SkipLink>
+        <SkipLink href="#main-navigation">Skip to navigation</SkipLink>
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

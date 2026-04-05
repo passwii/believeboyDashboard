@@ -1,0 +1,307 @@
+[     352ms] [LOG] %c[Vercel Speed Insights]%c [vitals] color: rgb(120, 120, 120) color: inherit {speed: 4g, metrics: Array(3), scriptVersion: 0.1.3, sdkName: @vercel/speed-insights/next, sdkVersion: 2.0.0} /_vercel/speed-insights/vitals @ https://va.vercel-scripts.com/v1/speed-insights/script.debug.js:0
+[     365ms] [LOG] %c[Vercel Speed Insights]%c [vitals] color: rgb(120, 120, 120) color: inherit {speed: 4g, metrics: Array(1), scriptVersion: 0.1.3, sdkName: @vercel/speed-insights/next, sdkVersion: 2.0.0} /_vercel/speed-insights/vitals @ https://va.vercel-scripts.com/v1/speed-insights/script.debug.js:0
+[     923ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/react-dom/cjs/react-dom.development.js:38559
+[    1327ms] [ERROR] Warning: Function components cannot be given refs. Attempts to access this ref will fail. Did you mean to use React.forwardRef()?%s%s 
+
+Check the render method of `Primitive.button.SlotClone`. 
+    at RouteLoadingLink (webpack-internal:///(app-pages-browser)/./components/dashboard/route-loading-link.tsx:27:11)
+    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@radix-ui+react-slot@1.2.3_@types+react@18.3.28_react@18.3.1/node_modules/@radix-ui/react-slot/dist/index.mjs:44:13)
+    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@radix-ui+react-slot@1.2.3_@types+react@18.3.28_react@18.3.1/node_modules/@radix-ui/react-slot/dist/index.mjs:20:13)
+    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@radix-ui+react-primitive@2.1.3_@types+react-dom@18.3.7_@types+react@18.3.28__@types+re_8827551f88f8a44c5b480e0d8a5a4518/node_modules/@radix-ui/react-primitive/dist/index.mjs:38:13)
+    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@radix-ui+react-slot@1.2.3_@types+react@18.3.28_react@18.3.1/node_modules/@radix-ui/react-slot/dist/index.mjs:44:13)
+    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@radix-ui+react-slot@1.2.3_@types+react@18.3.28_react@18.3.1/node_modules/@radix-ui/react-slot/dist/index.mjs:20:13)
+    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@radix-ui+react-primitive@2.1.3_@types+react-dom@18.3.7_@types+react@18.3.28__@types+re_8827551f88f8a44c5b480e0d8a5a4518/node_modules/@radix-ui/react-primitive/dist/index.mjs:38:13)
+    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@radix-ui+react-popper@1.2.8_@types+react-dom@18.3.7_@types+react@18.3.28__@types+react_670e32d9a64ee24e3a22b3ad7ddf00ff/node_modules/@radix-ui/react-popper/dist/index.mjs:69:13)
+    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@radix-ui+react-tooltip@1.2.8_@types+react-dom@18.3.7_@types+react@18.3.28__@types+reac_a18368212e1009eee1acc445b8edb5ee/node_modules/@radix-ui/react-tooltip/dist/index.mjs:205:13)
+    at Provider (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@radix-ui+react-context@1.1.2_@types+react@18.3.28_react@18.3.1/node_modules/@radix-ui/react-context/dist/index.mjs:34:15)
+    at Provider (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@radix-ui+react-context@1.1.2_@types+react@18.3.28_react@18.3.1/node_modules/@radix-ui/react-context/dist/index.mjs:34:15)
+    at Popper (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@radix-ui+react-popper@1.2.8_@types+react-dom@18.3.7_@types+react@18.3.28__@types+react_670e32d9a64ee24e3a22b3ad7ddf00ff/node_modules/@radix-ui/react-popper/dist/index.mjs:54:13)
+    at Tooltip (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@radix-ui+react-tooltip@1.2.8_@types+react-dom@18.3.7_@types+react@18.3.28__@types+reac_a18368212e1009eee1acc445b8edb5ee/node_modules/@radix-ui/react-tooltip/dist/index.mjs:95:13)
+    at div
+    at div
+    at div
+    at div
+    at div
+    at eval (webpack-internal:///(app-pages-browser)/./components/ui/sidebar.tsx:176:11)
+    at AppSidebar (webpack-internal:///(app-pages-browser)/./components/dashboard/app-sidebar.tsx:394:14)
+    at div
+    at Provider (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@radix-ui+react-context@1.1.2_@types+react@18.3.28_react@18.3.1/node_modules/@radix-ui/react-context/dist/index.mjs:34:15)
+    at TooltipProvider (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@radix-ui+react-tooltip@1.2.8_@types+react-dom@18.3.7_@types+react@18.3.28__@types+reac_a18368212e1009eee1acc445b8edb5ee/node_modules/@radix-ui/react-tooltip/dist/index.mjs:58:13)
+    at eval (webpack-internal:///(app-pages-browser)/./components/ui/sidebar.tsx:73:11)
+    at DashboardLayout (webpack-internal:///(app-pages-browser)/./app/dashboard/layout.tsx:110:11)
+    at InnerLayoutRouter (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/layout-router.js:243:11)
+    at RedirectErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/redirect-boundary.js:74:9)
+    at RedirectBoundary (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/redirect-boundary.js:82:11)
+    at NotFoundErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/not-found-boundary.js:76:9)
+    at NotFoundBoundary (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/not-found-boundary.js:84:11)
+    at LoadingBoundary (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/layout-router.js:349:11)
+    at ErrorBoundaryHandler (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/error-boundary.js:113:9)
+    at ErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/error-boundary.js:160:11)
+    at InnerScrollAndFocusHandler (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/layout-router.js:153:9)
+    at ScrollAndFocusHandler (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/layout-router.js:228:11)
+    at RenderFromTemplateContext (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/render-from-template-context.js:16:44)
+    at OuterLayoutRouter (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/layout-router.js:370:11)
+    at NotificationsProvider (webpack-internal:///(app-pages-browser)/./components/notifications/notifications-context.tsx:76:11)
+    at NotificationWrapper (webpack-internal:///(app-pages-browser)/./components/system/notification-wrapper.tsx:14:11)
+    at GlobalLoadingProvider (webpack-internal:///(app-pages-browser)/./components/global-loading-provider.tsx:14:11)
+    at SessionProvider (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next-auth@4.24.11_next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1__react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next-auth/react/index.js:365:24)
+    at AuthSessionProvider (webpack-internal:///(app-pages-browser)/./components/auth/session-provider.tsx:11:11)
+    at V (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next-themes@0.4.6_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next-themes/dist/index.mjs:54:24)
+    at J (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next-themes@0.4.6_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next-themes/dist/index.mjs:47:47)
+    at ThemeProvider (webpack-internal:///(app-pages-browser)/./components/theme-provider.tsx:13:11)
+    at body
+    at html
+    at RootLayout (Server)
+    at RedirectErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/redirect-boundary.js:74:9)
+    at RedirectBoundary (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/redirect-boundary.js:82:11)
+    at NotFoundErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/not-found-boundary.js:76:9)
+    at NotFoundBoundary (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/not-found-boundary.js:84:11)
+    at DevRootNotFoundBoundary (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/dev-root-not-found-boundary.js:33:11)
+    at ReactDevOverlay (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/app/ReactDevOverlay.js:87:9)
+    at HotReload (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:321:11)
+    at Router (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/app-router.js:207:11)
+    at ErrorBoundaryHandler (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/error-boundary.js:113:9)
+    at ErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/error-boundary.js:160:11)
+    at AppRouter (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/app-router.js:585:13)
+    at ServerRoot (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/app-index.js:112:27)
+    at Root (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/app-index.js:117:11) @ webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/app-index.js:32
+[    1355ms] [ERROR] Warning: Function components cannot be given refs. Attempts to access this ref will fail. Did you mean to use React.forwardRef()?%s%s 
+
+Check the render method of `Slot.SlotClone`. 
+    at RouteLoadingLink (webpack-internal:///(app-pages-browser)/./components/dashboard/route-loading-link.tsx:27:11)
+    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@radix-ui+react-slot@1.2.4_@types+react@18.3.28_react@18.3.1/node_modules/@radix-ui/react-slot/dist/index.mjs:56:11)
+    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@radix-ui+react-slot@1.2.4_@types+react@18.3.28_react@18.3.1/node_modules/@radix-ui/react-slot/dist/index.mjs:29:11)
+    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@radix-ui+react-slot@1.2.3_@types+react@18.3.28_react@18.3.1/node_modules/@radix-ui/react-slot/dist/index.mjs:44:13)
+    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@radix-ui+react-slot@1.2.3_@types+react@18.3.28_react@18.3.1/node_modules/@radix-ui/react-slot/dist/index.mjs:20:13)
+    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@radix-ui+react-primitive@2.1.3_@types+react-dom@18.3.7_@types+react@18.3.28__@types+re_8827551f88f8a44c5b480e0d8a5a4518/node_modules/@radix-ui/react-primitive/dist/index.mjs:38:13)
+    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@radix-ui+react-slot@1.2.3_@types+react@18.3.28_react@18.3.1/node_modules/@radix-ui/react-slot/dist/index.mjs:44:13)
+    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@radix-ui+react-slot@1.2.3_@types+react@18.3.28_react@18.3.1/node_modules/@radix-ui/react-slot/dist/index.mjs:20:13)
+    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@radix-ui+react-primitive@2.1.3_@types+react-dom@18.3.7_@types+react@18.3.28__@types+re_8827551f88f8a44c5b480e0d8a5a4518/node_modules/@radix-ui/react-primitive/dist/index.mjs:38:13)
+    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@radix-ui+react-popper@1.2.8_@types+react-dom@18.3.7_@types+react@18.3.28__@types+react_670e32d9a64ee24e3a22b3ad7ddf00ff/node_modules/@radix-ui/react-popper/dist/index.mjs:69:13)
+    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@radix-ui+react-tooltip@1.2.8_@types+react-dom@18.3.7_@types+react@18.3.28__@types+reac_a18368212e1009eee1acc445b8edb5ee/node_modules/@radix-ui/react-tooltip/dist/index.mjs:205:13)
+    at Provider (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@radix-ui+react-context@1.1.2_@types+react@18.3.28_react@18.3.1/node_modules/@radix-ui/react-context/dist/index.mjs:34:15)
+    at Provider (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@radix-ui+react-context@1.1.2_@types+react@18.3.28_react@18.3.1/node_modules/@radix-ui/react-context/dist/index.mjs:34:15)
+    at Popper (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@radix-ui+react-popper@1.2.8_@types+react-dom@18.3.7_@types+react@18.3.28__@types+react_670e32d9a64ee24e3a22b3ad7ddf00ff/node_modules/@radix-ui/react-popper/dist/index.mjs:54:13)
+    at Tooltip (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@radix-ui+react-tooltip@1.2.8_@types+react-dom@18.3.7_@types+react@18.3.28__@types+reac_a18368212e1009eee1acc445b8edb5ee/node_modules/@radix-ui/react-tooltip/dist/index.mjs:95:13)
+    at eval (webpack-internal:///(app-pages-browser)/./components/ui/sidebar.tsx:573:11)
+    at li
+    at _c30 (webpack-internal:///(app-pages-browser)/./components/ui/sidebar.tsx:541:11)
+    at ul
+    at _c28 (webpack-internal:///(app-pages-browser)/./components/ui/sidebar.tsx:526:11)
+    at div
+    at div
+    at _c20 (webpack-internal:///(app-pages-browser)/./components/ui/sidebar.tsx:463:11)
+    at SidebarGroupBlock (webpack-internal:///(app-pages-browser)/./components/dashboard/app-sidebar.tsx:274:11)
+    at div
+    at _c18 (webpack-internal:///(app-pages-browser)/./components/ui/sidebar.tsx:448:11)
+    at div
+    at div
+    at div
+    at eval (webpack-internal:///(app-pages-browser)/./components/ui/sidebar.tsx:176:11)
+    at AppSidebar (webpack-internal:///(app-pages-browser)/./components/dashboard/app-sidebar.tsx:394:14)
+    at div
+    at Provider (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@radix-ui+react-context@1.1.2_@types+react@18.3.28_react@18.3.1/node_modules/@radix-ui/react-context/dist/index.mjs:34:15)
+    at TooltipProvider (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@radix-ui+react-tooltip@1.2.8_@types+react-dom@18.3.7_@types+react@18.3.28__@types+reac_a18368212e1009eee1acc445b8edb5ee/node_modules/@radix-ui/react-tooltip/dist/index.mjs:58:13)
+    at eval (webpack-internal:///(app-pages-browser)/./components/ui/sidebar.tsx:73:11)
+    at DashboardLayout (webpack-internal:///(app-pages-browser)/./app/dashboard/layout.tsx:110:11)
+    at InnerLayoutRouter (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/layout-router.js:243:11)
+    at RedirectErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/redirect-boundary.js:74:9)
+    at RedirectBoundary (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/redirect-boundary.js:82:11)
+    at NotFoundErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/not-found-boundary.js:76:9)
+    at NotFoundBoundary (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/not-found-boundary.js:84:11)
+    at LoadingBoundary (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/layout-router.js:349:11)
+    at ErrorBoundaryHandler (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/error-boundary.js:113:9)
+    at ErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/error-boundary.js:160:11)
+    at InnerScrollAndFocusHandler (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/layout-router.js:153:9)
+    at ScrollAndFocusHandler (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/layout-router.js:228:11)
+    at RenderFromTemplateContext (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/render-from-template-context.js:16:44)
+    at OuterLayoutRouter (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/layout-router.js:370:11)
+    at NotificationsProvider (webpack-internal:///(app-pages-browser)/./components/notifications/notifications-context.tsx:76:11)
+    at NotificationWrapper (webpack-internal:///(app-pages-browser)/./components/system/notification-wrapper.tsx:14:11)
+    at GlobalLoadingProvider (webpack-internal:///(app-pages-browser)/./components/global-loading-provider.tsx:14:11)
+    at SessionProvider (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next-auth@4.24.11_next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1__react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next-auth/react/index.js:365:24)
+    at AuthSessionProvider (webpack-internal:///(app-pages-browser)/./components/auth/session-provider.tsx:11:11)
+    at V (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next-themes@0.4.6_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next-themes/dist/index.mjs:54:24)
+    at J (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next-themes@0.4.6_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next-themes/dist/index.mjs:47:47)
+    at ThemeProvider (webpack-internal:///(app-pages-browser)/./components/theme-provider.tsx:13:11)
+    at body
+    at html
+    at RootLayout (Server)
+    at RedirectErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/redirect-boundary.js:74:9)
+    at RedirectBoundary (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/redirect-boundary.js:82:11)
+    at NotFoundErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/not-found-boundary.js:76:9)
+    at NotFoundBoundary (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/not-found-boundary.js:84:11)
+    at DevRootNotFoundBoundary (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/dev-root-not-found-boundary.js:33:11)
+    at ReactDevOverlay (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/app/ReactDevOverlay.js:87:9)
+    at HotReload (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:321:11)
+    at Router (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/app-router.js:207:11)
+    at ErrorBoundaryHandler (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/error-boundary.js:113:9)
+    at ErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/error-boundary.js:160:11)
+    at AppRouter (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/app-router.js:585:13)
+    at ServerRoot (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/app-index.js:112:27)
+    at Root (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/app-index.js:117:11) @ webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/app-index.js:32
+[    1559ms] [LOG] %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit @ https://va.vercel-scripts.com/v1/script.debug.js:0
+[    1559ms] [LOG] %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {route: /dashboard/ai-panel/chat, path: /dashboard/ai-panel/chat} @ https://va.vercel-scripts.com/v1/script.debug.js:0
+[    1559ms] [LOG] %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {route: /dashboard/ai-panel/chat, path: /dashboard/ai-panel/chat} @ https://va.vercel-scripts.com/v1/script.debug.js:0
+[    1559ms] [LOG] %c[Vercel Web Analytics]%c [view] http://localhost:3000/dashboard/ai-panel/chat color: rgb(120, 120, 120) color: inherit {o: http://localhost:3000/dashboard/ai-panel/chat, sv: 0.1.3, sdkn: @vercel/analytics/next, sdkv: 1.6.1, ts: 1775367658801} /_vercel/insights/view @ https://va.vercel-scripts.com/v1/script.debug.js:0
+[    1559ms] [LOG] %c[Vercel Web Analytics]%c [view] http://localhost:3000/dashboard/ai-panel/chat color: rgb(120, 120, 120) color: inherit {o: http://localhost:3000/dashboard/ai-panel/chat, sv: 0.1.3, sdkn: @vercel/analytics/next, sdkv: 1.6.1, ts: 1775367658801} /_vercel/insights/view @ https://va.vercel-scripts.com/v1/script.debug.js:0
+[    1560ms] [LOG] %c[Vercel Speed Insights]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit @ https://va.vercel-scripts.com/v1/speed-insights/script.debug.js:0
+[    3007ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://codingplan.org&size=32:0
+[   43591ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:186
+[   44636ms] [LOG] [Fast Refresh] done in 1049ms @ webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:43
+[   56466ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:186
+[   57410ms] [LOG] [Fast Refresh] done in 945ms @ webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:43
+[   57552ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://codingplan.org&size=32:0
+[  152718ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:186
+[  153506ms] [LOG] [Fast Refresh] done in 788ms @ webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:43
+[  163664ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:186
+[  164278ms] [LOG] [Fast Refresh] done in 613ms @ webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:43
+[  170016ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:186
+[  170490ms] [LOG] [Fast Refresh] done in 475ms @ webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:43
+[  200583ms] [ERROR] Failed to load resource: net::ERR_TIMED_OUT @ https://zhuanlan.zhihu.com/favicon.ico:0
+[  208132ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:186
+[  208450ms] [ERROR] ./components/ai-chat-search-sources.tsx
+Error: 
+  × Unexpected token `div`. Expected jsx identifier
+    ╭─[/Users/damon/DamonProjects/believeboyDashboard/frontend/components/ai-chat-search-sources.tsx:62:1]
+ 62 │   }
+ 63 │ 
+ 64 │   return (
+ 65 │     <div className={cn('mt-3 space-y-2', className)}>
+    ·      ───
+ 66 │       <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground/70">
+ 67 │         <Globe className="h-3 w-3" />
+ 68 │         <span>搜索来源</span>
+    ╰────
+
+Caused by:
+    Syntax Error
+
+Import trace for requested module:
+./components/ai-chat-search-sources.tsx
+./app/dashboard/ai-panel/chat/page.tsx @ webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/app-index.js:32
+[  220217ms] [ERROR] ./components/ai-chat-search-sources.tsx
+Error: 
+  × Unexpected token `div`. Expected jsx identifier
+    ╭─[/Users/damon/DamonProjects/believeboyDashboard/frontend/components/ai-chat-search-sources.tsx:62:1]
+ 62 │   }
+ 63 │ 
+ 64 │   return (
+ 65 │     <div className={cn('mt-3 space-y-2', className)}>
+    ·      ───
+ 66 │       <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground/70">
+ 67 │         <Globe className="h-3 w-3" />
+ 68 │         <span>搜索来源</span>
+    ╰────
+
+Caused by:
+    Syntax Error
+
+Import trace for requested module:
+./components/ai-chat-search-sources.tsx
+./app/dashboard/ai-panel/chat/page.tsx @ webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/app-index.js:32
+[  220429ms] [ERROR] ./components/ai-chat-search-sources.tsx
+Error: 
+  × Unexpected token `div`. Expected jsx identifier
+    ╭─[/Users/damon/DamonProjects/believeboyDashboard/frontend/components/ai-chat-search-sources.tsx:62:1]
+ 62 │   }
+ 63 │ 
+ 64 │   return (
+ 65 │     <div className={cn('mt-3 space-y-2', className)}>
+    ·      ───
+ 66 │       <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground/70">
+ 67 │         <Globe className="h-3 w-3" />
+ 68 │         <span>搜索来源</span>
+    ╰────
+
+Caused by:
+    Syntax Error
+
+Import trace for requested module:
+./components/ai-chat-search-sources.tsx
+./app/dashboard/ai-panel/chat/page.tsx @ webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/app-index.js:32
+[  220600ms] [ERROR] ./components/ai-chat-search-sources.tsx
+Error: 
+  × Unexpected token `div`. Expected jsx identifier
+    ╭─[/Users/damon/DamonProjects/believeboyDashboard/frontend/components/ai-chat-search-sources.tsx:62:1]
+ 62 │   }
+ 63 │ 
+ 64 │   return (
+ 65 │     <div className={cn('mt-3 space-y-2', className)}>
+    ·      ───
+ 66 │       <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground/70">
+ 67 │         <Globe className="h-3 w-3" />
+ 68 │         <span>搜索来源</span>
+    ╰────
+
+Caused by:
+    Syntax Error
+
+Import trace for requested module:
+./components/ai-chat-search-sources.tsx
+./app/dashboard/ai-panel/chat/page.tsx @ webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/app-index.js:32
+[  220685ms] [ERROR] ./components/ai-chat-search-sources.tsx
+Error: 
+  × Unexpected token `div`. Expected jsx identifier
+    ╭─[/Users/damon/DamonProjects/believeboyDashboard/frontend/components/ai-chat-search-sources.tsx:62:1]
+ 62 │   }
+ 63 │ 
+ 64 │   return (
+ 65 │     <div className={cn('mt-3 space-y-2', className)}>
+    ·      ───
+ 66 │       <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground/70">
+ 67 │         <Globe className="h-3 w-3" />
+ 68 │         <span>搜索来源</span>
+    ╰────
+
+Caused by:
+    Syntax Error
+
+Import trace for requested module:
+./components/ai-chat-search-sources.tsx
+./app/dashboard/ai-panel/chat/page.tsx @ webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/app-index.js:32
+[  220814ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3000/dashboard/ai-panel/chat?_rsc=13rch:0
+[  220828ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3000/dashboard/ai-panel/chat?_rsc=13rch:0
+[  221165ms] [LOG] %c[Vercel Speed Insights]%c [vitals] color: rgb(120, 120, 120) color: inherit {speed: 4g, metrics: Array(3), scriptVersion: 0.1.3, sdkName: @vercel/speed-insights/next, sdkVersion: 2.0.0} /_vercel/speed-insights/vitals @ https://va.vercel-scripts.com/v1/speed-insights/script.debug.js:0
+[  221167ms] [LOG] %c[Vercel Speed Insights]%c [vitals] color: rgb(120, 120, 120) color: inherit {speed: 4g, metrics: Array(1), scriptVersion: 0.1.3, sdkName: @vercel/speed-insights/next, sdkVersion: 2.0.0} /_vercel/speed-insights/vitals @ https://va.vercel-scripts.com/v1/speed-insights/script.debug.js:0
+[  221201ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3000/dashboard/ai-panel/chat:0
+[  221659ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ webpack-internal:///./node_modules/.pnpm/react-dom@18.3.1_react@18.3.1/node_modules/react-dom/cjs/react-dom.development.js:29889
+[  221694ms] ModuleBuildError: Module build failed (from ./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/next-swc-loader.js):
+Error: 
+  × Unexpected token `div`. Expected jsx identifier
+    ╭─[/Users/damon/DamonProjects/believeboyDashboard/frontend/components/ai-chat-search-sources.tsx:62:1]
+ 62 │   }
+ 63 │ 
+ 64 │   return (
+ 65 │     <div className={cn('mt-3 space-y-2', className)}>
+    ·      ───
+ 66 │       <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground/70">
+ 67 │         <Globe className="h-3 w-3" />
+ 68 │         <span>搜索来源</span>
+    ╰────
+
+
+Caused by:
+    Syntax Error
+    at processResult (file:///Users/damon/DamonProjects/believeboyDashboard/frontend/node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/webpack/bundle5.js:28:400590)
+    at <unknown> (file:///Users/damon/DamonProjects/believeboyDashboard/frontend/node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/webpack/bundle5.js:28:402302)
+    at <unknown> (file:///Users/damon/DamonProjects/believeboyDashboard/frontend/node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/loader-runner/LoaderRunner.js:1:8645)
+    at <unknown> (file:///Users/damon/DamonProjects/believeboyDashboard/frontend/node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/loader-runner/LoaderRunner.js:1:5019)
+    at r.callback (file:///Users/damon/DamonProjects/believeboyDashboard/frontend/node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/loader-runner/LoaderRunner.js:1:4039)
+[  221694ms] [LOG] [HMR] connected @ webpack-internal:///./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/pages/websocket.js:38
+[  221698ms] [ERROR] ./components/ai-chat-search-sources.tsx
+Error: 
+  × Unexpected token `div`. Expected jsx identifier
+    ╭─[/Users/damon/DamonProjects/believeboyDashboard/frontend/components/ai-chat-search-sources.tsx:62:1]
+ 62 │   }
+ 63 │ 
+ 64 │   return (
+ 65 │     <div className={cn('mt-3 space-y-2', className)}>
+    ·      ───
+ 66 │       <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground/70">
+ 67 │         <Globe className="h-3 w-3" />
+ 68 │         <span>搜索来源</span>
+    ╰────
+
+Caused by:
+    Syntax Error @ webpack-internal:///./node_modules/.pnpm/next@14.2.21_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/internal/helpers/hydration-error-info.js:62

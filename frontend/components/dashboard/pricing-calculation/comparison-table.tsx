@@ -3,20 +3,20 @@
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 
-type PricingCalculationRunItem = {
+export type PricingCalculationRunItem = {
   id: number
   product_name: string
   created_at: string
 }
 
-type ComparisonRow = {
+export type ComparisonRow<T extends PricingCalculationRunItem = PricingCalculationRunItem> = {
   label: string
-  getDisplayValue: (run: PricingCalculationRunItem) => string
+  getDisplayValue: (run: T) => string
 }
 
-type ComparisonSection = {
+export type ComparisonSection<T extends PricingCalculationRunItem = PricingCalculationRunItem> = {
   title: string
-  rows: ComparisonRow[]
+  rows: ComparisonRow<T>[]
 }
 
 type ComparisonTableProps = {

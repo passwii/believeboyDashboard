@@ -199,7 +199,7 @@ export default function InventoryAnalysisPage() {
     return () => {
       active = false
     }
-  }, [projectId, session])
+  }, [notify, projectId, session])
 
   useEffect(() => {
     if (!currentProjectId) return
@@ -239,7 +239,7 @@ export default function InventoryAnalysisPage() {
     return () => {
       active = false
     }
-  }, [country, currentProjectId, selectedSnapshotDate])
+  }, [notify, country, currentProjectId, selectedSnapshotDate])
 
   useEffect(() => {
     if (!currentProjectId) return

@@ -252,7 +252,7 @@ export const columns: ColumnDef<Document>[] = [
       return (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
+            <Button variant="ghost" className="h-11 w-11 min-w-touch p-0">
               <span className="sr-only">Open menu</span>
               <MoreHorizontal className="h-4 w-4" />
             </Button>
@@ -312,11 +312,11 @@ export function DataTable() {
           onChange={(event) =>
             table.getColumn('header')?.setFilterValue(event.target.value)
           }
-          className="h-11 max-w-sm min-w-touch border-white/40 bg-background/88 text-sm shadow-none"
+          className="h-11 min-h-touch max-w-sm border-white/40 bg-background/88 text-sm shadow-none"
         />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="h-11 min-w-touch border-white/40 bg-background/88 shadow-none">
+            <Button variant="outline" className="h-11 min-h-touch min-w-touch border-white/40 bg-background/88 shadow-none">
               视图列 <ChevronDown className="ml-2 h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -342,7 +342,7 @@ export function DataTable() {
         </DropdownMenu>
       </div>
       <div className="rounded-lg border border-white/45 bg-[hsl(var(--surface-subtle))] p-1.5">
-        <Table className="overflow-hidden rounded-lg bg-background/96">
+        <Table className="overflow-x-auto rounded-lg bg-background/96">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>

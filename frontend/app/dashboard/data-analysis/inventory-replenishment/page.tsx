@@ -312,7 +312,7 @@ export default function InventoryReplenishmentPage() {
     return () => {
       active = false
     }
-  }, [projectId, session])
+  }, [notify, projectId, session])
 
   useEffect(() => {
     if (!currentProjectId) {
@@ -363,7 +363,7 @@ export default function InventoryReplenishmentPage() {
     return () => {
       active = false
     }
-  }, [country, currentProjectId, deferredKeyword, refreshNonce, riskFilter])
+  }, [notify, country, currentProjectId, deferredKeyword, refreshNonce, riskFilter])
 
   async function openShipments(row: AnalysisRow) {
     setSelectedRow(row)

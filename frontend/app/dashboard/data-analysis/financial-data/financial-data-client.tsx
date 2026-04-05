@@ -1551,7 +1551,7 @@ export default function FinancialDataClient({
     } finally {
       setExporting(false)
     }
-  }, [data, detailExportRows, disableCommission, isAdmin, totals, trends])
+  }, [data, detailExportRows, disableCommission, endMonth, isAdmin, projectId, startMonth, totals, trends])
   const showSkeleton = loading && !data
 
   return (

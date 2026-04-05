@@ -233,7 +233,7 @@ export default function CommissionOverviewPage() {
     } finally {
       setLoading(false)
     }
-  }, [month, session])
+  }, [month, session, notify])
 
   const loadProjectMeta = useCallback(async () => {
     try {
@@ -292,7 +292,7 @@ export default function CommissionOverviewPage() {
     } finally {
       setSummaryLoading(false)
     }
-  }, [session, summaryYear])
+  }, [session, summaryYear, notify])
 
   useEffect(() => {
     void loadData()

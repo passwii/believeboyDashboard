@@ -163,6 +163,7 @@ export default function DashboardLayout({
           </div>
         </header>
         <main
+          id="main-content"
           className={
             isAiChatPage
               ? 'dashboard-full-width relative min-w-0 flex-1 overflow-x-clip px-0 pb-0 pt-0'

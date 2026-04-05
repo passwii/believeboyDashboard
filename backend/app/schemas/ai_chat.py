@@ -25,6 +25,11 @@ class MessageItem(BaseModel):
     role: str
     content: str
     search_sources: list[dict[str, str | float | None]] = Field(default_factory=list)
+    is_complete: bool = True
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+    duration_ms: int | None = None
     created_at: datetime
 
 
@@ -41,6 +46,7 @@ class MessageCreate(BaseModel):
     model: str | None = Field(default=None, max_length=200)
     system_prompt: str = Field(default="")
     regenerate: bool = Field(default=False)
+    target_message_id: int | None = Field(default=None)
     enable_web_search: bool = Field(default=False)
     attached_file_content: str | None = Field(default=None, max_length=55000)
     attached_file_name: str | None = Field(default=None, max_length=500)

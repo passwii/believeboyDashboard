@@ -3091,8 +3091,8 @@ export default function PricingCalculationPage() {
                   </CardHeader>
                   <CardContent>
                     <LazyComparisonTable
+                      sections={getComparisonSections() as any}
                       runs={selectedRuns}
-                      sections={getComparisonSections()}
                       formatCompactDate={formatCompactDate}
                     />
                   </CardContent>
@@ -3217,7 +3217,9 @@ export default function PricingCalculationPage() {
                           items={filteredStoreSkus}
                           rowStates={storeRows}
                           onDraftChange={updateStoreDraft}
-                          onCalculate={handleStoreSkuCalculate}
+                          onCalculate={(item, calculationMode) => {
+                            void handleStoreSkuCalculate(item as any, calculationMode)
+                          }}
                           systemExchangeRate={systemExchangeRate}
                           calculationMode={storeCalculationMode}
                         />

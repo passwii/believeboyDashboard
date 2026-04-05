@@ -1,0 +1,28 @@
+- generic [active] [ref=e20]:
+  - generic [ref=e23]:
+    - generic [ref=e28]:
+      - img [ref=e31]
+      - heading "彼励扶跨境" [level=2] [ref=e33]
+      - paragraph [ref=e34]: 我们专注跨境品牌服务，帮助企业做好跨境销售与全球推广
+    - generic [ref=e36]:
+      - heading "欢迎登录" [level=1] [ref=e37]
+      - paragraph [ref=e38]: 为跨境销售与全球推广团队提供高效、可执行的品牌增长支持
+      - generic [ref=e39]:
+        - generic [ref=e40]:
+          - generic [ref=e41]: 企业邮箱 *
+          - textbox "企业邮箱 *" [ref=e42]:
+            - /placeholder: 请输入企业邮箱
+        - generic [ref=e43]:
+          - generic [ref=e44]: 登录密码 *
+          - generic [ref=e45]:
+            - textbox "登录密码 *" [ref=e46]:
+              - /placeholder: 请输入登录密码
+            - button "显示密码" [ref=e47] [cursor=pointer]:
+              - img [ref=e48]
+        - button "立即登录" [ref=e52] [cursor=pointer]:
+          - generic [ref=e53]:
+            - text: 立即登录
+            - img [ref=e54]
+        - paragraph [ref=e56]: 品牌跨境，连接全球
+  - generic "通知"
+  - alert [ref=e57]

@@ -417,7 +417,7 @@ export default function SystemOperationLogsPage() {
     } finally {
       setLoading(false)
     }
-  }, [category, keyword, operator, page, session, status])
+  }, [category, keyword, operator, page, session, status, notify])
 
   useEffect(() => {
     void fetchLogs()

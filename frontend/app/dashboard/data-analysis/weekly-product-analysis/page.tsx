@@ -1311,6 +1311,7 @@ export default function WeeklyProductAnalysisPage() {
       setRecomputing(false)
     }
   }, [
+    notify,
     projectId,
     country,
     startDate,
@@ -1469,8 +1470,7 @@ export default function WeeklyProductAnalysisPage() {
       const totalConversionIdx = cols.indexOf('总转化' as never)
       if (totalConversionIdx >= 0 && !(cols as Array<string>).includes('库存')) {
         ;(cols as Array<string>).splice(totalConversionIdx + 1, 0, '库存' as never)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ;(salesGroup as any).columns = cols
+        ;(salesGroup as unknown as Record<string, unknown>).columns = cols
       }
     }
 

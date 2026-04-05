@@ -265,7 +265,7 @@ export default function StoreInfoPage() {
     } finally {
       setLoading(false)
     }
-  }, [session, status])
+  }, [session, status, notify])
 
   useEffect(() => {
     void loadProjects()
