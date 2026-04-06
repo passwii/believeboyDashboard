@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 
 import httpx
 from fastapi import HTTPException, status
-from sqlalchemy import inspect, select
+from sqlalchemy import inspect, select, sql
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
@@ -142,6 +142,24 @@ def mark_message_complete(
     return row
 
 
+def recalculate_conversation_token_stats(db: Session, conversation_id: int) -> None:
+    stmt = select(
+        sql.func.coalesce(sql.func.sum(AIMessage.prompt_tokens), 0).label("prompt"),
+        sql.func.coalesce(sql.func.sum(AIMessage.completion_tokens), 0).label(
+            "completion"
+        ),
+        sql.func.coalesce(sql.func.sum(AIMessage.total_tokens), 0).label("total"),
+    ).where(AIMessage.conversation_id == conversation_id)
+    result = db.execute(stmt).fetchone()
+    if result:
+        conversation = db.get(AIConversation, conversation_id)
+        if conversation:
+            conversation.total_prompt_tokens = result.prompt
+            conversation.total_completion_tokens = result.completion
+            conversation.total_tokens = result.total
+            db.flush()
+
+
 def trim_trailing_slash(value: str) -> str:
     return value[:-1] if value.endswith("/") else value
 
@@ -167,6 +185,8 @@ def request_chat_completion(
         "messages": messages,
         "temperature": temperature,
     }
+    if llm_config.reasoning_effort:
+        payload["reasoning"] = {"effort": llm_config.reasoning_effort}
     headers = {
         "Authorization": f"Bearer {llm_config.api_key}",
         "Content-Type": "application/json",
@@ -347,13 +367,17 @@ def format_web_search_context(payload: dict[str, Any], query: str) -> str:
     return "\n".join(lines).strip()
 
 
-def build_search_source_cards(payload: dict[str, Any]) -> list[dict[str, Any]]:
+def build_search_source_cards(
+    payload: dict[str, Any], max_results: int | None = None
+) -> list[dict[str, Any]]:
     results = payload.get("results", [])
     cards: list[dict[str, Any]] = []
     if not isinstance(results, list):
         return cards
 
-    for item in results[:6]:
+    limit = max_results if isinstance(max_results, int) and max_results > 0 else 6
+
+    for item in results[:limit]:
         if not isinstance(item, dict):
             continue
 
@@ -476,6 +500,8 @@ def stream_with_tool_calling(
             "stream": True,
             "tools": tools,
         }
+        if llm_config.reasoning_effort:
+            payload["reasoning"] = {"effort": llm_config.reasoning_effort}
 
         endpoint = f"{llm_config.base_url.rstrip('/')}/chat/completions"
         headers = {
@@ -579,7 +605,11 @@ def stream_with_tool_calling(
                 }
 
                 if "error" not in search_result:
-                    search_source_cards = build_search_source_cards(search_result)
+                    search_source_cards = build_search_source_cards(
+                        search_result, settings.ai_chat_web_search_max_results
+                    )
+                    if search_source_cards:
+                        yield {"type": "sources", "sources": search_source_cards}
                     search_context = format_web_search_context(
                         search_result, tool_args.get("query", "")
                     )
@@ -604,9 +634,6 @@ def stream_with_tool_calling(
             all_messages.append({"role": "assistant", "tool_calls": [tool_call]})
             all_messages.append(tool_result_message)
 
-    if search_source_cards:
-        yield {"type": "sources", "sources": search_source_cards}
-
 
 def iter_chat_completion_stream(
     llm_config: LLMConfigInput,
@@ -620,6 +647,8 @@ def iter_chat_completion_stream(
         "temperature": temperature,
         "stream": True,
     }
+    if llm_config.reasoning_effort:
+        payload["reasoning"] = {"effort": llm_config.reasoning_effort}
     headers = {
         "Authorization": f"Bearer {llm_config.api_key}",
         "Content-Type": "application/json",
@@ -650,9 +679,35 @@ def iter_chat_completion_stream(
                         continue
 
                     try:
-                        yield json.loads(payload_text)
+                        data = json.loads(payload_text)
                     except json.JSONDecodeError:
                         continue
+
+                    choices = data.get("choices", [])
+                    if not isinstance(choices, list) or not choices:
+                        continue
+
+                    first_choice = choices[0] if isinstance(choices[0], dict) else {}
+                    delta = (
+                        first_choice.get("delta", {})
+                        if isinstance(first_choice, dict)
+                        else {}
+                    )
+                    if not isinstance(delta, dict):
+                        continue
+
+                    thinking = delta.get("thinking", "")
+                    if isinstance(thinking, str) and thinking:
+                        yield {"type": "thinking", "content": thinking}
+
+                    content = delta.get("content", "")
+                    if isinstance(content, str) and content:
+                        yield {"type": "content", "content": content}
+
+                    usage = data.get("usage")
+                    if usage:
+                        yield {"type": "usage", "usage": usage}
+
     except httpx.HTTPStatusError as exc:
         detail = exc.response.text
         raise HTTPException(
@@ -769,6 +824,18 @@ def get_basic_models(settings: Settings) -> set[str]:
     return {item for item in models if item}
 
 
+def get_reasoning_models(settings: Settings) -> set[str]:
+    models = [item.strip() for item in settings.ai_chat_reasoning_models.split(",")]
+    return {item for item in models if item}
+
+
+def normalize_reasoning_effort(value: str | None) -> str | None:
+    effort = (value or "").strip().lower()
+    if effort in {"low", "medium", "high"}:
+        return effort
+    return None
+
+
 def is_provider_configured(settings: Settings) -> bool:
     return bool(
         settings.ai_chat_provider_base_url.strip()
@@ -835,7 +902,10 @@ def resolve_available_models(settings: Settings) -> tuple[list[str], str]:
 
 
 def build_llm_config(
-    settings: Settings, model: str | None, system_prompt: str | None
+    settings: Settings,
+    model: str | None,
+    system_prompt: str | None,
+    reasoning_effort: str | None = None,
 ) -> LLMConfigInput:
     if not is_provider_configured(settings):
         raise HTTPException(
@@ -856,12 +926,21 @@ def build_llm_config(
             status_code=status.HTTP_400_BAD_REQUEST, detail="所选模型不在允许列表中"
         )
 
+    supported_reasoning_models = get_reasoning_models(settings)
+    normalized_reasoning_effort = normalize_reasoning_effort(reasoning_effort)
+    if normalized_reasoning_effort and selected_model not in supported_reasoning_models:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="当前模型不支持思考强度设置",
+        )
+
     return LLMConfigInput(
         base_url=trim_trailing_slash(settings.ai_chat_provider_base_url.strip()),
         api_key=settings.ai_chat_provider_api_key.strip(),
         model=selected_model,
         timeout_seconds=settings.ai_chat_timeout_seconds,
         system_prompt=(system_prompt or "").strip(),
+        reasoning_effort=normalized_reasoning_effort,
     )
 
 
@@ -952,11 +1031,21 @@ def normalize_generated_title(value: str) -> str:
 def generate_conversation_title(
     settings: Settings, user_content: str, assistant_content: str
 ) -> str | None:
+    import logging
+
+    logger = logging.getLogger(__name__)
+
     if not is_provider_configured(settings):
+        logger.warning("generate_conversation_title: AI provider not configured")
         return None
 
     model = resolve_title_model(settings)
     if not model:
+        logger.warning("generate_conversation_title: could not resolve title model")
+        return None
+
+    if not user_content.strip() or not assistant_content.strip():
+        logger.warning("generate_conversation_title: empty user or assistant content")
         return None
 
     llm_config = LLMConfigInput(
@@ -983,20 +1072,38 @@ def generate_conversation_title(
 
     try:
         data = request_chat_completion(llm_config, payload_messages, temperature=0.2)
-    except HTTPException:
+    except HTTPException as exc:
+        logger.warning(
+            f"generate_conversation_title: request_chat_completion failed: {exc.detail}"
+        )
         return None
 
-    return normalize_generated_title(extract_message_content(data)) or None
+    result = normalize_generated_title(extract_message_content(data))
+    if not result:
+        logger.warning(
+            "generate_conversation_title: normalize_generated_title returned empty"
+        )
+    return result
 
 
 def regenerate_conversation_title(
     settings: Settings, messages: list[AIMessage]
 ) -> str | None:
-    if not is_provider_configured(settings) or not messages:
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    if not messages:
+        logger.warning("regenerate_conversation_title: no messages provided")
+        return None
+
+    if not is_provider_configured(settings):
+        logger.warning("regenerate_conversation_title: AI provider not configured")
         return None
 
     model = resolve_title_model(settings)
     if not model:
+        logger.warning("regenerate_conversation_title: could not resolve title model")
         return None
 
     llm_config = LLMConfigInput(
@@ -1016,6 +1123,9 @@ def regenerate_conversation_title(
         transcript_parts.append(f"{role}：{content[:400]}")
 
     if not transcript_parts:
+        logger.warning(
+            f"regenerate_conversation_title: no valid transcript parts from {len(messages)} messages"
+        )
         return None
 
     payload_messages = [
@@ -1036,10 +1146,18 @@ def regenerate_conversation_title(
 
     try:
         data = request_chat_completion(llm_config, payload_messages, temperature=0.2)
-    except HTTPException:
+    except HTTPException as exc:
+        logger.warning(
+            f"regenerate_conversation_title: request_chat_completion failed: {exc.detail}"
+        )
         return None
 
-    return normalize_generated_title(extract_message_content(data)) or None
+    result = normalize_generated_title(extract_message_content(data))
+    if not result:
+        logger.warning(
+            "regenerate_conversation_title: normalize_generated_title returned empty"
+        )
+    return result
 
 
 def generate_assistant_content(
@@ -1078,15 +1196,12 @@ def stream_assistant_content(
     for item in iter_chat_completion_stream(
         llm_config, payload_messages, temperature=0.7
     ):
-        choices = item.get("choices", [])
-        if not isinstance(choices, list) or not choices:
-            continue
-
-        first_choice = choices[0] if isinstance(choices[0], dict) else {}
-        delta = first_choice.get("delta", {}) if isinstance(first_choice, dict) else {}
-        if not isinstance(delta, dict):
-            continue
-
-        content = delta.get("content", "")
-        if isinstance(content, str) and content:
-            yield content
+        if isinstance(item, dict):
+            if item.get("type") == "thinking":
+                yield {"type": "thinking", "content": item.get("content", "")}
+            elif item.get("type") == "content":
+                yield item.get("content", "")
+            elif item.get("type") == "usage":
+                pass
+        elif isinstance(item, str):
+            yield item

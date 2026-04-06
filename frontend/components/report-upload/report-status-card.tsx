@@ -72,7 +72,7 @@ export function ReportStatusCard({
   const useRangePicker = recognition?.date_input_mode === 'range_manual' || (!recognition && config.type === 'payment_report')
 
   return (
-    <Card className="flex h-full flex-col overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90 dark:bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))]">
+    <Card className="flex h-full flex-col overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-sm dark:border-border/90">
       <CardContent className="flex flex-1 flex-col gap-4 px-5 !pt-6 pb-5 md:!pt-7">
         <div className="mt-1 flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-2">
@@ -93,7 +93,7 @@ export function ReportStatusCard({
           </div>
           {statusBadge(state)}
         </div>
-        <div className="space-y-2 rounded-xl border border-border/70 bg-[hsl(var(--surface-subtle))]/80 px-3 py-3 dark:border-border/85 dark:bg-[hsl(var(--surface-low))]/90">
+        <div className="space-y-2 rounded-xl border border-border/60 bg-[hsl(var(--surface-soft))]/80 px-3 py-3">
           <div className="flex items-center gap-2 text-sm font-medium text-foreground">
             <FileText className="h-4 w-4 text-sky-600 dark:text-sky-300" />
             当前文件
@@ -104,7 +104,7 @@ export function ReportStatusCard({
             <>
               {state.candidates.length > 1 ? (
                 <Select value={state.activeTempFileId || ''} onValueChange={onPickCandidate}>
-                  <SelectTrigger className="rounded-md border-border/70 bg-[hsl(var(--surface-overlay))] dark:border-border/95 dark:bg-[hsl(var(--surface-soft))]">
+                  <SelectTrigger className="rounded-md border-border/70 bg-[hsl(var(--surface-soft))] dark:border-border/95">
                     <SelectValue placeholder="选择要使用的文件" />
                   </SelectTrigger>
                   <SelectContent>
@@ -128,13 +128,13 @@ export function ReportStatusCard({
         <div className="grid flex-1 gap-3 content-start">
           <div className="grid gap-3">
             <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border/70 bg-[hsl(var(--surface-overlay))] dark:border-border/95 dark:bg-[hsl(var(--surface-soft))]">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border/60 bg-[hsl(var(--surface-soft))]">
                 <PackageSearch className={cn('h-4 w-4 text-sky-600 dark:text-sky-300', projectWarning && 'text-rose-600 dark:text-rose-300')} />
               </div>
               <Select value={state.selectedProject || undefined} onValueChange={onProjectChange}>
                 <SelectTrigger
                   className={cn(
-                    'rounded-md border-border/70 bg-[hsl(var(--surface-overlay))] dark:border-border/95 dark:bg-[hsl(var(--surface-soft))]',
+                    'rounded-md border-border/70 bg-[hsl(var(--surface-soft))] dark:border-border/95',
                     projectWarning &&
                       'border-rose-300 bg-rose-50/80 text-rose-700 ring-offset-background focus:ring-rose-500 data-[placeholder]:text-rose-500 dark:border-rose-500/55 dark:bg-rose-500/10 dark:text-rose-100 dark:data-[placeholder]:text-rose-300'
                   )}
@@ -152,14 +152,14 @@ export function ReportStatusCard({
             </div>
 
             <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border/70 bg-[hsl(var(--surface-overlay))] dark:border-border/95 dark:bg-[hsl(var(--surface-soft))]">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border/60 bg-[hsl(var(--surface-soft))]">
                 <CalendarDays className={cn('h-4 w-4 text-sky-600 dark:text-sky-300', dateWarning && 'text-rose-600 dark:text-rose-300')} />
               </div>
               {useRangePicker ? (
                 <DateRangePicker
                   value={parseDateRangeInputValue(state.reportStartDate, state.reportEndDate)}
                   className={cn(
-                    'w-full rounded-md border-border/70 bg-[hsl(var(--surface-overlay))] dark:border-border/95 dark:bg-[hsl(var(--surface-soft))]',
+                    'w-full rounded-md border-border/70 bg-[hsl(var(--surface-soft))] dark:border-border/95',
                     dateWarning &&
                       'border-rose-300 bg-rose-50/80 text-rose-700 focus-visible:ring-rose-500 dark:border-rose-500/55 dark:bg-rose-500/10 dark:text-rose-100'
                   )}
@@ -170,7 +170,7 @@ export function ReportStatusCard({
                 />
               ) : recognition?.date_input_mode === 'multi_auto' ? (
                 <div className="space-y-2">
-                  <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-overlay))] px-3 py-2 text-sm text-foreground dark:border-border/90 dark:bg-[hsl(var(--surface-soft))]">
+                  <div className="rounded-xl border border-border/60 bg-[hsl(var(--surface-soft))] px-3 py-2 text-sm text-foreground">
                     {recognition.detected_start_date && recognition.detected_end_date
                       ? `${recognition.detected_start_date} ~ ${recognition.detected_end_date}`
                       : '将按 purchase-date 自动拆分多个日期'}
@@ -181,7 +181,7 @@ export function ReportStatusCard({
                 <SingleDatePicker
                   value={parseDateInputValue(state.reportDate)}
                   className={cn(
-                    'rounded-md border-border/70 bg-[hsl(var(--surface-overlay))] dark:border-border/95 dark:bg-[hsl(var(--surface-soft))]',
+                    'rounded-md border-border/70 bg-[hsl(var(--surface-soft))] dark:border-border/95',
                     dateWarning &&
                       'border-rose-300 bg-rose-50/80 text-rose-700 focus-visible:ring-rose-500 dark:border-rose-500/55 dark:bg-rose-500/10 dark:text-rose-100'
                   )}

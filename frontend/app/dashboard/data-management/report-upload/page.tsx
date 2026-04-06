@@ -87,7 +87,6 @@ const REPORT_GUIDE_ITEMS = [
     action:
       '无须当天立即真实下载，先完成请求即可；也可以等到周一统一下载后再入库。',
     badge: '美国时间判断',
-    tone: 'border-sky-500/25 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.18),transparent_52%),linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))]',
     icon: Package,
   },
   {
@@ -99,7 +98,6 @@ const REPORT_GUIDE_ITEMS = [
       '也就是今天只能导出隔一天之前的数据。比如当前是美国时间 24 号，只能导出到 23 号，提示数据此时还不可用。',
     action: '选择日期时请按美国时间理解，避免把 T 误当成可导出日期。',
     badge: '唯一例外：T-1',
-    tone: 'border-amber-500/25 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.16),transparent_52%),linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))]',
     icon: BarChart3,
   },
   {
@@ -111,7 +109,6 @@ const REPORT_GUIDE_ITEMS = [
       '这类报表通常不需要额外手工处理，按既定节奏定期下载并完成入库即可。',
     action: '只要保持定期下载入库即可，整体无明显操作难度。',
     badge: '自动生成',
-    tone: 'border-emerald-500/25 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.16),transparent_52%),linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))]',
     icon: Megaphone,
   },
   {
@@ -123,7 +120,6 @@ const REPORT_GUIDE_ITEMS = [
       '当前流程会直接索引到每周产品分析里的付款报告，并自动覆盖对应日期范围内的每一天。',
     action: '无需额外重复维护，除非后续流程规则变更。',
     badge: '默认忽略',
-    tone: 'border-fuchsia-500/25 bg-[radial-gradient(circle_at_top_left,rgba(217,70,239,0.16),transparent_52%),linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))]',
     icon: Wallet,
   },
 ] as const
@@ -743,13 +739,13 @@ export default function ReportUploadPage() {
                   </div>
 
                   {projectsLoading ? (
-                    <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-4'>
+                    <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-3'>
                       {REPORT_TYPES.map((type) => (
                         <Skeleton key={type} className='h-[320px] rounded-xl' />
                       ))}
                     </div>
                   ) : (
-                    <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-4'>
+                    <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-3'>
                       {REPORT_CARD_CONFIGS.map((config) => {
                         const state = cards[config.type]
                         const recognition = state.recognition
@@ -801,11 +797,11 @@ export default function ReportUploadPage() {
                 </div>
               </div>
             ) : workspaceTab === 'status' ? (
-              <Card className='overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90'>
+              <Card className='overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-sm'>
                 <CardHeader className='border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-6 py-5 md:px-8'>
                   <div className='flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between'>
                     <div className='flex items-center gap-3'>
-                      <div className='flex h-11 w-11 items-center justify-center rounded-lg border border-sky-500/15 bg-sky-500/10 text-sky-600 dark:bg-sky-500/15 dark:text-sky-300'>
+                      <div className='flex h-11 w-11 items-center justify-center rounded-lg border border-border/60 bg-[hsl(var(--surface-soft))] text-muted-foreground'>
                         <LayoutTemplate className='h-5 w-5' />
                       </div>
                       <div className='space-y-1'>
@@ -906,12 +902,12 @@ export default function ReportUploadPage() {
                           </div>
                         ) : null}
 
-                        {statusRows.map((row) => (
-                          <div
-                            key={row.project_id}
-                            className='grid grid-cols-[160px_repeat(5,minmax(110px,1fr))] gap-2 rounded-xl border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-subtle)),hsl(var(--surface-soft)))] p-2.5 dark:border-border/90 dark:bg-[linear-gradient(180deg,hsl(var(--surface-soft)),hsl(var(--surface-low)))]'
-                          >
-                            <div className='rounded-lg border border-border/70 bg-[hsl(var(--surface-panel))] px-3 py-2.5 dark:border-border/90 dark:bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))]'>
+                          {statusRows.map((row) => (
+                            <div
+                              key={row.project_id}
+                              className='grid grid-cols-[160px_repeat(5,minmax(110px,1fr))] gap-2 rounded-xl border border-border/60 bg-[hsl(var(--surface-panel))] p-2.5'
+                            >
+                              <div className='rounded-lg border border-border/60 bg-[hsl(var(--surface-subtle))] px-3 py-2.5'>
                               <p className='text-sm font-semibold'>
                                 {row.project_name}
                               </p>
@@ -928,10 +924,10 @@ export default function ReportUploadPage() {
                                 | undefined
                               const tone =
                                 cell?.status === 'available'
-                                  ? 'border-emerald-500/20 bg-emerald-500/10 dark:border-emerald-400/30 dark:bg-emerald-400/12'
+                                  ? 'border-emerald-500/30 bg-emerald-500/8'
                                   : cell?.status === 'saved_only'
-                                    ? 'border-amber-500/20 bg-amber-500/10 dark:border-amber-400/30 dark:bg-amber-400/12'
-                                    : 'border-border/70 bg-[hsl(var(--surface-panel))] dark:border-border/90 dark:bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))]'
+                                    ? 'border-amber-500/30 bg-amber-500/8'
+                                    : 'border-border/60 bg-[hsl(var(--surface-panel))]'
                               return (
                                 <div
                                   key={type}
@@ -968,11 +964,11 @@ export default function ReportUploadPage() {
               </Card>
             ) : (
               <div className='space-y-5'>
-                <Card className='overflow-hidden border-border/70 bg-[linear-gradient(135deg,rgba(14,165,233,0.1),transparent_28%),linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))] shadow-[var(--shadow-soft)] dark:border-border/90'>
+                <Card className='overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-sm dark:border-border/90'>
                   <CardHeader className='px-6 py-6 md:px-8'>
                     <div className='flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between'>
                       <div className='space-y-3'>
-                        <div className='flex h-11 w-11 items-center justify-center rounded-2xl border border-sky-500/20 bg-sky-500/10 text-sky-600 dark:bg-sky-500/15 dark:text-sky-300'>
+                        <div className='flex h-11 w-11 items-center justify-center rounded-2xl border border-border/60 bg-[hsl(var(--surface-soft))] text-muted-foreground'>
                           <BookOpen className='h-5 w-5' />
                         </div>
                         <div className='space-y-2'>
@@ -1006,10 +1002,10 @@ export default function ReportUploadPage() {
                 </Card>
 
                 <div className='grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.95fr)]'>
-                  <Card className='overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90'>
+                  <Card className='overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-sm dark:border-border/90'>
                     <CardHeader className='border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-6 py-5 md:px-8'>
                       <div className='flex items-center gap-3'>
-                        <div className='flex h-11 w-11 items-center justify-center rounded-xl border border-foreground/10 bg-background/80 text-foreground dark:bg-[hsl(var(--surface-soft))]'>
+                        <div className='flex h-11 w-11 items-center justify-center rounded-xl border border-border/60 bg-[hsl(var(--surface-soft))] text-muted-foreground'>
                           <Clock3 className='h-5 w-5' />
                         </div>
                         <div className='space-y-1'>
@@ -1021,7 +1017,7 @@ export default function ReportUploadPage() {
                       </div>
                     </CardHeader>
                     <CardContent className='space-y-4 px-6 pb-6 pt-5 md:px-8 md:pb-8 md:pt-6'>
-                      <div className='rounded-2xl border border-sky-500/20 bg-sky-500/10 px-4 py-4 text-sm leading-7 text-sky-950 dark:text-sky-100'>
+                      <div className='rounded-xl border-l-4 border-sky-500/60 bg-[hsl(var(--surface-soft))] px-4 py-4 text-sm leading-7 text-foreground'>
                         我们系统里的报表日期，统一按美国时间理解。正常情况下，除了业务报告，其他所有报告都可按美国时间
                         T 处理。
                       </div>
@@ -1036,7 +1032,7 @@ export default function ReportUploadPage() {
                             理解和安排入库，其中库存报表还需要结合导出时段判断实际对应日期。
                           </p>
                         </div>
-                        <div className='rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4'>
+                        <div className='rounded-xl border-l-4 border-amber-500/60 bg-[hsl(var(--surface-soft))] p-4'>
                           <p className='text-sm font-semibold text-foreground'>
                             业务报告是例外
                           </p>
@@ -1054,39 +1050,32 @@ export default function ReportUploadPage() {
                           return (
                             <div
                               key={item.type}
-                              className={`rounded-3xl border p-5 ${item.tone}`}
+                              className='rounded-xl border border-border/60 bg-[hsl(var(--surface-panel))] p-4'
                             >
-                              <div className='flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between'>
-                                <div className='space-y-3'>
-                                  <div className='flex flex-wrap items-center gap-3'>
-                                    <div className='flex h-11 w-11 items-center justify-center rounded-2xl border border-foreground/10 bg-background/80 text-foreground shadow-sm dark:bg-[hsl(var(--surface-soft))]/90'>
-                                      <Icon className='h-5 w-5' />
-                                    </div>
-                                    <div>
-                                      <p className='text-lg font-semibold text-foreground'>
-                                        {item.title}
-                                      </p>
-                                      <p className='text-sm text-muted-foreground'>
-                                        亚马逊报表名称：{item.amazonName}
-                                      </p>
-                                    </div>
+                              <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
+                                <div className='flex items-start gap-3'>
+                                  <div className='flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-[hsl(var(--surface-soft))] text-muted-foreground'>
+                                    <Icon className='h-4 w-4' />
                                   </div>
-                                  <p className='text-sm leading-7 text-foreground/90'>
-                                    {item.summary}
-                                  </p>
-                                  <p className='text-sm leading-7 text-muted-foreground'>
-                                    {item.detail}
-                                  </p>
+                                  <div className='min-w-0'>
+                                    <p className='text-sm font-semibold text-foreground'>
+                                      {item.title}
+                                    </p>
+                                    <p className='mt-1 text-xs text-muted-foreground'>
+                                      {item.amazonName}
+                                    </p>
+                                  </div>
                                 </div>
-
-                                <div className='rounded-full border border-foreground/10 bg-background/80 px-3 py-1.5 text-xs font-medium tracking-[0.08em] text-foreground/80 dark:bg-[hsl(var(--surface-soft))]/90'>
+                                <div className='rounded-full border border-border/60 bg-[hsl(var(--surface-soft))] px-2.5 py-1 text-xs font-medium text-foreground/80 sm:shrink-0'>
                                   {item.badge}
                                 </div>
                               </div>
-
-                              <div className='mt-4 rounded-2xl border border-border/60 bg-background/75 px-4 py-3 text-sm leading-6 text-muted-foreground dark:bg-[hsl(var(--surface-soft))]/80'>
-                                {item.action}
-                              </div>
+                              <p className='mt-3 text-xs leading-5 text-muted-foreground'>
+                                {item.summary} {item.detail}
+                              </p>
+                              <p className='mt-2 text-xs font-medium text-foreground/70'>
+                                → {item.action}
+                              </p>
                             </div>
                           )
                         })}
@@ -1095,7 +1084,7 @@ export default function ReportUploadPage() {
                   </Card>
 
                   <div className='space-y-4'>
-                    <Card className='overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90'>
+                    <Card className='overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-sm dark:border-border/90'>
                       <CardHeader className='border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-6 py-5'>
                         <CardTitle>建议节奏</CardTitle>
                         <CardDescription>
@@ -1103,12 +1092,37 @@ export default function ReportUploadPage() {
                         </CardDescription>
                       </CardHeader>
                       <CardContent className='space-y-3 px-6 pb-6 pt-5'>
-                        <div className='rounded-2xl border border-border/70 bg-[hsl(var(--surface-subtle))] p-4'>
+                        <div className='rounded-xl border border-border/60 bg-[hsl(var(--surface-soft))] p-4'>
                           <p className='text-sm font-semibold'>
                             1. 先确认美国时间日期
                           </p>
                           <p className='mt-2 text-sm leading-6 text-muted-foreground'>
                             上传或导出前先判断当前要处理的是美国哪一天，避免把本地日期直接套进去。
+                          </p>
+                        </div>
+                        <div className='rounded-xl border border-border/60 bg-[hsl(var(--surface-soft))] p-4'>
+                          <p className='text-sm font-semibold'>
+                            2. 库存报表尽量固定上午处理
+                          </p>
+                          <p className='mt-2 text-sm leading-6 text-muted-foreground'>
+                            上午点击"请求 txt
+                            下载"更稳定，口径也更统一，后续可集中下载入库。
+                          </p>
+                        </div>
+                        <div className='rounded-xl border border-border/60 bg-[hsl(var(--surface-soft))] p-4'>
+                          <p className='text-sm font-semibold'>
+                            3. 单独留意业务报告 T-1
+                          </p>
+                          <p className='mt-2 text-sm leading-6 text-muted-foreground'>
+                            这是最容易错的一类，看到当天日期时要主动往前多退一天。
+                          </p>
+                        </div>
+                        <div className='rounded-xl border border-border/60 bg-[hsl(var(--surface-soft))] p-4'>
+                          <p className='text-sm font-semibold'>
+                            4. 广告与付款按既有流程维护
+                          </p>
+                          <p className='mt-2 text-sm leading-6 text-muted-foreground'>
+                            广告报告定期下载即可；付款报告默认由现有产品分析流程覆盖，无需重复操作。
                           </p>
                         </div>
                         <div className='rounded-2xl border border-border/70 bg-[hsl(var(--surface-subtle))] p-4'>
@@ -1139,7 +1153,7 @@ export default function ReportUploadPage() {
                       </CardContent>
                     </Card>
 
-                    <Card className='overflow-hidden border-amber-500/20 bg-[linear-gradient(180deg,rgba(245,158,11,0.12),transparent_120%),hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-amber-400/30'>
+                    <Card className='overflow-hidden border border-amber-500/30 bg-[hsl(var(--surface-panel))] shadow-sm'>
                       <CardHeader className='px-6 py-5'>
                         <CardTitle>特别提醒</CardTitle>
                       </CardHeader>

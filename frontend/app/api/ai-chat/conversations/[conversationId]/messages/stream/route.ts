@@ -19,6 +19,7 @@ export async function POST(request: Request, { params }: RouteContext) {
   const body = (await request.json()) as {
     content?: string
     model?: string
+    reasoningEffort?: string | null
     regenerate?: boolean
     target_message_id?: number
     overviewPromptId?: string | null
@@ -46,6 +47,7 @@ export async function POST(request: Request, { params }: RouteContext) {
     body: JSON.stringify({
       content: body.content?.trim() || '',
       model: body.model?.trim() || undefined,
+      reasoning_effort: body.reasoningEffort?.trim() || null,
       regenerate: Boolean(body.regenerate),
       target_message_id: body.target_message_id ?? null,
       system_prompt: buildSystemPrompt(body.overviewPromptId, body.detailPromptId),

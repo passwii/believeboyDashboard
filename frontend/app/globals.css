@@ -457,9 +457,132 @@
       border-color var(--motion-fast) var(--motion-ease-out);
   }
 
+  .hover-lift {
+    transition:
+      transform var(--motion-fast) var(--motion-ease-out),
+      box-shadow var(--motion-fast) var(--motion-ease-out),
+      border-color var(--motion-fast) var(--motion-ease-out);
+  }
+
   .hover-lift:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow-raised);
+  }
+
+  .conversation-item {
+    transition:
+      background-color var(--motion-fast) var(--motion-ease-out),
+      transform var(--motion-fast) var(--motion-ease-out),
+      box-shadow var(--motion-fast) var(--motion-ease-out);
+  }
+
+  .conversation-item:hover {
+    transform: translateY(-1px);
+  }
+
+  .conversation-item.active {
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  }
+
+  .dark .conversation-item.active {
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  }
+
+  .send-btn {
+    transition:
+      background-color var(--motion-fast) var(--motion-ease-out),
+      transform var(--motion-fast) var(--motion-ease-out),
+      box-shadow var(--motion-fast) var(--motion-ease-out);
+  }
+
+  .send-btn:not(:disabled):hover {
+    transform: scale(1.05);
+  }
+
+  .send-btn:not(:disabled):active {
+    transform: scale(0.95);
+  }
+
+  .action-btn {
+    transition:
+      color var(--motion-fast) var(--motion-ease-out),
+      background-color var(--motion-fast) var(--motion-ease-out),
+      transform var(--motion-fast) var(--motion-ease-out);
+  }
+
+  .action-btn:not(:disabled):hover {
+    transform: scale(1.1);
+  }
+
+  .action-btn:not(:disabled):active {
+    transform: scale(0.95);
+  }
+
+  .panel-toggle {
+    transition: transform var(--motion-base) var(--motion-ease-out);
+  }
+
+  .panel-toggle.collapsed {
+    transform: rotate(180deg);
+  }
+
+  .web-search-toggle {
+    transition:
+      background-color var(--motion-fast) var(--motion-ease-out),
+      box-shadow var(--motion-fast) var(--motion-ease-out),
+      transform var(--motion-fast) var(--motion-ease-out);
+  }
+
+  .web-search-toggle:not(:disabled):hover {
+    transform: scale(1.08);
+  }
+
+  .prompt-textarea {
+    transition: border-color var(--motion-fast) var(--motion-ease-out);
+  }
+
+  .prompt-textarea:focus {
+    border-color: hsl(var(--primary) / 0.4);
+  }
+
+  .message-content {
+    transition: opacity var(--motion-fast) var(--motion-ease-out);
+  }
+
+  .message-content.streaming {
+    position: relative;
+  }
+
+  .message-content.streaming::after {
+    content: '';
+    position: absolute;
+    right: -2px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background-color: hsl(var(--primary));
+    animation: cursor-blink 0.8s step-end infinite;
+  }
+
+  .stagger-item {
+    opacity: 0;
+    animation: fade-slide-up var(--motion-base) var(--motion-ease-out) both;
+  }
+
+  .stagger-item:nth-child(1) { animation-delay: 0ms; }
+  .stagger-item:nth-child(2) { animation-delay: 60ms; }
+  .stagger-item:nth-child(3) { animation-delay: 120ms; }
+  .stagger-item:nth-child(4) { animation-delay: 180ms; }
+  .stagger-item:nth-child(5) { animation-delay: 240ms; }
+
+  .empty-state-icon {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  .settings-panel {
+    transition:
+      width var(--motion-base) var(--motion-ease-out),
+      opacity var(--motion-fast) var(--motion-ease-out);
   }
 
   .global-loading-track {
@@ -516,4 +639,122 @@
 
 .animate-shake {
   animation: shake 0.5s ease-in-out;
+}
+
+@keyframes cursor-blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+.animate-cursor-blink {
+  animation: cursor-blink 1s step-end infinite;
+}
+
+@keyframes send-pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(0.92); }
+  100% { transform: scale(1); }
+}
+
+.animate-send-pulse {
+  animation: send-pulse 0.15s ease-out;
+}
+
+@keyframes copy-success {
+  0% { transform: scale(1); }
+  25% { transform: scale(1.2); }
+  50% { transform: scale(0.95); }
+  100% { transform: scale(1); }
+}
+
+.animate-copy-success {
+  animation: copy-success 0.3s ease-out;
+}
+
+@keyframes regenerate-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-regenerate-spin {
+  animation: regenerate-spin 0.6s ease-out;
+}
+
+@keyframes fade-slide-up {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.animate-fade-slide-up {
+  animation: fade-slide-up var(--motion-base) var(--motion-ease-out) both;
+}
+
+@keyframes scroll-btn-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.animate-scroll-btn-enter {
+  animation: scroll-btn-enter 0.2s var(--motion-ease-out) both;
+}
+
+@keyframes scroll-btn-exit {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0) scale(0.95);
+  }
+}
+
+.animate-scroll-btn-exit {
+  animation: scroll-btn-exit 0.15s ease-in both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .empty-state-icon,
+  .stagger-item,
+  .animate-fade-slide-up,
+  .animate-scroll-btn-enter,
+  .animate-scroll-btn-exit,
+  .animate-cursor-blink,
+  .animate-send-pulse,
+  .animate-copy-success,
+  .animate-regenerate-spin {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .message-content.streaming::after {
+    display: none;
+  }
+
+  .conversation-item:hover {
+    transform: none;
+  }
+
+  .send-btn:not(:disabled):hover,
+  .action-btn:not(:disabled):hover,
+  .web-search-toggle:not(:disabled):hover {
+    transform: none;
+  }
+
+  .panel-toggle {
+    transition: none;
+  }
 }

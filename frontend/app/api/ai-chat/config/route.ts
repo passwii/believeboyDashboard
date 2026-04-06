@@ -26,7 +26,11 @@ export async function GET() {
       default_model: string
       premium_models: string[]
       basic_models: string[]
+      reasoning_models: string[]
+      default_reasoning_effort: string
       timeout_seconds: number
+      max_conversation_turns: number
+      web_search_max_results: number
     }>('/api/v1/ai/config', {
       method: 'GET',
       headers: { 'X-API-Key': apiKey },
@@ -40,7 +44,11 @@ export async function GET() {
       defaultModel: payload.default_model,
       premiumModels: payload.premium_models,
       basicModels: payload.basic_models,
+      reasoningModels: payload.reasoning_models,
+      defaultReasoningEffort: payload.default_reasoning_effort,
       timeoutSeconds: payload.timeout_seconds,
+      maxConversationTurns: payload.max_conversation_turns,
+      webSearchMaxResults: payload.web_search_max_results,
       ...promptPresets,
     })
   } catch (err) {
@@ -51,7 +59,13 @@ export async function GET() {
         webSearchConfigured: false,
         models: [],
         defaultModel: '',
+        premiumModels: [],
+        basicModels: [],
+        reasoningModels: [],
+        defaultReasoningEffort: 'medium',
         timeoutSeconds: 90,
+        maxConversationTurns: 10,
+        webSearchMaxResults: 5,
         ...promptPresets,
       }
     )

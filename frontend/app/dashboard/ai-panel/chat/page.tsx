@@ -9,10 +9,12 @@ import {
   Copy,
   FileText,
   Globe,
+  Lightbulb,
   Loader2,
   MessageCirclePlus,
   Paperclip,
   Pencil,
+  PenLine,
   Pin,
   RefreshCw,
   Search,
@@ -21,6 +23,7 @@ import {
   Sparkles,
   Square,
   Trash2,
+  TrendingUp,
   User,
   X,
 } from 'lucide-react'
@@ -1053,15 +1056,15 @@ export default function AIChatPage() {
   return (
     <div className="h-full min-h-0 overflow-hidden bg-background">
       <div className="grid h-full min-h-0 grid-cols-[72px_minmax(0,1fr)] lg:grid-cols-[272px_minmax(0,1fr)]">
-        <aside className="min-h-0 border-r border-surface-outline/80 bg-surface-subtle">
+        <aside className="min-h-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-950">
           <div className="flex h-full min-h-0 flex-col">
-              <div className="flex items-center justify-between border-b border-surface-outline/80 px-3 py-3">
+              <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 px-3 py-3">
               <div className="flex items-center gap-2">
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 rounded-full text-muted-foreground"
+                  className="h-8 w-8 rounded-lg text-zinc-500"
                   onClick={() => setLeftPanelOpen((prev) => !prev)}
                   title={leftPanelOpen ? '收起会话列表' : '展开会话列表'}
                 >
@@ -1072,7 +1075,7 @@ export default function AIChatPage() {
                 type="button"
                 size="sm"
                 className={cn(
-                  'rounded-full bg-surface-panel text-foreground hover:bg-surface-soft',
+                  'rounded-lg bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-200',
                   leftPanelOpen ? 'px-3' : 'h-8 w-8 p-0'
                 )}
                 onClick={() => void createConversation()}
@@ -1087,12 +1090,12 @@ export default function AIChatPage() {
               <div className="min-h-0 flex-1">
                 <div className="px-2 py-2">
                   <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                    <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
                     <Input
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder="搜索会话..."
-                      className="h-8 pl-8 text-xs"
+                      className="h-8 pl-8 text-xs bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700"
                     />
                   </div>
                 </div>
@@ -1121,10 +1124,10 @@ export default function AIChatPage() {
                               <div
                                 key={item.id}
                                 className={cn(
-                                  'group rounded-lg px-2 py-2 transition-all',
+                                  'group rounded-lg px-2 py-2 transition-all cursor-pointer',
                                   active
-                                    ? 'bg-surface-panel shadow-[0_1px_2px_rgba(15,23,42,0.08)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.3)]'
-                                    : 'hover:bg-surface-panel/80'
+                                    ? 'bg-zinc-200/70 dark:bg-zinc-800/70'
+                                    : 'hover:bg-zinc-100 dark:hover:bg-zinc-800/50'
                                 )}
                               >
                                 <div className="flex items-start gap-2">
@@ -1145,8 +1148,8 @@ export default function AIChatPage() {
                                     />
                                   ) : (
                                     <button type="button" onClick={() => setActiveConversationId(item.id)} className="min-w-0 flex-1 text-left">
-                                      <p className="truncate text-[0.79rem] font-medium leading-5 text-foreground">{item.title}</p>
-                                      <p className="text-[0.65rem] text-muted-foreground/60 mt-0.5">{formatMessageTime(item.updated_at)}</p>
+                                      <p className="truncate text-[0.79rem] font-medium leading-5 text-zinc-700 dark:text-zinc-300">{item.title}</p>
+                                      <p className="text-[0.65rem] text-zinc-400 dark:text-zinc-500 mt-0.5">{formatMessageTime(item.updated_at)}</p>
                                     </button>
                                   )}
                                   <Button
@@ -1223,51 +1226,18 @@ export default function AIChatPage() {
 
         <section className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_auto] bg-background">
           <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-background">
-            <header className="border-b border-surface-outline/40 bg-surface-subtle/50 backdrop-blur-sm px-5 py-3">
+            <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-4 py-3">
               <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="relative">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20 shadow-sm">
-                      <Bot className="h-5 w-5 text-primary/80" />
-                    </div>
-                    {submitting && (
-                      <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-green-500 text-white shadow-sm">
-                        <span className="h-2 w-2 rounded-full bg-white/90 animate-pulse" />
-                      </span>
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h1 className="truncate text-[1.1rem] font-semibold tracking-tight text-foreground">
-                        {activeConversation?.title || 'AI 聊天面板'}
-                      </h1>
-                      {refreshingPanel ? (
-                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground shrink-0" />
-                      ) : loadingMessages ? (
-                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground shrink-0" />
-                      ) : submitting ? (
-                        <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
-                          <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-                          AI 输入中
-                        </span>
-                      ) : null}
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground/70 mt-0.5">
-                      {activeConversationId ? (
-                        <>
-                          <span>{messages.length} 条消息</span>
-                          {lastTokenUsage && (
-                            <>
-                              <span className="text-muted-foreground/40">•</span>
-                              <span>{lastTokenUsage.total_tokens} tokens</span>
-                            </>
-                          )}
-                        </>
-                      ) : (
-                        <span>选择或创建会话开始对话</span>
-                      )}
-                    </div>
-                  </div>
+                  <Bot className="h-6 w-6 text-zinc-500 dark:text-zinc-400" />
+                  <h1 className="truncate text-base font-medium text-zinc-900 dark:text-zinc-100">
+                    {activeConversation?.title || '新对话'}
+                  </h1>
+                  {submitting && (
+                    <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+                      <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -1307,8 +1277,8 @@ export default function AIChatPage() {
             </header>
 
             <div className="min-h-0 flex-1 overflow-hidden">
-              <div ref={chatScrollRef} onScroll={(event) => setAutoScrollEnabled(isNearBottom(event.currentTarget))} className="h-full overflow-y-auto px-6 py-2">
-                <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col justify-end space-y-6">
+              <div ref={chatScrollRef} onScroll={(event) => setAutoScrollEnabled(isNearBottom(event.currentTarget))} className="h-full overflow-y-auto bg-white dark:bg-zinc-900 px-4 py-4">
+                  <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col justify-end space-y-6">
                   {messages.map((message, msgIndex) => {
                     const isLastAssistantMessage = message.role === 'assistant' && msgIndex === messages.map((m, i) => m.role === 'assistant' ? i : -1).filter(i => i !== -1).at(-1);
                     return (
@@ -1320,11 +1290,11 @@ export default function AIChatPage() {
                           message.failed && 'animate-shake'
                         )}
                       >
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-panel/80 border border-surface-outline/40 shadow-sm">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700">
                           {message.role === 'assistant' ? (
                             <Bot className="h-4 w-4 text-muted-foreground/70" />
                           ) : (
-                            <User className="h-4 w-4 text-amber-600/80" />
+                            <User className="h-4 w-4 text-zinc-200 dark:text-zinc-800" />
                           )}
                         </div>
                         <div className="flex flex-col gap-1">
@@ -1332,8 +1302,8 @@ export default function AIChatPage() {
                             className={cn(
                               'relative w-full px-4 py-3 shadow-sm',
                               message.role === 'assistant'
-                                ? 'bg-surface-panel border border-surface-outline/40 rounded-2xl rounded-tl-md'
-                                : 'bg-gradient-to-br from-amber-50 to-amber-100/70 border border-amber-200/60 rounded-2xl rounded-tr-md',
+                                ? 'bg-transparent'
+                                : 'bg-zinc-100 dark:bg-zinc-800 rounded-2xl rounded-tr-md',
                               message.failed ? 'bg-red-50/80 border-red-200/60' : ''
                             )}
                           >
@@ -1369,7 +1339,7 @@ export default function AIChatPage() {
                                 ) : null}
                               </>
                             ) : (
-                              <p className="whitespace-pre-wrap break-words text-[15px] leading-7 text-amber-900/90">{message.content}</p>
+                              <p className="whitespace-pre-wrap break-words text-[15px] leading-7 text-zinc-800 dark:text-zinc-200">{message.content}</p>
                             )}
                           </div>
                           <div className={cn(
@@ -1412,50 +1382,31 @@ export default function AIChatPage() {
                   })}
 
                   {!loadingMessages && messages.length === 0 ? (
-                    <div className="mx-auto flex max-w-2xl flex-col items-center py-16 text-center animate-enter">
-                      <div className="relative mb-8">
-                        <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20 shadow-lg">
-                          <Bot className="h-10 w-10 text-primary/80" />
-                        </div>
-                        <div className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-green-500 text-white shadow-md">
-                          <Sparkles className="h-3.5 w-3.5" />
-                        </div>
+                    <div className="mx-auto flex max-w-2xl flex-col items-center py-16 text-center">
+                      <div className="mb-6">
+                        <Bot className="h-12 w-12 text-zinc-400 dark:text-zinc-600" />
                       </div>
                       
-                      <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+                      <h2 className="text-2xl font-normal tracking-tight text-zinc-900 dark:text-zinc-100">
                         有什么可以帮你的？
                       </h2>
-                      <p className="mt-3 text-sm leading-6 text-muted-foreground/80 max-w-md">
-                        输入你的问题，AI 会尽力为你解答。支持联网搜索、文件分析等功能
+                      <p className="mt-3 text-sm leading-6 text-zinc-500 dark:text-zinc-400 max-w-md">
+                        输入你的问题，AI 会尽力为你解答
                       </p>
-                      
-                      <div className="mt-6 flex items-center gap-3 text-xs text-muted-foreground/60">
-                        <kbd className="flex items-center gap-1 rounded-md border border-surface-outline/40 bg-surface-panel px-2.5 py-1.5 font-mono shadow-sm">
-                          <span className="text-[0.6rem]">⌘</span>
-                          <span>Enter</span>
-                        </kbd>
-                        <span>发送消息</span>
-                        <span className="text-muted-foreground/30">|</span>
-                        <kbd className="flex items-center gap-1 rounded-md border border-surface-outline/40 bg-surface-panel px-2.5 py-1.5 font-mono shadow-sm">
-                          <span className="text-[0.6rem]">⇧</span>
-                          <span>Enter</span>
-                        </kbd>
-                        <span>换行</span>
-                      </div>
                       
                       <div className="mt-8 flex flex-wrap justify-center gap-2">
                         {[
-                          { icon: '📊', text: '分析数据趋势' },
-                          { icon: '✍️', text: '帮我写作' },
-                          { icon: '💡', text: '获取建议' },
-                          { icon: '🔍', text: '搜索信息' },
+                          { icon: TrendingUp, text: '分析数据趋势' },
+                          { icon: PenLine, text: '帮我写作' },
+                          { icon: Lightbulb, text: '获取建议' },
+                          { icon: Search, text: '搜索信息' },
                         ].map((item) => (
                           <button
                             key={item.text}
                             onClick={() => setPrompt(item.text)}
-                            className="flex items-center gap-2 rounded-full border border-surface-outline/40 bg-surface-panel/60 px-4 py-2 text-sm text-muted-foreground/80 shadow-sm transition-all hover:border-primary/30 hover:bg-surface-panel hover:text-foreground hover:shadow-md hover:-translate-y-0.5"
+                            className="flex items-center gap-2 rounded-full border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50 px-4 py-2 text-sm text-zinc-600 dark:text-zinc-400 transition-colors hover:border-zinc-300 dark:hover:border-zinc-600 hover:text-zinc-900 dark:hover:text-zinc-200"
                           >
-                            <span>{item.icon}</span>
+                            <item.icon className="h-4 w-4" />
                             <span>{item.text}</span>
                           </button>
                         ))}
@@ -1482,25 +1433,19 @@ export default function AIChatPage() {
             </div>
 
             <div className="relative z-20">
-              <div className="bg-surface-subtle/95 backdrop-blur-sm px-5 py-3">
+              <div className="bg-transparent px-4 py-4">
                 {attachedFile && (
-                  <div className="mx-auto max-w-5xl mb-3 animate-enter">
-                    <div className="flex items-center gap-3 rounded-xl border border-surface-outline/60 bg-surface-panel/80 px-4 py-3 shadow-sm">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                        <FileText className="h-5 w-5 text-primary/70" />
-                      </div>
+                  <div className="mx-auto max-w-3xl mb-3">
+                    <div className="flex items-center gap-3 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50 px-4 py-3">
+                      <FileText className="h-5 w-5 text-zinc-500" />
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-medium text-foreground text-sm">{attachedFile.fileName}</p>
-                        {attachedFile.truncatedNote ? (
-                          <p className="text-xs text-amber-500">{attachedFile.truncatedNote}</p>
-                        ) : (
-                          <p className="text-xs text-muted-foreground">{attachedFile.fileType}</p>
-                        )}
+                        <p className="text-xs text-zinc-500">{attachedFile.fileType}</p>
                       </div>
                       <button
                         type="button"
                         onClick={handleRemoveAttachedFile}
-                        className="shrink-0 rounded-full p-2 text-muted-foreground hover:bg-surface-soft hover:text-foreground transition-colors"
+                        className="shrink-0 rounded-full p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
                         title="移除附件"
                       >
                         <X className="h-4 w-4" />
@@ -1509,16 +1454,16 @@ export default function AIChatPage() {
                   </div>
                 )}
                 
-                <form onSubmit={handleSend} className="mx-auto flex w-full max-w-5xl">
-                  <div className="relative w-full rounded-2xl border-2 border-surface-outline/60 bg-surface-panel shadow-[inset_0_2px_4px_rgba(0,0,0,0.04),0_1px_0_rgba(255,255,255,0.8)] dark:shadow-[inset_0_2px_4px_rgba(0,0,0,0.2),0_1px_0_rgba(255,255,255,0.05)] transition-all focus-within:border-primary/40">
-                    <div className="flex items-center gap-1.5 px-3 py-2 border-b border-surface-outline/30">
+                <form onSubmit={handleSend} className="mx-auto">
+                  <div className="relative w-full rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-sm transition-all focus-within:border-zinc-300 dark:focus-within:border-zinc-600">
+                    <div className="flex items-center gap-2 px-3 py-2">
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
                         className={cn(
-                          'h-8 w-8 shrink-0 rounded-full',
-                          attachedFile ? 'text-primary bg-primary/10' : 'text-muted-foreground'
+                          'h-8 w-8 shrink-0 rounded-lg',
+                          attachedFile ? 'text-zinc-600 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800' : 'text-zinc-400'
                         )}
                         disabled={!activeConversationId || submitting || uploadingFile}
                         onClick={() => fileInputRef.current?.click()}
@@ -1538,10 +1483,10 @@ export default function AIChatPage() {
                         variant="ghost"
                         size="icon"
                         className={cn(
-                          'h-8 w-8 shrink-0 rounded-full transition-all',
+                          'h-8 w-8 shrink-0 rounded-lg transition-all',
                           chatSettings.enableWebSearch
-                            ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-md'
-                            : 'text-muted-foreground'
+                            ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900'
+                            : 'text-zinc-400'
                         )}
                         disabled={!activeConversationId || submitting || !chatConfig?.webSearchConfigured}
                         onClick={() =>
@@ -1566,10 +1511,10 @@ export default function AIChatPage() {
                         value={prompt}
                         onChange={handleTextareaChange}
                         onKeyDown={handleKeyDown}
-                        placeholder="输入你的问题..."
+                        placeholder="输入消息..."
                         disabled={!activeConversationId || submitting}
                         rows={1}
-                        className="flex-1 border-0 bg-transparent py-1.5 px-1 shadow-none focus-visible:ring-0 resize-none min-h-[24px] max-h-[150px] text-sm placeholder:text-muted-foreground/50"
+                        className="flex-1 border-0 bg-transparent py-1.5 px-1 shadow-none focus-visible:ring-0 resize-none min-h-[24px] max-h-[150px] text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
                       />
                       <div className="flex items-center gap-1">
                         {canRegenerate && (
@@ -1577,7 +1522,7 @@ export default function AIChatPage() {
                             type="button"
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 shrink-0 rounded-full text-muted-foreground hover:text-foreground"
+                            className="h-8 w-8 shrink-0 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
                             onClick={() => void handleRegenerateReply()}
                             title="重新生成"
                           >
@@ -1589,7 +1534,7 @@ export default function AIChatPage() {
                             type="button"
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 shrink-0 rounded-full text-red-500 hover:text-red-600 hover:bg-red-50"
+                            className="h-8 w-8 shrink-0 rounded-lg text-red-500 hover:text-red-600"
                             onClick={handleStopGenerating}
                             title="停止生成"
                           >
@@ -1600,13 +1545,13 @@ export default function AIChatPage() {
                           type="submit"
                           size="icon"
                           className={cn(
-                            'h-8 w-8 shrink-0 rounded-full transition-all',
+                            'h-8 w-8 shrink-0 rounded-lg transition-all',
                             prompt.trim() && activeConversationId && !submitting
-                              ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-md'
-                              : 'bg-surface-soft text-muted-foreground'
+                              ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-200'
+                              : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400'
                           )}
                           disabled={!activeConversationId || submitting || !prompt.trim() || !chatSettings.model}
-                          title="发送 (⌘Enter)"
+                          title="发送"
                         >
                           <SendHorizontal className="h-4 w-4" />
                         </Button>

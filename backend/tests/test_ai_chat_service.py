@@ -1,3 +1,5 @@
+from fastapi import HTTPException
+
 from app.core.config import Settings
 from app.services import ai_chat_service
 
@@ -10,6 +12,8 @@ def build_settings(**overrides):
         'ai_chat_provider_api_key': 'sk-test',
         'ai_chat_default_model': 'GLM-5.0',
         'ai_chat_title_model': 'Qwen3-8B',
+        'ai_chat_reasoning_models': 'GLM-5.0,Qwen3-32B',
+        'ai_chat_default_reasoning_effort': 'medium',
         'ai_chat_timeout_seconds': 90,
         'ai_chat_web_search_base_url': 'https://search.believeboy.com',
         'ai_chat_web_search_api_key': 'tvly-test',
@@ -29,6 +33,42 @@ def test_resolve_title_model_prefers_title_model():
 def test_resolve_title_model_falls_back_to_default_model():
     settings = build_settings(ai_chat_title_model='')
     assert ai_chat_service.resolve_title_model(settings) == 'GLM-5.0'
+
+
+def test_get_reasoning_models_parses_csv():
+    settings = build_settings(ai_chat_reasoning_models='GLM-5.0, Qwen3-32B ,,')
+    assert ai_chat_service.get_reasoning_models(settings) == {'GLM-5.0', 'Qwen3-32B'}
+
+
+def test_build_llm_config_includes_reasoning_effort_for_supported_model():
+    settings = build_settings()
+
+    config = ai_chat_service.build_llm_config(
+        settings=settings,
+        model='GLM-5.0',
+        system_prompt='system',
+        reasoning_effort='high',
+    )
+
+    assert config.model == 'GLM-5.0'
+    assert config.reasoning_effort == 'high'
+
+
+def test_build_llm_config_rejects_reasoning_for_unsupported_model():
+    settings = build_settings(ai_chat_reasoning_models='Qwen3-32B')
+
+    try:
+        ai_chat_service.build_llm_config(
+            settings=settings,
+            model='GLM-5.0',
+            system_prompt='system',
+            reasoning_effort='high',
+        )
+    except HTTPException as exc:
+        assert exc.status_code == 400
+        assert exc.detail == '当前模型不支持思考强度设置'
+    else:
+        raise AssertionError('expected build_llm_config to reject unsupported reasoning model')
 
 
 def test_normalize_generated_title_strips_wrapper_text():

@@ -8,6 +8,9 @@ class ConversationItem(BaseModel):
     title: str
     created_at: datetime
     updated_at: datetime
+    total_prompt_tokens: int = 0
+    total_completion_tokens: int = 0
+    total_tokens: int = 0
 
 
 class ConversationCreate(BaseModel):
@@ -39,12 +42,14 @@ class LLMConfigInput(BaseModel):
     model: str = Field(min_length=1, max_length=200)
     timeout_seconds: int = Field(default=90, ge=10, le=300)
     system_prompt: str = Field(default="")
+    reasoning_effort: str | None = Field(default=None, max_length=20)
 
 
 class MessageCreate(BaseModel):
     content: str = Field(default="", max_length=8000)
     model: str | None = Field(default=None, max_length=200)
     system_prompt: str = Field(default="")
+    reasoning_effort: str | None = Field(default=None, max_length=20)
     regenerate: bool = Field(default=False)
     target_message_id: int | None = Field(default=None)
     enable_web_search: bool = Field(default=False)
@@ -64,8 +69,11 @@ class AIChatConfigResponse(BaseModel):
     default_model: str
     premium_models: list[str] = Field(default_factory=list)
     basic_models: list[str] = Field(default_factory=list)
+    reasoning_models: list[str] = Field(default_factory=list)
+    default_reasoning_effort: str = Field(default="medium")
     timeout_seconds: int
     max_conversation_turns: int = Field(default=10, ge=1, le=50)
+    web_search_max_results: int = Field(default=5, ge=1, le=10)
 
 
 class TokenUsage(BaseModel):

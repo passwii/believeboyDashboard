@@ -48,8 +48,10 @@ def get_ai_config(settings: Settings = Depends(get_settings)) -> AIChatConfigRes
     models, default_model = ai_chat_service.resolve_available_models(settings)
     premium_set = {m.lower() for m in ai_chat_service.get_premium_models(settings)}
     basic_set = {m.lower() for m in ai_chat_service.get_basic_models(settings)}
+    reasoning_set = {m.lower() for m in ai_chat_service.get_reasoning_models(settings)}
     premium_visible = [m for m in models if m.lower() in premium_set]
     basic_visible = [m for m in models if m.lower() in basic_set]
+    reasoning_visible = [m for m in models if m.lower() in reasoning_set]
     return AIChatConfigResponse(
         provider_configured=ai_chat_service.is_provider_configured(settings),
         web_search_configured=ai_chat_service.is_web_search_configured(settings),
@@ -57,8 +59,16 @@ def get_ai_config(settings: Settings = Depends(get_settings)) -> AIChatConfigRes
         default_model=default_model,
         premium_models=premium_visible,
         basic_models=basic_visible,
+        reasoning_models=reasoning_visible,
+        default_reasoning_effort=(
+            ai_chat_service.normalize_reasoning_effort(
+                settings.ai_chat_default_reasoning_effort
+            )
+            or "medium"
+        ),
         timeout_seconds=settings.ai_chat_timeout_seconds,
         max_conversation_turns=settings.ai_chat_max_conversation_turns,
+        web_search_max_results=settings.ai_chat_web_search_max_results,
     )
 
 
@@ -72,6 +82,9 @@ def list_conversations(db: Session = Depends(get_db_session)) -> list[Conversati
             title=row.title,
             created_at=row.created_at,
             updated_at=row.updated_at,
+            total_prompt_tokens=row.total_prompt_tokens,
+            total_completion_tokens=row.total_completion_tokens,
+            total_tokens=row.total_tokens,
         )
         for row in rows
     ]
@@ -140,7 +153,6 @@ def regenerate_conversation_title(
     regenerated = bool(generated_title)
     if generated_title:
         conversation.title = generated_title
-        conversation.updated_at = datetime.now(timezone.utc)
         db.commit()
         db.refresh(conversation)
 
@@ -171,6 +183,11 @@ def list_messages(
             role=row.role,
             content=row.content,
             search_sources=ai_chat_service.parse_search_sources(row.search_sources),
+            is_complete=row.is_complete,
+            prompt_tokens=row.prompt_tokens,
+            completion_tokens=row.completion_tokens,
+            total_tokens=row.total_tokens,
+            duration_ms=row.duration_ms,
             created_at=row.created_at,
         )
         for row in rows
@@ -209,6 +226,7 @@ def create_message(
         settings=settings,
         model=payload.model,
         system_prompt=payload.system_prompt,
+        reasoning_effort=payload.reasoning_effort,
     )
 
     # Append attached file content to system prompt
@@ -328,6 +346,7 @@ def stream_message(
         settings=settings,
         model=payload.model,
         system_prompt=payload.system_prompt,
+        reasoning_effort=payload.reasoning_effort,
     )
 
     # Append attached file content to system prompt
@@ -436,7 +455,7 @@ def stream_message(
                         web_search_payload, user_content
                     )
                     search_source_cards = ai_chat_service.build_search_source_cards(
-                        web_search_payload
+                        web_search_payload, settings.ai_chat_web_search_max_results
                     )
 
                     if search_source_cards:
@@ -444,40 +463,52 @@ def stream_message(
                             {"type": "sources", "sources": search_source_cards}
                         )
 
-                    for chunk in ai_chat_service.stream_assistant_content(
+                    for item in ai_chat_service.stream_assistant_content(
                         llm_config=llm_config,
                         messages=context_messages,
                         user_content=user_content,
                         web_search_context=web_search_context,
                     ):
-                        assistant_parts.append(chunk)
-                        if assistant_row:
-                            ai_chat_service.update_message_content(
-                                db, assistant_row.id, "".join(assistant_parts)
-                            )
-                        yield encode_stream_event({"type": "chunk", "delta": chunk})
+                        if isinstance(item, dict) and item.get("type") == "thinking":
+                            thinking_chunk = str(item.get("content", ""))
+                            if thinking_chunk:
+                                yield encode_stream_event(
+                                    {"type": "thinking_chunk", "delta": thinking_chunk}
+                                )
+                        elif isinstance(item, str) and item:
+                            assistant_parts.append(item)
+                            if assistant_row:
+                                ai_chat_service.update_message_content(
+                                    db, assistant_row.id, "".join(assistant_parts)
+                                )
+                            yield encode_stream_event({"type": "chunk", "delta": item})
 
                     assistant_content = "".join(assistant_parts).strip()
                     if not assistant_content:
                         raise ValueError("LLM returned empty content")
             else:
-                for chunk in ai_chat_service.stream_assistant_content(
+                for item in ai_chat_service.stream_assistant_content(
                     llm_config=llm_config,
                     messages=context_messages,
                     user_content=user_content,
                 ):
-                    assistant_parts.append(chunk)
-                    if assistant_row:
-                        ai_chat_service.update_message_content(
-                            db, assistant_row.id, "".join(assistant_parts)
-                        )
-                    yield encode_stream_event({"type": "chunk", "delta": chunk})
+                    if isinstance(item, dict) and item.get("type") == "thinking":
+                        thinking_chunk = str(item.get("content", ""))
+                        if thinking_chunk:
+                            yield encode_stream_event(
+                                {"type": "thinking_chunk", "delta": thinking_chunk}
+                            )
+                    elif isinstance(item, str) and item:
+                        assistant_parts.append(item)
+                        if assistant_row:
+                            ai_chat_service.update_message_content(
+                                db, assistant_row.id, "".join(assistant_parts)
+                            )
+                        yield encode_stream_event({"type": "chunk", "delta": item})
 
                 assistant_content = "".join(assistant_parts).strip()
                 if not assistant_content:
                     raise ValueError("LLM returned empty content")
-
-            title_regenerated = False
             if not context_messages:
                 generated_title = ai_chat_service.generate_conversation_title(
                     settings, user_content, assistant_content
@@ -528,6 +559,10 @@ def stream_message(
             if assistant_row:
                 db.refresh(assistant_row)
 
+            ai_chat_service.recalculate_conversation_token_stats(db, conversation_id)
+            db.commit()
+            db.refresh(conversation)
+
             yield encode_stream_event(
                 {
                     "type": "done",
@@ -537,6 +572,11 @@ def stream_message(
                     if title_regenerated
                     else None,
                     "token_usage": token_usage,
+                    "conversation_token_usage": {
+                        "prompt_tokens": conversation.total_prompt_tokens,
+                        "completion_tokens": conversation.total_completion_tokens,
+                        "total_tokens": conversation.total_tokens,
+                    },
                     "duration_ms": duration_ms,
                     "title_regenerated": title_regenerated,
                 }

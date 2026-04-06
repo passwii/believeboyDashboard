@@ -24,6 +24,9 @@ class AIConversation(Base):
         server_default=func.now(),
         onupdate=func.now(),
     )
+    total_prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    total_completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    total_tokens: Mapped[int] = mapped_column(Integer, default=0)
 
     messages: Mapped[list["AIMessage"]] = relationship(
         back_populates="conversation",

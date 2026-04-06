@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     ai_chat_model_blocklist: str = Field(default="")
     ai_chat_premium_models: str = Field(default="")
     ai_chat_basic_models: str = Field(default="")
+    ai_chat_reasoning_models: str = Field(default="")
+    ai_chat_default_reasoning_effort: str = Field(default="medium", max_length=20)
     ai_chat_timeout_seconds: int = Field(default=90, ge=10, le=300)
     ai_chat_web_search_base_url: str = Field(
         default="https://search.believeboy.com", max_length=500
@@ -33,7 +35,7 @@ class Settings(BaseSettings):
     ai_chat_web_search_api_key: str = Field(default="", max_length=500)
     ai_chat_web_search_topic: str = Field(default="general", max_length=50)
     ai_chat_web_search_depth: str = Field(default="advanced", max_length=50)
-    ai_chat_web_search_max_results: int = Field(default=5, ge=1, le=10)
+    ai_chat_web_search_max_results: int = Field(default=20, ge=1, le=100)
     ai_chat_max_conversation_turns: int = Field(default=10, ge=1, le=50)
 
     upload_root: Path = Path(__file__).resolve().parents[2] / "storage" / "uploads"
