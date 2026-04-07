@@ -1330,7 +1330,7 @@ export default function DailyAnalysisPage() {
             <DirectionalTabTransition value={activeTab} order={VIEW_TAB_ORDER}>
             <TabsContent forceMount value={activeTab} className="m-0">
             {activeTab === 'summary' ? (
-                  <Table containerClassName="rounded-b-lg border border-border/70 bg-[hsl(var(--surface-panel))]/94 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]/96">
+                  <Table noWrapperRounded containerClassName="bg-[hsl(var(--surface-panel))]/94 dark:bg-[hsl(var(--surface-panel))]/96">
                   <TableHeader className="bg-[hsl(var(--surface-soft))]/72 dark:bg-[hsl(var(--surface-strong))]">
                     <TableRow className="border-0 hover:bg-transparent">
                       <TableHead className="min-w-[120px]">日期</TableHead>
@@ -1375,7 +1375,7 @@ export default function DailyAnalysisPage() {
                   </TableBody>
               </Table>
             ) : (
-                  <Table containerClassName="rounded-b-lg border border-border/70 bg-[hsl(var(--surface-panel))]/96 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]/98">
+                  <Table noWrapperRounded containerClassName="bg-[hsl(var(--surface-panel))]/96 dark:bg-[hsl(var(--surface-panel))]/98">
                   <TableHeader className="bg-[hsl(var(--surface-soft))]/82 dark:bg-[hsl(var(--surface-strong))]">
                     <TableRow className="hover:bg-transparent">
                       <TableHead className="min-w-[120px] bg-[hsl(var(--surface-soft))]/9 dark:bg-[hsl(var(--surface-strong))]">日期</TableHead>
