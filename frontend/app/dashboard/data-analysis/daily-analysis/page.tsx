@@ -164,9 +164,14 @@ function getYesterdayRange(): DateRange {
 }
 
 function getLastWeekRange(): DateRange {
-  const end = addDays(new Date(), -1)
-  end.setHours(0, 0, 0, 0)
-  return { from: addDays(end, -6), to: end }
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const dayOfWeek = today.getDay()
+  // Find Monday of current week (getDay(): Sunday=0, Monday=1, ..., Saturday=6)
+  const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+  const currentWeekMonday = addDays(today, -daysSinceMonday)
+  // Previous week: start = currentWeekMonday - 7, end = currentWeekMonday - 1
+  return { from: addDays(currentWeekMonday, -7), to: addDays(currentWeekMonday, -1) }
 }
 
 function formatMetricValue(metric: ChartMetricKey, value: number) {
