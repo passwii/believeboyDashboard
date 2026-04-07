@@ -1105,8 +1105,8 @@ export default function ReportUploadPage() {
                             2. 库存报表尽量固定上午处理
                           </p>
                           <p className='mt-2 text-sm leading-6 text-muted-foreground'>
-                            上午点击"请求 txt
-                            下载"更稳定，口径也更统一，后续可集中下载入库。
+                            上午点击&quot;请求 txt
+                            下载&quot;更稳定，口径也更统一，后续可集中下载入库。
                           </p>
                         </div>
                         <div className='rounded-xl border border-border/60 bg-[hsl(var(--surface-soft))] p-4'>
