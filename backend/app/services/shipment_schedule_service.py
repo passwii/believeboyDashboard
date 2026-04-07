@@ -621,7 +621,7 @@ def list_shipment_sku_summary(
     project_ids: list[int] | None = None,
     country: str | None = None,
     include_only_history_calc: bool = True,
-    shipment_status: str | None = "completed",
+    shipment_status: str | None = "completed,in_transit",
     shipment_nos: list[str] | None = None,
     created_date_from: str | None = None,
     created_date_to: str | None = None,

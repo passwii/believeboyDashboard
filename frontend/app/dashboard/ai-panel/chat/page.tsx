@@ -12,8 +12,8 @@ import {
   Lightbulb,
   Loader2,
   MessageCirclePlus,
+  PanelLeftClose,
   Paperclip,
-  Pencil,
   PenLine,
   Pin,
   RefreshCw,
@@ -261,6 +261,12 @@ function upsertConversation(items: ConversationItem[], nextConversation: Convers
   )
 }
 
+function updateConversationTitle(items: ConversationItem[], conversationId: number, newTitle: string) {
+  return items.map((item) =>
+    item.id === conversationId ? { ...item, title: newTitle } : item
+  )
+}
+
 async function readNdjsonStream(response: Response, onEvent: (event: StreamEvent) => void) {
   const reader = response.body?.getReader()
   if (!reader) {
@@ -308,7 +314,7 @@ export default function AIChatPage() {
   const [submitting, setSubmitting] = useState(false)
   const [refreshingPanel, setRefreshingPanel] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [leftPanelOpen, setLeftPanelOpen] = useState(true)
+  const [leftPanelOpen, setLeftPanelOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [busyConversationAction, setBusyConversationAction] = useState<string | null>(null)
   const [autoScrollEnabled, setAutoScrollEnabled] = useState(true)
@@ -601,7 +607,7 @@ export default function AIChatPage() {
       }
 
       const payload = (await response.json()) as RegenerateTitleResponse
-      setConversations((prev) => upsertConversation(prev, payload.conversation))
+      setConversations((prev) => updateConversationTitle(prev, conversationId, payload.conversation.title))
       if (!payload.regenerated) {
         setError('当前会话内容不足，暂时无法重生成标题')
       }
@@ -1055,10 +1061,13 @@ export default function AIChatPage() {
 
   return (
     <div className="h-full min-h-0 overflow-hidden bg-background">
-      <div className="grid h-full min-h-0 grid-cols-[72px_minmax(0,1fr)] lg:grid-cols-[272px_minmax(0,1fr)]">
-        <aside className="min-h-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-950">
-          <div className="flex h-full min-h-0 flex-col">
-              <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 px-3 py-3">
+      <div className={cn('grid h-full min-h-0', leftPanelOpen ? 'grid-cols-[272px_minmax(0,1fr)]' : 'grid-cols-[0px_minmax(0,1fr)]')}>
+        <aside className={cn(
+          'min-h-0 min-w-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-950 overflow-hidden transition-all duration-300',
+          leftPanelOpen ? 'w-[272px]' : 'w-0 border-0'
+        )}>
+          <div className="flex h-full min-h-0 flex-col overflow-hidden">
+              <div className="flex items-center justify-between min-w-0 border-b border-zinc-200 dark:border-zinc-800 px-3 py-3">
               <div className="flex items-center gap-2">
                 <Button
                   type="button"
@@ -1066,9 +1075,9 @@ export default function AIChatPage() {
                   size="icon"
                   className="h-8 w-8 rounded-lg text-zinc-500"
                   onClick={() => setLeftPanelOpen((prev) => !prev)}
-                  title={leftPanelOpen ? '收起会话列表' : '展开会话列表'}
+                  title="折叠会话列表"
                 >
-                  {leftPanelOpen ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  {leftPanelOpen ? <PanelLeftClose className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                 </Button>
               </div>
               <Button
@@ -1087,8 +1096,8 @@ export default function AIChatPage() {
             </div>
 
             {leftPanelOpen ? (
-              <div className="min-h-0 flex-1">
-                <div className="px-2 py-2">
+              <div className="min-h-0 flex-1 overflow-hidden">
+                <div className="px-2 py-2 overflow-hidden">
                   <div className="relative">
                     <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
                     <Input
@@ -1124,13 +1133,13 @@ export default function AIChatPage() {
                               <div
                                 key={item.id}
                                 className={cn(
-                                  'group rounded-lg px-2 py-2 transition-all cursor-pointer',
+                                  'group rounded-md px-1 py-1 transition-all cursor-pointer',
                                   active
                                     ? 'bg-zinc-200/70 dark:bg-zinc-800/70'
                                     : 'hover:bg-zinc-100 dark:hover:bg-zinc-800/50'
                                 )}
                               >
-                                <div className="flex items-start gap-2">
+                                <div className="flex items-center gap-1 overflow-hidden">
                                   {isEditing ? (
                                     <Input
                                       value={editingTitle}
@@ -1143,62 +1152,52 @@ export default function AIChatPage() {
                                           setEditingConversationId(null)
                                         }
                                       }}
-                                      className="h-6 flex-1 px-1 text-xs"
+                                      className="h-5 min-w-0 flex-1 px-1 text-xs"
                                       autoFocus
                                     />
                                   ) : (
                                     <button type="button" onClick={() => setActiveConversationId(item.id)} className="min-w-0 flex-1 text-left">
-                                      <p className="truncate text-[0.79rem] font-medium leading-5 text-zinc-700 dark:text-zinc-300">{item.title}</p>
-                                      <p className="text-[0.65rem] text-zinc-400 dark:text-zinc-500 mt-0.5">{formatMessageTime(item.updated_at)}</p>
+                                      <p className="truncate text-[0.75rem] font-medium text-zinc-700 dark:text-zinc-300">{item.title}</p>
                                     </button>
                                   )}
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    className={cn(
-                                      'h-6 w-6 shrink-0 rounded-full opacity-100 lg:opacity-0 lg:group-hover:opacity-100',
-                                      isPinned ? 'text-primary' : 'text-muted-foreground'
-                                    )}
-                                    disabled={titleActionBusy || deleteActionBusy || renameActionBusy || submitting}
-                                    onClick={() => handleTogglePin(item.id)}
-                                    title={isPinned ? '取消置顶' : '置顶'}
-                                  >
-                                    <Pin className={cn('h-3.5 w-3.5', isPinned && 'fill-current')} />
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-6 w-6 shrink-0 rounded-full text-muted-foreground opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
-                                    disabled={titleActionBusy || deleteActionBusy || renameActionBusy || submitting}
-                                    onClick={() => handleStartRename(item.id, item.title)}
-                                    title="重命名"
-                                  >
-                                    <Pencil className="h-3.5 w-3.5" />
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-6 w-6 shrink-0 rounded-full text-muted-foreground opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
-                                    disabled={titleActionBusy || deleteActionBusy || renameActionBusy}
-                                    onClick={() => void handleRegenerateTitle(item.id)}
-                                    title="重生成话题"
-                                  >
-                                    {titleActionBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-6 w-6 shrink-0 rounded-full text-muted-foreground hover:text-red-500 opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
-                                    disabled={titleActionBusy || deleteActionBusy || renameActionBusy || submitting}
-                                    onClick={() => void handleDeleteConversation(item.id)}
-                                    title="删除会话"
-                                  >
-                                    {deleteActionBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                                  </Button>
+                                  <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className={cn(
+                                        'h-5 w-5 shrink-0 rounded-md text-muted-foreground',
+                                        isPinned ? 'text-primary' : 'text-muted-foreground'
+                                      )}
+                                      disabled={titleActionBusy || deleteActionBusy || renameActionBusy || submitting}
+                                      onClick={() => handleTogglePin(item.id)}
+                                      title={isPinned ? '取消置顶' : '置顶'}
+                                    >
+                                      <Pin className={cn('h-3 w-3', isPinned && 'fill-current')} />
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-5 w-5 shrink-0 rounded-md text-muted-foreground"
+                                      disabled={titleActionBusy || deleteActionBusy || renameActionBusy}
+                                      onClick={() => void handleRegenerateTitle(item.id)}
+                                      title="重新生成标题"
+                                    >
+                                      {titleActionBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-5 w-5 shrink-0 rounded-md text-muted-foreground hover:text-red-500"
+                                      disabled={titleActionBusy || deleteActionBusy || renameActionBusy || submitting}
+                                      onClick={() => void handleDeleteConversation(item.id)}
+                                      title="删除会话"
+                                    >
+                                      {deleteActionBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                                    </Button>
+                                  </div>
                                 </div>
                               </div>
                             )
@@ -1229,6 +1228,19 @@ export default function AIChatPage() {
             <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-4 py-3">
               <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3 min-w-0">
+                  {!leftPanelOpen && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 gap-1.5 rounded-lg px-2 text-zinc-600 dark:text-zinc-400"
+                      onClick={() => void createConversation()}
+                      title="新建会话"
+                    >
+                      <MessageCirclePlus className="h-4 w-4" />
+                      <span className="text-sm">新建</span>
+                    </Button>
+                  )}
                   <Bot className="h-6 w-6 text-zinc-500 dark:text-zinc-400" />
                   <h1 className="truncate text-base font-medium text-zinc-900 dark:text-zinc-100">
                     {activeConversation?.title || '新对话'}
@@ -1241,6 +1253,18 @@ export default function AIChatPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {!leftPanelOpen && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 rounded-full text-muted-foreground"
+                      onClick={() => setLeftPanelOpen((prev) => !prev)}
+                      title="展开会话列表"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  )}
                   {lastTokenUsage && !submitting && (
                     <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-panel/80 border border-surface-outline/30 text-xs text-muted-foreground/80">
                       <span>速度:</span>

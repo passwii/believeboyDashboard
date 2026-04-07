@@ -306,7 +306,7 @@ function downloadCsvFile(filename: string, header: string[], rows: Array<Array<s
 
 function ShipmentControlSkeleton() {
   return (
-    <div className="space-y-2">
+    <div className="flex min-w-0 flex-col space-y-2">
       <Skeleton className="h-4 w-14" />
       <Skeleton className="h-10 w-full" />
     </div>
@@ -2393,14 +2393,14 @@ export default function ShipmentManagementPage() {
       <DataCard>
         <DataCardHeader title="控制台" titleClassName="text-2xl tracking-tight" />
         <DataCardContent className="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_auto] xl:gap-5">
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 xl:col-span-1">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 xl:col-span-1 [&>div]:min-w-0">
           {projectsLoading ? (
             <ShipmentControlSkeleton />
           ) : (
-            <div className="space-y-2">
+            <div className="flex min-w-0 flex-col space-y-2">
               <div className="text-xs font-medium text-muted-foreground">项目</div>
               <Select value={projectFilter} onValueChange={setProjectFilter}>
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="全部项目" />
               </SelectTrigger>
               <SelectContent>
@@ -2415,10 +2415,10 @@ export default function ShipmentManagementPage() {
             </div>
           )}
 
-          <div className="space-y-2">
+          <div className="flex min-w-0 flex-col space-y-2">
             <div className="text-xs font-medium text-muted-foreground">状态</div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="全部状态" />
             </SelectTrigger>
             <SelectContent>
@@ -2432,10 +2432,10 @@ export default function ShipmentManagementPage() {
             </Select>
           </div>
 
-          <div className="space-y-2">
+          <div className="flex min-w-0 flex-col space-y-2">
             <div className="text-xs font-medium text-muted-foreground">国家地区</div>
             <Select value={countryFilter} onValueChange={setCountryFilter}>
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="全部国家" />
             </SelectTrigger>
             <SelectContent>
@@ -2449,7 +2449,7 @@ export default function ShipmentManagementPage() {
             </Select>
           </div>
 
-          <div className="space-y-2">
+          <div className="flex min-w-0 flex-col space-y-2">
             <div className="text-xs font-medium text-muted-foreground">货件编号</div>
             <SearchableShipmentNoFilter
               value={shipmentNoFilter}

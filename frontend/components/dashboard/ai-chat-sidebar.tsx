@@ -1,6 +1,6 @@
 'use client'
 
-import { Loader2, MessageCirclePlus, Pin, Search, Sparkles, Trash2 } from 'lucide-react'
+import { Loader2, MessageCirclePlus, PanelLeftClose, Pin, Search, Sparkles, Trash2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -121,13 +121,13 @@ export function AIChatSidebar({
                     <div
                       key={item.id}
                       className={cn(
-                        'group rounded-[0.9rem] border px-2.5 py-2 transition-all',
+                        'group rounded-md border px-1 py-1 transition-all',
                         active
                           ? 'border-[hsl(var(--sidebar-foreground)/0.12)] bg-[hsl(var(--sidebar-foreground)/0.08)]'
                           : 'border-transparent bg-transparent hover:border-[hsl(var(--sidebar-foreground)/0.08)] hover:bg-[hsl(var(--sidebar-foreground)/0.04)]'
                       )}
                     >
-                      <div className="flex items-start gap-2">
+                      <div className="flex items-start gap-1">
                         {isEditing ? (
                           <Input
                             value={editingTitle}
@@ -140,7 +140,7 @@ export function AIChatSidebar({
                                 onCancelRename()
                               }
                             }}
-                            className="h-7 flex-1 rounded-[0.7rem] border-[hsl(var(--sidebar-foreground)/0.1)] bg-[hsl(var(--sidebar-foreground)/0.04)] px-2 text-xs text-sidebar-foreground focus-visible:ring-sidebar-ring"
+                            className="h-5 flex-1 rounded-[0.5rem] border-[hsl(var(--sidebar-foreground)/0.1)] bg-[hsl(var(--sidebar-foreground)/0.04)] px-1 text-xs text-sidebar-foreground focus-visible:ring-sidebar-ring"
                             autoFocus
                           />
                         ) : (
@@ -150,8 +150,7 @@ export function AIChatSidebar({
                             onDoubleClick={() => onStartRename(item.id, item.title)}
                             className="min-w-0 flex-1 text-left"
                           >
-                            <p className="truncate text-[0.79rem] font-medium leading-5 text-sidebar-foreground">{item.title}</p>
-                            <p className="mt-0.5 text-[0.64rem] text-sidebar-foreground/38">{formatMessageTime(item.updated_at)}</p>
+                            <p className="truncate text-[0.75rem] font-medium leading-4 text-sidebar-foreground">{item.title}</p>
                           </button>
                         )}
 
@@ -159,39 +158,39 @@ export function AIChatSidebar({
                           <button
                             type="button"
                             className={cn(
-                              'flex h-6 w-6 items-center justify-center rounded-md text-sidebar-foreground/42 transition-colors hover:bg-[hsl(var(--sidebar-foreground)/0.08)] hover:text-sidebar-foreground',
+                              'flex h-5 w-5 items-center justify-center rounded-md text-sidebar-foreground/42 transition-colors hover:bg-[hsl(var(--sidebar-foreground)/0.08)] hover:text-sidebar-foreground',
                               isPinned && 'text-primary'
                             )}
                             disabled={titleActionBusy || deleteActionBusy || renameActionBusy || submitting}
                             onClick={() => onTogglePin(item.id)}
                             title={isPinned ? '取消置顶' : '置顶'}
                           >
-                            <Pin className={cn('h-3.5 w-3.5', isPinned && 'fill-current')} />
+                            <Pin className={cn('h-3 w-3', isPinned && 'fill-current')} />
                           </button>
                           <button
                             type="button"
-                            className="flex h-6 w-6 items-center justify-center rounded-md text-sidebar-foreground/42 transition-colors hover:bg-[hsl(var(--sidebar-foreground)/0.08)] hover:text-sidebar-foreground"
+                            className="flex h-5 w-5 items-center justify-center rounded-md text-sidebar-foreground/42 transition-colors hover:bg-[hsl(var(--sidebar-foreground)/0.08)] hover:text-sidebar-foreground"
                             disabled={titleActionBusy || deleteActionBusy || renameActionBusy || submitting}
                             onClick={() => void onRegenerateTitle(item.id)}
-                            title="AI 生成标题"
+                            title="重新生成标题"
                           >
                             {titleActionBusy ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              <Loader2 className="h-3 w-3 animate-spin" />
                             ) : (
-                              <Sparkles className="h-3.5 w-3.5" />
+                              <Sparkles className="h-3 w-3" />
                             )}
                           </button>
                           <button
                             type="button"
-                            className="flex h-6 w-6 items-center justify-center rounded-md text-sidebar-foreground/42 transition-colors hover:bg-red-500/12 hover:text-red-500"
+                            className="flex h-5 w-5 items-center justify-center rounded-md text-sidebar-foreground/42 transition-colors hover:bg-red-500/12 hover:text-red-500"
                             disabled={titleActionBusy || deleteActionBusy || renameActionBusy || submitting}
                             onClick={() => void onDeleteConversation(item.id)}
                             title="删除会话"
                           >
                             {deleteActionBusy ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              <Loader2 className="h-3 w-3 animate-spin" />
                             ) : (
-                              <Trash2 className="h-3.5 w-3.5" />
+                              <Trash2 className="h-3 w-3" />
                             )}
                           </button>
                         </div>

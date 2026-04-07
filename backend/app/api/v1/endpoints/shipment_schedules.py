@@ -432,7 +432,7 @@ def list_shipment_sku_summary(
     project_id: int | None = Query(default=None, gt=0),
     country: str | None = Query(default=None),
     include_only_history_calc: bool = Query(default=True),
-    shipment_status: str | None = Query(default="completed"),
+    shipment_status: str | None = Query(default="completed,in_transit"),
     shipment_no: Annotated[list[str] | None, Query()] = None,
     created_date_from: str | None = Query(default=None),
     created_date_to: str | None = Query(default=None),
