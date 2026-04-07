@@ -858,6 +858,7 @@ def calculate_shipment_schedule_costs(
     request: Request,
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> ShipmentScheduleDetail:
     row, sku_count, total_quantity = (
         shipment_schedule_service.calculate_shipment_schedule_costs(
@@ -894,5 +895,5 @@ def calculate_shipment_schedule_costs(
         request=request,
         db=db,
         operator=operator,
-        is_admin=False,
+        is_admin=is_admin,
     )

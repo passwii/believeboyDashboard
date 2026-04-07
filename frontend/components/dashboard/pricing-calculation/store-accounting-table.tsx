@@ -174,7 +174,7 @@ export function StoreAccountingTable({
   }
 
   const compactInputClassName =
-    'h-8 w-[52px] min-w-[52px] whitespace-nowrap px-1.5 text-center text-xs tabular-nums sm:w-[60px] sm:min-w-[60px]'
+    'h-8 w-[52px] min-w-[52px] rounded-sm border border-input bg-background px-1.5 text-center text-xs tabular-nums sm:w-[60px] sm:min-w-[60px]'
   const compactSelectClassName =
     'flex h-8 w-[84px] min-w-[84px] rounded-md border border-input bg-background px-1.5 py-1 text-xs ring-offset-background sm:w-[96px] sm:min-w-[96px]'
 
