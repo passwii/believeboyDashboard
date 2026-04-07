@@ -122,6 +122,7 @@ def build_daily_analysis(
     country: str,
     start_date: str,
     end_date: str,
+    sku: str | None = None,
 ) -> dict[str, object]:
     normalized_country = _normalize_country(country)
     normalized_start = _parse_date(start_date, "start_date")
@@ -133,7 +134,7 @@ def build_daily_analysis(
         normalized_start.isoformat(),
         normalized_end.isoformat(),
     )
-    if cached is not None:
+    if cached is not None and sku is None:
         return cached
 
     project = _get_project_or_404(db, project_id)
@@ -176,12 +177,15 @@ def build_daily_analysis(
 
     detail_rows: list[dict[str, object]] = []
     summary_map: dict[str, dict[str, object]] = {}
-    for (day_text, sku), bucket in sorted(
+    for (day_text, bucket_sku), bucket in sorted(
         detail_buckets.items(), key=lambda item: (item[0][0], item[0][1])
     ):
+        if sku is not None and bucket_sku != sku:
+            continue
+
         detail_row = {
             "date": day_text,
-            "sku": sku,
+            "sku": bucket_sku,
             "asin": bucket.asin,
             "order_qty": int(bucket.order_qty),
             "sales_amount": _round_money(bucket.sales_amount),

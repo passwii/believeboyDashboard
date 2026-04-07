@@ -54,3 +54,4 @@ class DailyAnalysisResponse(BaseModel):
     summary_rows: list[DailyAnalysisSummaryRow]
     detail_rows: list[DailyAnalysisDetailRow]
     available_dates: dict[str, Any]
+    comparison_summary_rows: list[DailyAnalysisSummaryRow] | None = None

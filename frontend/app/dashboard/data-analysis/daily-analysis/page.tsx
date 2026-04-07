@@ -1,16 +1,18 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import { DateRange } from 'react-day-picker'
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, FileDown, Loader2, RefreshCcw } from 'lucide-react'
+import { ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight, ChevronsUpDown, FileDown, Loader2, RefreshCcw } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { Bar, CartesianGrid, ComposedChart, Line, XAxis, YAxis } from 'recharts'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart'
-import { DataCard, DataCardHeader, DataCardContent, DataTableCard, DataTableCardHeader, DataTableCardBody, DataTableCardStatBar } from '@/components/ui/data-card'
+import { DataCard, DataCardHeader, DataCardContent, DataTableCard, DataTableCardHeader, DataTableCardBody } from '@/components/ui/data-card'
 import { DateRangePicker } from '@/components/ui/date-picker'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { EmptyTableState } from '@/components/ui/empty-state'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -67,6 +69,18 @@ type DailyAnalysisDetailRow = DailyAnalysisRow & {
   asin: string | null
 }
 
+type ProjectSkuOption = {
+  sku: string
+  asin: string | null
+  fnsku: string | null
+  product_name: string | null
+  units_per_carton: number
+  carton_length_cm: number | null
+  carton_width_cm: number | null
+  carton_height_cm: number | null
+  carton_weight_kg: number | null
+}
+
 type DailyAnalysisResponse = {
   console: DailyAnalysisConsole
   summary_rows: DailyAnalysisRow[]
@@ -116,7 +130,6 @@ const SINGLE_METRIC_CHART_CONFIG = {
 
 const EMPTY_SUMMARY_ROWS: DailyAnalysisRow[] = []
 const EMPTY_DETAIL_ROWS: DailyAnalysisDetailRow[] = []
-const METRIC_PAGE_SIZE = 4
 
 function authHeaders(): Record<string, string> {
   return {}
@@ -147,6 +160,16 @@ function getRangeDayCount(range?: DateRange) {
   return Math.floor(diff / 86400000) + 1
 }
 
+function generateDateRangeStrings(from: Date, to: Date): string[] {
+  const dates: string[] = []
+  const current = new Date(from)
+  while (current <= to) {
+    dates.push(formatYMD(current))
+    current.setDate(current.getDate() + 1)
+  }
+  return dates
+}
+
 function getPreviousPeriodRange(range?: DateRange): DateRange | undefined {
   const normalized = normalizeDateRange(range)
   if (!normalized) return undefined
@@ -172,6 +195,21 @@ function getLastWeekRange(): DateRange {
   const currentWeekMonday = addDays(today, -daysSinceMonday)
   // Previous week: start = currentWeekMonday - 7, end = currentWeekMonday - 1
   return { from: addDays(currentWeekMonday, -7), to: addDays(currentWeekMonday, -1) }
+}
+
+function getNextMonthRange(range?: DateRange): DateRange | undefined {
+  const normalized = normalizeDateRange(range)
+  if (!normalized) return undefined
+  const year = normalized.to.getFullYear()
+  const month = normalized.to.getMonth()
+  // Calculate next month (handle year overflow)
+  const nextYear = month === 11 ? year + 1 : year
+  const nextMonth = month === 11 ? 0 : month + 1
+  // First day of next month
+  const from = new Date(nextYear, nextMonth, 1)
+  // Last day of next month (day 0 of the month after = last day of target month)
+  const to = new Date(nextYear, nextMonth + 1, 0)
+  return { from, to }
 }
 
 function formatMetricValue(metric: ChartMetricKey, value: number) {
@@ -479,6 +517,99 @@ function formatYMD(date: Date): string {
   return `${y}-${m}-${d}`
 }
 
+function SearchableSkuField({
+  value,
+  options,
+  loading,
+  onChange,
+}: {
+  value: string
+  options: ProjectSkuOption[]
+  loading: boolean
+  onChange: (value: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const selectedSku = options.find((option) => option.sku === value)
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <Button
+        type="button"
+        variant="outline"
+        className="h-10 w-[200px] justify-between px-3 font-normal shadow-sm"
+        onClick={() => setOpen(true)}
+      >
+        <span className={cn('truncate text-left', value ? 'text-foreground' : 'text-muted-foreground')}>
+          {selectedSku ? (
+            <span className="flex items-center gap-1.5">
+              <span className="truncate font-medium">{selectedSku.sku}</span>
+              {selectedSku.product_name && (
+                <span className="hidden truncate text-muted-foreground lg:inline">/ {selectedSku.product_name}</span>
+              )}
+            </span>
+          ) : loading ? (
+            'SKU 加载中...'
+          ) : (
+            '全部 SKU'
+          )}
+        </span>
+        <ChevronsUpDown className="ml-1 h-4 w-4 shrink-0 opacity-50" />
+      </Button>
+      <DialogContent className="overflow-hidden p-0 sm:max-w-xl">
+        <Command className="max-h-[70vh]">
+          <CommandInput placeholder="搜索 SKU" />
+          <CommandList>
+            <CommandEmpty>{loading ? 'SKU 加载中...' : '没有匹配的 SKU'}</CommandEmpty>
+            <CommandItem
+              value="__all__"
+              onSelect={() => {
+                onChange('')
+                setOpen(false)
+              }}
+              className={cn('flex items-center gap-2', !value && 'bg-accent')}
+            >
+              <Check className={cn('h-4 w-4 shrink-0', !value ? 'opacity-100' : 'opacity-0')} />
+              <span className="font-medium">全部 SKU</span>
+            </CommandItem>
+            {options.map((option) => {
+              const missingUnits = !option.units_per_carton || option.units_per_carton <= 0
+              return (
+                <CommandItem
+                  key={option.sku}
+                  value={option.sku}
+                  disabled={missingUnits}
+                  onSelect={() => {
+                    if (!missingUnits) {
+                      onChange(option.sku)
+                      setOpen(false)
+                    }
+                  }}
+                  className={cn(missingUnits && 'opacity-50 cursor-not-allowed')}
+                >
+                  <Check className={cn('h-4 w-4 shrink-0', value === option.sku ? 'opacity-100' : 'opacity-0')} />
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <span className="truncate flex-1 font-medium">{option.sku}</span>
+                    {option.product_name && (
+                      <span className="shrink-0 truncate max-w-[200px] text-muted-foreground text-xs">
+                        {option.product_name}
+                      </span>
+                    )}
+                    {missingUnits && (
+                      <span className="shrink-0 rounded bg-amber-100 px-1 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                        未维护单箱数
+                      </span>
+                    )}
+                  </div>
+                </CommandItem>
+              )
+            })}
+          </CommandList>
+        </Command>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 function FilterSkeleton() {
   return (
     <div className="space-y-1.5">
@@ -500,12 +631,14 @@ export default function DailyAnalysisPage() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>(defaultRange)
   const [activeTab, setActiveTab] = useState<ViewTab>('summary')
   const [activeChartMetric, setActiveChartMetric] = useState<ChartMetricKey>('order_qty')
-  const [metricPage, setMetricPage] = useState(0)
 
   const [data, setData] = useState<DailyAnalysisResponse | null>(null)
   const [comparisonSummaryRows, setComparisonSummaryRows] = useState<DailyAnalysisRow[]>(EMPTY_SUMMARY_ROWS)
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [skuOptions, setSkuOptions] = useState<ProjectSkuOption[]>([])
+  const [skuLoading, setSkuLoading] = useState(false)
+  const [selectedSku, setSelectedSku] = useState('')
 
   useEffect(() => {
     const loadProjects = async () => {
@@ -528,7 +661,7 @@ export default function DailyAnalysisPage() {
     if (first?.id != null) setProjectId(String(first.id))
   }, [projectId, projects])
 
-  const loadData = async (rangeOverride?: DateRange) => {
+  const loadData = useCallback(async (rangeOverride?: DateRange) => {
     if (!projectId) {
       notify({ type: 'error', title: '请先选择项目' })
       return
@@ -550,6 +683,7 @@ export default function DailyAnalysisPage() {
         country,
         start_date: startDate,
         end_date: endDate,
+        ...(selectedSku && { sku: selectedSku }),
       })
       const compareSearch = previousRange
         ? new URLSearchParams({
@@ -557,6 +691,7 @@ export default function DailyAnalysisPage() {
             country,
             start_date: formatYMD(previousRange.from!),
             end_date: formatYMD(previousRange.to!),
+            ...(selectedSku && { sku: selectedSku }),
           })
         : null
 
@@ -592,33 +727,105 @@ export default function DailyAnalysisPage() {
     } finally {
       setLoading(false)
     }
-  }
+}, [projectId, country, dateRange, selectedSku, notify])
+
+  const loadProjectSkus = useCallback(async (projectIdText: string, countryValue: string) => {
+    const projectIdNum = Number(projectIdText)
+    const projectName = projects.find((project) => project.id === projectIdNum)?.name
+    if (!projectName) {
+      setSkuOptions([])
+      return
+    }
+
+    setSkuLoading(true)
+    try {
+      const allItems: ProjectSkuOption[] = []
+      let nextPage = 1
+      let hasNextPage = true
+
+      while (hasNextPage) {
+        const params = new URLSearchParams({
+          project_name: projectName,
+          country: countryValue,
+          page: String(nextPage),
+          page_size: '200',
+        })
+        const response = await fetch(`${API_BASE}/api/v1/sku-info?${params.toString()}`, {
+          headers: authHeaders(),
+          cache: 'no-store',
+        })
+        if (!response.ok) throw new Error(await response.text())
+
+        const payload = (await response.json()) as {
+          items: Array<{
+            sku: string
+            asin: string | null
+            fnsku: string | null
+            product_name: string | null
+            units_per_carton: number
+            carton_length_cm: number | null
+            carton_width_cm: number | null
+            carton_height_cm: number | null
+            carton_weight_kg: number | null
+          }>
+          has_next: boolean
+        }
+        allItems.push(
+          ...payload.items.map((item) => ({
+            sku: item.sku,
+            asin: item.asin,
+            fnsku: item.fnsku,
+            product_name: item.product_name,
+            units_per_carton: item.units_per_carton,
+            carton_length_cm: item.carton_length_cm,
+            carton_width_cm: item.carton_width_cm,
+            carton_height_cm: item.carton_height_cm,
+            carton_weight_kg: item.carton_weight_kg,
+          }))
+        )
+        hasNextPage = payload.has_next
+        nextPage += 1
+      }
+
+      setSkuOptions(allItems)
+    } catch (loadError) {
+      setSkuOptions([])
+      notify({ type: 'error', title: '项目 SKU 列表加载失败', message: loadError instanceof Error ? loadError.message : '加载失败' })
+    } finally {
+      setSkuLoading(false)
+    }
+  }, [notify, projects])
+
+  useEffect(() => {
+    if (!projectId) return
+    void loadProjectSkus(projectId, country)
+  }, [projectId, country, loadProjectSkus])
 
   useEffect(() => {
     if (!projectId) return
     void loadData()
-  }, [projectId, country]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    const visibleMetricKeys = CHART_METRICS.slice(metricPage * METRIC_PAGE_SIZE, (metricPage + 1) * METRIC_PAGE_SIZE).map((item) => item.key)
-    if (visibleMetricKeys.length && !visibleMetricKeys.includes(activeChartMetric)) {
-      setActiveChartMetric(visibleMetricKeys[0])
-    }
-  }, [metricPage, activeChartMetric])
+  }, [projectId, country, selectedSku, loadData])
 
   const summaryRows = data?.summary_rows ?? EMPTY_SUMMARY_ROWS
   const detailRows = data?.detail_rows ?? EMPTY_DETAIL_ROWS
   const consoleData = data?.console ?? null
+
+  const filteredDetailRows = useMemo(() => {
+    if (!selectedSku) return EMPTY_DETAIL_ROWS
+    return detailRows.filter((row) => row.sku === selectedSku)
+  }, [detailRows, selectedSku])
+
   const detailDisplayRows = useMemo<DetailDisplayRow[]>(() => {
+    const rowsToGroup = selectedSku ? filteredDetailRows : detailRows
     const groupedRows: DetailDisplayRow[] = []
     let index = 0
     let groupIndex = 0
 
-    while (index < detailRows.length) {
-      const groupDate = detailRows[index].date
+    while (index < rowsToGroup.length) {
+      const groupDate = rowsToGroup[index].date
       let endIndex = index + 1
 
-      while (endIndex < detailRows.length && detailRows[endIndex].date === groupDate) {
+      while (endIndex < rowsToGroup.length && rowsToGroup[endIndex].date === groupDate) {
         endIndex += 1
       }
 
@@ -626,7 +833,7 @@ export default function DailyAnalysisPage() {
       const isTintedGroup = groupIndex % 2 === 0
 
       for (let currentIndex = index; currentIndex < endIndex; currentIndex += 1) {
-        const row = detailRows[currentIndex]
+        const row = rowsToGroup[currentIndex]
         groupedRows.push({
           row,
           rowKey: `${row.date}-${row.sku}-${row.asin ?? 'no-asin'}-${currentIndex}`,
@@ -641,17 +848,26 @@ export default function DailyAnalysisPage() {
     }
 
     return groupedRows
-  }, [detailRows])
+  }, [detailRows, filteredDetailRows, selectedSku])
 
   const selectedProjectName = useMemo(
     () => projects.find((p) => String(p.id) === projectId)?.name ?? '',
     [projects, projectId]
   )
   const activeChartMetricLabel = CHART_METRICS.find((item) => item.key === activeChartMetric)?.label ?? '订单'
+
+  const chartDataRows = selectedSku ? filteredDetailRows : summaryRows
+
+  const filteredComparisonRows = useMemo(() => {
+    if (!selectedSku || comparisonSummaryRows.length === 0) return EMPTY_SUMMARY_ROWS
+    return EMPTY_SUMMARY_ROWS
+  }, [selectedSku, comparisonSummaryRows])
+
   const metricCards = useMemo(() => {
     return CHART_METRICS.map((metric) => {
-      const currentValue = aggregateMetric(summaryRows, metric.key)
-      const previousValue = aggregateMetric(comparisonSummaryRows, metric.key)
+      const currentValue = aggregateMetric(chartDataRows, metric.key)
+      const hasComparison = comparisonSummaryRows.length > 0
+      const previousValue = hasComparison ? aggregateMetric(comparisonSummaryRows, metric.key) : 0
       const diff = currentValue - previousValue
       const percentChange = previousValue === 0 ? null : (diff / previousValue) * 100
       const isPositiveDirection = percentChange === null ? true : (metricIncreaseIsGood(metric.key) ? percentChange >= 0 : percentChange <= 0)
@@ -662,25 +878,62 @@ export default function DailyAnalysisPage() {
         previousValue,
         percentChange,
         isPositiveDirection,
+        hasComparison,
+        showComparisonBadge: comparisonSummaryRows.length > 0,
       }
     })
-  }, [summaryRows, comparisonSummaryRows])
-  const metricPageCount = Math.ceil(metricCards.length / METRIC_PAGE_SIZE)
-  const visibleMetricCards = metricCards.slice(metricPage * METRIC_PAGE_SIZE, (metricPage + 1) * METRIC_PAGE_SIZE)
+  }, [chartDataRows, comparisonSummaryRows, selectedSku])
   const comparisonRange = useMemo(() => getPreviousPeriodRange(dateRange), [dateRange])
-  const hasComparisonData = comparisonSummaryRows.length > 0
+  const hasComparisonData = !selectedSku && comparisonSummaryRows.length > 0
   const chartRows = useMemo(() => {
-    return summaryRows.map((row, index) => ({
-      ...row,
-      compareMetricValue: comparisonSummaryRows[index]?.[activeChartMetric] ?? null,
-    }))
-  }, [summaryRows, comparisonSummaryRows, activeChartMetric])
+    const normalizedRange = normalizeDateRange(dateRange)
+    if (!normalizedRange?.from || !normalizedRange?.to) {
+      return []
+    }
+    const allDates = generateDateRangeStrings(normalizedRange.from, normalizedRange.to)
+
+    if (selectedSku) {
+      const existingData = new Map(filteredDetailRows.map((row) => [row.date, row]))
+      return allDates.map((date) => {
+        const row = existingData.get(date)
+        return {
+          date,
+          [activeChartMetric]: row ? row[activeChartMetric] : 0,
+          compareMetricValue: null,
+        }
+      })
+    }
+
+    const summaryData = new Map(summaryRows.map((row) => [row.date, row]))
+    const comparisonData = new Map(comparisonSummaryRows.map((row) => [row.date, row]))
+
+    return allDates.map((date) => {
+      const row = summaryData.get(date)
+      const compareRow = comparisonData.get(date)
+      return {
+        date,
+        order_qty: row?.order_qty ?? 0,
+        sales_amount: row?.sales_amount ?? 0,
+        impressions: row?.impressions ?? 0,
+        clicks: row?.clicks ?? 0,
+        cpc: row?.cpc ?? 0,
+        ad_spend: row?.ad_spend ?? 0,
+        ad_orders: row?.ad_orders ?? 0,
+        available_qty: row?.available_qty ?? 0,
+        compareMetricValue: compareRow ? compareRow[activeChartMetric] : null,
+      }
+    })
+  }, [selectedSku, filteredDetailRows, summaryRows, comparisonSummaryRows, activeChartMetric, dateRange])
+
+  const summaryTableRows = selectedSku ? filteredDetailRows : summaryRows
   const dateRangeDisplay = consoleData ? `${consoleData.start_date} ~ ${consoleData.end_date}` : (dateRange ? `${formatYMD(dateRange.from!)}${' ~ ' + formatYMD(dateRange.to!)}` : '')
   const handleExportExcel = async () => {
     if (!data) return
     setExporting(true)
     try {
-      await exportDailyAnalysisToExcel(summaryRows, detailRows, selectedProjectName, country, dateRangeDisplay)
+      const exportSummaryRows = selectedSku ? filteredDetailRows : summaryRows
+      const exportDetailRows = selectedSku ? filteredDetailRows : detailRows
+      await exportDailyAnalysisToExcel(exportSummaryRows, exportDetailRows, selectedProjectName, country, dateRangeDisplay)
       await logClientOperation({
         action: 'daily_analysis.export',
         targetType: 'daily_analysis',
@@ -690,8 +943,9 @@ export default function DailyAnalysisPage() {
           project_name: selectedProjectName,
           country,
           date_range: dateRangeDisplay,
-          summary_count: summaryRows.length,
-          detail_count: detailRows.length,
+          selected_sku: selectedSku || null,
+          summary_count: exportSummaryRows.length,
+          detail_count: exportDetailRows.length,
         },
       })
     } catch (exportError) {
@@ -713,94 +967,112 @@ export default function DailyAnalysisPage() {
           title="销售数据策展台"
           titleClassName="text-2xl tracking-tight"
           badge={<p className="dashboard-kicker">Analysis Console</p>}
-          
-          action={
-            <>
-              <Badge variant="outline" className="border-border/60 bg-background/80 px-3 py-1 text-foreground">
-                项目：{selectedProjectName || '未选择'}
-              </Badge>
-              <Badge variant="outline" className="border-border/60 bg-background/80 px-3 py-1 text-foreground">
-                站点：{country}
-              </Badge>
-              <Badge variant="outline" className="border-border/60 bg-background/80 px-3 py-1 text-foreground">
-                周期：{dateRangeDisplay || '--'}
-              </Badge>
-            </>
-          }
         />
-        <div className="dashboard-toolbar grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(12rem,14rem)_minmax(8rem,9.5rem)_minmax(0,1fr)_auto] xl:items-end">
-          <div className="space-y-2">
-            <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">项目</div>
-            <Select value={projectId} onValueChange={setProjectId}>
-              <SelectTrigger className="h-10 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none [&>span]:truncate dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
-                <SelectValue placeholder="选择项目" />
-              </SelectTrigger>
-              <SelectContent>
-                {projects.map((item) => (
-                  <SelectItem key={item.id} value={String(item.id)}>
-                    {item.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="dashboard-toolbar flex-nowrap items-end gap-3 border-0 shadow-none">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="space-y-2">
+              <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">项目</div>
+              <Select value={projectId} onValueChange={setProjectId}>
+                <SelectTrigger className="h-10 w-[160px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none [&>span]:truncate dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
+                  <SelectValue placeholder="选择项目" />
+                </SelectTrigger>
+                <SelectContent>
+                  {projects.map((item) => (
+                    <SelectItem key={item.id} value={String(item.id)}>
+                      {item.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-          <div className="space-y-2">
-            <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">国家站点</div>
-            <Select value={country} onValueChange={(value) => setCountry(value as CountryOption)}>
-              <SelectTrigger className="h-10 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none [&>span]:truncate dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
-                <SelectValue placeholder="国家站点" />
-              </SelectTrigger>
-              <SelectContent>
-                {COUNTRY_OPTIONS.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
-                    {item.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+            <div className="space-y-2">
+              <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">国家站点</div>
+              <Select value={country} onValueChange={(value) => setCountry(value as CountryOption)}>
+                <SelectTrigger className="h-10 w-[140px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none [&>span]:truncate dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
+                  <SelectValue placeholder="国家站点" />
+                </SelectTrigger>
+                <SelectContent>
+                  {COUNTRY_OPTIONS.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-          <div className="space-y-2">
-            <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">日期范围</div>
-            <div className="flex flex-wrap gap-2">
-              <DateRangePicker
-                value={dateRange}
-                onChange={setDateRange}
-                className="h-10 flex-1 min-w-[220px]"
-                onApply={() => void loadData()}
+            <div className="space-y-2">
+              <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">SKU</div>
+              <SearchableSkuField
+                value={selectedSku}
+                options={skuOptions}
+                loading={skuLoading}
+                onChange={(value) => {
+                  setSelectedSku(value)
+                  setActiveTab('summary')
+                }}
               />
-              <Button type="button" variant="secondary" className="h-10 px-4" onClick={() => void handleQuickRange(getYesterdayRange())}>
-                昨天
-              </Button>
-              <Button type="button" variant="secondary" className="h-10 px-4" onClick={() => void handleQuickRange(getLastWeekRange())}>
-                上周
+            </div>
+
+            <div className="space-y-2">
+              <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">日期范围</div>
+              <div className="flex flex-wrap items-center gap-2">
+                <DateRangePicker
+                  value={dateRange}
+                  onChange={setDateRange}
+                  className="h-10 w-[240px]"
+                  onApply={() => void loadData()}
+                />
+                <div className="flex items-center gap-1">
+                  <Button type="button" variant="secondary" className="h-10 px-3" onClick={() => {
+                    if (!dateRange?.from) return
+                    const newFrom = new Date(dateRange.from)
+                    newFrom.setMonth(newFrom.getMonth() - 1)
+                    const newTo = new Date(newFrom)
+                    newTo.setMonth(newTo.getMonth() + 1)
+                    newTo.setDate(newTo.getDate() - 1)
+                    void handleQuickRange({ from: newFrom, to: newTo })
+                  }} title="前一个月">
+                    <ChevronLeft className="h-4 w-4" />
+                    <span className="sr-only sm:not-sr-only sm:ml-1">上月</span>
+                  </Button>
+                  <Button type="button" variant="secondary" className="h-10 px-3" onClick={() => {
+                    const nextRange = getNextMonthRange(dateRange)
+                    if (!nextRange) return
+                    void handleQuickRange(nextRange)
+                  }} title="后一个月">
+                    <span className="sr-only sm:not-sr-only sm:mr-1">下月</span>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="ml-auto flex items-center gap-2">
+              <div className="flex items-center gap-1">
+                <Button type="button" variant="secondary" className="h-10 px-3" onClick={() => void handleQuickRange(getYesterdayRange())}>
+                  昨天
+                </Button>
+                <Button type="button" variant="secondary" className="h-10 px-3" onClick={() => void handleQuickRange(lastSevenDaysRange())}>
+                  近7天
+                </Button>
+              </div>
+              <Button
+                type="button"
+                onClick={() => void loadData()}
+                disabled={loading || projectsLoading}
+                className="h-10 px-5"
+              >
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+                刷新视图
               </Button>
             </div>
           </div>
-
-          <Button
-            type="button"
-            onClick={() => void loadData()}
-            disabled={loading || projectsLoading}
-            className="h-10 px-5"
-          >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
-            刷新视图
-          </Button>
         </div>
       </DataCard>
 
       <DataCard>
-        <DataTableCardStatBar
-          className="border-b border-border/70 bg-[hsl(var(--surface-subtle))]"
-          items={[
-            { label: '订单总量', value: formatMetricCardValue('order_qty', aggregateMetric(summaryRows, 'order_qty')) },
-            { label: '销售额', value: formatMetricCardValue('sales_amount', aggregateMetric(summaryRows, 'sales_amount')) },
-            { label: '广告花费', value: formatMetricCardValue('ad_spend', aggregateMetric(summaryRows, 'ad_spend')) },
-            { label: '广告订单', value: formatMetricCardValue('ad_orders', aggregateMetric(summaryRows, 'ad_orders')) },
-          ]}
-        />
         <DataCardContent className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline" className="border-border/60 bg-background/85 px-3 py-1 text-foreground">
@@ -809,34 +1081,9 @@ export default function DailyAnalysisPage() {
           </div>
           {summaryRows.length ? (
             <>
-              <div className="relative px-10 md:px-12">
-                {metricPageCount > 1 ? (
-                  <>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      aria-label="查看上一组图表指标"
-                      className="absolute left-0 top-1/2 z-10 h-16 w-14 -translate-x-[68%] -translate-y-1/2 rounded-none p-0 text-[#ef5a4c] hover:bg-transparent hover:text-[#e14b3d] disabled:opacity-30"
-                      onClick={() => setMetricPage((page) => Math.max(0, page - 1))}
-                      disabled={metricPage === 0}
-                    >
-                      <ChevronLeft className="h-14 w-14 stroke-[2.4]" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      aria-label="查看下一组图表指标"
-                      className="absolute right-0 top-1/2 z-10 h-16 w-14 translate-x-[68%] -translate-y-1/2 rounded-none p-0 text-[#ef5a4c] hover:bg-transparent hover:text-[#e14b3d] disabled:opacity-30"
-                      onClick={() => setMetricPage((page) => Math.min(metricPageCount - 1, page + 1))}
-                      disabled={metricPage >= metricPageCount - 1}
-                    >
-                      <ChevronRight className="h-14 w-14 stroke-[2.4]" />
-                    </Button>
-                  </>
-                ) : null}
-
-                <div className="grid gap-2.5 xl:grid-cols-4">
-                  {visibleMetricCards.map((metric) => {
+              <div className="px-2 md:px-4">
+                <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7">
+                  {metricCards.map((metric) => {
                     const isActive = metric.key === activeChartMetric
                     const showIncrease = metric.percentChange === null ? true : metric.percentChange >= 0
                     const usePositiveColor = metric.percentChange === null ? true : metric.isPositiveDirection
@@ -847,40 +1094,50 @@ export default function DailyAnalysisPage() {
                         type="button"
                         onClick={() => setActiveChartMetric(metric.key)}
                         className={cn(
-                          'rounded-lg border px-4 py-4 text-left transition-all duration-200',
+                          'rounded-lg border px-3 py-3 text-left transition-all duration-200',
                           isActive
                             ? 'border-primary/45 bg-primary text-primary-foreground shadow-[0_16px_34px_-24px_hsl(var(--primary)/0.72)]'
                             : 'border-border/70 bg-[hsl(var(--surface-soft))]/86 text-foreground hover:-translate-y-0.5 hover:border-border hover:bg-background'
                         )}
                       >
-                        <div className="flex items-start justify-between gap-4">
-                          <div className={cn('text-sm font-semibold tracking-tight', isActive ? 'text-primary-foreground/88' : 'text-muted-foreground')}>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className={cn('text-xs font-semibold tracking-tight', isActive ? 'text-primary-foreground/88' : 'text-muted-foreground')}>
                             {metric.label}
                           </div>
-                          <div
-                            className={cn(
-                              'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold backdrop-blur-sm',
-                              isActive
-                                ? usePositiveColor
-                                  ? 'border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(220,252,231,0.92))] text-[hsl(var(--success))] shadow-[0_10px_24px_-14px_rgba(255,255,255,0.9)]'
-                                  : 'border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(254,226,226,0.92))] text-[hsl(var(--destructive))] shadow-[0_10px_24px_-14px_rgba(255,255,255,0.9)]'
-                                : usePositiveColor
-                                  ? 'border-[hsl(var(--success))/0.28] bg-[hsl(var(--success))/0.12] text-[hsl(var(--success))]'
-                                  : 'border-destructive/25 bg-destructive/12 text-destructive'
-                            )}
-                          >
-                            {showIncrease ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />}
-                            {metric.percentChange === null ? '--' : `${Math.abs(metric.percentChange).toFixed(1)}%`}
-                          </div>
+                          {metric.showComparisonBadge ? (
+                            <div
+                              className={cn(
+                                'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold backdrop-blur-sm',
+                                isActive
+                                  ? usePositiveColor
+                                    ? 'border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(220,252,231,0.92))] text-[hsl(var(--success))] shadow-[0_10px_24px_-14px_rgba(255,255,255,0.9)]'
+                                    : 'border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(254,226,226,0.92))] text-[hsl(var(--destructive))] shadow-[0_10px_24px_-14px_rgba(255,255,255,0.9)]'
+                                  : usePositiveColor
+                                    ? 'border-[hsl(var(--success))/0.28] bg-[hsl(var(--success))/0.12] text-[hsl(var(--success))]'
+                                    : 'border-destructive/25 bg-destructive/12 text-destructive'
+                              )}
+                            >
+                              {showIncrease ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />}
+                              {metric.percentChange === null ? '--' : `${Math.abs(metric.percentChange).toFixed(1)}%`}
+                            </div>
+                          ) : (
+                            <div className="h-[28px] w-[60px]" />
+                          )}
                         </div>
 
-                        <div className="mt-5 space-y-1">
-                          <div className={cn('text-[1.65rem] font-semibold tracking-tight', isActive ? 'text-primary-foreground' : 'text-foreground')}>
+                        <div className="mt-3 space-y-0.5">
+                          <div className={cn('text-[1.25rem] font-semibold tracking-tight', isActive ? 'text-primary-foreground' : 'text-foreground')}>
                             {formatMetricCardValue(metric.key, metric.currentValue)}
                           </div>
-                          <div className={cn('text-sm', isActive ? 'text-primary-foreground/72' : 'text-muted-foreground')}>
-                            对比 {formatMetricCardValue(metric.key, metric.previousValue)}
-                          </div>
+                          {metric.hasComparison ? (
+                            <div className={cn('text-xs', isActive ? 'text-primary-foreground/72' : 'text-muted-foreground')}>
+                              对比 {formatMetricCardValue(metric.key, metric.previousValue)}
+                            </div>
+                          ) : (
+                            <div className={cn('text-xs', isActive ? 'text-primary-foreground/72' : 'text-muted-foreground')}>
+                              {selectedSku ? 'SKU 明细' : '暂无对比'}
+                            </div>
+                          )}
                         </div>
                       </button>
                     )
@@ -1098,8 +1355,8 @@ export default function DailyAnalysisPage() {
                           ))}
                         </TableRow>
                       ))
-                    ) : summaryRows.length ? (
-                      summaryRows.map((row, index) => (
+                    ) : summaryTableRows.length ? (
+                      summaryTableRows.map((row, index) => (
                       <TableRow key={`${row.date}-${index}`} className={cn(index % 2 === 0 && 'bg-[hsl(var(--surface-soft))]/45 dark:bg-[hsl(var(--surface-strong))]/70')}>
                           <TableCell className="font-medium text-foreground">{row.date}</TableCell>
                           <TableCell>{row.order_qty.toLocaleString('zh-CN')}</TableCell>

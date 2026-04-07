@@ -3,6 +3,9 @@
 *.pem
 .idea/
 .vscode/
+.kilo/
+.kilocode/
+.kilo*
 
 # Logs
 npm-debug.log*

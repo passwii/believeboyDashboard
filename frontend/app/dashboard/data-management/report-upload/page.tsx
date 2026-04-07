@@ -306,6 +306,34 @@ function updateCardFromCandidates(
   }
 }
 
+/**
+ * Check if sales_report can commit multiple files at once.
+ * This is allowed when multiple files are uploaded and all have:
+ * - A matched project (same project name)
+ * - Valid dates (either multi_auto mode or detected dates are present)
+ */
+function canSalesReportMultiCommit(state: ReportCardState): boolean {
+  if (state.candidates.length <= 1) return false
+  if (!state.selectedProject) return false
+
+  // Check all candidates have consistent project match
+  const allSameProject = state.candidates.every(
+    (c) =>
+      c.project_match.status === 'matched' &&
+      c.project_match.project_name === state.selectedProject,
+  )
+  if (!allSameProject) return false
+
+  // Check dates are valid for all candidates
+  return state.candidates.every((c) => {
+    if (c.date_input_mode === 'multi_auto') return true
+    if (c.date_input_mode === 'range_manual') {
+      return Boolean(state.reportStartDate && state.reportEndDate)
+    }
+    return Boolean(state.reportDate || c.detected_date || c.detected_end_date)
+  })
+}
+
 async function parseError(response: Response): Promise<string> {
   return parseResponseError(response, '请求失败')
 }
@@ -552,62 +580,86 @@ export default function ReportUploadPage() {
     const recognition = state.recognition
     if (!recognition) return
 
+    const isSalesReportMultiCommit =
+      type === 'sales_report' &&
+      state.candidates.length > 1 &&
+      canSalesReportMultiCommit(state)
+
+    const candidatesToCommit = isSalesReportMultiCommit
+      ? state.candidates
+      : [recognition]
+
     updateCard(type, (current) => ({
       ...current,
       commitStatus: 'saving',
       commitMessage: null,
     }))
-    try {
-      const payload = {
-        temp_file_id: recognition.temp_file_id,
-        original_filename: recognition.original_filename,
-        report_type: type,
-        project_name: state.selectedProject,
-        report_date: state.reportDate || null,
-        report_start_date: state.reportStartDate || null,
-        report_end_date: state.reportEndDate || null,
-        country: selectedCountry,
-      }
-      const response = await fetch(`${API_BASE}/api/v1/report-upload/commit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      if (!response.ok) {
-        throw new Error(await parseError(response))
-      }
-      const result = (await response.json()) as { message: string }
-      updateCard(type, (current) => ({
-        ...current,
-        commitStatus: 'success',
-        commitMessage: result.message,
-      }))
-      setStatusLoading(true)
+
+    let hasError = false
+    let lastErrorMessage: string | null = null
+
+    for (const candidate of candidatesToCommit) {
       try {
-        const query = new URLSearchParams({
-          report_date: statusDate,
+        const payload = {
+          temp_file_id: candidate.temp_file_id,
+          original_filename: candidate.original_filename,
+          report_type: type,
+          project_name: state.selectedProject,
+          report_date: state.reportDate || null,
+          report_start_date: state.reportStartDate || null,
+          report_end_date: state.reportEndDate || null,
           country: selectedCountry,
-        })
-        const refresh = await fetch(
-          `${API_BASE}/api/v1/report-upload/status?${query.toString()}`,
-          { cache: 'no-store' },
-        )
-        if (refresh.ok) {
-          const payload = (await refresh.json()) as {
-            items: StatusProjectRow[]
-          }
-          setStatusRows(payload.items || [])
-          setStatusError(null)
         }
-      } finally {
-        setStatusLoading(false)
+        const response = await fetch(`${API_BASE}/api/v1/report-upload/commit`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+        if (!response.ok) {
+          throw new Error(await parseError(response))
+        }
+      } catch (error) {
+        hasError = true
+        lastErrorMessage = normalizeErrorMessage(error, '保存失败')
       }
-    } catch (error) {
+    }
+
+    if (hasError) {
       updateCard(type, (current) => ({
         ...current,
         commitStatus: 'error',
-        commitMessage: normalizeErrorMessage(error, '保存失败'),
+        commitMessage: lastErrorMessage,
       }))
+    } else {
+      updateCard(type, (current) => ({
+        ...current,
+        commitStatus: 'success',
+        commitMessage:
+          candidatesToCommit.length > 1
+            ? `已保存 ${candidatesToCommit.length} 个文件`
+            : '保存成功',
+      }))
+    }
+
+    setStatusLoading(true)
+    try {
+      const query = new URLSearchParams({
+        report_date: statusDate,
+        country: selectedCountry,
+      })
+      const refresh = await fetch(
+        `${API_BASE}/api/v1/report-upload/status?${query.toString()}`,
+        { cache: 'no-store' },
+      )
+      if (refresh.ok) {
+        const refreshPayload = (await refresh.json()) as {
+          items: StatusProjectRow[]
+        }
+        setStatusRows(refreshPayload.items || [])
+        setStatusError(null)
+      }
+    } finally {
+      setStatusLoading(false)
     }
   }
 
@@ -739,19 +791,22 @@ export default function ReportUploadPage() {
                   </div>
 
                   {projectsLoading ? (
-                    <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-3'>
+                    <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>
                       {REPORT_TYPES.map((type) => (
                         <Skeleton key={type} className='h-[320px] rounded-xl' />
                       ))}
                     </div>
                   ) : (
-                    <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-3'>
+                    <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>
                       {REPORT_CARD_CONFIGS.map((config) => {
                         const state = cards[config.type]
                         const recognition = state.recognition
+                        const isSalesReportMultiCommit =
+                          config.type === 'sales_report' &&
+                          canSalesReportMultiCommit(state)
                         const canCommit = Boolean(
                           recognition &&
-                            state.candidates.length === 1 &&
+                            (state.candidates.length === 1 || isSalesReportMultiCommit) &&
                             state.selectedProject &&
                             (recognition.date_input_mode === 'range_manual'
                               ? state.reportStartDate && state.reportEndDate

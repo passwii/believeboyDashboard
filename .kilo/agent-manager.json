@@ -1,9 +1,21 @@
 {
-  "worktrees": {},
+  "worktrees": {
+    "wt-1775546522939-1": {
+      "branch": "marsh-tip",
+      "path": "/Users/damon/DamonProjects/believeboyDashboard/.kilo/worktrees/marsh-tip",
+      "parentBranch": "main",
+      "createdAt": "2026-04-07T07:22:02.939Z",
+      "remote": "origin"
+    }
+  },
   "sessions": {
     "ses_31fd02262ffe9qVy82i1UiPTrW": {
       "worktreeId": null,
       "createdAt": "2026-03-12T03:55:59.271Z"
+    },
+    "ses_2992df743ffeSHaAfKW3clg5Y6": {
+      "worktreeId": "wt-1775546522939-1",
+      "createdAt": "2026-04-07T07:22:14.088Z"
     }
   },
   "tabOrder": {
