@@ -26,6 +26,7 @@ import app.services.upload_service as upload_service
 import app.services.product_cost_service as product_cost_service
 import app.services.product_analysis_source_service as product_analysis_source_service
 import app.services.project_service as project_service
+import app.services.redis_service as redis_service
 from app.services.report_type_service import AD_PRODUCT_REPORT, normalize_report_type
 from app.models import AnalysisSourceFile, ProductCost, ReportUploadStatus
 
@@ -577,6 +578,9 @@ def commit_report_upload(
         persisted_table = "analysis_source_files"
         response_status = "persisted"
         message = "库存报表已保存并写入库存源数据"
+        # Invalidate daily-analysis cache so next query picks up the new data
+        project = product_analysis_source_service._get_project_by_name(db, project_name)
+        redis_service.invalidate_daily_analysis_cache(project.id)
     elif report_type == "business_report":
         report_date = (payload.report_date or "").strip()
         if not report_date:
@@ -601,8 +605,15 @@ def commit_report_upload(
         persisted_table = "analysis_source_files"
         response_status = "persisted"
         message = "业务报表已保存并写入业务源数据"
+        project = product_analysis_source_service._get_project_by_name(db, project_name)
+        redis_service.invalidate_daily_analysis_cache(project.id)
     elif report_type == AD_PRODUCT_REPORT:
         report_date = (payload.report_date or "").strip()
+        if not report_date:
+            recognized = _recognize_ad_product_report(
+                db, Path(str(file_meta["file_path"]))
+            )
+            report_date = (recognized.detected_date or "").strip()
         if not report_date:
             raise HTTPException(status_code=422, detail="report_date is required")
         outcome = product_analysis_source_service.persist_single_analysis_source(
@@ -625,6 +636,8 @@ def commit_report_upload(
         persisted_table = "analysis_source_files"
         response_status = "persisted"
         message = "广告报表已保存并写入分析广告源数据"
+        project = product_analysis_source_service._get_project_by_name(db, project_name)
+        redis_service.invalidate_daily_analysis_cache(project.id)
     elif report_type == "sales_report":
         outcome = product_analysis_source_service.persist_sales_report_by_purchase_date(
             db,
@@ -647,6 +660,8 @@ def commit_report_upload(
         message = (
             outcome.get("message") or "销售报表已按购买日期拆分并写入分析销售源数据"
         )
+        project = product_analysis_source_service._get_project_by_name(db, project_name)
+        redis_service.invalidate_daily_analysis_cache(project.id)
     elif report_type == "payment_report":
         start_date = (payload.report_start_date or "").strip()
         end_date = (payload.report_end_date or "").strip()
@@ -674,6 +689,8 @@ def commit_report_upload(
         persisted_table = "analysis_source_files"
         response_status = "persisted"
         message = "付款报告已保存并写入付款源数据"
+        project = product_analysis_source_service._get_project_by_name(db, project_name)
+        redis_service.invalidate_daily_analysis_cache(project.id)
     elif report_type == "ad_search_term_report":
         report_date = (payload.report_date or "").strip()
         if not report_date:
