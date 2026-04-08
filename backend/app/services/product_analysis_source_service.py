@@ -764,17 +764,57 @@ def get_current_inventory_snapshot(
     db: Session,
     *,
     project_id: int,
+    country: str = 'US',
+    start_date: date | None = None,
+    end_date: date | None = None,
 ) -> tuple[AnalysisSourceFile, list[dict[str, Any]]] | None:
     ensure_tables(db)
+    normalized_country = _normalize_country(country)
+    stmt = select(AnalysisSourceFile).where(
+        AnalysisSourceFile.project_id == project_id,
+        AnalysisSourceFile.report_type == 'inventory_report',
+        AnalysisSourceFile.country == normalized_country,
+    )
+    if start_date is None and end_date is None:
+        stmt = stmt.where(AnalysisSourceFile.is_current.is_(True))
+    else:
+        if start_date is not None:
+            stmt = stmt.where(
+                (
+                    AnalysisSourceFile.report_date.is_not(None)
+                    & (AnalysisSourceFile.report_date >= start_date)
+                )
+                | (
+                    AnalysisSourceFile.report_date.is_(None)
+                    & AnalysisSourceFile.snapshot_at.is_not(None)
+                    & (
+                        AnalysisSourceFile.snapshot_at
+                        >= datetime.combine(start_date, datetime.min.time(), tzinfo=UTC)
+                    )
+                )
+            )
+        if end_date is not None:
+            stmt = stmt.where(
+                (
+                    AnalysisSourceFile.report_date.is_not(None)
+                    & (AnalysisSourceFile.report_date <= end_date)
+                )
+                | (
+                    AnalysisSourceFile.report_date.is_(None)
+                    & AnalysisSourceFile.snapshot_at.is_not(None)
+                    & (
+                        AnalysisSourceFile.snapshot_at
+                        <= datetime.combine(end_date, datetime.max.time(), tzinfo=UTC)
+                    )
+                )
+            )
     source = db.execute(
-        select(AnalysisSourceFile)
-        .where(
-            AnalysisSourceFile.project_id == project_id,
-            AnalysisSourceFile.report_type == 'inventory_report',
-            AnalysisSourceFile.is_current.is_(True),
-        )
-        .order_by(AnalysisSourceFile.id.desc())
-        .limit(1)
+        stmt.order_by(
+            AnalysisSourceFile.report_date.desc(),
+            AnalysisSourceFile.snapshot_at.desc(),
+            AnalysisSourceFile.version.desc(),
+            AnalysisSourceFile.id.desc(),
+        ).limit(1)
     ).scalars().first()
     if source is None:
         return None

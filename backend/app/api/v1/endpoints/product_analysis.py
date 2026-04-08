@@ -390,10 +390,17 @@ def get_product_analysis_source_rows(
 )
 def get_current_inventory_snapshot(
     project_id: int = Query(gt=0),
+    country: Annotated[str, Query()] = "US",
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
     db: Session = Depends(get_db_session),
 ) -> CurrentInventorySnapshotResponse:
     payload = product_analysis_source_service.get_current_inventory_snapshot(
-        db, project_id=project_id
+        db,
+        project_id=project_id,
+        country=country,
+        start_date=start_date,
+        end_date=end_date,
     )
     if payload is None:
         raise HTTPException(

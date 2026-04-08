@@ -94,9 +94,20 @@ def test_product_analysis_source_rows_api(monkeypatch):
 
 
 def test_product_analysis_current_inventory_api(monkeypatch):
+    captured: dict[str, object] = {}
+
     monkeypatch.setattr(
         'app.api.v1.endpoints.product_analysis.product_analysis_source_service.get_current_inventory_snapshot',
-        lambda db, project_id: (  # noqa: ARG005
+        lambda db, project_id, country='US', start_date=None, end_date=None: (  # noqa: ARG005
+            captured.update(
+                {
+                    'project_id': project_id,
+                    'country': country,
+                    'start_date': start_date.isoformat() if start_date else None,
+                    'end_date': end_date.isoformat() if end_date else None,
+                }
+            )
+            or (
             _source_row(source_id=8, report_type='inventory_report'),
             [
                 {
@@ -108,14 +119,20 @@ def test_product_analysis_current_inventory_api(monkeypatch):
                     'raw_row': {'sku': 'SKU1'},
                 }
             ],
-        ),
+        )),
     )
 
     response = client.get(
-        '/api/v1/product-analysis/inventory/current?project_id=11',
+        '/api/v1/product-analysis/inventory/current?project_id=11&country=DE&start_date=2026-02-01&end_date=2026-02-07',
         headers={'X-API-Key': get_settings().api_key},
     )
     assert response.status_code == 200
+    assert captured == {
+        'project_id': 11,
+        'country': 'DE',
+        'start_date': '2026-02-01',
+        'end_date': '2026-02-07',
+    }
     payload = response.json()
     assert payload['source']['report_type'] == 'inventory_report'
     assert payload['rows'][0]['stock_status'] == 'out_of_stock'

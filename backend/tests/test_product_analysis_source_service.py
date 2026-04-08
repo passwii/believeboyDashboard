@@ -565,6 +565,136 @@ def test_persist_single_inventory_source_sets_report_date(tmp_path: Path):
         assert source.report_date == date(2026, 3, 17)
 
 
+def test_get_current_inventory_snapshot_uses_latest_source_within_date_range():
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        db.add(Project(id=1, project_name='Demo', sort_order=1, source_file='seed.csv'))
+        db.flush()
+
+        older = AnalysisSourceFile(
+            project_id=1,
+            report_type='inventory_report',
+            country='US',
+            report_date=date(2026, 3, 15),
+            snapshot_at=date(2026, 3, 15),
+            version=1,
+            is_current=False,
+            upload_file_id='inventory-older.txt',
+            upload_file_path='/tmp/inventory-older.txt',
+            stored_filename='inventory-older.txt',
+            logical_filename='inventory-older.txt',
+            storage_key='inventory-older.txt',
+            ingestion_status='success',
+            row_count_total=1,
+            row_count_included=1,
+        )
+        newer = AnalysisSourceFile(
+            project_id=1,
+            report_type='inventory_report',
+            country='US',
+            report_date=date(2026, 3, 18),
+            snapshot_at=date(2026, 3, 18),
+            version=1,
+            is_current=True,
+            upload_file_id='inventory-newer.txt',
+            upload_file_path='/tmp/inventory-newer.txt',
+            stored_filename='inventory-newer.txt',
+            logical_filename='inventory-newer.txt',
+            storage_key='inventory-newer.txt',
+            ingestion_status='success',
+            row_count_total=1,
+            row_count_included=1,
+        )
+        out_of_range_current = AnalysisSourceFile(
+            project_id=1,
+            report_type='inventory_report',
+            country='US',
+            report_date=date(2026, 3, 20),
+            snapshot_at=date(2026, 3, 20),
+            version=1,
+            is_current=True,
+            upload_file_id='inventory-current.txt',
+            upload_file_path='/tmp/inventory-current.txt',
+            stored_filename='inventory-current.txt',
+            logical_filename='inventory-current.txt',
+            storage_key='inventory-current.txt',
+            ingestion_status='success',
+            row_count_total=1,
+            row_count_included=1,
+        )
+        db.add_all([older, newer, out_of_range_current])
+        db.flush()
+
+        db.add_all(
+            [
+                InventorySnapshotRow(
+                    source_file_id=older.id,
+                    source_row_no=1,
+                    sku='SKU1',
+                    asin='ASIN1',
+                    available_qty=5,
+                    age_0_90_qty=5,
+                    age_91_180_qty=0,
+                    age_181_270_qty=0,
+                    age_271_365_qty=0,
+                    age_365_plus_qty=0,
+                    recommended_action='keep',
+                    stock_status='in_stock',
+                    aging_status='fresh',
+                    raw_row={'sku': 'SKU1'},
+                ),
+                InventorySnapshotRow(
+                    source_file_id=newer.id,
+                    source_row_no=1,
+                    sku='SKU1',
+                    asin='ASIN1',
+                    available_qty=9,
+                    age_0_90_qty=9,
+                    age_91_180_qty=0,
+                    age_181_270_qty=0,
+                    age_271_365_qty=0,
+                    age_365_plus_qty=0,
+                    recommended_action='keep',
+                    stock_status='in_stock',
+                    aging_status='fresh',
+                    raw_row={'sku': 'SKU1'},
+                ),
+                InventorySnapshotRow(
+                    source_file_id=out_of_range_current.id,
+                    source_row_no=1,
+                    sku='SKU1',
+                    asin='ASIN1',
+                    available_qty=99,
+                    age_0_90_qty=99,
+                    age_91_180_qty=0,
+                    age_181_270_qty=0,
+                    age_271_365_qty=0,
+                    age_365_plus_qty=0,
+                    recommended_action='keep',
+                    stock_status='in_stock',
+                    aging_status='fresh',
+                    raw_row={'sku': 'SKU1'},
+                ),
+            ]
+        )
+        db.commit()
+
+        payload = product_analysis_source_service.get_current_inventory_snapshot(
+            db,
+            project_id=1,
+            country='US',
+            start_date=date(2026, 3, 10),
+            end_date=date(2026, 3, 18),
+        )
+
+        assert payload is not None
+        source, rows = payload
+        assert source.report_date == date(2026, 3, 18)
+        assert rows[0]['available_qty'] == 9
+
+
 def test_persist_sales_report_by_purchase_date_splits_into_multiple_report_dates(tmp_path: Path):
     engine = create_engine('sqlite:///:memory:', future=True)
     Base.metadata.create_all(bind=engine)
