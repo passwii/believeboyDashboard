@@ -3,6 +3,7 @@ from __future__ import annotations
 from decimal import Decimal
 from pathlib import Path
 from time import perf_counter
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse
@@ -12,6 +13,7 @@ from app.api.deps import get_db_session, get_request_operator, protected
 from app.core.config import Settings, get_settings
 from app.models.job import JobStatus
 from app.schemas.monthly_report import (
+    MonthlyFinancialAccountingDetailResponse,
     CreateMonthlyReportRequest,
     MonthlyFinancialSeriesResponse,
     MonthlyReportDetailResponse,
@@ -267,6 +269,63 @@ def recalculate_monthly_financial_series(
     set_financial_series_cache(project_id, start_month, end_month, payload)
 
     return MonthlyFinancialSeriesResponse(**payload)
+
+
+@router.get(
+    "/monthly-reports/financial-series/accounting-detail",
+    response_model=MonthlyFinancialAccountingDetailResponse,
+)
+def get_monthly_financial_accounting_detail(
+    project_id: int = Query(gt=0),
+    report_month: str = Query(min_length=7, max_length=7),
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
+) -> MonthlyFinancialAccountingDetailResponse:
+    project_service.ensure_project_access(
+        db,
+        project_id,
+        operator=operator,
+        is_admin=bool(is_admin),
+    )
+    payload = monthly_report_service.get_financial_accounting_detail(
+        db,
+        project_id=project_id,
+        report_month=report_month,
+    )
+    return MonthlyFinancialAccountingDetailResponse(**payload)
+
+
+@router.get("/monthly-reports/financial-series/accounting-detail/export")
+def export_monthly_financial_accounting_detail(
+    project_id: int = Query(gt=0),
+    report_month: str = Query(min_length=7, max_length=7),
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
+):
+    project_service.ensure_project_access(
+        db,
+        project_id,
+        operator=operator,
+        is_admin=bool(is_admin),
+    )
+    filename, content = monthly_report_service.export_financial_accounting_detail_workbook(
+        db,
+        project_id=project_id,
+        report_month=report_month,
+        is_admin=bool(is_admin),
+    )
+    encoded_filename = quote(filename)
+    content_disposition = (
+        f'attachment; filename="accounting-detail.xlsx"; '
+        f"filename*=UTF-8''{encoded_filename}"
+    )
+    return Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": content_disposition},
+    )
 
 
 @router.get(

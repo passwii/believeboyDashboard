@@ -117,3 +117,21 @@ class MonthlyFinancialSeriesResponse(BaseModel):
     end_month: str
     rows: list[MonthlyFinancialSeriesRow]
     trend: MonthlyFinancialTrend
+
+
+class MonthlyFinancialAccountingLine(BaseModel):
+    income_en: str
+    income_zh: str
+    income_amount_usd: float
+    income_source: str
+    expense_en: str
+    expense_zh: str
+    expense_amount_usd: float
+    expense_source: str
+
+
+class MonthlyFinancialAccountingDetailResponse(BaseModel):
+    project_id: int
+    project_name: str
+    report_month: str
+    rows: list[MonthlyFinancialAccountingLine]

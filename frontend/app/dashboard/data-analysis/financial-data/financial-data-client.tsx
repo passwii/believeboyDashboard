@@ -122,6 +122,26 @@ export type FinancialSeriesResponse = {
   }
 }
 
+type FinancialAccountingDetailLine = {
+  income_en: string
+  income_zh: string
+  income_amount_usd: number
+  income_source: string
+  expense_en: string
+  expense_zh: string
+  expense_amount_usd: number
+  expense_source: string
+}
+
+type FinancialAccountingDetailResponse = {
+  project_id: number
+  project_name: string
+  report_month: string
+  rows: FinancialAccountingDetailLine[]
+}
+
+type FinancialViewTab = 'financial' | 'accounting'
+
 const API_BASE = '/api/backend'
 const FINANCIAL_SERIES_CACHE_TTL_MS = 3 * 60 * 1000
 const EXCHANGE_RATE_CACHE_TTL_MS = 30 * 60 * 1000
@@ -223,11 +243,36 @@ function parseErrorBody(text: string, status: number): string {
   }
 }
 
+function extractFilenameFromHeader(contentDisposition: string | null) {
+  if (!contentDisposition) return null
+  const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i)
+  if (utf8Match?.[1]) return decodeURIComponent(utf8Match[1])
+  const basicMatch = contentDisposition.match(/filename="?([^"]+)"?/i)
+  return basicMatch?.[1] ?? null
+}
+
 function formatMonth(month: string): string {
   const [year, mon] = month.split('-')
   const monInt = Number(mon)
   if (!year || Number.isNaN(monInt)) return month
   return `${year}年${monInt}月`
+}
+
+function calculateNetProfitUsd(row: FinancialSeriesRow, exchangeRate: number): number {
+  const totalCostUsd =
+    exchangeRate > 0
+      ? (row.fob_cost_rmb + row.first_leg_cost_rmb) / exchangeRate
+      : 0
+  return row.amazon_pay_back - totalCostUsd - row.credit_card_deduction_usd
+}
+
+function calculateNetProfitRmb(row: FinancialSeriesRow, exchangeRate: number): number {
+  return (
+    row.amazon_pay_back * exchangeRate -
+    row.fob_cost_rmb -
+    row.first_leg_cost_rmb -
+    row.credit_card_deduction_usd * exchangeRate
+  )
 }
 
 function formatCurrency(value: number): string {
@@ -602,6 +647,14 @@ export default function FinancialDataClient({
     income_sales: true,
     income_refund: true,
   })
+  const [activeTab, setActiveTab] = useState<FinancialViewTab>('financial')
+  const [accountingMonth, setAccountingMonth] = useState('')
+  const [accountingRows, setAccountingRows] = useState<
+    FinancialAccountingDetailLine[]
+  >([])
+  const [accountingLoading, setAccountingLoading] = useState(false)
+  const [accountingExporting, setAccountingExporting] = useState(false)
+  const [accountingError, setAccountingError] = useState<string | null>(null)
 
   const latestRequestIdRef = useRef(0)
   const skipInitialSeriesLoadRef = useRef(Boolean(initialData))
@@ -806,6 +859,115 @@ export default function FinancialDataClient({
     }
   }, [projectId, startMonth, endMonth])
 
+  const accountingMonthOptions = useMemo(() => {
+    const rows = data?.rows ?? []
+    return rows
+      .filter((row) => row.has_source_report)
+      .map((row) => row.report_month)
+  }, [data?.rows])
+
+  useEffect(() => {
+    if (accountingMonthOptions.length === 0) {
+      setAccountingMonth('')
+      setAccountingRows([])
+      return
+    }
+    if (accountingMonthOptions.includes(accountingMonth)) return
+    setAccountingMonth(accountingMonthOptions[accountingMonthOptions.length - 1])
+  }, [accountingMonth, accountingMonthOptions])
+
+  const loadAccountingDetail = useCallback(async () => {
+    const parsedProjectId = Number(projectId)
+    if (!parsedProjectId || !accountingMonth) {
+      setAccountingRows([])
+      return
+    }
+    setAccountingLoading(true)
+    setAccountingError(null)
+    try {
+      const search = new URLSearchParams({
+        project_id: String(parsedProjectId),
+        report_month: accountingMonth,
+      })
+      const response = await fetch(
+        `${API_BASE}/api/v1/monthly-reports/financial-series/accounting-detail?${search.toString()}`,
+        {
+          cache: 'no-store',
+          headers: authHeaders(),
+        },
+      )
+      if (!response.ok) {
+        throw new Error(parseErrorBody(await response.text(), response.status))
+      }
+      const payload = (await response.json()) as FinancialAccountingDetailResponse
+      setAccountingRows(payload.rows ?? [])
+    } catch (loadError) {
+      setAccountingRows([])
+      setAccountingError(
+        loadError instanceof Error ? loadError.message : '核算明细加载失败',
+      )
+    } finally {
+      setAccountingLoading(false)
+    }
+  }, [accountingMonth, projectId])
+
+  useEffect(() => {
+    if (activeTab !== 'accounting' || !accountingMonth) return
+    void loadAccountingDetail()
+  }, [activeTab, accountingMonth, loadAccountingDetail])
+
+  const exportAccountingDetail = useCallback(async () => {
+    const parsedProjectId = Number(projectId)
+    if (!parsedProjectId || !accountingMonth) {
+      setAccountingError('请先选择核算月份')
+      return
+    }
+    setAccountingExporting(true)
+    setAccountingError(null)
+    try {
+      const search = new URLSearchParams({
+        project_id: String(parsedProjectId),
+        report_month: accountingMonth,
+      })
+      const response = await fetch(
+        `${API_BASE}/api/v1/monthly-reports/financial-series/accounting-detail/export?${search.toString()}`,
+        {
+          cache: 'no-store',
+          headers: authHeaders(),
+        },
+      )
+      if (!response.ok) {
+        throw new Error(parseErrorBody(await response.text(), response.status))
+      }
+      const blob = await response.blob()
+      const filename =
+        extractFilenameFromHeader(response.headers.get('Content-Disposition')) ||
+        `${accountingMonth}-核算明细.xlsx`
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename
+      link.click()
+      window.URL.revokeObjectURL(url)
+      await logClientOperation({
+        action: 'financial_data.accounting_detail.export',
+        targetType: 'monthly_financial_accounting_detail',
+        targetId: projectId,
+        after: {
+          project_id: projectId,
+          report_month: accountingMonth,
+          filename,
+        },
+      })
+    } catch (exportError) {
+      setAccountingError(
+        exportError instanceof Error ? exportError.message : '导出核算明细失败',
+      )
+    } finally {
+      setAccountingExporting(false)
+    }
+  }, [accountingMonth, projectId])
+
   useEffect(() => {
     if (initialData) {
       setClientCache(
@@ -945,15 +1107,8 @@ export default function FinancialDataClient({
           operationCommission.commissionUsd * exchangeRate
         const payableTotalRmb =
           evaluationFeeRmb + prepaymentOtherRmb + operationCommissionRmb
-        const netProfitRmb =
-          row.amazon_pay_back * exchangeRate -
-          row.fob_cost_rmb -
-          row.first_leg_cost_rmb
-        const totalCostUsd =
-          exchangeRate > 0
-            ? (row.fob_cost_rmb + row.first_leg_cost_rmb) / exchangeRate
-            : 0
-        const netProfitUsd = row.amazon_pay_back - totalCostUsd
+        const netProfitRmb = calculateNetProfitRmb(row, exchangeRate)
+        const netProfitUsd = calculateNetProfitUsd(row, exchangeRate)
 
         return {
           income_sales: acc.income_sales + row.income_sales,
@@ -1035,15 +1190,8 @@ export default function FinancialDataClient({
         operationCommission.commissionUsd * exchangeRate
       const payableTotalRmb =
         evaluationFeeRmb + prepaymentOtherRmb + operationCommissionRmb
-      const netProfitRmb =
-        row.amazon_pay_back * exchangeRate -
-        row.fob_cost_rmb -
-        row.first_leg_cost_rmb
-      const totalCostUsd =
-        exchangeRate > 0
-          ? (row.fob_cost_rmb + row.first_leg_cost_rmb) / exchangeRate
-          : 0
-      const netProfitUsd = row.amazon_pay_back - totalCostUsd
+      const netProfitRmb = calculateNetProfitRmb(row, exchangeRate)
+      const netProfitUsd = calculateNetProfitUsd(row, exchangeRate)
 
       return {
         monthLabel: formatMonth(row.report_month),
@@ -1636,6 +1784,11 @@ export default function FinancialDataClient({
           {error}
         </div>
       ) : null}
+      {accountingError ? (
+        <div className='rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive'>
+          {accountingError}
+        </div>
+      ) : null}
 
       <DataTableCard>
         <DataTableCardStatBar
@@ -1864,47 +2017,123 @@ export default function FinancialDataClient({
           <div>
             <p className='dashboard-kicker'>Operational Ledger</p>
             <div className='text-base font-semibold text-foreground'>
-              月度财务明细
+              {activeTab === 'financial' ? '月度汇总' : '月度明细'}
             </div>
             <p className='text-sm text-muted-foreground'>
-              {data
-                ? `${data.project_name} · ${formatMonth(data.start_month)} 至 ${formatMonth(data.end_month)}`
-                : '按月展示收入/支出结构与返款'}
+              {activeTab === 'financial'
+                ? data
+                  ? `${data.project_name} · ${formatMonth(data.start_month)} 至 ${formatMonth(data.end_month)}`
+                  : '按月展示收入/支出结构与返款'
+                : accountingMonth
+                  ? `报表核算 · ${formatMonth(accountingMonth)}`
+                  : '请选择有源报表的月份查看月度明细'}
             </p>
           </div>
-          <div className='ml-auto flex gap-2'>
-            <Button
-              type='button'
-              variant='outline'
-              className='h-8'
-              onClick={() => void exportFinancialAnalysis()}
-              disabled={exporting || !data || detailExportRows.length === 0}
-            >
-              {exporting ? (
-                <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-              ) : (
-                <Download className='mr-2 h-4 w-4' />
-              )}
-              导出 Excel
-            </Button>
-            <Button
-              type='button'
-              variant='outline'
-              className='h-8'
-              onClick={() => void recalculateFinancialSeries()}
-              disabled={recalculating || !data || data.rows.length === 0}
-            >
-              {recalculating ? (
-                <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-              ) : (
-                <RefreshCw className='mr-2 h-4 w-4' />
-              )}
-              重新核算
-            </Button>
+          <div className='ml-auto flex flex-wrap items-center justify-end gap-2'>
+            {activeTab === 'accounting' ? (
+              <>
+                <Select
+                  value={accountingMonth}
+                  onValueChange={setAccountingMonth}
+                  disabled={accountingMonthOptions.length === 0}
+                >
+                  <SelectTrigger className='h-8 w-[190px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]'>
+                    <SelectValue placeholder='请选择月份' />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {accountingMonthOptions.map((month) => (
+                      <SelectItem key={month} value={month}>
+                        {formatMonth(month)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type='button'
+                  variant='outline'
+                  className='h-8'
+                  onClick={() => void loadAccountingDetail()}
+                  disabled={accountingLoading || !accountingMonth}
+                >
+                  {accountingLoading ? '加载中...' : '刷新核算明细'}
+                </Button>
+                <Button
+                  type='button'
+                  variant='outline'
+                  className='h-8'
+                  onClick={() => void exportAccountingDetail()}
+                  disabled={
+                    accountingExporting ||
+                    !accountingMonth ||
+                    accountingMonthOptions.length === 0
+                  }
+                >
+                  {accountingExporting ? (
+                    <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                  ) : (
+                    <Download className='mr-2 h-4 w-4' />
+                  )}
+                  导出 Excel
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  type='button'
+                  variant='outline'
+                  className='h-8'
+                  onClick={() => void exportAccountingDetail()}
+                  disabled={
+                    accountingExporting ||
+                    !accountingMonth ||
+                    accountingMonthOptions.length === 0
+                  }
+                >
+                  {accountingExporting ? (
+                    <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                  ) : (
+                    <Download className='mr-2 h-4 w-4' />
+                  )}
+                  导出 Excel
+                </Button>
+                <Button
+                  type='button'
+                  variant='outline'
+                  className='h-8'
+                  onClick={() => void recalculateFinancialSeries()}
+                  disabled={recalculating || !data || data.rows.length === 0}
+                >
+                  {recalculating ? (
+                    <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                  ) : (
+                    <RefreshCw className='mr-2 h-4 w-4' />
+                  )}
+                  重新核算
+                </Button>
+              </>
+            )}
+            <div className='inline-flex rounded-md border border-border/70 bg-muted/20 p-1 dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]'>
+              <button
+                type='button'
+                className={`rounded px-3 py-1.5 text-xs font-medium transition ${activeTab === 'financial' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
+                onClick={() => setActiveTab('financial')}
+              >
+                月度汇总
+              </button>
+              <button
+                type='button'
+                className={`rounded px-3 py-1.5 text-xs font-medium transition ${activeTab === 'accounting' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
+                onClick={() => setActiveTab('accounting')}
+              >
+                月度明细
+              </button>
+            </div>
           </div>
         </DataTableCardHeader>
         <DataTableCardBody>
-          {loading && data ? (
+          {activeTab === 'financial' ? (
+            <>
+              {loading && data ? (
             <div className='mb-4 inline-flex rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm'>
               财务明细更新中...
             </div>
@@ -2119,16 +2348,8 @@ export default function FinancialDataClient({
                     evaluationFeeRmb +
                     prepaymentOtherRmb +
                     operationCommissionRmb
-                  const netProfitRmb =
-                    row.amazon_pay_back * exchangeRate -
-                    row.fob_cost_rmb -
-                    row.first_leg_cost_rmb
-                  const totalCostUsd =
-                    exchangeRate > 0
-                      ? (row.fob_cost_rmb + row.first_leg_cost_rmb) /
-                        exchangeRate
-                      : 0
-                  const netProfitUsd = row.amazon_pay_back - totalCostUsd
+                  const netProfitRmb = calculateNetProfitRmb(row, exchangeRate)
+                  const netProfitUsd = calculateNetProfitUsd(row, exchangeRate)
                   const rowBg = !row.has_source_report
                     ? 'bg-muted'
                     : 'bg-background'
@@ -2450,6 +2671,77 @@ export default function FinancialDataClient({
             <div className='rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground'>
               当前筛选条件暂无财务数据
             </div>
+          )}
+            </>
+          ) : (
+            <>
+              {accountingLoading && accountingRows.length > 0 ? (
+                <div className='mb-4 inline-flex rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm'>
+                  月度明细更新中...
+                </div>
+              ) : null}
+              {accountingLoading && accountingRows.length === 0 ? (
+                <div className='space-y-3'>
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Skeleton key={i} className='h-10 w-full' />
+                  ))}
+                </div>
+              ) : accountingMonth && accountingRows.length > 0 ? (
+                <Table
+                  noWrapperRounded
+                  containerClassName='w-full max-w-full overflow-x-auto'
+                  className='w-max min-w-[1400px] table-fixed text-xs'
+                >
+                  <TableHeader>
+                    <TableRow className='bg-muted/30 hover:bg-muted/30'>
+                      <TableHead colSpan={4} className='border-r bg-emerald-100 px-2 py-2 text-center dark:bg-emerald-900/80 dark:text-emerald-100'>
+                        Income（收入）
+                      </TableHead>
+                      <TableHead className='border-r px-2 py-2 text-center' />
+                      <TableHead colSpan={4} className='bg-amber-500/15 px-2 py-2 text-center'>
+                        Expense（支出）
+                      </TableHead>
+                    </TableRow>
+                    <TableRow className='bg-muted/20 hover:bg-muted/20'>
+                      <TableHead className='border-r px-2 py-1.5 text-center'>Income</TableHead>
+                      <TableHead className='border-r px-2 py-1.5 text-center'>收入</TableHead>
+                      <TableHead className='border-r px-2 py-1.5 text-center'>In金额（USD）</TableHead>
+                      <TableHead className='border-r px-2 py-1.5 text-center'>In源表</TableHead>
+                      <TableHead className='border-r px-2 py-1.5 text-center' />
+                      <TableHead className='border-r px-2 py-1.5 text-center'>Expense</TableHead>
+                      <TableHead className='border-r px-2 py-1.5 text-center'>支出</TableHead>
+                      <TableHead className='border-r px-2 py-1.5 text-center'>Ex金额（USD）</TableHead>
+                      <TableHead className='px-2 py-1.5 text-center'>Ex源表</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {accountingRows.map((row, index) => (
+                      <TableRow key={`${row.income_en}-${row.expense_en}-${index}`}>
+                        <TableCell className='border-r px-2 py-1.5'>{row.income_en || '-'}</TableCell>
+                        <TableCell className='border-r px-2 py-1.5'>{row.income_zh || '-'}</TableCell>
+                        <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
+                          {formatCurrency(row.income_amount_usd)}
+                        </TableCell>
+                        <TableCell className='border-r px-2 py-1.5'>{row.income_source || '-'}</TableCell>
+                        <TableCell className='border-r px-2 py-1.5 text-center text-muted-foreground'>|</TableCell>
+                        <TableCell className='border-r px-2 py-1.5'>{row.expense_en || '-'}</TableCell>
+                        <TableCell className='border-r px-2 py-1.5'>{row.expense_zh || '-'}</TableCell>
+                        <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
+                          {formatCurrency(row.expense_amount_usd)}
+                        </TableCell>
+                        <TableCell className='px-2 py-1.5'>{row.expense_source || '-'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className='rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground'>
+                  {accountingMonth
+                    ? '当前月份暂无月度明细'
+                    : '请选择有源报表月份查看月度明细'}
+                </div>
+              )}
+            </>
           )}
         </DataTableCardBody>
       </DataTableCard>
