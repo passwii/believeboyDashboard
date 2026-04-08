@@ -341,6 +341,23 @@ async function parseError(response: Response): Promise<string> {
   return parseResponseError(response, '请求失败')
 }
 
+function resolveRecognizedProjectLabel(recognition: RecognitionResponse): string | null {
+  const projectMatch = recognition.project_match
+  if (projectMatch.status === 'matched' && projectMatch.project_name) {
+    return projectMatch.project_name
+  }
+  if (projectMatch.status === 'conflict') {
+    return `候选项目 ${projectMatch.candidate_projects.length} 个`
+  }
+  if (projectMatch.status === 'unmatched') {
+    return '未匹配到项目'
+  }
+  if (projectMatch.status === 'manual') {
+    return '需手动选择项目'
+  }
+  return null
+}
+
 export default function ReportUploadPage() {
   const { data: session } = useSession()
   const [projects, setProjects] = useState<string[]>([])
@@ -464,6 +481,9 @@ export default function ReportUploadPage() {
       originalFileName: file.name,
       reportType: null,
       recognitionStatus: 'pending',
+      recognizedProject: null,
+      fileCommitStatus: 'idle',
+      commitError: null,
       error: null,
     }))
     setQueueItems((prev) => [...pendingItems, ...prev])
@@ -490,11 +510,14 @@ export default function ReportUploadPage() {
         setQueueItems((prev) =>
           prev.map((item) =>
             item.localId === queueItem.localId
-              ? {
+                ? {
                   ...item,
                   tempFileId: recognition.temp_file_id,
                   reportType: recognition.report_type,
                   recognitionStatus: recognition.status,
+                  recognizedProject: resolveRecognizedProjectLabel(recognition),
+                  fileCommitStatus: 'idle',
+                  commitError: null,
                   error:
                     recognition.status === 'recognized'
                       ? null
@@ -510,10 +533,13 @@ export default function ReportUploadPage() {
         setQueueItems((prev) =>
           prev.map((item) =>
             item.localId === queueItem.localId
-              ? {
+                ? {
                   ...item,
                   reportType: 'unknown',
                   recognitionStatus: 'error',
+                  recognizedProject: null,
+                  fileCommitStatus: 'error',
+                  commitError: normalizeErrorMessage(error, '识别失败'),
                   error: normalizeErrorMessage(error, '识别失败'),
                 }
               : item,
@@ -591,12 +617,22 @@ export default function ReportUploadPage() {
     const candidatesToCommit = isMultiCommit
       ? state.candidates
       : [recognition]
+    const candidateTempFileIds = new Set(
+      candidatesToCommit.map((item) => item.temp_file_id),
+    )
 
     updateCard(type, (current) => ({
       ...current,
       commitStatus: 'saving',
       commitMessage: null,
     }))
+    setQueueItems((prev) =>
+      prev.map((item) =>
+        item.tempFileId && candidateTempFileIds.has(item.tempFileId)
+          ? { ...item, fileCommitStatus: 'saving', commitError: null }
+          : item,
+      ),
+    )
 
     let hasError = false
     let lastErrorMessage: string | null = null
@@ -624,9 +660,28 @@ export default function ReportUploadPage() {
         if (!response.ok) {
           throw new Error(await parseError(response))
         }
+        setQueueItems((prev) =>
+          prev.map((item) =>
+            item.tempFileId === candidate.temp_file_id
+              ? { ...item, fileCommitStatus: 'success', commitError: null }
+              : item,
+          ),
+        )
       } catch (error) {
         hasError = true
-        lastErrorMessage = normalizeErrorMessage(error, '保存失败')
+        const errorMessage = normalizeErrorMessage(error, '保存失败')
+        lastErrorMessage = errorMessage
+        setQueueItems((prev) =>
+          prev.map((item) =>
+            item.tempFileId === candidate.temp_file_id
+              ? {
+                  ...item,
+                  fileCommitStatus: 'error',
+                  commitError: errorMessage,
+                }
+              : item,
+          ),
+        )
       }
     }
 

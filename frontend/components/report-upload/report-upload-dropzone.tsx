@@ -1,7 +1,7 @@
 'use client'
 
 import { type DragEvent, type ChangeEvent } from 'react'
-import { FileUp, Loader2, Trash2, XCircle } from 'lucide-react'
+import { CheckCircle2, FileUp, Loader2, Trash2, XCircle } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -9,6 +9,25 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import { REPORT_UPLOAD_COUNTRY_OPTIONS, type ReportUploadCountry, type UploadQueueItem } from '@/components/report-upload/types'
+
+function getReportTypeLabel(type: UploadQueueItem['reportType']): string {
+  switch (type) {
+    case 'inventory_report':
+      return '亚马逊物流库存'
+    case 'business_report':
+      return '业务报告'
+    case 'ad_product_report':
+      return '广告 - 已推广商品'
+    case 'ad_search_term_report':
+      return '广告搜索词报告'
+    case 'sales_report':
+      return '销售报表 - 所有订单'
+    case 'payment_report':
+      return '付款报告'
+    default:
+      return '未识别'
+  }
+}
 
 type Props = {
   items: UploadQueueItem[]
@@ -115,7 +134,7 @@ export function ReportUploadDropzone({
               <p className="text-sm font-semibold text-foreground">本次识别文件</p>
               <span className="text-xs text-muted-foreground">{items.length} 个</span>
             </div>
-            <ScrollArea className="flex-1 overflow-y-auto">
+            <ScrollArea className="flex-1">
               <div className="space-y-2 p-3">
                 {items.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-border/70 bg-[hsl(var(--surface-subtle))]/45 px-4 py-8 text-center text-sm text-muted-foreground dark:border-border/85 dark:bg-[hsl(var(--surface-low))]/75">
@@ -132,21 +151,36 @@ export function ReportUploadDropzone({
                       <p className="text-xs text-muted-foreground">
                         {item.recognitionStatus === 'pending'
                           ? '识别中'
-                          : item.reportType === 'unknown' || !item.reportType
-                            ? '未匹配到已支持的报表类型'
-                            : `已识别为 ${item.reportType}`}
+                          : `类型：${getReportTypeLabel(item.reportType)}`}
                       </p>
+                      {item.recognitionStatus !== 'pending' ? (
+                        <p className="text-xs text-muted-foreground">
+                          项目：{item.recognizedProject || '未识别'}
+                        </p>
+                      ) : null}
                       {item.error ? <p className="text-xs text-rose-600 dark:text-rose-300">{item.error}</p> : null}
+                      {item.commitError ? <p className="text-xs text-rose-600 dark:text-rose-300">{item.commitError}</p> : null}
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => onRemove(item.localId)}
-                      className="h-8 w-8 shrink-0 rounded-lg text-muted-foreground hover:bg-rose-500/10 hover:text-rose-600 dark:hover:bg-rose-400/10 dark:hover:text-rose-300"
-                    >
-                      <XCircle className="h-4 w-4" />
-                      <span className="sr-only">remove</span>
-                    </Button>
+                    <div className="flex items-center gap-1.5">
+                      {item.fileCommitStatus === 'saving' ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-sky-600 dark:text-sky-300" />
+                      ) : null}
+                      {item.fileCommitStatus === 'success' ? (
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />
+                      ) : null}
+                      {item.fileCommitStatus === 'error' ? (
+                        <XCircle className="h-4 w-4 text-rose-600 dark:text-rose-300" />
+                      ) : null}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => onRemove(item.localId)}
+                        className="h-8 w-8 shrink-0 rounded-lg text-muted-foreground hover:bg-rose-500/10 hover:text-rose-600 dark:hover:bg-rose-400/10 dark:hover:text-rose-300"
+                      >
+                        <XCircle className="h-4 w-4" />
+                        <span className="sr-only">remove</span>
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>

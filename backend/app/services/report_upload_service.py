@@ -534,6 +534,45 @@ def commit_report_upload(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="无权限访问该项目"
         )
+    # File-level project validation: each committed file must uniquely match
+    # the selected project based on recognition identifiers (SKU/ASIN).
+    if report_type != "ad_search_term_report":
+        recognition = recognize_saved_report_upload(
+            db,
+            settings,
+            temp_file_id=payload.temp_file_id,
+            original_filename=(
+                payload.original_filename or payload.temp_file_id
+            ).strip(),
+            country=country,
+            operator=operator,
+            is_admin=is_admin,
+        )
+        if recognition.status != "recognized":
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"文件识别失败，无法确认项目归属：{recognition.reason}",
+            )
+        recognized_type = normalize_report_type(recognition.report_type)
+        if recognized_type != report_type:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="report_type does not match recognized report",
+            )
+        project_match = recognition.project_match
+        if project_match.status != "matched" or not project_match.project_name:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="文件未匹配到唯一项目，请先确认文件归属后再入库",
+            )
+        if project_match.project_name != project_name:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    "文件匹配项目与当前选择不一致："
+                    f"文件匹配为 {project_match.project_name}，当前选择为 {project_name}"
+                ),
+            )
 
     original_filename = (
         payload.original_filename or ""

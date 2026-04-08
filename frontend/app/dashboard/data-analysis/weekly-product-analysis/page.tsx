@@ -2156,7 +2156,40 @@ export default function WeeklyProductAnalysisPage() {
               备注：利润 = 实际销售额 - 总成本 - 广告花费 - 实际退款额
             </div>
           </div>
-          <div className='flex flex-wrap items-center gap-2'>
+          <div className='ml-auto flex flex-wrap items-center justify-end gap-2'>
+            {activeTab === 'details' ? (
+              <>
+                <Select
+                  value={selectedWeekId}
+                  onValueChange={setSelectedWeekId}
+                  disabled={summaryRows.length === 0}
+                >
+                  <SelectTrigger className='h-8 w-[250px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]'>
+                    <SelectValue placeholder='选择周次' />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {summaryRows.map((item, index) => (
+                      <SelectItem key={item.row.id} value={String(item.row.id)}>
+                        第{index + 1}周 ·{' '}
+                        {formatDateRange(
+                          item.row.report_start_date,
+                          item.row.report_end_date,
+                        )}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type='button'
+                  variant='outline'
+                  className='h-8 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]'
+                  onClick={() => void loadWeeklyDetails({ force: true })}
+                  disabled={!selectedWeekId || detailsLoading}
+                >
+                  {detailsLoading ? '加载中...' : '刷新 SKU明细'}
+                </Button>
+              </>
+            ) : null}
             <Button
               type='button'
               variant='outline'
@@ -2198,42 +2231,6 @@ export default function WeeklyProductAnalysisPage() {
             </div>
           </div>
         </DataTableCardHeader>
-        {activeTab === 'details' ? (
-          <div className='flex flex-wrap items-end gap-3 px-6'>
-            <div className='min-w-[280px] space-y-1.5'>
-              <label className='text-xs text-muted-foreground'>选择周次</label>
-              <Select
-                value={selectedWeekId}
-                onValueChange={setSelectedWeekId}
-                disabled={summaryRows.length === 0}
-              >
-                <SelectTrigger className='h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]'>
-                  <SelectValue placeholder='请选择周次' />
-                </SelectTrigger>
-                <SelectContent>
-                  {summaryRows.map((item, index) => (
-                    <SelectItem key={item.row.id} value={String(item.row.id)}>
-                      第{index + 1}周 ·{' '}
-                      {formatDateRange(
-                        item.row.report_start_date,
-                        item.row.report_end_date,
-                      )}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <Button
-              type='button'
-              variant='outline'
-              className='h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]'
-              onClick={() => void loadWeeklyDetails({ force: true })}
-              disabled={!selectedWeekId || detailsLoading}
-            >
-              {detailsLoading ? '加载中...' : '刷新 SKU明细'}
-            </Button>
-          </div>
-        ) : null}
         <DataTableCardBody>
           {activeTab === 'summary' && loading && summaryRows.length > 0 ? (
             <div className='mb-4 inline-flex rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm'>

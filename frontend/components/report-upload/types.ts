@@ -66,6 +66,9 @@ export type UploadQueueItem = {
   tempFileId?: string
   reportType: ReportType | 'unknown' | null
   recognitionStatus: 'pending' | RecognitionStatus
+  recognizedProject: string | null
+  fileCommitStatus: CommitStatus
+  commitError: string | null
   error: string | null
 }
 
