@@ -65,6 +65,14 @@ import {
   TabsMotionGroup,
 } from '@/components/ui/tab-motion'
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 
@@ -373,6 +381,9 @@ export default function ReportUploadPage() {
   const [statusLoading, setStatusLoading] = useState(true)
   const [statusError, setStatusError] = useState<string | null>(null)
   const [statusDate, setStatusDate] = useState(() => toLocalDateInputValue())
+  const [selectedStatusProjects, setSelectedStatusProjects] = useState<string[]>(
+    [],
+  )
   const [selectedCountry, setSelectedCountry] = useState<ReportUploadCountry>(
     DEFAULT_REPORT_UPLOAD_COUNTRY,
   )
@@ -425,6 +436,12 @@ export default function ReportUploadPage() {
     }
     void loadStatus()
   }, [statusDate, selectedCountry])
+
+  useEffect(() => {
+    setSelectedStatusProjects((prev) =>
+      prev.filter((project) => projects.includes(project)),
+    )
+  }, [projects])
 
   const readyCount = useMemo(() => {
     return REPORT_TYPES.filter((type) => {
@@ -768,6 +785,18 @@ export default function ReportUploadPage() {
     return '当日入库'
   }
 
+  const filteredStatusRows = useMemo(() => {
+    if (selectedStatusProjects.length === 0) return statusRows
+    const selected = new Set(selectedStatusProjects)
+    return statusRows.filter((row) => selected.has(row.project_name))
+  }, [selectedStatusProjects, statusRows])
+
+  const statusProjectFilterLabel = useMemo(() => {
+    if (selectedStatusProjects.length === 0) return '全部项目'
+    if (selectedStatusProjects.length === 1) return selectedStatusProjects[0]
+    return `已选 ${selectedStatusProjects.length} 个项目`
+  }, [selectedStatusProjects])
+
   return (
     <div className='w-full space-y-6 text-foreground'>
       <Tabs
@@ -930,6 +959,62 @@ export default function ReportUploadPage() {
                     </div>
 
                     <div className='flex flex-wrap items-center gap-2 lg:justify-end'>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type='button'
+                            variant='outline'
+                            className='h-10 min-w-[180px] justify-start border-border/70 bg-background text-left font-normal dark:bg-[hsl(var(--surface-soft))]'
+                          >
+                            {statusProjectFilterLabel}
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          align='end'
+                          className='w-[280px]'
+                        >
+                          <DropdownMenuLabel>项目筛选</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          <button
+                            type='button'
+                            className='w-full rounded-sm px-2 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground'
+                            onClick={() => setSelectedStatusProjects([])}
+                          >
+                            全部项目
+                          </button>
+                          <DropdownMenuSeparator />
+                          {projects.length > 0 ? (
+                            projects.map((project) => (
+                              <DropdownMenuCheckboxItem
+                                key={project}
+                                checked={selectedStatusProjects.includes(
+                                  project,
+                                )}
+                                onSelect={(event) => event.preventDefault()}
+                                onCheckedChange={(checked) => {
+                                  setSelectedStatusProjects((prev) => {
+                                    if (checked) {
+                                      return prev.includes(project)
+                                        ? prev
+                                        : [...prev, project]
+                                    }
+                                    return prev.filter(
+                                      (item) => item !== project,
+                                    )
+                                  })
+                                }}
+                              >
+                                {project}
+                              </DropdownMenuCheckboxItem>
+                            ))
+                          ) : (
+                            <div className='px-2 py-1.5 text-sm text-muted-foreground'>
+                              暂无可筛选项目
+                            </div>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+
                       <Select
                         value={selectedCountry}
                         onValueChange={(value) =>
@@ -989,7 +1074,7 @@ export default function ReportUploadPage() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className='space-y-4 px-6 py-6 md:px-8'>
+                <CardContent className='space-y-4 px-6 py-8 md:px-8'>
                   {statusError ? (
                     <p className='mb-4 text-sm text-rose-600'>{statusError}</p>
                   ) : null}
@@ -999,7 +1084,7 @@ export default function ReportUploadPage() {
                       <Skeleton className='h-72 rounded-xl' />
                     </div>
                   ) : (
-                    <ScrollArea className='w-full'>
+                    <ScrollArea className='mt-4 w-full'>
                       <div className='min-w-[920px] space-y-3'>
                         <div className='grid grid-cols-[160px_repeat(5,minmax(110px,1fr))] gap-2 px-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground'>
                           <div>项目</div>
@@ -1008,7 +1093,7 @@ export default function ReportUploadPage() {
                           ))}
                         </div>
 
-                        {statusRows.length === 0 ? (
+                        {filteredStatusRows.length === 0 ? (
                           <div className='rounded-xl border border-dashed border-border/70 bg-[hsl(var(--surface-subtle))] px-6 py-12 text-center'>
                             <p className='text-base font-medium'>
                               {statusDate} 暂时没有可展示的报表状态
@@ -1019,7 +1104,7 @@ export default function ReportUploadPage() {
                           </div>
                         ) : null}
 
-                          {statusRows.map((row) => (
+                          {filteredStatusRows.map((row) => (
                             <div
                               key={row.project_id}
                               className='grid grid-cols-[160px_repeat(5,minmax(110px,1fr))] gap-2 rounded-xl border border-border/60 bg-[hsl(var(--surface-panel))] p-2.5'
