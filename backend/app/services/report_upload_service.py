@@ -902,7 +902,6 @@ def list_report_upload_statuses(
         select(AnalysisSourceFile)
         .where(AnalysisSourceFile.project_id.in_(project_ids))
         .where(AnalysisSourceFile.country == normalized_country)
-        .where(AnalysisSourceFile.is_current.is_(True))
     )
     if target_report_date is not None:
         analysis_stmt = analysis_stmt.where(
@@ -915,6 +914,12 @@ def list_report_upload_statuses(
                 & (AnalysisSourceFile.period_end_date >= target_report_date)
             )
         )
+        analysis_stmt = analysis_stmt.order_by(
+            AnalysisSourceFile.updated_at.desc(),
+            AnalysisSourceFile.id.desc(),
+        )
+    else:
+        analysis_stmt = analysis_stmt.where(AnalysisSourceFile.is_current.is_(True))
     analysis_rows = db.execute(analysis_stmt).scalars().all()
     file_only_rows: list[ReportUploadStatus] = []
     try:
@@ -941,7 +946,12 @@ def list_report_upload_statuses(
         for project_id in project_ids
     }
 
+    seen_status_keys: set[tuple[int, str]] = set()
     for row in analysis_rows:
+        status_key = (int(row.project_id), str(row.report_type))
+        if status_key in seen_status_keys:
+            continue
+        seen_status_keys.add(status_key)
         display_date = (
             (target_report_date or row.report_date or row.period_end_date).isoformat()
             if (target_report_date or row.report_date or row.period_end_date)

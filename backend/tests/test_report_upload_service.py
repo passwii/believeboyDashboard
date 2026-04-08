@@ -1,5 +1,5 @@
 from pathlib import Path
-from datetime import date
+from datetime import UTC, date, datetime
 
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
@@ -473,6 +473,78 @@ def test_commit_report_upload_persists_inventory_country(tmp_path: Path):
         )
 
     assert [row.country for row in rows] == ["DE", "UK", "US"]
+
+
+def test_list_report_upload_statuses_inventory_history_visible_on_target_date():
+    engine = create_engine("sqlite:///:memory:", future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        project = Project(project_name="Demo", sort_order=1, source_file="seed.csv")
+        db.add(project)
+        db.flush()
+
+        db.add(
+            ProductCost(
+                project_name="Demo",
+                sku="SKU1",
+                asin="ASIN1",
+                country="US",
+                fob_unit_cost=1,
+                currency="USD",
+                is_active=True,
+                source_file="seed.csv",
+            )
+        )
+        db.add_all(
+            [
+                AnalysisSourceFile(
+                    project_id=project.id,
+                    report_type="inventory_report",
+                    country="US",
+                    report_date=date(2026, 3, 18),
+                    period_start_date=None,
+                    period_end_date=None,
+                    snapshot_at=datetime.now(UTC),
+                    version=1,
+                    is_current=False,
+                    upload_file_id="inventory-2026-03-18.txt",
+                    upload_file_path="/tmp/inventory-2026-03-18.txt",
+                    stored_filename="inventory-2026-03-18.txt",
+                    logical_filename="inventory-2026-03-18.txt",
+                    storage_key="inventory-2026-03-18.txt",
+                    original_filename="inventory-2026-03-18.txt",
+                    ingestion_status="success",
+                ),
+                AnalysisSourceFile(
+                    project_id=project.id,
+                    report_type="inventory_report",
+                    country="US",
+                    report_date=date(2026, 3, 19),
+                    period_start_date=None,
+                    period_end_date=None,
+                    snapshot_at=datetime.now(UTC),
+                    version=2,
+                    is_current=True,
+                    upload_file_id="inventory-2026-03-19.txt",
+                    upload_file_path="/tmp/inventory-2026-03-19.txt",
+                    stored_filename="inventory-2026-03-19.txt",
+                    logical_filename="inventory-2026-03-19.txt",
+                    storage_key="inventory-2026-03-19.txt",
+                    original_filename="inventory-2026-03-19.txt",
+                    ingestion_status="success",
+                ),
+            ]
+        )
+        db.commit()
+
+        payload = report_upload_service.list_report_upload_statuses(
+            db, report_date="2026-03-18", country="US"
+        )
+
+    row = payload.items[0]
+    assert row.statuses["inventory_report"].status == "available"
+    assert row.statuses["inventory_report"].display_date == "2026-03-18"
 
 
 def test_commit_report_upload_persists_search_term_country(tmp_path: Path):

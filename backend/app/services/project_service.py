@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.models import ProductCost, Project
 from app.services.redis_service import (
+    cache_delete,
     cache_delete_pattern,
     cache_get,
     cache_set,
@@ -294,8 +295,20 @@ def list_project_items(
                 .all()
             )
             id_to_row = {row.id: row for row in rows}
-            return [id_to_row[id] for id in project_ids if id in id_to_row]
-        return []
+            if len(id_to_row) == len(project_ids):
+                ordered_rows = [id_to_row[id] for id in project_ids if id in id_to_row]
+                if is_admin:
+                    total_projects = db.execute(
+                        select(func.count(Project.id))
+                    ).scalar_one()
+                    if len(ordered_rows) == int(total_projects):
+                        return ordered_rows
+                else:
+                    return ordered_rows
+            # Cache can become stale across DB resets (e.g. tests). Fallback to DB source.
+            cache_delete(cache_key)
+        else:
+            return []
 
     stmt = select(Project)
     stmt = stmt.order_by(Project.sort_order.asc(), Project.id.asc())
