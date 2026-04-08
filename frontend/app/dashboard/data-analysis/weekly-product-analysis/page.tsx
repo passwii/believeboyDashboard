@@ -123,7 +123,7 @@ function weeklyDataCacheKey(
 }
 
 function weeklyDetailsCacheKey(pt1Id: number, country: CountryOption): string {
-  return `weekly-analysis:details:${pt1Id}:${country}`
+  return `weekly-analysis:details:v2:${pt1Id}:${country}`
 }
 
 const COUNTRY_OPTIONS: Array<{ value: CountryOption; label: string }> = [
@@ -208,6 +208,12 @@ const DETAIL_COLUMN_GROUPS = [
     headClass: 'bg-sky-500/10',
   },
   {
+    title: '库存',
+    columns: ['库存'],
+    groupClass: 'bg-slate-500/15',
+    headClass: 'bg-slate-500/10',
+  },
+  {
     title: '推广流量',
     columns: [
       '广告展示量',
@@ -264,7 +270,10 @@ const DETAIL_COLUMN_GROUPS = [
     headClass: 'bg-violet-500/10',
   },
 ] as const
-const DETAIL_BASE_COLUMNS = [...DETAIL_CORE_COLUMNS, ...SUMMARY_COLUMNS, '库存']
+const DETAIL_BASE_COLUMNS = [
+  ...DETAIL_CORE_COLUMNS,
+  ...DETAIL_COLUMN_GROUPS.flatMap((group) => group.columns),
+]
 const DETAIL_BASE_COLUMN_SET = new Set<string>(DETAIL_BASE_COLUMNS)
 const SUMMARY_PERCENT_COLUMNS = new Set([
   '总转化',
@@ -591,7 +600,7 @@ function autosizeWorksheetColumns(worksheet: import('exceljs').Worksheet) {
           : typeof raw === 'object' && 'richText' in raw
             ? raw.richText.map((item) => item.text).join('')
             : String(raw)
-      maxLength = Math.max(maxLength, Math.min(text.length + 4, 28))
+      maxLength = Math.max(maxLength, Math.min(text.length + 4, 18))
     })
     column.width = maxLength
   })
@@ -1186,57 +1195,50 @@ export default function WeeklyProductAnalysisPage() {
           page += 1
         }
 
-        // Fetch current inventory snapshot to get per-SKU inventory qty
+        // Fetch the latest inventory snapshot within the selected PT1 date range.
         let hasInventoryForPeriod = false
         try {
           const parsedProjectId = Number(projectId)
           if (parsedProjectId && pt1StartDate && pt1EndDate) {
+            const inventorySearch = new URLSearchParams({
+              project_id: String(parsedProjectId),
+              country,
+              start_date: pt1StartDate,
+              end_date: pt1EndDate,
+            })
             const invResponse = await fetch(
-              `${API_BASE}/api/v1/product-analysis/inventory/current?project_id=${parsedProjectId}`,
+              `${API_BASE}/api/v1/product-analysis/inventory/current?${inventorySearch.toString()}`,
               { cache: 'no-store', headers: authHeaders() },
             )
             if (invResponse.ok) {
               const invPayload = (await invResponse.json()) as {
-                source?: {
-                  period_start_date?: string | null
-                  period_end_date?: string | null
-                }
                 rows?: Array<{ sku?: string | null; available_qty?: number | null }>
               }
-              const invPeriodStart = invPayload?.source?.period_start_date
-              const invPeriodEnd = invPayload?.source?.period_end_date
-
-              // Check if inventory period overlaps with PT1 period
-              if (
-                invPeriodStart &&
-                invPeriodEnd &&
-                invPeriodStart <= pt1EndDate &&
-                invPeriodEnd >= pt1StartDate
-              ) {
+              const invRows = invPayload?.rows ?? []
+              if (invRows.length > 0) {
                 hasInventoryForPeriod = true
-                const invRows = invPayload?.rows ?? []
-                const skuInventoryMap: Record<string, number> = {}
-                invRows.forEach((invRow) => {
-                  if (invRow.sku) {
-                    skuInventoryMap[String(invRow.sku).toLowerCase()] =
-                      Number(invRow.available_qty) || 0
-                  }
-                })
-                merged.forEach((row) => {
-                  const rowSku = String(row['SKU'] || '').toLowerCase()
-                  row['库存'] = skuInventoryMap[rowSku] ?? null
-                })
               }
+              const skuInventoryMap: Record<string, number> = {}
+              invRows.forEach((invRow) => {
+                if (invRow.sku) {
+                  skuInventoryMap[String(invRow.sku).toLowerCase()] =
+                    Number(invRow.available_qty) || 0
+                }
+              })
+              merged.forEach((row) => {
+                const rowSku = String(row['SKU'] || '').toLowerCase()
+                row['库存'] = skuInventoryMap[rowSku] ?? 0
+              })
             }
           }
         } catch {
           // inventory snapshot is optional, ignore errors
         }
 
-        // Mark rows without inventory as null for display
+        // Default to 0 inventory when no snapshot is available.
         if (!hasInventoryForPeriod) {
           merged.forEach((row) => {
-            row['库存'] = null
+            row['库存'] = 0
           })
         }
 
@@ -1463,16 +1465,6 @@ export default function WeeklyProductAnalysisPage() {
       ...group,
       columns: group.columns.filter((column) => detailColumnSet.has(column)),
     })).filter((group) => group.columns.length > 0)
-
-    const salesGroup = groups.find((g) => g.title === '销售')
-    if (salesGroup && detailColumnSet.has('库存')) {
-      const cols = [...salesGroup.columns]
-      const totalConversionIdx = cols.indexOf('总转化' as never)
-      if (totalConversionIdx >= 0 && !(cols as Array<string>).includes('库存')) {
-        ;(cols as Array<string>).splice(totalConversionIdx + 1, 0, '库存' as never)
-        ;(salesGroup as unknown as Record<string, unknown>).columns = cols
-      }
-    }
 
     const groupedColumns = new Set<string>(
       groups.flatMap((group) => group.columns),
