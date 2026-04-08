@@ -110,12 +110,12 @@ export function ReportUploadDropzone({
             </div>
           </div>
 
-          <div className="mt-2 flex h-full min-h-[252px] flex-col overflow-hidden rounded-2xl border border-border/60 bg-[hsl(var(--surface-soft))]">
+          <div className="mt-2 flex h-full max-h-[252px] min-h-[252px] flex-col overflow-hidden rounded-2xl border border-border/60 bg-[hsl(var(--surface-soft))]">
             <div className="flex items-center justify-between border-b border-border/60 bg-[hsl(var(--surface-subtle))]/80 px-4 pb-3 pt-5">
               <p className="text-sm font-semibold text-foreground">本次识别文件</p>
               <span className="text-xs text-muted-foreground">{items.length} 个</span>
             </div>
-            <ScrollArea className="flex-1">
+            <ScrollArea className="flex-1 overflow-y-auto">
               <div className="space-y-2 p-3">
                 {items.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-border/70 bg-[hsl(var(--surface-subtle))]/45 px-4 py-8 text-center text-sm text-muted-foreground dark:border-border/85 dark:bg-[hsl(var(--surface-low))]/75">

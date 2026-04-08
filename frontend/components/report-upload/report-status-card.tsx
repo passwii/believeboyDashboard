@@ -120,7 +120,7 @@ export function ReportStatusCard({
                   </SelectContent>
                 </Select>
               ) : null}
-              {recognition ? (
+              {recognition && state.candidates.length <= 1 ? (
                 <p className="truncate text-xs font-medium text-muted-foreground" title={recognition.original_filename}>
                   {recognition.original_filename}
                 </p>
@@ -173,20 +173,14 @@ export function ReportStatusCard({
                   }}
                 />
               ) : isMultiCommitWithDerivedDates(state) ? (
-                <div className="space-y-2">
-                  <div className="rounded-xl border border-border/60 bg-[hsl(var(--surface-soft))] px-3 py-2 text-sm text-foreground">
-                    每个文件将自动提取各自的日期
-                  </div>
-                  <p className="text-xs text-muted-foreground">多文件批量上传，日期不可编辑，由各文件自行决定。</p>
+                <div className="rounded-xl border border-border/60 bg-[hsl(var(--surface-soft))] px-3 py-2 text-sm text-foreground">
+                  每个文件将自动提取各自的日期
                 </div>
               ) : recognition?.date_input_mode === 'multi_auto' ? (
-                <div className="space-y-2">
-                  <div className="rounded-xl border border-border/60 bg-[hsl(var(--surface-soft))] px-3 py-2 text-sm text-foreground">
-                    {recognition.detected_start_date && recognition.detected_end_date
-                      ? `${recognition.detected_start_date} ~ ${recognition.detected_end_date}`
-                      : '将按 purchase-date 自动拆分多个日期'}
-                  </div>
-                  <p className="text-xs text-muted-foreground">识别为周期日期，已锁定，无需手动填写，可直接上传。</p>
+                <div className="rounded-xl border border-border/60 bg-[hsl(var(--surface-soft))] px-3 py-2 text-sm text-foreground">
+                  {recognition.detected_start_date && recognition.detected_end_date
+                    ? `${recognition.detected_start_date} ~ ${recognition.detected_end_date}`
+                    : '将按 purchase-date 自动拆分多个日期'}
                 </div>
               ) : (
                 <SingleDatePicker
