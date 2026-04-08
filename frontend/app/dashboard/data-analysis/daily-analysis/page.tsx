@@ -173,6 +173,24 @@ function generateDateRangeStrings(from: Date, to: Date): string[] {
 function getPreviousPeriodRange(range?: DateRange): DateRange | undefined {
   const normalized = normalizeDateRange(range)
   if (!normalized) return undefined
+
+  const { from, to } = normalized
+
+  const isFirstDayOfMonth = from.getDate() === 1
+  const currentRangeLastDay = new Date(to.getFullYear(), to.getMonth() + 1, 0).getDate()
+  const isLastDayOfMonth = to.getDate() === currentRangeLastDay
+
+  if (isFirstDayOfMonth && isLastDayOfMonth) {
+    const monthSpan =
+      (to.getFullYear() - from.getFullYear()) * 12
+      + (to.getMonth() - from.getMonth())
+      + 1
+
+    const previousStart = new Date(from.getFullYear(), from.getMonth() - monthSpan, 1)
+    const previousEnd = new Date(from.getFullYear(), from.getMonth(), 0)
+    return { from: previousStart, to: previousEnd }
+  }
+
   const dayCount = getRangeDayCount(normalized)
   return {
     from: addDays(normalized.from, -dayCount),
@@ -634,6 +652,7 @@ export default function DailyAnalysisPage() {
 
   const [data, setData] = useState<DailyAnalysisResponse | null>(null)
   const [comparisonSummaryRows, setComparisonSummaryRows] = useState<DailyAnalysisRow[]>(EMPTY_SUMMARY_ROWS)
+  const [comparisonDetailRows, setComparisonDetailRows] = useState<DailyAnalysisDetailRow[]>(EMPTY_DETAIL_ROWS)
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [skuOptions, setSkuOptions] = useState<ProjectSkuOption[]>([])
@@ -720,10 +739,12 @@ export default function DailyAnalysisPage() {
       const comparePayload = compareResponse ? ((await compareResponse.json()) as DailyAnalysisResponse) : null
       setData(payload)
       setComparisonSummaryRows(comparePayload?.summary_rows ?? EMPTY_SUMMARY_ROWS)
+      setComparisonDetailRows(comparePayload?.detail_rows ?? EMPTY_DETAIL_ROWS)
     } catch (fetchError) {
       notify({ type: 'error', title: '销售数据加载失败', message: fetchError instanceof Error ? fetchError.message : '销售数据加载失败' })
       setData(null)
       setComparisonSummaryRows(EMPTY_SUMMARY_ROWS)
+      setComparisonDetailRows(EMPTY_DETAIL_ROWS)
     } finally {
       setLoading(false)
     }
@@ -859,15 +880,17 @@ export default function DailyAnalysisPage() {
   const chartDataRows = selectedSku ? filteredDetailRows : summaryRows
 
   const filteredComparisonRows = useMemo(() => {
-    if (!selectedSku || comparisonSummaryRows.length === 0) return EMPTY_SUMMARY_ROWS
-    return EMPTY_SUMMARY_ROWS
-  }, [selectedSku, comparisonSummaryRows])
+    if (!selectedSku || comparisonDetailRows.length === 0) return EMPTY_DETAIL_ROWS
+    return comparisonDetailRows.filter((row) => row.sku === selectedSku)
+  }, [selectedSku, comparisonDetailRows])
+
+  const comparisonDataRows = selectedSku ? filteredComparisonRows : comparisonSummaryRows
 
   const metricCards = useMemo(() => {
     return CHART_METRICS.map((metric) => {
       const currentValue = aggregateMetric(chartDataRows, metric.key)
-      const hasComparison = comparisonSummaryRows.length > 0
-      const previousValue = hasComparison ? aggregateMetric(comparisonSummaryRows, metric.key) : 0
+      const hasComparison = comparisonDataRows.length > 0
+      const previousValue = hasComparison ? aggregateMetric(comparisonDataRows, metric.key) : 0
       const diff = currentValue - previousValue
       const percentChange = previousValue === 0 ? null : (diff / previousValue) * 100
       const isPositiveDirection = percentChange === null ? true : (metricIncreaseIsGood(metric.key) ? percentChange >= 0 : percentChange <= 0)
@@ -879,12 +902,12 @@ export default function DailyAnalysisPage() {
         percentChange,
         isPositiveDirection,
         hasComparison,
-        showComparisonBadge: comparisonSummaryRows.length > 0,
+        showComparisonBadge: comparisonDataRows.length > 0,
       }
     })
-  }, [chartDataRows, comparisonSummaryRows, selectedSku])
+  }, [chartDataRows, comparisonDataRows])
   const comparisonRange = useMemo(() => getPreviousPeriodRange(dateRange), [dateRange])
-  const hasComparisonData = !selectedSku && comparisonSummaryRows.length > 0
+  const hasComparisonData = comparisonDataRows.length > 0
   const chartRows = useMemo(() => {
     const normalizedRange = normalizeDateRange(dateRange)
     if (!normalizedRange?.from || !normalizedRange?.to) {
@@ -894,22 +917,24 @@ export default function DailyAnalysisPage() {
 
     if (selectedSku) {
       const existingData = new Map(filteredDetailRows.map((row) => [row.date, row]))
-      return allDates.map((date) => {
+      const comparisonDataByIndex = filteredComparisonRows
+      return allDates.map((date, index) => {
         const row = existingData.get(date)
+        const compareRow = comparisonDataByIndex[index]
         return {
           date,
           [activeChartMetric]: row ? row[activeChartMetric] : 0,
-          compareMetricValue: null,
+          compareMetricValue: compareRow ? compareRow[activeChartMetric] : null,
         }
       })
     }
 
     const summaryData = new Map(summaryRows.map((row) => [row.date, row]))
-    const comparisonData = new Map(comparisonSummaryRows.map((row) => [row.date, row]))
+    const comparisonDataByIndex = comparisonSummaryRows
 
-    return allDates.map((date) => {
+    return allDates.map((date, index) => {
       const row = summaryData.get(date)
-      const compareRow = comparisonData.get(date)
+      const compareRow = comparisonDataByIndex[index]
       return {
         date,
         order_qty: row?.order_qty ?? 0,
@@ -923,7 +948,7 @@ export default function DailyAnalysisPage() {
         compareMetricValue: compareRow ? compareRow[activeChartMetric] : null,
       }
     })
-  }, [selectedSku, filteredDetailRows, summaryRows, comparisonSummaryRows, activeChartMetric, dateRange])
+  }, [selectedSku, filteredDetailRows, filteredComparisonRows, summaryRows, comparisonSummaryRows, activeChartMetric, dateRange])
 
   const summaryTableRows = selectedSku ? filteredDetailRows : summaryRows
   const dateRangeDisplay = consoleData ? `${consoleData.start_date} ~ ${consoleData.end_date}` : (dateRange ? `${formatYMD(dateRange.from!)}${' ~ ' + formatYMD(dateRange.to!)}` : '')
