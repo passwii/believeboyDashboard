@@ -307,14 +307,17 @@ function updateCardFromCandidates(
 }
 
 /**
- * Check if sales_report can commit multiple files at once.
+ * Check if a report type can commit multiple files at once.
  * This is allowed when multiple files are uploaded and all have:
  * - A matched project (same project name)
  * - Valid dates (either multi_auto mode or detected dates are present)
  */
-function canSalesReportMultiCommit(state: ReportCardState): boolean {
+function canMultiCommit(type: ReportType, state: ReportCardState): boolean {
   if (state.candidates.length <= 1) return false
   if (!state.selectedProject) return false
+
+  // Only sales_report and ad_product_report support multi-commit
+  if (type !== 'sales_report' && type !== 'ad_product_report') return false
 
   // Check all candidates have consistent project match
   const allSameProject = state.candidates.every(
@@ -580,12 +583,12 @@ export default function ReportUploadPage() {
     const recognition = state.recognition
     if (!recognition) return
 
-    const isSalesReportMultiCommit =
-      type === 'sales_report' &&
+    const isMultiCommit =
+      (type === 'sales_report' || type === 'ad_product_report') &&
       state.candidates.length > 1 &&
-      canSalesReportMultiCommit(state)
+      canMultiCommit(type, state)
 
-    const candidatesToCommit = isSalesReportMultiCommit
+    const candidatesToCommit = isMultiCommit
       ? state.candidates
       : [recognition]
 
@@ -600,14 +603,17 @@ export default function ReportUploadPage() {
 
     for (const candidate of candidatesToCommit) {
       try {
+        // For ad_product_report multi-commit, let backend derive date from file
+        const shouldDeriveDateFromFile =
+          type === 'ad_product_report' && isMultiCommit
         const payload = {
           temp_file_id: candidate.temp_file_id,
           original_filename: candidate.original_filename,
           report_type: type,
           project_name: state.selectedProject,
-          report_date: state.reportDate || null,
-          report_start_date: state.reportStartDate || null,
-          report_end_date: state.reportEndDate || null,
+          report_date: shouldDeriveDateFromFile ? null : (state.reportDate || null),
+          report_start_date: shouldDeriveDateFromFile ? null : (state.reportStartDate || null),
+          report_end_date: shouldDeriveDateFromFile ? null : (state.reportEndDate || null),
           country: selectedCountry,
         }
         const response = await fetch(`${API_BASE}/api/v1/report-upload/commit`, {
@@ -801,12 +807,13 @@ export default function ReportUploadPage() {
                       {REPORT_CARD_CONFIGS.map((config) => {
                         const state = cards[config.type]
                         const recognition = state.recognition
-                        const isSalesReportMultiCommit =
-                          config.type === 'sales_report' &&
-                          canSalesReportMultiCommit(state)
+                        const isMultiCommit =
+                          (config.type === 'sales_report' ||
+                            config.type === 'ad_product_report') &&
+                          canMultiCommit(config.type, state)
                         const canCommit = Boolean(
                           recognition &&
-                            (state.candidates.length === 1 || isSalesReportMultiCommit) &&
+                            (state.candidates.length === 1 || isMultiCommit) &&
                             state.selectedProject &&
                             (recognition.date_input_mode === 'range_manual'
                               ? state.reportStartDate && state.reportEndDate

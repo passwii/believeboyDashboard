@@ -56,6 +56,10 @@ function needsDateAttention(state: ReportCardState) {
   return !state.reportDate
 }
 
+function isMultiCommitWithDerivedDates(state: ReportCardState) {
+  return state.candidates.length > 1 && state.recognition?.date_input_mode !== 'range_manual'
+}
+
 export function ReportStatusCard({
   config,
   state,
@@ -168,6 +172,13 @@ export function ReportStatusCard({
                     onDateChange('reportEndDate', formatDateInputValue(range?.to))
                   }}
                 />
+              ) : isMultiCommitWithDerivedDates(state) ? (
+                <div className="space-y-2">
+                  <div className="rounded-xl border border-border/60 bg-[hsl(var(--surface-soft))] px-3 py-2 text-sm text-foreground">
+                    每个文件将自动提取各自的日期
+                  </div>
+                  <p className="text-xs text-muted-foreground">多文件批量上传，日期不可编辑，由各文件自行决定。</p>
+                </div>
               ) : recognition?.date_input_mode === 'multi_auto' ? (
                 <div className="space-y-2">
                   <div className="rounded-xl border border-border/60 bg-[hsl(var(--surface-soft))] px-3 py-2 text-sm text-foreground">
