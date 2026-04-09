@@ -54,6 +54,11 @@ update_extensions.sql
 /backend/storage/
 /backend/tmp_upload_check/
 
+# Backend tests
+/backend/tests/
+/backend/.pytest_cache/
+/backend/conftest.py
+
 # Docs
 /Docs/*
 !/Docs/定价核算页面说明.md

@@ -25,6 +25,7 @@ from app.models import (
     ExchangeRate,
 )
 from app.models.job import JobStatus
+from app.services.payment_report_locale import normalize_country
 
 try:
     from app.services.redis_service import invalidate_financial_series_cache
@@ -116,6 +117,7 @@ def prepare_monthly_report(
     *,
     project_id: int,
     project_name: str,
+    country: str = "US",
     report_month: str,
     transaction_file_id: str,
     transaction_file_path: str,
@@ -125,11 +127,13 @@ def prepare_monthly_report(
 ) -> MonthlyReport:
     ensure_tables(db)
     get_project_or_404(db, project_id)
+    normalized_country = normalize_country(country)
 
     latest_version = db.execute(
         select(MonthlyReport.version)
         .where(
             MonthlyReport.project_id == project_id,
+            MonthlyReport.country == normalized_country,
             MonthlyReport.report_month == report_month,
         )
         .order_by(MonthlyReport.version.desc())
@@ -141,6 +145,7 @@ def prepare_monthly_report(
         db.execute(
             select(MonthlyReport).where(
                 MonthlyReport.project_id == project_id,
+                MonthlyReport.country == normalized_country,
                 MonthlyReport.report_month == report_month,
                 MonthlyReport.is_current.is_(True),
             )
@@ -152,6 +157,7 @@ def prepare_monthly_report(
     report = MonthlyReport(
         project_id=project_id,
         project_name=project_name,
+        country=normalized_country,
         report_month=report_month,
         version=next_version,
         is_current=current_report is None,
@@ -275,6 +281,7 @@ def persist_monthly_report_result(
         sa_update(MonthlyReport)
         .where(
             MonthlyReport.project_id == report.project_id,
+            MonthlyReport.country == report.country,
             MonthlyReport.report_month == report.report_month,
             MonthlyReport.id != report.id,
             MonthlyReport.is_current.is_(True),
@@ -313,6 +320,7 @@ def list_reports(
     db: Session,
     *,
     project_id: int | None = None,
+    country: str | None = None,
     report_month: str | None = None,
     current_only: bool = True,
 ) -> list[MonthlyReport]:
@@ -324,6 +332,8 @@ def list_reports(
         stmt = stmt.where(MonthlyReport.is_current.is_(True))
     if project_id is not None:
         stmt = stmt.where(MonthlyReport.project_id == project_id)
+    if country is not None:
+        stmt = stmt.where(MonthlyReport.country == normalize_country(country))
     if report_month is not None:
         stmt = stmt.where(MonthlyReport.report_month == report_month)
     return list(db.execute(stmt).scalars().all())
@@ -366,12 +376,14 @@ def get_financial_series(
     db: Session,
     *,
     project_id: int,
+    country: str = "US",
     start_month: str | None = None,
     end_month: str | None = None,
     fill_missing: bool = True,
 ) -> dict[str, Any]:
     ensure_tables(db)
     project = get_project_or_404(db, project_id)
+    normalized_country = normalize_country(country)
     if start_month:
         parse_report_month(start_month)
     if end_month:
@@ -401,6 +413,7 @@ def get_financial_series(
         .outerjoin(debt_sum_subquery, debt_sum_subquery.c.report_id == MonthlyReport.id)
         .where(
             MonthlyReport.project_id == project_id,
+            MonthlyReport.country == normalized_country,
             MonthlyReport.is_current.is_(True),
         )
         .order_by(MonthlyReport.report_month.asc())
@@ -411,6 +424,7 @@ def get_financial_series(
         db,
         report_ids=report_ids,
         project_name=project.project_name,
+        country=normalized_country,
     )
 
     month_to_row: dict[str, dict[str, Any]] = {}
@@ -470,6 +484,7 @@ def get_financial_accounting_detail(
     db: Session,
     *,
     project_id: int,
+    country: str = "US",
     report_month: str,
 ) -> dict[str, Any]:
     ensure_tables(db)
@@ -479,6 +494,7 @@ def get_financial_accounting_detail(
     report, pt3 = _load_report_with_pt3_or_404(
         db,
         project_id=project_id,
+        country=country,
         report_month=month,
     )
 
@@ -495,6 +511,7 @@ def export_financial_accounting_detail_workbook(
     db: Session,
     *,
     project_id: int,
+    country: str = "US",
     report_month: str,
     is_admin: bool = False,
 ) -> tuple[str, bytes]:
@@ -503,6 +520,7 @@ def export_financial_accounting_detail_workbook(
     report, pt3 = _load_report_with_pt3_or_404(
         db,
         project_id=project_id,
+        country=country,
         report_month=month,
     )
     pt4 = db.execute(
@@ -528,6 +546,7 @@ def export_financial_accounting_detail_workbook(
         db,
         report_ids=[int(report.id)],
         project_name=report.project_name,
+        country=report.country,
     ).get(int(report.id), {})
     financial_row = _build_financial_row(
         report_month=month,
@@ -555,7 +574,8 @@ def export_financial_accounting_detail_workbook(
         - financial_row["credit_card_deduction_usd"] * exchange_rate
     )
     total_cost_usd = (
-        (financial_row["fob_cost_rmb"] + financial_row["first_leg_cost_rmb"]) / exchange_rate
+        (financial_row["fob_cost_rmb"] + financial_row["first_leg_cost_rmb"])
+        / exchange_rate
         if exchange_rate > 0
         else 0
     )
@@ -571,35 +591,8 @@ def export_financial_accounting_detail_workbook(
     )
 
     wb = Workbook()
-    detail_row = _build_financial_detail_row(
-        month=month,
-        financial_row=financial_row,
-        exchange_rate=exchange_rate,
-        commission_rmb=commission_rmb,
-        payable_total_rmb=payable_total_rmb,
-        net_profit_rmb=net_profit_rmb,
-        net_profit_usd=net_profit_usd,
-        net_profit_rate=net_profit_rate,
-        has_source_report=True,
-        disable_commission=disable_commission,
-    )
-    _build_legacy_summary_sheet(
-        wb=wb,
-        project_name=report.project_name,
-        start_month=month,
-        end_month=month,
-        detail_rows=[detail_row],
-    )
-    _build_legacy_detail_sheet(
-        wb=wb,
-        project_name=report.project_name,
-        start_month=month,
-        end_month=month,
-        detail_rows=[detail_row],
-        is_admin=is_admin,
-    )
-
-    ws = wb.create_sheet(title="报表核算")
+    ws = wb.active
+    ws.title = "报表核算"
     ws.append(
         [
             "Income",
@@ -657,7 +650,7 @@ def export_financial_accounting_detail_workbook(
     out = BytesIO()
     wb.save(out)
     safe_project = _safe_project_name(report.project_name)
-    filename = f"{safe_project}_Accounting_Detail_{month}.xlsx"
+    filename = f"{safe_project}-月度财务分析-{month}.xlsx"
     return filename, out.getvalue()
 
 
@@ -681,25 +674,25 @@ def _load_report_with_pt3_or_404(
     db: Session,
     *,
     project_id: int,
+    country: str = "US",
     report_month: str,
 ) -> tuple[MonthlyReport, MonthlyReportPT3Calculation]:
-    row = (
-        db.execute(
-            select(MonthlyReport, MonthlyReportPT3Calculation)
-            .join(
-                MonthlyReportPT3Calculation,
-                MonthlyReportPT3Calculation.report_id == MonthlyReport.id,
-            )
-            .where(
-                MonthlyReport.project_id == project_id,
-                MonthlyReport.report_month == report_month,
-                MonthlyReport.is_current.is_(True),
-                MonthlyReport.status == JobStatus.success,
-            )
-            .limit(1)
+    normalized_country = normalize_country(country)
+    row = db.execute(
+        select(MonthlyReport, MonthlyReportPT3Calculation)
+        .join(
+            MonthlyReportPT3Calculation,
+            MonthlyReportPT3Calculation.report_id == MonthlyReport.id,
         )
-        .first()
-    )
+        .where(
+            MonthlyReport.project_id == project_id,
+            MonthlyReport.country == normalized_country,
+            MonthlyReport.report_month == report_month,
+            MonthlyReport.is_current.is_(True),
+            MonthlyReport.status == JobStatus.success,
+        )
+        .limit(1)
+    ).first()
     if row is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -715,60 +708,217 @@ def _pt3_float(pt3: MonthlyReportPT3Calculation, key: str) -> float:
 
 def _build_accounting_rows(pt3: MonthlyReportPT3Calculation) -> list[dict[str, Any]]:
     income_lines = [
-        ("Product sales (non-FBA)", "销售额（非FBA）", _pt3_float(pt3, "income_product_sales_non_fba"), "FBM 订单-订单金额"),
-        ("Product sale refunds (non-FBA)", "销售额退款（非FBA）", _pt3_float(pt3, "income_product_sale_refunds_non_fba"), "FBM 退款-订单金额"),
-        ("FBA product sales", "销售额（FBA）", _pt3_float(pt3, "income_fba_product_sales"), "FBA 订单-订单金额"),
-        ("FBA product sale refunds", "销售额退款（FBA）", _pt3_float(pt3, "income_fba_product_sale_refunds"), "FBA 退款-订单金额 + 其他金额"),
-        ("FBA inventory credit", "FBA库存赔偿（FBA）", _pt3_float(pt3, "income_fba_inventory_credit"), "FBA库存赔偿-总计"),
-        ("FBA liquidation proceeds", "FBA清算收入", _pt3_float(pt3, "income_fba_liquidation_proceeds"), "清算费用-订单金额"),
-        ("Shipping credits", "运费收入", _pt3_float(pt3, "income_shipping_credits"), "所有订单-运费金额"),
-        ("Shipping credit refunds", "运费退款", _pt3_float(pt3, "income_shipping_credit_refunds"), "所有退款-运费金额"),
-        ("Gift wrap credits", "礼品包装收入", _pt3_float(pt3, "income_gift_wrap_credits"), "所有订单-礼品包装金额"),
-        ("Gift wrap credit refunds", "礼品包装退款", _pt3_float(pt3, "income_gift_wrap_credits_refunds"), "所有退款-礼品包装金额"),
-        ("Promotional rebates", "促销折扣", _pt3_float(pt3, "income_promotional_rebates"), "所有订单-促销折扣金额"),
-        ("Promotional rebate refunds", "促销折扣退款", _pt3_float(pt3, "income_promotional_rebate_refunds"), "所有退款-促销折扣金额"),
-        ("A-to-z Guarantee claims", "A-to-z保障索赔", _pt3_float(pt3, "income_a_to_z_guarantee_claims"), ""),
-        ("Chargebacks", "拒付退款", _pt3_float(pt3, "income_chargebacks"), "拒付退款-总计"),
-        ("SAFE-T reimbursement", "SAFE-T赔偿", _pt3_float(pt3, "income_safe_t_reimbursement"), ""),
+        (
+            "Product sales (non-FBA)",
+            "销售额（非FBA）",
+            _pt3_float(pt3, "income_product_sales_non_fba"),
+            "FBM 订单-订单金额",
+        ),
+        (
+            "Product sale refunds (non-FBA)",
+            "销售额退款（非FBA）",
+            _pt3_float(pt3, "income_product_sale_refunds_non_fba"),
+            "FBM 退款-订单金额",
+        ),
+        (
+            "FBA product sales",
+            "销售额（FBA）",
+            _pt3_float(pt3, "income_fba_product_sales"),
+            "FBA 订单-订单金额",
+        ),
+        (
+            "FBA product sale refunds",
+            "销售额退款（FBA）",
+            _pt3_float(pt3, "income_fba_product_sale_refunds"),
+            "FBA 退款-订单金额 + 其他金额",
+        ),
+        (
+            "FBA inventory credit",
+            "FBA库存赔偿（FBA）",
+            _pt3_float(pt3, "income_fba_inventory_credit"),
+            "FBA库存赔偿-总计",
+        ),
+        (
+            "FBA liquidation proceeds",
+            "FBA清算收入",
+            _pt3_float(pt3, "income_fba_liquidation_proceeds"),
+            "清算费用-订单金额",
+        ),
+        (
+            "Shipping credits",
+            "运费收入",
+            _pt3_float(pt3, "income_shipping_credits"),
+            "所有订单-运费金额",
+        ),
+        (
+            "Shipping credit refunds",
+            "运费退款",
+            _pt3_float(pt3, "income_shipping_credit_refunds"),
+            "所有退款-运费金额",
+        ),
+        (
+            "Gift wrap credits",
+            "礼品包装收入",
+            _pt3_float(pt3, "income_gift_wrap_credits"),
+            "所有订单-礼品包装金额",
+        ),
+        (
+            "Gift wrap credit refunds",
+            "礼品包装退款",
+            _pt3_float(pt3, "income_gift_wrap_credits_refunds"),
+            "所有退款-礼品包装金额",
+        ),
+        (
+            "Promotional rebates",
+            "促销折扣",
+            _pt3_float(pt3, "income_promotional_rebates"),
+            "所有订单-促销折扣金额",
+        ),
+        (
+            "Promotional rebate refunds",
+            "促销折扣退款",
+            _pt3_float(pt3, "income_promotional_rebate_refunds"),
+            "所有退款-促销折扣金额",
+        ),
+        (
+            "A-to-z Guarantee claims",
+            "A-to-z保障索赔",
+            _pt3_float(pt3, "income_a_to_z_guarantee_claims"),
+            "",
+        ),
+        (
+            "Chargebacks",
+            "拒付退款",
+            _pt3_float(pt3, "income_chargebacks"),
+            "拒付退款-总计",
+        ),
+        (
+            "SAFE-T reimbursement",
+            "SAFE-T赔偿",
+            _pt3_float(pt3, "income_safe_t_reimbursement"),
+            "",
+        ),
         ("Total_Income", "合计销售额", _pt3_float(pt3, "income_total"), ""),
     ]
     expense_lines = [
-        ("Seller fulfilled selling fees", "卖家自配送销售佣金", _pt3_float(pt3, "expense_seller_fulfilled_selling_fees"), "FBM 订单-销售佣金"),
-        ("FBA selling fees", "FBA销售佣金", _pt3_float(pt3, "expense_fba_selling_fees"), "FBA 订单-销售佣金"),
-        ("Selling fee refunds", "销售佣金退款", _pt3_float(pt3, "expense_selling_fee_refunds"), "所有退款-销售佣金 + 退款管理费"),
-        ("FBA transaction fees", "FBA派送费", _pt3_float(pt3, "expense_fba_transaction_fees"), "FBA 订单 - 派送费"),
-        ("FBA transaction fee refunds", "FBA派送费退款", _pt3_float(pt3, "expense_fba_transaction_fee_refunds"), "FBA 退款 - 派送费 + 测量费"),
-        ("Other transaction fees", "其他交易费用", _pt3_float(pt3, "expense_other_transaction_fees"), ""),
-        ("Other transaction fee refunds", "其他交易费用退款", _pt3_float(pt3, "expense_other_transaction_fee_refunds"), ""),
-        ("FBA inventory and inbound services fees", "FBA库存和入库服务费", _pt3_float(pt3, "expense_fba_inventory_and_inbound_services_fees"), "FBA仓储及入库服务费 - 总计"),
-        ("Shipping label purchases", "购买配送标签", _pt3_float(pt3, "expense_shipping_label_purchases"), ""),
-        ("Shipping label refunds", "配送标签退款", _pt3_float(pt3, "expense_shipping_label_refunds"), ""),
-        ("Carrier shipping label adjustments", "承运商配送标签调整", _pt3_float(pt3, "expense_carrier_shipping_label_adjustments"), ""),
-        ("Service fees", "服务费", _pt3_float(pt3, "expense_service_fees"), "服务费（不含广告）-总计"),
-        ("Refund administration fees", "退款管理费", _pt3_float(pt3, "expense_refund_administration_fees"), "合并在销售佣金退款中扣除"),
-        ("Adjustments", "调整项", _pt3_float(pt3, "expense_adjustments"), "其他赔偿调整-总计"),
-        ("Cost of Advertising", "广告成本", _pt3_float(pt3, "expense_cost_of_advertising"), "广告费-总计"),
-        ("Refund for Advertiser", "广告商退款", _pt3_float(pt3, "expense_refund_for_advertiser"), "广告退款-总计"),
-        ("Liquidations fees", "清算处理费", _pt3_float(pt3, "expense_liquidations_fees"), "清算费用-其他交易费用"),
+        (
+            "Seller fulfilled selling fees",
+            "卖家自配送销售佣金",
+            _pt3_float(pt3, "expense_seller_fulfilled_selling_fees"),
+            "FBM 订单-销售佣金",
+        ),
+        (
+            "FBA selling fees",
+            "FBA销售佣金",
+            _pt3_float(pt3, "expense_fba_selling_fees"),
+            "FBA 订单-销售佣金",
+        ),
+        (
+            "Selling fee refunds",
+            "销售佣金退款",
+            _pt3_float(pt3, "expense_selling_fee_refunds"),
+            "所有退款-销售佣金 + 退款管理费",
+        ),
+        (
+            "FBA transaction fees",
+            "FBA派送费",
+            _pt3_float(pt3, "expense_fba_transaction_fees"),
+            "FBA 订单 - 派送费",
+        ),
+        (
+            "FBA transaction fee refunds",
+            "FBA派送费退款",
+            _pt3_float(pt3, "expense_fba_transaction_fee_refunds"),
+            "FBA 退款 - 派送费 + 测量费",
+        ),
+        (
+            "Other transaction fees",
+            "其他交易费用",
+            _pt3_float(pt3, "expense_other_transaction_fees"),
+            "",
+        ),
+        (
+            "Other transaction fee refunds",
+            "其他交易费用退款",
+            _pt3_float(pt3, "expense_other_transaction_fee_refunds"),
+            "",
+        ),
+        (
+            "FBA inventory and inbound services fees",
+            "FBA库存和入库服务费",
+            _pt3_float(pt3, "expense_fba_inventory_and_inbound_services_fees"),
+            "FBA仓储及入库服务费 - 总计",
+        ),
+        (
+            "Shipping label purchases",
+            "购买配送标签",
+            _pt3_float(pt3, "expense_shipping_label_purchases"),
+            "",
+        ),
+        (
+            "Shipping label refunds",
+            "配送标签退款",
+            _pt3_float(pt3, "expense_shipping_label_refunds"),
+            "",
+        ),
+        (
+            "Carrier shipping label adjustments",
+            "承运商配送标签调整",
+            _pt3_float(pt3, "expense_carrier_shipping_label_adjustments"),
+            "",
+        ),
+        (
+            "Service fees",
+            "服务费",
+            _pt3_float(pt3, "expense_service_fees"),
+            "服务费（不含广告）-总计",
+        ),
+        (
+            "Refund administration fees",
+            "退款管理费",
+            _pt3_float(pt3, "expense_refund_administration_fees"),
+            "合并在销售佣金退款中扣除",
+        ),
+        (
+            "Adjustments",
+            "调整项",
+            _pt3_float(pt3, "expense_adjustments"),
+            "其他赔偿调整-总计",
+        ),
+        (
+            "Cost of Advertising",
+            "广告成本",
+            _pt3_float(pt3, "expense_cost_of_advertising"),
+            "广告费-总计",
+        ),
+        (
+            "Refund for Advertiser",
+            "广告商退款",
+            _pt3_float(pt3, "expense_refund_for_advertiser"),
+            "广告退款-总计",
+        ),
+        (
+            "Liquidations fees",
+            "清算处理费",
+            _pt3_float(pt3, "expense_liquidations_fees"),
+            "清算费用-其他交易费用",
+        ),
         ("Receivables", "应收账款", _pt3_float(pt3, "expense_receivables"), ""),
         ("Deductions", "扣款", _pt3_float(pt3, "expense_deductions"), ""),
-        ("Amazon Shipping Charge Adjustments", "亚马逊配送运费调整", _pt3_float(pt3, "expense_amazon_shipping_charge_adjustments"), ""),
+        (
+            "Amazon Shipping Charge Adjustments",
+            "亚马逊配送运费调整",
+            _pt3_float(pt3, "expense_amazon_shipping_charge_adjustments"),
+            "",
+        ),
         ("Total_Expense", "合计费用", _pt3_float(pt3, "expense_total"), ""),
     ]
 
     max_len = max(len(income_lines), len(expense_lines))
     rows: list[dict[str, Any]] = []
     for idx in range(max_len):
-        in_line = (
-            income_lines[idx]
-            if idx < len(income_lines)
-            else ("", "", 0.0, "")
-        )
-        ex_line = (
-            expense_lines[idx]
-            if idx < len(expense_lines)
-            else ("", "", 0.0, "")
-        )
+        in_line = income_lines[idx] if idx < len(income_lines) else ("", "", 0.0, "")
+        ex_line = expense_lines[idx] if idx < len(expense_lines) else ("", "", 0.0, "")
         rows.append(
             {
                 "income_en": in_line[0],
@@ -784,7 +934,9 @@ def _build_accounting_rows(pt3: MonthlyReportPT3Calculation) -> list[dict[str, A
     return rows
 
 
-def _load_transaction_raw_rows(db: Session, *, report_id: int) -> list[dict[str, object]]:
+def _load_transaction_raw_rows(
+    db: Session, *, report_id: int
+) -> list[dict[str, object]]:
     transactions = (
         db.execute(
             select(MonthlyReportTransaction)
@@ -927,38 +1079,183 @@ _ADMIN_ONLY_EXPORT_KEYS = {
 
 _EXPORT_DETAIL_COLUMNS: list[dict[str, str]] = [
     {"key": "monthLabel", "title": "年月", "format": "text", "group": "基础信息"},
-    {"key": "hasSourceReport", "title": "是否有源报表", "format": "boolean", "group": "基础信息"},
-    {"key": "incomeSales", "title": "销售额", "format": "currency_usd", "group": "平台收入"},
-    {"key": "incomeRefund", "title": "退款", "format": "currency_usd", "group": "平台收入"},
-    {"key": "incomeAdjustment", "title": "赔偿", "format": "currency_usd", "group": "平台收入"},
-    {"key": "incomeOther", "title": "其他收入", "format": "currency_usd", "group": "平台收入"},
-    {"key": "expenseSellingFee", "title": "平台费", "format": "currency_usd", "group": "平台支出"},
-    {"key": "expenseFbaFee", "title": "配送费", "format": "currency_usd", "group": "平台支出"},
-    {"key": "expenseInventoryFee", "title": "仓储费", "format": "currency_usd", "group": "平台支出"},
-    {"key": "expenseServiceFee", "title": "服务费", "format": "currency_usd", "group": "平台支出"},
-    {"key": "expenseAdvertising", "title": "广告费", "format": "currency_usd", "group": "平台支出"},
-    {"key": "expenseOtherFees", "title": "其他费用", "format": "currency_usd", "group": "平台支出"},
-    {"key": "incomeTotal", "title": "收入合计", "format": "currency_usd", "group": "结果"},
-    {"key": "expenseTotal", "title": "支出合计", "format": "currency_usd", "group": "结果"},
-    {"key": "amazonPayBack", "title": "亚马逊回款", "format": "currency_usd", "group": "结果"},
-    {"key": "creditCardDeductionUsd", "title": "信用卡扣款", "format": "currency_usd", "group": "结果"},
-    {"key": "evaluationFeeRmb", "title": "测评费用RMB", "format": "currency_rmb", "group": "运营结算"},
-    {"key": "prepaymentOtherRmb", "title": "垫付其他RMB", "format": "currency_rmb", "group": "运营结算"},
-    {"key": "operationCommissionRmb", "title": "运营佣金RMB", "format": "currency_rmb_nullable", "group": "运营结算"},
-    {"key": "payableTotalRmb", "title": "应付总计RMB", "format": "currency_rmb_nullable", "group": "运营结算"},
+    {
+        "key": "hasSourceReport",
+        "title": "是否有源报表",
+        "format": "boolean",
+        "group": "基础信息",
+    },
+    {
+        "key": "incomeSales",
+        "title": "销售额",
+        "format": "currency_usd",
+        "group": "平台收入",
+    },
+    {
+        "key": "incomeRefund",
+        "title": "退款",
+        "format": "currency_usd",
+        "group": "平台收入",
+    },
+    {
+        "key": "incomeAdjustment",
+        "title": "赔偿",
+        "format": "currency_usd",
+        "group": "平台收入",
+    },
+    {
+        "key": "incomeOther",
+        "title": "其他收入",
+        "format": "currency_usd",
+        "group": "平台收入",
+    },
+    {
+        "key": "expenseSellingFee",
+        "title": "平台费",
+        "format": "currency_usd",
+        "group": "平台支出",
+    },
+    {
+        "key": "expenseFbaFee",
+        "title": "配送费",
+        "format": "currency_usd",
+        "group": "平台支出",
+    },
+    {
+        "key": "expenseInventoryFee",
+        "title": "仓储费",
+        "format": "currency_usd",
+        "group": "平台支出",
+    },
+    {
+        "key": "expenseServiceFee",
+        "title": "服务费",
+        "format": "currency_usd",
+        "group": "平台支出",
+    },
+    {
+        "key": "expenseAdvertising",
+        "title": "广告费",
+        "format": "currency_usd",
+        "group": "平台支出",
+    },
+    {
+        "key": "expenseOtherFees",
+        "title": "其他费用",
+        "format": "currency_usd",
+        "group": "平台支出",
+    },
+    {
+        "key": "incomeTotal",
+        "title": "收入合计",
+        "format": "currency_usd",
+        "group": "结果",
+    },
+    {
+        "key": "expenseTotal",
+        "title": "支出合计",
+        "format": "currency_usd",
+        "group": "结果",
+    },
+    {
+        "key": "amazonPayBack",
+        "title": "亚马逊回款",
+        "format": "currency_usd",
+        "group": "结果",
+    },
+    {
+        "key": "creditCardDeductionUsd",
+        "title": "信用卡扣款",
+        "format": "currency_usd",
+        "group": "结果",
+    },
+    {
+        "key": "evaluationFeeRmb",
+        "title": "测评费用RMB",
+        "format": "currency_rmb",
+        "group": "运营结算",
+    },
+    {
+        "key": "prepaymentOtherRmb",
+        "title": "垫付其他RMB",
+        "format": "currency_rmb",
+        "group": "运营结算",
+    },
+    {
+        "key": "operationCommissionRmb",
+        "title": "运营佣金RMB",
+        "format": "currency_rmb_nullable",
+        "group": "运营结算",
+    },
+    {
+        "key": "payableTotalRmb",
+        "title": "应付总计RMB",
+        "format": "currency_rmb_nullable",
+        "group": "运营结算",
+    },
     {"key": "exchangeRate", "title": "汇率", "format": "rate", "group": "运营结算"},
-    {"key": "platformRatio", "title": "平台占比", "format": "percent", "group": "费用占比"},
-    {"key": "deliveryRatio", "title": "配送占比", "format": "percent", "group": "费用占比"},
-    {"key": "storageRatio", "title": "仓储占比", "format": "percent", "group": "费用占比"},
-    {"key": "serviceRatio", "title": "服务占比", "format": "percent", "group": "费用占比"},
+    {
+        "key": "platformRatio",
+        "title": "平台占比",
+        "format": "percent",
+        "group": "费用占比",
+    },
+    {
+        "key": "deliveryRatio",
+        "title": "配送占比",
+        "format": "percent",
+        "group": "费用占比",
+    },
+    {
+        "key": "storageRatio",
+        "title": "仓储占比",
+        "format": "percent",
+        "group": "费用占比",
+    },
+    {
+        "key": "serviceRatio",
+        "title": "服务占比",
+        "format": "percent",
+        "group": "费用占比",
+    },
     {"key": "adRatio", "title": "广告占比", "format": "percent", "group": "费用占比"},
     {"key": "refundRatio", "title": "退款率", "format": "percent", "group": "费用占比"},
-    {"key": "paybackRatio", "title": "回款率", "format": "percent_signed", "group": "费用占比"},
-    {"key": "fobCostRmb", "title": "FOB成本RMB", "format": "currency_rmb", "group": "成本核算"},
-    {"key": "firstLegCostRmb", "title": "头程成本RMB", "format": "currency_rmb", "group": "成本核算"},
-    {"key": "netProfitRmb", "title": "净利润RMB", "format": "currency_rmb", "group": "成本核算"},
-    {"key": "netProfitUsd", "title": "净利润USD", "format": "currency_usd", "group": "成本核算"},
-    {"key": "netProfitRate", "title": "净利率", "format": "percent_signed", "group": "成本核算"},
+    {
+        "key": "paybackRatio",
+        "title": "回款率",
+        "format": "percent_signed",
+        "group": "费用占比",
+    },
+    {
+        "key": "fobCostRmb",
+        "title": "FOB成本RMB",
+        "format": "currency_rmb",
+        "group": "成本核算",
+    },
+    {
+        "key": "firstLegCostRmb",
+        "title": "头程成本RMB",
+        "format": "currency_rmb",
+        "group": "成本核算",
+    },
+    {
+        "key": "netProfitRmb",
+        "title": "净利润RMB",
+        "format": "currency_rmb",
+        "group": "成本核算",
+    },
+    {
+        "key": "netProfitUsd",
+        "title": "净利润USD",
+        "format": "currency_usd",
+        "group": "成本核算",
+    },
+    {
+        "key": "netProfitRate",
+        "title": "净利率",
+        "format": "percent_signed",
+        "group": "成本核算",
+    },
 ]
 
 
@@ -985,9 +1282,9 @@ def _to_signed_ratio(numerator: float, denominator: float) -> float:
 
 def _excel_num_fmt(format_key: str) -> str | None:
     if format_key == "currency_usd":
-        return '$#,##0.00;[Red]-$#,##0.00'
+        return "$#,##0.00;[Red]-$#,##0.00"
     if format_key in ("currency_rmb", "currency_rmb_nullable"):
-        return '¥#,##0.00;[Red]-¥#,##0.00'
+        return "¥#,##0.00;[Red]-¥#,##0.00"
     if format_key in ("percent", "percent_signed"):
         return "0.0%"
     if format_key == "rate":
@@ -1039,13 +1336,27 @@ def _build_financial_detail_row(
         "operationCommissionRmb": None if disable_commission else commission_rmb,
         "payableTotalRmb": None if disable_commission else payable_total_rmb,
         "exchangeRate": exchange_rate,
-        "platformRatio": _to_positive_ratio(financial_row["expense_selling_fee"], financial_row["income_total"]),
-        "deliveryRatio": _to_positive_ratio(financial_row["expense_fba_fee"], financial_row["income_total"]),
-        "storageRatio": _to_positive_ratio(financial_row["expense_inventory_fee"], financial_row["income_total"]),
-        "serviceRatio": _to_positive_ratio(financial_row["expense_service_fee"], financial_row["income_total"]),
-        "adRatio": _to_positive_ratio(financial_row["expense_advertising"], financial_row["income_total"]),
-        "refundRatio": _to_positive_ratio(financial_row["income_refund"], financial_row["income_sales"]),
-        "paybackRatio": _to_signed_ratio(financial_row["amazon_pay_back"], financial_row["income_total"]),
+        "platformRatio": _to_positive_ratio(
+            financial_row["expense_selling_fee"], financial_row["income_total"]
+        ),
+        "deliveryRatio": _to_positive_ratio(
+            financial_row["expense_fba_fee"], financial_row["income_total"]
+        ),
+        "storageRatio": _to_positive_ratio(
+            financial_row["expense_inventory_fee"], financial_row["income_total"]
+        ),
+        "serviceRatio": _to_positive_ratio(
+            financial_row["expense_service_fee"], financial_row["income_total"]
+        ),
+        "adRatio": _to_positive_ratio(
+            financial_row["expense_advertising"], financial_row["income_total"]
+        ),
+        "refundRatio": _to_positive_ratio(
+            financial_row["income_refund"], financial_row["income_sales"]
+        ),
+        "paybackRatio": _to_signed_ratio(
+            financial_row["amazon_pay_back"], financial_row["income_total"]
+        ),
         "fobCostRmb": financial_row["fob_cost_rmb"],
         "firstLegCostRmb": financial_row["first_leg_cost_rmb"],
         "netProfitRmb": net_profit_rmb,
@@ -1071,7 +1382,11 @@ def _build_legacy_summary_sheet(
     c.fill = PatternFill(fill_type="solid", fgColor="FFE2E8F0")
 
     ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=4)
-    s = ws.cell(2, 1, f"店铺：{project_name}    区间：{_format_month_label(start_month)} 至 {_format_month_label(end_month)}")
+    s = ws.cell(
+        2,
+        1,
+        f"店铺：{project_name}    区间：{_format_month_label(start_month)} 至 {_format_month_label(end_month)}",
+    )
     s.font = Font(name="Microsoft YaHei", size=10, color="FF475569")
     s.fill = PatternFill(fill_type="solid", fgColor="FFF8FAFC")
 
@@ -1095,14 +1410,16 @@ def _build_legacy_summary_sheet(
     for i, item in enumerate(kpis, start=5):
         ws.cell(i, 1, item[0])
         ws.cell(i, 2, item[1])
-        ws.cell(i, 2).number_format = '$#,##0.00;[Red]-$#,##0.00'
+        ws.cell(i, 2).number_format = "$#,##0.00;[Red]-$#,##0.00"
         ws.cell(i, 3, item[2])
         ws.cell(i, 4, item[3])
         ws.cell(i, 4).number_format = "0.0%"
         for col in range(1, 5):
             cell = ws.cell(i, col)
             cell.font = Font(name="Microsoft YaHei", color="FF0F172A")
-            cell.alignment = Alignment(horizontal="right" if col in (2, 4) else "left", vertical="center")
+            cell.alignment = Alignment(
+                horizontal="right" if col in (2, 4) else "left", vertical="center"
+            )
             _apply_excel_border(cell)
 
     ws.merge_cells(start_row=11, start_column=1, end_row=11, end_column=4)
@@ -1125,11 +1442,13 @@ def _build_legacy_summary_sheet(
         ws.cell(i, 3, row["expenseTotal"])
         ws.cell(i, 4, row["amazonPayBack"])
         for col in (2, 3, 4):
-            ws.cell(i, col).number_format = '$#,##0.00;[Red]-$#,##0.00'
+            ws.cell(i, col).number_format = "$#,##0.00;[Red]-$#,##0.00"
         for col in range(1, 5):
             cell = ws.cell(i, col)
             cell.font = Font(name="Microsoft YaHei", color="FF0F172A")
-            cell.alignment = Alignment(horizontal="left" if col == 1 else "right", vertical="center")
+            cell.alignment = Alignment(
+                horizontal="left" if col == 1 else "right", vertical="center"
+            )
             _apply_excel_border(cell)
 
     ws.column_dimensions["A"].width = 16
@@ -1148,7 +1467,9 @@ def _build_legacy_detail_sheet(
     is_admin: bool,
 ) -> None:
     active_columns = [
-        col for col in _EXPORT_DETAIL_COLUMNS if is_admin or col["key"] not in _ADMIN_ONLY_EXPORT_KEYS
+        col
+        for col in _EXPORT_DETAIL_COLUMNS
+        if is_admin or col["key"] not in _ADMIN_ONLY_EXPORT_KEYS
     ]
     ws = wb.create_sheet(title="月度财务明细")
     ws.freeze_panes = "B6"
@@ -1160,7 +1481,11 @@ def _build_legacy_detail_sheet(
     t.fill = PatternFill(fill_type="solid", fgColor="FFE2E8F0")
 
     ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=last_col)
-    s = ws.cell(2, 1, f"店铺：{project_name}    区间：{_format_month_label(start_month)} 至 {_format_month_label(end_month)}")
+    s = ws.cell(
+        2,
+        1,
+        f"店铺：{project_name}    区间：{_format_month_label(start_month)} 至 {_format_month_label(end_month)}",
+    )
     s.font = Font(name="Microsoft YaHei", size=10, color="FF475569")
     s.fill = PatternFill(fill_type="solid", fgColor="FFF8FAFC")
 
@@ -1187,18 +1512,27 @@ def _build_legacy_detail_sheet(
         for col in cols:
             ws.cell(head_row, current_col, col["title"])
             current_col += 1
-        ws.merge_cells(start_row=group_row, start_column=start_col, end_row=group_row, end_column=current_col - 1)
+        ws.merge_cells(
+            start_row=group_row,
+            start_column=start_col,
+            end_row=group_row,
+            end_column=current_col - 1,
+        )
         gc = ws.cell(group_row, start_col, group)
         gc.font = Font(name="Microsoft YaHei", bold=True, color="FF0F172A")
         gc.alignment = Alignment(horizontal="center", vertical="center")
-        gc.fill = PatternFill(fill_type="solid", fgColor=group_colors.get(group, "FFE2E8F0"))
+        gc.fill = PatternFill(
+            fill_type="solid", fgColor=group_colors.get(group, "FFE2E8F0")
+        )
         _apply_excel_border(gc, "FFCBD5E1")
 
     for r in (group_row, head_row):
         for col_idx in range(1, last_col + 1):
             cell = ws.cell(r, col_idx)
             cell.font = Font(name="Microsoft YaHei", bold=True, color="FF0F172A")
-            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            cell.alignment = Alignment(
+                horizontal="center", vertical="center", wrap_text=True
+            )
             if cell.fill.fill_type is None:
                 cell.fill = PatternFill(fill_type="solid", fgColor="FFE2E8F0")
             _apply_excel_border(cell, "FFCBD5E1")
@@ -1235,13 +1569,20 @@ def _build_legacy_detail_sheet(
         elif col["key"] == "hasSourceReport":
             cell.value = f"{len(detail_rows)} 个月"
         else:
-            vals = [row.get(col["key"]) for row in detail_rows if isinstance(row.get(col["key"]), (int, float))]
+            vals = [
+                row.get(col["key"])
+                for row in detail_rows
+                if isinstance(row.get(col["key"]), (int, float))
+            ]
             if col["format"] in ("percent", "percent_signed", "rate"):
                 cell.value = (sum(vals) / len(vals)) if vals else 0
             else:
                 cell.value = sum(vals) if vals else "-"
         cell.font = Font(name="Microsoft YaHei", bold=True, color="FF0F172A")
-        cell.alignment = Alignment(horizontal="right" if isinstance(cell.value, (int, float)) else "left", vertical="center")
+        cell.alignment = Alignment(
+            horizontal="right" if isinstance(cell.value, (int, float)) else "left",
+            vertical="center",
+        )
         num_fmt = _excel_num_fmt(col["format"])
         if isinstance(cell.value, (int, float)) and num_fmt:
             cell.number_format = num_fmt
@@ -1308,7 +1649,20 @@ def _resolve_operation_commission_rmb(
 
 
 def _apply_monthly_like_styles(workbook: Workbook) -> None:
-    thin = Side(style="thin", color="000000")
+    from openpyxl.styles import PatternFill, Font, Alignment, Side, Border
+
+    thin = Side(style="thin", color="FFCBD5E1")
+    medium = Side(style="medium", color="FF94A3B8")
+    header_fill = PatternFill(
+        start_color="FFE2E8F0", end_color="FFE2E8F0", fill_type="solid"
+    )
+    even_row_fill = PatternFill(
+        start_color="FFFFFFFF", end_color="FFFFFFFF", fill_type="solid"
+    )
+    odd_row_fill = PatternFill(
+        start_color="FFF8FAFC", end_color="FFF8FAFC", fill_type="solid"
+    )
+
     existing_style_names: set[str] = set()
     for style in workbook.named_styles:
         if isinstance(style, str):
@@ -1319,14 +1673,17 @@ def _apply_monthly_like_styles(workbook: Workbook) -> None:
                 existing_style_names.add(name)
     if "sty1" not in existing_style_names:
         sty1 = NamedStyle(name="sty1")
-        sty1.font = Font(name="等线", size=12, bold=True)
-        sty1.alignment = Alignment(horizontal="left", vertical="center")
-        sty1.border = Border(top=thin, bottom=thin, left=thin, right=thin)
+        sty1.font = Font(name="等线", size=11, bold=True, color="FF0F172A")
+        sty1.alignment = Alignment(
+            horizontal="center", vertical="center", wrap_text=True
+        )
+        sty1.border = Border(top=medium, bottom=medium, left=thin, right=thin)
+        sty1.fill = header_fill
         workbook.add_named_style(sty1)
 
     if "sty2" not in existing_style_names:
         sty2 = NamedStyle(name="sty2")
-        sty2.font = Font(name="等线", size=12)
+        sty2.font = Font(name="等线", size=10, color="FF334155")
         sty2.alignment = Alignment(horizontal="left", vertical="center")
         sty2.border = Border(top=thin, bottom=thin, left=thin, right=thin)
         workbook.add_named_style(sty2)
@@ -1339,17 +1696,32 @@ def _apply_monthly_like_styles(workbook: Workbook) -> None:
         ws.freeze_panes = "A2"
         if ws.title in core_sheets:
             for r in range(1, ws.max_row + 1):
+                row_fill = (
+                    header_fill
+                    if r == 1
+                    else (even_row_fill if r % 2 == 0 else odd_row_fill)
+                )
+                ws.row_dimensions[r].height = 24 if r > 1 else 28
                 for c in range(1, ws.max_column + 1):
-                    ws.cell(r, c).style = "sty1" if r == 1 else "sty2"
-                if r == 1:
-                    ws.row_dimensions[r].height = 15
+                    cell = ws.cell(r, c)
+                    cell.style = "sty1" if r == 1 else "sty2"
+                    if r > 1:
+                        cell.fill = row_fill
             _auto_width_for_report_sheet_service(ws)
         else:
+            ws.row_dimensions[1].height = 28
             for c in range(1, ws.max_column + 1):
-                ws.cell(1, c).style = "sty1"
-            ws.row_dimensions[1].height = 15
+                cell = ws.cell(1, c)
+                cell.style = "sty1"
+                cell.fill = header_fill
+            for r in range(2, ws.max_row + 1):
+                ws.row_dimensions[r].height = 24
+                row_fill = even_row_fill if r % 2 == 0 else odd_row_fill
+                for c in range(1, ws.max_column + 1):
+                    ws.cell(r, c).style = "sty2"
+                    ws.cell(r, c).fill = row_fill
             for c in range(1, ws.max_column + 1):
-                ws.column_dimensions[get_column_letter(c)].width = 12
+                ws.column_dimensions[get_column_letter(c)].width = 14
 
 
 def _auto_width_for_report_sheet_service(ws) -> None:
@@ -1373,10 +1745,10 @@ def _style_financial_export_sheets(ws_summary, ws_financial_detail) -> None:
     ws_summary.column_dimensions["B"].width = 18
     ws_summary.column_dimensions["C"].width = 36
     for row in range(2, ws_summary.max_row + 1):
-        ws_summary.cell(row, 2).number_format = '$#,##0.00;[Red]-$#,##0.00'
+        ws_summary.cell(row, 2).number_format = "$#,##0.00;[Red]-$#,##0.00"
 
-    num_fmt_usd = '$#,##0.00;[Red]-$#,##0.00'
-    num_fmt_rmb = '¥#,##0.00;[Red]-¥#,##0.00'
+    num_fmt_usd = "$#,##0.00;[Red]-$#,##0.00"
+    num_fmt_rmb = "¥#,##0.00;[Red]-¥#,##0.00"
     ws_financial_detail.cell(2, 2).number_format = num_fmt_usd
     ws_financial_detail.cell(2, 3).number_format = num_fmt_usd
     ws_financial_detail.cell(2, 4).number_format = num_fmt_usd
@@ -1441,7 +1813,12 @@ def _parse_transaction_datetime(value: Any) -> datetime:
         tz = timezone(timedelta(hours=TZ_OFFSET_BY_ABBR[parts[1]]))
         return naive.replace(tzinfo=tz).astimezone(UTC)
 
-    for fmt in ("%b %d, %Y %I:%M:%S %p %Z", "%Y-%m-%d %H:%M:%S"):
+    for fmt in (
+        "%b %d, %Y %I:%M:%S %p %Z",
+        "%b %d, %Y %I:%M:%S %p",
+        "%Y-%m-%d %H:%M:%S",
+        "%d.%m.%Y %H:%M:%S",
+    ):
         try:
             parsed = datetime.strptime(text, fmt)
             if parsed.tzinfo is None:
@@ -1687,6 +2064,7 @@ def _load_monthly_cost_totals(
     *,
     report_ids: list[int],
     project_name: str,
+    country: str = "US",
 ) -> dict[int, dict[str, float]]:
     if not report_ids:
         return {}
@@ -1696,6 +2074,7 @@ def _load_monthly_cost_totals(
             select(ProductCost)
             .where(
                 ProductCost.project_name == project_name,
+                ProductCost.country == normalize_country(country),
             )
             .order_by(ProductCost.updated_at.desc(), ProductCost.id.desc())
         )

@@ -510,31 +510,37 @@ MONTHLY_FINANCIAL_SERIES_TTL = 3600  # 1 hour (critical: financial data must ref
 
 def _make_financial_series_cache_key(
     project_id: int,
+    country: str,
     start_month: str | None,
     end_month: str | None,
 ) -> str:
     """Build cache key for monthly financial series data."""
-    return f"{MONTHLY_FINANCIAL_SERIES_KEY_PREFIX}:project:{project_id}:start:{start_month or 'none'}:end:{end_month or 'none'}"
+    return (
+        f"{MONTHLY_FINANCIAL_SERIES_KEY_PREFIX}:project:{project_id}:country:{country}:"
+        f"start:{start_month or 'none'}:end:{end_month or 'none'}"
+    )
 
 
 def get_financial_series_cache(
     project_id: int,
+    country: str,
     start_month: str | None,
     end_month: str | None,
 ) -> dict | None:
     """Get cached monthly financial series data."""
-    key = _make_financial_series_cache_key(project_id, start_month, end_month)
+    key = _make_financial_series_cache_key(project_id, country, start_month, end_month)
     return cache_get(key)
 
 
 def set_financial_series_cache(
     project_id: int,
+    country: str,
     start_month: str | None,
     end_month: str | None,
     data: dict,
 ) -> str:
     """Cache monthly financial series data. Returns the cache key used."""
-    key = _make_financial_series_cache_key(project_id, start_month, end_month)
+    key = _make_financial_series_cache_key(project_id, country, start_month, end_month)
     cache_set(key, data, MONTHLY_FINANCIAL_SERIES_TTL)
     return key
 

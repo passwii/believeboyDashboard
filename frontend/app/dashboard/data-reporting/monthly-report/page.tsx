@@ -15,12 +15,14 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import { cn } from '@/lib/utils'
+import { DEFAULT_REPORT_UPLOAD_COUNTRY, REPORT_UPLOAD_COUNTRY_OPTIONS, type ReportUploadCountry } from '@/components/report-upload/types'
 
 type UploadType = 'payment_report' | 'monthly_summary_pdf'
 type AssignedType = UploadType | 'skip'
 type UploadStatus = 'empty' | 'ready' | 'uploading' | 'success' | 'error'
 
 type ProjectOption = { id?: number | null; name: string }
+type CountryOption = ReportUploadCountry
 
 function ReportFilterSkeleton() {
   return (
@@ -229,6 +231,7 @@ export default function MonthlyReportPage() {
   const [projectLoadError, setProjectLoadError] = useState<string | null>(null)
 
   const [projectName, setProjectName] = useState('')
+  const [country, setCountry] = useState<CountryOption>(DEFAULT_REPORT_UPLOAD_COUNTRY)
   const [reportMonth, setReportMonth] = useState(currentMonthString())
   const [formError, setFormError] = useState<string | null>(null)
 
@@ -440,6 +443,7 @@ export default function MonthlyReportPage() {
     formData.append('file', target.selectedFile)
     formData.append('project_name', projectName.trim())
     formData.append('file_type', type)
+    formData.append('country', country)
 
     try {
       const response = await fetch(`${API_BASE}/api/v1/uploads`, {
@@ -539,6 +543,7 @@ export default function MonthlyReportPage() {
         body: JSON.stringify({
           project_id: projectId,
           project_name: projectName.trim(),
+          country,
           report_month: reportMonth,
           transaction_file_id: transactionFileId,
           summary_pdf_file_id: summaryPdfFileId || undefined,
@@ -726,7 +731,7 @@ export default function MonthlyReportPage() {
             <CardTitle className="text-lg">控制台</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-3 md:grid-cols-3">
               {projectsLoading ? (
                 <ReportFilterSkeleton />
               ) : (
@@ -759,6 +764,25 @@ export default function MonthlyReportPage() {
                   {projectLoadError ? <p className="text-xs text-destructive">{projectLoadError}</p> : null}
                 </div>
               )}
+
+              <div className="space-y-2">
+                <label htmlFor="country" className="text-sm font-medium">国家站点</label>
+                <Select value={country} onValueChange={(value) => setCountry(value as CountryOption)}>
+                  <SelectTrigger
+                    id="country"
+                    className="h-10 transition-all duration-200 data-[state=open]:ring-2 data-[state=open]:ring-blue-500/30"
+                  >
+                    <SelectValue placeholder="请选择国家站点" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {REPORT_UPLOAD_COUNTRY_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
               <div className="space-y-2">
                 <label htmlFor="report_month" className="text-sm font-medium">账期月份</label>

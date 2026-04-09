@@ -10,6 +10,7 @@ from app.models.job import JobStatus
 class CreateMonthlyReportRequest(BaseModel):
     project_id: int | None = Field(default=None, gt=0)
     project_name: str | None = Field(default=None, min_length=1, max_length=128)
+    country: str = Field(default='US', min_length=2, max_length=16)
     report_month: str = Field(min_length=7, max_length=7)
     transaction_file_id: str = Field(min_length=1)
     summary_pdf_file_id: str | None = Field(default=None, min_length=1)
@@ -47,6 +48,7 @@ class MonthlyReportListItem(BaseModel):
     id: int
     project_id: int
     project_name: str
+    country: str
     report_month: str
     version: int
     is_current: bool

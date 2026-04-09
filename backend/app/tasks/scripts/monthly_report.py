@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import csv
 from collections import defaultdict
 from collections.abc import Callable
 from datetime import datetime
@@ -10,6 +9,8 @@ from pathlib import Path
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, NamedStyle, Side
 from openpyxl.utils import get_column_letter
+
+import app.services.payment_report_locale as payment_report_locale
 
 TWO_DP = Decimal("0.01")
 FOUR_DP = Decimal("0.0001")
@@ -58,35 +59,20 @@ def _safe_div_percent_decimal(numerator: Decimal, denominator: Decimal) -> Decim
     return ((abs(numerator) / denominator) * Decimal("100")).quantize(FOUR_DP, rounding=ROUND_HALF_UP)
 
 
-def _read_transactions(input_path: str) -> list[dict[str, object]]:
+def _read_transactions(input_path: str, country: str = 'US') -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
-    with open(input_path, "r", encoding="utf-8-sig", newline="") as fh:
-        reader = csv.reader(fh)
-        header: list[str] | None = None
-        for raw_row in reader:
-            normalized_header = [str(cell).strip() for cell in raw_row]
-            lowered = {cell.lower() for cell in normalized_header if cell}
-            if 'date/time' in lowered and 'type' in lowered:
-                header = normalized_header
-                break
-
-        if header is None:
-            raise ValueError('monthly report header row not found')
-
-        reader = csv.DictReader(fh, fieldnames=header)
-        for row in reader:
-            normalized: dict[str, object] = {}
-            for k, v in row.items():
-                if k is None:
-                    continue
-                normalized[str(k).strip()] = v.strip() if isinstance(v, str) else v
-            if not any(
-                (str(value).strip() if value is not None else "")
-                for value in normalized.values()
-            ):
-                continue
-            normalized["quantity"] = int(_to_decimal(normalized.get("quantity") or 0))
-            rows.append(normalized)
+    payment_df = payment_report_locale.read_payment_report_dataframe(Path(input_path), country=country)
+    for row in payment_df.to_dict(orient='records'):
+        normalized: dict[str, object] = {}
+        for key, value in row.items():
+            normalized[str(key).strip()] = value.strip() if isinstance(value, str) else value
+        if not any(
+            (str(value).strip() if value is not None else "")
+            for value in normalized.values()
+        ):
+            continue
+        normalized["quantity"] = int(_to_decimal(normalized.get("quantity") or 0))
+        rows.append(normalized)
     return rows
 
 
@@ -319,9 +305,10 @@ def run(input_path: str, output_dir: str, params: dict) -> dict:
 
     project_name = _safe_project_name(str(params.get("project_name", "unknown")))
     report_month = str(params.get("report_month", datetime.utcnow().strftime("%Y-%m")))
+    country = payment_report_locale.normalize_country(str(params.get('country', 'US')))
 
     report("reading_transactions", 15, "处理中：正在读取交易数据")
-    all_rows = _read_transactions(input_path)
+    all_rows = _read_transactions(input_path, country)
     report("classifying_transactions", 28, "处理中：正在分类交易数据")
     c = _classify_rows(all_rows)
 

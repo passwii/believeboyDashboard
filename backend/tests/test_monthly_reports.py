@@ -34,10 +34,11 @@ def test_monthly_reports_creates_job(monkeypatch):
     )
 
     def fake_create_task(
-        settings, *, project_id, project_name, report_month, transaction_file_id, summary_pdf_file_id, resolved_file_paths  # noqa: ARG001
+        settings, *, project_id, project_name, country, report_month, transaction_file_id, summary_pdf_file_id, resolved_file_paths  # noqa: ARG001
     ):
         assert project_id == 11
         assert project_name == 'Demo'
+        assert country == 'US'
         assert report_month == '2026-01'
         assert transaction_file_id == 'a.csv'
         assert summary_pdf_file_id == 'b.pdf'
@@ -78,10 +79,11 @@ def test_monthly_reports_creates_job_without_pdf(monkeypatch):
     )
 
     def fake_create_task(
-        settings, *, project_id, project_name, report_month, transaction_file_id, summary_pdf_file_id, resolved_file_paths  # noqa: ARG001
+        settings, *, project_id, project_name, country, report_month, transaction_file_id, summary_pdf_file_id, resolved_file_paths  # noqa: ARG001
     ):
         assert project_id == 11
         assert project_name == 'Demo'
+        assert country == 'US'
         assert report_month == '2026-01'
         assert transaction_file_id == 'a.csv'
         assert summary_pdf_file_id is None
@@ -122,8 +124,8 @@ def test_monthly_report_csv_reader_ignores_none_header_key(tmp_path: Path):
             'meta-5',
             'meta-6',
             'meta-7',
-            'date/time,type,description,quantity',
-            '"Mar 01, 2026 01:23:45 PM UTC",Order,Normal,2,unexpected-extra-cell',
+            'date/time,type,sku,quantity,product sales,shipping credits,promotional rebates,other,selling fees,fba fees,description',
+            '"Mar 01, 2026 01:23:45 PM UTC",Order,SKU1,2,20,0,0,0,-3,-2,Normal',
         ]),
         encoding='utf-8',
     )
@@ -149,8 +151,8 @@ def test_monthly_report_csv_reader_finds_dynamic_header_row(tmp_path: Path):
             'meta-7',
             'meta-8',
             'meta-9',
-            'date/time,type,quantity,total',
-            '"Mar 01, 2026 01:23:45 PM UTC",Order,1,12.34',
+            'date/time,type,sku,quantity,product sales,shipping credits,promotional rebates,other,selling fees,fba fees,total',
+            '"Mar 01, 2026 01:23:45 PM UTC",Order,SKU1,1,12.34,0,0,0,-1,-0.5,10.84',
         ]),
         encoding='utf-8',
     )
@@ -174,9 +176,9 @@ def test_monthly_report_csv_reader_skips_blank_rows(tmp_path: Path):
             'meta-5',
             'meta-6',
             'meta-7',
-            'date/time,type,quantity',
-            ',,',
-            '"Mar 01, 2026 01:23:45 PM UTC",Order,1',
+            'date/time,type,sku,quantity,product sales,shipping credits,promotional rebates,other,selling fees,fba fees',
+            ',,,,,,,,,',
+            '"Mar 01, 2026 01:23:45 PM UTC",Order,SKU1,1,12.34,0,0,0,-1,-0.5',
         ]),
         encoding='utf-8',
     )
@@ -188,14 +190,36 @@ def test_monthly_report_csv_reader_skips_blank_rows(tmp_path: Path):
     assert rows[0]['quantity'] == 1
 
 
+def test_monthly_report_csv_reader_supports_de_locale(tmp_path: Path):
+    sample = tmp_path / 'sample_de.csv'
+    sample.write_text(
+        '\n'.join([
+            'meta-1',
+            'meta-2',
+            'date/time;typ;sku;menge;umsätze;gutschrift für versandkosten;rabatte aus werbeaktionen;andere;verkaufsgebühren;gebühren zu versand durch amazon',
+            '"Mar 01, 2026 01:23:45 PM UTC";bestellung;SKU-DE;2;1.234,56;0,00;0,00;0,00;-12,34;-45,67',
+        ]),
+        encoding='utf-8',
+    )
+
+    rows = monthly_report_script._read_transactions(str(sample), 'DE')
+
+    assert len(rows) == 1
+    assert rows[0]['type'] == 'Order'
+    assert rows[0]['sku'] == 'SKU-DE'
+    assert rows[0]['quantity'] == 2
+    assert rows[0]['product sales'] == 1234.56
+
+
 def test_monthly_reports_list(monkeypatch):
     monkeypatch.setattr(
         'app.api.v1.endpoints.monthly_reports.monthly_report_service.list_reports',
-        lambda db, project_id=None, report_month=None, current_only=True: [
+        lambda db, project_id=None, country=None, report_month=None, current_only=True: [
             SimpleNamespace(
                 id=1,
                 project_id=11,
                 project_name='Demo',
+                country='US',
                 report_month='2026-01',
                 version=2,
                 is_current=True,
@@ -229,8 +253,9 @@ def test_monthly_reports_list(monkeypatch):
 def test_monthly_reports_list_include_history(monkeypatch):
     captured: dict[str, bool] = {}
 
-    def fake_list_reports(db, project_id=None, report_month=None, current_only=True):  # noqa: ARG001
+    def fake_list_reports(db, project_id=None, country=None, report_month=None, current_only=True):  # noqa: ARG001
         captured['current_only'] = current_only
+        captured['country'] = country
         return []
 
     monkeypatch.setattr('app.api.v1.endpoints.monthly_reports.monthly_report_service.list_reports', fake_list_reports)
@@ -238,6 +263,7 @@ def test_monthly_reports_list_include_history(monkeypatch):
     response = client.get('/api/v1/monthly-reports?include_history=true', headers={'X-API-Key': get_settings().api_key})
     assert response.status_code == 200
     assert captured['current_only'] is False
+    assert captured['country'] is None
 
 
 def test_monthly_reports_detail(monkeypatch):
@@ -248,6 +274,7 @@ def test_monthly_reports_detail(monkeypatch):
                 id=report_id,
                 project_id=11,
                 project_name='Demo',
+                country='US',
                 report_month='2026-01',
                 version=2,
                 is_current=True,
@@ -291,6 +318,7 @@ def test_monthly_reports_export(monkeypatch):
         'app.api.v1.endpoints.monthly_reports.monthly_report_service.get_report_or_404',
         lambda db, report_id: SimpleNamespace(
             id=report_id,
+            project_id=11,
             status=JobStatus.success,
             result_file_path=str(Path(__file__).resolve()),
         ),  # noqa: ARG005
@@ -360,7 +388,7 @@ def test_monthly_report_financial_series_api(monkeypatch):
     )
     monkeypatch.setattr(
         'app.api.v1.endpoints.monthly_reports.monthly_report_service.get_financial_series',
-        lambda db, project_id, start_month, end_month, fill_missing: {  # noqa: ARG005
+        lambda db, project_id, country, start_month, end_month, fill_missing: {  # noqa: ARG005
             'project_id': project_id,
             'project_name': 'Demo',
             'start_month': '2025-07',
@@ -404,7 +432,7 @@ def test_monthly_report_financial_series_api(monkeypatch):
     )
 
     response = client.get(
-        '/api/v1/monthly-reports/financial-series?project_id=11&start_month=2025-07&end_month=2025-09',
+        '/api/v1/monthly-reports/financial-series?project_id=11&country=US&start_month=2025-07&end_month=2025-09',
         headers={'X-API-Key': get_settings().api_key},
     )
     assert response.status_code == 200

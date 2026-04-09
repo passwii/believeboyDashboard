@@ -31,9 +31,9 @@ def _money_column() -> Mapped[Decimal]:
 class MonthlyReport(Base):
     __tablename__ = 'monthly_reports'
     __table_args__ = (
-        UniqueConstraint('project_id', 'report_month', 'version', name='monthly_reports_project_month_version_key'),
-        Index('idx_monthly_reports_project_month', 'project_id', 'report_month'),
-        Index('idx_monthly_reports_project_month_current', 'project_id', 'report_month', 'is_current'),
+        UniqueConstraint('project_id', 'country', 'report_month', 'version', name='monthly_reports_project_country_month_version_key'),
+        Index('idx_monthly_reports_project_country_month', 'project_id', 'country', 'report_month'),
+        Index('idx_monthly_reports_project_country_month_current', 'project_id', 'country', 'report_month', 'is_current'),
         CheckConstraint("report_month LIKE '____-__'", name='ck_monthly_reports_report_month_format'),
     )
 
@@ -49,6 +49,7 @@ class MonthlyReport(Base):
         index=True,
     )
     project_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    country: Mapped[str] = mapped_column(String(2), nullable=False, default='US', server_default='US', index=True)
     report_month: Mapped[str] = mapped_column(String(7), nullable=False, index=True)
     version: Mapped[int] = mapped_column(Integer, nullable=False, server_default='1')
     is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default='true', index=True)

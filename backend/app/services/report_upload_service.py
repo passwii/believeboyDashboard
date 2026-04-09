@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 import warnings
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 from fastapi import HTTPException, status
@@ -49,6 +50,11 @@ STATUS_REPORT_TYPES = [
     "sales_report",
     "payment_report",
 ]
+COUNTRY_TIMEZONE = {
+    "US": ZoneInfo("America/Los_Angeles"),
+    "DE": ZoneInfo("Europe/Berlin"),
+    "UK": ZoneInfo("Europe/London"),
+}
 
 
 @dataclass
@@ -116,6 +122,23 @@ def _date_to_string(value: object) -> str | None:
     if parsed is None or pd.isna(parsed):
         return None
     return parsed.strftime("%Y-%m-%d")
+
+
+def _date_to_string_by_country(value: object, country: str) -> str | None:
+    if value is None or value == "":
+        return None
+    try:
+        parsed = pd.to_datetime(value, errors="coerce")
+    except Exception:  # noqa: BLE001
+        return None
+    if parsed is None or pd.isna(parsed):
+        return None
+
+    if parsed.tzinfo is None:
+        return parsed.strftime("%Y-%m-%d")
+
+    timezone = COUNTRY_TIMEZONE.get(country, COUNTRY_TIMEZONE["US"])
+    return parsed.tz_convert(timezone).strftime("%Y-%m-%d")
 
 
 def _build_project_match(
@@ -187,23 +210,29 @@ def _build_project_match(
 
 
 def _recognize_inventory_report(
-    db: Session, path: Path, *, allowed_projects: set[str] | None = None
+    db: Session,
+    path: Path,
+    *,
+    country: str = "US",
+    allowed_projects: set[str] | None = None,
 ) -> RecognitionPayload:
     df = _normalize_columns(pd.read_csv(path, sep="\t", encoding="utf-8-sig"))
     required = ["snapshot-date", "sku", "asin"]
     missing = [column for column in required if column not in df.columns]
     if missing:
         raise ValueError(f"Inventory report missing required columns: {missing}")
-    detected_snapshot_date = _date_to_string(
+    detected_snapshot_date = _date_to_string_by_country(
         df["snapshot-date"].dropna().iloc[0]
         if not df["snapshot-date"].dropna().empty
-        else None
+        else None,
+        country,
     )
 
     project_match = _build_project_match(
         db,
         values=df["sku"].dropna().astype(str).tolist(),
         match_by="sku",
+        country=country,
         allowed_projects=allowed_projects,
     )
     return RecognitionPayload(
@@ -220,7 +249,11 @@ def _recognize_inventory_report(
 
 
 def _recognize_business_report(
-    db: Session, path: Path, *, allowed_projects: set[str] | None = None
+    db: Session,
+    path: Path,
+    *,
+    country: str = "US",
+    allowed_projects: set[str] | None = None,
 ) -> RecognitionPayload:
     df = _normalize_columns(pd.read_csv(path, encoding="utf-8-sig"))
     asin_column = next(
@@ -238,6 +271,7 @@ def _recognize_business_report(
         db,
         values=df[asin_column].dropna().astype(str).tolist(),
         match_by="asin",
+        country=country,
         allowed_projects=allowed_projects,
     )
     return RecognitionPayload(
@@ -251,7 +285,11 @@ def _recognize_business_report(
 
 
 def _recognize_payment_report(
-    db: Session, path: Path, *, allowed_projects: set[str] | None = None
+    db: Session,
+    path: Path,
+    *,
+    country: str = "US",
+    allowed_projects: set[str] | None = None,
 ) -> RecognitionPayload:
     df = product_analysis_script._read_payment_report(path)
     df = _normalize_columns(df)
@@ -262,6 +300,7 @@ def _recognize_payment_report(
         db,
         values=df["sku"].dropna().astype(str).tolist(),
         match_by="sku",
+        country=country,
         allowed_projects=allowed_projects,
     )
     return RecognitionPayload(
@@ -275,7 +314,11 @@ def _recognize_payment_report(
 
 
 def _recognize_sales_report(
-    db: Session, path: Path, *, allowed_projects: set[str] | None = None
+    db: Session,
+    path: Path,
+    *,
+    country: str = "US",
+    allowed_projects: set[str] | None = None,
 ) -> RecognitionPayload:
     df = _normalize_columns(pd.read_csv(path, sep="\t", encoding="utf-8-sig"))
     required = ["purchase-date", "sku", "asin"]
@@ -288,11 +331,10 @@ def _recognize_sales_report(
     detected_start_date: str | None = None
     detected_end_date: str | None = None
     if not purchase_dates.empty:
-        pt_dates = purchase_dates.dt.tz_convert("America/Los_Angeles").dt.strftime(
-            "%Y-%m-%d"
-        )
-        detected_start_date = str(pt_dates.min())
-        detected_end_date = str(pt_dates.max())
+        local_tz = COUNTRY_TIMEZONE.get(country, COUNTRY_TIMEZONE["US"])
+        local_dates = purchase_dates.dt.tz_convert(local_tz).dt.strftime("%Y-%m-%d")
+        detected_start_date = str(local_dates.min())
+        detected_end_date = str(local_dates.max())
     is_periodic_range = bool(
         detected_start_date
         and detected_end_date
@@ -303,6 +345,7 @@ def _recognize_sales_report(
         db,
         values=df["sku"].dropna().astype(str).tolist(),
         match_by="sku",
+        country=country,
         allowed_projects=allowed_projects,
     )
     return RecognitionPayload(
@@ -319,7 +362,11 @@ def _recognize_sales_report(
 
 
 def _recognize_ad_product_report(
-    db: Session, path: Path, *, allowed_projects: set[str] | None = None
+    db: Session,
+    path: Path,
+    *,
+    country: str = "US",
+    allowed_projects: set[str] | None = None,
 ) -> RecognitionPayload:
     df = _normalize_columns(_read_excel(path))
     required = ["开始日期", "结束日期", "广告SKU", "广告ASIN"]
@@ -331,29 +378,31 @@ def _recognize_ad_product_report(
         db,
         values=df["广告SKU"].dropna().astype(str).tolist(),
         match_by="sku",
+        country=country,
         allowed_projects=allowed_projects,
     )
-    detected_end_date = _date_to_string(
-        df["结束日期"].dropna().iloc[0] if not df["结束日期"].dropna().empty else None
-    )
-    country = _normalize_country(
-        df["国家/地区"].dropna().iloc[0]
-        if "国家/地区" in df.columns and not df["国家/地区"].dropna().empty
-        else "US"
+    detected_end_date = _date_to_string_by_country(
+        df["结束日期"].dropna().iloc[0] if not df["结束日期"].dropna().empty else None,
+        country,
     )
     warnings_list: list[str] = []
-    if country != "US":
-        warnings_list.append("当前版本默认按 US 站点处理，检测到的国家信息未参与分流")
+    if "国家/地区" in df.columns and not df["国家/地区"].dropna().empty:
+        file_country = _normalize_country(df["国家/地区"].dropna().iloc[0])
+        if file_country != country:
+            warnings_list.append(
+                f"文件内国家/地区为 {file_country}，当前按所选站点 {country} 处理"
+            )
     return RecognitionPayload(
         report_type=AD_PRODUCT_REPORT,
         matched_columns=required,
         reason="命中开始日期 / 结束日期 / 广告SKU / 广告ASIN",
         date_input_mode="single_detected",
         detected_date=detected_end_date,
-        detected_start_date=_date_to_string(
+        detected_start_date=_date_to_string_by_country(
             df["开始日期"].dropna().iloc[0]
             if not df["开始日期"].dropna().empty
-            else None
+            else None,
+            country,
         ),
         detected_end_date=detected_end_date,
         project_match=project_match,
@@ -363,7 +412,9 @@ def _recognize_ad_product_report(
     )
 
 
-def _recognize_ad_search_term_report(path: Path) -> RecognitionPayload:
+def _recognize_ad_search_term_report(
+    path: Path, *, country: str = "US"
+) -> RecognitionPayload:
     df = _normalize_columns(_read_excel(path))
     required = ["开始日期", "结束日期"]
     missing = [column for column in required if column not in df.columns]
@@ -394,7 +445,7 @@ def _recognize_ad_search_term_report(path: Path) -> RecognitionPayload:
             status="manual", message="该报表项目需手动选择"
         ),
         row_count_preview=len(df.index),
-        country="US",
+        country=country,
     )
 
 
@@ -429,11 +480,17 @@ def recognize_saved_report_upload(
             )
             if "snapshot-date" in header and "\tsku\t" in header:
                 payload = _recognize_inventory_report(
-                    db, path, allowed_projects=allowed_projects
+                    db,
+                    path,
+                    country=normalized_country,
+                    allowed_projects=allowed_projects,
                 )
             elif "purchase-date" in header and "\tsku\t" in header:
                 payload = _recognize_sales_report(
-                    db, path, allowed_projects=allowed_projects
+                    db,
+                    path,
+                    country=normalized_country,
+                    allowed_projects=allowed_projects,
                 )
             else:
                 raise ValueError("未命中 txt 报表识别规则")
@@ -446,21 +503,32 @@ def recognize_saved_report_upload(
             joined = "\n".join(first_lines)
             if "Includes Amazon Marketplace" in joined:
                 payload = _recognize_payment_report(
-                    db, path, allowed_projects=allowed_projects
+                    db,
+                    path,
+                    country=normalized_country,
+                    allowed_projects=allowed_projects,
                 )
             else:
                 payload = _recognize_business_report(
-                    db, path, allowed_projects=allowed_projects
+                    db,
+                    path,
+                    country=normalized_country,
+                    allowed_projects=allowed_projects,
                 )
         elif extension == ".xlsx":
             df = _normalize_columns(_read_excel(path))
             columns = set(df.columns)
             if {"广告SKU", "广告ASIN"}.issubset(columns):
                 payload = _recognize_ad_product_report(
-                    db, path, allowed_projects=allowed_projects
+                    db,
+                    path,
+                    country=normalized_country,
+                    allowed_projects=allowed_projects,
                 )
             elif {"开始日期", "结束日期", "投放", "客户搜索词"}.issubset(columns):
-                payload = _recognize_ad_search_term_report(path)
+                payload = _recognize_ad_search_term_report(
+                    path, country=normalized_country
+                )
             else:
                 raise ValueError("未命中 xlsx 报表识别规则")
         else:
@@ -594,7 +662,7 @@ def commit_report_upload(
         report_date = (payload.report_date or "").strip()
         if not report_date:
             recognized = _recognize_inventory_report(
-                db, Path(str(file_meta["file_path"]))
+                db, Path(str(file_meta["file_path"])), country=country
             )
             report_date = (recognized.detected_date or "").strip()
         if not report_date:
@@ -650,7 +718,7 @@ def commit_report_upload(
         report_date = (payload.report_date or "").strip()
         if not report_date:
             recognized = _recognize_ad_product_report(
-                db, Path(str(file_meta["file_path"]))
+                db, Path(str(file_meta["file_path"])), country=country
             )
             report_date = (recognized.detected_date or "").strip()
         if not report_date:

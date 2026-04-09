@@ -57,6 +57,7 @@ def create_task(
     *,
     project_id: int | None,
     project_name: str,
+    country: str,
     report_month: str,
     transaction_file_id: str,
     summary_pdf_file_id: str | None,
@@ -79,6 +80,7 @@ def create_task(
     payload = {
         'project_id': project_id,
         'project_name': project_name,
+        'country': country,
         'report_month': report_month,
         'transaction_file_id': transaction_file_id,
         'summary_pdf_file_id': summary_pdf_file_id,
@@ -178,6 +180,7 @@ def _run_task(task_id: int, settings: Settings, payload: dict[str, Any]) -> None
         output_dir = settings.result_root / f'monthly-runtime-{task_id}'
         params = {
             'project_name': payload['project_name'],
+            'country': payload['country'],
             'report_month': payload['report_month'],
             'file_ids': {
                 'transaction_report': payload['transaction_file_id'],
@@ -239,6 +242,7 @@ def _persist_monthly_report(task_id: int, payload: dict[str, Any], result: dict[
             db,
             project_id=project_id,
             project_name=project_name,
+            country=str(payload.get('country') or 'US'),
             report_month=report_month,
             transaction_file_id=transaction_file_id,
             transaction_file_path=transaction_file_path,

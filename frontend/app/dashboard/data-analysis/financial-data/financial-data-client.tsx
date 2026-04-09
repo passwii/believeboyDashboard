@@ -59,6 +59,7 @@ import { getClientCache, setClientCache } from '@/lib/client-cache'
 import { resolveProjectCommissionUsd } from '@/lib/commission'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
+import { DEFAULT_REPORT_UPLOAD_COUNTRY, REPORT_UPLOAD_COUNTRY_OPTIONS, type ReportUploadCountry } from '@/components/report-upload/types'
 
 export type ProjectOption = {
   id: number | null
@@ -149,10 +150,11 @@ const EXCHANGE_RATE_CACHE_KEY = 'financial:exchange-rate:USD'
 
 function financialSeriesCacheKey(
   projectId: number,
+  country: string,
   startMonth: string,
   endMonth: string,
 ): string {
-  return `financial:series:${projectId}:${startMonth || 'none'}:${endMonth || 'none'}`
+  return `financial:series:${projectId}:${country}:${startMonth || 'none'}:${endMonth || 'none'}`
 }
 
 function buildMonthRateMap(
@@ -256,6 +258,10 @@ function formatMonth(month: string): string {
   const monInt = Number(mon)
   if (!year || Number.isNaN(monInt)) return month
   return `${year}年${monInt}月`
+}
+
+function isMonthWithinRange(month: string, startMonth: string, endMonth: string): boolean {
+  return month >= startMonth && month <= endMonth
 }
 
 function calculateNetProfitUsd(row: FinancialSeriesRow, exchangeRate: number): number {
@@ -372,6 +378,92 @@ type FinancialExportDetailRow = {
   refundRatio: number
   paybackRatio: number
   hasSourceReport: boolean
+}
+
+type FinancialExportTotals = {
+  incomeSales: number
+  incomeRefund: number
+  incomeAdjustment: number
+  incomeOther: number
+  expenseSellingFee: number
+  expenseFbaFee: number
+  expenseInventoryFee: number
+  expenseServiceFee: number
+  expenseAdvertising: number
+  expenseOtherFees: number
+  incomeTotal: number
+  expenseTotal: number
+  amazonPayBack: number
+  creditCardDeductionUsd: number
+  fobCostRmb: number
+  firstLegCostRmb: number
+  netProfitRmb: number
+  netProfitUsd: number
+  evaluationFeeRmb: number
+  prepaymentOtherRmb: number
+  operationCommissionRmb: number
+  payableTotalRmb: number
+  exchangeRateSum: number
+  exchangeRateCount: number
+}
+
+function buildFinancialExportTotals(rows: FinancialExportDetailRow[]): FinancialExportTotals {
+  return rows.reduce<FinancialExportTotals>(
+    (acc, row) => ({
+      incomeSales: acc.incomeSales + row.incomeSales,
+      incomeRefund: acc.incomeRefund + row.incomeRefund,
+      incomeAdjustment: acc.incomeAdjustment + row.incomeAdjustment,
+      incomeOther: acc.incomeOther + row.incomeOther,
+      expenseSellingFee: acc.expenseSellingFee + row.expenseSellingFee,
+      expenseFbaFee: acc.expenseFbaFee + row.expenseFbaFee,
+      expenseInventoryFee: acc.expenseInventoryFee + row.expenseInventoryFee,
+      expenseServiceFee: acc.expenseServiceFee + row.expenseServiceFee,
+      expenseAdvertising: acc.expenseAdvertising + row.expenseAdvertising,
+      expenseOtherFees: acc.expenseOtherFees + row.expenseOtherFees,
+      incomeTotal: acc.incomeTotal + row.incomeTotal,
+      expenseTotal: acc.expenseTotal + row.expenseTotal,
+      amazonPayBack: acc.amazonPayBack + row.amazonPayBack,
+      creditCardDeductionUsd:
+        acc.creditCardDeductionUsd + row.creditCardDeductionUsd,
+      fobCostRmb: acc.fobCostRmb + row.fobCostRmb,
+      firstLegCostRmb: acc.firstLegCostRmb + row.firstLegCostRmb,
+      netProfitRmb: acc.netProfitRmb + row.netProfitRmb,
+      netProfitUsd: acc.netProfitUsd + row.netProfitUsd,
+      evaluationFeeRmb: acc.evaluationFeeRmb + row.evaluationFeeRmb,
+      prepaymentOtherRmb: acc.prepaymentOtherRmb + row.prepaymentOtherRmb,
+      operationCommissionRmb:
+        acc.operationCommissionRmb + (row.operationCommissionRmb ?? 0),
+      payableTotalRmb: acc.payableTotalRmb + (row.payableTotalRmb ?? 0),
+      exchangeRateSum: acc.exchangeRateSum + (row.exchangeRate > 0 ? row.exchangeRate : 0),
+      exchangeRateCount: acc.exchangeRateCount + (row.exchangeRate > 0 ? 1 : 0),
+    }),
+    {
+      incomeSales: 0,
+      incomeRefund: 0,
+      incomeAdjustment: 0,
+      incomeOther: 0,
+      expenseSellingFee: 0,
+      expenseFbaFee: 0,
+      expenseInventoryFee: 0,
+      expenseServiceFee: 0,
+      expenseAdvertising: 0,
+      expenseOtherFees: 0,
+      incomeTotal: 0,
+      expenseTotal: 0,
+      amazonPayBack: 0,
+      creditCardDeductionUsd: 0,
+      fobCostRmb: 0,
+      firstLegCostRmb: 0,
+      netProfitRmb: 0,
+      netProfitUsd: 0,
+      evaluationFeeRmb: 0,
+      prepaymentOtherRmb: 0,
+      operationCommissionRmb: 0,
+      payableTotalRmb: 0,
+      exchangeRateSum: 0,
+      exchangeRateCount: 0,
+    },
+  )
 }
 
 const EXPORT_DETAIL_COLUMNS = [
@@ -630,6 +722,7 @@ export default function FinancialDataClient({
   const [projectLoadError, setProjectLoadError] = useState<string | null>(null)
 
   const [projectId, setProjectId] = useState(initialProjectId)
+  const [country, setCountry] = useState<ReportUploadCountry>(DEFAULT_REPORT_UPLOAD_COUNTRY)
   const [startMonth, setStartMonth] = useState(initialStartMonth)
   const [endMonth, setEndMonth] = useState(initialEndMonth)
 
@@ -748,6 +841,7 @@ export default function FinancialDataClient({
       const useCache = !options?.force
       const cacheKey = financialSeriesCacheKey(
         parsedProjectId,
+        country,
         startMonth,
         endMonth,
       )
@@ -774,6 +868,7 @@ export default function FinancialDataClient({
       try {
         const search = new URLSearchParams({
           project_id: String(parsedProjectId),
+          country,
           fill_missing: 'true',
         })
         if (startMonth) search.set('start_month', startMonth)
@@ -810,7 +905,7 @@ export default function FinancialDataClient({
         }
       }
     },
-    [projectId, startMonth, endMonth],
+    [projectId, country, startMonth, endMonth],
   )
 
   const recalculateFinancialSeries = useCallback(async () => {
@@ -826,6 +921,7 @@ export default function FinancialDataClient({
     try {
       const search = new URLSearchParams({
         project_id: String(parsedProjectId),
+        country,
         fill_missing: 'true',
       })
       if (startMonth) search.set('start_month', startMonth)
@@ -847,6 +943,7 @@ export default function FinancialDataClient({
       setData(payload)
       const cacheKey = financialSeriesCacheKey(
         parsedProjectId,
+        country,
         startMonth,
         endMonth,
       )
@@ -857,7 +954,7 @@ export default function FinancialDataClient({
     } finally {
       setRecalculating(false)
     }
-  }, [projectId, startMonth, endMonth])
+  }, [projectId, country, startMonth, endMonth])
 
   const accountingMonthOptions = useMemo(() => {
     const rows = data?.rows ?? []
@@ -887,6 +984,7 @@ export default function FinancialDataClient({
     try {
       const search = new URLSearchParams({
         project_id: String(parsedProjectId),
+        country,
         report_month: accountingMonth,
       })
       const response = await fetch(
@@ -909,7 +1007,7 @@ export default function FinancialDataClient({
     } finally {
       setAccountingLoading(false)
     }
-  }, [accountingMonth, projectId])
+  }, [accountingMonth, projectId, country])
 
   useEffect(() => {
     if (activeTab !== 'accounting' || !accountingMonth) return
@@ -927,6 +1025,7 @@ export default function FinancialDataClient({
     try {
       const search = new URLSearchParams({
         project_id: String(parsedProjectId),
+        country,
         report_month: accountingMonth,
       })
       const response = await fetch(
@@ -955,6 +1054,7 @@ export default function FinancialDataClient({
         targetId: projectId,
         after: {
           project_id: projectId,
+          country,
           report_month: accountingMonth,
           filename,
         },
@@ -966,13 +1066,14 @@ export default function FinancialDataClient({
     } finally {
       setAccountingExporting(false)
     }
-  }, [accountingMonth, projectId])
+  }, [accountingMonth, projectId, country])
 
   useEffect(() => {
     if (initialData) {
       setClientCache(
         financialSeriesCacheKey(
           initialData.project_id,
+          country,
           initialStartMonth,
           initialEndMonth,
         ),
@@ -984,6 +1085,7 @@ export default function FinancialDataClient({
     }
   }, [
     initialData,
+    country,
     initialEndMonth,
     initialExchangeRateByMonth,
     initialStartMonth,
@@ -1254,6 +1356,48 @@ export default function FinancialDataClient({
       return
     }
 
+    const exportTrendPoints = data.trend.points.filter((point) =>
+      isMonthWithinRange(point.report_month, data.start_month, data.end_month),
+    )
+    const exportDetailRows = detailExportRows.filter((_, index) =>
+      isMonthWithinRange(
+        data.rows[index]?.report_month ?? '',
+        data.start_month,
+        data.end_month,
+      ),
+    )
+    if (exportDetailRows.length === 0) {
+      setError('当前没有可导出的月度财务数据。')
+      return
+    }
+
+    const exportTotals = buildFinancialExportTotals(exportDetailRows)
+    const exportTrendSummary = exportTrendPoints
+      .filter((point) => point.has_source_report)
+      .slice(-2)
+    const exportTrends = {
+      income:
+        exportTrendSummary.length === 2 && exportTrendSummary[0].income_total !== 0
+          ? ((exportTrendSummary[1].income_total - exportTrendSummary[0].income_total) /
+              Math.abs(exportTrendSummary[0].income_total)) *
+            100
+          : 0,
+      expense:
+        exportTrendSummary.length === 2 && exportTrendSummary[0].expense_total !== 0
+          ? ((exportTrendSummary[1].expense_total - exportTrendSummary[0].expense_total) /
+              Math.abs(exportTrendSummary[0].expense_total)) *
+            100
+          : 0,
+      amazon:
+        exportTrendSummary.length === 2 &&
+        exportTrendSummary[0].amazon_pay_back !== 0
+          ? ((exportTrendSummary[1].amazon_pay_back -
+              exportTrendSummary[0].amazon_pay_back) /
+              Math.abs(exportTrendSummary[0].amazon_pay_back)) *
+            100
+          : 0,
+    }
+
     setExporting(true)
     setError(null)
     try {
@@ -1266,10 +1410,10 @@ export default function FinancialDataClient({
       )
 
       const summarySheet = workbook.addWorksheet('汇总', {
-        views: [{ state: 'frozen', ySplit: 4, xSplit: 1 }],
+        views: [{ state: 'frozen', ySplit: 4, xSplit: 1, activeCell: 'A5' }],
       })
       const detailSheet = workbook.addWorksheet('月度财务明细', {
-        views: [{ state: 'frozen', ySplit: 5, xSplit: 1 }],
+        views: [{ state: 'frozen', ySplit: 5, xSplit: 1, activeCell: 'A6' }],
       })
 
       const summaryLastColumn = 4
@@ -1303,45 +1447,60 @@ export default function FinancialDataClient({
 
       const kpiHeader = summarySheet.getRow(4)
       kpiHeader.values = ['指标', '数值', '说明', '趋势']
+      kpiHeader.height = 28
       kpiHeader.eachCell((cell) => {
         cell.font = {
           name: 'Microsoft YaHei',
+          size: 11,
           bold: true,
           color: { argb: 'FF0F172A' },
         }
-        cell.alignment = { vertical: 'middle', horizontal: 'center' }
+        cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
         cell.fill = {
           type: 'pattern',
           pattern: 'solid',
           fgColor: { argb: 'FFE2E8F0' },
         }
-        applyExcelBorder(cell, 'FFCBD5E1')
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        }
       })
 
       const summaryKpis: Array<[string, number, string, number]> = [
         [
           '收入合计',
-          data.trend.income_total_sum,
+          exportTotals.incomeTotal,
           '所选区间全部平台收入汇总',
-          trends.income,
+          exportTrends.income,
         ],
         [
           '支出合计',
-          data.trend.expense_total_sum,
+          exportTotals.expenseTotal,
           '所选区间全部平台支出汇总',
-          trends.expense,
+          exportTrends.expense,
         ],
         [
           '亚马逊返款',
-          data.trend.amazon_pay_back_sum,
+          exportTotals.amazonPayBack,
           '所选区间返款总额',
-          trends.amazon,
+          exportTrends.amazon,
         ],
-        ['净额合计', data.trend.net_amount_sum, '收入减支出后的净值', 0],
+        [
+          '净额合计',
+          exportTrendPoints.reduce((sum, point) => sum + point.net_amount, 0),
+          '收入减支出后的净值',
+          0,
+        ],
       ]
 
       summaryKpis.forEach((item, index) => {
         const row = summarySheet.getRow(index + 5)
+        row.height = 24
+        const isEvenRow = index % 2 === 0
+        const rowBgColor = isEvenRow ? 'FFFFFFFF' : 'FFF8FAFC'
         row.getCell(1).value = item[0]
         row.getCell(2).value = item[1]
         row.getCell(2).numFmt = '$#,##0.00;[Red]-$#,##0.00'
@@ -1349,10 +1508,15 @@ export default function FinancialDataClient({
         row.getCell(4).value = item[3] / 100
         row.getCell(4).numFmt = '0.0%'
         row.eachCell((cell, col) => {
-          cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF0F172A' } }
+          cell.font = { name: 'Microsoft YaHei', size: 10, color: { argb: 'FF0F172A' } }
           cell.alignment = {
             vertical: 'middle',
             horizontal: col === 2 || col === 4 ? 'right' : 'left',
+          }
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: rowBgColor },
           }
           applyExcelBorder(cell)
         })
@@ -1380,23 +1544,33 @@ export default function FinancialDataClient({
 
       const trendHeader = summarySheet.getRow(trendStartRow + 1)
       trendHeader.values = ['月份', '收入合计', '支出合计', '亚马逊返款']
+      trendHeader.height = 28
       trendHeader.eachCell((cell) => {
         cell.font = {
           name: 'Microsoft YaHei',
+          size: 11,
           bold: true,
           color: { argb: 'FF0F172A' },
         }
-        cell.alignment = { vertical: 'middle', horizontal: 'center' }
+        cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
         cell.fill = {
           type: 'pattern',
           pattern: 'solid',
           fgColor: { argb: 'FFE2E8F0' },
         }
-        applyExcelBorder(cell, 'FFCBD5E1')
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        }
       })
 
-      data.trend.points.forEach((point, index) => {
+      exportTrendPoints.forEach((point, index) => {
         const row = summarySheet.getRow(trendStartRow + 2 + index)
+        row.height = 24
+        const isEvenRow = index % 2 === 0
+        const rowBgColor = isEvenRow ? 'FFFFFFFF' : 'FFF8FAFC'
         row.values = [
           formatMonth(point.report_month),
           point.income_total,
@@ -1404,10 +1578,15 @@ export default function FinancialDataClient({
           point.amazon_pay_back,
         ]
         row.eachCell((cell, colNumber) => {
-          cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF0F172A' } }
+          cell.font = { name: 'Microsoft YaHei', size: 10, color: { argb: 'FF0F172A' } }
           cell.alignment = {
             vertical: 'middle',
             horizontal: colNumber === 1 ? 'left' : 'right',
+          }
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: rowBgColor },
           }
           if (colNumber > 1) cell.numFmt = '$#,##0.00;[Red]-$#,##0.00'
           applyExcelBorder(cell)
@@ -1462,6 +1641,8 @@ export default function FinancialDataClient({
 
       const groupRow = detailSheet.getRow(4)
       const headRow = detailSheet.getRow(5)
+      groupRow.height = 24
+      headRow.height = 28
       let currentColumn = 1
       Array.from(
         new Set(activeExportColumns.map((column) => column.group)),
@@ -1479,6 +1660,7 @@ export default function FinancialDataClient({
         groupCell.value = group
         groupCell.font = {
           name: 'Microsoft YaHei',
+          size: 11,
           bold: true,
           color: { argb: 'FF0F172A' },
         }
@@ -1488,12 +1670,18 @@ export default function FinancialDataClient({
           pattern: 'solid',
           fgColor: { argb: groupColors[group] ?? 'FFE2E8F0' },
         }
-        applyExcelBorder(groupCell, 'FFCBD5E1')
+        groupCell.border = {
+          top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        }
       })
       ;[groupRow, headRow].forEach((row) => {
         row.eachCell((cell) => {
           cell.font = {
             name: 'Microsoft YaHei',
+            size: 11,
             bold: true,
             color: { argb: 'FF0F172A' },
           }
@@ -1509,12 +1697,23 @@ export default function FinancialDataClient({
               fgColor: { argb: 'FFE2E8F0' },
             }
           }
-          applyExcelBorder(cell, 'FFCBD5E1')
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+            left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+            bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+            right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          }
         })
       })
 
-      detailExportRows.forEach((rowData, index) => {
+      const CONTENT_ROW_HEIGHT = 24
+
+      exportDetailRows.forEach((rowData, index) => {
         const row = detailSheet.getRow(index + 6)
+        row.height = CONTENT_ROW_HEIGHT
+        const isEvenRow = index % 2 === 0
+        const rowBgColor = isEvenRow ? 'FFFFFFFF' : 'FFF8FAFC'
+
         activeExportColumns.forEach((column, columnIndex) => {
           const cell = row.getCell(columnIndex + 1)
           const value = rowData[column.key]
@@ -1522,6 +1721,7 @@ export default function FinancialDataClient({
             column.format === 'boolean' ? (value ? '有' : '无') : (value ?? '-')
           cell.font = {
             name: 'Microsoft YaHei',
+            size: 10,
             color: {
               argb: column.key === 'monthLabel' ? 'FF0F172A' : 'FF334155',
             },
@@ -1534,110 +1734,117 @@ export default function FinancialDataClient({
                 ? 'left'
                 : 'right',
           }
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: rowBgColor },
+          }
           const numFmt = getExcelNumFmt(column.format)
           if (typeof value === 'number' && numFmt) cell.numFmt = numFmt
           applyExcelBorder(cell)
         })
       })
 
-      const totalRow = detailSheet.getRow(detailExportRows.length + 6)
+      const totalRow = detailSheet.getRow(exportDetailRows.length + 6)
+      totalRow.height = CONTENT_ROW_HEIGHT
       activeExportColumns.forEach((column, columnIndex) => {
         const cell = totalRow.getCell(columnIndex + 1)
         if (column.key === 'monthLabel') {
           cell.value = '合计'
         } else if (column.key === 'hasSourceReport') {
-          cell.value = `${detailExportRows.length} 个月`
+          cell.value = `${exportDetailRows.length} 个月`
         } else if (column.key === 'incomeSales') {
-          cell.value = totals.income_sales
+          cell.value = exportTotals.incomeSales
         } else if (column.key === 'incomeRefund') {
-          cell.value = totals.income_refund
+          cell.value = exportTotals.incomeRefund
         } else if (column.key === 'incomeAdjustment') {
-          cell.value = totals.income_adjustment
+          cell.value = exportTotals.incomeAdjustment
         } else if (column.key === 'incomeOther') {
-          cell.value = totals.income_other
+          cell.value = exportTotals.incomeOther
         } else if (column.key === 'expenseSellingFee') {
-          cell.value = totals.expense_selling_fee
+          cell.value = exportTotals.expenseSellingFee
         } else if (column.key === 'expenseFbaFee') {
-          cell.value = totals.expense_fba_fee
+          cell.value = exportTotals.expenseFbaFee
         } else if (column.key === 'expenseInventoryFee') {
-          cell.value = totals.expense_inventory_fee
+          cell.value = exportTotals.expenseInventoryFee
         } else if (column.key === 'expenseServiceFee') {
-          cell.value = totals.expense_service_fee
+          cell.value = exportTotals.expenseServiceFee
         } else if (column.key === 'expenseAdvertising') {
-          cell.value = totals.expense_advertising
+          cell.value = exportTotals.expenseAdvertising
         } else if (column.key === 'expenseOtherFees') {
-          cell.value = totals.expense_other_fees
+          cell.value = exportTotals.expenseOtherFees
         } else if (column.key === 'incomeTotal') {
-          cell.value = totals.income_total
+          cell.value = exportTotals.incomeTotal
         } else if (column.key === 'expenseTotal') {
-          cell.value = totals.expense_total
+          cell.value = exportTotals.expenseTotal
         } else if (column.key === 'amazonPayBack') {
-          cell.value = totals.amazon_pay_back
+          cell.value = exportTotals.amazonPayBack
         } else if (column.key === 'creditCardDeductionUsd') {
-          cell.value = totals.credit_card_deduction_usd
+          cell.value = exportTotals.creditCardDeductionUsd
         } else if (column.key === 'fobCostRmb') {
-          cell.value = totals.fob_cost_rmb
+          cell.value = exportTotals.fobCostRmb
         } else if (column.key === 'firstLegCostRmb') {
-          cell.value = totals.first_leg_cost_rmb
+          cell.value = exportTotals.firstLegCostRmb
         } else if (column.key === 'netProfitRmb') {
-          cell.value = totals.net_profit_rmb
+          cell.value = exportTotals.netProfitRmb
         } else if (column.key === 'netProfitUsd') {
-          cell.value = totals.net_profit_usd
+          cell.value = exportTotals.netProfitUsd
         } else if (column.key === 'netProfitRate') {
-          cell.value = toSignedRatio(totals.net_profit_usd, totals.income_total)
+          cell.value = toSignedRatio(exportTotals.netProfitUsd, exportTotals.incomeTotal)
         } else if (column.key === 'evaluationFeeRmb') {
-          cell.value = totals.evaluation_fee_rmb
+          cell.value = exportTotals.evaluationFeeRmb
         } else if (column.key === 'prepaymentOtherRmb') {
-          cell.value = totals.prepayment_other_rmb
+          cell.value = exportTotals.prepaymentOtherRmb
         } else if (column.key === 'operationCommissionRmb') {
-          cell.value = disableCommission ? '-' : totals.operation_commission_rmb
+          cell.value = disableCommission ? '-' : exportTotals.operationCommissionRmb
         } else if (column.key === 'payableTotalRmb') {
-          cell.value = disableCommission ? '-' : totals.payable_total_rmb
+          cell.value = disableCommission ? '-' : exportTotals.payableTotalRmb
         } else if (column.key === 'exchangeRate') {
           cell.value =
-            totals.exchange_rate_count > 0
-              ? totals.exchange_rate_sum / totals.exchange_rate_count
+            exportTotals.exchangeRateCount > 0
+              ? exportTotals.exchangeRateSum / exportTotals.exchangeRateCount
               : 0
         } else if (column.key === 'platformRatio') {
           cell.value = toPositiveRatio(
-            totals.expense_selling_fee,
-            totals.income_total,
+            exportTotals.expenseSellingFee,
+            exportTotals.incomeTotal,
           )
         } else if (column.key === 'deliveryRatio') {
           cell.value = toPositiveRatio(
-            totals.expense_fba_fee,
-            totals.income_total,
+            exportTotals.expenseFbaFee,
+            exportTotals.incomeTotal,
           )
         } else if (column.key === 'storageRatio') {
           cell.value = toPositiveRatio(
-            totals.expense_inventory_fee,
-            totals.income_total,
+            exportTotals.expenseInventoryFee,
+            exportTotals.incomeTotal,
           )
         } else if (column.key === 'serviceRatio') {
           cell.value = toPositiveRatio(
-            totals.expense_service_fee,
-            totals.income_total,
+            exportTotals.expenseServiceFee,
+            exportTotals.incomeTotal,
           )
         } else if (column.key === 'adRatio') {
           cell.value = toPositiveRatio(
-            totals.expense_advertising,
-            totals.income_total,
+            exportTotals.expenseAdvertising,
+            exportTotals.incomeTotal,
           )
         } else if (column.key === 'refundRatio') {
           cell.value = toPositiveRatio(
-            totals.income_refund,
-            totals.income_sales,
+            exportTotals.incomeRefund,
+            exportTotals.incomeSales,
           )
         } else if (column.key === 'paybackRatio') {
           cell.value = toSignedRatio(
-            totals.amazon_pay_back,
-            totals.income_total,
+            exportTotals.amazonPayBack,
+            exportTotals.incomeTotal,
           )
         } else {
           cell.value = '-'
         }
         cell.font = {
           name: 'Microsoft YaHei',
+          size: 10,
           bold: true,
           color: { argb: 'FF0F172A' },
         }
@@ -1650,9 +1857,14 @@ export default function FinancialDataClient({
         cell.fill = {
           type: 'pattern',
           pattern: 'solid',
-          fgColor: { argb: 'FFF8FAFC' },
+          fgColor: { argb: 'FFE2E8F0' },
         }
-        applyExcelBorder(cell, 'FFCBD5E1')
+        cell.border = {
+          top: { style: 'medium', color: { argb: 'FF94A3B8' } },
+          left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          bottom: { style: 'medium', color: { argb: 'FF94A3B8' } },
+          right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        }
       })
 
       const compactWidthKeys = new Set<string>([
@@ -1674,9 +1886,9 @@ export default function FinancialDataClient({
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       const safeProjectName = data.project_name.replace(/[\\/:*?"<>|]/g, '-')
-      const safeTimestamp = formatLocalTimestampForFilename()
+      const monthRange = `${formatMonth(data.start_month)}至${formatMonth(data.end_month)}`
       link.href = url
-      link.download = `月度财务分析-${safeProjectName}-${safeTimestamp}.xlsx`
+      link.download = `${safeProjectName}-月度财务分析-${monthRange}.xlsx`
       link.click()
       window.URL.revokeObjectURL(url)
       await logClientOperation({
@@ -1685,10 +1897,11 @@ export default function FinancialDataClient({
         targetId: projectId,
         after: {
           project_id: projectId,
+          country,
           project_name: data.project_name,
           start_month: startMonth,
           end_month: endMonth,
-          row_count: detailExportRows.length,
+          row_count: exportDetailRows.length,
           filename: link.download,
         },
       })
@@ -1699,7 +1912,7 @@ export default function FinancialDataClient({
     } finally {
       setExporting(false)
     }
-  }, [data, detailExportRows, disableCommission, endMonth, isAdmin, projectId, startMonth, totals, trends])
+  }, [data, detailExportRows, disableCommission, endMonth, isAdmin, projectId, country, startMonth])
   const showSkeleton = loading && !data
 
   return (
@@ -1736,6 +1949,21 @@ export default function FinancialDataClient({
               </Select>
             </div>
           )}
+          <div className='min-w-[140px] space-y-1.5'>
+            <label className='text-xs text-muted-foreground'>国家站点</label>
+            <Select value={country} onValueChange={(value) => setCountry(value as ReportUploadCountry)}>
+              <SelectTrigger className='h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]'>
+                <SelectValue placeholder='请选择国家站点' />
+              </SelectTrigger>
+              <SelectContent>
+                {REPORT_UPLOAD_COUNTRY_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className='space-y-1.5'>
             <label
               htmlFor='financial_start_month'
@@ -2082,14 +2310,14 @@ export default function FinancialDataClient({
                   type='button'
                   variant='outline'
                   className='h-8'
-                  onClick={() => void exportAccountingDetail()}
+                  onClick={() => void exportFinancialAnalysis()}
                   disabled={
-                    accountingExporting ||
-                    !accountingMonth ||
-                    accountingMonthOptions.length === 0
+                    exporting ||
+                    !data ||
+                    detailExportRows.length === 0
                   }
                 >
-                  {accountingExporting ? (
+                  {exporting ? (
                     <Loader2 className='mr-2 h-4 w-4 animate-spin' />
                   ) : (
                     <Download className='mr-2 h-4 w-4' />

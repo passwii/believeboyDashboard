@@ -117,6 +117,79 @@ def test_recognize_sales_report_detects_single_pt_date(tmp_path: Path):
     assert payload.detected_end_date == "2026-02-25"
 
 
+def test_recognize_inventory_report_matches_project_by_selected_country(tmp_path: Path):
+    engine = create_engine("sqlite:///:memory:", future=True)
+    Base.metadata.create_all(bind=engine)
+
+    inventory = tmp_path / "inventory-de.txt"
+    inventory.write_text(
+        "snapshot-date\tsku\tasin\tavailable\n2026-03-18\tSKU1\tASIN1\t10\n",
+        encoding="utf-8",
+    )
+
+    with Session(engine) as db:
+        db.add(Project(project_name="Demo", sort_order=1, source_file="seed.csv"))
+        db.add(
+            ProductCost(
+                project_name="Demo",
+                sku="SKU1",
+                asin="ASIN1",
+                country="DE",
+                fob_unit_cost=1,
+                currency="EUR",
+                source_file="seed.csv",
+            )
+        )
+        db.commit()
+
+        de_payload = report_upload_service._recognize_inventory_report(
+            db, inventory, country="DE", allowed_projects={"Demo"}
+        )  # noqa: SLF001
+        us_payload = report_upload_service._recognize_inventory_report(
+            db, inventory, country="US", allowed_projects={"Demo"}
+        )  # noqa: SLF001
+
+    assert de_payload.project_match.status == "matched"
+    assert de_payload.project_match.project_name == "Demo"
+    assert us_payload.project_match.status == "unmatched"
+
+
+def test_recognize_sales_report_detects_de_local_date_range(tmp_path: Path):
+    engine = create_engine("sqlite:///:memory:", future=True)
+    Base.metadata.create_all(bind=engine)
+
+    sales = tmp_path / "sales-de.txt"
+    sales.write_text(
+        "purchase-date\tsku\tasin\n"
+        "2026-02-25T00:30:00+00:00\tSKU1\tASIN1\n"
+        "2026-02-25T23:30:00+00:00\tSKU1\tASIN1\n",
+        encoding="utf-8",
+    )
+
+    with Session(engine) as db:
+        db.add(Project(project_name="Demo", sort_order=1, source_file="seed.csv"))
+        db.add(
+            ProductCost(
+                project_name="Demo",
+                sku="SKU1",
+                asin="ASIN1",
+                country="DE",
+                fob_unit_cost=1,
+                currency="EUR",
+                source_file="seed.csv",
+            )
+        )
+        db.commit()
+
+        payload = report_upload_service._recognize_sales_report(
+            db, sales, country="DE", allowed_projects={"Demo"}
+        )  # noqa: SLF001
+
+    assert payload.date_input_mode == "multi_auto"
+    assert payload.detected_start_date == "2026-02-25"
+    assert payload.detected_end_date == "2026-02-26"
+
+
 def test_list_report_upload_statuses_filters_by_report_date():
     engine = create_engine("sqlite:///:memory:", future=True)
     Base.metadata.create_all(bind=engine)

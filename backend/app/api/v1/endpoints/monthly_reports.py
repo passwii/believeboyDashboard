@@ -25,6 +25,7 @@ from app.services.audit_log_service import append_operation_audit_log
 from app.services import (
     monthly_report_runtime_service,
     monthly_report_service,
+    payment_report_locale,
     project_service,
     upload_service,
 )
@@ -55,6 +56,10 @@ def create_monthly_report(
 
     project_id = data.project_id
     project_name = provided_project_name
+    try:
+        country = payment_report_locale.normalize_country(data.country)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
     after_project = perf_counter()
 
     transaction_path = upload_service.build_upload_file_path(
@@ -79,6 +84,7 @@ def create_monthly_report(
         settings,
         project_id=project_id,
         project_name=project_name,
+        country=country,
         report_month=data.report_month.strip(),
         transaction_file_id=data.transaction_file_id,
         summary_pdf_file_id=data.summary_pdf_file_id,
@@ -101,6 +107,7 @@ def create_monthly_report(
             "job_id": task.id,
             "project_id": project_id,
             "project_name": project_name,
+            "country": country,
             "report_month": data.report_month.strip(),
         },
         request=request,
@@ -188,14 +195,22 @@ def download_monthly_report_task_result(
 @router.get("/monthly-reports", response_model=list[MonthlyReportListItem])
 def list_monthly_reports(
     project_id: int | None = Query(default=None, gt=0),
+    country: str | None = Query(default=None),
     month: str | None = Query(default=None),
     include_history: bool = Query(default=False),
     db: Session = Depends(get_db_session),
 ) -> list[MonthlyReportListItem]:
     report_month = monthly_report_service.parse_report_month(month) if month else None
+    normalized_country: str | None = None
+    if country is not None:
+        try:
+            normalized_country = payment_report_locale.normalize_country(country)
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
     rows = monthly_report_service.list_reports(
         db,
         project_id=project_id,
+        country=normalized_country,
         report_month=report_month,
         current_only=not include_history,
     )
@@ -207,6 +222,7 @@ def list_monthly_reports(
 )
 def get_monthly_financial_series(
     project_id: int = Query(gt=0),
+    country: str = Query(default='US'),
     start_month: str | None = Query(default=None),
     end_month: str | None = Query(default=None),
     fill_missing: bool = Query(default=True),
@@ -221,19 +237,25 @@ def get_monthly_financial_series(
         is_admin=bool(is_admin),
     )
 
-    cached = get_financial_series_cache(project_id, start_month, end_month)
+    try:
+        normalized_country = payment_report_locale.normalize_country(country)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+    cached = get_financial_series_cache(project_id, normalized_country, start_month, end_month)
     if cached:
         return MonthlyFinancialSeriesResponse(**cached)
 
     payload = monthly_report_service.get_financial_series(
         db,
         project_id=project_id,
+        country=normalized_country,
         start_month=start_month,
         end_month=end_month,
         fill_missing=fill_missing,
     )
 
-    set_financial_series_cache(project_id, start_month, end_month, payload)
+    set_financial_series_cache(project_id, normalized_country, start_month, end_month, payload)
 
     return MonthlyFinancialSeriesResponse(**payload)
 
@@ -241,6 +263,7 @@ def get_monthly_financial_series(
 @router.post("/monthly-reports/financial-series/recalculate")
 def recalculate_monthly_financial_series(
     project_id: int = Query(gt=0),
+    country: str = Query(default='US'),
     start_month: str | None = Query(default=None),
     end_month: str | None = Query(default=None),
     fill_missing: bool = Query(default=True),
@@ -256,17 +279,23 @@ def recalculate_monthly_financial_series(
         is_admin=bool(is_admin),
     )
 
+    try:
+        normalized_country = payment_report_locale.normalize_country(country)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
     invalidate_financial_series_cache(project_id)
 
     payload = monthly_report_service.get_financial_series(
         db,
         project_id=project_id,
+        country=normalized_country,
         start_month=start_month,
         end_month=end_month,
         fill_missing=fill_missing,
     )
 
-    set_financial_series_cache(project_id, start_month, end_month, payload)
+    set_financial_series_cache(project_id, normalized_country, start_month, end_month, payload)
 
     return MonthlyFinancialSeriesResponse(**payload)
 
@@ -277,6 +306,7 @@ def recalculate_monthly_financial_series(
 )
 def get_monthly_financial_accounting_detail(
     project_id: int = Query(gt=0),
+    country: str = Query(default='US'),
     report_month: str = Query(min_length=7, max_length=7),
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
@@ -288,9 +318,15 @@ def get_monthly_financial_accounting_detail(
         operator=operator,
         is_admin=bool(is_admin),
     )
+    try:
+        normalized_country = payment_report_locale.normalize_country(country)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
     payload = monthly_report_service.get_financial_accounting_detail(
         db,
         project_id=project_id,
+        country=normalized_country,
         report_month=report_month,
     )
     return MonthlyFinancialAccountingDetailResponse(**payload)
@@ -299,6 +335,7 @@ def get_monthly_financial_accounting_detail(
 @router.get("/monthly-reports/financial-series/accounting-detail/export")
 def export_monthly_financial_accounting_detail(
     project_id: int = Query(gt=0),
+    country: str = Query(default='US'),
     report_month: str = Query(min_length=7, max_length=7),
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
@@ -310,9 +347,15 @@ def export_monthly_financial_accounting_detail(
         operator=operator,
         is_admin=bool(is_admin),
     )
+    try:
+        normalized_country = payment_report_locale.normalize_country(country)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
     filename, content = monthly_report_service.export_financial_accounting_detail_workbook(
         db,
         project_id=project_id,
+        country=normalized_country,
         report_month=report_month,
         is_admin=bool(is_admin),
     )
@@ -383,6 +426,7 @@ def _to_report_item(row) -> MonthlyReportListItem:
         id=row.id,
         project_id=row.project_id,
         project_name=row.project_name,
+        country=row.country,
         report_month=row.report_month,
         version=row.version,
         is_current=row.is_current,

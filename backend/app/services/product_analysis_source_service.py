@@ -44,6 +44,11 @@ INVENTORY_PROJECT_MATCH_MIN_RATIO = 0.6
 _SQLITE_TABLES_READY = False
 _SQLITE_TABLES_LOCK = Lock()
 PT_TIMEZONE = ZoneInfo('America/Los_Angeles')
+COUNTRY_TIMEZONE = {
+    'US': PT_TIMEZONE,
+    'DE': ZoneInfo('Europe/Berlin'),
+    'UK': ZoneInfo('Europe/London'),
+}
 COUNTRY_ALIASES = {
     'US': 'US',
     'USA': 'US',
@@ -576,7 +581,7 @@ def persist_sales_report_by_purchase_date(
     if not path.exists() or not path.is_file():
         raise FileNotFoundError(f'File not found: {upload_file_path}')
 
-    rows, total, _ = _parse_sales_rows(path, 0, None)
+    rows, total, _ = _parse_sales_rows(path, 0, None, country=normalized_country)
     grouped_rows: dict[date, list[dict[str, Any]]] = {}
     for row in rows:
         purchase_date_pt = row.get('purchase_date_pt')
@@ -937,7 +942,12 @@ def _persist_one_source_file(
             if rows:
                 db.execute(insert(AnalysisAdProductRow), rows)
         elif report_type == 'sales_report':
-            rows, total, included = _parse_sales_rows(path, source.id, sales_count_as_of_date)
+            rows, total, included = _parse_sales_rows(
+                path,
+                source.id,
+                sales_count_as_of_date,
+                country=country,
+            )
             if rows:
                 db.execute(insert(AnalysisSalesOrderRow), rows)
         else:
@@ -1480,6 +1490,8 @@ def _parse_sales_rows(
     path: Path,
     source_file_id: int,
     count_as_of_date_pt: date | None,
+    *,
+    country: str = 'US',
 ) -> tuple[list[dict[str, Any]], int, int]:
     df = pd.read_csv(path, sep='\t', encoding='utf-8-sig')
     df.columns = [str(col).strip() for col in df.columns]
@@ -1488,7 +1500,9 @@ def _parse_sales_rows(
     if missing:
         raise ValueError(f'Sales report missing required columns: {missing}')
 
-    effective_as_of = count_as_of_date_pt or datetime.now(UTC).astimezone(PT_TIMEZONE).date()
+    normalized_country = _normalize_country(country)
+    local_tz = COUNTRY_TIMEZONE.get(normalized_country, PT_TIMEZONE)
+    effective_as_of = count_as_of_date_pt or datetime.now(UTC).astimezone(local_tz).date()
     payloads: list[dict[str, Any]] = []
     included = 0
 
@@ -1499,9 +1513,9 @@ def _parse_sales_rows(
             continue
 
         purchase_at_utc = parsed_utc.to_pydatetime()
-        purchase_at_pt_aware = purchase_at_utc.astimezone(PT_TIMEZONE)
-        purchase_at_pt = purchase_at_pt_aware.replace(tzinfo=None)
-        purchase_date_pt = purchase_at_pt_aware.date()
+        purchase_at_local_aware = purchase_at_utc.astimezone(local_tz)
+        purchase_at_pt = purchase_at_local_aware.replace(tzinfo=None)
+        purchase_date_pt = purchase_at_local_aware.date()
         status_text = (_normalize_text(row.get('order-status')) or '').strip()
         is_counted = _is_counted_sales_status(status_text, purchase_date_pt, effective_as_of)
         if is_counted:

@@ -752,6 +752,57 @@ def test_persist_sales_report_by_purchase_date_splits_into_multiple_report_dates
         assert counted_by_order['111-4'] is False
 
 
+def test_persist_sales_report_by_purchase_date_uses_country_timezone(tmp_path: Path):
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        _seed_exchange_rates(db)
+        db.add(Project(project_name='Demo', sort_order=1, source_file='seed.csv'))
+        db.add(
+            ProductCost(
+                project_name='Demo',
+                sku='SKU1',
+                asin='ASIN1',
+                country='DE',
+                fob_unit_cost=1,
+                currency='EUR',
+                source_file='seed.csv',
+            )
+        )
+        db.commit()
+
+        sales = tmp_path / 'sales-de.txt'
+        sales.write_text(
+            'amazon-order-id\tpurchase-date\torder-status\tsku\tasin\tquantity\tcurrency\titem-price\n'
+            '222-1\t2026-02-25T00:30:00+00:00\tPending\tSKU1\tASIN1\t1\tEUR\t10.00\n'
+            '222-2\t2026-02-25T23:30:00+00:00\tShipped\tSKU1\tASIN1\t1\tEUR\t11.00\n',
+            encoding='utf-8',
+        )
+
+        outcome = product_analysis_source_service.persist_sales_report_by_purchase_date(
+            db,
+            project_name='Demo',
+            upload_file_id='sales-de.txt',
+            upload_file_path=str(sales),
+            country='DE',
+            created_by='operator@example.com',
+        )
+
+        assert outcome['success'] is True
+        assert outcome['report_start_date'] == '2026-02-25'
+        assert outcome['report_end_date'] == '2026-02-26'
+        assert outcome['days_persisted'] == 2
+
+        sales_sources = db.execute(
+            select(AnalysisSourceFile)
+            .where(AnalysisSourceFile.report_type == 'sales_report')
+            .where(AnalysisSourceFile.country == 'DE')
+            .order_by(AnalysisSourceFile.report_date.asc())
+        ).scalars().all()
+        assert [row.report_date.isoformat() for row in sales_sources] == ['2026-02-25', '2026-02-26']
+
+
 def test_persist_single_date_report_sources_separates_country_sources(tmp_path: Path):
     engine = create_engine('sqlite:///:memory:', future=True)
     Base.metadata.create_all(bind=engine)

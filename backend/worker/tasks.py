@@ -92,6 +92,7 @@ def _prepare_monthly_report_if_needed(settings, db, payload: dict, params: dict)
         db,
         project_id=project_id,
         project_name=project_name,
+        country=str(params.get('country') or 'US'),
         report_month=report_month,
         transaction_file_id=transaction_file_id,
         transaction_file_path=transaction_file_path,
