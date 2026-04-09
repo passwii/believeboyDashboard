@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, useCallback } from 'react'
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { DateRange } from 'react-day-picker'
 import { ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight, ChevronsUpDown, FileDown, Loader2, RefreshCcw } from 'lucide-react'
 import { useSession } from 'next-auth/react'
@@ -658,6 +658,7 @@ export default function DailyAnalysisPage() {
   const [skuOptions, setSkuOptions] = useState<ProjectSkuOption[]>([])
   const [skuLoading, setSkuLoading] = useState(false)
   const [selectedSku, setSelectedSku] = useState('')
+  const latestLoadRequestRef = useRef(0)
 
   useEffect(() => {
     const loadProjects = async () => {
@@ -696,6 +697,8 @@ export default function DailyAnalysisPage() {
     const previousRange = getPreviousPeriodRange(effectiveRange)
 
     setLoading(true)
+    const requestId = latestLoadRequestRef.current + 1
+    latestLoadRequestRef.current = requestId
     try {
       const search = new URLSearchParams({
         project_id: projectId,
@@ -737,15 +740,18 @@ export default function DailyAnalysisPage() {
 
       const payload = (await response.json()) as DailyAnalysisResponse
       const comparePayload = compareResponse ? ((await compareResponse.json()) as DailyAnalysisResponse) : null
+      if (requestId !== latestLoadRequestRef.current) return
       setData(payload)
       setComparisonSummaryRows(comparePayload?.summary_rows ?? EMPTY_SUMMARY_ROWS)
       setComparisonDetailRows(comparePayload?.detail_rows ?? EMPTY_DETAIL_ROWS)
     } catch (fetchError) {
+      if (requestId !== latestLoadRequestRef.current) return
       notify({ type: 'error', title: '销售数据加载失败', message: fetchError instanceof Error ? fetchError.message : '销售数据加载失败' })
       setData(null)
       setComparisonSummaryRows(EMPTY_SUMMARY_ROWS)
       setComparisonDetailRows(EMPTY_DETAIL_ROWS)
     } finally {
+      if (requestId !== latestLoadRequestRef.current) return
       setLoading(false)
     }
 }, [projectId, country, dateRange, selectedSku, notify])
@@ -816,6 +822,11 @@ export default function DailyAnalysisPage() {
       setSkuLoading(false)
     }
   }, [notify, projects])
+
+  useEffect(() => {
+    if (!projectId) return
+    setSelectedSku('')
+  }, [projectId])
 
   useEffect(() => {
     if (!projectId) return
