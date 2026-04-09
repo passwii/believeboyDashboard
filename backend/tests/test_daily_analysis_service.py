@@ -8,7 +8,121 @@ from app.models import AnalysisAdProductRow, AnalysisSalesOrderRow, AnalysisSour
 from app.services import daily_analysis_service
 
 
-def test_build_daily_analysis_aggregates_summary_and_detail_rows():
+def _disable_daily_analysis_cache(monkeypatch):
+    monkeypatch.setattr(
+        'app.services.daily_analysis_service.redis_service.get_daily_analysis_cache',
+        lambda project_id, country, start_date, end_date: None,  # noqa: ARG005
+    )
+    monkeypatch.setattr(
+        'app.services.daily_analysis_service.redis_service.set_daily_analysis_cache',
+        lambda project_id, country, start_date, end_date, data: None,  # noqa: ARG005
+    )
+
+
+def test_build_daily_analysis_does_not_cache_sku_filtered_results(monkeypatch):
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    cached_payloads: list[dict[str, object]] = []
+
+    monkeypatch.setattr(
+        'app.services.daily_analysis_service.redis_service.get_daily_analysis_cache',
+        lambda project_id, country, start_date, end_date: None,  # noqa: ARG005
+    )
+    monkeypatch.setattr(
+        'app.services.daily_analysis_service.redis_service.set_daily_analysis_cache',
+        lambda project_id, country, start_date, end_date, data: cached_payloads.append(data),  # noqa: ARG005
+    )
+
+    with Session(engine) as db:
+        project = Project(project_name='日报项目', sort_order=1, source_file='seed.csv')
+        db.add(project)
+        db.flush()
+
+        sales_source = AnalysisSourceFile(
+            project_id=project.id,
+            report_type='sales_report',
+            country='US',
+            report_date=date(2026, 3, 10),
+            period_start_date=date(2026, 3, 10),
+            period_end_date=date(2026, 3, 10),
+            version=1,
+            is_current=True,
+            upload_file_id='sales-1',
+            upload_file_path='/tmp/sales-1.txt',
+            stored_filename='sales-1.txt',
+            logical_filename='sales-1.txt',
+            storage_key='sales-1.txt',
+            original_filename='sales-1.txt',
+            ingestion_status='success',
+        )
+        db.add(sales_source)
+        db.flush()
+
+        db.add_all(
+            [
+                AnalysisSalesOrderRow(
+                    source_file_id=sales_source.id,
+                    source_row_no=1,
+                    amazon_order_id='ORDER-1',
+                    purchase_at_utc=datetime(2026, 3, 10, 1, 0, tzinfo=UTC),
+                    purchase_at_pt=datetime(2026, 3, 9, 17, 0),
+                    purchase_date_pt=date(2026, 3, 9),
+                    order_status='Shipped',
+                    sku='SKU-1',
+                    asin='ASIN-1',
+                    quantity=3,
+                    item_price=30,
+                    currency='USD',
+                    is_counted_sales=True,
+                    status_rule_version=1,
+                    raw_row={},
+                ),
+                AnalysisSalesOrderRow(
+                    source_file_id=sales_source.id,
+                    source_row_no=2,
+                    amazon_order_id='ORDER-2',
+                    purchase_at_utc=datetime(2026, 3, 10, 2, 0, tzinfo=UTC),
+                    purchase_at_pt=datetime(2026, 3, 9, 18, 0),
+                    purchase_date_pt=date(2026, 3, 9),
+                    order_status='Shipped',
+                    sku='SKU-2',
+                    asin='ASIN-2',
+                    quantity=5,
+                    item_price=50,
+                    currency='USD',
+                    is_counted_sales=True,
+                    status_rule_version=1,
+                    raw_row={},
+                ),
+            ]
+        )
+        db.commit()
+
+        filtered_payload = daily_analysis_service.build_daily_analysis(
+            db,
+            project_id=project.id,
+            country='US',
+            start_date='2026-03-10',
+            end_date='2026-03-10',
+            sku='SKU-1',
+        )
+        full_payload = daily_analysis_service.build_daily_analysis(
+            db,
+            project_id=project.id,
+            country='US',
+            start_date='2026-03-10',
+            end_date='2026-03-10',
+        )
+
+        assert filtered_payload['summary_rows'][0]['order_qty'] == 3
+        assert full_payload['summary_rows'][0]['order_qty'] == 8
+        assert len(cached_payloads) == 1
+        assert cached_payloads[0]['summary_rows'][0]['order_qty'] == 8
+
+
+def test_build_daily_analysis_aggregates_summary_and_detail_rows(monkeypatch):
+    _disable_daily_analysis_cache(monkeypatch)
     engine = create_engine('sqlite:///:memory:', future=True)
     Base.metadata.create_all(bind=engine)
 
@@ -220,7 +334,8 @@ def test_build_daily_analysis_aggregates_summary_and_detail_rows():
         assert detail_rows[1]['sales_amount'] == 0.0
 
 
-def test_build_daily_analysis_prefers_inventory_report_date_over_snapshot_timestamp():
+def test_build_daily_analysis_prefers_inventory_report_date_over_snapshot_timestamp(monkeypatch):
+    _disable_daily_analysis_cache(monkeypatch)
     engine = create_engine('sqlite:///:memory:', future=True)
     Base.metadata.create_all(bind=engine)
 
@@ -284,7 +399,8 @@ def test_build_daily_analysis_prefers_inventory_report_date_over_snapshot_timest
         assert payload['summary_rows'][0]['available_qty'] == 25
 
 
-def test_build_daily_analysis_marks_missing_dates():
+def test_build_daily_analysis_marks_missing_dates(monkeypatch):
+    _disable_daily_analysis_cache(monkeypatch)
     engine = create_engine('sqlite:///:memory:', future=True)
     Base.metadata.create_all(bind=engine)
 
@@ -306,7 +422,8 @@ def test_build_daily_analysis_marks_missing_dates():
         assert payload['console']['missing_dates'] == ['2026-03-10', '2026-03-11']
 
 
-def test_build_daily_analysis_uses_global_latest_dates_for_availability_console():
+def test_build_daily_analysis_uses_global_latest_dates_for_availability_console(monkeypatch):
+    _disable_daily_analysis_cache(monkeypatch)
     engine = create_engine('sqlite:///:memory:', future=True)
     Base.metadata.create_all(bind=engine)
 
@@ -405,7 +522,8 @@ def test_build_daily_analysis_uses_global_latest_dates_for_availability_console(
         assert payload['console']['latest_inventory_date'] == '2026-03-19'
 
 
-def test_build_daily_analysis_uses_inventory_report_date_for_availability_console():
+def test_build_daily_analysis_uses_inventory_report_date_for_availability_console(monkeypatch):
+    _disable_daily_analysis_cache(monkeypatch)
     engine = create_engine('sqlite:///:memory:', future=True)
     Base.metadata.create_all(bind=engine)
 

@@ -277,13 +277,14 @@ def build_daily_analysis(
         },
     }
 
-    redis_service.set_daily_analysis_cache(
-        project_id,
-        normalized_country,
-        normalized_start.isoformat(),
-        normalized_end.isoformat(),
-        result,
-    )
+    if sku is None:
+        redis_service.set_daily_analysis_cache(
+            project_id,
+            normalized_country,
+            normalized_start.isoformat(),
+            normalized_end.isoformat(),
+            result,
+        )
     return result
 
 
