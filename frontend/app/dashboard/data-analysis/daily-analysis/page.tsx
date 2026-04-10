@@ -545,7 +545,7 @@ async function exportDailyAnalysisToExcel(
 
 function lastSevenDaysRange(country: string): DateRange {
   const today = getTodayInTimezone(country)
-  const end = addDays(today, -1)
+  const end = today
   const start = addDays(end, -6)
   return { from: start, to: end }
 }
