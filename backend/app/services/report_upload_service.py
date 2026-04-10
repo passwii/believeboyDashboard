@@ -280,7 +280,7 @@ def _recognize_inventory_report(
         project_match=project_match,
         row_count_preview=len(df.index),
         warnings=warnings_list,
-        country=country,
+        country=detected_country or country,
     )
 
 
@@ -401,7 +401,7 @@ def _recognize_sales_report(
         project_match=project_match,
         row_count_preview=len(df.index),
         warnings=warnings_list,
-        country=country,
+        country=detected_country or country,
     )
 
 
@@ -670,6 +670,16 @@ def commit_report_upload(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="report_type does not match recognized report",
+            )
+        # Country mismatch guard: reject if the file's detected country differs from the requested country.
+        # This prevents cross-marketplace data from being uploaded to the wrong site.
+        if report_type in {"sales_report", "inventory_report"} and recognition.country != country:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"文件站点（{recognition.country}）与所选站点（{country}）不一致，"
+                    "请确认后重新上传到对应站点"
+                ),
             )
         project_match = recognition.project_match
         if project_match.status != "matched" or not project_match.project_name:

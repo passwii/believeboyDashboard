@@ -655,25 +655,20 @@ export default function ReportUploadPage() {
     const recognition = state.recognition
     if (!recognition) return
 
-    // 防呆检查：检查所有待提交文件的国家/渠道是否与所选站点匹配
+    // 防呆检查：检查所有待提交文件的检测国家是否与所选站点匹配
     const candidatesToCheck = (type === 'sales_report' || type === 'ad_product_report') &&
       state.candidates.length > 1
       ? state.candidates
       : [recognition]
 
-    const countryMismatchWarning = candidatesToCheck.find((c) =>
-      c.warnings?.some((w) =>
-        w.includes('sales-channel') || w.includes('currency') || w.includes('国家/地区'),
-      ),
+    const countryMismatch = candidatesToCheck.find(
+      (c) => c.country && c.country !== selectedCountry,
     )
-    if (countryMismatchWarning) {
-      const msg = countryMismatchWarning.warnings.find((w) =>
-        w.includes('sales-channel') || w.includes('currency') || w.includes('国家/地区'),
-      )
+    if (countryMismatch) {
       updateCard(type, (current) => ({
         ...current,
         commitStatus: 'error',
-        commitMessage: msg ?? '文件站点与所选站点不一致，请确认后重试',
+        commitMessage: `文件站点（${countryMismatch.country}）与所选站点（${selectedCountry}）不一致，请上传到对应站点`,
       }))
       return
     }
