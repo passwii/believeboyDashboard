@@ -96,6 +96,34 @@ def _normalize_identifier(value: object) -> str:
     return text.upper()
 
 
+def _detect_country_from_sales_channel(df: pd.DataFrame) -> str | None:
+    """Detect country from sales-channel column. Returns None if not found or ambiguous."""
+    col_candidates = [c for c in df.columns if "sales" in c.lower() and "channel" in c.lower()]
+    if not col_candidates:
+        return None
+    val = str(df[col_candidates[0]].dropna().iloc[0]).strip().lower()
+    if "amazon.de" in val or "amazon.de" in val:
+        return "DE"
+    if "amazon.com" in val or "amazon.co.uk" in val or "amazon.co.uk" in val:
+        return "US"
+    return None
+
+
+def _detect_country_from_currency(df: pd.DataFrame) -> str | None:
+    """Detect country from currency column. USD→US, EUR→DE, GBP→UK."""
+    col_candidates = [c for c in df.columns if "currency" in c.lower() or "币种" in c]
+    if not col_candidates:
+        return None
+    val = str(df[col_candidates[0]].dropna().iloc[0]).strip().upper()
+    if val in {"USD", "US"}:
+        return "US"
+    if val in {"EUR", "EURO"}:
+        return "DE"
+    if val in {"GBP", "UK"}:
+        return "UK"
+    return None
+
+
 def _normalize_country(value: object) -> str:
     text = str(value or "").strip().upper()
     if text in {"US", "USA", "美国", "美国站"}:
@@ -235,6 +263,12 @@ def _recognize_inventory_report(
         country=country,
         allowed_projects=allowed_projects,
     )
+    warnings_list: list[str] = []
+    detected_country = _detect_country_from_currency(df)
+    if detected_country and detected_country != country:
+        warnings_list.append(
+            f"文件内 currency 为 {detected_country}，当前按所选站点 {country} 处理"
+        )
     return RecognitionPayload(
         report_type="inventory_report",
         matched_columns=required,
@@ -245,6 +279,8 @@ def _recognize_inventory_report(
         detected_date=detected_snapshot_date,
         project_match=project_match,
         row_count_preview=len(df.index),
+        warnings=warnings_list,
+        country=country,
     )
 
 
@@ -348,6 +384,12 @@ def _recognize_sales_report(
         country=country,
         allowed_projects=allowed_projects,
     )
+    warnings_list: list[str] = []
+    detected_country = _detect_country_from_sales_channel(df)
+    if detected_country and detected_country != country:
+        warnings_list.append(
+            f"文件内 sales-channel 为 {detected_country}，当前按所选站点 {country} 处理"
+        )
     return RecognitionPayload(
         report_type="sales_report",
         matched_columns=required,
@@ -358,6 +400,8 @@ def _recognize_sales_report(
         detected_end_date=detected_end_date,
         project_match=project_match,
         row_count_preview=len(df.index),
+        warnings=warnings_list,
+        country=country,
     )
 
 
