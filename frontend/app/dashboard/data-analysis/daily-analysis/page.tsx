@@ -139,6 +139,30 @@ function formatMoney(value: number) {
   return value.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
+// Timezone utilities — all dates are calculated in the marketplace timezone (country),
+// not the browser's local timezone, to match backend interpretation.
+const COUNTRY_TIMEZONE_MAP: Record<string, string> = {
+  US: 'America/Los_Angeles',
+  DE: 'Europe/Berlin',
+  UK: 'Europe/London',
+}
+
+/** Returns today's calendar date as a Date in local time, calculated in the country's timezone. */
+function getTodayInTimezone(country: string): Date {
+  const tz = COUNTRY_TIMEZONE_MAP[country] ?? 'UTC'
+  const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: tz }) // YYYY-MM-DD in target TZ
+  const now = new Date()
+  const [y, m, d] = formatter.format(now).split('-').map(Number)
+  return new Date(y!, m! - 1, d!)
+}
+
+/** Formats a Date as YYYY-MM-DD in the country's timezone. */
+function formatDateInTimezone(date: Date, country: string): string {
+  const tz = COUNTRY_TIMEZONE_MAP[country] ?? 'UTC'
+  const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: tz })
+  return formatter.format(date)
+}
+
 function addDays(date: Date, amount: number) {
   const next = new Date(date)
   next.setDate(next.getDate() + amount)
@@ -198,15 +222,14 @@ function getPreviousPeriodRange(range?: DateRange): DateRange | undefined {
   }
 }
 
-function getYesterdayRange(): DateRange {
-  const yesterday = addDays(new Date(), -1)
-  yesterday.setHours(0, 0, 0, 0)
+function getYesterdayRange(country: string): DateRange {
+  const today = getTodayInTimezone(country)
+  const yesterday = addDays(today, -1)
   return { from: yesterday, to: yesterday }
 }
 
-function getLastWeekRange(): DateRange {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
+function getLastWeekRange(country: string): DateRange {
+  const today = getTodayInTimezone(country)
   const dayOfWeek = today.getDay()
   // Find Monday of current week (getDay(): Sunday=0, Monday=1, ..., Saturday=6)
   const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
@@ -520,11 +543,10 @@ async function exportDailyAnalysisToExcel(
   window.URL.revokeObjectURL(url)
 }
 
-function lastSevenDaysRange(): DateRange {
-  const end = new Date()
-  end.setDate(end.getDate() - 1)
-  const start = new Date(end)
-  start.setDate(end.getDate() - 6)
+function lastSevenDaysRange(country: string): DateRange {
+  const today = getTodayInTimezone(country)
+  const end = addDays(today, -1)
+  const start = addDays(end, -6)
   return { from: start, to: end }
 }
 
@@ -642,10 +664,9 @@ export default function DailyAnalysisPage() {
   const { data: session } = useSession()
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
-
-  const defaultRange = useMemo(() => lastSevenDaysRange(), [])
   const [projectId, setProjectId] = useState('')
   const [country, setCountry] = useState<CountryOption>('US')
+  const defaultRange = useMemo(() => lastSevenDaysRange(country), [country])
   const [dateRange, setDateRange] = useState<DateRange | undefined>(defaultRange)
   const [activeTab, setActiveTab] = useState<ViewTab>('summary')
   const [activeChartMetric, setActiveChartMetric] = useState<ChartMetricKey>('order_qty')
@@ -680,6 +701,11 @@ export default function DailyAnalysisPage() {
     const first = projects.find((item) => item.id !== null)
     if (first?.id != null) setProjectId(String(first.id))
   }, [projectId, projects])
+
+  // When country changes, reset dateRange to "last 7 days in that country's timezone".
+  useEffect(() => {
+    setDateRange(defaultRange)
+  }, [country, defaultRange])
 
   const loadData = useCallback(async (rangeOverride?: DateRange) => {
     if (!projectId) {
@@ -1087,10 +1113,10 @@ export default function DailyAnalysisPage() {
 
             <div className="ml-auto flex items-center gap-2">
               <div className="flex items-center gap-1">
-                <Button type="button" variant="secondary" className="h-10 px-3" onClick={() => void handleQuickRange(getYesterdayRange())}>
+                <Button type="button" variant="secondary" className="h-10 px-3" onClick={() => void handleQuickRange(getYesterdayRange(country))}>
                   昨天
                 </Button>
-                <Button type="button" variant="secondary" className="h-10 px-3" onClick={() => void handleQuickRange(lastSevenDaysRange())}>
+                <Button type="button" variant="secondary" className="h-10 px-3" onClick={() => void handleQuickRange(lastSevenDaysRange(country))}>
                   近7天
                 </Button>
               </div>

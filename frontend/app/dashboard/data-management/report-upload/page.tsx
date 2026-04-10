@@ -191,19 +191,43 @@ type StatusProjectRow = {
   statuses: Record<string, StatusCell>
 }
 
-function toLocalDateInputValue(input?: Date): string {
-  const date = input ?? new Date()
+// Timezone utilities — all dates are calculated in the marketplace timezone (country),
+// not the browser's local timezone, to match backend interpretation.
+const COUNTRY_TIMEZONE_MAP: Record<string, string> = {
+  US: 'America/Los_Angeles',
+  DE: 'Europe/Berlin',
+  UK: 'Europe/London',
+}
+
+/** Returns today's calendar date as a Date in local time, calculated in the country's timezone. */
+function getTodayInTimezone(country: string): Date {
+  const tz = COUNTRY_TIMEZONE_MAP[country] ?? 'UTC'
+  const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: tz }) // YYYY-MM-DD in target TZ
+  const now = new Date()
+  const [y, m, d] = formatter.format(now).split('-').map(Number)
+  return new Date(y!, m! - 1, d!)
+}
+
+/** Formats a Date as YYYY-MM-DD in the country's timezone. */
+function formatDateInTimezone(date: Date, country: string): string {
+  const tz = COUNTRY_TIMEZONE_MAP[country] ?? 'UTC'
+  const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: tz })
+  return formatter.format(date)
+}
+
+function toLocalDateInputValue(input?: Date, country?: string): string {
+  const date = input ?? (country ? getTodayInTimezone(country) : new Date())
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
 }
 
-function shiftDateString(value: string, offsetDays: number): string {
+function shiftDateString(value: string, offsetDays: number, country?: string): string {
   const [year, month, day] = value.split('-').map(Number)
-  const date = new Date(year, (month || 1) - 1, day || 1)
+  const date = new Date(year!, (month! || 1) - 1, day! || 1)
   date.setDate(date.getDate() + offsetDays)
-  return toLocalDateInputValue(date)
+  return toLocalDateInputValue(date, country)
 }
 
 function createEmptyCardState(): Record<ReportType, ReportCardState> {
@@ -380,7 +404,7 @@ export default function ReportUploadPage() {
   const [statusRows, setStatusRows] = useState<StatusProjectRow[]>([])
   const [statusLoading, setStatusLoading] = useState(true)
   const [statusError, setStatusError] = useState<string | null>(null)
-  const [statusDate, setStatusDate] = useState(() => toLocalDateInputValue())
+  const [statusDate, setStatusDate] = useState(() => toLocalDateInputValue(undefined, DEFAULT_REPORT_UPLOAD_COUNTRY))
   const [selectedStatusProjects, setSelectedStatusProjects] = useState<string[]>(
     [],
   )
@@ -388,6 +412,11 @@ export default function ReportUploadPage() {
     DEFAULT_REPORT_UPLOAD_COUNTRY,
   )
   const [workspaceTab, setWorkspaceTab] = useState<UploadWorkspaceTab>('upload')
+
+  // Sync statusDate to "today in the new country" whenever country changes.
+  useEffect(() => {
+    setStatusDate(toLocalDateInputValue(undefined, selectedCountry))
+  }, [selectedCountry])
 
   useEffect(() => {
     const loadProjects = async () => {
@@ -1039,7 +1068,7 @@ export default function ReportUploadPage() {
                         size='icon'
                         onClick={() =>
                           setStatusDate((current) =>
-                            shiftDateString(current, -1),
+                            shiftDateString(current, -1, selectedCountry),
                           )
                         }
                       >
@@ -1058,7 +1087,7 @@ export default function ReportUploadPage() {
                         size='icon'
                         onClick={() =>
                           setStatusDate((current) =>
-                            shiftDateString(current, 1),
+                            shiftDateString(current, 1, selectedCountry),
                           )
                         }
                       >
@@ -1067,7 +1096,7 @@ export default function ReportUploadPage() {
                       <Button
                         type='button'
                         variant='secondary'
-                        onClick={() => setStatusDate(toLocalDateInputValue())}
+                        onClick={() => setStatusDate(toLocalDateInputValue(undefined, selectedCountry))}
                       >
                         今天
                       </Button>
