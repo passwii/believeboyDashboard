@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, DateTime, Integer, Numeric, String, Text, UniqueConstraint, CheckConstraint, func
+from sqlalchemy import BigInteger, Boolean, DateTime, Integer, Numeric, String, Text, UniqueConstraint, CheckConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
@@ -35,6 +35,7 @@ class Project(Base):
     commission_basis: Mapped[str | None] = mapped_column(String, nullable=True)
     commission_rate: Mapped[Decimal | None] = mapped_column(Numeric(7, 4), nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     source_file: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

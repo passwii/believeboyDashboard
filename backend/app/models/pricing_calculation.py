@@ -15,6 +15,7 @@ class PricingCalculationRun(Base):
         primary_key=True,
         autoincrement=True,
     )
+    country: Mapped[str] = mapped_column(String(10), nullable=False, server_default='US', index=True)
     product_name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
 
     package_length_cm: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
@@ -72,6 +73,9 @@ class PricingCalculationRun(Base):
     payout_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     profit_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     profit_rate: Mapped[Decimal] = mapped_column(Numeric(8, 6), nullable=False)
+    vat_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, server_default='0.00')
+    profit_after_vat_usd: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    profit_after_vat_rate: Mapped[Decimal | None] = mapped_column(Numeric(8, 6), nullable=True)
 
     warnings_json: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)

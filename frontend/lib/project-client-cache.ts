@@ -11,11 +11,11 @@ function normalizeScopePart(value: string | null | undefined): string {
   return (value || '').trim() || 'none'
 }
 
-function managedProjectsCacheKey(session?: Session | null): string {
+function managedProjectsCacheKey(session?: Session | null, showInactive?: boolean): string {
   const isAdmin = Boolean(session?.user?.isAdmin)
   const operatorName = normalizeScopePart(session?.user?.operatorNameZh)
   const userId = normalizeScopePart(session?.user?.id)
-  return `${PROJECT_CACHE_PREFIX}manage:${isAdmin ? 'admin' : 'member'}:${operatorName}:${userId}`
+  return `${PROJECT_CACHE_PREFIX}manage:${isAdmin ? 'admin' : 'member'}:${operatorName}:${userId}:showInactive:${showInactive ?? false}`
 }
 
 async function parseError(response: Response, fallback: string): Promise<string> {
@@ -64,15 +64,18 @@ export function clearProjectClientCaches(): void {
 export async function fetchProjectOptionsCached<T>(): Promise<T> {
   return fetchCachedJson<T>(
     `${PROJECT_CACHE_PREFIX}options`,
-    '/api/backend/api/v1/projects/manage',
+    '/api/backend/api/v1/projects',
     { fallbackError: '项目列表加载失败' }
   )
 }
 
-export async function fetchManagedProjectsCached<T>(session?: Session | null): Promise<T> {
+export async function fetchManagedProjectsCached<T>(session?: Session | null, showInactive?: boolean): Promise<T> {
+  const url = showInactive
+    ? '/api/backend/api/v1/projects/manage?show_inactive=true'
+    : '/api/backend/api/v1/projects/manage'
   return fetchCachedJson<T>(
-    managedProjectsCacheKey(session),
-    '/api/backend/api/v1/projects/manage',
+    managedProjectsCacheKey(session, showInactive),
+    url,
     { session, fallbackError: '项目列表加载失败' }
   )
 }

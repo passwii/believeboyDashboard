@@ -144,7 +144,7 @@ const REPORT_CARD_CONFIGS: ReportCardConfig[] = [
     type: 'business_report',
     title: '业务报告',
     subtitle: '识别字段：（子）ASIN',
-    dateHint: '该报表日期需手动选择单日期。',
+    dateHint: '可自动从文件名识别日期，必要时可手动调整。',
     projectHint: '默认根据（子）ASIN 自动匹配项目。',
   },
   {
@@ -167,6 +167,13 @@ const REPORT_CARD_CONFIGS: ReportCardConfig[] = [
     title: '付款报告',
     subtitle: '识别字段：sku',
     dateHint: '该报表默认使用日期范围，请直接选择开始日期与结束日期。',
+    projectHint: '默认根据 SKU 自动匹配项目。',
+  },
+  {
+    type: 'return_report',
+    title: '退货明细',
+    subtitle: '识别字段：return-date / sku',
+    dateHint: '默认自动识别 return-date 范围，周期文件直接入库。',
     projectHint: '默认根据 SKU 自动匹配项目。',
   },
 ]
@@ -298,6 +305,17 @@ function createEmptyCardState(): Record<ReportType, ReportCardState> {
       commitStatus: 'idle',
       commitMessage: null,
     },
+    return_report: {
+      recognition: null,
+      candidates: [],
+      activeTempFileId: null,
+      selectedProject: '',
+      reportDate: '',
+      reportStartDate: '',
+      reportEndDate: '',
+      commitStatus: 'idle',
+      commitMessage: null,
+    },
   }
 }
 
@@ -348,8 +366,13 @@ function canMultiCommit(type: ReportType, state: ReportCardState): boolean {
   if (state.candidates.length <= 1) return false
   if (!state.selectedProject) return false
 
-  // Only sales_report and ad_product_report support multi-commit
-  if (type !== 'sales_report' && type !== 'ad_product_report') return false
+  // Only sales_report, ad_product_report and business_report support multi-commit
+  if (
+    type !== 'sales_report' &&
+    type !== 'ad_product_report' &&
+    type !== 'business_report'
+  )
+    return false
 
   // Check all candidates have consistent project match
   const allSameProject = state.candidates.every(
@@ -481,15 +504,28 @@ export default function ReportUploadPage() {
         state.commitStatus === 'saving'
       )
         return false
-      if (state.candidates.length > 1) return false
       if (!state.selectedProject) return false
+
+      const isMulti = canMultiCommit(type, state)
+      if (state.candidates.length > 1) {
+        // multi-commit: all candidates must have valid dates
+        return isMulti && state.candidates.every((c) => {
+          if (c.date_input_mode === 'multi_auto') return true
+          if (c.date_input_mode === 'range_manual') {
+            return Boolean(state.reportStartDate && state.reportEndDate)
+          }
+          return Boolean(c.detected_date || c.detected_end_date)
+        })
+      }
+
+      // single-commit
       if (state.recognition.date_input_mode === 'range_manual') {
         return Boolean(state.reportStartDate && state.reportEndDate)
       }
       if (state.recognition.date_input_mode === 'multi_auto') {
         return true
       }
-      return Boolean(state.reportDate)
+      return Boolean(state.reportDate || state.recognition.detected_date || state.recognition.detected_end_date)
     }).length
   }, [cards])
 
@@ -528,6 +564,7 @@ export default function ReportUploadPage() {
       reportType: null,
       recognitionStatus: 'pending',
       recognizedProject: null,
+      detectedDate: null,
       fileCommitStatus: 'idle',
       commitError: null,
       error: null,
@@ -562,6 +599,7 @@ export default function ReportUploadPage() {
                   reportType: recognition.report_type,
                   recognitionStatus: recognition.status,
                   recognizedProject: resolveRecognizedProjectLabel(recognition),
+                  detectedDate: recognition.detected_date || recognition.detected_end_date || null,
                   fileCommitStatus: 'idle',
                   commitError: null,
                   error:
@@ -706,12 +744,19 @@ export default function ReportUploadPage() {
         // For ad_product_report multi-commit, let backend derive date from file
         const shouldDeriveDateFromFile =
           type === 'ad_product_report' && isMultiCommit
+        // For business_report multi-commit, each candidate has its own detected_date from filename
+        const isBusinessReportMultiCommit =
+          type === 'business_report' && isMultiCommit
         const payload = {
           temp_file_id: candidate.temp_file_id,
           original_filename: candidate.original_filename,
           report_type: type,
           project_name: state.selectedProject,
-          report_date: shouldDeriveDateFromFile ? null : (state.reportDate || null),
+          report_date: shouldDeriveDateFromFile
+            ? null
+            : isBusinessReportMultiCommit
+              ? (candidate.detected_date || null)
+              : (state.reportDate || null),
           report_start_date: shouldDeriveDateFromFile ? null : (state.reportStartDate || null),
           report_end_date: shouldDeriveDateFromFile ? null : (state.reportEndDate || null),
           country: selectedCountry,
@@ -791,15 +836,20 @@ export default function ReportUploadPage() {
   const uploadAllReady = async () => {
     for (const type of REPORT_TYPES) {
       const state = cards[type]
+      const isMulti = canMultiCommit(type, state)
       const canCommit = Boolean(
         state.recognition &&
-          state.candidates.length === 1 &&
+          (state.candidates.length === 1 || isMulti) &&
           state.selectedProject &&
           (state.recognition.date_input_mode === 'range_manual'
             ? state.reportStartDate && state.reportEndDate
             : state.recognition.date_input_mode === 'multi_auto'
               ? true
-              : state.reportDate) &&
+              : isMulti
+                ? state.candidates.every(
+                    (c) => Boolean(c.detected_date || c.detected_end_date),
+                  )
+                : state.reportDate || state.recognition.detected_date || state.recognition.detected_end_date) &&
           state.commitStatus !== 'success',
       )
       if (canCommit) {
@@ -817,6 +867,7 @@ export default function ReportUploadPage() {
       sales_report: '订单',
       ad_search_term_report: '搜索词',
       payment_report: '付款',
+      return_report: '退货',
     }),
     [],
   )
@@ -940,7 +991,8 @@ export default function ReportUploadPage() {
                         const recognition = state.recognition
                         const isMultiCommit =
                           (config.type === 'sales_report' ||
-                            config.type === 'ad_product_report') &&
+                            config.type === 'ad_product_report' ||
+                            config.type === 'business_report') &&
                           canMultiCommit(config.type, state)
                         const canCommit = Boolean(
                           recognition &&
@@ -950,7 +1002,11 @@ export default function ReportUploadPage() {
                               ? state.reportStartDate && state.reportEndDate
                               : recognition.date_input_mode === 'multi_auto'
                                 ? true
-                                : state.reportDate),
+                                : isMultiCommit
+                                  ? state.candidates.every(
+                                      (c) => Boolean(c.detected_date || c.detected_end_date),
+                                    )
+                                  : state.reportDate || recognition.detected_date || recognition.detected_end_date),
                         )
 
                         return (
@@ -1133,7 +1189,7 @@ export default function ReportUploadPage() {
                   ) : (
                     <ScrollArea className='mt-4 w-full'>
                       <div className='min-w-[920px] space-y-3'>
-                        <div className='grid grid-cols-[160px_repeat(5,minmax(110px,1fr))] gap-2 px-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground'>
+                        <div className='grid grid-cols-[160px_repeat(6,minmax(110px,1fr))] gap-2 px-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground'>
                           <div>项目</div>
                           {REPORT_TYPES.map((type) => (
                             <div key={type}>{statusLabelByType[type]}</div>
@@ -1154,7 +1210,7 @@ export default function ReportUploadPage() {
                           {filteredStatusRows.map((row) => (
                             <div
                               key={row.project_id}
-                              className='grid grid-cols-[160px_repeat(5,minmax(110px,1fr))] gap-2 rounded-xl border border-border/60 bg-[hsl(var(--surface-panel))] p-2.5'
+                              className='grid grid-cols-[160px_repeat(6,minmax(110px,1fr))] gap-2 rounded-xl border border-border/60 bg-[hsl(var(--surface-panel))] p-2.5'
                             >
                               <div className='rounded-lg border border-border/60 bg-[hsl(var(--surface-subtle))] px-3 py-2.5'>
                               <p className='text-sm font-semibold'>

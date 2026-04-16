@@ -12,6 +12,7 @@ from app.api.deps import (
 from app.schemas.pricing_calculation import (
     PricingCalculationCostReverseRequest,
     PricingCalculationCreateRequest,
+    PricingCalculationEURequest,
     PricingCalculationFbmRequest,
     PricingCalculationReverseRequest,
     PricingCalculationRunItem,
@@ -32,6 +33,7 @@ def list_pricing_runs(
     exclude_project_id: bool = Query(
         default=True, description="是否排除店铺核算记录（只返回新品核算）"
     ),
+    country: str | None = Query(default=None, description="按国家筛选（如 US, DE, UK）"),
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Depends(get_request_is_admin),
@@ -41,6 +43,7 @@ def list_pricing_runs(
         page=page,
         page_size=page_size,
         exclude_project_id=exclude_project_id,
+        country=country,
         operator=operator,
         is_admin=is_admin,
     )
@@ -173,6 +176,35 @@ def calculate_pricing_fbm_quote(
     return PricingCalculationRunItem(**serialized)
 
 
+@router.post("/pricing-calculation/eu-quote", response_model=PricingCalculationRunItem)
+def calculate_pricing_eu_quote(
+    payload: PricingCalculationEURequest,
+    request: Request,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+) -> PricingCalculationRunItem:
+    """欧洲（德国/英国）店铺 SKU 核算，使用手动费用和 VAT 计算"""
+    try:
+        row = pricing_calculation_service.create_pricing_eu_run(
+            db, payload, operator=operator
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    serialized = pricing_calculation_service.serialize_pricing_run(row)
+    append_operation_audit_log(
+        db,
+        action="pricing_calculation.run.create_eu",
+        target_type="pricing_calculation_run",
+        target_id=row.id,
+        operator=operator,
+        after=serialized,
+        request=request,
+    )
+    db.commit()
+    return PricingCalculationRunItem(**serialized)
+
+
 @router.delete(
     "/pricing-calculation/runs/{run_id}", status_code=status.HTTP_204_NO_CONTENT
 )
@@ -238,6 +270,7 @@ def recalculate_pricing_run(
     from app.schemas.pricing_calculation import PricingCalculationCreateRequest
 
     payload = PricingCalculationCreateRequest(
+        country=getattr(row, "country", "US") or "US",
         product_name=row.product_name,
         package_length_cm=float(row.package_length_cm),
         package_width_cm=float(row.package_width_cm),
@@ -261,6 +294,9 @@ def recalculate_pricing_run(
     row.profit_usd = computed["profit_decimal"]["profit_usd"]
     row.profit_rate = computed["profit_decimal"]["profit_rate"]
     row.total_fee_usd = computed["fees_decimal"]["total_fee_usd"]
+    row.vat_usd = computed["profit_decimal"].get("vat_usd", row.vat_usd)
+    row.profit_after_vat_usd = computed["profit_decimal"].get("profit_after_vat_usd")
+    row.profit_after_vat_rate = computed["profit_decimal"].get("profit_after_vat_rate")
 
     db.refresh(row)
     serialized = pricing_calculation_service.serialize_pricing_run(row)

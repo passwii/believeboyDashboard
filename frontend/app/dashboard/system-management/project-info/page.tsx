@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { ChevronsUpDown, PencilLine, PlusCircle } from 'lucide-react'
+import { ChevronDown, ChevronUp, ChevronsUpDown, PencilLine, PlusCircle } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 import { Badge } from '@/components/ui/badge'
@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Switch } from '@/components/ui/switch'
 import { useGlobalLoading } from '@/components/global-loading-provider'
 import {
   clearProjectClientCaches,
@@ -47,6 +48,7 @@ type ProjectItem = {
   commission_basis: string | null
   commission_rate: number | null
   sort_order: number
+  is_active: boolean
   source_file: string | null
 }
 
@@ -221,6 +223,7 @@ export default function StoreInfoPage() {
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [operatorOptions, setOperatorOptions] = useState<string[]>([])
+  const [movingId, setMovingId] = useState<number | null>(null)
 
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [addName, setAddName] = useState('')
@@ -240,10 +243,11 @@ export default function StoreInfoPage() {
   const [editAssistantOperators, setEditAssistantOperators] = useState<string[]>([])
   const [editCommissionMode, setEditCommissionMode] = useState('')
   const [editCommissionRate, setEditCommissionRate] = useState('')
+  const [editIsActive, setEditIsActive] = useState(true)
   const isAddCashReceivedCommission = addCommissionMode === 'cash_received'
   const isEditCashReceivedCommission = editCommissionMode === 'cash_received'
 
-  const loadOperatorOptions = useCallback(async () => {
+const loadOperatorOptions = useCallback(async () => {
     try {
       const payload = await fetchProjectOperatorOptionsCached()
       setOperatorOptions(payload)
@@ -252,13 +256,36 @@ export default function StoreInfoPage() {
     }
   }, [])
 
+  const moveProject = async (projectId: number, direction: 'up' | 'down') => {
+    setMovingId(projectId)
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/projects/${projectId}/move-${direction}`, {
+        method: 'POST',
+        headers: {
+          ...authHeaders(),
+        },
+      })
+      if (!response.ok) {
+        const error = await parseError(response)
+        throw new Error(error)
+      }
+      clearProjectClientCaches()
+      await loadProjects()
+      notify({ type: 'success', title: '项目已移动', message: `项目已${direction === 'up' ? '上移' : '下移'}` })
+    } catch (submitError) {
+      notify({ type: 'error', title: '移动失败', message: submitError instanceof Error ? submitError.message : '移动失败' })
+    } finally {
+      setMovingId(null)
+    }
+  }
+
   const loadProjects = useCallback(async () => {
     if (status === 'loading') {
       return
     }
     setLoading(true)
     try {
-      const payload = await fetchManagedProjectsCached<ProjectItem[]>(session)
+      const payload = await fetchManagedProjectsCached<ProjectItem[]>(session, true)
       setItems(payload)
     } catch (loadError) {
       notify({ type: 'error', title: '加载失败', message: loadError instanceof Error ? loadError.message : '加载失败' })
@@ -333,6 +360,7 @@ export default function StoreInfoPage() {
     setEditCommissionMode(item.commission_basis ?? '')
     const points = toCommissionPoints(item.commission_rate)
     setEditCommissionRate(points?.toString() ?? '')
+    setEditIsActive(item.is_active)
     setEditDialogOpen(true)
   }
 
@@ -364,6 +392,7 @@ export default function StoreInfoPage() {
           assistant_operator: serializeOperatorNames(editAssistantOperators),
           commission_basis: editCommissionMode.trim() || null,
           commission_rate: isEditCashReceivedCommission ? null : (editCommissionRate ? parseFloat(editCommissionRate) : null),
+          is_active: editIsActive,
         }),
       })
       if (!response.ok) {
@@ -387,6 +416,7 @@ export default function StoreInfoPage() {
       setSubmitting(false)
     }
   }
+
 
   return (
     <div className="w-full h-[calc(100vh-8.5rem)] overflow-hidden">
@@ -558,6 +588,8 @@ export default function StoreInfoPage() {
                   <th className="sticky top-0 z-20 h-12 border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">佣金方式</th>
                   <th className="sticky top-0 z-20 h-12 border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">佣金点数</th>
                   <th className="sticky top-0 z-20 h-12 w-[120px] border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">店铺地址</th>
+                  <th className="sticky top-0 z-20 h-12 w-[80px] border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">状态</th>
+                  <th className="sticky top-0 z-20 h-12 w-[140px] border-b border-border/60 bg-background px-4 text-center align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">排序</th>
                   <th className="sticky top-0 z-20 h-12 w-[100px] border-b border-border/60 bg-background px-4 text-right align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">操作</th>
                 </tr>
               </thead>
@@ -565,13 +597,13 @@ export default function StoreInfoPage() {
               {loading ? (
                 Array.from({ length: 6 }).map((_, index) => (
                   <tr key={`skeleton-${index}`} className="border-b transition-colors hover:bg-muted/50 dark:hover:bg-[hsl(var(--surface-strong)/0.35)]">
-                    <td colSpan={10} className="p-4 align-middle">
+                    <td colSpan={11} className="p-4 align-middle">
                       <Skeleton className="h-6 w-full" />
                     </td>
                   </tr>
                 ))
               ) : items.length === 0 ? (
-                <EmptyState colSpan={10} message="暂无项目数据，请先新增一个项目。" />
+                <EmptyState colSpan={11} message="暂无项目数据，请先新增一个项目。" />
               ) : (
                 items.map((item) => (
                   <tr key={item.id} className="border-b transition-colors hover:bg-muted/50 dark:hover:bg-[hsl(var(--surface-strong)/0.35)]">
@@ -584,6 +616,47 @@ export default function StoreInfoPage() {
                     <td className="border-b border-r border-border/60 p-4 align-middle">{item.commission_basis === 'cash_received' ? '阶梯(7/10/13/15%)' : (toCommissionPoints(item.commission_rate) ?? '-')}</td>
                     <td className="border-b border-r border-border/60 p-4 align-middle max-w-[120px] truncate" title={item.store_address || ''}>
                       {item.store_address ? `${item.store_address.slice(0, 15)}...` : '-'}
+                    </td>
+                    <td className="border-b border-r border-border/60 p-4 align-middle">
+                      <Badge
+                        variant={item.is_active ? 'default' : 'secondary'}
+                        className={cn(
+                          'text-xs font-medium',
+                          item.is_active
+                            ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-400 border-green-200 dark:border-green-800'
+                            : 'bg-muted text-muted-foreground'
+                        )}
+                      >
+                        {item.is_active ? '启用' : '停用'}
+                      </Badge>
+                    </td>
+                    <td className="border-b border-r border-border/60 p-4 align-middle">
+                      <div className="flex items-center justify-center gap-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => void moveProject(item.id, 'up')}
+                          disabled={submitting || movingId === item.id}
+                          aria-label={`上移项目 ${item.name}`}
+                          title="上移"
+                          className="h-7 w-7"
+                        >
+                          <ChevronUp className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => void moveProject(item.id, 'down')}
+                          disabled={submitting || movingId === item.id}
+                          aria-label={`下移项目 ${item.name}`}
+                          title="下移"
+                          className="h-7 w-7"
+                        >
+                          <ChevronDown className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </td>
                     <td className="border-b border-border/60 p-4 align-middle text-right">
                       <div className="flex justify-end">
@@ -730,6 +803,18 @@ export default function StoreInfoPage() {
               placeholder="输入店铺地址"
               disabled={submitting}
             />
+            <div className="flex items-center gap-3 pt-2">
+              <Switch
+                id="project-edit-is-active"
+                checked={editIsActive}
+                onCheckedChange={setEditIsActive}
+                disabled={submitting}
+              />
+              <label htmlFor="project-edit-is-active" className="text-sm font-medium cursor-pointer">
+                启用项目
+              </label>
+              <span className="text-xs text-muted-foreground">（停用后，其他页面将不再显示该项目）</span>
+            </div>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)} disabled={submitting}>

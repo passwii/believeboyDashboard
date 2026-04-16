@@ -5,10 +5,11 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 InboundPlacementMode = Literal["single_destination", "amazon_optimized_split"]
-CalculationType = Literal["profit_calc", "profit_reverse", "cost_reverse", "fbm_calc"]
+CalculationType = Literal["profit_calc", "profit_reverse", "cost_reverse", "fbm_calc", "eu_accounting"]
 
 
 class PricingCalculationCreateRequest(BaseModel):
+    country: str = Field(default="US", max_length=10)
     product_name: str = Field(min_length=1, max_length=255)
     package_length_cm: float = Field(gt=0, le=1000)
     package_width_cm: float = Field(gt=0, le=1000)
@@ -29,6 +30,7 @@ class PricingCalculationCreateRequest(BaseModel):
 
 
 class PricingCalculationReverseRequest(BaseModel):
+    country: str = Field(default="US", max_length=10)
     product_name: str = Field(min_length=1, max_length=255)
     package_length_cm: float = Field(gt=0, le=1000)
     package_width_cm: float = Field(gt=0, le=1000)
@@ -49,6 +51,7 @@ class PricingCalculationReverseRequest(BaseModel):
 
 
 class PricingCalculationCostReverseRequest(BaseModel):
+    country: str = Field(default="US", max_length=10)
     product_name: str = Field(min_length=1, max_length=255)
     package_length_cm: float = Field(gt=0, le=1000)
     package_width_cm: float = Field(gt=0, le=1000)
@@ -69,6 +72,7 @@ class PricingCalculationCostReverseRequest(BaseModel):
 
 
 class PricingCalculationFbmRequest(BaseModel):
+    country: str = Field(default="US", max_length=10)
     product_name: str = Field(min_length=1, max_length=255)
     package_length_cm: float = Field(gt=0, le=1000)
     package_width_cm: float = Field(gt=0, le=1000)
@@ -87,6 +91,30 @@ class PricingCalculationFbmRequest(BaseModel):
     return_loss_rate: float = Field(default=0.04, ge=0, le=1)
     storage_months: float = Field(default=1, gt=0, le=120)
     inbound_placement_mode: InboundPlacementMode = "single_destination"
+    usd_to_rmb_rate: float | None = Field(default=None, gt=0, le=1000)
+
+
+class PricingCalculationEURequest(BaseModel):
+    """欧洲（德国/英国）店铺 SKU 核算请求"""
+    country: Literal["DE", "UK"] = Field(description="德国(DE)或英国(UK)")
+    product_name: str = Field(min_length=1, max_length=255)
+    package_length_cm: float = Field(gt=0, le=1000)
+    package_width_cm: float = Field(gt=0, le=1000)
+    package_height_cm: float = Field(gt=0, le=1000)
+    weight_kg: float = Field(gt=0, le=1000)
+    fob_product_cost_rmb: float = Field(ge=0, le=100000000)
+    first_leg_cost_rmb: float = Field(ge=0, le=100000000)
+    project_id: int | None = Field(default=None, gt=0)
+    sku: str | None = Field(default=None, min_length=1, max_length=100)
+    sale_price_usd: float = Field(gt=0, le=100000000)
+    # 手动填写费用（默认0）
+    delivery_fee_usd: float = Field(default=0.0, ge=0, le=100000, description="派送费(USD)，手动填写")
+    inbound_config_fee_usd: float = Field(default=0.0, ge=0, le=100000, description="配置费(USD)，手动填写")
+    storage_fee_usd: float = Field(default=0.0, ge=0, le=100000, description="仓储费(USD)，手动填写")
+    # 其他费用参数
+    commission_rate: float = Field(default=0.15, ge=0, le=1)
+    advertising_rate: float = Field(default=0.12, ge=0, le=1)
+    return_loss_rate: float = Field(default=0.04, ge=0, le=1)
     usd_to_rmb_rate: float | None = Field(default=None, gt=0, le=1000)
 
 
@@ -124,10 +152,14 @@ class PricingCalculationProfit(BaseModel):
     payout_usd: float
     profit_usd: float
     profit_rate: float
+    vat_usd: float = 0.0
+    profit_after_vat_usd: float | None = None
+    profit_after_vat_rate: float | None = None
 
 
 class PricingCalculationRunItem(BaseModel):
     id: int
+    country: str = "US"
     product_name: str
     calculation_type: CalculationType = "profit_calc"
     project_id: int | None = None

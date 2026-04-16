@@ -49,6 +49,7 @@ from app.models.category_research import (
 from app.models.project import Project
 from app.models.product_cost import ProductCost
 from app.models.ai_chat import AIConversation, AIMessage
+from app.models.ai_insight import AIInsight, InsightStatus, InsightType
 from app.models.commission_record import CommissionRecord
 from app.models.commission_project_month import CommissionProjectMonth
 from app.models.commission_ratio_override import CommissionRatioOverride
@@ -59,9 +60,12 @@ from app.models.exchange_rate import ExchangeRate
 from app.models.inventory_replenishment import InventoryReplenishmentSetting
 from app.models.pricing_calculation import PricingCalculationRun
 from app.models.store_sku_pricing_snapshot import StoreSkuPricingSnapshot
+from app.models.store_accounting import StoreAccounting
 from app.models.shipment_schedule import ShipmentSchedule, ShipmentScheduleItem
 from app.models.shipment_sku_summary import ShipmentSkuSummary
 from app.models.report_upload_status import ReportUploadStatus
+from app.models.return_analysis import ReturnAnalysisRecord, ReturnCustomerComment
+from app.models.project_goal import ProjectGoal
 
 __all__ = [
     'ProductCost',
@@ -71,6 +75,9 @@ __all__ = [
     'JobStatus',
     'AIConversation',
     'AIMessage',
+    'AIInsight',
+    'InsightStatus',
+    'InsightType',
     'CommissionRecord',
     'CommissionProjectMonth',
     'CommissionRatioOverride',
@@ -81,10 +88,14 @@ __all__ = [
     'InventoryReplenishmentSetting',
     'PricingCalculationRun',
     'StoreSkuPricingSnapshot',
+    'StoreAccounting',
     'ShipmentSchedule',
     'ShipmentScheduleItem',
     'ShipmentSkuSummary',
     'ReportUploadStatus',
+    'ReturnAnalysisRecord',
+    'ReturnCustomerComment',
+    'ProjectGoal',
     'MonthlyReport',
     'MonthlyReportTransaction',
     'MonthlyReportPT3Calculation',
@@ -122,4 +133,5 @@ __all__ = [
     'CategoryResearchDataset',
     'CategoryResearchProductDetail',
     'CategoryResearchSalesTrend',
+    'ProjectGoal',
 ]

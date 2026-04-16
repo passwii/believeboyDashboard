@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class ProjectOption(BaseModel):
@@ -16,7 +16,14 @@ class ProjectItem(BaseModel):
     commission_basis: str | None = None
     commission_rate: float | None = None
     sort_order: int
+    is_active: bool = True
     source_file: str | None = None
+
+    @field_validator('is_active', mode='before')
+    @classmethod
+    def _coerce_is_active(cls, v):
+        # Guard against NULL coming from legacy migration data
+        return bool(v) if v is not None else True
 
 
 class ProjectCreate(BaseModel):
@@ -37,3 +44,4 @@ class ProjectUpdate(BaseModel):
     assistant_operator: str | None = Field(default=None, max_length=4000)
     commission_basis: str | None = Field(default=None, max_length=32)
     commission_rate: float | None = Field(default=None, ge=0, le=100)
+    is_active: bool | None = Field(default=None)

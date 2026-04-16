@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 
 InboundPlacementMode = Literal['single_destination', 'amazon_optimized_split']
-CalculationType = Literal['profit_calc', 'profit_reverse']
+CalculationType = Literal['profit_calc', 'profit_reverse', 'eu_accounting']
 
 
 class StoreSkuPricingDimensions(BaseModel):
@@ -36,6 +36,10 @@ class StoreSkuPricingFees(BaseModel):
     inbound_config_fee_usd: float
     storage_fee_usd: float
     total_fee_usd: float
+    # EU 手动填写费用
+    delivery_fee_usd: float = 0.0
+    inbound_config_fee_manual_usd: float = 0.0
+    storage_fee_manual_usd: float = 0.0
 
 
 class StoreSkuPricingProfit(BaseModel):
@@ -44,6 +48,10 @@ class StoreSkuPricingProfit(BaseModel):
     payout_usd: float
     profit_usd: float
     profit_rate: float
+    # EU VAT
+    vat_usd: float = 0.0
+    profit_after_vat_usd: float | None = None
+    profit_after_vat_rate: float | None = None
 
 
 class StoreSkuPricingSnapshotItem(BaseModel):
@@ -178,12 +186,20 @@ class StoreSkuPricingSnapshotCreateRequest(BaseModel):
     inbound_config_fee_usd: float
     storage_fee_usd: float
     total_fee_usd: float
-    
+    # EU 手动填写费用
+    delivery_fee_usd: float = 0.0
+    inbound_config_fee_manual_usd: float = 0.0
+    storage_fee_manual_usd: float = 0.0
+
     # 利润详情
     payout_usd: float
     profit_usd: float
     profit_rate: float
-    
+    # EU VAT
+    vat_usd: float = 0.0
+    profit_after_vat_usd: float | None = None
+    profit_after_vat_rate: float | None = None
+
     # 警告信息
     warnings: list[str] = Field(default_factory=list)
     # 备注

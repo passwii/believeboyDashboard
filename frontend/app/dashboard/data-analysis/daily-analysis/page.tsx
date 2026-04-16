@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { DateRange } from 'react-day-picker'
-import { ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight, ChevronsUpDown, FileDown, Loader2, RefreshCcw } from 'lucide-react'
+import { ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight, ChevronsUpDown, FileDown, Loader2, RefreshCcw, Target } from 'lucide-react'
+import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { Bar, CartesianGrid, ComposedChart, Line, XAxis, YAxis } from 'recharts'
 
@@ -10,7 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart'
 import { DataCard, DataCardHeader, DataCardContent, DataTableCard, DataTableCardHeader, DataTableCardBody } from '@/components/ui/data-card'
-import { DateRangePicker } from '@/components/ui/date-picker'
+import { DateRangePicker, COUNTRY_TIMEZONE_MAP } from '@/components/ui/date-picker'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { EmptyTableState } from '@/components/ui/empty-state'
@@ -141,10 +142,10 @@ function formatMoney(value: number) {
 
 // Timezone utilities — all dates are calculated in the marketplace timezone (country),
 // not the browser's local timezone, to match backend interpretation.
-const COUNTRY_TIMEZONE_MAP: Record<string, string> = {
-  US: 'America/Los_Angeles',
-  DE: 'Europe/Berlin',
-  UK: 'Europe/London',
+const COUNTRY_CURRENCY_SYMBOL: Record<string, string> = {
+  US: '$',
+  DE: '€',
+  UK: '£',
 }
 
 /** Returns today's calendar date as a Date in local time, calculated in the country's timezone. */
@@ -154,13 +155,6 @@ function getTodayInTimezone(country: string): Date {
   const now = new Date()
   const [y, m, d] = formatter.format(now).split('-').map(Number)
   return new Date(y!, m! - 1, d!)
-}
-
-/** Formats a Date as YYYY-MM-DD in the country's timezone. */
-function formatDateInTimezone(date: Date, country: string): string {
-  const tz = COUNTRY_TIMEZONE_MAP[country] ?? 'UTC'
-  const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: tz })
-  return formatter.format(date)
 }
 
 function addDays(date: Date, amount: number) {
@@ -671,6 +665,12 @@ export default function DailyAnalysisPage() {
   const [activeTab, setActiveTab] = useState<ViewTab>('summary')
   const [activeChartMetric, setActiveChartMetric] = useState<ChartMetricKey>('order_qty')
 
+  const [goalProgress, setGoalProgress] = useState<{
+    target_amount: number; achieved_amount: number;
+    completion_vs_monthly: number; completion_vs_daily: number;
+    today_day: number; days_in_month: number; currency: string;
+  } | null>(null)
+  const [goalLoading, setGoalLoading] = useState(false)
   const [data, setData] = useState<DailyAnalysisResponse | null>(null)
   const [comparisonSummaryRows, setComparisonSummaryRows] = useState<DailyAnalysisRow[]>(EMPTY_SUMMARY_ROWS)
   const [comparisonDetailRows, setComparisonDetailRows] = useState<DailyAnalysisDetailRow[]>(EMPTY_DETAIL_ROWS)
@@ -863,6 +863,23 @@ export default function DailyAnalysisPage() {
     if (!projectId) return
     void loadData()
   }, [projectId, country, selectedSku, loadData])
+
+  // Fetch current month goal progress
+  useEffect(() => {
+    if (!projectId) { setGoalProgress(null); return }
+    const year = new Date().getFullYear()
+    const month = new Date().getMonth() + 1
+    setGoalLoading(true)
+    fetch(`${API_BASE}/api/v1/project-goals/progress?project_id=${projectId}&country=${country}&year=${year}`, { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data) return
+        const monthly = (data.monthly_progress ?? []).find((m: { month: number }) => m.month === month)
+        if (monthly) setGoalProgress(monthly)
+      })
+      .catch(() => { /* silently fail */ })
+      .finally(() => setGoalLoading(false))
+  }, [projectId, country])
 
   const summaryRows = data?.summary_rows ?? EMPTY_SUMMARY_ROWS
   const detailRows = data?.detail_rows ?? EMPTY_DETAIL_ROWS
@@ -1084,6 +1101,7 @@ export default function DailyAnalysisPage() {
                   value={dateRange}
                   onChange={setDateRange}
                   className="h-10 w-[240px]"
+                  timezone={COUNTRY_TIMEZONE_MAP[country]}
                   onApply={() => void loadData()}
                 />
                 <div className="flex items-center gap-1">
@@ -1133,6 +1151,72 @@ export default function DailyAnalysisPage() {
           </div>
         </div>
       </DataCard>
+
+      {/* Goal Progress Banner */}
+      {goalProgress && goalProgress.target_amount > 0 && (
+        <DataCard>
+          <DataCardContent className='py-3'>
+            <div className='flex flex-wrap items-center justify-between gap-4'>
+              <div className='flex items-center gap-3'>
+                <Target className='h-5 w-5 text-blue-500' />
+                <div>
+                  <div className='text-sm font-medium'>
+                    {new Date().getMonth() + 1}月目标进度
+                    <span className='ml-2 text-xs text-muted-foreground'>
+                      · {new Date().getFullYear()}年 · {goalProgress.today_day}/{goalProgress.days_in_month}日
+                    </span>
+                  </div>
+                  <div className='mt-1 flex items-center gap-6'>
+                    <div className='space-y-1'>
+                      <div className='text-xs text-muted-foreground'>月度完成率</div>
+                      <div className='flex items-center gap-2'>
+                        <div className='w-32 rounded-full bg-muted/70 h-1.5'>
+                          <div
+                            className='h-full rounded-full transition-all'
+                            style={{
+                              width: `${Math.min(goalProgress.completion_vs_monthly * 100, 100)}%`,
+                              background: goalProgress.completion_vs_monthly >= 1 ? '#22c55e' : '#3b82f6',
+                            }}
+                          />
+                        </div>
+                        <span className='text-sm font-semibold'>
+                          {(goalProgress.completion_vs_monthly * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                    <div className='space-y-1'>
+                      <div className='text-xs text-muted-foreground'>日均完成率</div>
+                      <div className='flex items-center gap-2'>
+                        <div className='w-32 rounded-full bg-muted/70 h-1.5'>
+                          <div
+                            className='h-full rounded-full transition-all'
+                            style={{
+                              width: `${Math.min(goalProgress.completion_vs_daily * 100, 100)}%`,
+                              background: goalProgress.completion_vs_daily >= 1 ? '#22c55e' : '#8b5cf6',
+                            }}
+                          />
+                        </div>
+                        <span className='text-sm font-semibold'>
+                          {(goalProgress.completion_vs_daily * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                    <div className='text-xs text-muted-foreground'>
+                      {goalProgress.currency} {goalProgress.achieved_amount.toLocaleString('zh-CN', { minimumFractionDigits: 2 })} / {goalProgress.currency} {goalProgress.target_amount.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <Link
+                href={`/dashboard/data-analysis/project-goals?project=${projectId}&country=${country}`}
+                className='text-xs text-blue-500 hover:text-blue-600 hover:underline'
+              >
+                查看全部目标 →
+              </Link>
+            </div>
+          </DataCardContent>
+        </DataCard>
+      )}
 
       <DataCard>
         <DataCardContent className="space-y-4">

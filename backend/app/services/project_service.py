@@ -247,9 +247,9 @@ def bulk_upsert_projects(
 PROJECTS_CACHE_KEY_PREFIX = "projects:manage"
 
 
-def _projects_cache_key(*, operator: str | None, is_admin: bool) -> str:
+def _projects_cache_key(*, operator: str | None, is_admin: bool, include_inactive: bool = False) -> str:
     op = (operator or "").strip() or "none"
-    return _make_cache_key(PROJECTS_CACHE_KEY_PREFIX, f"admin:{is_admin}", f"op:{op}")
+    return _make_cache_key(PROJECTS_CACHE_KEY_PREFIX, f"admin:{is_admin}", f"op:{op}", f"inactive:{include_inactive}")
 
 
 def _serialize_project_for_cache(row: Project) -> dict:
@@ -265,6 +265,7 @@ def _serialize_project_for_cache(row: Project) -> dict:
         if row.commission_rate is not None
         else None,
         "sort_order": row.sort_order,
+        "is_active": row.is_active,
         "source_file": row.source_file,
     }
 
@@ -278,13 +279,14 @@ def list_project_items(
     *,
     operator: str | None = None,
     is_admin: bool = True,
+    include_inactive: bool = False,
 ) -> list[Project]:
     normalized_operator = (operator or "").strip()
     if not is_admin:
         if not normalized_operator:
             return []
 
-    cache_key = _projects_cache_key(operator=normalized_operator, is_admin=is_admin)
+    cache_key = _projects_cache_key(operator=normalized_operator, is_admin=is_admin, include_inactive=include_inactive)
     cached = cache_get(cache_key)
     if cached is not None:
         project_ids = [item["id"] for item in cached]
@@ -311,6 +313,8 @@ def list_project_items(
             return []
 
     stmt = select(Project)
+    if not include_inactive:
+        stmt = stmt.where(Project.is_active == True)  # noqa: E712
     stmt = stmt.order_by(Project.sort_order.asc(), Project.id.asc())
     rows = db.execute(stmt).scalars().all()
 
@@ -520,6 +524,7 @@ def update_project(
     assistant_operator: str | None = None,
     commission_basis: str | None = None,
     commission_rate: float | Decimal | None = None,
+    is_active: bool | None = True,
 ) -> Project:
     project_name = name.strip()
     if not project_name:
@@ -552,6 +557,99 @@ def update_project(
     row.assistant_operator = _normalize_multi_name_text(assistant_operator)
     row.commission_basis = _normalize_commission_basis(commission_basis)
     row.commission_rate = _normalize_commission_rate(commission_rate)
+    row.is_active = is_active if is_active is not None else True
+    db.flush()
+    db.refresh(row)
+    invalidate_projects_cache()
+    return row
+
+
+def reorder_project(db: Session, project_id: int, direction: str) -> Project:
+    """Move a project up or down in sort order.
+
+    Args:
+        db: Database session
+        project_id: ID of the project to move
+        direction: 'up' or 'down'
+
+    Returns:
+        The moved project row
+    """
+    row = db.execute(select(Project).where(Project.id == project_id)).scalars().first()
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+
+    current_order = row.sort_order
+
+    if direction == 'up':
+        # Find the project with the next lower sort_order
+        neighbor = (
+            db.execute(
+                select(Project)
+                .where(Project.sort_order < current_order)
+                .order_by(Project.sort_order.desc())
+                .limit(1)
+            )
+            .scalars()
+            .first()
+        )
+        if not neighbor:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="已在最顶部")
+    elif direction == 'down':
+        # Find the project with the next higher sort_order
+        neighbor = (
+            db.execute(
+                select(Project)
+                .where(Project.sort_order > current_order)
+                .order_by(Project.sort_order.asc())
+                .limit(1)
+            )
+            .scalars()
+            .first()
+        )
+        if not neighbor:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="已在最底部")
+    else:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="direction must be 'up' or 'down'")
+
+    # Swap sort_order values
+    row.sort_order, neighbor.sort_order = neighbor.sort_order, row.sort_order
+    db.flush()
+    db.refresh(row)
+    invalidate_projects_cache()
+    return row
+    project_name = name.strip()
+    if not project_name:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="name is required"
+        )
+
+    row = db.execute(select(Project).where(Project.id == project_id)).scalars().first()
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+
+    duplicate = (
+        db.execute(
+            select(Project).where(
+                Project.project_name == project_name, Project.id != project_id
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if duplicate:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="项目名称已存在"
+        )
+
+    row.project_name = project_name
+    row.brand_name = _normalize_optional_text(brand_name)
+    row.store_address = _normalize_optional_text(store_address)
+    row.project_operator = _normalize_multi_name_text(project_operator)
+    row.assistant_operator = _normalize_multi_name_text(assistant_operator)
+    row.commission_basis = _normalize_commission_basis(commission_basis)
+    row.commission_rate = _normalize_commission_rate(commission_rate)
+    row.is_active = is_active if is_active is not None else True
     db.flush()
     db.refresh(row)
     invalidate_projects_cache()

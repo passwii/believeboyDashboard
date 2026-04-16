@@ -11,9 +11,11 @@ from app.api.v1.endpoints.presence import router as presence_router
 from app.api.v1.endpoints.product_costs import router as product_costs_router
 from app.api.v1.endpoints.pricing_calculation import router as pricing_calculation_router
 from app.api.v1.endpoints.store_sku_pricing_snapshots import router as store_sku_pricing_snapshots_router
+from app.api.v1.endpoints.store_accounting import router as store_accounting_router
 from app.api.v1.endpoints.projects import router as projects_router
 from app.api.v1.endpoints.ai_chat import router as ai_chat_router
 from app.api.v1.endpoints.ai_file_upload import router as ai_file_upload_router
+from app.api.v1.endpoints.ai_insight import router as ai_insight_router
 from app.api.v1.endpoints.auth import router as auth_router
 from app.api.v1.endpoints.exchange_rates import router as exchange_rates_router
 from app.api.v1.endpoints.inventory_replenishment import router as inventory_replenishment_router
@@ -24,6 +26,8 @@ from app.api.v1.endpoints.ad_upload import router as ad_upload_router
 from app.api.v1.endpoints.ad_analysis import router as ad_analysis_router
 from app.api.v1.endpoints.users import router as users_router
 from app.api.v1.endpoints.category_research import router as category_research_router
+from app.api.v1.endpoints.return_analysis import router as return_analysis_router
+from app.api.v1.endpoints.project_goals import router as project_goals_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router)
@@ -33,10 +37,12 @@ api_router.include_router(projects_router)
 api_router.include_router(product_costs_router)
 api_router.include_router(pricing_calculation_router)
 api_router.include_router(store_sku_pricing_snapshots_router)
+api_router.include_router(store_accounting_router)
 api_router.include_router(inventory_replenishment_router)
 api_router.include_router(shipment_schedules_router)
 api_router.include_router(ai_chat_router)
 api_router.include_router(ai_file_upload_router)
+api_router.include_router(ai_insight_router)
 api_router.include_router(uploads_router)
 api_router.include_router(ad_upload_router)
 api_router.include_router(ad_analysis_router)
@@ -50,3 +56,5 @@ api_router.include_router(category_research_router)
 api_router.include_router(system_management_router)
 api_router.include_router(users_router)
 api_router.include_router(presence_router)
+api_router.include_router(return_analysis_router)
+api_router.include_router(project_goals_router)

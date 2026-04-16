@@ -18,7 +18,8 @@ router = APIRouter(dependencies=[Depends(protected)])
 @router.get('/store-sku-pricing-snapshots', response_model=StoreSkuPricingSnapshotListResponse)
 def list_store_sku_pricing_snapshots(
     project_id: int | None = Query(default=None, ge=1),
-    calculation_type: str | None = Query(default=None, pattern='^(profit_calc|profit_reverse)$'),
+    calculation_type: str | None = Query(default=None, pattern='^(profit_calc|profit_reverse|eu_accounting)$'),
+    country: str | None = Query(default=None, description="按国家筛选（如 US, DE, UK）"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=200, ge=1, le=500),
     db: Session = Depends(get_db_session),
@@ -28,6 +29,7 @@ def list_store_sku_pricing_snapshots(
         db,
         project_id=project_id,
         calculation_type=calculation_type,
+        country=country,
         page=page,
         page_size=page_size,
     )

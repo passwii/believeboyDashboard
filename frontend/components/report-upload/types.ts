@@ -5,6 +5,7 @@ export type ReportType =
   | 'ad_search_term_report'
   | 'sales_report'
   | 'payment_report'
+  | 'return_report'
 
 export const REPORT_UPLOAD_COUNTRY_OPTIONS = [
   { value: 'US', label: 'US 美国站' },
@@ -67,6 +68,7 @@ export type UploadQueueItem = {
   reportType: ReportType | 'unknown' | null
   recognitionStatus: 'pending' | RecognitionStatus
   recognizedProject: string | null
+  detectedDate: string | null
   fileCommitStatus: CommitStatus
   commitError: string | null
   error: string | null

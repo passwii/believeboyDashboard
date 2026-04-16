@@ -14,4 +14,5 @@ __all__ = [
     'exchange_rate_service',
     'inventory_analysis_service',
     'inventory_replenishment_service',
+    'project_goal_service',
 ]

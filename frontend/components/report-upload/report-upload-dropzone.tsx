@@ -24,6 +24,8 @@ function getReportTypeLabel(type: UploadQueueItem['reportType']): string {
       return '销售报表 - 所有订单'
     case 'payment_report':
       return '付款报告'
+    case 'return_report':
+      return '退货明细'
     default:
       return '未识别'
   }
@@ -154,9 +156,16 @@ export function ReportUploadDropzone({
                           : `类型：${getReportTypeLabel(item.reportType)}`}
                       </p>
                       {item.recognitionStatus !== 'pending' ? (
-                        <p className="text-xs text-muted-foreground">
-                          项目：{item.recognizedProject || '未识别'}
-                        </p>
+                        <>
+                          <p className="text-xs text-muted-foreground">
+                            项目：{item.recognizedProject || '未识别'}
+                          </p>
+                          {item.detectedDate ? (
+                            <p className="text-xs text-muted-foreground">
+                              日期：{item.detectedDate}
+                            </p>
+                          ) : null}
+                        </>
                       ) : null}
                       {item.error ? <p className="text-xs text-rose-600 dark:text-rose-300">{item.error}</p> : null}
                       {item.commitError ? <p className="text-xs text-rose-600 dark:text-rose-300">{item.commitError}</p> : null}

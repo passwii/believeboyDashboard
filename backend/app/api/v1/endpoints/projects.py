@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Header, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, get_request_operator, protected
@@ -20,6 +20,7 @@ def _serialize_project_item(row) -> dict[str, object | None]:
         'commission_basis': row.commission_basis,
         'commission_rate': float(row.commission_rate) if row.commission_rate is not None else None,
         'sort_order': row.sort_order,
+        'is_active': row.is_active,
         'source_file': row.source_file,
     }
 
@@ -65,6 +66,7 @@ def list_project_operator_options(
 @router.get('/projects/manage')
 def list_projects_manage(
     request: Request,
+    show_inactive: bool = Query(default=False),
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
@@ -73,6 +75,7 @@ def list_projects_manage(
         db,
         operator=operator,
         is_admin=bool(is_admin),
+        include_inactive=show_inactive,
     )
     append_operation_view_log(
         db,
@@ -95,6 +98,7 @@ def list_projects_manage(
             commission_basis=row.commission_basis,
             commission_rate=float(row.commission_rate) if row.commission_rate is not None else None,
             sort_order=row.sort_order,
+            is_active=row.is_active,
             source_file=row.source_file,
         )
         for row in rows
@@ -161,6 +165,7 @@ def update_project(
         payload.assistant_operator,
         payload.commission_basis,
         payload.commission_rate,
+        payload.is_active,
     )
     after = _serialize_project_item(row)
     append_operation_audit_log(
@@ -170,6 +175,34 @@ def update_project(
         target_id=project_id,
         operator=operator,
         before=before,
+        after=after,
+        request=request,
+    )
+    db.commit()
+    return ProjectItem(**after)
+
+
+@router.post('/projects/{project_id}/move-{direction}', response_model=ProjectItem)
+def move_project(
+    project_id: int,
+    direction: str,
+    request: Request,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
+) -> ProjectItem:
+    """Move a project up or down in the sort order."""
+    if direction not in ('up', 'down'):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="direction must be 'up' or 'down'")
+    project_service.ensure_project_access(db, project_id, operator=operator, is_admin=bool(is_admin))
+    row = project_service.reorder_project(db, project_id, direction)
+    after = _serialize_project_item(row)
+    append_operation_audit_log(
+        db,
+        action=f'projects.move_{direction}',
+        target_type='project',
+        target_id=project_id,
+        operator=operator,
         after=after,
         request=request,
     )

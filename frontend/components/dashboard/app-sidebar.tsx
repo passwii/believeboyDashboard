@@ -77,7 +77,10 @@ const primaryGroups: NavGroup[] = [
     activeAccent: 'bg-[linear-gradient(180deg,#7340b4,#9558e0)] text-white',
     iconAccent: '#888888',
     activeIconAccent: 'rgba(255,255,255,0.95)',
-    items: [{ title: 'AI 聊天', url: '/dashboard/ai-panel/chat' }],
+    items: [
+      { title: 'AI 聊天', url: '/dashboard/ai-panel/chat' },
+      { title: 'AI 洞察', url: '/dashboard/ai-insights' },
+    ],
   },
   {
     label: '运营核算',
@@ -91,8 +94,14 @@ const primaryGroups: NavGroup[] = [
       { title: '财务月报', url: '/dashboard/data-reporting/monthly-report' },
       { title: '产品分析', url: '/dashboard/data-reporting/product-analysis' },
       {
-        title: '定价核算',
-        url: '/dashboard/data-reporting/pricing-calculation',
+        title: '新品核算',
+        url: '/dashboard/data-reporting/pricing-calculation/new-product',
+        matchPrefixes: ['/dashboard/data-reporting/pricing-calculation/new-product'],
+      },
+      {
+        title: '店铺核算',
+        url: '/dashboard/data-reporting/pricing-calculation/store-accounting',
+        matchPrefixes: ['/dashboard/data-reporting/pricing-calculation/store-accounting'],
       },
     ],
   },
@@ -120,6 +129,8 @@ const primaryGroups: NavGroup[] = [
         title: '补货分析',
         url: '/dashboard/data-analysis/inventory-replenishment',
       },
+      { title: '退货分析', url: '/dashboard/data-analysis/return-analysis' },
+      { title: '项目目标', url: '/dashboard/data-analysis/project-goals' },
     ],
   },
   {
@@ -185,6 +196,7 @@ const adminGroup: NavGroup = {
       url: '/dashboard/system-management/commission-overview',
     },
     { title: '日志查看', url: '/dashboard/system-management/logs' },
+    { title: '报表自动化', url: '/dashboard/system-management/auto-upload' },
   ],
 }
 

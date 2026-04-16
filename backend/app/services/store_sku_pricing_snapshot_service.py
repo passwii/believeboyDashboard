@@ -70,6 +70,9 @@ def _to_item(row: StoreSkuPricingSnapshot) -> StoreSkuPricingSnapshotItem:
             'inbound_config_fee_usd': float(row.inbound_config_fee_usd),
             'storage_fee_usd': float(row.storage_fee_usd),
             'total_fee_usd': float(row.total_fee_usd),
+            'delivery_fee_usd': float(getattr(row, 'delivery_fee_usd', Decimal('0')) or Decimal('0')),
+            'inbound_config_fee_manual_usd': float(getattr(row, 'inbound_config_fee_manual_usd', Decimal('0')) or Decimal('0')),
+            'storage_fee_manual_usd': float(getattr(row, 'storage_fee_manual_usd', Decimal('0')) or Decimal('0')),
         },
         profit={
             'ddp_cost_rmb': float(row.ddp_cost_rmb),
@@ -77,6 +80,9 @@ def _to_item(row: StoreSkuPricingSnapshot) -> StoreSkuPricingSnapshotItem:
             'payout_usd': float(row.payout_usd),
             'profit_usd': float(row.profit_usd),
             'profit_rate': float(row.profit_rate),
+            'vat_usd': float(getattr(row, 'vat_usd', Decimal('0')) or Decimal('0')),
+            'profit_after_vat_usd': float(row.profit_after_vat_usd) if row.profit_after_vat_usd is not None else None,
+            'profit_after_vat_rate': float(row.profit_after_vat_rate) if row.profit_after_vat_rate is not None else None,
         },
         warnings=row.warnings_json or [],
         notes=row.notes,
@@ -174,6 +180,12 @@ def _create_snapshot(
         payout_usd=Decimal(str(payload.payout_usd)),
         profit_usd=Decimal(str(payload.profit_usd)),
         profit_rate=Decimal(str(payload.profit_rate)),
+        delivery_fee_usd=Decimal(str(payload.delivery_fee_usd)),
+        inbound_config_fee_manual_usd=Decimal(str(payload.inbound_config_fee_manual_usd)),
+        storage_fee_manual_usd=Decimal(str(payload.storage_fee_manual_usd)),
+        vat_usd=Decimal(str(payload.vat_usd)),
+        profit_after_vat_usd=Decimal(str(payload.profit_after_vat_usd)) if payload.profit_after_vat_usd is not None else None,
+        profit_after_vat_rate=Decimal(str(payload.profit_after_vat_rate)) if payload.profit_after_vat_rate is not None else None,
         warnings_json=payload.warnings,
         notes=payload.notes,
         created_by=(operator or '').strip() or None,
@@ -233,6 +245,12 @@ def _update_snapshot(
     existing.payout_usd = Decimal(str(payload.payout_usd))
     existing.profit_usd = Decimal(str(payload.profit_usd))
     existing.profit_rate = Decimal(str(payload.profit_rate))
+    existing.delivery_fee_usd = Decimal(str(payload.delivery_fee_usd))
+    existing.inbound_config_fee_manual_usd = Decimal(str(payload.inbound_config_fee_manual_usd))
+    existing.storage_fee_manual_usd = Decimal(str(payload.storage_fee_manual_usd))
+    existing.vat_usd = Decimal(str(payload.vat_usd))
+    existing.profit_after_vat_usd = Decimal(str(payload.profit_after_vat_usd)) if payload.profit_after_vat_usd is not None else None
+    existing.profit_after_vat_rate = Decimal(str(payload.profit_after_vat_rate)) if payload.profit_after_vat_rate is not None else None
     existing.warnings_json = payload.warnings
     existing.notes = payload.notes
     if operator:
@@ -244,6 +262,7 @@ def list_snapshots(
     *,
     project_id: int | None = None,
     calculation_type: str | None = None,
+    country: str | None = None,
     page: int = 1,
     page_size: int = 200,
 ) -> tuple[list[StoreSkuPricingSnapshotItem], int]:
@@ -257,6 +276,8 @@ def list_snapshots(
         stmt = stmt.where(StoreSkuPricingSnapshot.project_id == project_id)
     if calculation_type is not None:
         stmt = stmt.where(StoreSkuPricingSnapshot.calculation_type == calculation_type)
+    if country is not None:
+        stmt = stmt.where(StoreSkuPricingSnapshot.country == country)
 
     # 统计总数
     count_stmt = select(func.count()).select_from(stmt.subquery())

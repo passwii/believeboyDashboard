@@ -93,11 +93,19 @@ class StoreSkuPricingSnapshot(Base):
     inbound_config_fee_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     storage_fee_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     total_fee_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    # EU 手动填写费用
+    delivery_fee_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, server_default='0.00')
+    inbound_config_fee_manual_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, server_default='0.00')
+    storage_fee_manual_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, server_default='0.00')
 
     # 利润详情
     payout_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     profit_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     profit_rate: Mapped[Decimal] = mapped_column(Numeric(8, 6), nullable=False)
+    # EU VAT
+    vat_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, server_default='0.00')
+    profit_after_vat_usd: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    profit_after_vat_rate: Mapped[Decimal | None] = mapped_column(Numeric(8, 6), nullable=True)
 
     # 警告信息
     warnings_json: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)

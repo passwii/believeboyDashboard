@@ -120,3 +120,33 @@ export {
   TableCell,
   TableCaption,
 }
+
+// ========================
+// 公共 Sticky 样式常量
+// 用于 DataTableCard、inventory-replenishment、store-accounting 等页面
+// 原则：实体不透明背景（无 opacity），z-index 分层，shadow 模拟边框
+// ========================
+
+/** 第一列表头单元格：固定左侧 + 顶部（配合 STICKY_TOP_ROW 使用） */
+export const STICKY_LEFT_HEAD_CELL =
+  'sticky left-0 z-50 bg-[hsl(var(--surface-subtle))] shadow-[inset_-1px_0_0_0_hsl(var(--border)/0.5)]'
+
+/** 第一行表头行：固定顶部（z-index 40，数据行上方） */
+export const STICKY_TOP_ROW =
+  'sticky top-0 z-40 bg-[hsl(var(--surface-subtle))] shadow-[inset_0_-1px_0_0_hsl(var(--border)/0.4)]'
+
+/** 两行表头场景第1行 group header：固定顶部，z-index 最高 */
+export const STICKY_TOP_GROUP_ROW =
+  'sticky top-0 z-50'
+
+/** 两行表头场景第2行 sub-header：固定顶部，offset=第1行表头高度（h-11 + border = 45px） */
+export const STICKY_TOP_SUB_ROW =
+  'sticky top-[45px] z-40'
+
+/** 第一列数据单元格：固定左侧，实体不透明背景 */
+export const STICKY_LEFT_CELL =
+  'sticky left-0 z-30 bg-[hsl(var(--surface-base))] shadow-[inset_-1px_0_0_0_hsl(var(--border)/0.4)]'
+
+/** 第一列数据单元格（含 hover 变亮效果） */
+export const STICKY_LEFT_CELL_HOVER =
+  'sticky left-0 z-30 bg-[hsl(var(--surface-base))] shadow-[inset_-1px_0_0_0_hsl(var(--border)/0.4)] hover:!bg-sky-50/90 dark:hover:!bg-sky-950/40'

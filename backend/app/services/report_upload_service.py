@@ -41,6 +41,7 @@ SUPPORTED_REPORT_TYPES = {
     "ad_search_term_report",
     "sales_report",
     "payment_report",
+    "return_report",
 }
 STATUS_REPORT_TYPES = [
     "inventory_report",
@@ -49,6 +50,7 @@ STATUS_REPORT_TYPES = [
     "ad_search_term_report",
     "sales_report",
     "payment_report",
+    "return_report",
 ]
 COUNTRY_TIMEZONE = {
     "US": ZoneInfo("America/Los_Angeles"),
@@ -80,6 +82,28 @@ def _read_excel(path: Path) -> pd.DataFrame:
             category=UserWarning,
         )
         return pd.read_excel(path, engine="openpyxl")
+
+
+def _read_csv_with_encoding_fallback(path: Path, sep: str = "\t") -> pd.DataFrame:
+    """Try UTF-8 first, fall back to CP1252 (Windows-1252) if decode fails."""
+    for encoding in ("utf-8-sig", "cp1252"):
+        try:
+            return pd.read_csv(path, sep=sep, encoding=encoding)
+        except UnicodeDecodeError:
+            continue
+    # Last resort: latin-1 which never fails
+    return pd.read_csv(path, sep=sep, encoding="latin-1")
+
+
+def _read_text_with_encoding_fallback(path: Path) -> str:
+    """Try UTF-8 first, fall back to CP1252 if decode fails."""
+    raw_bytes = path.read_bytes()
+    for encoding in ("utf-8-sig", "utf-8", "cp1252"):
+        try:
+            return raw_bytes.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return raw_bytes.decode("latin-1", errors="replace")
 
 
 def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
@@ -244,7 +268,7 @@ def _recognize_inventory_report(
     country: str = "US",
     allowed_projects: set[str] | None = None,
 ) -> RecognitionPayload:
-    df = _normalize_columns(pd.read_csv(path, sep="\t", encoding="utf-8-sig"))
+    df = _normalize_columns(_read_csv_with_encoding_fallback(path))
     required = ["snapshot-date", "sku", "asin"]
     missing = [column for column in required if column not in df.columns]
     if missing:
@@ -284,14 +308,29 @@ def _recognize_inventory_report(
     )
 
 
+def _extract_date_from_filename(filename: str) -> str | None:
+    """从文件名中提取 YYYYMMDD 格式的日期，例如 BusinessReport-15-4-26_20260413.csv → 2026-04-13"""
+    import re
+    m = re.search(r'(\d{4})(\d{2})(\d{2})', filename)
+    if not m:
+        return None
+    year, month, day = m.group(1), m.group(2), m.group(3)
+    try:
+        datetime(int(year), int(month), int(day))
+        return f"{year}-{month}-{day}"
+    except ValueError:
+        return None
+
+
 def _recognize_business_report(
     db: Session,
     path: Path,
     *,
     country: str = "US",
     allowed_projects: set[str] | None = None,
+    original_filename: str = "",
 ) -> RecognitionPayload:
-    df = _normalize_columns(pd.read_csv(path, encoding="utf-8-sig"))
+    df = _normalize_columns(_read_csv_with_encoding_fallback(path, sep=","))
     asin_column = next(
         (
             column
@@ -310,13 +349,19 @@ def _recognize_business_report(
         country=country,
         allowed_projects=allowed_projects,
     )
+    detected_date = _extract_date_from_filename(original_filename)
+    warnings_list: list[str] = []
+    if detected_date:
+        warnings_list.append(f"从文件名识别日期：{detected_date}")
     return RecognitionPayload(
         report_type="business_report",
         matched_columns=[asin_column],
         reason="命中（子）ASIN字段",
-        date_input_mode="single_manual",
+        date_input_mode="single_detected" if detected_date else "single_manual",
+        detected_date=detected_date,
         project_match=project_match,
         row_count_preview=len(df.index),
+        warnings=warnings_list,
     )
 
 
@@ -356,7 +401,7 @@ def _recognize_sales_report(
     country: str = "US",
     allowed_projects: set[str] | None = None,
 ) -> RecognitionPayload:
-    df = _normalize_columns(pd.read_csv(path, sep="\t", encoding="utf-8-sig"))
+    df = _normalize_columns(_read_csv_with_encoding_fallback(path))
     required = ["purchase-date", "sku", "asin"]
     missing = [column for column in required if column not in df.columns]
     if missing:
@@ -493,6 +538,56 @@ def _recognize_ad_search_term_report(
     )
 
 
+def _recognize_return_report(
+    db: Session,
+    path: Path,
+    *,
+    country: str = "US",
+    allowed_projects: set[str] | None = None,
+) -> RecognitionPayload:
+    """识别退货报告 - 通过 return-date 字段判断"""
+    df = _normalize_columns(_read_csv_with_encoding_fallback(path))
+    required = ["return-date", "sku"]
+    missing = [column for column in required if column not in df.columns]
+    if missing:
+        raise ValueError(f"Return report missing required columns: {missing}")
+
+    # 检测日期范围
+    return_dates = pd.to_datetime(
+        df["return-date"], utc=True, errors="coerce"
+    ).dropna()
+    detected_start_date: str | None = None
+    detected_end_date: str | None = None
+    if not return_dates.empty:
+        local_tz = COUNTRY_TIMEZONE.get(country, COUNTRY_TIMEZONE["US"])
+        local_dates = return_dates.dt.tz_convert(local_tz).dt.strftime("%Y-%m-%d")
+        detected_start_date = str(local_dates.min())
+        detected_end_date = str(local_dates.max())
+
+    project_match = _build_project_match(
+        db,
+        values=df["sku"].dropna().astype(str).tolist(),
+        match_by="sku",
+        country=country,
+        allowed_projects=allowed_projects,
+    )
+
+    return RecognitionPayload(
+        report_type="return_report",
+        matched_columns=required,
+        reason="命中 return-date / sku 字段",
+        date_input_mode="multi_auto"
+        if detected_start_date and detected_end_date and detected_start_date != detected_end_date
+        else "single_detected",
+        detected_date=detected_end_date,
+        detected_start_date=detected_start_date,
+        detected_end_date=detected_end_date,
+        project_match=project_match,
+        row_count_preview=len(df.index),
+        country=country,
+    )
+
+
 def recognize_saved_report_upload(
     db: Session,
     settings: Settings,
@@ -516,8 +611,7 @@ def recognize_saved_report_upload(
     try:
         if extension == ".txt":
             header = (
-                Path(path)
-                .read_text(encoding="utf-8-sig", errors="ignore")
+                _read_text_with_encoding_fallback(path)
                 .splitlines()[0]
                 .strip()
                 .lower()
@@ -536,12 +630,18 @@ def recognize_saved_report_upload(
                     country=normalized_country,
                     allowed_projects=allowed_projects,
                 )
+            elif "return-date" in header and "\tsku\t" in header:
+                payload = _recognize_return_report(
+                    db,
+                    path,
+                    country=normalized_country,
+                    allowed_projects=allowed_projects,
+                )
             else:
                 raise ValueError("未命中 txt 报表识别规则")
         elif extension == ".csv":
             first_lines = (
-                Path(path)
-                .read_text(encoding="utf-8-sig", errors="ignore")
+                _read_text_with_encoding_fallback(path)
                 .splitlines()[:8]
             )
             joined = "\n".join(first_lines)
@@ -558,6 +658,7 @@ def recognize_saved_report_upload(
                     path,
                     country=normalized_country,
                     allowed_projects=allowed_projects,
+                    original_filename=original_filename,
                 )
         elif extension == ".xlsx":
             df = _normalize_columns(_read_excel(path))
@@ -622,6 +723,9 @@ def commit_report_upload(
     operator: str | None = None,
     is_admin: bool = True,
 ) -> ReportCommitResponse:
+    # Typed declarations so they can be referenced after the if/else branches
+    recognition: ReportRecognitionResponse | None = None  # type: ignore[valid-type]
+    project_match: ReportProjectMatchSummary | None = None
     report_type = normalize_report_type(payload.report_type)
     if report_type not in SUPPORTED_REPORT_TYPES:
         raise HTTPException(
@@ -630,71 +734,121 @@ def commit_report_upload(
         )
 
     country = _normalize_country(payload.country)
-    project_name = (payload.project_name or "").strip()
-    if not project_name:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="project_name is required",
-        )
-    allowed_projects = {
-        str(item.project_name)
-        for item in project_service.list_project_items(
-            db, operator=operator, is_admin=is_admin
-        )
-    }
-    if project_name not in allowed_projects:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="无权限访问该项目"
-        )
-    # File-level project validation: each committed file must uniquely match
-    # the selected project based on recognition identifiers (SKU/ASIN).
-    if report_type != "ad_search_term_report":
-        recognition = recognize_saved_report_upload(
-            db,
-            settings,
-            temp_file_id=payload.temp_file_id,
-            original_filename=(
-                payload.original_filename or payload.temp_file_id
-            ).strip(),
-            country=country,
-            operator=operator,
-            is_admin=is_admin,
-        )
-        if recognition.status != "recognized":
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"文件识别失败，无法确认项目归属：{recognition.reason}",
+    raw_project_name = (payload.project_name or "").strip()
+
+    # For auto-commit (project_name not provided), recognition runs first to derive the project.
+    # For manual commit, project_name is validated upfront before recognition.
+    is_auto_commit = not raw_project_name
+
+    # Auto-commit path: run recognition first to get the detected project, skip upfront project_name validation.
+    # Manual commit path: validate project_name upfront, then re-use the recognition result below.
+    if is_auto_commit:
+        # Run recognition first so we can derive project_name from the result
+        if report_type != "ad_search_term_report":
+            auto_recognition = recognize_saved_report_upload(
+                db,
+                settings,
+                temp_file_id=payload.temp_file_id,
+                original_filename=(
+                    payload.original_filename or payload.temp_file_id
+                ).strip(),
+                country=country,
+                operator=operator,
+                is_admin=is_admin,
             )
-        recognized_type = normalize_report_type(recognition.report_type)
-        if recognized_type != report_type:
+            if auto_recognition.status != "recognized":
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"文件识别失败，无法确认项目归属：{auto_recognition.reason}",
+                )
+            recognized_type = normalize_report_type(auto_recognition.report_type)
+            if recognized_type != report_type:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="report_type does not match recognized report",
+                )
+            if report_type in {"sales_report", "inventory_report"} and auto_recognition.country != country:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        f"文件站点（{auto_recognition.country}）与所选站点（{country}）不一致，"
+                        "请确认后重新上传到对应站点"
+                    ),
+                )
+            auto_project_match = auto_recognition.project_match
+            if auto_project_match.status != "matched" or not auto_project_match.project_name:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="文件未匹配到唯一项目，请先确认文件归属后再入库",
+                )
+            project_name = auto_project_match.project_name
+            allowed_projects = {
+                str(item.project_name)
+                for item in project_service.list_project_items(
+                    db, operator=operator, is_admin=is_admin
+                )
+            }
+            if project_name not in allowed_projects:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN, detail="无权限访问该项目"
+                )
+            # Re-use auto_recognition for the rest of the function
+            recognition = auto_recognition
+            project_match = auto_project_match
+
+    # ── Manual commit path: project_name provided ───────────────────────────────
+    else:
+        project_name = raw_project_name
+        if project_name not in allowed_projects:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="report_type does not match recognized report",
+                status_code=status.HTTP_403_FORBIDDEN, detail="无权限访问该项目"
             )
-        # Country mismatch guard: reject if the file's detected country differs from the requested country.
-        # This prevents cross-marketplace data from being uploaded to the wrong site.
-        if report_type in {"sales_report", "inventory_report"} and recognition.country != country:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    f"文件站点（{recognition.country}）与所选站点（{country}）不一致，"
-                    "请确认后重新上传到对应站点"
-                ),
+        # File-level project validation: each committed file must match the selected project.
+        if report_type != "ad_search_term_report":
+            recognition = recognize_saved_report_upload(
+                db,
+                settings,
+                temp_file_id=payload.temp_file_id,
+                original_filename=(
+                    payload.original_filename or payload.temp_file_id
+                ).strip(),
+                country=country,
+                operator=operator,
+                is_admin=is_admin,
             )
-        project_match = recognition.project_match
-        if project_match.status != "matched" or not project_match.project_name:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="文件未匹配到唯一项目，请先确认文件归属后再入库",
-            )
-        if project_match.project_name != project_name:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=(
-                    "文件匹配项目与当前选择不一致："
-                    f"文件匹配为 {project_match.project_name}，当前选择为 {project_name}"
-                ),
-            )
+            if recognition.status != "recognized":
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"文件识别失败，无法确认项目归属：{recognition.reason}",
+                )
+            recognized_type = normalize_report_type(recognition.report_type)
+            if recognized_type != report_type:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="report_type does not match recognized report",
+                )
+            if report_type in {"sales_report", "inventory_report"} and recognition.country != country:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        f"文件站点（{recognition.country}）与所选站点（{country}）不一致，"
+                        "请确认后重新上传到对应站点"
+                    ),
+                )
+            project_match = recognition.project_match
+            if project_match.status != "matched" or not project_match.project_name:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="文件未匹配到唯一项目，请先确认文件归属后再入库",
+                )
+            if project_match.project_name != project_name:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=(
+                        "文件匹配项目与当前选择不一致："
+                        f"文件匹配为 {project_match.project_name}，当前选择为 {project_name}"
+                    ),
+                )
 
     original_filename = (
         payload.original_filename or ""
@@ -869,6 +1023,28 @@ def commit_report_upload(
         )
         persisted_table = "report_upload_statuses"
         message = "搜索词报表已保存，本期不拆行落库"
+    elif report_type == "return_report":
+        # 退货报告使用独立的入库逻辑
+        import app.services.return_analysis_service as return_analysis_service
+
+        outcome = return_analysis_service.persist_return_report(
+            db,
+            project_name=project_name,
+            country=country,
+            file_path=str(file_meta["file_path"]),
+            created_by=operator,
+        )
+        if not outcome["success"]:
+            raise HTTPException(
+                status_code=400,
+                detail=str(outcome.get("error_message") or "退货报表入库失败"),
+            )
+        persisted_source_id = outcome.get("source_id")
+        persisted_table = "return_analysis_records"
+        response_status = "persisted"
+        payload.report_start_date = outcome.get("report_start_date")
+        payload.report_end_date = outcome.get("report_end_date")
+        message = outcome.get("message") or "退货报表已保存并写入退货数据"
 
     return ReportCommitResponse(
         report_type=report_type,  # type: ignore[arg-type]
