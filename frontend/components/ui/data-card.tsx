@@ -56,8 +56,14 @@ function DataTableCard({ className, ...props }: React.HTMLAttributes<HTMLDivElem
   return <div className={cn("dashboard-surface", className)} {...props} />
 }
 
-// 标题行容器（border-b 分隔）— 接收任意子元素
-function DataTableCardHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+// 标题行容器（border-b 分隔）— 支持 title/description/action 或任意子元素
+interface DataTableCardHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
+  title?: string
+  description?: string
+  action?: React.ReactNode
+}
+
+function DataTableCardHeader({ title, description, action, className, children, ...props }: DataTableCardHeaderProps) {
   return (
     <div
       className={cn(
@@ -65,7 +71,17 @@ function DataTableCardHeader({ className, ...props }: React.HTMLAttributes<HTMLD
         className
       )}
       {...props}
-    />
+    >
+      {children ?? (
+        <div className="flex min-w-0 items-center justify-between">
+          <div className="flex min-w-0 flex-col gap-1">
+            {title && <h2 className="text-base font-semibold text-foreground leading-none">{title}</h2>}
+            {description && <p className="text-sm text-muted-foreground">{description}</p>}
+          </div>
+          {action && <div className="ml-4 flex shrink-0 flex-wrap gap-2">{action}</div>}
+        </div>
+      )}
+    </div>
   )
 }
 
