@@ -291,17 +291,18 @@ export default function AutoUploadPage() {
       </div>
 
       {/* Dropzone + File list */}
-      <div className='grid gap-4 lg:grid-cols-[1fr_2fr]'>
+      <div className='grid gap-4 lg:grid-cols-[1fr_2fr] lg:h-[calc(100vh-8rem)] lg:overflow-hidden'>
         {/* Dropzone */}
         <Card className='overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-sm'>
-          <CardContent className='p-5'>
+          <CardContent className='flex h-full items-center p-5'>
             <div
               className={cn(
-                'relative flex min-h-[220px] flex-col items-center justify-center rounded-2xl border border-dashed px-5 py-8 transition-[border-color,background-color] duration-200',
+                'relative flex w-full flex-col items-center justify-center rounded-2xl border border-dashed px-5 py-8 transition-[border-color,background-color] duration-200',
                 dragActive
                   ? 'border-sky-500/70 bg-sky-500/8'
                   : 'border-border/70 bg-[hsl(var(--surface-subtle))]',
               )}
+              style={{ minHeight: '200px' }}
               onDrop={(e) => {
                 e.preventDefault()
                 setDragActive(false)
@@ -365,8 +366,8 @@ export default function AutoUploadPage() {
               ) : null}
             </div>
           </CardHeader>
-          <CardContent className='p-0'>
-            <ScrollArea className='h-[calc(100vh-16rem)]'>
+          <CardContent className='flex h-full flex-col p-0'>
+            <ScrollArea className='flex-1'>
               <div className='space-y-2 p-3'>
                 {queueItems.length === 0 ? (
                   <div className='rounded-xl border border-dashed border-border/70 bg-[hsl(var(--surface-subtle))]/45 px-4 py-8 text-center text-sm text-muted-foreground'>
