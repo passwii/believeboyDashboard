@@ -112,35 +112,82 @@ def aggregate_project_data(
 
         with ThreadPoolExecutor(max_workers=6) as executor:
             f_sales = executor.submit(
-                _aggregate_sales_by_date_sql, session_factory, project_id, country, start_date, end_date, AGGREGATE_STEP_SALES, progress_cb
+                _aggregate_sales_by_date_sql,
+                session_factory,
+                project_id,
+                country,
+                start_date,
+                end_date,
+                AGGREGATE_STEP_SALES,
+                progress_cb,
             )
             f_ad = executor.submit(
-                _aggregate_ad_by_date_sql, session_factory, project_id, country, start_date, end_date, AGGREGATE_STEP_AD, progress_cb
+                _aggregate_ad_by_date_sql,
+                session_factory,
+                project_id,
+                country,
+                start_date,
+                end_date,
+                AGGREGATE_STEP_AD,
+                progress_cb,
             )
             f_inventory = executor.submit(
-                _aggregate_inventory_summary, session_factory, project_id, country, end_date, AGGREGATE_STEP_INVENTORY, progress_cb
+                _aggregate_inventory_summary,
+                session_factory,
+                project_id,
+                country,
+                end_date,
+                AGGREGATE_STEP_INVENTORY,
+                progress_cb,
             )
             f_comp_sales = executor.submit(
-                _aggregate_sales_by_date_sql, session_factory, project_id, country, comp_start, comp_end, AGGREGATE_STEP_COMPARISON_SALES, progress_cb
+                _aggregate_sales_by_date_sql,
+                session_factory,
+                project_id,
+                country,
+                comp_start,
+                comp_end,
+                AGGREGATE_STEP_COMPARISON_SALES,
+                progress_cb,
             )
             f_comp_ad = executor.submit(
-                _aggregate_ad_by_date_sql, session_factory, project_id, country, comp_start, comp_end, AGGREGATE_STEP_COMPARISON_AD, progress_cb
+                _aggregate_ad_by_date_sql,
+                session_factory,
+                project_id,
+                country,
+                comp_start,
+                comp_end,
+                AGGREGATE_STEP_COMPARISON_AD,
+                progress_cb,
             )
             f_top_skus = executor.submit(
-                _get_top_skus_sql, session_factory, project_id, country, start_date, end_date, AGGREGATE_STEP_TOP_SKUS, progress_cb
+                _get_top_skus_sql,
+                session_factory,
+                project_id,
+                country,
+                start_date,
+                end_date,
+                AGGREGATE_STEP_TOP_SKUS,
+                progress_cb,
             )
 
             # Wait for first 4 before starting ad campaigns (they're independent)
             sales_by_date, sales_coverage = f_sales.result()
             ad_by_date, ad_coverage = f_ad.result()
             inventory_summary = f_inventory.result()
-            comp_sales_result = f_comp_sales.result()
-            comp_ad_result = f_comp_ad.result()
+            comp_sales_result, _ = f_comp_sales.result()
+            comp_ad_result, _ = f_comp_ad.result()
             top_skus = f_top_skus.result()
 
             # Ad campaigns (can start after ad_by_date is done, but independently)
             ad_campaigns = _get_ad_campaign_summary_sql(
-                session_factory, project_id, country, start_date, end_date, AGGREGATE_STEP_AD_CAMPAIGNS, progress_cb
+                session_factory,
+                project_id,
+                country,
+                start_date,
+                end_date,
+                AGGREGATE_STEP_AD_CAMPAIGNS,
+                progress_cb,
             )
 
         # Build comparison period summary
@@ -182,6 +229,7 @@ def aggregate_project_data(
 
 # --- SQL-side aggregation (avoids pulling millions of rows into Python) ---
 
+
 def _aggregate_sales_by_date_sql(
     session_factory,
     project_id: int,
@@ -200,7 +248,9 @@ def _aggregate_sales_by_date_sql(
                 AnalysisSourceFile.report_date,
                 func.sum(AnalysisSalesOrderRow.quantity).label("order_qty"),
                 func.sum(AnalysisSalesOrderRow.item_price).label("sales_amount"),
-                func.count(func.distinct(AnalysisSalesOrderRow.asin)).label("unique_asins"),
+                func.count(func.distinct(AnalysisSalesOrderRow.asin)).label(
+                    "unique_asins"
+                ),
             )
             .select_from(AnalysisSourceFile)
             .join(
@@ -223,15 +273,17 @@ def _aggregate_sales_by_date_sql(
         rows = db.execute(stmt).all()
 
         result = []
-        for (report_date, order_qty, sales_amount, unique_asins) in rows:
+        for report_date, order_qty, sales_amount, unique_asins in rows:
             if report_date is None:
                 continue
-            result.append({
-                "date": report_date.isoformat(),
-                "order_qty": int(order_qty or 0),
-                "sales_amount": _round_money(Decimal(str(sales_amount or 0))),
-                "unique_asins": int(unique_asins or 0),
-            })
+            result.append(
+                {
+                    "date": report_date.isoformat(),
+                    "order_qty": int(order_qty or 0),
+                    "sales_amount": _round_money(Decimal(str(sales_amount or 0))),
+                    "unique_asins": int(unique_asins or 0),
+                }
+            )
 
         return result, {"days": len(set(r["date"] for r in result))}
     finally:
@@ -280,21 +332,30 @@ def _aggregate_ad_by_date_sql(
         rows = db.execute(stmt).all()
 
         result = []
-        for (report_date, impressions, clicks, ad_spend, ad_sales, ad_orders) in rows:
+        for report_date, impressions, clicks, ad_spend, ad_sales, ad_orders in rows:
             if report_date is None:
                 continue
             clicks_int = int(clicks or 0)
             impressions_int = int(impressions or 0)
-            result.append({
-                "date": report_date.isoformat(),
-                "impressions": impressions_int,
-                "clicks": clicks_int,
-                "ad_spend": _round_money(Decimal(str(ad_spend or 0))),
-                "ad_sales": _round_money(Decimal(str(ad_sales or 0))),
-                "ad_orders": int(ad_orders or 0),
-                "ctr": round(_safe_ratio(Decimal(str(clicks_int)), impressions_int) * 100, 2),
-                "roas": round(_safe_ratio(Decimal(str(ad_sales or 0)), Decimal(str(ad_spend or 0))), 2),
-            })
+            result.append(
+                {
+                    "date": report_date.isoformat(),
+                    "impressions": impressions_int,
+                    "clicks": clicks_int,
+                    "ad_spend": _round_money(Decimal(str(ad_spend or 0))),
+                    "ad_sales": _round_money(Decimal(str(ad_sales or 0))),
+                    "ad_orders": int(ad_orders or 0),
+                    "ctr": round(
+                        _safe_ratio(Decimal(str(clicks_int)), impressions_int) * 100, 2
+                    ),
+                    "roas": round(
+                        _safe_ratio(
+                            Decimal(str(ad_sales or 0)), Decimal(str(ad_spend or 0))
+                        ),
+                        2,
+                    ),
+                }
+            )
 
         return result, {"days": len(set(r["date"] for r in result))}
     finally:
@@ -349,10 +410,13 @@ def _aggregate_inventory_summary(
         # Aggregate inventory in SQL
         inv_stmt = select(
             func.sum(InventorySnapshotRow.available_qty).label("total_available"),
-            func.count(func.nullif(
-                (InventorySnapshotRow.stock_status == "out_of_stock") | (InventorySnapshotRow.available_qty == 0),
-                False
-            )).label("out_of_stock_count"),
+            func.count(
+                func.nullif(
+                    (InventorySnapshotRow.stock_status == "out_of_stock")
+                    | (InventorySnapshotRow.available_qty == 0),
+                    False,
+                )
+            ).label("out_of_stock_count"),
             func.sum(InventorySnapshotRow.age_0_90_qty).label("age_0_90"),
             func.sum(InventorySnapshotRow.age_91_180_qty).label("age_91_180"),
             func.sum(InventorySnapshotRow.age_181_270_qty).label("age_181_270"),
@@ -367,7 +431,8 @@ def _aggregate_inventory_summary(
             select(InventorySnapshotRow.sku)
             .where(
                 InventorySnapshotRow.source_file_id == source_id,
-                (InventorySnapshotRow.stock_status == "out_of_stock") | (InventorySnapshotRow.available_qty == 0),
+                (InventorySnapshotRow.stock_status == "out_of_stock")
+                | (InventorySnapshotRow.available_qty == 0),
             )
             .limit(20)
         )
@@ -389,7 +454,9 @@ def _aggregate_inventory_summary(
             "snapshot_date": (
                 source.report_date.isoformat()
                 if source.report_date
-                else source.snapshot_at.isoformat() if source.snapshot_at else None
+                else source.snapshot_at.isoformat()
+                if source.snapshot_at
+                else None
             ),
         }
     finally:
@@ -500,7 +567,14 @@ def _get_ad_campaign_summary_sql(
                 "ad_sales": _round_money(Decimal(str(ad_sales or 0))),
                 "ad_orders": int(ad_orders or 0),
             }
-            for (report_date, impressions, clicks, ad_spend, ad_sales, ad_orders) in rows
+            for (
+                report_date,
+                impressions,
+                clicks,
+                ad_spend,
+                ad_sales,
+                ad_orders,
+            ) in rows
         ]
     finally:
         db.close()

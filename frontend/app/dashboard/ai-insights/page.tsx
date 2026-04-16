@@ -42,6 +42,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
@@ -71,6 +80,7 @@ type InsightItem = {
   date_range_end: string
   status: string
   sub_status: string | null
+  error_message?: string | null
   created_by: string
   created_at: string
   updated_at: string
@@ -78,11 +88,20 @@ type InsightItem = {
 }
 
 type SseEvent =
-  | { type: 'status'; status: string; sub_status?: string | null; insight_id?: number; title?: string; content?: string }
+  | { type: 'status'; status: string; sub_status?: string | null; insight_id?: number; title?: string; content?: string; error_message?: string | null }
   | { type: 'chunk'; delta: string }
   | { type: 'done'; insight_id: number; title: string; content?: string }
   | { type: 'error'; error: string; insight_id?: number | null }
   | { type: 'ping' }
+
+type AIModelConfig = {
+  providerConfigured: boolean
+  models: string[]
+  defaultModel: string
+  premiumModels: string[]
+  basicModels: string[]
+  message?: string
+}
 
 const COUNTRY_OPTIONS = [
   { value: 'US', label: '美国站 (US)' },
@@ -461,6 +480,9 @@ export default function AIInsightsPage() {
   const [streamingContent, setStreamingContent] = useState('')
   const [currentSubStatus, setCurrentSubStatus] = useState<string | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [modelConfig, setModelConfig] = useState<AIModelConfig | null>(null)
+  const [isLoadingModelConfig, setIsLoadingModelConfig] = useState(false)
+  const [selectedModel, setSelectedModel] = useState('')
   const streamingRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -511,6 +533,36 @@ export default function AIInsightsPage() {
     }
   }, [selectedProjectId, loadInsights])
 
+  useEffect(() => {
+    async function loadModelConfig() {
+      setIsLoadingModelConfig(true)
+      try {
+        const res = await fetch('/api/ai-chat/config', {
+          method: 'GET',
+          cache: 'no-store',
+        })
+        const payload = await res.json() as AIModelConfig
+        if (!res.ok) {
+          throw new Error(payload.message || `加载模型失败 (${res.status})`)
+        }
+
+        setModelConfig(payload)
+        setSelectedModel((prev) => {
+          if (prev && payload.models.includes(prev)) {
+            return prev
+          }
+          return payload.defaultModel || payload.models[0] || ''
+        })
+      } catch (e) {
+        console.error('Failed to load AI model config', e)
+      } finally {
+        setIsLoadingModelConfig(false)
+      }
+    }
+
+    void loadModelConfig()
+  }, [])
+
   const handleViewInsight = useCallback(async (insightId: number) => {
     setIsLoadingDetail(true)
     setViewDialogOpen(true)
@@ -551,6 +603,7 @@ export default function AIInsightsPage() {
         date_range_start: dateRange.from.toISOString().split('T')[0],
         date_range_end: dateRange.to.toISOString().split('T')[0],
         insight_type: insightType,
+        model: selectedModel || undefined,
       }
 
       const response = await fetch('/api/backend/v1/ai-insights/generate', {
@@ -583,6 +636,12 @@ export default function AIInsightsPage() {
           if (event.type === 'status') {
             currentInsightId.current = event.insight_id ?? insightId
             setCurrentSubStatus(event.sub_status ?? null)
+            if (event.status === 'failed') {
+              alert(`生成失败: ${event.error_message || '生成任务失败'}`)
+              _closeSse()
+              setInsightDialogOpen(false)
+              return
+            }
             if (event.content) {
               setStreamingContent(event.content)
             }
@@ -732,6 +791,45 @@ export default function AIInsightsPage() {
                   ))}
                 </DropdownMenuContent>
               </DropdownMenu>
+
+              <Select
+                value={selectedModel}
+                onValueChange={setSelectedModel}
+                disabled={isLoadingModelConfig || isGenerating || !modelConfig?.models.length}
+              >
+                <SelectTrigger className="h-10 w-[220px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none">
+                  <SelectValue placeholder={isLoadingModelConfig ? '加载模型中...' : '选择模型'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {(modelConfig?.premiumModels.length || 0) > 0 && (
+                    <SelectGroup>
+                      <SelectLabel>高级模型</SelectLabel>
+                      {modelConfig?.premiumModels.map((model) => (
+                        <SelectItem key={model} value={model}>
+                          {model}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  )}
+                  {(modelConfig?.basicModels.length || 0) > 0 && (
+                    <SelectGroup>
+                      <SelectLabel>基础模型</SelectLabel>
+                      {modelConfig?.basicModels.map((model) => (
+                        <SelectItem key={model} value={model}>
+                          {model}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  )}
+                  {modelConfig?.models
+                    .filter((model) => !modelConfig.premiumModels.includes(model) && !modelConfig.basicModels.includes(model))
+                    .map((model) => (
+                      <SelectItem key={model} value={model}>
+                        {model}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
 
               <DateRangePicker
                 value={dateRange}
@@ -930,6 +1028,10 @@ export default function AIInsightsPage() {
               </div>
             ) : viewingInsight?.content ? (
               <MarkdownContent content={viewingInsight.content} />
+            ) : viewingInsight?.error_message ? (
+              <div className="rounded-lg border border-red-500/20 bg-red-500/5 px-4 py-3 text-sm text-red-600">
+                生成失败：{viewingInsight.error_message}
+              </div>
             ) : (
               <p className="text-muted-foreground text-center py-8">暂无内容</p>
             )}

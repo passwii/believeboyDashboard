@@ -9,6 +9,7 @@ class InsightGenerateRequest(BaseModel):
     date_range_start: date
     date_range_end: date
     insight_type: str = Field(default='custom', max_length=32)
+    model: str | None = Field(default=None, max_length=200)
     focus_areas: list[str] | None = Field(default=None, max_length=10)
 
 
@@ -40,6 +41,7 @@ class InsightItem(BaseModel):
     date_range_end: date
     status: str
     sub_status: str | None = None  # 细粒度子阶段: data_aggregating / ai_generating / title_generating
+    error_message: str | None = None
     created_by: str
     created_at: datetime
     updated_at: datetime

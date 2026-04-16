@@ -49,6 +49,7 @@ def _serialize_insight(row: AIInsight) -> InsightItem:
         date_range_end=row.date_range_end,
         status=row.status.value if isinstance(row.status, InsightStatus) else row.status,
         sub_status=row.sub_status,
+        error_message=row.error_message,
         created_by=row.created_by,
         created_at=row.created_at,
         updated_at=row.updated_at,
@@ -63,7 +64,11 @@ def _get_project_or_404(db: Session, project_id: int) -> Project:
 
 
 def _encode_sse_event(payload: dict) -> bytes:
-    return (json.dumps(payload, ensure_ascii=False) + "\n\n").encode("utf-8")
+    return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n".encode("utf-8")
+
+
+def _encode_ndjson_event(payload: dict) -> bytes:
+    return (json.dumps(payload, ensure_ascii=False) + "\n").encode("utf-8")
 
 
 def _enqueue_if_exists(insight_id: int, event: dict) -> None:
@@ -139,7 +144,11 @@ def _run_insight_generation(
         _enqueue_if_exists(insight_id, {"type": "status", "status": "generating", "sub_status": "ai_generating"})
 
         content_chunks: list[str] = []
-        for chunk in generate_insight_stream(settings, data_dict):
+        for chunk in generate_insight_stream(
+            settings,
+            data_dict,
+            model=payload.get("model"),
+        ):
             if chunk:
                 content_chunks.append(chunk)
                 _enqueue_if_exists(insight_id, {"type": "chunk", "delta": chunk})
@@ -233,6 +242,7 @@ def generate_insight(
         "country": payload.country,
         "start_date": payload.date_range_start.isoformat(),
         "end_date": payload.date_range_end.isoformat(),
+        "model": payload.model,
     }
     thread = threading.Thread(
         target=_run_insight_generation,
@@ -276,6 +286,7 @@ def stream_insight(
                 "insight_id": insight_id_val,
                 "title": insight.title or "",
                 "content": insight.content or "",
+                "error_message": insight.error_message,
             })
             return
 
@@ -367,7 +378,7 @@ def generate_insight_stream_endpoint(
         from app.db.session import SessionLocal
         gen_db = SessionLocal()
         try:
-            yield _encode_sse_event({"type": "status", "status": "generating", "sub_status": "data_aggregating", "insight_id": insight_id})
+            yield _encode_ndjson_event({"type": "status", "status": "generating", "sub_status": "data_aggregating", "insight_id": insight_id})
 
             aggregated = aggregate_project_data(
                 gen_db,
@@ -382,17 +393,21 @@ def generate_insight_stream_endpoint(
 
             data_dict = aggregated.to_dict()
 
-            yield _encode_sse_event({"type": "status", "status": "generating", "sub_status": "ai_generating", "insight_id": insight_id})
+            yield _encode_ndjson_event({"type": "status", "status": "generating", "sub_status": "ai_generating", "insight_id": insight_id})
 
             content_chunks: list[str] = []
-            for chunk in generate_insight_stream(settings, data_dict):
+            for chunk in generate_insight_stream(
+                settings,
+                data_dict,
+                model=payload.model,
+            ):
                 if chunk:
                     content_chunks.append(chunk)
-                    yield _encode_sse_event({"type": "chunk", "delta": chunk})
+                    yield _encode_ndjson_event({"type": "chunk", "delta": chunk})
 
             final_content = "".join(content_chunks)
 
-            yield _encode_sse_event({"type": "status", "status": "generating", "sub_status": "title_generating", "insight_id": insight_id})
+            yield _encode_ndjson_event({"type": "status", "status": "generating", "sub_status": "title_generating", "insight_id": insight_id})
 
             title = generate_insight_title(
                 settings,
@@ -411,7 +426,7 @@ def generate_insight_stream_endpoint(
             })
             gen_db.commit()
 
-            yield _encode_sse_event({
+            yield _encode_ndjson_event({
                 "type": "done",
                 "insight_id": insight_id,
                 "title": title,
@@ -427,7 +442,7 @@ def generate_insight_stream_endpoint(
                 gen_db.commit()
             except Exception:
                 pass
-            yield _encode_sse_event({
+            yield _encode_ndjson_event({
                 "type": "error",
                 "error": str(exc),
                 "insight_id": insight_id,
@@ -507,6 +522,8 @@ def get_latest_insight(
         date_range_start=row.date_range_start,
         date_range_end=row.date_range_end,
         status=row.status.value if isinstance(row.status, InsightStatus) else row.status,
+        sub_status=row.sub_status,
+        error_message=row.error_message,
         created_by=row.created_by,
         created_at=row.created_at,
         updated_at=row.updated_at,
@@ -532,6 +549,8 @@ def get_insight(
         date_range_start=row.date_range_start,
         date_range_end=row.date_range_end,
         status=row.status.value if isinstance(row.status, InsightStatus) else row.status,
+        sub_status=row.sub_status,
+        error_message=row.error_message,
         created_by=row.created_by,
         created_at=row.created_at,
         updated_at=row.updated_at,
