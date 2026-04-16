@@ -369,9 +369,22 @@ const RELEASES: ReleaseVersion[] = [
         title: '更新项目文档与规范',
         detail: '同步 CLAUDE.md 项目文档内容，完善开发规范与项目结构说明，提升代码协作效率。',
       },
+      {
+        area: 'AI',
+        title: '增强 AI 洞察聚合服务',
+        detail: '优化 AI 洞察后端聚合服务逻辑，扩展前端页面功能展示，提升数据洞察能力。',
+      },
+      {
+        area: 'Frontend',
+        title: '优化自动上传与代理路由',
+        detail: '修复自动上传页面布局与滚动体验，支持流式响应透传，完善 V7 变更日志页面。',
+      },
     ],
     sourceLogs: [
       'docs: 更新 CLAUDE.md 项目文档',
+      'feat(ai-insights): 增强 AI 洞察聚合服务与前端页面功能',
+      'fix(auto-upload): 优化自动上传页面布局与文件列表滚动',
+      'feat(proxy): 支持流式响应透传并更新 V7 变更日志',
     ],
   },
 ]
