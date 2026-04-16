@@ -362,6 +362,7 @@ export default function StoreAccountingPage() {
           <DataTableCardBody>
             {selectedCountry === 'US' ? (
               <StoreAccountingUsSection
+                selectedCountry={selectedCountry}
                 selectedProjectName={selectedProjectName}
                 selectedProjectId={selectedProjectId}
                 skuKeyword={skuKeyword}

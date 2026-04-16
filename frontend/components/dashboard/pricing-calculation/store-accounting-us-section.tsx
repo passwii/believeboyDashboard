@@ -159,6 +159,7 @@ function buildSnapshotPayload(
 }
 
 interface StoreAccountingUsSectionProps {
+  selectedCountry: string
   selectedProjectName: string
   selectedProjectId: number | null
   skuKeyword: string
@@ -167,6 +168,7 @@ interface StoreAccountingUsSectionProps {
 }
 
 export function StoreAccountingUsSection({
+  selectedCountry,
   selectedProjectName,
   selectedProjectId,
   skuKeyword,
@@ -183,8 +185,7 @@ export function StoreAccountingUsSection({
 
   useEffect(() => {
     setStoreRows({})
-    setSnapshotError(null)
-  }, [selectedProjectName])
+  }, [selectedProjectName, selectedCountry])
 
   useEffect(() => {
     async function loadSkusAndSnapshots() {
@@ -206,7 +207,7 @@ export function StoreAccountingUsSection({
       try {
         const [skuSearch, exchangeSearch, snapshotSearch] = await Promise.all([
           fetch(
-            `${API_BASE}/api/v1/sku-info?project_name=${encodeURIComponent(selectedProjectName)}&country=US&is_active=true&page=1&page_size=200&include_total=true`,
+            `${API_BASE}/api/v1/sku-info?project_name=${encodeURIComponent(selectedProjectName)}&country=${encodeURIComponent(selectedCountry)}&is_active=true&page=1&page_size=200&include_total=true`,
             { cache: 'no-store' },
           ),
           fetch(`/api/exchange-rates?currency=USD&page=1&page_size=1`, {
@@ -214,7 +215,7 @@ export function StoreAccountingUsSection({
           }),
           // Load existing snapshots for this project + country
           fetch(
-            `${API_BASE}/api/v1/store-accounting?project_id=${selectedProjectId}&country=US&page=1&page_size=200`,
+            `${API_BASE}/api/v1/store-accounting?project_id=${selectedProjectId}&country=${encodeURIComponent(selectedCountry)}&page=1&page_size=200`,
             { cache: 'no-store' as RequestCache },
           ),
         ])
@@ -231,10 +232,10 @@ export function StoreAccountingUsSection({
             : ''
         setSystemExchangeRate(rate)
 
-        const usSkus = skuPayload.items.filter(
-          (item) => item.country === 'US' && item.is_active,
+        const countrySkus = skuPayload.items.filter(
+          (item) => item.country === selectedCountry && item.is_active,
         )
-        setStoreSkus(usSkus)
+        setStoreSkus(countrySkus)
 
         // Parse existing snapshots from DB
         let snapshotPayload: { items?: StoreAccountingItem[]; total?: number } = { items: [] }
@@ -253,16 +254,15 @@ export function StoreAccountingUsSection({
         }
 
         // Initialize row state: existing snapshots restore result + draft
-        setStoreRows((current) => {
+        setStoreRows((_current) => {
           const next: Record<number, StoreSkuRowState> = {}
-          usSkus.forEach((item) => {
-            const existing = current[item.id]
+          countrySkus.forEach((item) => {
             const snapshot = snapshotMap.get(item.sku)
 
             if (snapshot) {
               // Restore from DB snapshot: pre-fill draft + result
               next[item.id] = {
-                draft: existing?.draft ?? {
+                draft: {
                   package_length_cm:
                     snapshot.package_length_cm > 0
                       ? String(snapshot.package_length_cm)
@@ -293,22 +293,19 @@ export function StoreAccountingUsSection({
                       : item.first_leg_cost_rmb > 0
                         ? String(item.first_leg_cost_rmb)
                         : '5',
-                  sale_price_usd: String(snapshot.sale_price_usd),
-                  advertising_rate: String((snapshot.advertising_rate) * 100),
-                  return_loss_rate: String((snapshot.return_loss_rate) * 100),
+                  sale_price_usd: String(snapshot.sale_price_usd ?? ''),
+                  advertising_rate: String((snapshot.advertising_rate ?? 0.12) * 100),
+                  return_loss_rate: String((snapshot.return_loss_rate ?? 0.04) * 100),
                   storage_months: String(snapshot.storage_months),
                   inbound_placement_mode: snapshot.inbound_placement_mode,
                   usd_to_rmb_rate: String(snapshot.usd_to_rmb_rate),
                 },
                 loading: false,
                 result: snapshotToResult(snapshot, item.project_name),
-                error: existing?.error ?? null,
+                error: null,
               }
-            } else if (existing) {
-              // Preserve current state only when no server snapshot is available.
-              next[item.id] = existing
             } else {
-              // Brand new item
+              // Brand new item (never calculated before)
               next[item.id] = {
                 draft: {
                   package_length_cm:
@@ -357,7 +354,7 @@ export function StoreAccountingUsSection({
       }
     }
     void loadSkusAndSnapshots()
-  }, [selectedProjectName, selectedProjectId])
+  }, [selectedProjectName, selectedProjectId, selectedCountry])
 
     const filteredSkus = useMemo(() => {
     if (!skuKeyword.trim()) return storeSkus
@@ -456,48 +453,202 @@ export function StoreAccountingUsSection({
       const workbook = new ExcelJS.Workbook()
       const worksheet = workbook.addWorksheet('美国店铺SKU核算')
 
-      worksheet.mergeCells(1, 1, 1, 20)
+      // ── Title row (row 1, spans all 27 columns) ──────────────────────────────
+      worksheet.mergeCells(1, 1, 1, 27)
       const titleCell = worksheet.getCell(1, 1)
       titleCell.value = `美国店铺SKU核算表 - ${selectedProjectName}`
       titleCell.font = { name: 'Microsoft YaHei', size: 14, bold: true }
       titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
+      titleCell.height = 24
 
+      // ── Group header rows (rows 2-3, one per group) ──────────────────────────
+      // Group structure: [name, startCol, endCol, headerDarkArgb, headerSubArgb]
+      const groups = [
+        { name: '店铺产品',       start: 1,  end: 1,  dark: 'FF312E81', sub: 'FFE0E7FF' },
+        { name: '货品数据',       start: 2,  end: 7,  dark: 'FF0C4A6E', sub: 'FFE0F2FE' },
+        { name: 'DDP成本',        start: 8,  end: 11, dark: 'FF78350F', sub: 'FFFEF3C7' },
+        { name: '费用支出',       start: 12, end: 21, dark: 'FF881337', sub: 'FFFFE4E6' },
+        { name: '利润核算',       start: 22, end: 25, dark: 'FF064E3B', sub: 'FFD1FAE5' },
+        { name: '产品核定',       start: 26, end: 27, dark: 'FF4C1D95', sub: 'FFEDE9FE' },
+      ]
+
+      // Row 2: group header labels with dark background + white bold text
+      const groupHeaderRow = worksheet.addRow(groups.map(() => null))
+      groupHeaderRow.height = 20
+      groups.forEach((g) => {
+        const cell = groupHeaderRow.getCell(g.start)
+        cell.value = g.name
+        cell.font = { name: 'Microsoft YaHei', size: 10, bold: true, color: { argb: 'FFFFFFFF' } }
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: g.dark } }
+        cell.alignment = { horizontal: 'center', vertical: 'middle' }
+        // Merge across group columns
+        if (g.end > g.start) {
+          worksheet.mergeCells(2, g.start, 2, g.end)
+        }
+      })
+
+      // Row 3: column headers
       const headers = [
-        'SKU', '项目', 'FOB(RMB)', '长', '宽', '高', '重量(kg)', '计费重',
+        'SKU', 'FOB(RMB)', '长', '宽', '高', '重量(kg)', '计费重',
         '头程(RMB)', 'DDP(RMB)', 'DDP(USD)', '汇率',
-        '售价(USD)', '广告费率%', '广告费', '退货损耗',
+        '售价(USD)', '广告费率%', '广告费', '退货折损率%', '退货损耗',
         '佣金', '派送费', '配置费', '仓储月数', '仓储费',
         '费用合计', '回款', '利润', '利润率',
         '尺寸等级', '售价带', '规则',
       ]
       const headerRow = worksheet.addRow(headers)
-      headerRow.font = { name: 'Microsoft YaHei', bold: true }
-      headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFCBD5E1' } }
-
-      itemsWithResults.forEach((item) => {
-        const result = storeRows[item.id]!.result!
-        const row = worksheet.addRow([
-          item.sku, item.project_name, item.fob_unit_cost,
-          item.package_length_cm, item.package_width_cm, item.package_height_cm, item.weight_kg,
-          Math.max(item.weight_kg, (item.package_length_cm * item.package_width_cm * item.package_height_cm) / 6000),
-          toNumber(storeRows[item.id]!.draft.first_leg_cost_rmb),
-          result.profit.ddp_cost_rmb, result.profit.ddp_cost_usd, result.usd_to_rmb_rate,
-          result.sale_price_usd,
-          toNumber(storeRows[item.id]!.draft.advertising_rate),
-          result.fees.advertising_fee_usd, result.fees.return_loss_usd,
-          result.fees.referral_fee_usd, result.fees.fba_fulfillment_fee_usd,
-          result.fees.inbound_config_fee_usd,
-          toNumber(storeRows[item.id]!.draft.storage_months),
-          result.fees.storage_fee_usd,
-          result.fees.total_fee_usd, result.profit.payout_usd,
-          result.profit.profit_usd, result.profit.profit_rate,
-          result.size_tier_label, result.price_band_label,
-          `${result.fulfillment_fee_rule_label} / ${result.inbound_config_fee_rule_label} / ${result.storage_fee_rule_label}`,
-        ])
-        row.font = { name: 'Microsoft YaHei' }
+      headerRow.height = 20
+      headerRow.font = { name: 'Microsoft YaHei', size: 9, bold: true }
+      headerRow.alignment = { horizontal: 'center', vertical: 'middle' }
+      // Assign sub-background per group (matches StoreAccountingTable)
+      headerRow.eachCell({ cols: 1, rows: 1 }, (cell) => {
+        const col = cell.column
+        const group = groups.find((g) => col >= g.start && col <= g.end)
+        if (group) {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: group.sub } }
+        }
       })
 
-      worksheet.columns = headers.map(() => ({ width: 14 }))
+      // ── Column-level alignment ───────────────────────────────────────────────
+      const LEFT_COLS = new Set([1, 27])           // SKU, 规则
+      const CENTER_COLS = new Set([22, 23, 24, 25]) // size_tier, price_band
+      const RIGHT_COLS = new Set(
+        Array.from({ length: 27 }, (_, i) => i + 1).filter(
+          (c) => !LEFT_COLS.has(c) && !CENTER_COLS.has(c),
+        ),
+      )
+
+      // ── Data rows (row 4+) ───────────────────────────────────────────────────
+      // Map each item to a 27-element array matching the header order
+      const dataRows = itemsWithResults.map((item, idx) => {
+        const result = storeRows[item.id]!.result!
+        const draft = storeRows[item.id]!.draft
+        const adRate = toNumber(draft.advertising_rate)
+        const returnLossRate = toNumber(draft.return_loss_rate)
+        const storageMonths = toNumber(draft.storage_months)
+        const chargeableWeight = Math.max(
+          item.weight_kg,
+          (item.package_length_cm * item.package_width_cm * item.package_height_cm) / 6000,
+        )
+        const profit = result.profit.profit_usd
+        const profitRate = result.profit.profit_rate
+
+        return [
+          item.sku,
+          item.fob_unit_cost,
+          item.package_length_cm,
+          item.package_width_cm,
+          item.package_height_cm,
+          item.weight_kg,
+          chargeableWeight,
+          toNumber(draft.first_leg_cost_rmb),
+          result.profit.ddp_cost_rmb,
+          result.profit.ddp_cost_usd,
+          result.usd_to_rmb_rate,
+          result.sale_price_usd,
+          adRate,
+          result.fees.advertising_fee_usd,
+          returnLossRate,
+          result.fees.return_loss_usd,
+          result.fees.referral_fee_usd,
+          result.fees.fba_fulfillment_fee_usd,
+          result.fees.inbound_config_fee_usd,
+          storageMonths,
+          result.fees.storage_fee_usd,
+          result.fees.total_fee_usd,
+          result.profit.payout_usd,
+          profit,
+          profitRate,
+          result.size_tier_label,
+          result.price_band_label,
+          `${result.fulfillment_fee_rule_label} / ${result.inbound_config_fee_rule_label} / ${result.storage_fee_rule_label}`,
+        ]
+      })
+
+      // Add rows and apply alternating fill + profit color-coding
+      dataRows.forEach((rowData, idx) => {
+        const row = worksheet.addRow(rowData)
+        row.height = 20
+        const isOdd = idx % 2 === 0       // 0-based: odd-index rows = light gray
+        const oddBg = 'FFF8FAFC'
+        const evenBg = 'FFFFFFFF'
+
+        row.eachCell({ cols: 1, rows: 1 }, (cell) => {
+          const col = cell.column
+          const val = rowData[col - 1]
+          const num = Number(val)
+
+          // Background
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isOdd ? oddBg : evenBg } }
+          cell.font = { name: 'Microsoft YaHei', size: 9 }
+
+          // Alignment
+          if (LEFT_COLS.has(col)) {
+            cell.alignment = { horizontal: 'left', vertical: 'middle' }
+          } else if (CENTER_COLS.has(col)) {
+            cell.alignment = { horizontal: 'center', vertical: 'middle' }
+          } else {
+            cell.alignment = { horizontal: 'right', vertical: 'middle' }
+          }
+
+          // Number format
+          if (Number.isFinite(num)) {
+            cell.numFmt = '#,##0.####'
+          }
+
+          // Profit / profit rate color: green >= 0, red < 0
+          if (col === 24 || col === 25) {
+            if (num >= 0) {
+              cell.font = { name: 'Microsoft YaHei', size: 9, color: { argb: 'FF16A34A' } }
+            } else {
+              cell.font = { name: 'Microsoft YaHei', size: 9, color: { argb: 'FFDC2626' } }
+            }
+          }
+        })
+      })
+
+      // ── Auto-fit column widths via measured string width ───────────────────────
+      const colWidths: number[] = Array.from({ length: 27 }, () => 0)
+
+      // Scan title, group headers, column headers, and all data cells
+      const measureText = (text: string, size = 9): number => {
+        // Rough monospace-equivalent estimate: each char ≈ size * 0.6 pt,
+        // plus ~1 pt padding per side → multiply by 2 + size/10 bonus for CJK
+        const chars = String(text ?? '').length
+        return Math.max(chars * size * 0.6 + size * 0.2, size)
+      }
+
+      // Title (row 1) — use full title string
+      const titleText = `美国店铺SKU核算表 - ${selectedProjectName}`
+      colWidths.fill(measureText(titleText, 14))
+
+      // Group headers (row 2)
+      groups.forEach((g) => {
+        const w = measureText(g.name, 10)
+        for (let c = g.start - 1; c <= g.end - 1; c++) {
+          colWidths[c] = Math.max(colWidths[c], w)
+        }
+      })
+
+      // Column headers (row 3)
+      headers.forEach((h, i) => {
+        colWidths[i] = Math.max(colWidths[i], measureText(h, 9))
+      })
+
+      // Data rows
+      dataRows.forEach((rowData) => {
+        rowData.forEach((val, i) => {
+          const text = String(val ?? '')
+          colWidths[i] = Math.max(colWidths[i], measureText(text, 9))
+        })
+      })
+
+      // Apply: convert from Excel "character units" to approximate cm width
+      // (1 char unit ≈ 1 pt at 96 DPI; we want cm so use a conversion factor)
+      worksheet.columns = colWidths.map((w) => ({
+        width: Math.max(w * 0.12, 4), // minimum 4
+      }))
+
       const buffer = await workbook.xlsx.writeBuffer()
       const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
       const url = window.URL.createObjectURL(blob)

@@ -8,7 +8,7 @@ export interface RecentPage {
   visitedAt: number
 }
 
-const MAX_RECENT = 10
+const MAX_RECENT = 5
 const STORAGE_KEY = 'recent-pages'
 
 // Module-level singleton — shared across all hook calls, survives re-renders

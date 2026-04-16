@@ -1,13 +1,15 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   AlertCircle,
   Calculator,
   Check,
   CheckCircle2,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Download,
   Loader2,
   Search,
@@ -18,6 +20,14 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination'
 import {
   DataCard,
   DataCardContent,
@@ -1676,6 +1686,9 @@ export default function PricingCalculationPage() {
   const [calculationMode, setCalculationMode] =
     useState<CalculationMode>('profit-calc')
   const [runs, setRuns] = useState<PricingCalculationRunItem[]>([])
+  const [runsPage, setRunsPage] = useState(1)
+  const [runsTotal, setRunsTotal] = useState(0)
+  const RUNS_PAGE_SIZE = 12
   const [productKeyword, setProductKeyword] = useState('')
   const [selectedRunIds, setSelectedRunIds] = useState<number[]>([])
   const [runPickerOpen, setRunPickerOpen] = useState(false)
@@ -1704,35 +1717,39 @@ export default function PricingCalculationPage() {
     [projects, selectedProjectName],
   )
 
-  useEffect(() => {
-    async function loadRuns() {
-      setRunsLoading(true)
-      try {
-        const response = await fetch(
-          `${API_BASE}/api/v1/pricing-calculation/runs?page=1&page_size=100`,
-          {
-            cache: 'no-store',
-          },
+  const loadRuns = useCallback(async (page: number) => {
+    setRunsLoading(true)
+    try {
+      const response = await fetch(
+        `${API_BASE}/api/v1/pricing-calculation/runs?page=${page}&page_size=${RUNS_PAGE_SIZE}`,
+        {
+          cache: 'no-store',
+        },
+      )
+      const payload = (await response.json()) as
+        | ListResponse
+        | { detail?: string; message?: string }
+      if (!response.ok) {
+        const errorPayload = payload as { detail?: string; message?: string }
+        throw new Error(
+          errorPayload.detail || errorPayload.message || '测算记录加载失败',
         )
-        const payload = (await response.json()) as
-          | ListResponse
-          | { detail?: string; message?: string }
-        if (!response.ok) {
-          const errorPayload = payload as { detail?: string; message?: string }
-          throw new Error(
-            errorPayload.detail || errorPayload.message || '测算记录加载失败',
-          )
-        }
-        setRuns((payload as ListResponse).items)
-      } catch (loadError) {
-        setError(
-          loadError instanceof Error ? loadError.message : '测算记录加载失败',
-        )
-      } finally {
-        setRunsLoading(false)
       }
+      const data = payload as ListResponse
+      setRuns(data.items)
+      setRunsTotal(data.total)
+      setRunsPage(page)
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error ? loadError.message : '测算记录加载失败',
+      )
+    } finally {
+      setRunsLoading(false)
     }
+  }, [])
 
+  useEffect(() => {
+    void loadRuns(1)
     async function loadProjects() {
       setProjectsLoading(true)
       setProjectsError(null)
@@ -1764,7 +1781,6 @@ export default function PricingCalculationPage() {
       }
     }
 
-    void loadRuns()
     void loadProjects()
   }, [])
 
@@ -1995,10 +2011,7 @@ export default function PricingCalculationPage() {
       summary: getRunSummary(run),
     }))
   }, [filteredRuns])
-  const visibleRuns = useMemo(
-    () => filteredRuns.slice(0, MAX_VISIBLE_RUNS),
-    [filteredRuns],
-  )
+  const visibleRuns = filteredRuns
 
   const selectedRuns = useMemo(() => {
     if (selectedRunIds.length === 0) {
@@ -3124,6 +3137,78 @@ export default function PricingCalculationPage() {
                             })
                           )}
                         </div>
+                        {runsTotal > RUNS_PAGE_SIZE && (() => {
+                          const totalPages = Math.ceil(runsTotal / RUNS_PAGE_SIZE)
+                          const WINDOW = 5
+                          const start = Math.max(1, Math.min(runsPage - 2, totalPages - WINDOW + 1))
+                          const end = Math.min(totalPages, start + WINDOW - 1)
+                          const pageNumbers: (number | '...')[] = []
+                          if (start > 1) {
+                            pageNumbers.push(1)
+                            if (start > 2) pageNumbers.push('...')
+                          }
+                          for (let p = start; p <= end; p++) pageNumbers.push(p)
+                          if (end < totalPages) {
+                            if (end < totalPages - 1) pageNumbers.push('...')
+                            pageNumbers.push(totalPages)
+                          }
+                          return (
+                            <Pagination className='mt-4'>
+                              <PaginationContent>
+                                <PaginationItem>
+                                  <PaginationPrevious
+                                    href='#'
+                                    onClick={(e) => {
+                                      e.preventDefault()
+                                      if (runsPage > 1) void loadRuns(runsPage - 1)
+                                    }}
+                                    aria-disabled={runsPage <= 1}
+                                    className={cn('gap-1 px-3', runsPage <= 1 ? 'pointer-events-none opacity-50' : undefined)}
+                                  >
+                                    <ChevronLeft className='h-4 w-4' />
+                                    <span>上一页</span>
+                                  </PaginationPrevious>
+                                </PaginationItem>
+                                {pageNumbers.map((p, i) =>
+                                  p === '...' ? (
+                                    <PaginationItem key={`ellipsis-${i}`}>
+                                      <span className='flex h-9 w-9 items-center justify-center text-sm text-muted-foreground'>
+                                        …
+                                      </span>
+                                    </PaginationItem>
+                                  ) : (
+                                    <PaginationItem key={p}>
+                                      <PaginationLink
+                                        href='#'
+                                        onClick={(e) => {
+                                          e.preventDefault()
+                                          void loadRuns(p)
+                                        }}
+                                        isActive={p === runsPage}
+                                      >
+                                        {p}
+                                      </PaginationLink>
+                                    </PaginationItem>
+                                  ),
+                                )}
+                                <PaginationItem>
+                                  <PaginationNext
+                                    href='#'
+                                    onClick={(e) => {
+                                      e.preventDefault()
+                                      if (runsPage < totalPages) void loadRuns(runsPage + 1)
+                                    }}
+                                    aria-disabled={runsPage >= totalPages}
+                                    className={cn('gap-1 px-3', runsPage >= totalPages ? 'pointer-events-none opacity-50' : undefined)}
+                                  >
+                                    <span>下一页</span>
+                                    <ChevronRight className='h-4 w-4' />
+                                  </PaginationNext>
+                                </PaginationItem>
+                              </PaginationContent>
+                            </Pagination>
+                          )
+                        })()}
                       </CardContent>
                     </Card>
                   </div>
