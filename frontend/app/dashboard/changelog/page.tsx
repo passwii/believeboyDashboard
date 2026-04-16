@@ -19,7 +19,7 @@ function formatDateLabel(dateValue: string): string {
 }
 
 function formatDateRange(release: ReleaseVersion): string {
-  if (release.status === 'current') {
+  if (!release.endDate || release.status === 'current') {
     return `${formatDateLabel(release.startDate)} - 至今`
   }
 

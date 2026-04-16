@@ -25,6 +25,7 @@ function getDashboardBreadcrumbLabel(pathname: string, pageTitle: string) {
   if (pathname.includes('/system-management/')) return `系统管理 > ${pageTitle}`
   if (pathname.includes('/operations/')) return `运营导航 > ${pageTitle}`
   if (pathname.includes('/ai-panel/')) return `AI 面板 > ${pageTitle}`
+  if (pathname.includes('/ai-insights')) return `AI 面板 > ${pageTitle}`
   if (pathname.includes('/tools/')) return `工具集 > ${pageTitle}`
 
   return pageTitle
