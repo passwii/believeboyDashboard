@@ -357,15 +357,22 @@ const RELEASES: ReleaseVersion[] = [
     startDate: '2026-04-11',
     endDate: '',
     summary: 'V7 版本正式开启 AI 驱动的智能洞察阶段，通过深度整合 AI 能力，让数据转化为可执行的运营洞见。',
-    focus: ['AI 洞悉', '智能分析', '数据洞察'],
+    focus: ['AI 洞悉', '智能分析', '数据洞察', '文档完善'],
     highlights: [
       {
         area: 'AI',
         title: 'V7 正式启航',
         detail: 'V7 版本以 AI 洞悉为核心，聚焦将数据转化为可执行的运营洞见，让 AI 能力从辅助工具升级为决策引擎。',
       },
+      {
+        area: 'Docs',
+        title: '更新项目文档与规范',
+        detail: '同步 CLAUDE.md 项目文档内容，完善开发规范与项目结构说明，提升代码协作效率。',
+      },
     ],
-    sourceLogs: [],
+    sourceLogs: [
+      'docs: 更新 CLAUDE.md 项目文档',
+    ],
   },
 ]
 

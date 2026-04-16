@@ -5,6 +5,11 @@ import { getBackendApiKey, getBackendBaseUrl } from '@/lib/server/backend-api'
 const RESPONSE_HEADER_ALLOWLIST = ['content-type', 'content-disposition', 'cache-control', 'x-request-id']
 const NULL_BODY_STATUS_CODES = new Set([204, 205, 304])
 
+function isStreamingContentType(value: string | null) {
+  const normalized = (value || '').toLowerCase()
+  return normalized.includes('text/event-stream') || normalized.includes('application/x-ndjson')
+}
+
 function trimLeadingSlash(value: string) {
   return value.startsWith('/') ? value.slice(1) : value
 }
@@ -75,6 +80,13 @@ export async function toProxyResponse(response: Response) {
     if (value) {
       headers.set(name, value)
     }
+  }
+
+  if (isStreamingContentType(response.headers.get('content-type'))) {
+    return new Response(response.body, {
+      status: response.status,
+      headers,
+    })
   }
 
   const body = await response.arrayBuffer()
