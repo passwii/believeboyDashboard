@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { Bar, CartesianGrid, Cell, ComposedChart, Line, PieChart, XAxis, YAxis } from 'recharts'
+import type { Worksheet } from 'exceljs'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -334,7 +335,7 @@ export default function ReturnAnalysisPage() {
       }
 
       // Helper: apply header style
-      function styleHeaderRow(ws: ExcelJS.Worksheet, rowIndex: number) {
+      const styleHeaderRow = (ws: Worksheet, rowIndex: number) => {
         const row = ws.getRow(rowIndex)
         row.eachCell((cell) => {
           cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
@@ -344,12 +345,12 @@ export default function ReturnAnalysisPage() {
         return row
       }
 
-      function addTitleAndMeta(
-        ws: ExcelJS.Worksheet,
+      const addTitleAndMeta = (
+        ws: Worksheet,
         title: string,
         rowCount: number,
         colCount: number,
-      ) {
+      ) => {
         ws.mergeCells(1, 1, 1, colCount)
         ws.getCell(1, 1).value = title
         ws.getCell(1, 1).font = {

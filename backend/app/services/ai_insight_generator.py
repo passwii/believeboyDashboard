@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any, Iterator
 
 from app.core.config import Settings
@@ -16,7 +17,7 @@ INSIGHT_SYSTEM_PROMPT = """你是一位专业的跨境电商数据分析师，�
 
 1. **语言**：使用中文输出
 2. **格式**：完整、可直接使用的Markdown文档
-3. **图表**：使用Mermaid语法嵌入趋势图表（lineChart类型）
+3. **图表**：使用前端可直接渲染的 fenced code block 图表语法，不要输出裸露的图表行
 4. **结构**：必须包含以下章节
    - 执行摘要（1-2段话总结核心发现）
    - 销售趋势分析（含趋势图表）
@@ -28,11 +29,29 @@ INSIGHT_SYSTEM_PROMPT = """你是一位专业的跨境电商数据分析师，�
 
 ## Markdown格式规范
 
-- 折线图使用 ```lineChart 代码块
-- 饼图使用 ```pieChart 代码块
+- 折线图必须使用完整的 ```lineChart fenced code block
+- 饼图必须使用完整的 ```pieChart fenced code block
 - 数据表格使用标准Markdown表格
 - 数字保留2位小数
 - 百分比使用 % 符号
+- 标题、段落、表格、图表之间要留空行，保证 Markdown 结构清晰
+
+## 图表输出硬性约束
+
+- 绝对不要输出裸露的 `x-axis[...]`、`y-axis[...]`、`销售额[...]` 这类单独文本行
+- 只要输出图表，必须从单独一行的 ```lineChart 或 ```pieChart 开始，并以单独一行的 ``` 结束
+- 不要在代码块前面加列表符号、缩进或引用符号，例如不要写成 `- ```lineChart` 或 `> ```lineChart`
+- `x-axis[...]` 必须写在 fenced code block 内部
+- 销售趋势分析章节默认至少输出 1 个 `lineChart`
+- 如果涉及结构占比、库存库龄、SKU占比等分布信息，优先输出 1 个 `pieChart`
+- 如果没有足够数据生成图表，则明确写“图表数据不足”，不要伪造图表
+
+## 输出前自检
+
+- 检查报告中每一个图表是否都被完整包裹在 fenced code block 中
+- 检查是否存在未包裹的 `x-axis[`、`y-axis[` 或 `title ` 图表行；如果有，改成标准代码块后再输出
+- 检查表格是否为标准 Markdown 表格，而不是纯文本对齐
+- 最终输出只能是报告正文，不要附加“说明”“注释”“下面是报告”等前言后记
 
 ## 折线图格式示例
 
@@ -61,6 +80,100 @@ title 库龄结构分布
 
 请根据以下数据生成洞察报告：
 """
+
+
+LINE_CHART_LINE_RE = re.compile(r'^[^`#>|-][^\[\]]{0,48}\[[^\]]+\]\s*$')
+PIE_CHART_VALUE_RE = re.compile(r'^"?[^"\n]+"?\s*[:：]\s*-?\d+(?:\.\d+)?\s*$')
+
+
+def _is_fence_line(line: str) -> bool:
+    return line.strip().startswith("```")
+
+
+def _is_line_chart_syntax(line: str) -> bool:
+    stripped = line.strip()
+    if not stripped:
+        return False
+    lowered = stripped.lower()
+    if lowered.startswith(("x-axis[", "xaxis[", "y-axis[", "yaxis[")):
+        return True
+    return bool(LINE_CHART_LINE_RE.match(stripped))
+
+
+def _is_pie_chart_syntax(line: str) -> bool:
+    stripped = line.strip()
+    if not stripped:
+        return False
+    if stripped.lower().startswith("title "):
+        return True
+    return bool(PIE_CHART_VALUE_RE.match(stripped))
+
+
+def normalize_insight_markdown(content: str) -> str:
+    """Wrap bare chart syntax lines into fenced chart code blocks."""
+    if not content.strip():
+        return content
+
+    lines = content.splitlines()
+    normalized: list[str] = []
+    idx = 0
+    in_fence = False
+
+    while idx < len(lines):
+        line = lines[idx]
+        stripped = line.strip()
+
+        if _is_fence_line(line):
+            in_fence = not in_fence
+            normalized.append(line)
+            idx += 1
+            continue
+
+        if in_fence or not stripped:
+            normalized.append(line)
+            idx += 1
+            continue
+
+        if not (_is_line_chart_syntax(line) or _is_pie_chart_syntax(line)):
+            normalized.append(line)
+            idx += 1
+            continue
+
+        block_lines: list[str] = []
+        block_start = idx
+        while idx < len(lines):
+            current = lines[idx]
+            current_stripped = current.strip()
+            if not current_stripped or _is_fence_line(current):
+                break
+            if _is_line_chart_syntax(current) or _is_pie_chart_syntax(current):
+                block_lines.append(current_stripped)
+                idx += 1
+                continue
+            break
+
+        has_line_chart = any(_is_line_chart_syntax(item) for item in block_lines)
+        has_x_axis = any(item.lower().startswith(("x-axis[", "xaxis[")) for item in block_lines)
+        has_pie_chart = any(_is_pie_chart_syntax(item) for item in block_lines)
+
+        chart_type = None
+        if has_line_chart and has_x_axis:
+            chart_type = "lineChart"
+        elif has_pie_chart and not has_line_chart:
+            chart_type = "pieChart"
+
+        if chart_type and block_lines:
+            if normalized and normalized[-1].strip():
+                normalized.append("")
+            normalized.append(f"```{chart_type}")
+            normalized.extend(block_lines)
+            normalized.append("```")
+            if idx < len(lines) and lines[idx].strip():
+                normalized.append("")
+        else:
+            normalized.extend(lines[block_start:idx])
+
+    return "\n".join(normalized)
 
 
 def build_insight_messages(

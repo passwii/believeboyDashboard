@@ -1,6 +1,6 @@
 'use client'
 
-import { type ComponentPropsWithoutRef, useCallback, useEffect, useRef, useState } from 'react'
+import { type ComponentPropsWithoutRef, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { DateRange } from 'react-day-picker'
 import ReactMarkdown from 'react-markdown'
@@ -24,8 +24,11 @@ import {
   Check,
   Eye,
   Loader2,
+  Pencil,
+  Save,
   Sparkles,
   Trash2,
+  X,
 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
@@ -559,13 +562,13 @@ const MarkdownContent = ({ content }: { content: string }) => {
           <Markdown
             remarkPlugins={[remarkGfm]}
             components={{
-              h1({ className, ...props }) {
+              h1({ className, ...props }: ComponentPropsWithoutRef<'h1'>) {
                 return <h1 className={cn('text-2xl font-semibold tracking-tight text-foreground', className)} {...props} />
               },
-              h2({ className, children, ...props }) {
+              h2({ className, children, ...props }: ComponentPropsWithoutRef<'h2'> & { children?: ReactNode }) {
                 return <ReportSectionTitle className={className} {...props}>{children}</ReportSectionTitle>
               },
-              h3({ className, ...props }) {
+              h3({ className, ...props }: ComponentPropsWithoutRef<'h3'>) {
                 return (
                   <h3
                     className={cn('mt-6 text-base font-semibold text-foreground', className)}
@@ -573,22 +576,22 @@ const MarkdownContent = ({ content }: { content: string }) => {
                   />
                 )
               },
-              p({ className, ...props }) {
+              p({ className, ...props }: ComponentPropsWithoutRef<'p'>) {
                 return <p className={cn('mt-4 whitespace-pre-wrap text-[15px] leading-7 text-foreground/92', className)} {...props} />
               },
-              strong({ className, ...props }) {
+              strong({ className, ...props }: ComponentPropsWithoutRef<'strong'>) {
                 return <strong className={cn('font-semibold text-foreground', className)} {...props} />
               },
-              ul({ className, ...props }) {
+              ul({ className, ...props }: ComponentPropsWithoutRef<'ul'>) {
                 return <ul className={cn('mt-4 space-y-2 pl-6', className)} {...props} />
               },
-              ol({ className, ...props }) {
+              ol({ className, ...props }: ComponentPropsWithoutRef<'ol'>) {
                 return <ol className={cn('mt-4 space-y-2 pl-6', className)} {...props} />
               },
-              li({ className, ...props }) {
+              li({ className, ...props }: ComponentPropsWithoutRef<'li'>) {
                 return <li className={cn('marker:text-[hsl(var(--chart-1))]', className)} {...props} />
               },
-              blockquote({ className, ...props }) {
+              blockquote({ className, ...props }: ComponentPropsWithoutRef<'blockquote'>) {
                 return (
                   <blockquote
                     className={cn(
@@ -599,23 +602,23 @@ const MarkdownContent = ({ content }: { content: string }) => {
                   />
                 )
               },
-              table({ className, ...props }) {
+              table({ className, ...props }: ComponentPropsWithoutRef<'table'>) {
                 return (
                   <div className="my-6 overflow-x-auto rounded-[22px] border border-border/70 bg-[hsl(var(--surface-overlay)/0.72)]">
                     <table className={cn('min-w-full border-collapse text-sm', className)} {...props} />
                   </div>
                 )
               },
-              thead({ className, ...props }) {
+              thead({ className, ...props }: ComponentPropsWithoutRef<'thead'>) {
                 return <thead className={cn('bg-[hsl(var(--surface-soft))]', className)} {...props} />
               },
-              tbody({ className, ...props }) {
+              tbody({ className, ...props }: ComponentPropsWithoutRef<'tbody'>) {
                 return <tbody className={cn('[&_tr:last-child]:border-b-0', className)} {...props} />
               },
-              tr({ className, ...props }) {
+              tr({ className, ...props }: ComponentPropsWithoutRef<'tr'>) {
                 return <tr className={cn('border-b border-border/60', className)} {...props} />
               },
-              th({ className, ...props }) {
+              th({ className, ...props }: ComponentPropsWithoutRef<'th'>) {
                 return (
                   <th
                     className={cn(
@@ -626,7 +629,7 @@ const MarkdownContent = ({ content }: { content: string }) => {
                   />
                 )
               },
-              td({ className, ...props }) {
+              td({ className, ...props }: ComponentPropsWithoutRef<'td'>) {
                 return (
                   <td
                     className={cn(
@@ -637,7 +640,7 @@ const MarkdownContent = ({ content }: { content: string }) => {
                   />
                 )
               },
-              code({ className, children, ...props }) {
+              code({ className, children, ...props }: ComponentPropsWithoutRef<'code'> & { children?: ReactNode }) {
                 const match = /language-([\w-]+)/.exec(className || '')
                 const code = String(children).replace(/\n$/, '')
                 const language = match?.[1]?.toLowerCase() || ''
@@ -660,7 +663,7 @@ const MarkdownContent = ({ content }: { content: string }) => {
 
                 return <FallbackCodeBlock code={code} />
               },
-              pre({ children }) {
+              pre({ children }: ComponentPropsWithoutRef<'pre'> & { children?: ReactNode }) {
                 return <>{children}</>
               },
             }}
@@ -693,6 +696,9 @@ export default function AIInsightsPage() {
   const [viewingInsight, setViewingInsight] = useState<InsightItem | null>(null)
   const [viewDialogOpen, setViewDialogOpen] = useState(false)
   const [isLoadingDetail, setIsLoadingDetail] = useState(false)
+  const [isEditingDetail, setIsEditingDetail] = useState(false)
+  const [editingContent, setEditingContent] = useState('')
+  const [isSavingDetail, setIsSavingDetail] = useState(false)
 
   // Live streaming content (shown in generation dialog)
   const [streamingContent, setStreamingContent] = useState('')
@@ -785,11 +791,14 @@ export default function AIInsightsPage() {
     setIsLoadingDetail(true)
     setViewDialogOpen(true)
     setViewingInsight(null)
+    setIsEditingDetail(false)
+    setEditingContent('')
     try {
       const res = await fetch(`/api/backend/v1/ai-insights/${insightId}`)
       if (!res.ok) throw new Error(await parseResponseError(res, '加载失败'))
       const data: InsightItem = await res.json()
       setViewingInsight(data)
+      setEditingContent(data.content || '')
     } catch (e) {
       console.error('Failed to load insight detail', e)
       alert(`加载失败: ${e instanceof Error ? e.message : String(e)}`)
@@ -798,6 +807,59 @@ export default function AIInsightsPage() {
       setIsLoadingDetail(false)
     }
   }, [])
+
+  const handleStartEditingDetail = useCallback(() => {
+    setEditingContent(viewingInsight?.content || '')
+    setIsEditingDetail(true)
+  }, [viewingInsight])
+
+  const handleCancelEditingDetail = useCallback(() => {
+    setEditingContent(viewingInsight?.content || '')
+    setIsEditingDetail(false)
+  }, [viewingInsight])
+
+  const handleSaveDetail = useCallback(async () => {
+    if (!viewingInsight) return
+
+    const nextContent = editingContent.trim()
+    if (!nextContent) {
+      alert('报告内容不能为空')
+      return
+    }
+
+    setIsSavingDetail(true)
+    try {
+      const res = await fetch(`/api/backend/v1/ai-insights/${viewingInsight.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: nextContent }),
+      })
+      if (!res.ok) throw new Error(await parseResponseError(res, '保存失败'))
+
+      const updated: InsightItem = await res.json()
+      setViewingInsight(updated)
+      setEditingContent(updated.content || '')
+      setIsEditingDetail(false)
+      setInsights((current) =>
+        current.map((item) =>
+          item.id === updated.id
+            ? {
+                ...item,
+                title: updated.title,
+                status: updated.status,
+                error_message: updated.error_message,
+                updated_at: updated.updated_at,
+              }
+            : item
+        )
+      )
+    } catch (e) {
+      console.error('Failed to save insight detail', e)
+      alert(`保存失败: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setIsSavingDetail(false)
+    }
+  }, [editingContent, viewingInsight])
 
   const _closeSse = useCallback(() => {
     if (eventSourceRef.current) {
@@ -1222,27 +1284,77 @@ export default function AIInsightsPage() {
       </Dialog>
 
       {/* View historical insight dialog */}
-      <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
+      <Dialog
+        open={viewDialogOpen}
+        onOpenChange={(open) => {
+          setViewDialogOpen(open)
+          if (!open) {
+            setIsEditingDetail(false)
+            setEditingContent('')
+          }
+        }}
+      >
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Eye className="h-5 w-5" />
-              {viewingInsight?.title ?? '洞察详情'}
-            </DialogTitle>
-            {viewingInsight && (
-              <p className="text-sm text-muted-foreground font-normal">
-                {viewingInsight.project_name} · {COUNTRY_OPTIONS.find((c) => c.value === viewingInsight.country)?.label} ·{' '}
-                {formatDate(viewingInsight.date_range_start)} ~ {formatDate(viewingInsight.date_range_end)} ·{' '}
-                {INSIGHT_TYPE_OPTIONS.find((t) => t.value === viewingInsight.insight_type)?.label} ·{' '}
-                {formatDate(viewingInsight.created_at)} 生成
-              </p>
-            )}
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <DialogTitle className="flex items-center gap-2">
+                  <Eye className="h-5 w-5" />
+                  {viewingInsight?.title ?? '洞察详情'}
+                </DialogTitle>
+                {viewingInsight && (
+                  <p className="text-sm text-muted-foreground font-normal">
+                    {viewingInsight.project_name} · {COUNTRY_OPTIONS.find((c) => c.value === viewingInsight.country)?.label} ·{' '}
+                    {formatDate(viewingInsight.date_range_start)} ~ {formatDate(viewingInsight.date_range_end)} ·{' '}
+                    {INSIGHT_TYPE_OPTIONS.find((t) => t.value === viewingInsight.insight_type)?.label} ·{' '}
+                    {formatDate(viewingInsight.created_at)} 生成
+                  </p>
+                )}
+              </div>
+              {viewingInsight?.content && !isLoadingDetail ? (
+                <div className="flex shrink-0 items-center gap-2">
+                  {isEditingDetail ? (
+                    <>
+                      <Button variant="outline" size="sm" onClick={handleCancelEditingDetail} disabled={isSavingDetail}>
+                        <X className="mr-1.5 h-4 w-4" />
+                        取消
+                      </Button>
+                      <Button size="sm" onClick={() => void handleSaveDetail()} disabled={isSavingDetail}>
+                        {isSavingDetail ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
+                        保存修改
+                      </Button>
+                    </>
+                  ) : (
+                    <Button variant="outline" size="sm" onClick={handleStartEditingDetail}>
+                      <Pencil className="mr-1.5 h-4 w-4" />
+                      手动编辑
+                    </Button>
+                  )}
+                </div>
+              ) : null}
+            </div>
           </DialogHeader>
           <div className="mt-4">
             {isLoadingDetail ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 <span className="ml-3 text-muted-foreground">正在加载洞察内容...</span>
+              </div>
+            ) : isEditingDetail ? (
+              <div className="space-y-4">
+                <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-soft))] px-4 py-3 text-sm text-muted-foreground">
+                  这里直接编辑 Markdown 内容。你可以手动补表格、修正 `lineChart` / `pieChart` 代码块，然后在下方即时预览。
+                </div>
+                <textarea
+                  value={editingContent}
+                  onChange={(e) => setEditingContent(e.target.value)}
+                  spellCheck={false}
+                  className="min-h-[360px] w-full rounded-2xl border border-border/70 bg-[hsl(var(--surface-panel))] px-4 py-4 font-mono text-sm leading-6 text-foreground shadow-sm outline-none transition focus:border-primary"
+                />
+                <div className="rounded-2xl border border-dashed border-border/70 bg-background/60 p-4">
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">预览</p>
+                  <MarkdownContent content={editingContent} />
+                </div>
               </div>
             ) : viewingInsight?.content ? (
               <MarkdownContent content={viewingInsight.content} />

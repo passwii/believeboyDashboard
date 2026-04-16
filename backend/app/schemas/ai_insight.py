@@ -63,3 +63,7 @@ class InsightListResponse(BaseModel):
 class InsightDeleteResponse(BaseModel):
     deleted: bool
     id: int
+
+
+class InsightUpdateRequest(BaseModel):
+    content: str = Field(default='', min_length=1)

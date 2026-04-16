@@ -32,6 +32,7 @@ import {
   type ReportType,
   type UploadQueueItem,
   type RecognitionResponse,
+  type ReportUploadCountry,
 } from '@/components/report-upload/types'
 
 const API_BASE = '/api/backend'
@@ -58,7 +59,7 @@ export default function AutoUploadPage() {
   const [recognitionMap, setRecognitionMap] = useState<
     Record<string, RecognitionResponse>
   >({})
-  const [country, setCountry] = useState(
+  const [country, setCountry] = useState<ReportUploadCountry>(
     REPORT_UPLOAD_COUNTRY_OPTIONS[0].value,
   )
 
@@ -253,7 +254,7 @@ export default function AutoUploadPage() {
 
       {/* Top controls */}
       <div className='flex shrink-0 items-center gap-3'>
-        <Select value={country} onValueChange={(v) => setCountry(v)}>
+        <Select value={country} onValueChange={(v) => setCountry(v as ReportUploadCountry)}>
           <SelectTrigger className='h-10 w-[160px] rounded-md border-border/70 bg-[hsl(var(--surface-overlay))]'>
             <SelectValue placeholder='选择站点' />
           </SelectTrigger>

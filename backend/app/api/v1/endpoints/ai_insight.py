@@ -20,12 +20,14 @@ from app.schemas.ai_insight import (
     InsightItem,
     InsightListResponse,
     InsightStatusResponse,
+    InsightUpdateRequest,
 )
 from app.services import ai_chat_service
 from app.services.ai_insight_aggregator import aggregate_project_data
 from app.services.ai_insight_generator import (
     generate_insight_stream,
     generate_insight_title,
+    normalize_insight_markdown,
 )
 
 router = APIRouter(prefix="/ai-insights", tags=["ai-insights"], dependencies=[Depends(protected)])
@@ -44,6 +46,26 @@ def _serialize_insight(row: AIInsight) -> InsightItem:
         project_name=row.project_name,
         country=row.country,
         title=row.title,
+        insight_type=row.insight_type.value if isinstance(row.insight_type, InsightType) else row.insight_type,
+        date_range_start=row.date_range_start,
+        date_range_end=row.date_range_end,
+        status=row.status.value if isinstance(row.status, InsightStatus) else row.status,
+        sub_status=row.sub_status,
+        error_message=row.error_message,
+        created_by=row.created_by,
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+    )
+
+
+def _serialize_insight_detail(row: AIInsight) -> InsightDetail:
+    return InsightDetail(
+        id=row.id,
+        project_id=row.project_id,
+        project_name=row.project_name,
+        country=row.country,
+        title=row.title,
+        content=normalize_insight_markdown(row.content or ""),
         insight_type=row.insight_type.value if isinstance(row.insight_type, InsightType) else row.insight_type,
         date_range_start=row.date_range_start,
         date_range_end=row.date_range_end,
@@ -153,7 +175,7 @@ def _run_insight_generation(
                 content_chunks.append(chunk)
                 _enqueue_if_exists(insight_id, {"type": "chunk", "delta": chunk})
 
-        final_content = "".join(content_chunks)
+        final_content = normalize_insight_markdown("".join(content_chunks))
 
         # Stage 3: Title generation
         gen_db.query(AIInsight).filter(AIInsight.id == insight_id).update({
@@ -287,7 +309,7 @@ def stream_insight(
                 "sub_status": None,
                 "insight_id": insight_id_val,
                 "title": insight.title or "",
-                "content": insight.content or "",
+                "content": normalize_insight_markdown(insight.content or ""),
                 "error_message": insight.error_message,
             })
             return
@@ -513,23 +535,7 @@ def get_latest_insight(
     row = db.execute(stmt).scalar_one_or_none()
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="暂无洞察记录")
-    return InsightDetail(
-        id=row.id,
-        project_id=row.project_id,
-        project_name=row.project_name,
-        country=row.country,
-        title=row.title,
-        content=row.content,
-        insight_type=row.insight_type.value if isinstance(row.insight_type, InsightType) else row.insight_type,
-        date_range_start=row.date_range_start,
-        date_range_end=row.date_range_end,
-        status=row.status.value if isinstance(row.status, InsightStatus) else row.status,
-        sub_status=row.sub_status,
-        error_message=row.error_message,
-        created_by=row.created_by,
-        created_at=row.created_at,
-        updated_at=row.updated_at,
-    )
+    return _serialize_insight_detail(row)
 
 
 @router.get("/{insight_id}")
@@ -557,6 +563,25 @@ def get_insight(
         created_at=row.created_at,
         updated_at=row.updated_at,
     )
+
+
+@router.put("/{insight_id}")
+def update_insight(
+    insight_id: int,
+    payload: InsightUpdateRequest,
+    db: Session = Depends(get_db_session),
+) -> InsightDetail:
+    row = db.get(AIInsight, insight_id)
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="洞察不存在")
+
+    row.content = normalize_insight_markdown(payload.content.strip())
+    row.updated_at = datetime.now(timezone.utc)
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+
+    return _serialize_insight_detail(row)
 
 
 @router.delete("/{insight_id}")
