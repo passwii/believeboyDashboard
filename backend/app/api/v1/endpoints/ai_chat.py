@@ -468,6 +468,7 @@ def stream_message(
                         messages=context_messages,
                         user_content=user_content,
                         web_search_context=web_search_context,
+                        settings=settings,
                     ):
                         if isinstance(item, dict) and item.get("type") == "thinking":
                             thinking_chunk = str(item.get("content", ""))
@@ -491,6 +492,7 @@ def stream_message(
                     llm_config=llm_config,
                     messages=context_messages,
                     user_content=user_content,
+                    settings=settings,
                 ):
                     if isinstance(item, dict) and item.get("type") == "thinking":
                         thinking_chunk = str(item.get("content", ""))

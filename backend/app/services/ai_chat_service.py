@@ -635,89 +635,172 @@ def stream_with_tool_calling(
             all_messages.append(tool_result_message)
 
 
+# Status codes that are worth retrying with automatic fallback
+RETRYABLE_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
+RETRY_WAIT_SECONDS = 30
+MAX_RETRIES = 2
+
+
+def _stream_with_retries(
+    llm_config: LLMConfigInput,
+    messages: list[dict[str, Any]],
+    temperature: float,
+    settings: Settings,
+) -> tuple[list[dict[str, Any]], str | None]:
+    """
+    Stream LLM completion with automatic retries (30s wait, up to 2 retries).
+    On exhaustion, falls back to AI_CHAT_BACKUP_MODEL if configured.
+    Returns (chunks, error_message). error_message=None means success.
+    """
+    import time as _time
+
+    backup = settings.ai_chat_backup_model.strip()
+    models_to_try = [llm_config.model]
+    if backup and backup != llm_config.model:
+        models_to_try.append(backup)
+
+    for attempt_idx, model_name in enumerate(models_to_try):
+        is_backup_model = attempt_idx > 0
+        for retry_count in range(MAX_RETRIES + 1):
+            chunks_collected: list[dict[str, Any]] = []
+            is_final_attempt = (
+                is_backup_model and retry_count == MAX_RETRIES
+            )
+
+            try:
+                endpoint = f"{llm_config.base_url.rstrip('/')}/chat/completions"
+                payload: dict[str, Any] = {
+                    "model": model_name,
+                    "messages": messages,
+                    "temperature": temperature,
+                    "stream": True,
+                }
+                if llm_config.reasoning_effort:
+                    payload["reasoning"] = {"effort": llm_config.reasoning_effort}
+                headers = {
+                    "Authorization": f"Bearer {llm_config.api_key}",
+                    "Content-Type": "application/json",
+                }
+
+                with httpx.Client(timeout=llm_config.timeout_seconds) as client:
+                    with client.stream(
+                        "POST", endpoint, json=payload, headers=headers
+                    ) as response:
+                        # Check pre-stream retryable status
+                        if response.status_code in RETRYABLE_STATUS_CODES:
+                            if not is_final_attempt:
+                                retry_after = RETRY_WAIT_SECONDS
+                                ra = response.headers.get("retry-after", "")
+                                if ra:
+                                    try:
+                                        retry_after = max(1, int(ra))
+                                    except ValueError:
+                                        pass
+                                _time.sleep(retry_after)
+                                continue
+                            # Final attempt: raise to trigger error handling below
+                            response.raise_for_status()
+
+                        response.raise_for_status()
+                        for line in response.iter_lines():
+                            if not line:
+                                continue
+                            text = (
+                                line
+                                if isinstance(line, str)
+                                else line.decode("utf-8", errors="ignore")
+                            )
+                            if not text.startswith("data:"):
+                                continue
+                            payload_text = text[5:].strip()
+                            if not payload_text or payload_text == "[DONE]":
+                                if payload_text == "[DONE]":
+                                    break
+                                continue
+                            try:
+                                data = json.loads(payload_text)
+                            except json.JSONDecodeError:
+                                continue
+                            choices = data.get("choices", [])
+                            if not isinstance(choices, list) or not choices:
+                                continue
+                            first_choice = choices[0] if isinstance(choices[0], dict) else {}
+                            delta = (
+                                first_choice.get("delta", {})
+                                if isinstance(first_choice, dict)
+                                else {}
+                            )
+                            if not isinstance(delta, dict):
+                                continue
+                            thinking = delta.get("thinking", "")
+                            if isinstance(thinking, str) and thinking:
+                                chunks_collected.append({"type": "thinking", "content": thinking})
+                            content_chunk = delta.get("content", "")
+                            if isinstance(content_chunk, str) and content_chunk:
+                                chunks_collected.append({"type": "content", "content": content_chunk})
+                            usage = data.get("usage")
+                            if usage:
+                                chunks_collected.append({"type": "usage", "usage": usage})
+
+                # Success — return all collected chunks
+                return chunks_collected, None
+
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code in RETRYABLE_STATUS_CODES and not is_final_attempt:
+                    retry_after = RETRY_WAIT_SECONDS
+                    ra = exc.response.headers.get("retry-after", "")
+                    if ra:
+                        try:
+                            retry_after = max(1, int(ra))
+                        except ValueError:
+                            pass
+                    _time.sleep(retry_after)
+                    continue
+
+                # Non-retryable or exhausted retries — try next model if available
+                detail = exc.response.text[:200]
+                if attempt_idx < len(models_to_try) - 1:
+                    # Not the last model — switch to it
+                    continue
+                return chunks_collected, (
+                    f"LLM request failed ({exc.response.status_code}): {detail}"
+                )
+
+            except httpx.TimeoutException as exc:
+                if not is_final_attempt:
+                    _time.sleep(RETRY_WAIT_SECONDS)
+                    continue
+                if attempt_idx < len(models_to_try) - 1:
+                    continue
+                return chunks_collected, f"LLM request timed out: {exc}"
+
+            except httpx.HTTPError as exc:
+                if not is_final_attempt:
+                    _time.sleep(RETRY_WAIT_SECONDS)
+                    continue
+                if attempt_idx < len(models_to_try) - 1:
+                    continue
+                return chunks_collected, f"LLM request failed: {exc}"
+
+    # Should not reach here
+    return [], "Unexpected error in retry loop"
+
+
 def iter_chat_completion_stream(
     llm_config: LLMConfigInput,
     messages: list[dict[str, Any]],
     temperature: float,
+    settings: Settings,
 ):
-    endpoint = f"{llm_config.base_url.rstrip('/')}/chat/completions"
-    payload: dict[str, Any] = {
-        "model": llm_config.model,
-        "messages": messages,
-        "temperature": temperature,
-        "stream": True,
-    }
-    if llm_config.reasoning_effort:
-        payload["reasoning"] = {"effort": llm_config.reasoning_effort}
-    headers = {
-        "Authorization": f"Bearer {llm_config.api_key}",
-        "Content-Type": "application/json",
-    }
-
-    try:
-        with httpx.Client(timeout=llm_config.timeout_seconds) as client:
-            with client.stream(
-                "POST", endpoint, json=payload, headers=headers
-            ) as response:
-                response.raise_for_status()
-                for line in response.iter_lines():
-                    if not line:
-                        continue
-
-                    text = (
-                        line
-                        if isinstance(line, str)
-                        else line.decode("utf-8", errors="ignore")
-                    )
-                    if not text.startswith("data:"):
-                        continue
-
-                    payload_text = text[5:].strip()
-                    if not payload_text or payload_text == "[DONE]":
-                        if payload_text == "[DONE]":
-                            break
-                        continue
-
-                    try:
-                        data = json.loads(payload_text)
-                    except json.JSONDecodeError:
-                        continue
-
-                    choices = data.get("choices", [])
-                    if not isinstance(choices, list) or not choices:
-                        continue
-
-                    first_choice = choices[0] if isinstance(choices[0], dict) else {}
-                    delta = (
-                        first_choice.get("delta", {})
-                        if isinstance(first_choice, dict)
-                        else {}
-                    )
-                    if not isinstance(delta, dict):
-                        continue
-
-                    thinking = delta.get("thinking", "")
-                    if isinstance(thinking, str) and thinking:
-                        yield {"type": "thinking", "content": thinking}
-
-                    content = delta.get("content", "")
-                    if isinstance(content, str) and content:
-                        yield {"type": "content", "content": content}
-
-                    usage = data.get("usage")
-                    if usage:
-                        yield {"type": "usage", "usage": usage}
-
-    except httpx.HTTPStatusError as exc:
-        detail = exc.response.text
+    chunks, error_message = _stream_with_retries(llm_config, messages, temperature, settings)
+    for chunk in chunks:
+        yield chunk
+    if error_message:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"LLM request failed ({exc.response.status_code}): {detail[:300]}",
-        ) from exc
-    except httpx.HTTPError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY, detail=f"LLM request failed: {exc}"
-        ) from exc
+            detail=error_message,
+        )
+
 
 
 def parse_tool_calls(data: dict[str, Any]) -> list[dict[str, Any]]:
@@ -1183,6 +1266,7 @@ def stream_assistant_content(
     messages: list[AIMessage],
     user_content: str,
     web_search_context: str | None = None,
+    settings: Settings | None = None,
 ):
     payload_messages = build_payload_messages(
         messages, user_content, llm_config.system_prompt
@@ -1193,8 +1277,13 @@ def stream_assistant_content(
             payload_messages[-1],
         ]
 
+    # Pass settings for retry / backup model support
+    kwargs = {}
+    if settings is not None:
+        kwargs["settings"] = settings
+
     for item in iter_chat_completion_stream(
-        llm_config, payload_messages, temperature=0.7
+        llm_config, payload_messages, temperature=0.7, **kwargs
     ):
         if isinstance(item, dict):
             if item.get("type") == "thinking":
