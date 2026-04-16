@@ -4,12 +4,42 @@ import * as React from "react"
 import { format } from "date-fns"
 import { Calendar as CalendarIcon } from "lucide-react"
 import type { DateRange } from "react-day-picker"
+import { useRef, useEffect, useState } from "react"
+import {
+  subDays,
+  startOfMonth,
+  endOfMonth,
+  startOfQuarter,
+  endOfQuarter,
+  startOfYear,
+  endOfYear,
+} from "date-fns"
 
 import { Button } from "@/components/ui/button"
-import { Calendar } from "@/components/ui/calendar"
+import { Calendar } from "@/components/ui/calendar-with-presets"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
+
+// Country → IANA timezone mapping (matches backend interpretation)
+export const COUNTRY_TIMEZONE_MAP: Record<string, string> = {
+  US: "America/Los_Angeles",
+  DE: "Europe/Berlin",
+  UK: "Europe/London",
+}
+
+/**
+ * Returns today's calendar date as a Date object, calculated in the country's timezone.
+ * This ensures "today" means the same calendar day as seen by the marketplace,
+ * not the user's browser local time.
+ */
+export function getTodayInTimezone(tz: string): Date {
+  const formatter = new Intl.DateTimeFormat("en-CA", { timeZone: tz }) // YYYY-MM-DD in target TZ
+  const now = new Date()
+  const [y, m, d] = formatter.format(now).split("-").map(Number)
+  return new Date(y!, m! - 1, d!)
+}
 
 export type DatePickerMode = "single" | "range" | "month"
 
@@ -21,6 +51,8 @@ type SharedDatePickerProps = {
   toDate?: Date
   onApply?: () => void
   clearable?: boolean
+  /** IANA timezone string (e.g. "America/Los_Angeles") for timezone-aware preset calculations. Defaults to browser local. */
+  timezone?: string
 }
 
 type SingleDatePickerProps = SharedDatePickerProps & {
@@ -88,6 +120,42 @@ export function parseDateRangeInputValue(from?: string | null, to?: string | nul
   } satisfies DateRange
 }
 
+// Build Chinese presets using the specified timezone (or browser local if undefined)
+function buildPresets(today: Date) {
+  return {
+    今天: { from: today, to: today },
+    昨天: { from: subDays(today, 1), to: subDays(today, 1) },
+    近7天: { from: subDays(today, 6), to: today },
+    近14天: { from: subDays(today, 13), to: today },
+    近30天: { from: subDays(today, 29), to: today },
+    近90天: { from: subDays(today, 89), to: today },
+    本月至今: { from: startOfMonth(today), to: today },
+    本季度至今: { from: startOfQuarter(today), to: today },
+    本年度至今: { from: startOfYear(today), to: today },
+    上个月: {
+      from: startOfMonth(subDays(startOfMonth(today), 1)),
+      to: endOfMonth(subDays(startOfMonth(today), 1)),
+    },
+    上个季度: {
+      from: startOfQuarter(subDays(startOfQuarter(today), 1)),
+      to: endOfQuarter(subDays(startOfQuarter(today), 1)),
+    },
+    上年度: {
+      from: startOfYear(subDays(startOfYear(today), 1)),
+      to: endOfYear(subDays(startOfYear(today), 1)),
+    },
+  } as Record<string, { from: Date; to: Date }>
+}
+
+function usePresets(timezone?: string) {
+  const tz = timezone ?? "UTC"
+  return React.useMemo(() => {
+    const today = getTodayInTimezone(tz)
+    return buildPresets(today)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tz])
+}
+
 function formatTriggerValue(mode: DatePickerMode, value?: Date | DateRange, placeholder?: string) {
   if (mode === "range") {
     const range = value as DateRange | undefined
@@ -143,6 +211,7 @@ export function DatePicker(props: DatePickerProps) {
     fromDate,
     toDate,
     clearable = true,
+    timezone,
   } = props
 
   const today = new Date()
@@ -150,6 +219,8 @@ export function DatePicker(props: DatePickerProps) {
   const [internalValue, setInternalValue] = React.useState<Date | DateRange | undefined>(value)
   const [month, setMonth] = React.useState(today.getMonth())
   const [year, setYear] = React.useState(today.getFullYear())
+
+  const presets = usePresets(timezone)
 
   React.useEffect(() => {
     setInternalValue(value)
@@ -199,6 +270,21 @@ export function DatePicker(props: DatePickerProps) {
     ;(onChange as ((date?: Date) => void) | undefined)?.(undefined)
   }
 
+  // For range mode, render the preset calendar
+  if (mode === "range") {
+    return (
+      <RangeDatePickerWithPresets
+        value={value as DateRange | undefined}
+        onChange={onChange as ((range?: DateRange) => void) | undefined}
+        onApply={onApply}
+        className={className}
+        disabled={disabled}
+        presets={presets}
+        timezone={timezone}
+      />
+    )
+  }
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -212,14 +298,11 @@ export function DatePicker(props: DatePickerProps) {
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className={cn(
-          "rounded-xl border border-border/70 bg-background/95 p-4 shadow-xl backdrop-blur-sm",
-          mode === "range" ? "w-[380px]" : "w-[320px]",
-        )}
+        className="rounded-xl border border-border/70 bg-background/95 p-4 shadow-xl backdrop-blur-sm w-[320px]"
         align="start"
       >
         <div className="space-y-3">
-          <div className={cn("grid gap-3", mode === "month" ? "grid-cols-1" : "grid-cols-2")}>
+          <div className="grid grid-cols-2 gap-3">
             <Select value={year.toString()} onValueChange={(nextValue) => setYear(Number(nextValue))}>
               <SelectTrigger className="h-10 w-full rounded-lg border-border/70 bg-muted/20">
                 <SelectValue placeholder="Year" />
@@ -233,20 +316,18 @@ export function DatePicker(props: DatePickerProps) {
               </SelectContent>
             </Select>
 
-            {mode !== "month" ? (
-              <Select value={month.toString()} onValueChange={(nextValue) => setMonth(Number(nextValue))}>
-                <SelectTrigger className="h-10 w-full rounded-lg border-border/70 bg-muted/20">
-                  <SelectValue placeholder="Month" />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.from({ length: 12 }, (_, index) => (
-                    <SelectItem key={index} value={index.toString()}>
-                      {`${String(index + 1).padStart(2, "0")}月`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : null}
+            <Select value={month.toString()} onValueChange={(nextValue) => setMonth(Number(nextValue))}>
+              <SelectTrigger className="h-10 w-full rounded-lg border-border/70 bg-muted/20">
+                <SelectValue placeholder="Month" />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 12 }, (_, index) => (
+                  <SelectItem key={index} value={index.toString()}>
+                    {`${String(index + 1).padStart(2, "0")}月`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {mode === "month" ? (
@@ -281,21 +362,6 @@ export function DatePicker(props: DatePickerProps) {
                 )
               })}
             </div>
-          ) : mode === "range" ? (
-            <Calendar
-              mode="range"
-              month={displayMonth}
-              onMonthChange={(date) => {
-                setMonth(date.getMonth())
-                setYear(date.getFullYear())
-              }}
-              selected={currentValue as DateRange | undefined}
-              onSelect={handleRangeSelect}
-              fromDate={fromDate}
-              toDate={toDate}
-              className="w-full min-w-0 rounded-xl border border-border/70 bg-muted/10 p-3"
-              classNames={calendarClassNames}
-            />
           ) : (
             <Calendar
               mode="single"
@@ -338,8 +404,263 @@ export function DatePicker(props: DatePickerProps) {
   )
 }
 
+// Range DatePicker with presets
+interface RangeDatePickerWithPresetsProps {
+  value?: DateRange
+  onChange?: (range?: DateRange) => void
+  onApply?: () => void
+  className?: string
+  disabled?: boolean
+  presets: Record<string, { from: Date; to: Date }>
+  timezone?: string
+}
+
+function RangeDatePickerWithPresets({
+  value,
+  onChange,
+  onApply,
+  className,
+  disabled,
+  presets,
+  timezone,
+}: RangeDatePickerWithPresetsProps) {
+  const tz = timezone ?? "UTC"
+  const todayInTz = getTodayInTimezone(tz)
+  const [open, setOpen] = useState(false)
+  const [date, setDate] = useState<DateRange | undefined>(value || presets["近7天"])
+  const [month, setMonth] = useState<Date>(value?.to ?? todayInTz)
+
+  // Sync with external value
+  useEffect(() => {
+    if (value) {
+      setDate(value)
+      if (value.to) setMonth(value.to)
+    }
+  }, [value])
+
+  // Dynamic height lock (presets sidebar matches calendar height)
+  const calendarRef = useRef<HTMLDivElement>(null)
+  const [calendarHeight, setCalendarHeight] = useState<number>(0)
+
+  useEffect(() => {
+    if (calendarRef.current) {
+      setCalendarHeight(calendarRef.current.offsetHeight)
+    }
+  }, [month])
+
+  const handlePresetClick = (preset: { from: Date; to: Date }) => {
+    setDate(preset)
+    setMonth(preset.to)
+    onChange?.(preset)
+  }
+
+  const handleDateSelect = (selected?: DateRange) => {
+    setDate(selected)
+    onChange?.(selected)
+  }
+
+  const triggerLabel = date?.from && date?.to
+    ? `${format(date.from, "yyyy-MM-dd")} ~ ${format(date.to, "yyyy-MM-dd")}`
+    : date?.from
+    ? format(date.from, "yyyy-MM-dd")
+    : "选择日期范围"
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          className={cn("h-10 w-full justify-start text-left font-normal", className)}
+          disabled={disabled}
+        >
+          <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+          <span className="truncate overflow-hidden">{triggerLabel}</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="rounded-xl border border-border/70 bg-background/95 p-0 shadow-xl backdrop-blur-sm w-auto max-h-[460px]"
+        align="start"
+      >
+        <div className="flex max-sm:flex-col max-h-[420px]">
+          {/* Sidebar Presets with Scroll */}
+          <div
+            className="sm:w-44 border-r pr-2 max-sm:border-b max-sm:mb-2 overflow-y-auto shrink-0"
+            style={{ maxHeight: Math.max(calendarHeight, 300) }}
+          >
+            <div className="flex flex-col gap-1 py-2">
+              {Object.entries(presets).map(([label, range]) => {
+                const isActive =
+                  date?.from?.toDateString() === range.from.toDateString() &&
+                  date?.to?.toDateString() === range.to.toDateString()
+                return (
+                  <Button
+                    key={label}
+                    variant="ghost"
+                    size="sm"
+                    className={cn(
+                      "justify-start w-full text-xs",
+                      isActive && "bg-primary/10 text-primary font-medium"
+                    )}
+                    onClick={() => handlePresetClick(range)}
+                  >
+                    {label}
+                  </Button>
+                )
+              })}
+            </div>
+          </div>
+
+          <Separator orientation="vertical" className="sm:hidden my-2" />
+
+          {/* Calendar */}
+          <div className="flex-1 flex justify-center min-w-0" ref={calendarRef}>
+            <Calendar
+              mode="range"
+              month={month}
+              onMonthChange={setMonth}
+              selected={date}
+              onSelect={handleDateSelect}
+              className="bg-transparent p-2"
+              disabled={[{ after: todayInTz }]}
+            />
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+// Single DatePicker with presets (reuses the same component)
+interface SingleDatePickerWithPresetsProps {
+  value?: Date
+  onChange?: (date?: Date) => void
+  onApply?: () => void
+  className?: string
+  disabled?: boolean
+  fromDate?: Date
+  toDate?: Date
+  timezone?: string
+}
+
+function SingleDatePickerWithPresets({
+  value,
+  onChange,
+  onApply,
+  className,
+  disabled,
+  fromDate,
+  toDate,
+  timezone,
+}: SingleDatePickerWithPresetsProps) {
+  const tz = timezone ?? "UTC"
+  const todayInTz = getTodayInTimezone(tz)
+  const [open, setOpen] = useState(false)
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(value)
+  const [month, setMonth] = useState<Date>(value ?? todayInTz)
+
+  // Sync with external value
+  useEffect(() => {
+    setSelectedDate(value)
+    if (value) setMonth(value)
+  }, [value])
+
+  const calendarRef = useRef<HTMLDivElement>(null)
+  const [calendarHeight, setCalendarHeight] = useState<number>(0)
+
+  useEffect(() => {
+    if (calendarRef.current) {
+      setCalendarHeight(calendarRef.current.offsetHeight)
+    }
+  }, [month])
+
+  const presets = usePresets(timezone)
+
+  const handlePresetClick = (preset: { from: Date; to: Date }) => {
+    setSelectedDate(preset.from)
+    setMonth(preset.from)
+    onChange?.(preset.from)
+    onApply?.()
+    setOpen(false)
+  }
+
+  const handleDateSelect = (selected?: Date) => {
+    setSelectedDate(selected)
+    onChange?.(selected)
+    onApply?.()
+    setOpen(false)
+  }
+
+  const triggerLabel = selectedDate
+    ? format(selectedDate, "yyyy-MM-dd")
+    : "选择日期"
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          className={cn("h-10 w-full justify-start text-left font-normal", className)}
+          disabled={disabled}
+        >
+          <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+          <span className="truncate overflow-hidden">{triggerLabel}</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="rounded-xl border border-border/70 bg-background/95 p-0 shadow-xl backdrop-blur-sm w-auto max-h-[460px]"
+        align="start"
+      >
+        <div className="flex max-sm:flex-col max-h-[420px]">
+          {/* Sidebar Presets with Scroll */}
+          <div
+            className="sm:w-44 border-r pr-2 max-sm:border-b max-sm:mb-2 overflow-y-auto shrink-0"
+            style={{ maxHeight: Math.max(calendarHeight, 300) }}
+          >
+            <div className="flex flex-col gap-1 py-2">
+              {Object.entries(presets).map(([label, range]) => {
+                const isActive =
+                  selectedDate?.toDateString() === range.from.toDateString()
+                return (
+                  <Button
+                    key={label}
+                    variant="ghost"
+                    size="sm"
+                    className={cn(
+                      "justify-start w-full text-xs",
+                      isActive && "bg-primary/10 text-primary font-medium"
+                    )}
+                    onClick={() => handlePresetClick(range)}
+                  >
+                    {label}
+                  </Button>
+                )
+              })}
+            </div>
+          </div>
+
+          <Separator orientation="vertical" className="sm:hidden my-2" />
+
+          {/* Calendar */}
+          <div className="flex-1 flex justify-center min-w-0" ref={calendarRef}>
+            <Calendar
+              mode="single"
+              month={month}
+              onMonthChange={setMonth}
+              selected={selectedDate}
+              onSelect={handleDateSelect}
+              className="bg-transparent p-2"
+              fromDate={fromDate}
+              toDate={toDate ?? todayInTz}
+            />
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 export function SingleDatePicker(props: Omit<SingleDatePickerProps, "mode">) {
-  return <DatePicker {...props} mode="single" />
+  return <SingleDatePickerWithPresets {...props} timezone={props.timezone} />
 }
 
 export function DateRangePicker(props: Omit<RangeDatePickerProps, "mode">) {

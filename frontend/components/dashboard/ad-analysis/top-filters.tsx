@@ -10,7 +10,7 @@ import { AD_ANALYSIS_TABS } from '@/components/dashboard/ad-analysis/config'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { DateRangePicker, formatDateInputValue, parseDateRangeInputValue } from '@/components/ui/date-picker'
+import { DateRangePicker, COUNTRY_TIMEZONE_MAP, formatDateInputValue, parseDateRangeInputValue } from '@/components/ui/date-picker'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
@@ -259,6 +259,7 @@ export function AdAnalysisTopFilters() {
               value={parseDateRangeInputValue(dateFrom, dateTo)}
               onChange={updateDateRange}
               className="h-10 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
+              timezone={COUNTRY_TIMEZONE_MAP[country]}
             />
           </div>
         </div>
