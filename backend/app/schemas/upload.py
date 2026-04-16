@@ -19,6 +19,7 @@ ReportUploadType = Literal[
     'ad_search_term_report',
     'sales_report',
     'payment_report',
+    'return_report',
     'unknown',
 ]
 DateInputMode = Literal['single_manual', 'single_detected', 'range_manual', 'multi_auto']
