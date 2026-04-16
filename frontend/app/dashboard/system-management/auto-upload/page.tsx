@@ -242,9 +242,9 @@ export default function AutoUploadPage() {
   ).length
 
   return (
-    <div className='space-y-6'>
+    <div className='flex h-[calc(100vh-8rem)] flex-col gap-6 overflow-hidden'>
       {/* Page header */}
-      <div>
+      <div className='shrink-0'>
         <h1 className='text-2xl font-semibold tracking-tight'>报表自动化</h1>
         <p className='mt-1 text-sm text-muted-foreground'>
           拖拽上传报表，系统自动识别项目与日期，逐个文件校验提交。
@@ -252,7 +252,7 @@ export default function AutoUploadPage() {
       </div>
 
       {/* Top controls */}
-      <div className='flex items-center gap-3'>
+      <div className='flex shrink-0 items-center gap-3'>
         <Select value={country} onValueChange={(v) => setCountry(v)}>
           <SelectTrigger className='h-10 w-[160px] rounded-md border-border/70 bg-[hsl(var(--surface-overlay))]'>
             <SelectValue placeholder='选择站点' />
@@ -291,10 +291,10 @@ export default function AutoUploadPage() {
       </div>
 
       {/* Dropzone + File list */}
-      <div className='grid gap-4 lg:grid-cols-[1fr_2fr] lg:h-[calc(100vh-8rem)] lg:overflow-hidden'>
+      <div className='grid gap-4 lg:grid-cols-[1fr_2fr] lg:flex-1 lg:overflow-hidden'>
         {/* Dropzone */}
         <Card className='overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-sm'>
-          <CardContent className='flex h-full items-center p-5'>
+          <CardContent className='!px-3 !py-3 flex h-full items-center'>
             <div
               className={cn(
                 'relative flex w-full flex-col items-center justify-center rounded-2xl border border-dashed px-5 py-8 transition-[border-color,background-color] duration-200',
@@ -366,7 +366,7 @@ export default function AutoUploadPage() {
               ) : null}
             </div>
           </CardHeader>
-          <CardContent className='flex h-full flex-col p-0'>
+          <CardContent className='!px-0 !pt-0 flex h-full flex-col'>
             <ScrollArea className='flex-1'>
               <div className='space-y-2 p-3'>
                 {queueItems.length === 0 ? (

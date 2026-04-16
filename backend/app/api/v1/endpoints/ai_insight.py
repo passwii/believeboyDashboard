@@ -170,6 +170,8 @@ def _run_insight_generation(
             payload["end_date"],
         )
 
+        # Persist content + title to DB BEFORE sending the SSE "done" event so the
+        # record is always durable before the client receives it
         gen_db.query(AIInsight).filter(AIInsight.id == insight_id).update({
             AIInsight.title: title,
             AIInsight.content: final_content,

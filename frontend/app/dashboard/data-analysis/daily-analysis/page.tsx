@@ -2,23 +2,72 @@
 
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { DateRange } from 'react-day-picker'
-import { ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight, ChevronsUpDown, FileDown, Loader2, RefreshCcw, Target } from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsUpDown,
+  FileDown,
+  Loader2,
+  RefreshCcw,
+  Target,
+} from 'lucide-react'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { Bar, CartesianGrid, ComposedChart, Line, XAxis, YAxis } from 'recharts'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart'
-import { DataCard, DataCardHeader, DataCardContent, DataTableCard, DataTableCardHeader, DataTableCardBody } from '@/components/ui/data-card'
-import { DateRangePicker, COUNTRY_TIMEZONE_MAP } from '@/components/ui/date-picker'
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from '@/components/ui/chart'
+import {
+  DataCard,
+  DataCardHeader,
+  DataCardContent,
+  DataTableCard,
+  DataTableCardHeader,
+  DataTableCardBody,
+} from '@/components/ui/data-card'
+import {
+  DateRangePicker,
+  COUNTRY_TIMEZONE_MAP,
+} from '@/components/ui/date-picker'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
-import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
+import {
+  Command,
+  CommandEmpty,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
 import { EmptyTableState } from '@/components/ui/empty-state'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { DirectionalTabTransition, SlidingTabsTrigger, TabsMotionGroup } from '@/components/ui/tab-motion'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import {
+  DirectionalTabTransition,
+  SlidingTabsTrigger,
+  TabsMotionGroup,
+} from '@/components/ui/tab-motion'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
@@ -99,7 +148,13 @@ type DetailDisplayRow = {
 
 type ChartMetricKey = keyof Pick<
   DailyAnalysisRow,
-  'order_qty' | 'sales_amount' | 'impressions' | 'clicks' | 'cpc' | 'ad_spend' | 'ad_orders'
+  | 'order_qty'
+  | 'sales_amount'
+  | 'impressions'
+  | 'clicks'
+  | 'cpc'
+  | 'ad_spend'
+  | 'ad_orders'
 >
 
 const API_BASE = '/api/backend'
@@ -137,7 +192,10 @@ function authHeaders(): Record<string, string> {
 }
 
 function formatMoney(value: number) {
-  return value.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return value.toLocaleString('zh-CN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
 }
 
 // Timezone utilities — all dates are calculated in the marketplace timezone (country),
@@ -195,16 +253,24 @@ function getPreviousPeriodRange(range?: DateRange): DateRange | undefined {
   const { from, to } = normalized
 
   const isFirstDayOfMonth = from.getDate() === 1
-  const currentRangeLastDay = new Date(to.getFullYear(), to.getMonth() + 1, 0).getDate()
+  const currentRangeLastDay = new Date(
+    to.getFullYear(),
+    to.getMonth() + 1,
+    0,
+  ).getDate()
   const isLastDayOfMonth = to.getDate() === currentRangeLastDay
 
   if (isFirstDayOfMonth && isLastDayOfMonth) {
     const monthSpan =
-      (to.getFullYear() - from.getFullYear()) * 12
-      + (to.getMonth() - from.getMonth())
-      + 1
+      (to.getFullYear() - from.getFullYear()) * 12 +
+      (to.getMonth() - from.getMonth()) +
+      1
 
-    const previousStart = new Date(from.getFullYear(), from.getMonth() - monthSpan, 1)
+    const previousStart = new Date(
+      from.getFullYear(),
+      from.getMonth() - monthSpan,
+      1,
+    )
     const previousEnd = new Date(from.getFullYear(), from.getMonth(), 0)
     return { from: previousStart, to: previousEnd }
   }
@@ -229,7 +295,10 @@ function getLastWeekRange(country: string): DateRange {
   const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
   const currentWeekMonday = addDays(today, -daysSinceMonday)
   // Previous week: start = currentWeekMonday - 7, end = currentWeekMonday - 1
-  return { from: addDays(currentWeekMonday, -7), to: addDays(currentWeekMonday, -1) }
+  return {
+    from: addDays(currentWeekMonday, -7),
+    to: addDays(currentWeekMonday, -1),
+  }
 }
 
 function getNextMonthRange(range?: DateRange): DateRange | undefined {
@@ -286,7 +355,11 @@ function metricIncreaseIsGood(metric: ChartMetricKey) {
 }
 
 function isBarMetric(metric: ChartMetricKey) {
-  return metric === 'order_qty' || metric === 'ad_orders' || metric === 'sales_amount'
+  return (
+    metric === 'order_qty' ||
+    metric === 'ad_orders' ||
+    metric === 'sales_amount'
+  )
 }
 
 function aggregateMetric(rows: DailyAnalysisRow[], metric: ChartMetricKey) {
@@ -311,7 +384,7 @@ async function exportDailyAnalysisToExcel(
   detailRows: DailyAnalysisDetailRow[],
   projectName: string,
   country: string,
-  dateRange: string
+  dateRange: string,
 ) {
   const ExcelJS = await import('exceljs')
   const workbook = new ExcelJS.Workbook()
@@ -341,24 +414,61 @@ async function exportDailyAnalysisToExcel(
   summarySheet.columns = summaryCols
 
   summarySheet.mergeCells(1, 1, 1, summaryCols.length)
-  summarySheet.getCell(1, 1).value = `销售数据汇总 - ${projectName} - ${country}`
-  summarySheet.getCell(1, 1).font = { name: 'Microsoft YaHei', size: 16, bold: true, color: { argb: 'FF0F172A' } }
-  summarySheet.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
-  summarySheet.getCell(1, 1).alignment = { vertical: 'middle', horizontal: 'left' }
+  summarySheet.getCell(1, 1).value =
+    `销售数据汇总 - ${projectName} - ${country}`
+  summarySheet.getCell(1, 1).font = {
+    name: 'Microsoft YaHei',
+    size: 16,
+    bold: true,
+    color: { argb: 'FF0F172A' },
+  }
+  summarySheet.getCell(1, 1).fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFE2E8F0' },
+  }
+  summarySheet.getCell(1, 1).alignment = {
+    vertical: 'middle',
+    horizontal: 'left',
+  }
 
   summarySheet.mergeCells(2, 1, 2, summaryCols.length)
-  summarySheet.getCell(2, 1).value = `导出时间：${exportedAt}    日期范围：${dateRange}`
-  summarySheet.getCell(2, 1).font = { name: 'Microsoft YaHei', size: 10, color: { argb: 'FF475569' } }
-  summarySheet.getCell(2, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
-  summarySheet.getCell(2, 1).alignment = { vertical: 'middle', horizontal: 'left' }
+  summarySheet.getCell(2, 1).value =
+    `导出时间：${exportedAt}    日期范围：${dateRange}`
+  summarySheet.getCell(2, 1).font = {
+    name: 'Microsoft YaHei',
+    size: 10,
+    color: { argb: 'FF475569' },
+  }
+  summarySheet.getCell(2, 1).fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFF8FAFC' },
+  }
+  summarySheet.getCell(2, 1).alignment = {
+    vertical: 'middle',
+    horizontal: 'left',
+  }
 
   const summaryHeaderRow = summarySheet.getRow(3)
   summaryHeaderRow.values = summaryCols.map((c) => c.header)
   summaryHeaderRow.height = 22
   summaryHeaderRow.eachCell((cell) => {
-    cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
-    cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
+    cell.font = {
+      name: 'Microsoft YaHei',
+      bold: true,
+      color: { argb: 'FF0F172A' },
+    }
+    cell.alignment = {
+      vertical: 'middle',
+      horizontal: 'center',
+      wrapText: true,
+    }
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE2E8F0' },
+    }
     cell.border = {
       top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
       left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
@@ -384,7 +494,10 @@ async function exportDailyAnalysisToExcel(
 
     excelRow.eachCell((cell, colNumber) => {
       cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF0F172A' } }
-      cell.alignment = { vertical: 'middle', horizontal: colNumber === 1 ? 'center' : 'right' }
+      cell.alignment = {
+        vertical: 'middle',
+        horizontal: colNumber === 1 ? 'center' : 'right',
+      }
       cell.border = {
         top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
         left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
@@ -416,24 +529,61 @@ async function exportDailyAnalysisToExcel(
   detailSheet.columns = detailCols
 
   detailSheet.mergeCells(1, 1, 1, detailCols.length)
-  detailSheet.getCell(1, 1).value = `销售数据SKU明细 - ${projectName} - ${country}`
-  detailSheet.getCell(1, 1).font = { name: 'Microsoft YaHei', size: 16, bold: true, color: { argb: 'FF0F172A' } }
-  detailSheet.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
-  detailSheet.getCell(1, 1).alignment = { vertical: 'middle', horizontal: 'left' }
+  detailSheet.getCell(1, 1).value =
+    `销售数据SKU明细 - ${projectName} - ${country}`
+  detailSheet.getCell(1, 1).font = {
+    name: 'Microsoft YaHei',
+    size: 16,
+    bold: true,
+    color: { argb: 'FF0F172A' },
+  }
+  detailSheet.getCell(1, 1).fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFE2E8F0' },
+  }
+  detailSheet.getCell(1, 1).alignment = {
+    vertical: 'middle',
+    horizontal: 'left',
+  }
 
   detailSheet.mergeCells(2, 1, 2, detailCols.length)
-  detailSheet.getCell(2, 1).value = `导出时间：${exportedAt}    日期范围：${dateRange}    共 ${detailRows.length} 条`
-  detailSheet.getCell(2, 1).font = { name: 'Microsoft YaHei', size: 10, color: { argb: 'FF475569' } }
-  detailSheet.getCell(2, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
-  detailSheet.getCell(2, 1).alignment = { vertical: 'middle', horizontal: 'left' }
+  detailSheet.getCell(2, 1).value =
+    `导出时间：${exportedAt}    日期范围：${dateRange}    共 ${detailRows.length} 条`
+  detailSheet.getCell(2, 1).font = {
+    name: 'Microsoft YaHei',
+    size: 10,
+    color: { argb: 'FF475569' },
+  }
+  detailSheet.getCell(2, 1).fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFF8FAFC' },
+  }
+  detailSheet.getCell(2, 1).alignment = {
+    vertical: 'middle',
+    horizontal: 'left',
+  }
 
   const detailHeaderRow = detailSheet.getRow(3)
   detailHeaderRow.values = detailCols.map((c) => c.header)
   detailHeaderRow.height = 22
   detailHeaderRow.eachCell((cell) => {
-    cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
-    cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
+    cell.font = {
+      name: 'Microsoft YaHei',
+      bold: true,
+      color: { argb: 'FF0F172A' },
+    }
+    cell.alignment = {
+      vertical: 'middle',
+      horizontal: 'center',
+      wrapText: true,
+    }
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE2E8F0' },
+    }
     cell.border = {
       top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
       left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
@@ -461,7 +611,10 @@ async function exportDailyAnalysisToExcel(
 
     excelRow.eachCell((cell, colNumber) => {
       cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF0F172A' } }
-      cell.alignment = { vertical: 'middle', horizontal: colNumber <= 3 ? 'left' : 'right' }
+      cell.alignment = {
+        vertical: 'middle',
+        horizontal: colNumber <= 3 ? 'left' : 'right',
+      }
       cell.border = {
         top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
         left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
@@ -488,7 +641,11 @@ async function exportDailyAnalysisToExcel(
     const groupBorder = 'FFCBD5E1'
     const strongGroupBorder = 'FF94A3B8'
 
-    for (let currentRow = groupStartRow; currentRow <= mergeEndRow; currentRow += 1) {
+    for (
+      let currentRow = groupStartRow;
+      currentRow <= mergeEndRow;
+      currentRow += 1
+    ) {
       const row = detailSheet.getRow(currentRow)
       for (let colNumber = 1; colNumber <= detailCols.length; colNumber += 1) {
         const cell = row.getCell(colNumber)
@@ -498,10 +655,22 @@ async function exportDailyAnalysisToExcel(
           fgColor: { argb: groupFill },
         }
         cell.border = {
-          top: { style: currentRow === groupStartRow ? 'medium' : 'thin', color: { argb: strongGroupBorder } },
-          left: { style: colNumber === 1 ? 'medium' : 'thin', color: { argb: groupBorder } },
-          bottom: { style: currentRow === mergeEndRow ? 'medium' : 'thin', color: { argb: strongGroupBorder } },
-          right: { style: colNumber === detailCols.length ? 'medium' : 'thin', color: { argb: groupBorder } },
+          top: {
+            style: currentRow === groupStartRow ? 'medium' : 'thin',
+            color: { argb: strongGroupBorder },
+          },
+          left: {
+            style: colNumber === 1 ? 'medium' : 'thin',
+            color: { argb: groupBorder },
+          },
+          bottom: {
+            style: currentRow === mergeEndRow ? 'medium' : 'thin',
+            color: { argb: strongGroupBorder },
+          },
+          right: {
+            style: colNumber === detailCols.length ? 'medium' : 'thin',
+            color: { argb: groupBorder },
+          },
         }
       }
     }
@@ -512,8 +681,17 @@ async function exportDailyAnalysisToExcel(
 
     const mergedDateCell = detailSheet.getCell(groupStartRow, 1)
     mergedDateCell.alignment = { vertical: 'middle', horizontal: 'center' }
-    mergedDateCell.font = { name: 'Microsoft YaHei', size: 11, bold: true, color: { argb: 'FF0F172A' } }
-    mergedDateCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: groupFill } }
+    mergedDateCell.font = {
+      name: 'Microsoft YaHei',
+      size: 11,
+      bold: true,
+      color: { argb: 'FF0F172A' },
+    }
+    mergedDateCell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: groupFill },
+    }
     mergedDateCell.border = {
       top: { style: 'medium', color: { argb: strongGroupBorder } },
       left: { style: 'medium', color: { argb: groupBorder } },
@@ -568,17 +746,24 @@ function SearchableSkuField({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <Button
-        type="button"
-        variant="outline"
-        className="h-10 w-[200px] justify-between px-3 font-normal shadow-sm"
+        type='button'
+        variant='outline'
+        className='h-10 w-[200px] justify-between px-3 font-normal shadow-sm'
         onClick={() => setOpen(true)}
       >
-        <span className={cn('truncate text-left', value ? 'text-foreground' : 'text-muted-foreground')}>
+        <span
+          className={cn(
+            'truncate text-left',
+            value ? 'text-foreground' : 'text-muted-foreground',
+          )}
+        >
           {selectedSku ? (
-            <span className="flex items-center gap-1.5">
-              <span className="truncate font-medium">{selectedSku.sku}</span>
+            <span className='flex items-center gap-1.5'>
+              <span className='truncate font-medium'>{selectedSku.sku}</span>
               {selectedSku.product_name && (
-                <span className="hidden truncate text-muted-foreground lg:inline">/ {selectedSku.product_name}</span>
+                <span className='hidden truncate text-muted-foreground lg:inline'>
+                  / {selectedSku.product_name}
+                </span>
               )}
             </span>
           ) : loading ? (
@@ -587,26 +772,34 @@ function SearchableSkuField({
             '全部 SKU'
           )}
         </span>
-        <ChevronsUpDown className="ml-1 h-4 w-4 shrink-0 opacity-50" />
+        <ChevronsUpDown className='ml-1 h-4 w-4 shrink-0 opacity-50' />
       </Button>
-      <DialogContent className="overflow-hidden p-0 sm:max-w-xl">
-        <Command className="max-h-[70vh]">
-          <CommandInput placeholder="搜索 SKU" />
+      <DialogContent className='overflow-hidden p-0 sm:max-w-xl'>
+        <Command className='max-h-[70vh]'>
+          <CommandInput placeholder='搜索 SKU' />
           <CommandList>
-            <CommandEmpty>{loading ? 'SKU 加载中...' : '没有匹配的 SKU'}</CommandEmpty>
+            <CommandEmpty>
+              {loading ? 'SKU 加载中...' : '没有匹配的 SKU'}
+            </CommandEmpty>
             <CommandItem
-              value="__all__"
+              value='__all__'
               onSelect={() => {
                 onChange('')
                 setOpen(false)
               }}
               className={cn('flex items-center gap-2', !value && 'bg-accent')}
             >
-              <Check className={cn('h-4 w-4 shrink-0', !value ? 'opacity-100' : 'opacity-0')} />
-              <span className="font-medium">全部 SKU</span>
+              <Check
+                className={cn(
+                  'h-4 w-4 shrink-0',
+                  !value ? 'opacity-100' : 'opacity-0',
+                )}
+              />
+              <span className='font-medium'>全部 SKU</span>
             </CommandItem>
             {options.map((option) => {
-              const missingUnits = !option.units_per_carton || option.units_per_carton <= 0
+              const missingUnits =
+                !option.units_per_carton || option.units_per_carton <= 0
               return (
                 <CommandItem
                   key={option.sku}
@@ -618,18 +811,27 @@ function SearchableSkuField({
                       setOpen(false)
                     }
                   }}
-                  className={cn(missingUnits && 'opacity-50 cursor-not-allowed')}
+                  className={cn(
+                    missingUnits && 'opacity-50 cursor-not-allowed',
+                  )}
                 >
-                  <Check className={cn('h-4 w-4 shrink-0', value === option.sku ? 'opacity-100' : 'opacity-0')} />
-                  <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <span className="truncate flex-1 font-medium">{option.sku}</span>
+                  <Check
+                    className={cn(
+                      'h-4 w-4 shrink-0',
+                      value === option.sku ? 'opacity-100' : 'opacity-0',
+                    )}
+                  />
+                  <div className='flex min-w-0 flex-1 items-center gap-2'>
+                    <span className='truncate flex-1 font-medium'>
+                      {option.sku}
+                    </span>
                     {option.product_name && (
-                      <span className="shrink-0 truncate max-w-[200px] text-muted-foreground text-xs">
+                      <span className='shrink-0 truncate max-w-[200px] text-muted-foreground text-xs'>
                         {option.product_name}
                       </span>
                     )}
                     {missingUnits && (
-                      <span className="shrink-0 rounded bg-amber-100 px-1 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                      <span className='shrink-0 rounded bg-amber-100 px-1 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-950 dark:text-amber-300'>
                         未维护单箱数
                       </span>
                     )}
@@ -646,9 +848,9 @@ function SearchableSkuField({
 
 function FilterSkeleton() {
   return (
-    <div className="space-y-1.5">
-      <Skeleton className="h-3 w-16" />
-      <Skeleton className="h-10 w-full" />
+    <div className='space-y-1.5'>
+      <Skeleton className='h-3 w-16' />
+      <Skeleton className='h-10 w-full' />
     </div>
   )
 }
@@ -661,19 +863,28 @@ export default function DailyAnalysisPage() {
   const [projectId, setProjectId] = useState('')
   const [country, setCountry] = useState<CountryOption>('US')
   const defaultRange = useMemo(() => lastSevenDaysRange(country), [country])
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(defaultRange)
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(
+    defaultRange,
+  )
   const [activeTab, setActiveTab] = useState<ViewTab>('summary')
-  const [activeChartMetric, setActiveChartMetric] = useState<ChartMetricKey>('order_qty')
+  const [activeChartMetric, setActiveChartMetric] =
+    useState<ChartMetricKey>('order_qty')
 
   const [goalProgress, setGoalProgress] = useState<{
-    target_amount: number; achieved_amount: number;
-    completion_vs_monthly: number; completion_vs_daily: number;
-    today_day: number; days_in_month: number; currency: string;
+    target_amount: number
+    achieved_amount: number
+    completion_vs_monthly: number
+    completion_vs_daily: number
+    today_day: number
+    days_in_month: number
+    currency: string
   } | null>(null)
   const [goalLoading, setGoalLoading] = useState(false)
   const [data, setData] = useState<DailyAnalysisResponse | null>(null)
-  const [comparisonSummaryRows, setComparisonSummaryRows] = useState<DailyAnalysisRow[]>(EMPTY_SUMMARY_ROWS)
-  const [comparisonDetailRows, setComparisonDetailRows] = useState<DailyAnalysisDetailRow[]>(EMPTY_DETAIL_ROWS)
+  const [comparisonSummaryRows, setComparisonSummaryRows] =
+    useState<DailyAnalysisRow[]>(EMPTY_SUMMARY_ROWS)
+  const [comparisonDetailRows, setComparisonDetailRows] =
+    useState<DailyAnalysisDetailRow[]>(EMPTY_DETAIL_ROWS)
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [skuOptions, setSkuOptions] = useState<ProjectSkuOption[]>([])
@@ -688,7 +899,14 @@ export default function DailyAnalysisPage() {
         const rows = await fetchManagedProjectsCached<ProjectOption[]>(session)
         setProjects(rows.filter((item) => item.id !== null))
       } catch (fetchError) {
-        notify({ type: 'error', title: '项目列表加载失败', message: fetchError instanceof Error ? fetchError.message : '项目列表加载失败' })
+        notify({
+          type: 'error',
+          title: '项目列表加载失败',
+          message:
+            fetchError instanceof Error
+              ? fetchError.message
+              : '项目列表加载失败',
+        })
       } finally {
         setProjectsLoading(false)
       }
@@ -707,147 +925,178 @@ export default function DailyAnalysisPage() {
     setDateRange(defaultRange)
   }, [country, defaultRange])
 
-  const loadData = useCallback(async (rangeOverride?: DateRange) => {
-    if (!projectId) {
-      notify({ type: 'error', title: '请先选择项目' })
-      return
-    }
-    const effectiveRange = normalizeDateRange(rangeOverride ?? dateRange)
-    if (!effectiveRange?.from || !effectiveRange?.to) {
-      notify({ type: 'error', title: '请选择开始和结束日期' })
-      return
-    }
+  const loadData = useCallback(
+    async (rangeOverride?: DateRange) => {
+      if (!projectId) {
+        notify({ type: 'error', title: '请先选择项目' })
+        return
+      }
+      const effectiveRange = normalizeDateRange(rangeOverride ?? dateRange)
+      if (!effectiveRange?.from || !effectiveRange?.to) {
+        notify({ type: 'error', title: '请选择开始和结束日期' })
+        return
+      }
 
-    const startDate = formatYMD(effectiveRange.from)
-    const endDate = formatYMD(effectiveRange.to)
-    const previousRange = getPreviousPeriodRange(effectiveRange)
+      const startDate = formatYMD(effectiveRange.from)
+      const endDate = formatYMD(effectiveRange.to)
+      const previousRange = getPreviousPeriodRange(effectiveRange)
 
-    setLoading(true)
-    const requestId = latestLoadRequestRef.current + 1
-    latestLoadRequestRef.current = requestId
-    try {
-      const search = new URLSearchParams({
-        project_id: projectId,
-        country,
-        start_date: startDate,
-        end_date: endDate,
-        ...(selectedSku && { sku: selectedSku }),
-      })
-      const compareSearch = previousRange
-        ? new URLSearchParams({
-            project_id: projectId,
-            country,
-            start_date: formatYMD(previousRange.from!),
-            end_date: formatYMD(previousRange.to!),
-            ...(selectedSku && { sku: selectedSku }),
+      setLoading(true)
+      const requestId = latestLoadRequestRef.current + 1
+      latestLoadRequestRef.current = requestId
+      try {
+        const search = new URLSearchParams({
+          project_id: projectId,
+          country,
+          start_date: startDate,
+          end_date: endDate,
+          ...(selectedSku && { sku: selectedSku }),
+        })
+        const compareSearch = previousRange
+          ? new URLSearchParams({
+              project_id: projectId,
+              country,
+              start_date: formatYMD(previousRange.from!),
+              end_date: formatYMD(previousRange.to!),
+              ...(selectedSku && { sku: selectedSku }),
+            })
+          : null
+
+        const [response, compareResponse] = await Promise.all([
+          fetch(`${API_BASE}/api/v1/daily-analysis?${search.toString()}`, {
+            headers: authHeaders(),
+            cache: 'no-store',
+          }),
+          compareSearch
+            ? fetch(
+                `${API_BASE}/api/v1/daily-analysis?${compareSearch.toString()}`,
+                {
+                  headers: authHeaders(),
+                  cache: 'no-store',
+                },
+              )
+            : Promise.resolve(null),
+        ])
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null)
+          throw new Error(payload?.detail || '销售数据加载失败')
+        }
+        if (compareResponse && !compareResponse.ok) {
+          const payload = await compareResponse.json().catch(() => null)
+          throw new Error(payload?.detail || '销售数据对比加载失败')
+        }
+
+        const payload = (await response.json()) as DailyAnalysisResponse
+        const comparePayload = compareResponse
+          ? ((await compareResponse.json()) as DailyAnalysisResponse)
+          : null
+        if (requestId !== latestLoadRequestRef.current) return
+        setData(payload)
+        setComparisonSummaryRows(
+          comparePayload?.summary_rows ?? EMPTY_SUMMARY_ROWS,
+        )
+        setComparisonDetailRows(
+          comparePayload?.detail_rows ?? EMPTY_DETAIL_ROWS,
+        )
+      } catch (fetchError) {
+        if (requestId !== latestLoadRequestRef.current) return
+        notify({
+          type: 'error',
+          title: '销售数据加载失败',
+          message:
+            fetchError instanceof Error
+              ? fetchError.message
+              : '销售数据加载失败',
+        })
+        setData(null)
+        setComparisonSummaryRows(EMPTY_SUMMARY_ROWS)
+        setComparisonDetailRows(EMPTY_DETAIL_ROWS)
+      } finally {
+        if (requestId !== latestLoadRequestRef.current) return
+        setLoading(false)
+      }
+    },
+    [projectId, country, dateRange, selectedSku, notify],
+  )
+
+  const loadProjectSkus = useCallback(
+    async (projectIdText: string, countryValue: string) => {
+      const projectIdNum = Number(projectIdText)
+      const projectName = projects.find(
+        (project) => project.id === projectIdNum,
+      )?.name
+      if (!projectName) {
+        setSkuOptions([])
+        return
+      }
+
+      setSkuLoading(true)
+      try {
+        const allItems: ProjectSkuOption[] = []
+        let nextPage = 1
+        let hasNextPage = true
+
+        while (hasNextPage) {
+          const params = new URLSearchParams({
+            project_name: projectName,
+            country: countryValue,
+            page: String(nextPage),
+            page_size: '200',
           })
-        : null
-
-      const [response, compareResponse] = await Promise.all([
-        fetch(`${API_BASE}/api/v1/daily-analysis?${search.toString()}`, {
-          headers: authHeaders(),
-          cache: 'no-store',
-        }),
-        compareSearch
-          ? fetch(`${API_BASE}/api/v1/daily-analysis?${compareSearch.toString()}`, {
+          const response = await fetch(
+            `${API_BASE}/api/v1/sku-info?${params.toString()}`,
+            {
               headers: authHeaders(),
               cache: 'no-store',
-            })
-          : Promise.resolve(null),
-      ])
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null)
-        throw new Error(payload?.detail || '销售数据加载失败')
-      }
-      if (compareResponse && !compareResponse.ok) {
-        const payload = await compareResponse.json().catch(() => null)
-        throw new Error(payload?.detail || '销售数据对比加载失败')
-      }
+            },
+          )
+          if (!response.ok) throw new Error(await response.text())
 
-      const payload = (await response.json()) as DailyAnalysisResponse
-      const comparePayload = compareResponse ? ((await compareResponse.json()) as DailyAnalysisResponse) : null
-      if (requestId !== latestLoadRequestRef.current) return
-      setData(payload)
-      setComparisonSummaryRows(comparePayload?.summary_rows ?? EMPTY_SUMMARY_ROWS)
-      setComparisonDetailRows(comparePayload?.detail_rows ?? EMPTY_DETAIL_ROWS)
-    } catch (fetchError) {
-      if (requestId !== latestLoadRequestRef.current) return
-      notify({ type: 'error', title: '销售数据加载失败', message: fetchError instanceof Error ? fetchError.message : '销售数据加载失败' })
-      setData(null)
-      setComparisonSummaryRows(EMPTY_SUMMARY_ROWS)
-      setComparisonDetailRows(EMPTY_DETAIL_ROWS)
-    } finally {
-      if (requestId !== latestLoadRequestRef.current) return
-      setLoading(false)
-    }
-}, [projectId, country, dateRange, selectedSku, notify])
-
-  const loadProjectSkus = useCallback(async (projectIdText: string, countryValue: string) => {
-    const projectIdNum = Number(projectIdText)
-    const projectName = projects.find((project) => project.id === projectIdNum)?.name
-    if (!projectName) {
-      setSkuOptions([])
-      return
-    }
-
-    setSkuLoading(true)
-    try {
-      const allItems: ProjectSkuOption[] = []
-      let nextPage = 1
-      let hasNextPage = true
-
-      while (hasNextPage) {
-        const params = new URLSearchParams({
-          project_name: projectName,
-          country: countryValue,
-          page: String(nextPage),
-          page_size: '200',
-        })
-        const response = await fetch(`${API_BASE}/api/v1/sku-info?${params.toString()}`, {
-          headers: authHeaders(),
-          cache: 'no-store',
-        })
-        if (!response.ok) throw new Error(await response.text())
-
-        const payload = (await response.json()) as {
-          items: Array<{
-            sku: string
-            asin: string | null
-            fnsku: string | null
-            product_name: string | null
-            units_per_carton: number
-            carton_length_cm: number | null
-            carton_width_cm: number | null
-            carton_height_cm: number | null
-            carton_weight_kg: number | null
-          }>
-          has_next: boolean
+          const payload = (await response.json()) as {
+            items: Array<{
+              sku: string
+              asin: string | null
+              fnsku: string | null
+              product_name: string | null
+              units_per_carton: number
+              carton_length_cm: number | null
+              carton_width_cm: number | null
+              carton_height_cm: number | null
+              carton_weight_kg: number | null
+            }>
+            has_next: boolean
+          }
+          allItems.push(
+            ...payload.items.map((item) => ({
+              sku: item.sku,
+              asin: item.asin,
+              fnsku: item.fnsku,
+              product_name: item.product_name,
+              units_per_carton: item.units_per_carton,
+              carton_length_cm: item.carton_length_cm,
+              carton_width_cm: item.carton_width_cm,
+              carton_height_cm: item.carton_height_cm,
+              carton_weight_kg: item.carton_weight_kg,
+            })),
+          )
+          hasNextPage = payload.has_next
+          nextPage += 1
         }
-        allItems.push(
-          ...payload.items.map((item) => ({
-            sku: item.sku,
-            asin: item.asin,
-            fnsku: item.fnsku,
-            product_name: item.product_name,
-            units_per_carton: item.units_per_carton,
-            carton_length_cm: item.carton_length_cm,
-            carton_width_cm: item.carton_width_cm,
-            carton_height_cm: item.carton_height_cm,
-            carton_weight_kg: item.carton_weight_kg,
-          }))
-        )
-        hasNextPage = payload.has_next
-        nextPage += 1
-      }
 
-      setSkuOptions(allItems)
-    } catch (loadError) {
-      setSkuOptions([])
-      notify({ type: 'error', title: '项目 SKU 列表加载失败', message: loadError instanceof Error ? loadError.message : '加载失败' })
-    } finally {
-      setSkuLoading(false)
-    }
-  }, [notify, projects])
+        setSkuOptions(allItems)
+      } catch (loadError) {
+        setSkuOptions([])
+        notify({
+          type: 'error',
+          title: '项目 SKU 列表加载失败',
+          message: loadError instanceof Error ? loadError.message : '加载失败',
+        })
+      } finally {
+        setSkuLoading(false)
+      }
+    },
+    [notify, projects],
+  )
 
   useEffect(() => {
     if (!projectId) return
@@ -866,18 +1115,28 @@ export default function DailyAnalysisPage() {
 
   // Fetch current month goal progress
   useEffect(() => {
-    if (!projectId) { setGoalProgress(null); return }
+    if (!projectId) {
+      setGoalProgress(null)
+      return
+    }
     const year = new Date().getFullYear()
     const month = new Date().getMonth() + 1
     setGoalLoading(true)
-    fetch(`${API_BASE}/api/v1/project-goals/progress?project_id=${projectId}&country=${country}&year=${year}`, { cache: 'no-store' })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
+    fetch(
+      `${API_BASE}/api/v1/project-goals/progress?project_id=${projectId}&country=${country}&year=${year}`,
+      { cache: 'no-store' },
+    )
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
         if (!data) return
-        const monthly = (data.monthly_progress ?? []).find((m: { month: number }) => m.month === month)
+        const monthly = (data.monthly_progress ?? []).find(
+          (m: { month: number }) => m.month === month,
+        )
         if (monthly) setGoalProgress(monthly)
       })
-      .catch(() => { /* silently fail */ })
+      .catch(() => {
+        /* silently fail */
+      })
       .finally(() => setGoalLoading(false))
   }, [projectId, country])
 
@@ -900,14 +1159,21 @@ export default function DailyAnalysisPage() {
       const groupDate = rowsToGroup[index].date
       let endIndex = index + 1
 
-      while (endIndex < rowsToGroup.length && rowsToGroup[endIndex].date === groupDate) {
+      while (
+        endIndex < rowsToGroup.length &&
+        rowsToGroup[endIndex].date === groupDate
+      ) {
         endIndex += 1
       }
 
       const rowSpan = endIndex - index
       const isTintedGroup = groupIndex % 2 === 0
 
-      for (let currentIndex = index; currentIndex < endIndex; currentIndex += 1) {
+      for (
+        let currentIndex = index;
+        currentIndex < endIndex;
+        currentIndex += 1
+      ) {
         const row = rowsToGroup[currentIndex]
         groupedRows.push({
           row,
@@ -927,27 +1193,40 @@ export default function DailyAnalysisPage() {
 
   const selectedProjectName = useMemo(
     () => projects.find((p) => String(p.id) === projectId)?.name ?? '',
-    [projects, projectId]
+    [projects, projectId],
   )
-  const activeChartMetricLabel = CHART_METRICS.find((item) => item.key === activeChartMetric)?.label ?? '订单'
+  const activeChartMetricLabel =
+    CHART_METRICS.find((item) => item.key === activeChartMetric)?.label ??
+    '订单'
 
   const chartDataRows = selectedSku ? filteredDetailRows : summaryRows
 
   const filteredComparisonRows = useMemo(() => {
-    if (!selectedSku || comparisonDetailRows.length === 0) return EMPTY_DETAIL_ROWS
+    if (!selectedSku || comparisonDetailRows.length === 0)
+      return EMPTY_DETAIL_ROWS
     return comparisonDetailRows.filter((row) => row.sku === selectedSku)
   }, [selectedSku, comparisonDetailRows])
 
-  const comparisonDataRows = selectedSku ? filteredComparisonRows : comparisonSummaryRows
+  const comparisonDataRows = selectedSku
+    ? filteredComparisonRows
+    : comparisonSummaryRows
 
   const metricCards = useMemo(() => {
     return CHART_METRICS.map((metric) => {
       const currentValue = aggregateMetric(chartDataRows, metric.key)
       const hasComparison = comparisonDataRows.length > 0
-      const previousValue = hasComparison ? aggregateMetric(comparisonDataRows, metric.key) : 0
+      const previousValue = hasComparison
+        ? aggregateMetric(comparisonDataRows, metric.key)
+        : 0
       const diff = currentValue - previousValue
-      const percentChange = previousValue === 0 ? null : (diff / previousValue) * 100
-      const isPositiveDirection = percentChange === null ? true : (metricIncreaseIsGood(metric.key) ? percentChange >= 0 : percentChange <= 0)
+      const percentChange =
+        previousValue === 0 ? null : (diff / previousValue) * 100
+      const isPositiveDirection =
+        percentChange === null
+          ? true
+          : metricIncreaseIsGood(metric.key)
+            ? percentChange >= 0
+            : percentChange <= 0
 
       return {
         ...metric,
@@ -960,17 +1239,25 @@ export default function DailyAnalysisPage() {
       }
     })
   }, [chartDataRows, comparisonDataRows])
-  const comparisonRange = useMemo(() => getPreviousPeriodRange(dateRange), [dateRange])
+  const comparisonRange = useMemo(
+    () => getPreviousPeriodRange(dateRange),
+    [dateRange],
+  )
   const hasComparisonData = comparisonDataRows.length > 0
   const chartRows = useMemo(() => {
     const normalizedRange = normalizeDateRange(dateRange)
     if (!normalizedRange?.from || !normalizedRange?.to) {
       return []
     }
-    const allDates = generateDateRangeStrings(normalizedRange.from, normalizedRange.to)
+    const allDates = generateDateRangeStrings(
+      normalizedRange.from,
+      normalizedRange.to,
+    )
 
     if (selectedSku) {
-      const existingData = new Map(filteredDetailRows.map((row) => [row.date, row]))
+      const existingData = new Map(
+        filteredDetailRows.map((row) => [row.date, row]),
+      )
       const comparisonDataByIndex = filteredComparisonRows
       return allDates.map((date, index) => {
         const row = existingData.get(date)
@@ -1002,17 +1289,35 @@ export default function DailyAnalysisPage() {
         compareMetricValue: compareRow ? compareRow[activeChartMetric] : null,
       }
     })
-  }, [selectedSku, filteredDetailRows, filteredComparisonRows, summaryRows, comparisonSummaryRows, activeChartMetric, dateRange])
+  }, [
+    selectedSku,
+    filteredDetailRows,
+    filteredComparisonRows,
+    summaryRows,
+    comparisonSummaryRows,
+    activeChartMetric,
+    dateRange,
+  ])
 
   const summaryTableRows = selectedSku ? filteredDetailRows : summaryRows
-  const dateRangeDisplay = consoleData ? `${consoleData.start_date} ~ ${consoleData.end_date}` : (dateRange ? `${formatYMD(dateRange.from!)}${' ~ ' + formatYMD(dateRange.to!)}` : '')
+  const dateRangeDisplay = consoleData
+    ? `${consoleData.start_date} ~ ${consoleData.end_date}`
+    : dateRange
+      ? `${formatYMD(dateRange.from!)}${' ~ ' + formatYMD(dateRange.to!)}`
+      : ''
   const handleExportExcel = async () => {
     if (!data) return
     setExporting(true)
     try {
       const exportSummaryRows = selectedSku ? filteredDetailRows : summaryRows
       const exportDetailRows = selectedSku ? filteredDetailRows : detailRows
-      await exportDailyAnalysisToExcel(exportSummaryRows, exportDetailRows, selectedProjectName, country, dateRangeDisplay)
+      await exportDailyAnalysisToExcel(
+        exportSummaryRows,
+        exportDetailRows,
+        selectedProjectName,
+        country,
+        dateRangeDisplay,
+      )
       await logClientOperation({
         action: 'daily_analysis.export',
         targetType: 'daily_analysis',
@@ -1040,20 +1345,22 @@ export default function DailyAnalysisPage() {
   }
 
   return (
-    <div className="space-y-5 lg:space-y-6">
+    <div className='space-y-5 lg:space-y-6'>
       <DataCard>
         <DataCardHeader
-          title="销售数据策展台"
-          titleClassName="text-2xl tracking-tight"
-          badge={<p className="dashboard-kicker">Analysis Console</p>}
+          title='控制台'
+          titleClassName='text-2xl tracking-tight'
+          badge={<p className='dashboard-kicker'>Analysis Console</p>}
         />
-        <div className="dashboard-toolbar flex-nowrap items-end gap-3 border-0 shadow-none">
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="space-y-2">
-              <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">项目</div>
+        <div className='dashboard-toolbar flex-nowrap items-end gap-3 border-0 shadow-none'>
+          <div className='flex flex-wrap items-end gap-3'>
+            <div className='space-y-2'>
+              <div className='text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground'>
+                项目
+              </div>
               <Select value={projectId} onValueChange={setProjectId}>
-                <SelectTrigger className="h-10 w-[160px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none [&>span]:truncate dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
-                  <SelectValue placeholder="选择项目" />
+                <SelectTrigger className='h-10 w-[160px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none [&>span]:truncate dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]'>
+                  <SelectValue placeholder='选择项目' />
                 </SelectTrigger>
                 <SelectContent>
                   {projects.map((item) => (
@@ -1065,11 +1372,16 @@ export default function DailyAnalysisPage() {
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">国家站点</div>
-              <Select value={country} onValueChange={(value) => setCountry(value as CountryOption)}>
-                <SelectTrigger className="h-10 w-[140px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none [&>span]:truncate dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
-                  <SelectValue placeholder="国家站点" />
+            <div className='space-y-2'>
+              <div className='text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground'>
+                国家站点
+              </div>
+              <Select
+                value={country}
+                onValueChange={(value) => setCountry(value as CountryOption)}
+              >
+                <SelectTrigger className='h-10 w-[140px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none [&>span]:truncate dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]'>
+                  <SelectValue placeholder='国家站点' />
                 </SelectTrigger>
                 <SelectContent>
                   {COUNTRY_OPTIONS.map((item) => (
@@ -1081,8 +1393,10 @@ export default function DailyAnalysisPage() {
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">SKU</div>
+            <div className='space-y-2'>
+              <div className='text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground'>
+                SKU
+              </div>
               <SearchableSkuField
                 value={selectedSku}
                 options={skuOptions}
@@ -1094,57 +1408,89 @@ export default function DailyAnalysisPage() {
               />
             </div>
 
-            <div className="space-y-2">
-              <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">日期范围</div>
-              <div className="flex flex-wrap items-center gap-2">
+            <div className='space-y-2'>
+              <div className='text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground'>
+                日期范围
+              </div>
+              <div className='flex flex-wrap items-center gap-2'>
                 <DateRangePicker
                   value={dateRange}
                   onChange={setDateRange}
-                  className="h-10 w-[240px]"
+                  className='h-10 w-[240px]'
                   timezone={COUNTRY_TIMEZONE_MAP[country]}
                   onApply={() => void loadData()}
                 />
-                <div className="flex items-center gap-1">
-                  <Button type="button" variant="secondary" className="h-10 px-3" onClick={() => {
-                    if (!dateRange?.from) return
-                    const newFrom = new Date(dateRange.from)
-                    newFrom.setMonth(newFrom.getMonth() - 1)
-                    const newTo = new Date(newFrom)
-                    newTo.setMonth(newTo.getMonth() + 1)
-                    newTo.setDate(newTo.getDate() - 1)
-                    void handleQuickRange({ from: newFrom, to: newTo })
-                  }} title="前一个月">
-                    <ChevronLeft className="h-4 w-4" />
-                    <span className="sr-only sm:not-sr-only sm:ml-1">上月</span>
+                <div className='flex items-center gap-1'>
+                  <Button
+                    type='button'
+                    variant='secondary'
+                    className='h-10 px-3'
+                    onClick={() => {
+                      if (!dateRange?.from) return
+                      const newFrom = new Date(dateRange.from)
+                      newFrom.setMonth(newFrom.getMonth() - 1)
+                      const newTo = new Date(newFrom)
+                      newTo.setMonth(newTo.getMonth() + 1)
+                      newTo.setDate(newTo.getDate() - 1)
+                      void handleQuickRange({ from: newFrom, to: newTo })
+                    }}
+                    title='前一个月'
+                  >
+                    <ChevronLeft className='h-4 w-4' />
+                    <span className='sr-only sm:not-sr-only sm:ml-1'>上月</span>
                   </Button>
-                  <Button type="button" variant="secondary" className="h-10 px-3" onClick={() => {
-                    const nextRange = getNextMonthRange(dateRange)
-                    if (!nextRange) return
-                    void handleQuickRange(nextRange)
-                  }} title="后一个月">
-                    <span className="sr-only sm:not-sr-only sm:mr-1">下月</span>
-                    <ChevronRight className="h-4 w-4" />
+                  <Button
+                    type='button'
+                    variant='secondary'
+                    className='h-10 px-3'
+                    onClick={() => {
+                      const nextRange = getNextMonthRange(dateRange)
+                      if (!nextRange) return
+                      void handleQuickRange(nextRange)
+                    }}
+                    title='后一个月'
+                  >
+                    <span className='sr-only sm:not-sr-only sm:mr-1'>下月</span>
+                    <ChevronRight className='h-4 w-4' />
                   </Button>
                 </div>
               </div>
             </div>
 
-            <div className="ml-auto flex items-center gap-2">
-              <div className="flex items-center gap-1">
-                <Button type="button" variant="secondary" className="h-10 px-3" onClick={() => void handleQuickRange(getYesterdayRange(country))}>
+            <div className='ml-auto flex items-center gap-2'>
+              <div className='flex items-center gap-1'>
+                <Button
+                  type='button'
+                  variant='secondary'
+                  className='h-10 px-3'
+                  onClick={() =>
+                    void handleQuickRange(getYesterdayRange(country))
+                  }
+                >
                   昨天
                 </Button>
-                <Button type="button" variant="secondary" className="h-10 px-3" onClick={() => void handleQuickRange(lastSevenDaysRange(country))}>
+                <Button
+                  type='button'
+                  variant='secondary'
+                  className='h-10 px-3'
+                  onClick={() =>
+                    void handleQuickRange(lastSevenDaysRange(country))
+                  }
+                >
                   近7天
                 </Button>
               </div>
               <Button
-                type="button"
+                type='button'
                 onClick={() => void loadData()}
                 disabled={loading || projectsLoading}
-                className="h-10 px-5"
+                className='h-10 px-5'
               >
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+                {loading ? (
+                  <Loader2 className='h-4 w-4 animate-spin' />
+                ) : (
+                  <RefreshCcw className='h-4 w-4' />
+                )}
                 刷新视图
               </Button>
             </div>
@@ -1163,36 +1509,50 @@ export default function DailyAnalysisPage() {
                   <div className='text-sm font-medium'>
                     {new Date().getMonth() + 1}月目标进度
                     <span className='ml-2 text-xs text-muted-foreground'>
-                      · {new Date().getFullYear()}年 · {goalProgress.today_day}/{goalProgress.days_in_month}日
+                      · {new Date().getFullYear()}年 · {goalProgress.today_day}/
+                      {goalProgress.days_in_month}日
                     </span>
                   </div>
                   <div className='mt-1 flex items-center gap-6'>
                     <div className='space-y-1'>
-                      <div className='text-xs text-muted-foreground'>月度完成率</div>
+                      <div className='text-xs text-muted-foreground'>
+                        月度完成率
+                      </div>
                       <div className='flex items-center gap-2'>
                         <div className='w-32 rounded-full bg-muted/70 h-1.5'>
                           <div
                             className='h-full rounded-full transition-all'
                             style={{
                               width: `${Math.min(goalProgress.completion_vs_monthly * 100, 100)}%`,
-                              background: goalProgress.completion_vs_monthly >= 1 ? '#22c55e' : '#3b82f6',
+                              background:
+                                goalProgress.completion_vs_monthly >= 1
+                                  ? '#22c55e'
+                                  : '#3b82f6',
                             }}
                           />
                         </div>
                         <span className='text-sm font-semibold'>
-                          {(goalProgress.completion_vs_monthly * 100).toFixed(1)}%
+                          {(goalProgress.completion_vs_monthly * 100).toFixed(
+                            1,
+                          )}
+                          %
                         </span>
                       </div>
                     </div>
                     <div className='space-y-1'>
-                      <div className='text-xs text-muted-foreground'>日均完成率</div>
+                      <div className='text-xs text-muted-foreground'>
+                        日均完成率
+                      </div>
                       <div className='flex items-center gap-2'>
                         <div className='w-32 rounded-full bg-muted/70 h-1.5'>
                           <div
                             className='h-full rounded-full transition-all'
                             style={{
                               width: `${Math.min(goalProgress.completion_vs_daily * 100, 100)}%`,
-                              background: goalProgress.completion_vs_daily >= 1 ? '#22c55e' : '#8b5cf6',
+                              background:
+                                goalProgress.completion_vs_daily >= 1
+                                  ? '#22c55e'
+                                  : '#8b5cf6',
                             }}
                           />
                         </div>
@@ -1202,7 +1562,14 @@ export default function DailyAnalysisPage() {
                       </div>
                     </div>
                     <div className='text-xs text-muted-foreground'>
-                      {goalProgress.currency} {goalProgress.achieved_amount.toLocaleString('zh-CN', { minimumFractionDigits: 2 })} / {goalProgress.currency} {goalProgress.target_amount.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
+                      {goalProgress.currency}{' '}
+                      {goalProgress.achieved_amount.toLocaleString('zh-CN', {
+                        minimumFractionDigits: 2,
+                      })}{' '}
+                      / {goalProgress.currency}{' '}
+                      {goalProgress.target_amount.toLocaleString('zh-CN', {
+                        minimumFractionDigits: 2,
+                      })}
                     </div>
                   </div>
                 </div>
@@ -1219,35 +1586,51 @@ export default function DailyAnalysisPage() {
       )}
 
       <DataCard>
-        <DataCardContent className="space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline" className="border-border/60 bg-background/85 px-3 py-1 text-foreground">
+        <DataCardContent className='space-y-4'>
+          <div className='flex flex-wrap items-center gap-2'>
+            <Badge
+              variant='outline'
+              className='border-border/60 bg-background/85 px-3 py-1 text-foreground'
+            >
               对比区间：{formatRangeLabel(comparisonRange)}
             </Badge>
           </div>
           {summaryRows.length ? (
             <>
-              <div className="px-2 md:px-4">
-                <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7">
+              <div className='px-2 md:px-4'>
+                <div className='grid gap-2.5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7'>
                   {metricCards.map((metric) => {
                     const isActive = metric.key === activeChartMetric
-                    const showIncrease = metric.percentChange === null ? true : metric.percentChange >= 0
-                    const usePositiveColor = metric.percentChange === null ? true : metric.isPositiveDirection
+                    const showIncrease =
+                      metric.percentChange === null
+                        ? true
+                        : metric.percentChange >= 0
+                    const usePositiveColor =
+                      metric.percentChange === null
+                        ? true
+                        : metric.isPositiveDirection
 
                     return (
                       <button
                         key={metric.key}
-                        type="button"
+                        type='button'
                         onClick={() => setActiveChartMetric(metric.key)}
                         className={cn(
                           'rounded-lg border px-3 py-3 text-left transition-all duration-200',
                           isActive
                             ? 'border-primary/45 bg-primary text-primary-foreground shadow-[0_16px_34px_-24px_hsl(var(--primary)/0.72)]'
-                            : 'border-border/70 bg-[hsl(var(--surface-soft))]/86 text-foreground hover:-translate-y-0.5 hover:border-border hover:bg-background'
+                            : 'border-border/70 bg-[hsl(var(--surface-soft))]/86 text-foreground hover:-translate-y-0.5 hover:border-border hover:bg-background',
                         )}
                       >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className={cn('text-xs font-semibold tracking-tight', isActive ? 'text-primary-foreground/88' : 'text-muted-foreground')}>
+                        <div className='flex items-start justify-between gap-2'>
+                          <div
+                            className={cn(
+                              'text-xs font-semibold tracking-tight',
+                              isActive
+                                ? 'text-primary-foreground/88'
+                                : 'text-muted-foreground',
+                            )}
+                          >
                             {metric.label}
                           </div>
                           {metric.showComparisonBadge ? (
@@ -1260,27 +1643,61 @@ export default function DailyAnalysisPage() {
                                     : 'border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(254,226,226,0.92))] text-[hsl(var(--destructive))] shadow-[0_10px_24px_-14px_rgba(255,255,255,0.9)]'
                                   : usePositiveColor
                                     ? 'border-[hsl(var(--success))/0.28] bg-[hsl(var(--success))/0.12] text-[hsl(var(--success))]'
-                                    : 'border-destructive/25 bg-destructive/12 text-destructive'
+                                    : 'border-destructive/25 bg-destructive/12 text-destructive',
                               )}
                             >
-                              {showIncrease ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />}
-                              {metric.percentChange === null ? '--' : `${Math.abs(metric.percentChange).toFixed(1)}%`}
+                              {showIncrease ? (
+                                <ArrowUp className='h-3.5 w-3.5' />
+                              ) : (
+                                <ArrowDown className='h-3.5 w-3.5' />
+                              )}
+                              {metric.percentChange === null
+                                ? '--'
+                                : `${Math.abs(metric.percentChange).toFixed(1)}%`}
                             </div>
                           ) : (
-                            <div className="h-[28px] w-[60px]" />
+                            <div className='h-[28px] w-[60px]' />
                           )}
                         </div>
 
-                        <div className="mt-3 space-y-0.5">
-                          <div className={cn('text-[1.25rem] font-semibold tracking-tight', isActive ? 'text-primary-foreground' : 'text-foreground')}>
-                            {formatMetricCardValue(metric.key, metric.currentValue)}
+                        <div className='mt-3 space-y-0.5'>
+                          <div
+                            className={cn(
+                              'text-[1.25rem] font-semibold tracking-tight',
+                              isActive
+                                ? 'text-primary-foreground'
+                                : 'text-foreground',
+                            )}
+                          >
+                            {formatMetricCardValue(
+                              metric.key,
+                              metric.currentValue,
+                            )}
                           </div>
                           {metric.hasComparison ? (
-                            <div className={cn('text-xs', isActive ? 'text-primary-foreground/72' : 'text-muted-foreground')}>
-                              对比 {formatMetricCardValue(metric.key, metric.previousValue)}
+                            <div
+                              className={cn(
+                                'text-xs',
+                                isActive
+                                  ? 'text-primary-foreground/72'
+                                  : 'text-muted-foreground',
+                              )}
+                            >
+                              对比{' '}
+                              {formatMetricCardValue(
+                                metric.key,
+                                metric.previousValue,
+                              )}
                             </div>
                           ) : (
-                            <div className={cn('text-xs', isActive ? 'text-primary-foreground/72' : 'text-muted-foreground')}>
+                            <div
+                              className={cn(
+                                'text-xs',
+                                isActive
+                                  ? 'text-primary-foreground/72'
+                                  : 'text-muted-foreground',
+                              )}
+                            >
                               {selectedSku ? 'SKU 明细' : '暂无对比'}
                             </div>
                           )}
@@ -1291,21 +1708,30 @@ export default function DailyAnalysisPage() {
                 </div>
               </div>
 
-              <div className="rounded-lg bg-[hsl(var(--surface-soft))]/82 p-4 md:p-5">
-                <div className="mb-4 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-                  <div className="inline-flex items-center gap-2 rounded-full bg-background/72 px-3 py-1.5">
-                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: SINGLE_METRIC_CHART_CONFIG[activeChartMetric].color }} />
+              <div className='rounded-lg bg-[hsl(var(--surface-soft))]/82 p-4 md:p-5'>
+                <div className='mb-4 flex flex-wrap items-center gap-4 text-xs text-muted-foreground'>
+                  <div className='inline-flex items-center gap-2 rounded-full bg-background/72 px-3 py-1.5'>
+                    <span
+                      className='h-2.5 w-2.5 rounded-full'
+                      style={{
+                        backgroundColor:
+                          SINGLE_METRIC_CHART_CONFIG[activeChartMetric].color,
+                      }}
+                    />
                     当前周期
                   </div>
                   {hasComparisonData ? (
                     isBarMetric(activeChartMetric) ? (
-            <div className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--surface-soft))] px-3 py-1.5 dark:bg-[hsl(var(--surface-strong))]">
-                    <span className="h-3 w-3 rounded-sm border border-border/70" style={{ backgroundColor: 'rgba(148,163,184,0.28)' }} />
+                      <div className='inline-flex items-center gap-2 rounded-full bg-[hsl(var(--surface-soft))] px-3 py-1.5 dark:bg-[hsl(var(--surface-strong))]'>
+                        <span
+                          className='h-3 w-3 rounded-sm border border-border/70'
+                          style={{ backgroundColor: 'rgba(148,163,184,0.28)' }}
+                        />
                         上一个周期
                       </div>
                     ) : (
-                      <div className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--surface-soft))] px-3 py-1.5 dark:bg-[hsl(var(--surface-strong))]">
-                        <span className="w-5 border-t-2 border-dashed border-border/70" />
+                      <div className='inline-flex items-center gap-2 rounded-full bg-[hsl(var(--surface-soft))] px-3 py-1.5 dark:bg-[hsl(var(--surface-strong))]'>
+                        <span className='w-5 border-t-2 border-dashed border-border/70' />
                         上一个周期
                       </div>
                     )
@@ -1314,7 +1740,7 @@ export default function DailyAnalysisPage() {
 
                 <ChartContainer
                   config={SINGLE_METRIC_CHART_CONFIG}
-                  className="h-[360px] w-full md:h-[420px]"
+                  className='h-[360px] w-full md:h-[420px]'
                 >
                   <ComposedChart
                     key={activeChartMetric}
@@ -1322,14 +1748,32 @@ export default function DailyAnalysisPage() {
                     margin={{ top: 28, right: 24, left: 8, bottom: 18 }}
                   >
                     <defs>
-                      <linearGradient id={`salesDataLine-${activeChartMetric}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={`var(--color-${activeChartMetric})`} stopOpacity={0.28} />
-                        <stop offset="100%" stopColor={`var(--color-${activeChartMetric})`} stopOpacity={0.04} />
+                      <linearGradient
+                        id={`salesDataLine-${activeChartMetric}`}
+                        x1='0'
+                        y1='0'
+                        x2='0'
+                        y2='1'
+                      >
+                        <stop
+                          offset='0%'
+                          stopColor={`var(--color-${activeChartMetric})`}
+                          stopOpacity={0.28}
+                        />
+                        <stop
+                          offset='100%'
+                          stopColor={`var(--color-${activeChartMetric})`}
+                          stopOpacity={0.04}
+                        />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid vertical={false} stroke="rgba(148,163,184,0.18)" strokeDasharray="0" />
+                    <CartesianGrid
+                      vertical={false}
+                      stroke='rgba(148,163,184,0.18)'
+                      strokeDasharray='0'
+                    />
                     <XAxis
-                      dataKey="date"
+                      dataKey='date'
                       axisLine={false}
                       tickLine={false}
                       tickMargin={18}
@@ -1344,25 +1788,39 @@ export default function DailyAnalysisPage() {
                       tickLine={false}
                       tickMargin={16}
                       tick={{ fontSize: 12, fill: '#71717a' }}
-                      tickFormatter={(value) => formatAxisValue(activeChartMetric, Number(value))}
+                      tickFormatter={(value) =>
+                        formatAxisValue(activeChartMetric, Number(value))
+                      }
                     />
                     <ChartTooltip
-                      itemSorter={(item) => (item.dataKey === activeChartMetric ? -1 : 1)}
-                      cursor={{ stroke: 'rgba(15,23,42,0.18)', strokeDasharray: '4 4' }}
+                      itemSorter={(item) =>
+                        item.dataKey === activeChartMetric ? -1 : 1
+                      }
+                      cursor={{
+                        stroke: 'rgba(15,23,42,0.18)',
+                        strokeDasharray: '4 4',
+                      }}
                       content={
                         <ChartTooltipContent
-                          indicator="line"
+                          indicator='line'
                           labelFormatter={(_, payload) => {
                             const date = payload?.[0]?.payload?.date
                             return typeof date === 'string' ? date : ''
                           }}
                           formatter={(value, name, item) => (
-                            <div className="flex w-full items-center justify-between gap-4">
-                              <span className="font-medium" style={{ color: item.color || undefined }}>
-                                {typeof name === 'string' ? name : activeChartMetricLabel}
+                            <div className='flex w-full items-center justify-between gap-4'>
+                              <span
+                                className='font-medium'
+                                style={{ color: item.color || undefined }}
+                              >
+                                {typeof name === 'string'
+                                  ? name
+                                  : activeChartMetricLabel}
                               </span>
-                              <span className="font-mono font-medium text-foreground">
-                                {typeof value === 'number' ? formatMetricValue(activeChartMetric, value) : String(value ?? '')}
+                              <span className='font-mono font-medium text-foreground'>
+                                {typeof value === 'number'
+                                  ? formatMetricValue(activeChartMetric, value)
+                                  : String(value ?? '')}
                               </span>
                             </div>
                           )}
@@ -1373,14 +1831,14 @@ export default function DailyAnalysisPage() {
                       <>
                         {hasComparisonData ? (
                           <Bar
-                            dataKey="compareMetricValue"
-                            name="上一个周期"
-                            fill="rgba(148,163,184,0.28)"
+                            dataKey='compareMetricValue'
+                            name='上一个周期'
+                            fill='rgba(148,163,184,0.28)'
                             radius={[10, 10, 0, 0]}
                             barSize={16}
                             isAnimationActive
                             animationDuration={320}
-                            animationEasing="ease-out"
+                            animationEasing='ease-out'
                           />
                         ) : null}
                         <Bar
@@ -1391,27 +1849,27 @@ export default function DailyAnalysisPage() {
                           barSize={16}
                           isAnimationActive
                           animationDuration={360}
-                          animationEasing="ease-out"
+                          animationEasing='ease-out'
                         />
                       </>
                     ) : (
                       <>
                         {hasComparisonData ? (
                           <Line
-                            type="monotone"
-                            dataKey="compareMetricValue"
-                            name="上一个周期"
-                            stroke="rgba(148,163,184,0.9)"
+                            type='monotone'
+                            dataKey='compareMetricValue'
+                            name='上一个周期'
+                            stroke='rgba(148,163,184,0.9)'
                             strokeWidth={2.5}
-                            strokeDasharray="6 6"
+                            strokeDasharray='6 6'
                             dot={false}
                             isAnimationActive
                             animationDuration={320}
-                            animationEasing="ease-out"
+                            animationEasing='ease-out'
                           />
                         ) : null}
                         <Line
-                          type="monotone"
+                          type='monotone'
                           dataKey={activeChartMetric}
                           name={activeChartMetricLabel}
                           stroke={`var(--color-${activeChartMetric})`}
@@ -1419,7 +1877,7 @@ export default function DailyAnalysisPage() {
                           dot={false}
                           isAnimationActive
                           animationDuration={360}
-                          animationEasing="ease-out"
+                          animationEasing='ease-out'
                           activeDot={{
                             r: 6,
                             fill: `var(--color-${activeChartMetric})`,
@@ -1434,163 +1892,248 @@ export default function DailyAnalysisPage() {
               </div>
             </>
           ) : (
-            <div className="flex min-h-[320px] items-center justify-center rounded-lg bg-[hsl(var(--surface-soft))]/82 px-6 text-center">
-              <div className="space-y-2">
-                <div className="text-base font-semibold text-foreground">图表区域暂时没有内容</div>
-                <div className="text-sm text-muted-foreground">当前筛选范围内暂无可用于绘图的数据</div>
+            <div className='flex min-h-[320px] items-center justify-center rounded-lg bg-[hsl(var(--surface-soft))]/82 px-6 text-center'>
+              <div className='space-y-2'>
+                <div className='text-base font-semibold text-foreground'>
+                  图表区域暂时没有内容
+                </div>
+                <div className='text-sm text-muted-foreground'>
+                  当前筛选范围内暂无可用于绘图的数据
+                </div>
               </div>
             </div>
           )}
         </DataCardContent>
       </DataCard>
 
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ViewTab)} className="w-full">
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(value as ViewTab)}
+        className='w-full'
+      >
         <DataTableCard>
-          <DataTableCardHeader className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between pb-4">
+          <DataTableCardHeader className='flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between pb-4'>
             <div>
-              <p className="dashboard-kicker">Operational Ledger</p>
-              <div className="text-base font-semibold text-foreground">销售数据工作区</div>
-            </div>
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void handleExportExcel()}
-                  disabled={exporting || !data}
-                  className="h-10 px-4"
-                >
-                  {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileDown className="mr-2 h-4 w-4" />}
-                  导出 Excel
-                </Button>
-                <TabsMotionGroup id="daily-analysis-tabs">
-                  <TabsList className="grid h-auto w-full grid-cols-2 border border-border/70 bg-[hsl(var(--surface-soft))]/90 p-1 sm:w-[260px] dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]">
-                    <SlidingTabsTrigger value="summary" activeValue={activeTab} layoutId="daily-analysis-tab-indicator" className="py-2.5">每日汇总</SlidingTabsTrigger>
-                    <SlidingTabsTrigger value="details" activeValue={activeTab} layoutId="daily-analysis-tab-indicator" className="py-2.5">SKU 明细</SlidingTabsTrigger>
-                  </TabsList>
-                </TabsMotionGroup>
+              <p className='dashboard-kicker'>Operational Ledger</p>
+              <div className='text-base font-semibold text-foreground'>
+                销售数据工作区
               </div>
+            </div>
+            <div className='flex flex-col gap-2 sm:flex-row sm:items-center'>
+              <Button
+                type='button'
+                variant='outline'
+                size='sm'
+                onClick={() => void handleExportExcel()}
+                disabled={exporting || !data}
+                className='h-10 px-4'
+              >
+                {exporting ? (
+                  <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                ) : (
+                  <FileDown className='mr-2 h-4 w-4' />
+                )}
+                导出 Excel
+              </Button>
+              <TabsMotionGroup id='daily-analysis-tabs'>
+                <TabsList className='grid h-auto w-full grid-cols-2 border border-border/70 bg-[hsl(var(--surface-soft))]/90 p-1 sm:w-[260px] dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]'>
+                  <SlidingTabsTrigger
+                    value='summary'
+                    activeValue={activeTab}
+                    layoutId='daily-analysis-tab-indicator'
+                    className='py-2.5'
+                  >
+                    每日汇总
+                  </SlidingTabsTrigger>
+                  <SlidingTabsTrigger
+                    value='details'
+                    activeValue={activeTab}
+                    layoutId='daily-analysis-tab-indicator'
+                    className='py-2.5'
+                  >
+                    SKU 明细
+                  </SlidingTabsTrigger>
+                </TabsList>
+              </TabsMotionGroup>
+            </div>
           </DataTableCardHeader>
 
           <DataTableCardBody>
             <DirectionalTabTransition value={activeTab} order={VIEW_TAB_ORDER}>
-            <TabsContent forceMount value={activeTab} className="m-0">
-            {activeTab === 'summary' ? (
-                  <Table noWrapperRounded containerClassName="bg-[hsl(var(--surface-panel))]/94 dark:bg-[hsl(var(--surface-panel))]/96">
-                  <TableHeader className="bg-[hsl(var(--surface-soft))]/72 dark:bg-[hsl(var(--surface-strong))]">
-                    <TableRow className="border-0 hover:bg-transparent">
-                      <TableHead className="min-w-[120px]">日期</TableHead>
-                      <TableHead>订单量</TableHead>
-                      <TableHead>销售额</TableHead>
-                      <TableHead>曝光量</TableHead>
-                      <TableHead>点击量</TableHead>
-                      <TableHead>CPC</TableHead>
-                      <TableHead>广告花费</TableHead>
-                      <TableHead>广告订单</TableHead>
-                      <TableHead>可售库存</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {loading ? (
-                      Array.from({ length: 6 }).map((_, index) => (
-                        <TableRow key={`summary-skeleton-${index}`} className="border-0">
-                          {Array.from({ length: 9 }).map((__, cellIndex) => (
-                            <TableCell key={cellIndex}>
-                              <Skeleton className="h-4 w-full max-w-[90px]" />
-                            </TableCell>
-                          ))}
-                        </TableRow>
-                      ))
-                    ) : summaryTableRows.length ? (
-                      summaryTableRows.map((row, index) => (
-                      <TableRow key={`${row.date}-${index}`} className={cn(index % 2 === 0 && 'bg-[hsl(var(--surface-soft))]/45 dark:bg-[hsl(var(--surface-strong))]/70')}>
-                          <TableCell className="font-medium text-foreground">{row.date}</TableCell>
-                          <TableCell>{row.order_qty.toLocaleString('zh-CN')}</TableCell>
-                          <TableCell>{formatMoney(row.sales_amount)}</TableCell>
-                          <TableCell>{row.impressions.toLocaleString('zh-CN')}</TableCell>
-                          <TableCell>{row.clicks.toLocaleString('zh-CN')}</TableCell>
-                          <TableCell>{formatMoney(row.cpc)}</TableCell>
-                          <TableCell>{formatMoney(row.ad_spend)}</TableCell>
-                          <TableCell>{row.ad_orders.toLocaleString('zh-CN')}</TableCell>
-                          <TableCell>{row.available_qty.toLocaleString('zh-CN')}</TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <EmptyTableState colSpan={9} message="当前筛选范围内还没有可展示的销售数据汇总。" />
-                    )}
-                  </TableBody>
-              </Table>
-            ) : (
-                  <Table noWrapperRounded containerClassName="bg-[hsl(var(--surface-panel))]/96 dark:bg-[hsl(var(--surface-panel))]/98">
-                  <TableHeader className="bg-[hsl(var(--surface-soft))]/82 dark:bg-[hsl(var(--surface-strong))]">
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead className="min-w-[120px] bg-[hsl(var(--surface-soft))]/9 dark:bg-[hsl(var(--surface-strong))]">日期</TableHead>
-                      <TableHead className="min-w-[140px]">SKU</TableHead>
-                      <TableHead className="min-w-[140px]">ASIN</TableHead>
-                      <TableHead>订单量</TableHead>
-                      <TableHead>销售额</TableHead>
-                      <TableHead>曝光量</TableHead>
-                      <TableHead>点击量</TableHead>
-                      <TableHead>CPC</TableHead>
-                      <TableHead>广告花费</TableHead>
-                      <TableHead>广告订单</TableHead>
-                      <TableHead>可售库存</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {loading ? (
-                      Array.from({ length: 8 }).map((_, index) => (
-                        <TableRow key={`detail-skeleton-${index}`}>
-                          {Array.from({ length: 11 }).map((__, cellIndex) => (
-                            <TableCell key={cellIndex}>
-                              <Skeleton className="h-4 w-full max-w-[90px]" />
-                            </TableCell>
-                          ))}
-                        </TableRow>
-                      ))
-                    ) : detailDisplayRows.length ? (
-                      detailDisplayRows.map(({ row, rowKey, showDate, rowSpan, isTintedGroup }) => (
-                        <TableRow
-                          key={rowKey}
-                          className={cn(
-                            'transition-colors',
-                            isTintedGroup
-                              ? 'bg-[hsl(var(--primary))]/[0.045] hover:bg-[hsl(var(--primary))]/[0.075]'
-                              : 'bg-background hover:bg-[hsl(var(--surface-subtle))]/40'
-                          )}
-                        >
-                          {showDate ? (
-                            <TableCell
-                              rowSpan={rowSpan}
-                              className={cn(
-                                'align-middle text-center font-semibold text-foreground',
-                                isTintedGroup
-                                  ? 'bg-[hsl(var(--primary))]/[0.1]'
-                                  : 'bg-[hsl(var(--surface-soft))]/0'
-                              )}
-                            >
+              <TabsContent forceMount value={activeTab} className='m-0'>
+                {activeTab === 'summary' ? (
+                  <Table
+                    noWrapperRounded
+                    containerClassName='bg-[hsl(var(--surface-panel))]/94 dark:bg-[hsl(var(--surface-panel))]/96'
+                  >
+                    <TableHeader className='bg-[hsl(var(--surface-soft))]/72 dark:bg-[hsl(var(--surface-strong))]'>
+                      <TableRow className='border-0 hover:bg-transparent'>
+                        <TableHead className='min-w-[120px]'>日期</TableHead>
+                        <TableHead>订单量</TableHead>
+                        <TableHead>销售额</TableHead>
+                        <TableHead>曝光量</TableHead>
+                        <TableHead>点击量</TableHead>
+                        <TableHead>CPC</TableHead>
+                        <TableHead>广告花费</TableHead>
+                        <TableHead>广告订单</TableHead>
+                        <TableHead>可售库存</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {loading ? (
+                        Array.from({ length: 6 }).map((_, index) => (
+                          <TableRow
+                            key={`summary-skeleton-${index}`}
+                            className='border-0'
+                          >
+                            {Array.from({ length: 9 }).map((__, cellIndex) => (
+                              <TableCell key={cellIndex}>
+                                <Skeleton className='h-4 w-full max-w-[90px]' />
+                              </TableCell>
+                            ))}
+                          </TableRow>
+                        ))
+                      ) : summaryTableRows.length ? (
+                        summaryTableRows.map((row, index) => (
+                          <TableRow
+                            key={`${row.date}-${index}`}
+                            className={cn(
+                              index % 2 === 0 &&
+                                'bg-[hsl(var(--surface-soft))]/45 dark:bg-[hsl(var(--surface-strong))]/70',
+                            )}
+                          >
+                            <TableCell className='font-medium text-foreground'>
                               {row.date}
                             </TableCell>
-                          ) : null}
-                          <TableCell>{row.sku}</TableCell>
-                          <TableCell>{row.asin || '--'}</TableCell>
-                          <TableCell>{row.order_qty.toLocaleString('zh-CN')}</TableCell>
-                          <TableCell>{formatMoney(row.sales_amount)}</TableCell>
-                          <TableCell>{row.impressions.toLocaleString('zh-CN')}</TableCell>
-                          <TableCell>{row.clicks.toLocaleString('zh-CN')}</TableCell>
-                          <TableCell>{formatMoney(row.cpc)}</TableCell>
-                          <TableCell>{formatMoney(row.ad_spend)}</TableCell>
-                          <TableCell>{row.ad_orders.toLocaleString('zh-CN')}</TableCell>
-                          <TableCell>{row.available_qty.toLocaleString('zh-CN')}</TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <EmptyTableState colSpan={11} message="当前筛选范围内还没有可展示的 SKU 销售数据明细。" />
-                    )}
-                  </TableBody>
-              </Table>
-            )}
-            </TabsContent>
+                            <TableCell>
+                              {row.order_qty.toLocaleString('zh-CN')}
+                            </TableCell>
+                            <TableCell>
+                              {formatMoney(row.sales_amount)}
+                            </TableCell>
+                            <TableCell>
+                              {row.impressions.toLocaleString('zh-CN')}
+                            </TableCell>
+                            <TableCell>
+                              {row.clicks.toLocaleString('zh-CN')}
+                            </TableCell>
+                            <TableCell>{formatMoney(row.cpc)}</TableCell>
+                            <TableCell>{formatMoney(row.ad_spend)}</TableCell>
+                            <TableCell>
+                              {row.ad_orders.toLocaleString('zh-CN')}
+                            </TableCell>
+                            <TableCell>
+                              {row.available_qty.toLocaleString('zh-CN')}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <EmptyTableState
+                          colSpan={9}
+                          message='当前筛选范围内还没有可展示的销售数据汇总。'
+                        />
+                      )}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <Table
+                    noWrapperRounded
+                    containerClassName='bg-[hsl(var(--surface-panel))]/96 dark:bg-[hsl(var(--surface-panel))]/98'
+                  >
+                    <TableHeader className='bg-[hsl(var(--surface-soft))]/82 dark:bg-[hsl(var(--surface-strong))]'>
+                      <TableRow className='hover:bg-transparent'>
+                        <TableHead className='min-w-[120px] bg-[hsl(var(--surface-soft))]/9 dark:bg-[hsl(var(--surface-strong))]'>
+                          日期
+                        </TableHead>
+                        <TableHead className='min-w-[140px]'>SKU</TableHead>
+                        <TableHead className='min-w-[140px]'>ASIN</TableHead>
+                        <TableHead>订单量</TableHead>
+                        <TableHead>销售额</TableHead>
+                        <TableHead>曝光量</TableHead>
+                        <TableHead>点击量</TableHead>
+                        <TableHead>CPC</TableHead>
+                        <TableHead>广告花费</TableHead>
+                        <TableHead>广告订单</TableHead>
+                        <TableHead>可售库存</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {loading ? (
+                        Array.from({ length: 8 }).map((_, index) => (
+                          <TableRow key={`detail-skeleton-${index}`}>
+                            {Array.from({ length: 11 }).map((__, cellIndex) => (
+                              <TableCell key={cellIndex}>
+                                <Skeleton className='h-4 w-full max-w-[90px]' />
+                              </TableCell>
+                            ))}
+                          </TableRow>
+                        ))
+                      ) : detailDisplayRows.length ? (
+                        detailDisplayRows.map(
+                          ({
+                            row,
+                            rowKey,
+                            showDate,
+                            rowSpan,
+                            isTintedGroup,
+                          }) => (
+                            <TableRow
+                              key={rowKey}
+                              className={cn(
+                                'transition-colors',
+                                isTintedGroup
+                                  ? 'bg-[hsl(var(--primary))]/[0.045] hover:bg-[hsl(var(--primary))]/[0.075]'
+                                  : 'bg-background hover:bg-[hsl(var(--surface-subtle))]/40',
+                              )}
+                            >
+                              {showDate ? (
+                                <TableCell
+                                  rowSpan={rowSpan}
+                                  className={cn(
+                                    'align-middle text-center font-semibold text-foreground',
+                                    isTintedGroup
+                                      ? 'bg-[hsl(var(--primary))]/[0.1]'
+                                      : 'bg-[hsl(var(--surface-soft))]/0',
+                                  )}
+                                >
+                                  {row.date}
+                                </TableCell>
+                              ) : null}
+                              <TableCell>{row.sku}</TableCell>
+                              <TableCell>{row.asin || '--'}</TableCell>
+                              <TableCell>
+                                {row.order_qty.toLocaleString('zh-CN')}
+                              </TableCell>
+                              <TableCell>
+                                {formatMoney(row.sales_amount)}
+                              </TableCell>
+                              <TableCell>
+                                {row.impressions.toLocaleString('zh-CN')}
+                              </TableCell>
+                              <TableCell>
+                                {row.clicks.toLocaleString('zh-CN')}
+                              </TableCell>
+                              <TableCell>{formatMoney(row.cpc)}</TableCell>
+                              <TableCell>{formatMoney(row.ad_spend)}</TableCell>
+                              <TableCell>
+                                {row.ad_orders.toLocaleString('zh-CN')}
+                              </TableCell>
+                              <TableCell>
+                                {row.available_qty.toLocaleString('zh-CN')}
+                              </TableCell>
+                            </TableRow>
+                          ),
+                        )
+                      ) : (
+                        <EmptyTableState
+                          colSpan={11}
+                          message='当前筛选范围内还没有可展示的 SKU 销售数据明细。'
+                        />
+                      )}
+                    </TableBody>
+                  </Table>
+                )}
+              </TabsContent>
             </DirectionalTabTransition>
           </DataTableCardBody>
         </DataTableCard>

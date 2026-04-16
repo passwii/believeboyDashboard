@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { type ComponentPropsWithoutRef, useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { DateRange } from 'react-day-picker'
 import ReactMarkdown from 'react-markdown'
@@ -20,6 +20,8 @@ import {
 import {
   Bot,
   ChevronDown,
+  Copy,
+  Check,
   Eye,
   Loader2,
   Sparkles,
@@ -60,6 +62,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart'
 import { parseResponseError } from '@/lib/error-utils'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { cn } from '@/lib/utils'
@@ -276,16 +279,22 @@ function GenerationProgress({ currentSubStatus }: { currentSubStatus: string | n
 function parseLineChart(content: string) {
   const lines = content.trim().split('\n')
   const result: Record<string, string[]> = {}
-  let currentKey = ''
 
   for (const rawLine of lines) {
     const line = rawLine.trim()
     if (!line) continue
 
-    const match = line.match(/^(\w+)\[(.+)\]$/)
+    const match = line.match(/^([\w-]+)\[(.+)\]$/)
     if (match) {
-      currentKey = match[1].toLowerCase()
-      result[currentKey] = match[2].split(/[,;]\s*/).map((v) => v.trim())
+      const currentKey = match[1].toLowerCase()
+      const rawValues = match[2].trim()
+      const values = /[,;]/.test(rawValues)
+        ? rawValues.split(/[,;]\s*/)
+        : currentKey === 'x-axis' || currentKey === 'xaxis'
+          ? rawValues.split(/\s+/)
+          : [rawValues]
+
+      result[currentKey] = values.map((v) => v.trim()).filter(Boolean)
     }
   }
 
@@ -319,8 +328,48 @@ const CHART_COLORS = [
   'hsl(var(--chart-5))',
 ]
 
+const CHART_CONFIG = {
+  value: { label: '数值', color: 'hsl(var(--chart-1))' },
+} satisfies ChartConfig
+
+function FallbackCodeBlock({ code }: { code: string }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = useCallback(async () => {
+    await navigator.clipboard.writeText(code)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }, [code])
+
+  return (
+    <div className="not-prose my-5 overflow-hidden rounded-[22px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))] shadow-[0_18px_60px_-40px_rgba(15,23,42,0.45)]">
+      <div className="flex items-center justify-between border-b border-border/60 bg-[hsl(var(--surface-overlay)/0.82)] px-4 py-3">
+        <div className="flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-full bg-[hsl(var(--chart-1))]" />
+          <span className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+            RAW BLOCK
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={() => void handleCopy()}
+          className="inline-flex items-center gap-1 rounded-md border border-border/70 bg-background/70 px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+        >
+          {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+          {copied ? '已复制' : '复制'}
+        </button>
+      </div>
+      <pre className="overflow-x-auto px-4 py-4 text-xs leading-6 text-foreground">
+        <code>{code}</code>
+      </pre>
+    </div>
+  )
+}
+
 function ChartCodeBlock({ chartType, code }: { chartType: string; code: string }) {
-  if (chartType === 'linechart' || chartType === 'line') {
+  const normalizedType = chartType.trim().toLowerCase()
+
+  if (normalizedType === 'linechart' || normalizedType === 'line') {
     const parsed = parseLineChart(code)
     const labels = parsed['x-axis'] || parsed['xaxis'] || []
     const seriesKey = Object.keys(parsed).find(
@@ -329,7 +378,7 @@ function ChartCodeBlock({ chartType, code }: { chartType: string; code: string }
     const seriesData = seriesKey ? parsed[seriesKey] : []
 
     if (labels.length === 0 || seriesData.length === 0) {
-      return <pre className="rounded bg-muted p-3 text-xs overflow-x-auto">{code}</pre>
+      return <FallbackCodeBlock code={code} />
     }
 
     const chartData = labels.map((label, i) => ({
@@ -338,50 +387,63 @@ function ChartCodeBlock({ chartType, code }: { chartType: string; code: string }
     }))
 
     return (
-      <div className="not-prose my-4 rounded-xl border border-border/70 bg-[hsl(var(--surface-soft))] p-4">
-        <p className="mb-3 text-sm font-medium text-muted-foreground">{seriesKey?.toUpperCase() || '趋势'}</p>
-        <ResponsiveContainer width="100%" height={220}>
-          <LineChart data={chartData} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border)/0.5)" />
-            <XAxis
-              dataKey="label"
-              tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
-              tickLine={false}
-              axisLine={{ stroke: 'hsl(var(--border))' }}
-            />
-            <YAxis
-              tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
-              tickLine={false}
-              axisLine={false}
-              width={40}
-            />
-            <RechartsTooltip
-              contentStyle={{
-                background: 'hsl(var(--surface-panel))',
-                border: '1px solid hsl(var(--border))',
-                borderRadius: '8px',
-                fontSize: 12,
-              }}
-            />
-            <Line
-              type="monotone"
-              dataKey="value"
-              stroke="hsl(var(--primary))"
-              strokeWidth={2}
-              dot={{ r: 3, fill: 'hsl(var(--primary))' }}
-              activeDot={{ r: 5 }}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+      <div className="not-prose my-6 overflow-hidden rounded-[24px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))] shadow-[0_24px_80px_-48px_rgba(15,23,42,0.55)]">
+        <div className="border-b border-border/60 px-5 py-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[hsl(var(--chart-1)/0.14)] text-[hsl(var(--chart-1))]">
+              <Sparkles className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">Trend Chart</p>
+              <p className="mt-1 text-sm font-semibold text-foreground">{seriesKey?.toUpperCase() || '趋势变化'}</p>
+            </div>
+          </div>
+        </div>
+        <div className="px-4 pb-3 pt-4">
+          <ChartContainer config={CHART_CONFIG} className="h-[260px] w-full">
+            <LineChart data={chartData} margin={{ top: 12, right: 16, bottom: 0, left: 0 }}>
+              <defs>
+                <linearGradient id="ai-insight-line-fill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="hsl(var(--chart-1))" stopOpacity={0.32} />
+                  <stop offset="100%" stopColor="hsl(var(--chart-1))" stopOpacity={0.03} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid vertical={false} strokeDasharray="4 4" />
+              <XAxis
+                dataKey="label"
+                tickLine={false}
+                axisLine={false}
+                minTickGap={18}
+              />
+              <YAxis
+                tickLine={false}
+                axisLine={false}
+                width={44}
+              />
+              <ChartTooltip
+                cursor={{ stroke: 'hsl(var(--border))', strokeDasharray: '4 4' }}
+                content={<ChartTooltipContent indicator="line" />}
+              />
+              <Line
+                type="monotone"
+                dataKey="value"
+                stroke="var(--color-value)"
+                strokeWidth={3}
+                dot={{ r: 0 }}
+                activeDot={{ r: 5, fill: 'var(--color-value)', stroke: 'hsl(var(--surface-panel))', strokeWidth: 2 }}
+              />
+            </LineChart>
+          </ChartContainer>
+        </div>
       </div>
     )
   }
 
-  if (chartType === 'piechart' || chartType === 'pie') {
+  if (normalizedType === 'piechart' || normalizedType === 'pie') {
     const parsed = parsePieChart(code)
 
     if (parsed.length === 0) {
-      return <pre className="rounded bg-muted p-3 text-xs overflow-x-auto">{code}</pre>
+      return <FallbackCodeBlock code={code} />
     }
 
     const total = parsed.reduce((sum, item) => sum + item.value, 0)
@@ -391,41 +453,50 @@ function ChartCodeBlock({ chartType, code }: { chartType: string; code: string }
     }))
 
     return (
-      <div className="not-prose my-4 rounded-xl border border-border/70 bg-[hsl(var(--surface-soft))] p-4">
-        <p className="mb-3 text-sm font-medium text-muted-foreground">分布占比</p>
-        <div className="flex items-center gap-6">
-          <ResponsiveContainer width={180} height={180}>
-            <PieChart>
-              <Pie
-                data={displayData}
-                cx="50%"
-                cy="50%"
-                innerRadius={50}
-                outerRadius={80}
-                dataKey="value"
-                stroke="hsl(var(--surface-soft))"
-                strokeWidth={2}
-              >
-                {displayData.map((_, i) => (
-                  <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-                ))}
-              </Pie>
-              <RechartsTooltip
-                formatter={(value: number) => [value, '']}
-                contentStyle={{
-                  background: 'hsl(var(--surface-panel))',
-                  border: '1px solid hsl(var(--border))',
-                  borderRadius: '8px',
-                  fontSize: 12,
-                }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="flex-1 space-y-1.5">
+      <div className="not-prose my-6 overflow-hidden rounded-[24px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))] shadow-[0_24px_80px_-48px_rgba(15,23,42,0.55)]">
+        <div className="border-b border-border/60 px-5 py-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">Composition</p>
+          <p className="mt-1 text-sm font-semibold text-foreground">分布占比</p>
+        </div>
+        <div className="flex flex-col gap-6 px-5 py-5 md:flex-row md:items-center">
+          <div className="h-[220px] w-full md:w-[220px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={displayData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={56}
+                  outerRadius={88}
+                  paddingAngle={3}
+                  dataKey="value"
+                  stroke="hsl(var(--surface-soft))"
+                  strokeWidth={3}
+                >
+                  {displayData.map((_, i) => (
+                    <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                  ))}
+                </Pie>
+                <RechartsTooltip
+                  formatter={(value: number) => [value, '']}
+                  contentStyle={{
+                    background: 'hsl(var(--surface-panel))',
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: '12px',
+                    fontSize: 12,
+                  }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="flex-1 space-y-2.5">
             {displayData.map((item, i) => (
-              <div key={item.name} className="flex items-center gap-2 text-sm">
+              <div
+                key={item.name}
+                className="flex items-center gap-3 rounded-2xl border border-border/60 bg-background/60 px-3 py-2.5 text-sm"
+              >
                 <div
-                  className="h-2.5 w-2.5 shrink-0 rounded-sm"
+                  className="h-3 w-3 shrink-0 rounded-sm"
                   style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }}
                 />
                 <span className="text-muted-foreground">{item.name}</span>
@@ -440,17 +511,164 @@ function ChartCodeBlock({ chartType, code }: { chartType: string; code: string }
     )
   }
 
-  return <pre className="rounded bg-muted p-3 text-xs overflow-x-auto">{code}</pre>
+  return <FallbackCodeBlock code={code} />
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const MarkdownContent = ({ content }: { content: string }) => {
-  const Markdown = ReactMarkdown as React.FC<{ remarkPlugins?: unknown[]; children: string }>
+function ReportSectionTitle({ children, className, ...props }: ComponentPropsWithoutRef<'h2'>) {
   return (
-    <div className="prose prose-sm dark:prose-invert max-w-none">
-      <Markdown remarkPlugins={[remarkGfm]}>
-        {content}
-      </Markdown>
+    <h2
+      className={cn(
+        'mt-10 flex items-center gap-3 border-b border-border/70 pb-3 text-[1.02rem] font-semibold tracking-[0.02em] text-foreground first:mt-0',
+        className
+      )}
+      {...props}
+    >
+      <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl border border-border/70 bg-[hsl(var(--chart-1)/0.12)] text-[0.72rem] font-bold text-[hsl(var(--chart-1))]">
+        {typeof children === 'string' ? children.slice(0, 1) : '章'}
+      </span>
+      <span>{children}</span>
+    </h2>
+  )
+}
+
+const MarkdownContent = ({ content }: { content: string }) => {
+  const Markdown = ReactMarkdown as React.FC<{
+    remarkPlugins?: unknown[]
+    children: string
+    components?: Record<string, any>
+  }>
+
+  return (
+    <div className="dashboard-surface overflow-hidden rounded-[28px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))] shadow-[0_28px_90px_-56px_rgba(15,23,42,0.55)]">
+      <div className="border-b border-border/60 bg-[linear-gradient(135deg,hsl(var(--surface-overlay)/0.96),hsl(var(--surface-soft)/0.7))] px-6 py-5">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="rounded-full border border-border/70 bg-background/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.26em] text-muted-foreground">
+            AI Insight Report
+          </span>
+          <span className="text-sm text-muted-foreground">结构化预览已启用，表格与图表会在这里直接渲染。</span>
+        </div>
+      </div>
+      <div className="px-6 py-6 sm:px-8">
+        <div
+          className={cn(
+            'min-w-0 text-[15px] leading-7 text-foreground',
+            '[&_a]:font-medium [&_a]:text-primary [&_a]:underline-offset-4 hover:[&_a]:underline',
+            '[&_hr]:my-8 [&_hr]:border-border/70'
+          )}
+        >
+          <Markdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+              h1({ className, ...props }) {
+                return <h1 className={cn('text-2xl font-semibold tracking-tight text-foreground', className)} {...props} />
+              },
+              h2({ className, children, ...props }) {
+                return <ReportSectionTitle className={className} {...props}>{children}</ReportSectionTitle>
+              },
+              h3({ className, ...props }) {
+                return (
+                  <h3
+                    className={cn('mt-6 text-base font-semibold text-foreground', className)}
+                    {...props}
+                  />
+                )
+              },
+              p({ className, ...props }) {
+                return <p className={cn('mt-4 whitespace-pre-wrap text-[15px] leading-7 text-foreground/92', className)} {...props} />
+              },
+              strong({ className, ...props }) {
+                return <strong className={cn('font-semibold text-foreground', className)} {...props} />
+              },
+              ul({ className, ...props }) {
+                return <ul className={cn('mt-4 space-y-2 pl-6', className)} {...props} />
+              },
+              ol({ className, ...props }) {
+                return <ol className={cn('mt-4 space-y-2 pl-6', className)} {...props} />
+              },
+              li({ className, ...props }) {
+                return <li className={cn('marker:text-[hsl(var(--chart-1))]', className)} {...props} />
+              },
+              blockquote({ className, ...props }) {
+                return (
+                  <blockquote
+                    className={cn(
+                      'my-5 rounded-r-2xl border-l-4 border-[hsl(var(--chart-3))] bg-[hsl(var(--chart-3)/0.08)] px-4 py-3 text-muted-foreground',
+                      className
+                    )}
+                    {...props}
+                  />
+                )
+              },
+              table({ className, ...props }) {
+                return (
+                  <div className="my-6 overflow-x-auto rounded-[22px] border border-border/70 bg-[hsl(var(--surface-overlay)/0.72)]">
+                    <table className={cn('min-w-full border-collapse text-sm', className)} {...props} />
+                  </div>
+                )
+              },
+              thead({ className, ...props }) {
+                return <thead className={cn('bg-[hsl(var(--surface-soft))]', className)} {...props} />
+              },
+              tbody({ className, ...props }) {
+                return <tbody className={cn('[&_tr:last-child]:border-b-0', className)} {...props} />
+              },
+              tr({ className, ...props }) {
+                return <tr className={cn('border-b border-border/60', className)} {...props} />
+              },
+              th({ className, ...props }) {
+                return (
+                  <th
+                    className={cn(
+                      'border-r border-border/60 px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground last:border-r-0',
+                      className
+                    )}
+                    {...props}
+                  />
+                )
+              },
+              td({ className, ...props }) {
+                return (
+                  <td
+                    className={cn(
+                      'border-r border-border/60 px-4 py-3 align-top text-sm text-foreground/92 last:border-r-0',
+                      className
+                    )}
+                    {...props}
+                  />
+                )
+              },
+              code({ className, children, ...props }) {
+                const match = /language-([\w-]+)/.exec(className || '')
+                const code = String(children).replace(/\n$/, '')
+                const language = match?.[1]?.toLowerCase() || ''
+                const isInline = !match && !code.includes('\n')
+
+                if (isInline) {
+                  return (
+                    <code
+                      className={cn('rounded-md bg-[hsl(var(--surface-soft))] px-1.5 py-0.5 font-mono text-[0.85em]', className)}
+                      {...props}
+                    >
+                      {children}
+                    </code>
+                  )
+                }
+
+                if (language === 'linechart' || language === 'line' || language === 'piechart' || language === 'pie') {
+                  return <ChartCodeBlock chartType={language} code={code} />
+                }
+
+                return <FallbackCodeBlock code={code} />
+              },
+              pre({ children }) {
+                return <>{children}</>
+              },
+            }}
+          >
+            {content}
+          </Markdown>
+        </div>
+      </div>
     </div>
   )
 }

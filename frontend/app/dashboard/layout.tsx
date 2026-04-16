@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { LivePresence } from '@/components/dashboard/live-presence'
 import { DashboardPageLoading } from '@/components/dashboard/dashboard-page-loading'
+import { RecentPagesDropdown } from '@/components/dashboard/recent-pages-dropdown'
 import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
 import { NotificationPanel, useNotifications } from '@/components/notifications'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
@@ -13,8 +14,9 @@ import { SearchCommand } from '@/components/dashboard/search-command'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { getDashboardPageTitle } from '@/lib/dashboard-route-meta'
+import { useRecentPages } from '@/lib/recent-pages'
 import { useGlobalLoading } from '@/components/global-loading-provider'
-import { Bell, ChevronRight, Heart, History, Search } from 'lucide-react'
+import { Bell, BookOpen, ChevronRight, Search } from 'lucide-react'
 
 function getDashboardBreadcrumbLabel(pathname: string, pageTitle: string) {
   if (pathname === '/dashboard') return '运营总览'
@@ -77,10 +79,17 @@ export default function DashboardLayout({
     () => getDashboardBreadcrumbLabel(effectivePathname, pageTitle),
     [effectivePathname, pageTitle]
   )
+  const { pushPage } = useRecentPages()
 
   useEffect(() => {
     document.title = `${pageTitle} | BelieveBoy Dashboard`
   }, [pageTitle])
+
+  useEffect(() => {
+    if (effectivePathname && effectivePathname !== '/dashboard') {
+      pushPage(effectivePathname, pageTitle)
+    }
+  }, [effectivePathname, pageTitle, pushPage])
 
   return (
     <DashboardAISidebarProvider>
@@ -132,17 +141,7 @@ export default function DashboardLayout({
                 </Button>
                 <ThemeToggle />
                 <NotificationBell />
-                <Button
-                  asChild
-                  variant="ghost"
-                  size="icon"
-                  className="h-10 w-10 rounded-xl border border-transparent bg-transparent text-secondary hover:bg-[hsl(var(--surface-subtle))]"
-                >
-                  <RouteLoadingLink href="/dashboard/changelog" aria-label="开发更新日志">
-                    <History className="h-4 w-4" />
-                    <span className="sr-only">History</span>
-                  </RouteLoadingLink>
-                </Button>
+                <RecentPagesDropdown />
                 <Button
                   asChild
                   variant="ghost"
@@ -150,7 +149,7 @@ export default function DashboardLayout({
                   className="h-10 w-10 rounded-xl border border-transparent bg-transparent text-secondary hover:bg-[hsl(var(--surface-subtle))]"
                 >
                   <RouteLoadingLink href="/dashboard/changelog" aria-label="帮助与功能说明">
-                    <Heart className="h-4 w-4" />
+                    <BookOpen className="h-4 w-4" />
                     <span className="sr-only">Help</span>
                   </RouteLoadingLink>
                 </Button>
