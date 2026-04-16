@@ -1,6 +1,6 @@
 'use client'
 
-import { type ComponentPropsWithoutRef, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import { type ComponentPropsWithoutRef, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { DateRange } from 'react-day-picker'
 import ReactMarkdown from 'react-markdown'
@@ -34,7 +34,7 @@ import { useSession } from 'next-auth/react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { DateRangePicker } from '@/components/ui/date-picker'
+import { DateRangePicker, COUNTRY_TIMEZONE_MAP, getTodayInTimezone } from '@/components/ui/date-picker'
 import {
   Dialog,
   DialogContent,
@@ -150,6 +150,32 @@ const DATA_STEPS = [
   { key: 'data_aggregating_top_skus', label: 'Top SKU' },
   { key: 'data_aggregating_ad_campaigns', label: '广告活动' },
 ]
+
+function formatYMD(date: Date): string {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+function addDays(date: Date, amount: number) {
+  const next = new Date(date)
+  next.setDate(next.getDate() + amount)
+  return next
+}
+
+function lastSevenDaysRange(country: string) {
+  const today = getTodayInTimezone(COUNTRY_TIMEZONE_MAP[country] ?? 'UTC')
+  const end = today
+  const start = addDays(end, -6)
+  return { from: start, to: end }
+}
+
+function getYesterdayRange(country: string) {
+  const today = getTodayInTimezone(COUNTRY_TIMEZONE_MAP[country] ?? 'UTC')
+  const yesterday = addDays(today, -1)
+  return { from: yesterday, to: yesterday }
+}
 
 function GenerationProgress({ currentSubStatus }: { currentSubStatus: string | null }) {
   // Top-level step (data_aggregating, ai_generating, title_generating)
@@ -683,7 +709,8 @@ export default function AIInsightsPage() {
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null)
   const [selectedCountry, setSelectedCountry] = useState('US')
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined)
+  const defaultRange = useMemo(() => lastSevenDaysRange(selectedCountry), [selectedCountry])
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(defaultRange)
   const [insightType, setInsightType] = useState('custom')
   const [insights, setInsights] = useState<InsightItem[]>([])
   const [isLoadingProjects, setIsLoadingProjects] = useState(true)
@@ -731,6 +758,11 @@ export default function AIInsightsPage() {
     }
     void loadProjects()
   }, [session, searchParams])
+
+  // When country changes, reset dateRange to "last 7 days in that country's timezone".
+  useEffect(() => {
+    setDateRange(defaultRange)
+  }, [selectedCountry, defaultRange])
 
   const loadInsights = useCallback(async () => {
     if (!selectedProjectId) return
@@ -880,8 +912,8 @@ export default function AIInsightsPage() {
       const body = {
         project_id: selectedProjectId,
         country: selectedCountry,
-        date_range_start: dateRange.from.toISOString().split('T')[0],
-        date_range_end: dateRange.to.toISOString().split('T')[0],
+        date_range_start: formatYMD(dateRange.from),
+        date_range_end: formatYMD(dateRange.to),
         insight_type: insightType,
         model: selectedModel || undefined,
       }
@@ -1115,7 +1147,26 @@ export default function AIInsightsPage() {
                 value={dateRange}
                 onChange={setDateRange}
                 className="h-10 w-[240px]"
+                timezone={COUNTRY_TIMEZONE_MAP[selectedCountry]}
               />
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="h-10 px-3"
+                  onClick={() => setDateRange(getYesterdayRange(selectedCountry))}
+                >
+                  昨天
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="h-10 px-3"
+                  onClick={() => setDateRange(lastSevenDaysRange(selectedCountry))}
+                >
+                  近7天
+                </Button>
+              </div>
 
               <Button
                 onClick={() => void handleGenerate()}
