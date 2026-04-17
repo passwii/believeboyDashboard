@@ -96,12 +96,16 @@ const primaryGroups: NavGroup[] = [
       {
         title: '新品核算',
         url: '/dashboard/data-reporting/pricing-calculation/new-product',
-        matchPrefixes: ['/dashboard/data-reporting/pricing-calculation/new-product'],
+        matchPrefixes: [
+          '/dashboard/data-reporting/pricing-calculation/new-product',
+        ],
       },
       {
         title: '店铺核算',
         url: '/dashboard/data-reporting/pricing-calculation/store-accounting',
-        matchPrefixes: ['/dashboard/data-reporting/pricing-calculation/store-accounting'],
+        matchPrefixes: [
+          '/dashboard/data-reporting/pricing-calculation/store-accounting',
+        ],
       },
     ],
   },
@@ -227,7 +231,12 @@ function SidebarGroupBlock({ group }: { group: NavGroup }) {
             hasActiveItem ? group.activeAccent : group.accent
           }`}
         >
-          <span style={{ color: hasActiveItem ? 'inherit' : undefined, filter: hasActiveItem ? 'none' : 'grayscale(100%)' }}>
+          <span
+            style={{
+              color: hasActiveItem ? 'inherit' : undefined,
+              filter: hasActiveItem ? 'none' : 'grayscale(100%)',
+            }}
+          >
             {group.icon}
           </span>
         </div>
@@ -294,111 +303,124 @@ export function AppSidebar({
           <AIChatSidebar {...sidebarState} />
         </div>
       ) : (
-      <div className='flex min-h-0 flex-1 flex-col'>
-        <SidebarHeader className='flex items-center px-3 py-3'>
-          <div className='grid w-full text-left leading-tight'>
-            <span className='truncate text-[0.82rem] font-semibold text-sidebar-foreground'>
-              BelieveBoy
-            </span>
-            <span className='truncate text-[0.72rem] text-sidebar-foreground/56'>
-              运营控制台
-            </span>
+        <div className='flex min-h-0 flex-1 flex-col'>
+          <SidebarHeader className='flex items-center px-3 py-3'>
+            <div className='grid w-full text-left leading-tight'>
+              <span className='truncate text-[0.82rem] font-semibold text-sidebar-foreground'>
+                BelieveBoy
+              </span>
+              <span className='truncate text-[0.72rem] text-sidebar-foreground/56'>
+                运营控制台
+              </span>
+            </div>
+          </SidebarHeader>
+
+          {/* Quick Access Bar */}
+          <div className='px-3 py-2'>
+            <div className='flex items-center justify-around gap-1.5'>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <RouteLoadingLink
+                    href='/dashboard/data-management/shipment-management'
+                    className='flex h-11 w-11 min-w-touch items-center justify-center rounded-[0.65rem] border border-[hsl(var(--sidebar-foreground)/0.08)] bg-[hsl(var(--sidebar-foreground)/0.03)] text-sidebar-foreground/72 shadow-none transition-all duration-200 hover:bg-[hsl(var(--sidebar-foreground)/0.08)] hover:text-sidebar-foreground group-data-[collapsible=icon]:hidden'
+                  >
+                    <Package className='h-4 w-4' />
+                  </RouteLoadingLink>
+                </TooltipTrigger>
+                <TooltipContent
+                  side='right'
+                  className='group-data-[collapsible=icon]:hidden'
+                >
+                  发货管理
+                </TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <RouteLoadingLink
+                    href='/dashboard/data-analysis/daily-analysis'
+                    className='flex h-11 w-11 min-w-touch items-center justify-center rounded-[0.65rem] border border-[hsl(var(--sidebar-foreground)/0.08)] bg-[hsl(var(--sidebar-foreground)/0.03)] text-sidebar-foreground/72 shadow-none transition-all duration-200 hover:bg-[hsl(var(--sidebar-foreground)/0.08)] hover:text-sidebar-foreground group-data-[collapsible=icon]:hidden'
+                  >
+                    <TrendingUp className='h-4 w-4' />
+                  </RouteLoadingLink>
+                </TooltipTrigger>
+                <TooltipContent
+                  side='right'
+                  className='group-data-[collapsible=icon]:hidden'
+                >
+                  销售数据
+                </TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <RouteLoadingLink
+                    href='/dashboard/data-management/report-upload'
+                    className='flex h-11 w-11 min-w-touch items-center justify-center rounded-[0.65rem] border border-[hsl(var(--sidebar-foreground)/0.08)] bg-[hsl(var(--sidebar-foreground)/0.03)] text-sidebar-foreground/72 shadow-none transition-all duration-200 hover:bg-[hsl(var(--sidebar-foreground)/0.08)] hover:text-sidebar-foreground group-data-[collapsible=icon]:hidden'
+                  >
+                    <Upload className='h-4 w-4' />
+                  </RouteLoadingLink>
+                </TooltipTrigger>
+                <TooltipContent
+                  side='right'
+                  className='group-data-[collapsible=icon]:hidden'
+                >
+                  报表上传
+                </TooltipContent>
+              </Tooltip>
+            </div>
           </div>
-        </SidebarHeader>
 
-        {/* Quick Access Bar */}
-        <div className="px-3 py-2">
-          <div className="flex items-center justify-around gap-1.5">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <RouteLoadingLink
-                  href="/dashboard/data-management/shipment-management"
-                  className="flex h-11 w-11 min-w-touch items-center justify-center rounded-[0.65rem] border border-[hsl(var(--sidebar-foreground)/0.08)] bg-[hsl(var(--sidebar-foreground)/0.03)] text-sidebar-foreground/72 shadow-none transition-all duration-200 hover:bg-[hsl(var(--sidebar-foreground)/0.08)] hover:text-sidebar-foreground group-data-[collapsible=icon]:hidden"
-                >
-                  <Package className="h-4 w-4" />
-                </RouteLoadingLink>
-              </TooltipTrigger>
-              <TooltipContent side="right" className="group-data-[collapsible=icon]:hidden">
-                发货管理
-              </TooltipContent>
-            </Tooltip>
+          <SidebarSeparator className='mx-4 bg-[hsl(var(--sidebar-foreground)/0.08)]' />
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <RouteLoadingLink
-                  href="/dashboard/data-analysis/daily-analysis"
-                  className="flex h-11 w-11 min-w-touch items-center justify-center rounded-[0.65rem] border border-[hsl(var(--sidebar-foreground)/0.08)] bg-[hsl(var(--sidebar-foreground)/0.03)] text-sidebar-foreground/72 shadow-none transition-all duration-200 hover:bg-[hsl(var(--sidebar-foreground)/0.08)] hover:text-sidebar-foreground group-data-[collapsible=icon]:hidden"
-                >
-                  <TrendingUp className="h-4 w-4" />
-                </RouteLoadingLink>
-              </TooltipTrigger>
-              <TooltipContent side="right" className="group-data-[collapsible=icon]:hidden">
-                销售数据
-              </TooltipContent>
-            </Tooltip>
+          <SidebarContent className='gap-3 px-3 py-3'>
+            {primaryGroups.map((group) => (
+              <SidebarGroupBlock key={group.label} group={group} />
+            ))}
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <RouteLoadingLink
-                  href="/dashboard/data-management/report-upload"
-                  className="flex h-11 w-11 min-w-touch items-center justify-center rounded-[0.65rem] border border-[hsl(var(--sidebar-foreground)/0.08)] bg-[hsl(var(--sidebar-foreground)/0.03)] text-sidebar-foreground/72 shadow-none transition-all duration-200 hover:bg-[hsl(var(--sidebar-foreground)/0.08)] hover:text-sidebar-foreground group-data-[collapsible=icon]:hidden"
-                >
-                  <Upload className="h-4 w-4" />
-                </RouteLoadingLink>
-              </TooltipTrigger>
-              <TooltipContent side="right" className="group-data-[collapsible=icon]:hidden">
-                报表上传
-              </TooltipContent>
-            </Tooltip>
-          </div>
+            {displayUser.isAdmin ? (
+              <SidebarGroupBlock group={adminGroup} />
+            ) : null}
+
+            <SidebarGroup className='mt-auto px-2 py-0'>
+              <SidebarGroupLabel className='mb-2 px-2 text-[0.74rem] font-semibold text-sidebar-foreground/42'>
+                支持入口
+              </SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu className='gap-0.5'>
+                  {utilityLinks.map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton
+                        asChild
+                        tooltip={item.title}
+                        isActive={isLinkActive(pathname, item)}
+                        className='h-10 rounded-[0.9rem] px-3 text-[0.92rem] text-sidebar-foreground/72 hover:bg-[hsl(var(--sidebar-foreground)/0.03)] data-[active=true]:bg-[hsl(var(--sidebar-foreground)/0.05)]'
+                      >
+                        <RouteLoadingLink href={item.url}>
+                          {item.icon}
+                          <span className='truncate whitespace-nowrap'>
+                            {item.title}
+                          </span>
+                        </RouteLoadingLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </SidebarContent>
+
+          <SidebarSeparator className='mx-4 bg-[hsl(var(--sidebar-foreground)/0.08)]' />
+
+          <SidebarFooter className='px-3 py-3'>
+            <NavUser
+              user={displayUser}
+              onLogout={() => {
+                void signOut({ callbackUrl: '/login' })
+              }}
+            />
+          </SidebarFooter>
         </div>
-
-        <SidebarSeparator className='mx-4 bg-[hsl(var(--sidebar-foreground)/0.08)]' />
-
-        <SidebarContent className='gap-5 px-2 py-3'>
-          {primaryGroups.map((group) => (
-            <SidebarGroupBlock key={group.label} group={group} />
-          ))}
-
-          {displayUser.isAdmin ? <SidebarGroupBlock group={adminGroup} /> : null}
-
-          <SidebarGroup className='mt-auto px-2 py-0'>
-            <SidebarGroupLabel className='mb-2 px-2 text-[0.74rem] font-semibold text-sidebar-foreground/42'>
-              支持入口
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu className='gap-0.5'>
-                {utilityLinks.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      asChild
-                      tooltip={item.title}
-                      isActive={isLinkActive(pathname, item)}
-                      className='h-10 rounded-[0.9rem] px-3 text-[0.92rem] text-sidebar-foreground/72 hover:bg-[hsl(var(--sidebar-foreground)/0.03)] data-[active=true]:bg-[hsl(var(--sidebar-foreground)/0.05)]'
-                    >
-                      <RouteLoadingLink href={item.url}>
-                        {item.icon}
-                        <span className='truncate whitespace-nowrap'>{item.title}</span>
-                      </RouteLoadingLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        </SidebarContent>
-
-        <SidebarSeparator className='mx-4 bg-[hsl(var(--sidebar-foreground)/0.08)]' />
-
-        <SidebarFooter className='px-3 py-3'>
-          <NavUser
-            user={displayUser}
-            onLogout={() => {
-              void signOut({ callbackUrl: '/login' })
-            }}
-          />
-        </SidebarFooter>
-      </div>
       )}
 
       {!isAiChatPage ? <SidebarRail /> : null}

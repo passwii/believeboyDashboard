@@ -67,3 +67,8 @@ class InsightDeleteResponse(BaseModel):
 
 class InsightUpdateRequest(BaseModel):
     content: str = Field(default='', min_length=1)
+
+
+class InsightRetryResponse(BaseModel):
+    status: str
+    insight_id: int

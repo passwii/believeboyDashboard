@@ -340,7 +340,11 @@ export default function StoreAccountingPage() {
           cell.alignment = { horizontal: 'center', vertical: 'middle' }
 
           if (Number.isFinite(num)) {
-            cell.numFmt = '#,##0.####'
+            if (Number.isInteger(num)) {
+              cell.numFmt = '#,##0'
+            } else {
+              cell.numFmt = '#,##0.####'
+            }
           }
 
           // Profit color: US col 25/26, EU col 23/24

@@ -408,6 +408,11 @@ export default function SkuInfoPage() {
       if (selectedProject?.id) {
         summarySearch.set('project_id', String(selectedProject.id))
       }
+      // Only filter by country when a specific country is selected,
+      // otherwise sumaryBySku would mix data across all countries for the same SKU
+      if (countryValue !== 'all') {
+        summarySearch.set('country', countryValue)
+      }
 
       const requests: Promise<Response>[] = [
         fetch(`${API_BASE}/api/v1/sku-info?${search.toString()}`, {
@@ -560,10 +565,12 @@ export default function SkuInfoPage() {
     }
     setSyncing(true)
     try {
-      const response = await fetch(
-        `${API_BASE}/api/v1/sku-info/sync-first-leg-from-shipment?project_id=${selectedProject.id}`,
-        { headers: authHeaders() },
-      )
+      let syncUrl = `${API_BASE}/api/v1/sku-info/sync-first-leg-from-shipment?project_id=${selectedProject.id}`
+      // Only sync the currently selected country to avoid cross-country data mixing
+      if (countryFilter !== 'all') {
+        syncUrl += `&country=${countryFilter}`
+      }
+      const response = await fetch(syncUrl, { headers: authHeaders() })
       if (!response.ok) throw await parseError(response)
       const data = (await response.json()) as { updated?: number }
       if ((data.updated ?? 0) > 0) {

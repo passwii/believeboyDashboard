@@ -19,6 +19,7 @@ from app.schemas.ai_insight import (
     InsightGenerateRequest,
     InsightItem,
     InsightListResponse,
+    InsightRetryResponse,
     InsightStatusResponse,
     InsightUpdateRequest,
 )
@@ -582,6 +583,54 @@ def update_insight(
     db.refresh(row)
 
     return _serialize_insight_detail(row)
+
+
+@router.post("/{insight_id}/retry", response_model=InsightRetryResponse)
+def retry_insight(
+    insight_id: int,
+    db: Session = Depends(get_db_session),
+    settings: Settings = Depends(get_settings),
+    x_operator: str | None = Depends(get_request_operator),
+):
+    """
+    Retry a failed or stuck insight by resetting it and spawning a new background
+    generation thread with the same parameters.
+    """
+    row = db.get(AIInsight, insight_id)
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="洞察不存在")
+
+    if row.status == InsightStatus.completed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="已完成的洞察无法重试，请删除后重新生成",
+        )
+
+    # Reset status so the SSE stream can pick it up
+    row.status = InsightStatus.pending
+    row.sub_status = None
+    row.error_message = None
+    row.content = ""
+    row.title = "生成中..."
+    db.commit()
+
+    bg_payload = {
+        "project_id": row.project_id,
+        "project_name": row.project_name,
+        "country": row.country,
+        "start_date": row.date_range_start.isoformat(),
+        "end_date": row.date_range_end.isoformat(),
+        "model": None,  # model is not persisted; use default
+    }
+    thread = threading.Thread(
+        target=_run_insight_generation,
+        args=(row.id, settings, bg_payload, x_operator),
+        daemon=True,
+        name=f"ai-insight-retry-{row.id}",
+    )
+    thread.start()
+
+    return InsightRetryResponse(status="pending", insight_id=row.id)
 
 
 @router.delete("/{insight_id}")

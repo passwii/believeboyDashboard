@@ -24,6 +24,7 @@ import {
   Copy,
   Check,
   Eye,
+  Image,
   Loader2,
   Pencil,
   Save,
@@ -31,6 +32,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
+import { toPng } from 'html-to-image'
 import { useSession } from 'next-auth/react'
 
 import { Button } from '@/components/ui/button'
@@ -152,11 +154,10 @@ const DATA_STEPS = [
   { key: 'data_aggregating_ad_campaigns', label: '广告活动' },
 ]
 
-function formatYMD(date: Date): string {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
+function formatYMD(date: Date, country: string): string {
+  const tz = COUNTRY_TIMEZONE_MAP[country] ?? 'UTC'
+  const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: tz })
+  return formatter.format(date)
 }
 
 function addDays(date: Date, amount: number) {
@@ -634,7 +635,7 @@ const MarkdownContent = ({ content }: { content: string }) => {
   }>
 
   return (
-    <div className="dashboard-surface max-w-full min-w-0 overflow-hidden rounded-[28px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))] shadow-[0_28px_90px_-56px_rgba(15,23,42,0.55)]">
+        <div id="ai-insight-export-root" className="dashboard-surface max-w-full min-w-0 overflow-hidden rounded-[28px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))] shadow-[0_28px_90px_-56px_rgba(15,23,42,0.55)]">
       <div className="border-b border-border/60 bg-[linear-gradient(135deg,hsl(var(--surface-overlay)/0.96),hsl(var(--surface-soft)/0.7))] px-6 py-5">
         <div className="flex flex-wrap items-center gap-3">
           <span className="rounded-full border border-border/70 bg-background/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.26em] text-muted-foreground">
@@ -818,6 +819,7 @@ export default function AIInsightsPage() {
   const [isEditingDetail, setIsEditingDetail] = useState(false)
   const [editingContent, setEditingContent] = useState('')
   const [isSavingDetail, setIsSavingDetail] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
 
   // Live streaming content (shown in generation dialog)
   const [streamingContent, setStreamingContent] = useState('')
@@ -827,6 +829,12 @@ export default function AIInsightsPage() {
   const [isLoadingModelConfig, setIsLoadingModelConfig] = useState(false)
   const [selectedModel, setSelectedModel] = useState('')
   const streamingRef = useRef<HTMLDivElement>(null)
+
+  // SSE state for the "view live generation" mode
+  const viewEventSourceRef = useRef<EventSource | null>(null)
+  const [viewLiveContent, setViewLiveContent] = useState('')
+  const [viewLiveSubStatus, setViewLiveSubStatus] = useState<string | null>(null)
+  const [viewLiveRefreshing, setViewLiveRefreshing] = useState(false)
 
   useEffect(() => {
     async function loadProjects() {
@@ -911,26 +919,133 @@ export default function AIInsightsPage() {
     void loadModelConfig()
   }, [])
 
+  const _closeViewSse = useCallback(() => {
+    if (viewEventSourceRef.current) {
+      viewEventSourceRef.current.close()
+      viewEventSourceRef.current = null
+    }
+  }, [])
+
+  const _attachViewSse = useCallback((insightId: number) => {
+    _closeViewSse()
+    const es = new EventSource(`/api/backend/v1/ai-insights/${insightId}/stream`)
+    viewEventSourceRef.current = es
+
+    es.onmessage = (e) => {
+      if (!e.data || e.data.trim() === '') return
+      try {
+        const event: SseEvent = JSON.parse(e.data)
+
+        if (event.type === 'ping') return
+
+        if (event.type === 'status') {
+          setViewLiveSubStatus(event.sub_status ?? null)
+          if (event.content) setViewLiveContent(event.content)
+          if (event.status === 'failed') {
+            setViewLiveRefreshing(false)
+            _closeViewSse()
+            // Update viewingInsight to reflect the failure state
+            setViewingInsight((prev) => prev ? {
+              ...prev,
+              status: 'failed',
+              error_message: event.error_message ?? '生成任务失败',
+              content: '',
+            } : prev)
+            void loadInsights()
+            return
+          }
+        } else if (event.type === 'chunk') {
+          setViewLiveContent((prev) => prev + (event.delta || ''))
+          setTimeout(() => {
+            streamingRef.current?.scrollIntoView({ behavior: 'smooth' })
+          }, 50)
+        } else if (event.type === 'done') {
+          setViewLiveContent(event.content || viewLiveContent)
+          setViewLiveSubStatus(null)
+          _closeViewSse()
+          setViewingInsight((prev) => prev ? {
+            ...prev,
+            status: 'completed',
+            title: event.title || prev.title,
+            content: event.content || '',
+            error_message: null,
+          } : prev)
+          void loadInsights()
+        } else if (event.type === 'error') {
+          setViewLiveRefreshing(false)
+          _closeViewSse()
+          setViewingInsight((prev) => prev ? {
+            ...prev,
+            status: 'failed',
+            error_message: event.error ?? '生成任务失败',
+            content: '',
+          } : prev)
+          void loadInsights()
+        }
+      } catch (parseErr) {
+        console.warn('Failed to parse SSE event', parseErr)
+      }
+    }
+
+    es.onerror = () => {
+      setViewLiveRefreshing(false)
+      _closeViewSse()
+      void loadInsights()
+    }
+  }, [_closeViewSse, loadInsights, viewLiveContent])
+
   const handleViewInsight = useCallback(async (insightId: number) => {
     setIsLoadingDetail(true)
     setViewDialogOpen(true)
     setViewingInsight(null)
     setIsEditingDetail(false)
     setEditingContent('')
+    setViewLiveContent('')
+    setViewLiveSubStatus(null)
     try {
       const res = await fetch(`/api/backend/v1/ai-insights/${insightId}`)
       if (!res.ok) throw new Error(await parseResponseError(res, '加载失败'))
       const data: InsightItem = await res.json()
       setViewingInsight(data)
-      setEditingContent(data.content || '')
+      if (data.status === 'generating') {
+        // Live mode: attach SSE to watch generation progress in the dialog
+        _attachViewSse(insightId)
+        setIsLoadingDetail(false)
+      } else {
+        // Completed, failed, or pending — show static content / error
+        setEditingContent(data.content || '')
+        setIsLoadingDetail(false)
+      }
     } catch (e) {
       console.error('Failed to load insight detail', e)
       alert(`加载失败: ${e instanceof Error ? e.message : String(e)}`)
       setViewDialogOpen(false)
-    } finally {
       setIsLoadingDetail(false)
     }
-  }, [])
+  }, [_attachViewSse])
+
+  const handleRetryInsight = useCallback(async (insightId: number) => {
+    if (!confirm('确定要重试生成这条洞察吗？当前内容将被替换。')) return
+    setViewLiveRefreshing(true)
+    setViewLiveContent('')
+    setViewLiveSubStatus(null)
+    // Mark as loading so the dialog shows a clean state while SSE connects
+    setIsLoadingDetail(true)
+    setIsEditingDetail(false)
+    try {
+      const res = await fetch(`/api/backend/v1/ai-insights/${insightId}/retry`, { method: 'POST' })
+      if (!res.ok) throw new Error(await parseResponseError(res, '重试失败'))
+      // Immediately open the live view — SSE will update viewingInsight on first event
+      _attachViewSse(insightId)
+      // Refresh the list so the table shows "生成中" immediately
+      void loadInsights()
+    } catch (e) {
+      console.error('Failed to retry insight', e)
+      alert(`重试失败: ${e instanceof Error ? e.message : String(e)}`)
+      setViewLiveRefreshing(false)
+      setIsLoadingDetail(false)
+    }
+  }, [_attachViewSse, loadInsights])
 
   const handleStartEditingDetail = useCallback(() => {
     setEditingContent(viewingInsight?.content || '')
@@ -985,6 +1100,33 @@ export default function AIInsightsPage() {
     }
   }, [editingContent, viewingInsight])
 
+  const handleExportPng = useCallback(async () => {
+    const node = document.getElementById('ai-insight-export-root')
+    if (!node) return
+
+    setIsExporting(true)
+    try {
+      // Wait for recharts charts to fully render
+      await new Promise((resolve) => requestAnimationFrame(resolve))
+
+      const dataUrl = await toPng(node, {
+        backgroundColor: '#ffffff',
+        pixelRatio: 2,
+        cacheBust: true,
+      })
+
+      const link = document.createElement('a')
+      link.download = `AI洞察_${viewingInsight?.title ?? '报告'}_${new Date().toISOString().slice(0, 10)}.png`
+      link.href = dataUrl
+      link.click()
+    } catch (err) {
+      console.error('Failed to export PNG', err)
+      alert('导出失败，请重试')
+    } finally {
+      setIsExporting(false)
+    }
+  }, [viewingInsight])
+
   const _closeSse = useCallback(() => {
     if (eventSourceRef.current) {
       eventSourceRef.current.close()
@@ -1004,8 +1146,8 @@ export default function AIInsightsPage() {
       const body = {
         project_id: selectedProjectId,
         country: selectedCountry,
-        date_range_start: formatYMD(dateRange.from),
-        date_range_end: formatYMD(dateRange.to),
+        date_range_start: formatYMD(dateRange.from, selectedCountry),
+        date_range_end: formatYMD(dateRange.to, selectedCountry),
         insight_type: insightType,
         model: selectedModel || undefined,
       }
@@ -1317,15 +1459,8 @@ export default function AIInsightsPage() {
                 {insights.map((insight) => (
                   <TableRow
                     key={insight.id}
-                    className={cn(
-                      insight.status !== 'generating' && 'cursor-pointer',
-                      insight.status === 'generating' && 'opacity-60'
-                    )}
-                    onClick={() => {
-                      if (insight.status !== 'generating') {
-                        void handleViewInsight(insight.id)
-                      }
-                    }}
+                    className={cn('cursor-pointer', insight.status === 'generating' && 'opacity-70')}
+                    onClick={() => void handleViewInsight(insight.id)}
                   >
                     <TableCell className="font-medium">
                       {insight.status === 'generating' ? (
@@ -1430,20 +1565,35 @@ export default function AIInsightsPage() {
       <Dialog
         open={viewDialogOpen}
         onOpenChange={(open) => {
+          if (!open) _closeViewSse()
           setViewDialogOpen(open)
           if (!open) {
             setIsEditingDetail(false)
             setEditingContent('')
+            setViewLiveContent('')
+            setViewLiveSubStatus(null)
           }
         }}
       >
-        <DialogContent className="max-w-[1350px] max-h-[80vh] overflow-y-auto overflow-x-auto">
+        <DialogContent className={cn(
+          'max-h-[80vh] overflow-y-auto overflow-x-auto',
+          isEditingDetail ? 'max-w-[1350px]' : 'max-w-[675px]'
+        )}>
           <DialogHeader>
             <div className="flex items-start justify-between gap-4">
               <div>
                 <DialogTitle className="flex items-center gap-2">
-                  <Eye className="h-5 w-5" />
-                  {viewingInsight?.title ?? '洞察详情'}
+                  {viewingInsight?.status === 'generating' || viewLiveRefreshing ? (
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                      正在生成洞察...
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="h-5 w-5" />
+                      {viewingInsight?.title ?? '洞察详情'}
+                    </>
+                  )}
                 </DialogTitle>
                 {viewingInsight && (
                   <p className="text-sm text-muted-foreground font-normal">
@@ -1454,25 +1604,50 @@ export default function AIInsightsPage() {
                   </p>
                 )}
               </div>
-              {viewingInsight?.content && !isLoadingDetail ? (
+
+              {/* Live / Retry button */}
+              {(viewingInsight?.status === 'generating' || viewLiveRefreshing) && (
                 <div className="flex shrink-0 items-center gap-2">
-                  {isEditingDetail ? (
-                    <>
-                      <Button variant="outline" size="sm" onClick={handleCancelEditingDetail} disabled={isSavingDetail}>
-                        <X className="mr-1.5 h-4 w-4" />
-                        取消
-                      </Button>
-                      <Button size="sm" onClick={() => void handleSaveDetail()} disabled={isSavingDetail}>
-                        {isSavingDetail ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
-                        保存修改
-                      </Button>
-                    </>
-                  ) : (
-                    <Button variant="outline" size="sm" onClick={handleStartEditingDetail}>
-                      <Pencil className="mr-1.5 h-4 w-4" />
-                      手动编辑
-                    </Button>
-                  )}
+                  <div className="flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-xs text-primary">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    实时生成中
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => viewingInsight && void handleRetryInsight(viewingInsight.id)}
+                  >
+                    <Sparkles className="mr-1.5 h-4 w-4" />
+                    重试
+                  </Button>
+                </div>
+              )}
+
+              {/* Completed insight actions */}
+              {!isLoadingDetail && viewingInsight?.status === 'completed' && viewingInsight?.content && !isEditingDetail ? (
+                <div className="flex shrink-0 items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={handleStartEditingDetail}>
+                    <Pencil className="mr-1.5 h-4 w-4" />
+                    手动编辑
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => void handleExportPng()} disabled={isExporting}>
+                    {isExporting ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Image className="mr-1.5 h-4 w-4" />}
+                    导出图片
+                  </Button>
+                </div>
+              ) : null}
+
+              {/* Failed insight — retry */}
+              {!isLoadingDetail && viewingInsight?.status === 'failed' ? (
+                <div className="flex shrink-0 items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => viewingInsight && void handleRetryInsight(viewingInsight.id)}
+                  >
+                    <Sparkles className="mr-1.5 h-4 w-4" />
+                    重新生成
+                  </Button>
                 </div>
               ) : null}
             </div>
@@ -1506,6 +1681,16 @@ export default function AIInsightsPage() {
                     placeholder="在此编辑 Markdown 内容..."
                   />
                 </div>
+              </div>
+            ) : viewingInsight?.status === 'generating' || viewLiveRefreshing ? (
+              /* Live generation view — stepper + streaming content */
+              <div ref={streamingRef} className="space-y-6">
+                <GenerationProgress currentSubStatus={viewLiveSubStatus} />
+                {viewLiveContent && (
+                  <div className="border-t border-border/40 pt-6">
+                    <MarkdownContent content={viewLiveContent} />
+                  </div>
+                )}
               </div>
             ) : viewingInsight?.content ? (
               <MarkdownContent content={viewingInsight.content} />
