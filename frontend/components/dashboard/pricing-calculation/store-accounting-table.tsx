@@ -169,7 +169,7 @@ export function StoreAccountingTable({
           <TableHead colSpan={4} className={cn('border-r px-3 py-2.5 text-center font-semibold shadow-[1px_0_0_0_hsl(var(--border))]', getGroupStyle('利润核算', 'header'))}>
             利润核算
           </TableHead>
-          <TableHead colSpan={2} className={cn('border-r px-3 py-2.5 text-center font-semibold shadow-[1px_0_0_0_hsl(var(--border))]', getGroupStyle('产品核定', 'header'))}>
+          <TableHead colSpan={3} className={cn('border-r px-3 py-2.5 text-center font-semibold shadow-[1px_0_0_0_hsl(var(--border))]', getGroupStyle('产品核定', 'header'))}>
             产品核定
           </TableHead>
           <TableHead colSpan={2} className={cn('px-3 py-2.5 text-center font-semibold', getGroupStyle('操作', 'header'))}>
@@ -254,7 +254,10 @@ export function StoreAccountingTable({
             利润率
           </TableHead>
           <TableHead className={cn('min-w-[112px] whitespace-nowrap border-r px-3 py-2 shadow-[1px_0_0_0_hsl(var(--border))]', getGroupStyle('产品核定', 'sub'))}>
-            尺寸等级 / 售价带
+            尺寸等级
+          </TableHead>
+          <TableHead className={cn('min-w-[112px] whitespace-nowrap border-r px-3 py-2 shadow-[1px_0_0_0_hsl(var(--border))]', getGroupStyle('产品核定', 'sub'))}>
+            售价带
           </TableHead>
           <TableHead className={cn('min-w-[208px] whitespace-nowrap border-r px-3 py-2 shadow-[1px_0_0_0_hsl(var(--border))]', getGroupStyle('产品核定', 'sub'))}>
             规则
@@ -282,7 +285,9 @@ export function StoreAccountingTable({
           const result = rowState?.result
           const exchangeRate = draft.usd_to_rmb_rate
             ? toNumber(draft.usd_to_rmb_rate)
-            : (result?.usd_to_rmb_rate ?? 0)
+            : (result?.usd_to_rmb_rate
+                ? result.usd_to_rmb_rate
+                : toNumber(systemExchangeRate))
           const ddpRmb =
             item.fob_unit_cost > 0 && firstLegCost > 0
               ? item.fob_unit_cost + firstLegCost
@@ -410,7 +415,13 @@ export function StoreAccountingTable({
                     <div className='inline-block rounded-[4px] bg-[hsl(var(--primary)/0.1)] px-1.5 py-0.5 text-[11px] font-medium text-[hsl(var(--primary))]'>
                       {result.size_tier_label}
                     </div>
-                    <div className='mt-0.5 text-[11px] text-muted-foreground'>{result.price_band_label}</div>
+                  </div>
+                ) : <span className='text-muted-foreground'>—</span>}
+              </TableCell>
+              <TableCell className={cn('whitespace-nowrap border-r px-3 py-2', getGroupStyle('产品核定', 'sub'))}>
+                {result ? (
+                  <div className='text-[11px] text-muted-foreground'>
+                    {result.price_band_label}
                   </div>
                 ) : <span className='text-muted-foreground'>—</span>}
               </TableCell>

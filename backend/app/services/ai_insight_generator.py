@@ -31,6 +31,7 @@ INSIGHT_SYSTEM_PROMPT = """你是一位专业的跨境电商数据分析师，�
 
 - 折线图必须使用完整的 ```lineChart fenced code block
 - 饼图必须使用完整的 ```pieChart fenced code block
+- 重要告警优先使用 Markdown blockquote（以 `> ` 开头）或 ```alert fenced code block，不要使用 ASCII 画框
 - 数据表格使用标准Markdown表格
 - 数字保留2位小数
 - 百分比使用 % 符号
@@ -45,11 +46,13 @@ INSIGHT_SYSTEM_PROMPT = """你是一位专业的跨境电商数据分析师，�
 - 销售趋势分析章节默认至少输出 1 个 `lineChart`
 - 如果涉及结构占比、库存库龄、SKU占比等分布信息，优先输出 1 个 `pieChart`
 - 如果没有足够数据生成图表，则明确写“图表数据不足”，不要伪造图表
+- 如果需要强调库存异常、风险警告，不要输出 `┌─│└` 这类 ASCII 边框，改用 blockquote 或 `alert` 代码块
 
 ## 输出前自检
 
 - 检查报告中每一个图表是否都被完整包裹在 fenced code block 中
 - 检查是否存在未包裹的 `x-axis[`、`y-axis[` 或 `title ` 图表行；如果有，改成标准代码块后再输出
+- 检查是否存在 `┌`、`└`、`│` 组成的 ASCII 提示框；如果有，改成 blockquote 或 ```alert
 - 检查表格是否为标准 Markdown 表格，而不是纯文本对齐
 - 最终输出只能是报告正文，不要附加“说明”“注释”“下面是报告”等前言后记
 
@@ -68,6 +71,15 @@ title 库龄结构分布
 "0-90天" : 89
 "91-180天" : 16
 "181-270天" : 15
+```
+
+## 告警格式示例
+
+```alert
+⚠️ 严重警告：可用库存为 0
+
+库存数据显示所有SKU可用库存为0，但店铺仍在产生销售订单。
+这可能意味着库存数据与实际库存不同步，或实际库存已耗尽。
 ```
 
 ## 数据来源说明
@@ -109,8 +121,16 @@ def _is_pie_chart_syntax(line: str) -> bool:
     return bool(PIE_CHART_VALUE_RE.match(stripped))
 
 
+def _looks_like_ascii_alert(lines: list[str]) -> bool:
+    if len(lines) < 3:
+        return False
+    has_box_char = any(re.search(r"[┌┐└┘│─]", line) for line in lines)
+    has_warning_text = any(re.search(r"⚠️|警告|异常|提醒", line) for line in lines)
+    return has_box_char and has_warning_text
+
+
 def normalize_insight_markdown(content: str) -> str:
-    """Wrap bare chart syntax lines into fenced chart code blocks."""
+    """Wrap bare chart syntax lines into fenced chart code blocks and normalize warning blocks."""
     if not content.strip():
         return content
 
@@ -124,6 +144,18 @@ def normalize_insight_markdown(content: str) -> str:
         stripped = line.strip()
 
         if _is_fence_line(line):
+            if not in_fence and stripped == "```":
+                block_end = idx + 1
+                block_lines: list[str] = []
+                while block_end < len(lines) and not _is_fence_line(lines[block_end]):
+                    block_lines.append(lines[block_end])
+                    block_end += 1
+                if block_end < len(lines) and _is_fence_line(lines[block_end]) and _looks_like_ascii_alert(block_lines):
+                    normalized.append("```alert")
+                    normalized.extend(block_lines)
+                    normalized.append("```")
+                    idx = block_end + 1
+                    continue
             in_fence = not in_fence
             normalized.append(line)
             idx += 1

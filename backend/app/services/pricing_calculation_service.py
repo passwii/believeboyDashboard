@@ -583,7 +583,11 @@ def _compute_pricing(
     return_loss_rate = _ratio(_decimal(payload.return_loss_rate))
     storage_months = _quantize(_decimal(payload.storage_months), Decimal("0.01"))
 
-    usd_to_rmb_rate, rate_source = _resolve_usd_to_rmb_rate(db, payload.usd_to_rmb_rate)
+    usd_to_rmb_rate, rate_source = _resolve_exchange_rate_to_rmb(
+        db,
+        manual_rate=payload.usd_to_rmb_rate,
+        currency="USD",
+    )
 
     sides_in = sorted(
         [length_cm / CM_PER_INCH, width_cm / CM_PER_INCH, height_cm / CM_PER_INCH],
@@ -756,7 +760,19 @@ def _compute_eu_pricing(
     inbound_config_fee_manual = _money(payload.inbound_config_fee_usd)
     storage_fee_manual = _money(payload.storage_fee_usd)
 
-    usd_to_rmb_rate, rate_source = _resolve_usd_to_rmb_rate(db, payload.usd_to_rmb_rate)
+    currency_by_country = {
+        "DE": "EUR",
+        "UK": "GBP",
+    }
+    target_currency = currency_by_country.get(payload.country.upper())
+    if target_currency is None:
+        raise ValueError(f"不支持的欧洲站点国家: {payload.country}")
+
+    usd_to_rmb_rate, rate_source = _resolve_exchange_rate_to_rmb(
+        db,
+        manual_rate=payload.usd_to_rmb_rate,
+        currency=target_currency,
+    )
 
     sides_in = sorted(
         [length_cm / CM_PER_INCH, width_cm / CM_PER_INCH, height_cm / CM_PER_INCH],
@@ -1039,15 +1055,16 @@ def _resolve_first_leg_cost_rmb(
     return historical_cost, None
 
 
-def _resolve_usd_to_rmb_rate(
-    db: Session, manual_rate: float | None
+def _resolve_exchange_rate_to_rmb(
+    db: Session, *, manual_rate: float | None, currency: str
 ) -> tuple[Decimal, str]:
     if manual_rate is not None:
         return _decimal(manual_rate), "manual"
+    normalized_currency = currency.strip().upper()
     row = (
         db.execute(
             select(ExchangeRate)
-            .where(ExchangeRate.currency == "USD")
+            .where(ExchangeRate.currency == normalized_currency)
             .order_by(ExchangeRate.year_month.desc(), ExchangeRate.id.desc())
             .limit(1)
         )
@@ -1056,7 +1073,7 @@ def _resolve_usd_to_rmb_rate(
     )
     if row is None:
         raise ValueError(
-            "缺少 USD 汇率，请先维护汇率信息或在请求中传入 usd_to_rmb_rate"
+            f"缺少 {normalized_currency} 汇率，请先维护汇率信息或在请求中传入 usd_to_rmb_rate"
         )
     return _decimal(row.rate), f"system:{row.year_month}"
 

@@ -1782,7 +1782,7 @@ export default function PricingCalculationPage() {
     }
 
     void loadProjects()
-  }, [])
+  }, [loadRuns])
 
   useEffect(() => {
     async function loadProjectSkus() {

@@ -195,7 +195,7 @@ export function StoreAccountingEuSection({
             `${API_BASE}/api/v1/sku-info?project_name=${encodeURIComponent(selectedProjectName)}&country=${selectedCountry}&is_active=true&page=1&page_size=200&include_total=true`,
             { cache: 'no-store' },
           ),
-          fetch(`/api/exchange-rates?currency=USD&page=1&page_size=1`, { cache: 'no-store' }),
+          fetch(`/api/exchange-rates?currency=${selectedCountry === 'DE' ? 'EUR' : selectedCountry === 'UK' ? 'GBP' : 'USD'}&page=1&pageSize=1`, { cache: 'no-store' }),
           // Load existing EU snapshots
           fetch(
             `${API_BASE}/api/v1/store-accounting?project_id=${selectedProjectId}&country=${selectedCountry}&page=1&page_size=200`,
@@ -205,8 +205,10 @@ export function StoreAccountingEuSection({
         if (!skuSearch.ok) throw new Error('SKU 列表加载失败')
 
         const skuPayload = (await skuSearch.json()) as ProductCostsResponse
-        const exchangePayload = (await exchangeSearch.json()) as { items?: Array<{ rate: number }> }
-        const rate = exchangePayload?.items?.[0]?.rate ? String(exchangePayload.items[0].rate) : ''
+        const exchangePayload = (await exchangeSearch.json()) as {
+          data?: Array<{ rate: number }>
+        }
+        const rate = exchangePayload?.data?.[0]?.rate ? String(exchangePayload.data[0].rate) : ''
         setSystemExchangeRate(rate)
 
         const euSkus = skuPayload.items.filter(
@@ -274,7 +276,7 @@ export function StoreAccountingEuSection({
                   delivery_fee_usd: String(snapshot.fees?.delivery_fee_usd ?? 0),
                   inbound_config_fee_usd: String(snapshot.fees?.inbound_config_fee_manual_usd ?? 0),
                   storage_fee_usd: String(snapshot.fees?.storage_fee_manual_usd ?? 0),
-                  usd_to_rmb_rate: String(snapshot.usd_to_rmb_rate),
+                  usd_to_rmb_rate: rate || String(snapshot.usd_to_rmb_rate),
                 },
                 loading: false,
                 result: snapshotToResult(snapshot, item.project_name),
@@ -463,17 +465,44 @@ export function StoreAccountingEuSection({
       const workbook = new ExcelJS.Workbook()
       const worksheet = workbook.addWorksheet('欧洲店铺SKU核算')
       const countryLabel = EU_COUNTRY_OPTIONS.find((o) => o.value === selectedCountry)?.label ?? selectedCountry
+      const ddpCurrency = selectedCountry === 'DE' ? 'EUR' : selectedCountry === 'UK' ? 'GBP' : 'USD'
+      const saleCurrency = ddpCurrency
 
-      worksheet.mergeCells(1, 1, 1, 20)
+      worksheet.mergeCells(1, 1, 1, 25)
       const titleCell = worksheet.getCell(1, 1)
       titleCell.value = `欧洲店铺SKU核算表 - ${selectedProjectName} - ${countryLabel}`
       titleCell.font = { name: 'Microsoft YaHei', size: 14, bold: true }
       titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
 
+      // Group header row — mirrors US section group header style
+      // Groups: 店铺产品(1), 货品数据(7), DDP成本(4), 费用支出(7), 利润核算(4) = cols 1-22
+      // But table has 24 cols, so: 店铺产品(1), 货品数据(7), DDP成本(4), 费用支出(7), 利润核算(4) = 23, plus 操作(2)
+      // From spec: cols 1, 2-8, 9-12, 13-19, 20-23 (店铺产品, 货品数据, DDP成本, 费用支出, 利润核算)
+      // Total data cols: 1+7+4+7+4 = 23; we have 24 headers so we span 操作(2) separately
+      const groupHeaderRow = worksheet.addRow([''])
+      groupHeaderRow.values = ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '']
+
+      const groupDefs: Array<{ label: string; color: string; colStart: number; colEnd: number }> = [
+        { label: '店铺产品',  color: 'FF312E81', colStart: 1,  colEnd: 1  },
+        { label: '货品数据',  color: 'FF0C4A6E', colStart: 2,  colEnd: 8  },
+        { label: 'DDP成本',  color: 'FF78350F', colStart: 9,  colEnd: 12 },
+        { label: '费用支出',  color: 'FF881337', colStart: 13, colEnd: 20 },
+        { label: '利润核算',  color: 'FF064E3B', colStart: 21, colEnd: 24 },
+      ]
+
+      for (const g of groupDefs) {
+        worksheet.mergeCells(groupHeaderRow.number, g.colStart, groupHeaderRow.number, g.colEnd)
+        const cell = worksheet.getCell(groupHeaderRow.number, g.colStart)
+        cell.value = g.label
+        cell.font = { name: 'Microsoft YaHei', size: 11, bold: true, color: { argb: 'FFFFFFFF' } }
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: g.color } }
+        cell.alignment = { horizontal: 'center', vertical: 'middle' }
+      }
+
       const headers = [
         'SKU', '项目', 'FOB(RMB)', '长', '宽', '高', '重量(kg)', '计费重',
-        '头程(RMB)', 'DDP(RMB)', 'DDP(USD)', '汇率',
-        '售价(USD)', '广告费率%', '广告费', '退货损耗',
+        '头程(RMB)', 'DDP(RMB)', `DDP(${ddpCurrency})`, '汇率',
+        `售价(${saleCurrency})`, '广告费率%', '广告费', '退货损耗',
         '派送费', '配置费', '仓储费', '费用合计',
         '回款', '增值税', '利润(扣税后)', '利润率(扣税)',
       ]
@@ -481,8 +510,9 @@ export function StoreAccountingEuSection({
       headerRow.font = { name: 'Microsoft YaHei', bold: true }
       headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFCBD5E1' } }
 
-      itemsWithResults.forEach((item) => {
+      itemsWithResults.forEach((item, rowIdx) => {
         const result = storeRows[item.id]!.result!
+        const profitVal = result.profit.profit_after_vat_usd ?? result.profit.profit_usd
         const row = worksheet.addRow([
           item.sku, item.project_name, item.fob_unit_cost,
           toNumber(item.package_length_cm), toNumber(item.package_width_cm),
@@ -499,13 +529,51 @@ export function StoreAccountingEuSection({
           result.fees.total_fee_usd,
           result.profit.payout_usd,
           result.profit.vat_usd ?? 0,
-          result.profit.profit_after_vat_usd ?? result.profit.profit_usd,
+          profitVal,
           result.profit.profit_after_vat_rate ?? result.profit.profit_rate,
         ])
         row.font = { name: 'Microsoft YaHei' }
+        // Alternating row colors
+        const bgColor = rowIdx % 2 === 0 ? 'FFFFFFFF' : 'FFF8FAFC'
+        for (let c = 1; c <= 25; c++) {
+          const cell = worksheet.getCell(row.number, c)
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgColor } }
+          cell.alignment = { horizontal: 'center', vertical: 'middle' }
+        }
+        // Color-code profit column (col 23): green if >=0, red if <0
+        const profitCell = worksheet.getCell(row.number, 23)
+        if (profitVal != null && !Number.isNaN(profitVal)) {
+          if (profitVal >= 0) {
+            profitCell.font = { name: 'Microsoft YaHei', color: { argb: 'FF059669' } }
+          } else {
+            profitCell.font = { name: 'Microsoft YaHei', color: { argb: 'FFE11D48' } }
+          }
+        }
       })
 
-      worksheet.columns = headers.map(() => ({ width: 14 }))
+      // Auto-fit column widths via openpyxl column_dimensions
+      const colWidths: number[] = Array.from({ length: 25 }, () => 0)
+      const measureText = (text: string, size = 9): number => {
+        const chars = String(text ?? '').length
+        return Math.max(chars * size * 0.6 + size * 0.2, size)
+      }
+      worksheet.eachRow({ includeEmpty: true }, (excelRow) => {
+        excelRow.eachCell({ includeEmpty: true }, (cell) => {
+          const colNum = cell.address.replace(/[A-Z]+/, '').split('').reduce((acc, c) => {
+            return acc + (c.charCodeAt(0) - 48) * Math.pow(10, cell.address.indexOf(c))
+          }, 0)
+          const colLetter = cell.address.replace(/\d+$/, '')
+          const n = colLetter.charCodeAt(0) - 64
+          if (n >= 1 && n <= 25) {
+            const w = measureText(String(cell.value ?? ''))
+            if (w > colWidths[n - 1]) colWidths[n - 1] = w
+          }
+        })
+      })
+      for (let i = 0; i < 25; i++) {
+        worksheet.getColumn(i + 1).width = Math.max(colWidths[i] * 0.12, 4)
+      }
+
       const buffer = await workbook.xlsx.writeBuffer()
       const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
       const url = window.URL.createObjectURL(blob)
@@ -589,6 +657,7 @@ export function StoreAccountingEuSection({
               onDraftChange={updateDraft}
               onCalculate={handleCalculate}
               systemExchangeRate={systemExchangeRate}
+              selectedCountry={selectedCountry}
             />
           )}
       </div>

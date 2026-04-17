@@ -137,7 +137,16 @@ export default function StoreAccountingPage() {
 
   const hasCalculatedRows = stats.calculated > 0
 
-  // Export handler
+  // Column number helper (supports AA, AB, ...)
+  function colToNum(colLetter: string): number {
+    let n = 0
+    for (let i = 0; i < colLetter.length; i++) {
+      n = n * 26 + (colLetter.charCodeAt(i) - 64)
+    }
+    return n
+  }
+
+  // ── Export handler ────────────────────────────────────────────────────────────
   async function handleExport() {
     const itemsWithResults = storeSkus.filter((i) => snapshotMap.has(i.sku))
     if (itemsWithResults.length === 0) {
@@ -149,50 +158,223 @@ export default function StoreAccountingPage() {
       const ExcelJS = await import('exceljs')
       const workbook = new ExcelJS.Workbook()
       const countryLabel = selectedCountry === 'US' ? '美国' : selectedCountry === 'DE' ? '德国' : '英国'
-      const worksheet = workbook.addWorksheet(`${countryLabel}店铺SKU核算`)
+      const isUS = selectedCountry === 'US'
+      const colCount = isUS ? 28 : 25
 
-      worksheet.mergeCells(1, 1, 1, 20)
+      const ddpCurrency = selectedCountry === 'DE' ? 'EUR' : selectedCountry === 'UK' ? 'GBP' : 'USD'
+      const saleCurrency = ddpCurrency
+
+      const groups = isUS
+        ? [
+            { name: '店铺产品', start: 1,  end: 1,  dark: 'FF312E81', sub: 'FFE0E7FF' },
+            { name: '货品数据', start: 2,  end: 7,  dark: 'FF0C4A6E', sub: 'FFE0F2FE' },
+            { name: 'DDP成本',  start: 8,  end: 11, dark: 'FF78350F', sub: 'FFFEF3C7' },
+            { name: '费用支出', start: 12, end: 22, dark: 'FF881337', sub: 'FFFFE4E6' },
+            { name: '利润核算', start: 23, end: 26, dark: 'FF064E3B', sub: 'FFD1FAE5' },
+            { name: '产品核定', start: 27, end: 28, dark: 'FF4C1D95', sub: 'FFEDE9FE' },
+          ]
+        : [
+            { name: '店铺产品', start: 1,  end: 1,  dark: 'FF312E81', sub: 'FFE0E7FF' },
+            { name: '货品数据', start: 2,  end: 8,  dark: 'FF0C4A6E', sub: 'FFE0F2FE' },
+            { name: 'DDP成本',  start: 9,  end: 12, dark: 'FF78350F', sub: 'FFFEF3C7' },
+            { name: '费用支出', start: 13, end: 21, dark: 'FF881337', sub: 'FFFFE4E6' },
+            { name: '利润核算', start: 22, end: 25, dark: 'FF064E3B', sub: 'FFD1FAE5' },
+          ]
+
+      const worksheet = workbook.addWorksheet(`${countryLabel}店铺SKU核算`)
+      worksheet.views = [{ showGridLines: false }]
+
+      // Default border style used throughout
+      const BORDER = {
+        top:    { style: 'thin' as const, color: { argb: 'FFD0D5DD' } },
+        left:   { style: 'thin' as const, color: { argb: 'FFD0D5DD' } },
+        bottom: { style: 'thin' as const, color: { argb: 'FFD0D5DD' } },
+        right:  { style: 'thin' as const, color: { argb: 'FFD0D5DD' } },
+      }
+
+      // Row 1: title
+      worksheet.mergeCells(1, 1, 1, colCount)
       const titleCell = worksheet.getCell(1, 1)
       titleCell.value = `${countryLabel}店铺SKU核算表 - ${selectedProjectName}`
       titleCell.font = { name: 'Microsoft YaHei', size: 14, bold: true }
       titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
+      worksheet.getRow(1).height = 24
+      for (let c = 1; c <= colCount; c++) {
+        worksheet.getCell(1, c).border = BORDER
+      }
 
-      const headers = [
-        'SKU', '项目', 'FOB(RMB)', '长', '宽', '高', '重量(kg)', '计费重',
+      // Row 2: group header labels
+      const groupHeaderRow = worksheet.addRow(groups.map(() => null))
+      groupHeaderRow.height = 20
+      groups.forEach((g) => {
+        const cell = groupHeaderRow.getCell(g.start)
+        cell.value = g.name
+        cell.font = { name: 'Microsoft YaHei', size: 10, bold: true, color: { argb: 'FFFFFFFF' } }
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: g.dark } }
+        cell.alignment = { horizontal: 'center', vertical: 'middle' }
+        cell.border = BORDER
+        if (g.end > g.start) {
+          worksheet.mergeCells(2, g.start, 2, g.end)
+        }
+      })
+
+      // Row 3: column headers
+      const usHeaders = [
+        'SKU', 'FOB(RMB)', '长', '宽', '高', '重量(kg)', '计费重',
         '头程(RMB)', 'DDP(RMB)', 'DDP(USD)', '汇率',
-        '售价(USD)', '广告费率%', '广告费', '退货损耗',
+        '售价(USD)', '广告费率%', '广告费', '退货折损率%', '退货损耗',
         '佣金', '派送费', '配置费', '仓储月数', '仓储费',
         '费用合计', '回款', '利润', '利润率',
         '尺寸等级', '售价带', '规则',
       ]
-      const headerRow = worksheet.addRow(headers)
-      headerRow.font = { name: 'Microsoft YaHei', bold: true }
-      headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFCBD5E1' } }
+      const euHeaders = [
+        'SKU', 'FOB(RMB)', '长', '宽', '高', '重量(kg)', '计费重',
+        '头程(RMB)', 'DDP(RMB)', `DDP(${ddpCurrency})`, '汇率',
+        `售价(${saleCurrency})`, '广告费率%', '广告费', '退货损耗',
+        '派送费', '配置费', '仓储费', '费用合计',
+        '回款', '增值税', '利润(扣税后)', '利润率(扣税)',
+      ]
+      const headers = isUS ? usHeaders : euHeaders
 
-      itemsWithResults.forEach((item) => {
-        const snapshot = snapshotMap.get(item.sku)!
-        const row = worksheet.addRow([
-          item.sku, item.project_name, item.fob_unit_cost,
-          item.package_length_cm, item.package_width_cm, item.package_height_cm, item.weight_kg,
-          Math.max(item.weight_kg, (item.package_length_cm * item.package_width_cm * item.package_height_cm) / 6000),
-          item.first_leg_cost_rmb,
-          snapshot.profit.ddp_cost_rmb, snapshot.profit.ddp_cost_usd, snapshot.usd_to_rmb_rate,
-          snapshot.sale_price_usd,
-          snapshot.advertising_rate * 100,
-          snapshot.fees.advertising_fee_usd, snapshot.fees.return_loss_usd,
-          snapshot.fees.referral_fee_usd, snapshot.fees.fba_fulfillment_fee_usd,
-          snapshot.fees.inbound_config_fee_usd,
-          snapshot.storage_months,
-          snapshot.fees.storage_fee_usd,
-          snapshot.fees.total_fee_usd, snapshot.profit.payout_usd,
-          snapshot.profit.profit_usd, snapshot.profit.profit_rate,
-          snapshot.size_tier_label, snapshot.price_band_label,
-          `${snapshot.fulfillment_fee_rule_label} / ${snapshot.inbound_config_fee_rule_label} / ${snapshot.storage_fee_rule_label}`,
-        ])
-        row.font = { name: 'Microsoft YaHei' }
+      const headerRow = worksheet.addRow(headers)
+      headerRow.height = 20
+      headerRow.font = { name: 'Microsoft YaHei', size: 9, bold: true }
+      headerRow.alignment = { horizontal: 'center', vertical: 'middle' }
+      headerRow.eachCell({ includeEmpty: true }, (cell) => {
+        const colNum = colToNum(cell.address.replace(/\d+$/, ''))
+        const group = groups.find((g) => colNum >= g.start && colNum <= g.end)
+        if (group) {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: group.sub } }
+        }
+        cell.border = BORDER
       })
 
-      worksheet.columns = headers.map(() => ({ width: 14 }))
+      const LEFT_COLS  = isUS ? new Set([1, 28])           : new Set([1])
+      const CENTER_COLS = isUS ? new Set([22, 23, 24, 25, 26, 27]) : new Set([22, 23, 24, 25])
+
+      // Build data rows
+      const dataRows = itemsWithResults.map((item) => {
+        const s = snapshotMap.get(item.sku)!
+        const chargeableWeight = Math.max(
+          item.weight_kg,
+          (item.package_length_cm * item.package_width_cm * item.package_height_cm) / 6000,
+        )
+        if (isUS) {
+          return [
+            item.sku,
+            item.fob_unit_cost,
+            item.package_length_cm,
+            item.package_width_cm,
+            item.package_height_cm,
+            item.weight_kg,
+            chargeableWeight,
+            item.first_leg_cost_rmb,
+            s.profit.ddp_cost_rmb,
+            s.profit.ddp_cost_usd,
+            s.usd_to_rmb_rate,
+            s.sale_price_usd,
+            s.advertising_rate * 100,
+            s.fees.advertising_fee_usd,
+            (s.return_loss_rate ?? 0) * 100,
+            s.fees.return_loss_usd,
+            s.fees.referral_fee_usd,
+            s.fees.fba_fulfillment_fee_usd,
+            s.fees.inbound_config_fee_usd,
+            s.storage_months,
+            s.fees.storage_fee_usd,
+            s.fees.total_fee_usd,
+            s.profit.payout_usd,
+            s.profit.profit_usd,
+            s.profit.profit_rate,
+            s.size_tier_label,
+            s.price_band_label,
+            `${s.fulfillment_fee_rule_label} / ${s.inbound_config_fee_rule_label} / ${s.storage_fee_rule_label}`,
+          ]
+        } else {
+          const profitAfterVat = s.profit.profit_after_vat_usd ?? s.profit.profit_usd
+          const profitRateAfterVat = s.profit.profit_after_vat_rate ?? s.profit.profit_rate
+          return [
+            item.sku,
+            item.fob_unit_cost,
+            item.package_length_cm,
+            item.package_width_cm,
+            item.package_height_cm,
+            item.weight_kg,
+            chargeableWeight,
+            item.first_leg_cost_rmb,
+            s.profit.ddp_cost_rmb,
+            s.profit.ddp_cost_usd,
+            s.usd_to_rmb_rate,
+            s.sale_price_usd,
+            s.advertising_rate * 100,
+            s.fees.advertising_fee_usd,
+            s.fees.return_loss_usd,
+            s.fees.delivery_fee_usd ?? 0,
+            s.fees.inbound_config_fee_usd,
+            s.fees.storage_fee_usd,
+            s.fees.total_fee_usd,
+            s.profit.payout_usd,
+            s.profit.vat_usd ?? 0,
+            profitAfterVat,
+            profitRateAfterVat,
+          ]
+        }
+      })
+
+      // Write data rows with styling
+      dataRows.forEach((rowData, idx) => {
+        const row = worksheet.addRow(rowData)
+        row.height = 20
+        const isOdd = idx % 2 === 0
+        const bgColor = isOdd ? 'FFF8FAFC' : 'FFFFFFFF'
+
+        row.eachCell({ includeEmpty: true }, (cell) => {
+          const colNum = colToNum(cell.address.replace(/\d+$/, ''))
+          const val = rowData[colNum - 1]
+          const num = Number(val)
+
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgColor } }
+          cell.font = { name: 'Microsoft YaHei', size: 9 }
+          cell.border = BORDER
+
+          cell.alignment = { horizontal: 'center', vertical: 'middle' }
+
+          if (Number.isFinite(num)) {
+            cell.numFmt = '#,##0.####'
+          }
+
+          // Profit color: US col 25/26, EU col 23/24
+          const isProfitCol = (isUS && (colNum === 25 || colNum === 26)) ||
+                              (!isUS && (colNum === 23 || colNum === 24))
+          if (isProfitCol) {
+            if (num >= 0) {
+              cell.font = { name: 'Microsoft YaHei', size: 9, color: { argb: 'FF16A34A' } }
+            } else {
+              cell.font = { name: 'Microsoft YaHei', size: 9, color: { argb: 'FFDC2626' } }
+            }
+          }
+        })
+      })
+
+      // Auto-fit column widths via openpyxl column_dimensions
+      const colWidths: number[] = Array.from({ length: colCount }, () => 0)
+      const measureText = (text: string, size = 9): number => {
+        const chars = String(text ?? '').length
+        return Math.max(chars * size * 0.6 + size * 0.2, size)
+      }
+      worksheet.eachRow({ includeEmpty: true }, (excelRow) => {
+        excelRow.eachCell({ includeEmpty: true }, (cell) => {
+          const colNum = colToNum(cell.address.replace(/\d+$/, ''))
+          if (colNum >= 1 && colNum <= colCount) {
+            const w = measureText(String(cell.value ?? ''))
+            if (w > colWidths[colNum - 1]) colWidths[colNum - 1] = w
+          }
+        })
+      })
+      for (let i = 0; i < colCount; i++) {
+        worksheet.getColumn(i + 1).width = Math.max(colWidths[i] * 0.12, 4)
+      }
+
       const buffer = await workbook.xlsx.writeBuffer()
       const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
       const url = window.URL.createObjectURL(blob)
@@ -206,7 +388,7 @@ export default function StoreAccountingPage() {
         action: 'pricing_calculation.store_table.export',
         targetType: 'store_sku_pricing_snapshot',
         targetId: selectedProjectId ?? undefined,
-        after: { project_id: selectedProjectId, project_name: selectedProjectName, row_count: itemsWithResults.length },
+        after: { project_id: selectedProjectId, project_name: selectedProjectName, country: selectedCountry, row_count: itemsWithResults.length },
       })
     } catch (err) {
       notify({ type: 'error', title: '导出失败', message: err instanceof Error ? err.message : '导出失败' })

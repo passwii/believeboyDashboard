@@ -740,6 +740,11 @@ def commit_report_upload(
     # For manual commit, project_name is validated upfront before recognition.
     is_auto_commit = not raw_project_name
 
+    allowed_projects = {
+        str(item.project_name)
+        for item in project_service.list_project_items(db, operator=operator, is_admin=is_admin)
+    }
+
     # Auto-commit path: run recognition first to get the detected project, skip upfront project_name validation.
     # Manual commit path: validate project_name upfront, then re-use the recognition result below.
     if is_auto_commit:
@@ -782,12 +787,6 @@ def commit_report_upload(
                     detail="文件未匹配到唯一项目，请先确认文件归属后再入库",
                 )
             project_name = auto_project_match.project_name
-            allowed_projects = {
-                str(item.project_name)
-                for item in project_service.list_project_items(
-                    db, operator=operator, is_admin=is_admin
-                )
-            }
             if project_name not in allowed_projects:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN, detail="无权限访问该项目"

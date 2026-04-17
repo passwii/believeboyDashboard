@@ -210,7 +210,7 @@ export function StoreAccountingUsSection({
             `${API_BASE}/api/v1/sku-info?project_name=${encodeURIComponent(selectedProjectName)}&country=${encodeURIComponent(selectedCountry)}&is_active=true&page=1&page_size=200&include_total=true`,
             { cache: 'no-store' },
           ),
-          fetch(`/api/exchange-rates?currency=USD&page=1&page_size=1`, {
+          fetch(`/api/exchange-rates?currency=USD&page=1&pageSize=1`, {
             cache: 'no-store' as RequestCache,
           }),
           // Load existing snapshots for this project + country
@@ -223,12 +223,12 @@ export function StoreAccountingUsSection({
 
         const skuPayload = (await skuSearch.json()) as ProductCostsResponse
         const exchangePayload = (await exchangeSearch.json()) as {
-          items?: Array<{ rate: number }>
+          data?: Array<{ rate: number }>
         }
 
         const rate =
-          exchangePayload?.items?.[0]?.rate
-            ? String(exchangePayload.items[0].rate)
+          exchangePayload?.data?.[0]?.rate
+            ? String(exchangePayload.data[0].rate)
             : ''
         setSystemExchangeRate(rate)
 
@@ -298,7 +298,7 @@ export function StoreAccountingUsSection({
                   return_loss_rate: String((snapshot.return_loss_rate ?? 0.04) * 100),
                   storage_months: String(snapshot.storage_months),
                   inbound_placement_mode: snapshot.inbound_placement_mode,
-                  usd_to_rmb_rate: String(snapshot.usd_to_rmb_rate),
+                  usd_to_rmb_rate: rate || String(snapshot.usd_to_rmb_rate),
                 },
                 loading: false,
                 result: snapshotToResult(snapshot, item.project_name),
@@ -459,7 +459,7 @@ export function StoreAccountingUsSection({
       titleCell.value = `美国店铺SKU核算表 - ${selectedProjectName}`
       titleCell.font = { name: 'Microsoft YaHei', size: 14, bold: true }
       titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
-      titleCell.height = 24
+      worksheet.getRow(1).height = 24
 
       // ── Group header rows (rows 2-3, one per group) ──────────────────────────
       // Group structure: [name, startCol, endCol, headerDarkArgb, headerSubArgb]
@@ -501,9 +501,10 @@ export function StoreAccountingUsSection({
       headerRow.font = { name: 'Microsoft YaHei', size: 9, bold: true }
       headerRow.alignment = { horizontal: 'center', vertical: 'middle' }
       // Assign sub-background per group (matches StoreAccountingTable)
-      headerRow.eachCell({ cols: 1, rows: 1 }, (cell) => {
-        const col = cell.column
-        const group = groups.find((g) => col >= g.start && col <= g.end)
+      headerRow.eachCell({ includeEmpty: true }, (cell) => {
+        const colLetter = cell.address.replace(/\d+$/, '')
+        const colNum = colLetter.charCodeAt(0) - 64
+        const group = groups.find((g) => colNum >= g.start && colNum <= g.end)
         if (group) {
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: group.sub } }
         }
@@ -573,23 +574,17 @@ export function StoreAccountingUsSection({
         const oddBg = 'FFF8FAFC'
         const evenBg = 'FFFFFFFF'
 
-        row.eachCell({ cols: 1, rows: 1 }, (cell) => {
-          const col = cell.column
-          const val = rowData[col - 1]
+        row.eachCell({ includeEmpty: true }, (cell) => {
+          const colLetter = cell.address.replace(/\d+$/, '')
+          const colNum = colLetter.charCodeAt(0) - 64
+          const val = rowData[colNum - 1]
           const num = Number(val)
 
           // Background
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isOdd ? oddBg : evenBg } }
           cell.font = { name: 'Microsoft YaHei', size: 9 }
 
-          // Alignment
-          if (LEFT_COLS.has(col)) {
-            cell.alignment = { horizontal: 'left', vertical: 'middle' }
-          } else if (CENTER_COLS.has(col)) {
-            cell.alignment = { horizontal: 'center', vertical: 'middle' }
-          } else {
-            cell.alignment = { horizontal: 'right', vertical: 'middle' }
-          }
+          cell.alignment = { horizontal: 'center', vertical: 'middle' }
 
           // Number format
           if (Number.isFinite(num)) {
@@ -597,7 +592,8 @@ export function StoreAccountingUsSection({
           }
 
           // Profit / profit rate color: green >= 0, red < 0
-          if (col === 24 || col === 25) {
+          if (colNum === 24 || colNum === 25) {
+            // col 24 = 利润 (index 23), col 25 = 利润率 (index 24)
             if (num >= 0) {
               cell.font = { name: 'Microsoft YaHei', size: 9, color: { argb: 'FF16A34A' } }
             } else {
@@ -607,47 +603,27 @@ export function StoreAccountingUsSection({
         })
       })
 
-      // ── Auto-fit column widths via measured string width ───────────────────────
+      // ── Auto-fit column widths via openpyxl column_dimensions ─────────────────
       const colWidths: number[] = Array.from({ length: 27 }, () => 0)
 
-      // Scan title, group headers, column headers, and all data cells
       const measureText = (text: string, size = 9): number => {
-        // Rough monospace-equivalent estimate: each char ≈ size * 0.6 pt,
-        // plus ~1 pt padding per side → multiply by 2 + size/10 bonus for CJK
         const chars = String(text ?? '').length
         return Math.max(chars * size * 0.6 + size * 0.2, size)
       }
 
-      // Title (row 1) — use full title string
-      const titleText = `美国店铺SKU核算表 - ${selectedProjectName}`
-      colWidths.fill(measureText(titleText, 14))
-
-      // Group headers (row 2)
-      groups.forEach((g) => {
-        const w = measureText(g.name, 10)
-        for (let c = g.start - 1; c <= g.end - 1; c++) {
-          colWidths[c] = Math.max(colWidths[c], w)
-        }
-      })
-
-      // Column headers (row 3)
-      headers.forEach((h, i) => {
-        colWidths[i] = Math.max(colWidths[i], measureText(h, 9))
-      })
-
-      // Data rows
-      dataRows.forEach((rowData) => {
-        rowData.forEach((val, i) => {
-          const text = String(val ?? '')
-          colWidths[i] = Math.max(colWidths[i], measureText(text, 9))
+      worksheet.eachRow({ includeEmpty: true }, (excelRow) => {
+        excelRow.eachCell({ includeEmpty: true }, (cell) => {
+          const colLetter = cell.address.replace(/\d+$/, '')
+          const colNum = colLetter.charCodeAt(0) - 64
+          if (colNum >= 1 && colNum <= 27) {
+            const w = measureText(String(cell.value ?? ''))
+            if (w > colWidths[colNum - 1]) colWidths[colNum - 1] = w
+          }
         })
       })
-
-      // Apply: convert from Excel "character units" to approximate cm width
-      // (1 char unit ≈ 1 pt at 96 DPI; we want cm so use a conversion factor)
-      worksheet.columns = colWidths.map((w) => ({
-        width: Math.max(w * 0.12, 4), // minimum 4
-      }))
+      for (let i = 0; i < 27; i++) {
+        worksheet.getColumn(i + 1).width = Math.max(colWidths[i] * 0.12, 4)
+      }
 
       const buffer = await workbook.xlsx.writeBuffer()
       const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })

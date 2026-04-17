@@ -105,7 +105,7 @@ export async function GET(request: NextRequest) {
     const params = new URLSearchParams(request.nextUrl.search)
     const backendParams = new URLSearchParams()
     const page = params.get('page')
-    const pageSize = params.get('pageSize')
+    const pageSize = params.get('pageSize') ?? params.get('page_size')
     const currency = params.get('currency')
     const year = params.get('year')
     const month = params.get('month')

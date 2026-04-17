@@ -1,12 +1,15 @@
+from decimal import Decimal
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.db.session import Base
-from app.models import Project
+from app.models import ExchangeRate, Project
 from app.models.shipment_sku_summary import ShipmentSkuSummary
 from app.schemas.pricing_calculation import (
     PricingCalculationCostReverseRequest,
     PricingCalculationCreateRequest,
+    PricingCalculationEURequest,
 )
 from app.services import pricing_calculation_service
 
@@ -92,3 +95,59 @@ def test_create_cost_reverse_run_persists_single_cost_reverse_record():
         assert rows[0].id == row.id
         assert rows[0].calculation_type == 'cost_reverse'
         assert abs(float(row.profit_rate) - 0.25) < 0.01
+
+
+def test_compute_eu_pricing_uses_country_exchange_rate_when_manual_rate_missing():
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        db.add_all([
+            ExchangeRate(currency='USD', currency_name='美元', year_month='2026-04', rate=Decimal('7.20')),
+            ExchangeRate(currency='EUR', currency_name='欧元', year_month='2026-04', rate=Decimal('7.90')),
+            ExchangeRate(currency='GBP', currency_name='英镑', year_month='2026-04', rate=Decimal('9.15')),
+        ])
+        db.commit()
+
+        de_payload = PricingCalculationEURequest(
+            country='DE',
+            product_name='德国店铺 / SKU-DE-001',
+            package_length_cm=30,
+            package_width_cm=20,
+            package_height_cm=10,
+            weight_kg=1.2,
+            fob_product_cost_rmb=12,
+            first_leg_cost_rmb=8,
+            sale_price_usd=29.9,
+            delivery_fee_usd=2.5,
+            inbound_config_fee_usd=0.5,
+            storage_fee_usd=0.3,
+            commission_rate=0.15,
+            advertising_rate=0.12,
+            return_loss_rate=0.04,
+        )
+        uk_payload = PricingCalculationEURequest(
+            country='UK',
+            product_name='英国店铺 / SKU-UK-001',
+            package_length_cm=30,
+            package_width_cm=20,
+            package_height_cm=10,
+            weight_kg=1.2,
+            fob_product_cost_rmb=12,
+            first_leg_cost_rmb=8,
+            sale_price_usd=29.9,
+            delivery_fee_usd=2.5,
+            inbound_config_fee_usd=0.5,
+            storage_fee_usd=0.3,
+            commission_rate=0.15,
+            advertising_rate=0.12,
+            return_loss_rate=0.04,
+        )
+
+        de_computed = pricing_calculation_service._compute_eu_pricing(de_payload, db)
+        uk_computed = pricing_calculation_service._compute_eu_pricing(uk_payload, db)
+
+        assert float(de_computed['usd_to_rmb_rate']) == 7.9
+        assert de_computed['usd_to_rmb_rate_source'] == 'system:2026-04'
+        assert float(uk_computed['usd_to_rmb_rate']) == 9.15
+        assert uk_computed['usd_to_rmb_rate_source'] == 'system:2026-04'

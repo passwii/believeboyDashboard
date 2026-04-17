@@ -18,6 +18,7 @@ import {
   Cell,
 } from 'recharts'
 import {
+  AlertTriangle,
   Bot,
   ChevronDown,
   Copy,
@@ -305,6 +306,16 @@ function GenerationProgress({ currentSubStatus }: { currentSubStatus: string | n
 
 // --- Helper functions for parsing AI-generated mermaid chart blocks ---
 
+function decodeHtmlEntities(text: string): string {
+  return text
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+}
+
 function parseLineChart(content: string) {
   const lines = content.trim().split('\n')
   const result: Record<string, string[]> = {}
@@ -313,9 +324,9 @@ function parseLineChart(content: string) {
     const line = rawLine.trim()
     if (!line) continue
 
-    const match = line.match(/^([\w-]+)\[(.+)\]$/)
+    const match = line.match(/^([^[\]]+)\[(.+)\]$/)
     if (match) {
-      const currentKey = match[1].toLowerCase()
+      const currentKey = match[1].trim().toLowerCase()
       const rawValues = match[2].trim()
       const values = /[,;]/.test(rawValues)
         ? rawValues.split(/[,;]\s*/)
@@ -328,6 +339,34 @@ function parseLineChart(content: string) {
   }
 
   return result
+}
+
+function parseAsciiCallout(code: string) {
+  const lines = code
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .filter((line) => line.trim())
+
+  if (
+    lines.length < 3 ||
+    !lines.some((line) => /[┌┐└┘│─]/.test(line)) ||
+    !lines.some((line) => /⚠️|警告|异常|提醒/.test(line))
+  ) {
+    return null
+  }
+
+  const contentLines = lines
+    .map((line) => line.replace(/^[┌└├│]\s*/, '').replace(/\s*[┐┘┤│]$/, '').trim())
+    .filter((line) => line && !/^[─┬┴┼]+$/.test(line))
+
+  if (contentLines.length === 0) {
+    return null
+  }
+
+  const title = contentLines[0].replace(/^⚠️\s*/, '').trim()
+  const body = contentLines.slice(1)
+
+  return { title, body }
 }
 
 function parsePieChart(content: string) {
@@ -371,7 +410,7 @@ function FallbackCodeBlock({ code }: { code: string }) {
   }, [code])
 
   return (
-    <div className="not-prose my-5 overflow-hidden rounded-[22px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))] shadow-[0_18px_60px_-40px_rgba(15,23,42,0.45)]">
+    <div className="not-prose my-5 w-full overflow-hidden rounded-[22px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))] shadow-[0_18px_60px_-40px_rgba(15,23,42,0.45)]">
       <div className="flex items-center justify-between border-b border-border/60 bg-[hsl(var(--surface-overlay)/0.82)] px-4 py-3">
         <div className="flex items-center gap-2">
           <span className="h-2.5 w-2.5 rounded-full bg-[hsl(var(--chart-1))]" />
@@ -388,9 +427,36 @@ function FallbackCodeBlock({ code }: { code: string }) {
           {copied ? '已复制' : '复制'}
         </button>
       </div>
-      <pre className="overflow-x-auto px-4 py-4 text-xs leading-6 text-foreground">
-        <code>{code}</code>
+      <pre className="break-words overflow-x-auto px-4 py-4 text-xs leading-6 text-foreground">
+        <code className="whitespace-pre-wrap break-words">{code}</code>
       </pre>
+    </div>
+  )
+}
+
+function AsciiCalloutBlock({ code }: { code: string }) {
+  const parsed = parseAsciiCallout(code)
+
+  if (!parsed) {
+    return <FallbackCodeBlock code={code} />
+  }
+
+  return (
+    <div className="not-prose my-6 overflow-hidden rounded-[24px] border border-[hsl(var(--warning)/0.28)] bg-[linear-gradient(180deg,hsl(var(--warning)/0.12),hsl(var(--surface-panel)))] shadow-[0_24px_80px_-48px_rgba(245,158,11,0.35)]">
+      <div className="flex items-start gap-3 px-5 py-4">
+        <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[hsl(var(--warning)/0.18)] text-[hsl(var(--warning))]">
+          <AlertTriangle className="h-4 w-4" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[hsl(var(--warning))]">Warning</p>
+          <p className="mt-1 text-sm font-semibold text-foreground">{parsed.title}</p>
+          <div className="mt-3 space-y-2 text-sm leading-6 text-foreground/88">
+            {parsed.body.map((line, index) => (
+              <p key={`${index}-${line}`}>{line}</p>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -416,7 +482,7 @@ function ChartCodeBlock({ chartType, code }: { chartType: string; code: string }
     }))
 
     return (
-      <div className="not-prose my-6 overflow-hidden rounded-[24px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))] shadow-[0_24px_80px_-48px_rgba(15,23,42,0.55)]">
+      <div className="not-prose my-6 w-full overflow-hidden rounded-[24px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))] shadow-[0_24px_80px_-48px_rgba(15,23,42,0.55)]">
         <div className="border-b border-border/60 px-5 py-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[hsl(var(--chart-1)/0.14)] text-[hsl(var(--chart-1))]">
@@ -482,7 +548,7 @@ function ChartCodeBlock({ chartType, code }: { chartType: string; code: string }
     }))
 
     return (
-      <div className="not-prose my-6 overflow-hidden rounded-[24px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))] shadow-[0_24px_80px_-48px_rgba(15,23,42,0.55)]">
+      <div className="not-prose my-6 w-full overflow-hidden rounded-[24px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))] shadow-[0_24px_80px_-48px_rgba(15,23,42,0.55)]">
         <div className="border-b border-border/60 px-5 py-4">
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">Composition</p>
           <p className="mt-1 text-sm font-semibold text-foreground">分布占比</p>
@@ -528,7 +594,7 @@ function ChartCodeBlock({ chartType, code }: { chartType: string; code: string }
                   className="h-3 w-3 shrink-0 rounded-sm"
                   style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }}
                 />
-                <span className="text-muted-foreground">{item.name}</span>
+                <span className="break-words text-muted-foreground">{item.name}</span>
                 <span className="ml-auto font-medium tabular-nums">
                   {item.value} <span className="text-xs text-muted-foreground">({item.pct}%)</span>
                 </span>
@@ -568,19 +634,18 @@ const MarkdownContent = ({ content }: { content: string }) => {
   }>
 
   return (
-    <div className="dashboard-surface overflow-hidden rounded-[28px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))] shadow-[0_28px_90px_-56px_rgba(15,23,42,0.55)]">
+    <div className="dashboard-surface max-w-full min-w-0 overflow-hidden rounded-[28px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))] shadow-[0_28px_90px_-56px_rgba(15,23,42,0.55)]">
       <div className="border-b border-border/60 bg-[linear-gradient(135deg,hsl(var(--surface-overlay)/0.96),hsl(var(--surface-soft)/0.7))] px-6 py-5">
         <div className="flex flex-wrap items-center gap-3">
           <span className="rounded-full border border-border/70 bg-background/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.26em] text-muted-foreground">
             AI Insight Report
           </span>
-          <span className="text-sm text-muted-foreground">结构化预览已启用，表格与图表会在这里直接渲染。</span>
         </div>
       </div>
       <div className="px-6 py-6 sm:px-8">
         <div
           className={cn(
-            'min-w-0 text-[15px] leading-7 text-foreground',
+            'max-w-full min-w-0 text-[15px] leading-7 text-foreground',
             '[&_a]:font-medium [&_a]:text-primary [&_a]:underline-offset-4 hover:[&_a]:underline',
             '[&_hr]:my-8 [&_hr]:border-border/70'
           )}
@@ -648,7 +713,7 @@ const MarkdownContent = ({ content }: { content: string }) => {
                 return (
                   <th
                     className={cn(
-                      'border-r border-border/60 px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground last:border-r-0',
+                      'border-r border-border/60 px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground last:border-r-0 break-words',
                       className
                     )}
                     {...props}
@@ -659,7 +724,7 @@ const MarkdownContent = ({ content }: { content: string }) => {
                 return (
                   <td
                     className={cn(
-                      'border-r border-border/60 px-4 py-3 align-top text-sm text-foreground/92 last:border-r-0',
+                      'border-r border-border/60 px-4 py-3 align-top text-sm text-foreground/92 last:border-r-0 break-words',
                       className
                     )}
                     {...props}
@@ -668,8 +733,31 @@ const MarkdownContent = ({ content }: { content: string }) => {
               },
               code({ className, children, ...props }: ComponentPropsWithoutRef<'code'> & { children?: ReactNode }) {
                 const match = /language-([\w-]+)/.exec(className || '')
-                const code = String(children).replace(/\n$/, '')
+                // react-markdown v10 HTML-encodes code block content; decode it so our
+                // chart parsers and block-detection logic work correctly.
+                let code = decodeHtmlEntities(String(children)).replace(/\n$/, '')
                 const language = match?.[1]?.toLowerCase() || ''
+                const isAsciiWarningBlock = /[┌┐└┘│─]/.test(code) && /⚠️|警告|异常|提醒/.test(code)
+
+                // AI sometimes wraps ASCII art / code blocks in single backticks instead of
+                // triple backticks. Detect this by checking for inner backticks or newlines
+                // that indicate block-level content masquerading as inline code.
+                const looksLikeBlock =
+                  code.includes('\n') ||
+                  /[┌─┐│└┘├┤┬┴┼]/.test(code) ||
+                  (code.startsWith('`') && code.endsWith('`') && code.length > 2)
+
+                if (looksLikeBlock && !match) {
+                  // Strip outer backticks if the whole content is backtick-wrapped
+                  if (/^`[\s\S]*`$/.test(code)) {
+                    code = code.slice(1, -1)
+                  }
+                  if (isAsciiWarningBlock) {
+                    return <AsciiCalloutBlock code={code} />
+                  }
+                  return <FallbackCodeBlock code={code} />
+                }
+
                 const isInline = !match && !code.includes('\n')
 
                 if (isInline) {
@@ -685,6 +773,10 @@ const MarkdownContent = ({ content }: { content: string }) => {
 
                 if (language === 'linechart' || language === 'line' || language === 'piechart' || language === 'pie') {
                   return <ChartCodeBlock chartType={language} code={code} />
+                }
+
+                if (language === 'alert' || language === 'warning' || isAsciiWarningBlock) {
+                  return <AsciiCalloutBlock code={code} />
                 }
 
                 return <FallbackCodeBlock code={code} />
@@ -1345,7 +1437,7 @@ export default function AIInsightsPage() {
           }
         }}
       >
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-[1350px] max-h-[80vh] overflow-y-auto overflow-x-auto">
           <DialogHeader>
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -1392,19 +1484,27 @@ export default function AIInsightsPage() {
                 <span className="ml-3 text-muted-foreground">正在加载洞察内容...</span>
               </div>
             ) : isEditingDetail ? (
-              <div className="space-y-4">
-                <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-soft))] px-4 py-3 text-sm text-muted-foreground">
-                  这里直接编辑 Markdown 内容。你可以手动补表格、修正 `lineChart` / `pieChart` 代码块，然后在下方即时预览。
+              <div className="grid grid-cols-2 gap-4" style={{ height: '70vh' }}>
+                <div className="flex flex-col overflow-y-auto rounded-2xl border border-border/70 bg-background/60">
+                  <div className="sticky top-0 z-10 border-b border-border/40 bg-background/90 px-4 py-2.5 backdrop-blur-sm">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">预览</p>
+                  </div>
+                  <div className="flex-1 overflow-y-auto px-4 py-4">
+                    <MarkdownContent content={editingContent} />
+                  </div>
                 </div>
-                <textarea
-                  value={editingContent}
-                  onChange={(e) => setEditingContent(e.target.value)}
-                  spellCheck={false}
-                  className="min-h-[360px] w-full rounded-2xl border border-border/70 bg-[hsl(var(--surface-panel))] px-4 py-4 font-mono text-sm leading-6 text-foreground shadow-sm outline-none transition focus:border-primary"
-                />
-                <div className="rounded-2xl border border-dashed border-border/70 bg-background/60 p-4">
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">预览</p>
-                  <MarkdownContent content={editingContent} />
+                <div className="flex flex-col gap-3 min-h-0">
+                  <div className="shrink-0 rounded-xl border border-border/70 bg-[hsl(var(--surface-soft))] px-4 py-3 text-sm text-muted-foreground">
+                    直接编辑 Markdown 内容，支持表格、<code className="text-foreground">lineChart</code> /
+                    <code className="text-foreground">pieChart</code> 代码块实时预览。
+                  </div>
+                  <textarea
+                    value={editingContent}
+                    onChange={(e) => setEditingContent(e.target.value)}
+                    spellCheck={false}
+                    className="flex-1 w-full rounded-2xl border border-border/70 bg-[hsl(var(--surface-panel))] px-4 py-4 font-mono text-sm leading-6 text-foreground shadow-sm outline-none transition focus:border-primary resize-none"
+                    placeholder="在此编辑 Markdown 内容..."
+                  />
                 </div>
               </div>
             ) : viewingInsight?.content ? (

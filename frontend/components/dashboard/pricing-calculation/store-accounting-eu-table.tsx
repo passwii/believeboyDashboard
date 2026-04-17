@@ -49,6 +49,7 @@ type StoreAccountingEuTableProps = {
   ) => void
   onCalculate: (item: ProductCostItem) => void
   systemExchangeRate: string
+  selectedCountry: string
 }
 
 function buildInitialDraft(item: ProductCostItem): StoreSkuDraft {
@@ -72,8 +73,14 @@ function buildInitialDraft(item: ProductCostItem): StoreSkuDraft {
   }
 }
 
-function formatCurrency(value: number) {
-  return `$${value.toFixed(2)}`
+function getCurrencySymbol(country?: string) {
+  if (country === 'DE') return '€'
+  if (country === 'UK') return '£'
+  return '$'
+}
+
+function formatCurrency(value: number, country?: string) {
+  return `${getCurrencySymbol(country)}${value.toFixed(2)}`
 }
 
 function formatPercent(value: number) {
@@ -133,6 +140,7 @@ export function StoreAccountingEuTable({
   onDraftChange,
   onCalculate,
   systemExchangeRate,
+  selectedCountry,
 }: StoreAccountingEuTableProps) {
   const compactInputClassName =
     'h-8 w-[52px] min-w-[52px] rounded-sm border border-input bg-background px-1.5 text-center text-xs tabular-nums [-moz-appearance:textfield] appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus-visible:border-[hsl(var(--ring))] focus-visible:ring-1 focus-visible:ring-[hsl(var(--ring)/0.25)] sm:w-[60px] sm:min-w-[60px]'
@@ -154,7 +162,7 @@ export function StoreAccountingEuTable({
           <TableHead colSpan={4} className={cn('border-r px-3 py-2.5 text-center font-semibold shadow-[1px_0_0_0_hsl(var(--border))]', getGroupStyle('DDP 成本', 'header'))}>
             DDP 成本
           </TableHead>
-          <TableHead colSpan={7} className={cn('border-r px-3 py-2.5 text-center font-semibold shadow-[1px_0_0_0_hsl(var(--border))]', getGroupStyle('费用支出', 'header'))}>
+          <TableHead colSpan={8} className={cn('border-r px-3 py-2.5 text-center font-semibold shadow-[1px_0_0_0_hsl(var(--border))]', getGroupStyle('费用支出', 'header'))}>
             费用支出
           </TableHead>
           <TableHead colSpan={4} className={cn('px-3 py-2.5 text-center font-semibold', getGroupStyle('利润核算', 'header'))}>
@@ -193,13 +201,13 @@ export function StoreAccountingEuTable({
             DDP(RMB)
           </TableHead>
           <TableHead className={cn('min-w-[92px] whitespace-nowrap border-r px-3 py-2 text-right shadow-[1px_0_0_0_hsl(var(--border))]', getGroupStyle('DDP 成本', 'sub'))}>
-            DDP(USD)
+            DDP({selectedCountry === 'DE' ? 'EUR' : selectedCountry === 'UK' ? 'GBP' : 'USD'})
           </TableHead>
           <TableHead className={cn('min-w-[88px] whitespace-nowrap border-r px-3 py-2 shadow-[1px_0_0_0_hsl(var(--border))]', getGroupStyle('DDP 成本', 'sub'))}>
             汇率
           </TableHead>
           <TableHead className={cn('min-w-[88px] whitespace-nowrap border-r px-3 py-2 shadow-[1px_0_0_0_hsl(var(--border))]', getGroupStyle('费用支出', 'sub'))}>
-            售价(USD)
+            售价({selectedCountry === 'DE' ? 'EUR' : selectedCountry === 'UK' ? 'GBP' : 'USD'})
           </TableHead>
           <TableHead className={cn('min-w-[88px] whitespace-nowrap border-r px-3 py-2 shadow-[1px_0_0_0_hsl(var(--border))]', getGroupStyle('费用支出', 'sub'))}>
             广告费率%
@@ -256,22 +264,15 @@ export function StoreAccountingEuTable({
           const result = rowState?.result
           const exchangeRate = draft.usd_to_rmb_rate
             ? toNumber(draft.usd_to_rmb_rate)
-            : (result?.usd_to_rmb_rate ?? 0)
+            : (result?.usd_to_rmb_rate
+                ? result.usd_to_rmb_rate
+                : toNumber(systemExchangeRate))
           const ddpRmb =
             item.fob_unit_cost > 0 && firstLegCost > 0
               ? item.fob_unit_cost + firstLegCost
               : null
           const ddpUsd =
             ddpRmb && exchangeRate > 0 ? ddpRmb / exchangeRate : null
-
-          const vatLabel =
-            result?.profit?.vat_usd && result.profit.vat_usd > 0
-              ? result.country === 'DE'
-                ? 'DE VAT 19%'
-                : result.country === 'UK'
-                  ? 'UK VAT 20%'
-                  : 'VAT'
-              : null
 
           const profitAfterVat = result?.profit?.profit_after_vat_usd
           const profitRateAfterVat = result?.profit?.profit_after_vat_rate
@@ -322,7 +323,7 @@ export function StoreAccountingEuTable({
                 {ddpRmb !== null ? ddpRmb.toFixed(2) : <span className='text-muted-foreground'>—</span>}
               </TableCell>
               <TableCell className='whitespace-nowrap border-r px-3 py-2 text-right tabular-nums'>
-                {ddpUsd !== null ? formatCurrency(ddpUsd) : <span className='text-muted-foreground'>—</span>}
+                {ddpUsd !== null ? formatCurrency(ddpUsd, selectedCountry) : <span className='text-muted-foreground'>—</span>}
               </TableCell>
               <TableCell className='whitespace-nowrap border-r px-2 py-2'>
                 <Input
@@ -343,7 +344,7 @@ export function StoreAccountingEuTable({
                 <Input type='number' step='0.01' className={compactInputClassName} value={draft.advertising_rate} onChange={(event) => onDraftChange(item.id, 'advertising_rate', event.target.value)} />
               </TableCell>
               <TableCell className='whitespace-nowrap border-r px-3 py-2 text-right tabular-nums'>
-                {result ? formatCurrency(result.fees.advertising_fee_usd) : <span className='text-muted-foreground'>—</span>}
+                {result ? formatCurrency(result.fees.advertising_fee_usd, selectedCountry) : <span className='text-muted-foreground'>—</span>}
               </TableCell>
               <TableCell className='whitespace-nowrap border-r px-2 py-2'>
                 <Input type='number' step='0.01' className={compactInputClassName} value={draft.return_loss_rate} onChange={(event) => onDraftChange(item.id, 'return_loss_rate', event.target.value)} />
@@ -358,23 +359,16 @@ export function StoreAccountingEuTable({
                 <Input type='number' step='0.01' className={compactInputClassName} value={draft.storage_fee_usd} onChange={(event) => onDraftChange(item.id, 'storage_fee_usd', event.target.value)} placeholder='0' />
               </TableCell>
               <TableCell className='whitespace-nowrap border-r px-3 py-2 text-right tabular-nums'>
-                {result ? formatCurrency(result.fees.total_fee_usd) : <span className='text-muted-foreground'>—</span>}
+                {result ? formatCurrency(result.fees.total_fee_usd, selectedCountry) : <span className='text-muted-foreground'>—</span>}
               </TableCell>
 
               {/* 利润核算 */}
               <TableCell className='whitespace-nowrap border-r px-3 py-2 text-right font-medium tabular-nums'>
-                {result ? formatCurrency(result.profit.payout_usd) : <span className='text-muted-foreground'>—</span>}
+                {result ? formatCurrency(result.profit.payout_usd, selectedCountry) : <span className='text-muted-foreground'>—</span>}
               </TableCell>
               <TableCell className='whitespace-nowrap border-r px-3 py-2 text-right tabular-nums'>
                 {result?.profit?.vat_usd && result.profit.vat_usd > 0 ? (
-                  <div className='text-right'>
-                    <div className='tabular-nums'>{formatCurrency(result.profit.vat_usd)}</div>
-                    {vatLabel && (
-                      <div className='mt-0.5 rounded-[3px] bg-amber-50 px-1 py-0.5 text-[10px] text-amber-700 dark:bg-amber-950/60 dark:text-amber-400'>
-                        {vatLabel}
-                      </div>
-                    )}
-                  </div>
+                  <div className='tabular-nums'>{formatCurrency(result.profit.vat_usd, selectedCountry)}</div>
                 ) : <span className='text-muted-foreground'>—</span>}
               </TableCell>
               <TableCell className={cn(
@@ -384,9 +378,9 @@ export function StoreAccountingEuTable({
                   : 'text-muted-foreground',
               )}>
                 {profitAfterVat !== undefined && profitAfterVat !== null
-                  ? formatCurrency(profitAfterVat)
+                  ? formatCurrency(profitAfterVat, selectedCountry)
                   : result?.profit?.profit_usd !== undefined
-                    ? formatCurrency(result.profit.profit_usd)
+                    ? formatCurrency(result.profit.profit_usd, selectedCountry)
                     : <span className='text-muted-foreground'>—</span>}
               </TableCell>
               <TableCell className={cn(
