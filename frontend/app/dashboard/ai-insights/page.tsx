@@ -157,10 +157,13 @@ const DATA_STEPS = [
   { key: 'data_aggregating_ad_campaigns', label: '广告活动' },
 ]
 
-function formatYMD(date: Date, country: string): string {
-  const tz = COUNTRY_TIMEZONE_MAP[country] ?? 'UTC'
-  const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: tz })
-  return formatter.format(date)
+function formatYMD(date: Date): string {
+  // Preserve the exact calendar date chosen in the picker.
+  // This page treats dates as raw local YYYY-MM-DD values, not instants in time.
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 function addDays(date: Date, amount: number) {
@@ -351,24 +354,34 @@ function parseAsciiCallout(code: string) {
     .map((line) => line.trimEnd())
     .filter((line) => line.trim())
 
-  if (
-    lines.length < 3 ||
-    !lines.some((line) => /[┌┐└┘│─]/.test(line)) ||
-    !lines.some((line) => /⚠️|警告|异常|提醒/.test(line))
-  ) {
-    return null
+  if (lines.length === 0) return null
+
+  const hasBoxChars = lines.some((line) => /[┌┐└┘│─]/.test(line))
+  const hasWarningKeyword = lines.some((line) => /⚠️|警告|异常|提醒/.test(line))
+
+  if (!hasWarningKeyword) return null
+
+  // ASCII box style: requires ≥3 lines and box-drawing characters
+  if (hasBoxChars) {
+    if (lines.length < 3) return null
+
+    const contentLines = lines
+      .map((line) => line.replace(/^[┌└├│]\s*/, '').replace(/\s*[┐┘┤│]$/, '').trim())
+      .filter((line) => line && !/^[─┬┴┼]+$/.test(line))
+
+    if (contentLines.length === 0) return null
+
+    return {
+      title: contentLines[0].replace(/^⚠️\s*/, '').trim(),
+      body: contentLines.slice(1),
+    }
   }
 
-  const contentLines = lines
-    .map((line) => line.replace(/^[┌└├│]\s*/, '').replace(/\s*[┐┘┤│]$/, '').trim())
-    .filter((line) => line && !/^[─┬┴┼]+$/.test(line))
+  // Plain style (e.g. ```alert\n⚠️ Title\nBody line\n```): 1–2 lines, no box chars needed
+  const title = lines[0].replace(/^⚠️\s*/, '').trim()
+  const body = lines.slice(1).filter((line) => line.trim())
 
-  if (contentLines.length === 0) {
-    return null
-  }
-
-  const title = contentLines[0].replace(/^⚠️\s*/, '').trim()
-  const body = contentLines.slice(1)
+  if (!title) return null
 
   return { title, body }
 }
@@ -1086,7 +1099,14 @@ const MarkdownContent = ({ content, collectChartSvgs }: { content: string; colle
                 }
 
                 if (language === 'alert' || language === 'warning' || isAsciiWarningBlock) {
-                  return <AsciiCalloutBlock code={code} />
+                  // Strip leading "alert" / "warning" language tag so the parser only sees the content
+                  const codeLines = code.split('\n')
+                  const firstLine = codeLines[0]?.trim().toLowerCase() ?? ''
+                  const cleanCode =
+                    (firstLine === 'alert' || firstLine === 'warning') && codeLines.length > 1
+                      ? codeLines.slice(1).join('\n')
+                      : code
+                  return <AsciiCalloutBlock code={cleanCode} />
                 }
 
                 return <FallbackCodeBlock code={code} />
@@ -1587,8 +1607,8 @@ export default function AIInsightsPage() {
       const body = {
         project_id: selectedProjectId,
         country: selectedCountry,
-        date_range_start: formatYMD(dateRange.from, selectedCountry),
-        date_range_end: formatYMD(dateRange.to, selectedCountry),
+        date_range_start: formatYMD(dateRange.from),
+        date_range_end: formatYMD(dateRange.to),
         insight_type: insightType,
         model: selectedModel || undefined,
       }
@@ -1616,8 +1636,8 @@ export default function AIInsightsPage() {
         country: selectedCountry,
         title: '洞察报告生成中...',
         insight_type: insightType,
-        date_range_start: formatYMD(dateRange.from!, selectedCountry),
-        date_range_end: formatYMD(dateRange.to!, selectedCountry),
+        date_range_start: formatYMD(dateRange.from!),
+        date_range_end: formatYMD(dateRange.to!),
         status: 'processing',
         sub_status: null,
         created_by: session?.user?.name || '',
@@ -1663,9 +1683,9 @@ export default function AIInsightsPage() {
   }
 
   const formatDate = (dateStr: string) => {
-    const tz = COUNTRY_TIMEZONE_MAP[selectedCountry] ?? 'UTC'
-    const d = new Date(dateStr)
-    return d.toLocaleDateString('zh-CN', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' })
+    const [year, month, day] = dateStr.split('-')
+    if (!year || !month || !day) return dateStr
+    return `${year}-${month}-${day}`
   }
 
   const selectedProjectName = projects.find((p) => p.id === selectedProjectId)?.name || ''
@@ -2076,9 +2096,30 @@ export default function AIInsightsPage() {
                   </div>
                 </div>
                 <div className="flex flex-col gap-3 min-h-0">
-                  <div className="shrink-0 rounded-xl border border-border/70 bg-[hsl(var(--surface-soft))] px-4 py-3 text-sm text-muted-foreground">
-                    直接编辑 Markdown 内容，支持表格、<code className="text-foreground">lineChart</code> /
-                    <code className="text-foreground">pieChart</code> 代码块实时预览。
+                  <div className="shrink-0 flex items-center justify-between rounded-xl border border-border/70 bg-[hsl(var(--surface-soft))] px-4 py-3 text-sm text-muted-foreground">
+                    <span>
+                      直接编辑 Markdown 内容，支持表格、<code className="text-foreground">lineChart</code> /
+                      <code className="text-foreground">pieChart</code> 代码块实时预览。
+                    </span>
+                    <div className="flex items-center gap-2 ml-4 shrink-0">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleCancelEditingDetail}
+                        disabled={isSavingDetail}
+                      >
+                        <X className="mr-1.5 h-4 w-4" />
+                        取消
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => void handleSaveDetail()}
+                        disabled={isSavingDetail}
+                      >
+                        {isSavingDetail ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
+                        保存
+                      </Button>
+                    </div>
                   </div>
                   <textarea
                     value={editingContent}
