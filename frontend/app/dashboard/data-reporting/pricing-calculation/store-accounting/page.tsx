@@ -430,63 +430,66 @@ export default function StoreAccountingPage() {
             <div className='mt-4 mb-4 h-px bg-border/60' />
 
             {/* Bottom Row: Three Modules + Country Switch */}
-            <div className='flex flex-wrap items-end gap-6'>
-              {/* Module 1: 项目 */}
-              <div className='flex w-full max-w-44 flex-shrink-0 flex-col gap-2'>
-                <span className='text-xs font-semibold text-muted-foreground uppercase tracking-wide'>项目</span>
-                {projectsLoading ? (
-                  <Skeleton className='h-9 w-full' />
-                ) : (
-                  <Select value={selectedProjectName} onValueChange={setSelectedProjectName}>
-                    <SelectTrigger className='h-9 text-xs'>
-                      <SelectValue placeholder='选择项目' />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {projects.map((p) => (
-                        <SelectItem key={p.id} value={p.name} className='text-xs'>{p.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
+            <div className='flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between'>
+              {/* Left: 项目 + 搜索 SKU + 导出 Excel */}
+              <div className='grid gap-4 sm:grid-cols-2 xl:grid-cols-3'>
+                {/* Module 1: 项目 */}
+                <div className='flex min-w-0 flex-col gap-2'>
+                  <span className='text-xs font-semibold text-muted-foreground uppercase tracking-wide'>项目</span>
+                  {projectsLoading ? (
+                    <Skeleton className='h-9 w-full' />
+                  ) : (
+                    <Select value={selectedProjectName} onValueChange={setSelectedProjectName}>
+                      <SelectTrigger className='h-9 text-xs'>
+                        <SelectValue placeholder='选择项目' />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {projects.map((p) => (
+                          <SelectItem key={p.id} value={p.name} className='text-xs'>{p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
 
-              {/* Module 2: 搜索 SKU */}
-              <div className='flex w-full max-w-44 flex-shrink-0 flex-col gap-2'>
-                <span className='text-xs font-semibold text-muted-foreground uppercase tracking-wide'>搜索 SKU</span>
-                <div className='relative'>
-                  <Search className='pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground' />
-                  <Input
-                    value={skuKeyword}
-                    onChange={(e) => setSkuKeyword(e.target.value)}
-                    placeholder='SKU / ASIN'
-                    className='h-9 pl-8 text-xs'
-                  />
+                {/* Module 2: 搜索 SKU */}
+                <div className='flex min-w-0 flex-col gap-2'>
+                  <span className='text-xs font-semibold text-muted-foreground uppercase tracking-wide'>搜索 SKU</span>
+                  <div className='relative'>
+                    <Search className='pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground' />
+                    <Input
+                      value={skuKeyword}
+                      onChange={(e) => setSkuKeyword(e.target.value)}
+                      placeholder='SKU / ASIN'
+                      className='h-9 pl-8 text-xs'
+                    />
+                  </div>
+                </div>
+
+                {/* Module 3: 导出 Excel */}
+                <div className='flex min-w-0 flex-col gap-2'>
+                  <span className='text-xs font-semibold text-muted-foreground uppercase tracking-wide'>导出 Excel</span>
+                  <Button
+                    variant='outline'
+                    onClick={handleExport}
+                    disabled={exporting || !hasCalculatedRows}
+                    className='h-9 text-xs'
+                  >
+                    {exporting ? (
+                      <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
+                    ) : (
+                      <Download className='mr-1.5 h-3.5 w-3.5' />
+                    )}
+                    导出 Excel
+                  </Button>
                 </div>
               </div>
 
-              {/* Module 3: 导出 Excel */}
-              <div className='flex w-full max-w-44 flex-shrink-0 flex-col gap-2'>
-                <span className='text-xs font-semibold text-muted-foreground uppercase tracking-wide'>导出 Excel</span>
-                <Button
-                  variant='outline'
-                  onClick={handleExport}
-                  disabled={exporting || !hasCalculatedRows}
-                  className='h-9 text-xs'
-                >
-                  {exporting ? (
-                    <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
-                  ) : (
-                    <Download className='mr-1.5 h-3.5 w-3.5' />
-                  )}
-                  导出 Excel
-                </Button>
-              </div>
-
-              {/* Module 4: 站点 */}
-              <div className='flex w-full max-w-44 flex-shrink-0 flex-col gap-2'>
+              {/* Right: 站点 */}
+              <div className='flex min-w-0 flex-col gap-2 sm:flex-shrink-0'>
                 <span className='text-xs font-semibold text-muted-foreground uppercase tracking-wide'>站点</span>
                 <div
-                  className='flex h-9 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-0.5'
+                  className='flex h-9 min-h-touch w-full items-stretch rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-px sm:w-48'
                   role='group'
                   aria-label='选择站点'
                 >
@@ -495,7 +498,7 @@ export default function StoreAccountingPage() {
                       key={opt.value}
                       onClick={() => setSelectedCountry(opt.value)}
                       className={cn(
-                        'flex-1 h-full rounded-md px-2 py-1 text-center text-xs font-semibold transition-all duration-[160ms] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]/40',
+                        'flex h-full min-h-[calc(44px-2px)] min-w-0 flex-1 items-center justify-center rounded-md px-1.5 text-center text-xs font-semibold whitespace-nowrap transition-all duration-[160ms] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]/40',
                         selectedCountry === opt.value
                           ? opt.region === 'US'
                             ? 'bg-[hsl(var(--primary))] text-primary-foreground shadow-sm'
