@@ -25,7 +25,7 @@ function statusBadge(state: ReportCardState) {
   if (state.commitStatus === 'success') {
     return (
       <span
-        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white"
+        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-500 text-white"
         aria-label="已完成"
         title="已完成"
       >
@@ -33,7 +33,7 @@ function statusBadge(state: ReportCardState) {
       </span>
     )
   }
-  if (state.commitStatus === 'saving') return <Badge className="bg-sky-600 text-white hover:bg-sky-600">处理中</Badge>
+  if (state.commitStatus === 'saving') return <Badge className="bg-slate-600 text-white hover:bg-slate-600">处理中</Badge>
   if (state.commitStatus === 'error') return <Badge variant="destructive">失败</Badge>
   if (state.candidates.length > 1) return <Badge variant="secondary">多文件待确认</Badge>
   if (state.recognition) return <Badge variant="secondary">待确认</Badge>
@@ -99,7 +99,7 @@ export function ReportStatusCard({
         </div>
         <div className="space-y-2 rounded-xl border border-border/60 bg-[hsl(var(--surface-soft))]/80 px-3 py-3">
           <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-            <FileText className="h-4 w-4 text-sky-600 dark:text-sky-300" />
+            <FileText className="h-4 w-4 text-slate-400 dark:text-slate-500" />
             当前文件
           </div>
           {state.candidates.length === 0 ? (
@@ -133,14 +133,14 @@ export function ReportStatusCard({
           <div className="grid gap-3">
             <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border/60 bg-[hsl(var(--surface-soft))]">
-                <PackageSearch className={cn('h-4 w-4 text-sky-600 dark:text-sky-300', projectWarning && 'text-rose-600 dark:text-rose-300')} />
+                <PackageSearch className={cn('h-4 w-4 text-slate-400 dark:text-slate-500', projectWarning && 'text-slate-500 dark:text-slate-400')} />
               </div>
               <Select value={state.selectedProject || undefined} onValueChange={onProjectChange}>
                 <SelectTrigger
                   className={cn(
                     'rounded-md border-border/70 bg-[hsl(var(--surface-soft))] dark:border-border/95',
                     projectWarning &&
-                      'border-rose-300 bg-rose-50/80 text-rose-700 ring-offset-background focus:ring-rose-500 data-[placeholder]:text-rose-500 dark:border-rose-500/55 dark:bg-rose-500/10 dark:text-rose-100 dark:data-[placeholder]:text-rose-300'
+                      'border-slate-400/70 bg-slate-50/80 text-slate-700 ring-offset-background focus:ring-slate-400 dark:border-slate-400/50 dark:bg-slate-800/50 dark:text-slate-200'
                   )}
                 >
                   <SelectValue placeholder="请选择项目" />
@@ -157,7 +157,7 @@ export function ReportStatusCard({
 
             <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border/60 bg-[hsl(var(--surface-soft))]">
-                <CalendarDays className={cn('h-4 w-4 text-sky-600 dark:text-sky-300', dateWarning && 'text-rose-600 dark:text-rose-300')} />
+                <CalendarDays className={cn('h-4 w-4 text-slate-400 dark:text-slate-500', dateWarning && 'text-slate-500 dark:text-slate-400')} />
               </div>
               {useRangePicker ? (
                 <DateRangePicker
@@ -165,7 +165,7 @@ export function ReportStatusCard({
                   className={cn(
                     'w-full rounded-md border-border/70 bg-[hsl(var(--surface-soft))] dark:border-border/95',
                     dateWarning &&
-                      'border-rose-300 bg-rose-50/80 text-rose-700 focus-visible:ring-rose-500 dark:border-rose-500/55 dark:bg-rose-500/10 dark:text-rose-100'
+                      'border-slate-400/70 bg-slate-50/80 text-slate-700 focus-visible:ring-slate-400 dark:border-slate-400/50 dark:bg-slate-800/50 dark:text-slate-200'
                   )}
                   onChange={(range) => {
                     onDateChange('reportStartDate', formatDateInputValue(range?.from))
@@ -188,7 +188,7 @@ export function ReportStatusCard({
                   className={cn(
                     'rounded-md border-border/70 bg-[hsl(var(--surface-soft))] dark:border-border/95',
                     dateWarning &&
-                      'border-rose-300 bg-rose-50/80 text-rose-700 focus-visible:ring-rose-500 dark:border-rose-500/55 dark:bg-rose-500/10 dark:text-rose-100'
+                      'border-slate-400/70 bg-slate-50/80 text-slate-700 focus-visible:ring-slate-400 dark:border-slate-400/50 dark:bg-slate-800/50 dark:text-slate-200'
                   )}
                   onChange={(date) => onDateChange('reportDate', formatDateInputValue(date))}
                 />

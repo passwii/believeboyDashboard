@@ -93,9 +93,9 @@ export function ReportUploadDropzone({
 
             <div
               className={cn(
-                'relative flex flex-1 rounded-2xl border border-dashed px-5 py-5 transition-[border-color,background-color] duration-200',
+                'relative flex flex-1 rounded-xl border px-5 py-5 transition-[border-color,background-color] duration-200',
                 dragActive
-                  ? 'border-sky-500/70 bg-sky-500/8'
+                  ? 'border-slate-400/60 bg-slate-50 dark:border-slate-500/50 dark:bg-slate-800/25'
                   : 'border-border/70 bg-[hsl(var(--surface-subtle))]'
               )}
               onDrop={onDrop}
@@ -114,8 +114,8 @@ export function ReportUploadDropzone({
                 htmlFor="report-upload-input"
                 className="flex w-full cursor-pointer flex-col items-center justify-center gap-3 text-center"
               >
-                <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-border/60 bg-[hsl(var(--surface-soft))] shadow-sm">
-                  <FileUp className="h-6 w-6 text-sky-600 dark:text-sky-300" />
+                <div className="flex h-14 w-14 items-center justify-center rounded-lg border border-border/50 bg-[hsl(var(--surface-soft))]">
+                  <FileUp className="h-6 w-6 text-slate-500 dark:text-slate-400" />
                 </div>
                 <div className="space-y-1">
                   <p className="text-sm font-semibold text-foreground sm:text-base">拖拽文件到这里，或点击选择</p>
@@ -131,7 +131,7 @@ export function ReportUploadDropzone({
             </div>
           </div>
 
-          <div className="mt-2 flex h-full max-h-[252px] min-h-[252px] flex-col overflow-hidden rounded-2xl border border-border/60 bg-[hsl(var(--surface-soft))]">
+          <div className="mt-2 flex h-full max-h-[252px] min-h-[252px] flex-col overflow-hidden rounded-xl border border-border/50 bg-[hsl(var(--surface-soft))]">
             <div className="flex items-center justify-between border-b border-border/60 bg-[hsl(var(--surface-subtle))]/80 px-4 pb-3 pt-5">
               <p className="text-sm font-semibold text-foreground">本次识别文件</p>
               <span className="text-xs text-muted-foreground">{items.length} 个</span>
@@ -146,7 +146,7 @@ export function ReportUploadDropzone({
                 {items.map((item) => (
                   <div
                     key={item.localId}
-                    className="flex items-start justify-between gap-3 rounded-xl border border-border/60 bg-[hsl(var(--surface-subtle))]/85 px-3 py-3"
+                    className="flex items-start justify-between gap-3 rounded-lg border border-border/50 bg-[hsl(var(--surface-subtle))]/75 px-3 py-3"
                   >
                     <div className="min-w-0 space-y-1">
                       <p className="truncate text-sm font-medium text-foreground">{item.originalFileName}</p>
@@ -172,10 +172,10 @@ export function ReportUploadDropzone({
                     </div>
                     <div className="flex items-center gap-1.5">
                       {item.fileCommitStatus === 'saving' ? (
-                        <Loader2 className="h-4 w-4 animate-spin text-sky-600 dark:text-sky-300" />
+                        <Loader2 className="h-4 w-4 animate-spin text-slate-400 dark:text-slate-500" />
                       ) : null}
                       {item.fileCommitStatus === 'success' ? (
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />
+                        <CheckCircle2 className="h-4 w-4 text-slate-400 dark:text-slate-500" />
                       ) : null}
                       {item.fileCommitStatus === 'error' ? (
                         <XCircle className="h-4 w-4 text-rose-600 dark:text-rose-300" />

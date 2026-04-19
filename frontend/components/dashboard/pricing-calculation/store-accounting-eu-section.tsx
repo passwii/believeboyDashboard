@@ -540,13 +540,24 @@ export function StoreAccountingEuSection({
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgColor } }
           cell.alignment = { horizontal: 'center', vertical: 'middle' }
         }
-        // Color-code profit column (col 23): green if >=0, red if <0
-        const profitCell = worksheet.getCell(row.number, 23)
+        // Color-code profit amount column (col 22): green if >=0, red if <0
+        const profitCell = worksheet.getCell(row.number, 22)
         if (profitVal != null && !Number.isNaN(profitVal)) {
           if (profitVal >= 0) {
             profitCell.font = { name: 'Microsoft YaHei', color: { argb: 'FF059669' } }
           } else {
             profitCell.font = { name: 'Microsoft YaHei', color: { argb: 'FFE11D48' } }
+          }
+        }
+        // Format profit rate column (col 23) as percentage
+        const profitRateCell = worksheet.getCell(row.number, 23)
+        const profitRateVal = result.profit.profit_after_vat_rate ?? result.profit.profit_rate
+        if (profitRateVal != null && !Number.isNaN(profitRateVal)) {
+          profitRateCell.numFmt = '0.00%'
+          if (profitRateVal >= 0) {
+            profitRateCell.font = { name: 'Microsoft YaHei', color: { argb: 'FF059669' } }
+          } else {
+            profitRateCell.font = { name: 'Microsoft YaHei', color: { argb: 'FFE11D48' } }
           }
         }
       })

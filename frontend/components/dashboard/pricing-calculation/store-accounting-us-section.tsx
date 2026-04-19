@@ -594,6 +594,10 @@ export function StoreAccountingUsSection({
           // Profit / profit rate color: green >= 0, red < 0
           if (colNum === 24 || colNum === 25) {
             // col 24 = 利润 (index 23), col 25 = 利润率 (index 24)
+            if (colNum === 25) {
+              // 利润率：显示为百分比
+              cell.numFmt = '0.00%'
+            }
             if (num >= 0) {
               cell.font = { name: 'Microsoft YaHei', size: 9, color: { argb: 'FF16A34A' } }
             } else {

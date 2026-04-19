@@ -35,6 +35,9 @@ import {
 import { toPng } from 'html-to-image'
 import { useSession } from 'next-auth/react'
 
+// Module-level registry: chartId → SVG data URL (used during PNG export)
+const chartSvgRegistry = new Map<string, string>()
+
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { DateRangePicker, COUNTRY_TIMEZONE_MAP, getTodayInTimezone } from '@/components/ui/date-picker'
@@ -389,12 +392,22 @@ function parsePieChart(content: string) {
   return result
 }
 
+// CSS variables — used by live Recharts components (browser resolves them)
 const CHART_COLORS = [
   'hsl(var(--chart-1))',
   'hsl(var(--chart-2))',
   'hsl(var(--chart-3))',
   'hsl(var(--chart-4))',
   'hsl(var(--chart-5))',
+]
+
+// Absolute hex — used by static SVG generation (SVG data URLs don't resolve CSS vars)
+const CHART_COLORS_HEX = [
+  '#3b82f6', // chart-1 blue
+  '#10b981', // chart-2 green
+  '#f59e0b', // chart-3 amber
+  '#8b5cf6', // chart-4 violet
+  '#ef4444', // chart-5 red
 ]
 
 const CHART_CONFIG = {
@@ -462,7 +475,7 @@ function AsciiCalloutBlock({ code }: { code: string }) {
   )
 }
 
-function ChartCodeBlock({ chartType, code }: { chartType: string; code: string }) {
+function ChartCodeBlock({ chartType, code, collectChartSvgs }: { chartType: string; code: string; collectChartSvgs?: boolean }) {
   const normalizedType = chartType.trim().toLowerCase()
 
   if (normalizedType === 'linechart' || normalizedType === 'line') {
@@ -481,6 +494,79 @@ function ChartCodeBlock({ chartType, code }: { chartType: string; code: string }
       label,
       value: parseFloat(seriesData[i]) || 0,
     }))
+
+    const chartId = `line-${code.slice(0, 20)}`
+    const svgUrl = chartSvgRegistry.get(chartId)
+
+    // During PNG export: render a self-contained static SVG so toPng captures it reliably.
+    if (collectChartSvgs) {
+      const W = 600
+      const H = 220
+      const padL = 52, padR = 16, padT = 12, padB = 28
+      const vw = W - padL - padR
+      const vh = H - padT - padB
+      const values = chartData.map((d) => d.value)
+      const minV = Math.min(...values)
+      const maxV = Math.max(...values)
+      const range = maxV - minV || 1
+      const xStep = vw / Math.max(labels.length - 1, 1)
+      const toX = (i: number) => padL + i * xStep
+      const toY = (v: number) => padT + vh - ((v - minV) / range) * vh
+
+      const pts = chartData.map((d, i) => `${toX(i)},${toY(d.value)}`).join(' ')
+      const polyline = chartData.map((d, i) => `${toX(i)} ${toY(d.value)}`).join(' ')
+
+      const gridYs = [0, 0.25, 0.5, 0.75, 1].map((t) => padT + t * vh)
+      const yLabels = [0, 0.25, 0.5, 0.75, 1].map((t) => Math.round(maxV - t * range))
+
+      // Area polygon under the line
+      const area = `${toX(0)},${padT + vh} ` + chartData.map((d, i) => `${toX(i)},${toY(d.value)}`).join(' ') + ` ${toX(chartData.length - 1)},${padT + vh}`
+
+      const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" font-family="ui-sans-serif,system-ui,sans-serif" font-size="11" text-anchor="middle">
+  <defs><linearGradient id="lg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#3b82f6" stop-opacity="0.32"/><stop offset="100%" stop-color="#3b82f6" stop-opacity="0.03"/></linearGradient></defs>
+  ${gridYs.map((y) => `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="#e2e8f0" stroke-dasharray="4 4"/>`).join('\n  ')}
+  ${yLabels.map((label, i) => `<text x="${padL - 6}" y="${gridYs[i] + 4}" text-anchor="end" fill="#94a3b8">${label}</text>`).join('\n  ')}
+  ${labels.filter((_, i) => i % Math.ceil(labels.length / 6) === 0 || i === labels.length - 1).map((l, _, arr) => {
+    const idx = labels.indexOf(l)
+    return `<text x="${toX(idx)}" y="${H - 6}" fill="#94a3b8">${l}</text>`
+  }).join('\n  ')}
+  <polygon points="${area}" fill="url(#lg)"/>
+  <polyline points="${polyline}" fill="none" stroke="#3b82f6" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="${pts}" fill="none" stroke="transparent" stroke-width="8"/>
+</svg>`
+      const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgStr)}`
+      chartSvgRegistry.set(chartId, url)
+      return (
+        <div className="not-prose my-6 w-full overflow-hidden rounded-[24px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))] shadow-[0_24px_80px_-48px_rgba(15,23,42,0.55)]">
+          <div className="border-b border-border/60 px-5 py-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[hsl(var(--chart-1)/0.14)] text-[hsl(var(--chart-1))]">
+                <Sparkles className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">Trend Chart</p>
+                <p className="mt-1 text-sm font-semibold text-foreground">{seriesKey?.toUpperCase() || '趋势变化'}</p>
+              </div>
+            </div>
+          </div>
+          <div className="px-4 pb-3 pt-4">
+            {/* Recharts needs one frame to register its SVG; use the pre-generated static SVG as the img src */}
+            <div className="h-[260px] w-full">
+              {svgUrl ? (
+                // Already generated this cycle — show it immediately
+                // eslint-disable-next-line @next/next/no-img-element -- SVG data URLs can't use next/image
+                <img src={svgUrl} alt="趋势图表" className="h-full w-full object-contain" />
+              ) : (
+                // First render of this cycle — show placeholder, will be replaced on next frame
+                <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                  <Sparkles className="h-5 w-5 animate-pulse" />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )
+    }
 
     return (
       <div className="not-prose my-6 w-full overflow-hidden rounded-[24px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))] shadow-[0_24px_80px_-48px_rgba(15,23,42,0.55)]">
@@ -548,6 +634,77 @@ function ChartCodeBlock({ chartType, code }: { chartType: string; code: string }
       pct: total > 0 ? ((item.value / total) * 100).toFixed(1) : '0.0',
     }))
 
+    // Static SVG donut chart for PNG export — no Recharts SVG dependency.
+    if (collectChartSvgs) {
+      const size = 220
+      const cx = size / 2
+      const cy = size / 2
+      const outerR = 88
+      const innerR = 56
+      const strokeW = outerR - innerR
+
+      let angle = -Math.PI / 2 // start at 12 o'clock
+      const wedges = displayData.map((item, i) => {
+        const slice = (item.value / total) * 2 * Math.PI
+        const startA = angle
+        const endA = angle + slice
+        angle = endA
+
+        const x1 = cx + outerR * Math.cos(startA)
+        const y1 = cy + outerR * Math.sin(startA)
+        const x2 = cx + outerR * Math.cos(endA)
+        const y2 = cy + outerR * Math.sin(endA)
+        const x3 = cx + innerR * Math.cos(endA)
+        const y3 = cy + innerR * Math.sin(endA)
+        const x4 = cx + innerR * Math.cos(startA)
+        const y4 = cy + innerR * Math.sin(startA)
+        const large = slice > Math.PI ? 1 : 0
+
+        const color = CHART_COLORS_HEX[i % CHART_COLORS_HEX.length]
+        const path = `M${x1},${y1} A${outerR},${outerR} 0 ${large},1 ${x2},${y2} L${x3},${y3} A${innerR},${innerR} 0 ${large},0 ${x4},${y4} Z`
+        return { path, color }
+      })
+
+      const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" font-family="ui-sans-serif,system-ui,sans-serif">
+        ${wedges.map((w) => `<path d="${w.path}" fill="${w.color}" stroke="white" stroke-width="2"/>`).join('\n        ')}
+      </svg>`
+      const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgStr)}`
+      const pieId = `pie-${code.slice(0, 20)}`
+      chartSvgRegistry.set(pieId, url)
+
+      return (
+        <div className="not-prose my-6 w-full overflow-hidden rounded-[24px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))] shadow-[0_24px_80px_-48px_rgba(15,23,42,0.55)]">
+          <div className="border-b border-border/60 px-5 py-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">Composition</p>
+            <p className="mt-1 text-sm font-semibold text-foreground">分布占比</p>
+          </div>
+          <div className="flex flex-col gap-6 px-5 py-5 md:flex-row md:items-center">
+            <div className="h-[220px] w-full md:w-[220px]">
+              {/* eslint-disable-next-line @next/next/no-img-element -- SVG data URLs can't use next/image */}
+              <img src={url} alt="饼图" className="h-full w-full object-contain" />
+            </div>
+            <div className="flex-1 space-y-2.5">
+              {displayData.map((item, i) => (
+                <div
+                  key={item.name}
+                  className="flex items-center gap-3 rounded-2xl border border-border/60 bg-background/60 px-3 py-2.5 text-sm"
+                >
+                  <div
+                    className="h-3 w-3 shrink-0 rounded-sm"
+                    style={{ backgroundColor: CHART_COLORS_HEX[i % CHART_COLORS_HEX.length] }}
+                  />
+                  <span className="break-words text-muted-foreground">{item.name}</span>
+                  <span className="ml-auto font-medium tabular-nums">
+                    {item.value} <span className="text-xs text-muted-foreground">({item.pct}%)</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )
+    }
+
     return (
       <div className="not-prose my-6 w-full overflow-hidden rounded-[24px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))] shadow-[0_24px_80px_-48px_rgba(15,23,42,0.55)]">
         <div className="border-b border-border/60 px-5 py-4">
@@ -607,6 +764,158 @@ function ChartCodeBlock({ chartType, code }: { chartType: string; code: string }
     )
   }
 
+  // ─── Adding new chart types? ───────────────────────────────────────────────
+  // Follow this two-step pattern for each new chart:
+  //
+  // Step 1 — Static SVG for PNG export:
+  //   if (collectChartSvgs) {
+  //     const chartId = `bar-${code.slice(0, 20)}`
+  //     const svgUrl = chartSvgRegistry.get(chartId)
+  //     // Generate a self-contained SVG string; store it; render <img>.
+  //     // Use absolute color values (e.g. "#3b82f6") instead of CSS variables.
+  //     // Return the full styled card markup with the <img> in place of the chart.
+  //   }
+  //
+  // Step 2 — Live Recharts fallback:
+  //   return (
+  //     <div className="not-prose my-6 ...">  ← same card shell
+  //       … <ResponsiveContainer><BarChart>…</ResponsiveContainer> …
+  //     </div>
+  //   )
+  //
+  // The export state machine (collectChartSvgs → rAF → toPng) works
+  // automatically; only the chart body needs updating per type.
+  // ───────────────────────────────────────────────────────────────────────────
+
+  // TODO: implement bar chart static SVG export
+  if (
+    normalizedType === 'barchart' ||
+    normalizedType === 'bar' ||
+    normalizedType === 'columnchart' ||
+    normalizedType === 'column'
+  ) {
+    const parsed = parseLineChart(code) // bar charts use the same key-value format
+    const labels = parsed['x-axis'] || parsed['xaxis'] || []
+    const seriesKey = Object.keys(parsed).find(
+      (k) => !['x-axis', 'xaxis', 'y-axis', 'yaxis'].includes(k) && parsed[k].length === labels.length
+    )
+    const seriesData = seriesKey ? parsed[seriesKey] : []
+
+    if (labels.length === 0 || seriesData.length === 0) {
+      return <FallbackCodeBlock code={code} />
+    }
+
+    if (collectChartSvgs) {
+      const barW = 600
+      const barH = 220
+      const padL = 52, padR = 16, padT = 12, padB = 28
+      const vw = barW - padL - padR
+      const vh = barH - padT - padB
+      const values = seriesData.map((v: string) => parseFloat(v) || 0)
+      const maxV = Math.max(...values, 1)
+      const barCount = labels.length
+      const slotW = vw / barCount
+      const barW2 = Math.max(8, slotW * 0.6)
+      const barGap = (slotW - barW2) / 2
+
+      const gridYs = [0, 0.25, 0.5, 0.75, 1].map((t) => padT + t * vh)
+      const yLabels = [0, 0.25, 0.5, 0.75, 1].map((t) => Math.round(maxV - t * maxV))
+
+      const bars = labels.map((label: string, i: number) => {
+        const h = (values[i] / maxV) * vh
+        const x = padL + i * slotW + barGap
+        const y = padT + vh - h
+        return `<rect x="${x}" y="${y}" width="${barW2}" height="${h}" rx="4" fill="#3b82f6" opacity="0.85"/>`
+      })
+
+      const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="${barW}" height="${barH}" font-family="ui-sans-serif,system-ui,sans-serif" font-size="11" text-anchor="middle">
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#3b82f6" stop-opacity="0.18"/><stop offset="100%" stop-color="#3b82f6" stop-opacity="0.04"/></linearGradient></defs>
+  ${gridYs.map((y, i) => `<line x1="${padL}" y1="${y}" x2="${barW - padR}" y2="${y}" stroke="#e2e8f0" stroke-dasharray="4 4"/>`).join('\n  ')}
+  ${yLabels.map((label, i) => `<text x="${padL - 6}" y="${gridYs[i] + 4}" text-anchor="end" fill="#94a3b8">${label}</text>`).join('\n  ')}
+  ${labels.filter((_: string, i: number) => i % Math.ceil(labels.length / 6) === 0 || i === labels.length - 1).map((l: string) => {
+    const idx = labels.indexOf(l)
+    return `<text x="${padL + idx * slotW + slotW / 2}" y="${barH - 6}" fill="#94a3b8">${l}</text>`
+  }).join('\n  ')}
+  ${bars.join('\n  ')}
+</svg>`
+      const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgStr)}`
+      const barId = `bar-${code.slice(0, 20)}`
+      chartSvgRegistry.set(barId, url)
+
+      return (
+        <div className="not-prose my-6 w-full overflow-hidden rounded-[24px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))] shadow-[0_24px_80px_-48px_rgba(15,23,42,0.55)]">
+          <div className="border-b border-border/60 px-5 py-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[hsl(var(--chart-1)/0.14)] text-[hsl(var(--chart-1))]">
+                <Sparkles className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">Bar Chart</p>
+                <p className="mt-1 text-sm font-semibold text-foreground">{seriesKey?.toUpperCase() || '柱状图'}</p>
+              </div>
+            </div>
+          </div>
+          <div className="px-4 pb-3 pt-4">
+            <div className="h-[260px] w-full">
+              {/* eslint-disable-next-line @next/next/no-img-element -- SVG data URLs can't use next/image */}
+              <img src={url} alt="柱状图" className="h-full w-full object-contain" />
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    // Live Recharts fallback (replace with dedicated BarChart component if needed)
+    const chartData = labels.map((label: string, i: number) => ({
+      label,
+      value: parseFloat(seriesData[i]) || 0,
+    }))
+
+    return (
+      <div className="not-prose my-6 w-full overflow-hidden rounded-[24px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))] shadow-[0_24px_80px_-48px_rgba(15,23,42,0.55)]">
+        <div className="border-b border-border/60 px-5 py-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[hsl(var(--chart-1)/0.14)] text-[hsl(var(--chart-1))]">
+              <Sparkles className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">Bar Chart</p>
+              <p className="mt-1 text-sm font-semibold text-foreground">{seriesKey?.toUpperCase() || '柱状图'}</p>
+            </div>
+          </div>
+        </div>
+        <div className="px-4 pb-3 pt-4">
+          <ChartContainer config={CHART_CONFIG} className="h-[260px] w-full">
+            {/* Replace with BarChart if recharts Bar is imported */}
+            <LineChart data={chartData} margin={{ top: 12, right: 16, bottom: 0, left: 0 }}>
+              <defs>
+                <linearGradient id="ai-insight-line-fill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="hsl(var(--chart-1))" stopOpacity={0.32} />
+                  <stop offset="100%" stopColor="hsl(var(--chart-1))" stopOpacity={0.03} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid vertical={false} strokeDasharray="4 4" />
+              <XAxis dataKey="label" tickLine={false} axisLine={false} minTickGap={18} />
+              <YAxis tickLine={false} axisLine={false} width={44} />
+              <ChartTooltip
+                cursor={{ stroke: 'hsl(var(--border))', strokeDasharray: '4 4' }}
+                content={<ChartTooltipContent indicator="line" />}
+              />
+              <Line
+                type="monotone"
+                dataKey="value"
+                stroke="var(--color-value)"
+                strokeWidth={3}
+                dot={{ r: 0 }}
+                activeDot={{ r: 5, fill: 'var(--color-value)', stroke: 'hsl(var(--surface-panel))', strokeWidth: 2 }}
+              />
+            </LineChart>
+          </ChartContainer>
+        </div>
+      </div>
+    )
+  }
+
   return <FallbackCodeBlock code={code} />
 }
 
@@ -627,7 +936,7 @@ function ReportSectionTitle({ children, className, ...props }: ComponentPropsWit
   )
 }
 
-const MarkdownContent = ({ content }: { content: string }) => {
+const MarkdownContent = ({ content, collectChartSvgs }: { content: string; collectChartSvgs?: boolean }) => {
   const Markdown = ReactMarkdown as React.FC<{
     remarkPlugins?: unknown[]
     children: string
@@ -773,7 +1082,7 @@ const MarkdownContent = ({ content }: { content: string }) => {
                 }
 
                 if (language === 'linechart' || language === 'line' || language === 'piechart' || language === 'pie') {
-                  return <ChartCodeBlock chartType={language} code={code} />
+                  return <ChartCodeBlock chartType={language} code={code} collectChartSvgs={collectChartSvgs} />
                 }
 
                 if (language === 'alert' || language === 'warning' || isAsciiWarningBlock) {
@@ -820,6 +1129,9 @@ export default function AIInsightsPage() {
   const [editingContent, setEditingContent] = useState('')
   const [isSavingDetail, setIsSavingDetail] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
+  // State machine: triggers charts to render <img> with SVG data URL → effect captures PNG
+  const [collectChartSvgs, setCollectChartSvgs] = useState(false)
+  const pendingExportRef = useRef(false)
 
   // Live streaming content (shown in generation dialog)
   const [streamingContent, setStreamingContent] = useState('')
@@ -835,6 +1147,8 @@ export default function AIInsightsPage() {
   const [viewLiveContent, setViewLiveContent] = useState('')
   const [viewLiveSubStatus, setViewLiveSubStatus] = useState<string | null>(null)
   const [viewLiveRefreshing, setViewLiveRefreshing] = useState(false)
+  const generatingInsightIdRef = useRef<number | null>(null)
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     async function loadProjects() {
@@ -1100,39 +1414,166 @@ export default function AIInsightsPage() {
     }
   }, [editingContent, viewingInsight])
 
-  const handleExportPng = useCallback(async () => {
+  // Phase 1: charts register SVG data URLs; Phase 2: we capture PNG.
+  // Using a state machine so React batches the render before toPng fires.
+  useEffect(() => {
+    if (!collectChartSvgs) return
     const node = document.getElementById('ai-insight-export-root')
-    if (!node) return
-
-    setIsExporting(true)
-    try {
-      // Wait for recharts charts to fully render
-      await new Promise((resolve) => requestAnimationFrame(resolve))
-
-      const dataUrl = await toPng(node, {
-        backgroundColor: '#ffffff',
-        pixelRatio: 2,
-        cacheBust: true,
-      })
-
-      const link = document.createElement('a')
-      link.download = `AI洞察_${viewingInsight?.title ?? '报告'}_${new Date().toISOString().slice(0, 10)}.png`
-      link.href = dataUrl
-      link.click()
-    } catch (err) {
-      console.error('Failed to export PNG', err)
-      alert('导出失败，请重试')
-    } finally {
-      setIsExporting(false)
+    if (!node) {
+      setCollectChartSvgs(false)
+      return
     }
-  }, [viewingInsight])
+    // Two frames: first for chart components to fill chartSvgRegistry,
+    // second for their <img> src attributes to be painted by the browser.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const dataUrl = document.getElementById('ai-insight-export-root')
+        if (!dataUrl) {
+          setCollectChartSvgs(false)
+          return
+        }
+
+        // Scale to 125% before capture so exported image is clearer on mobile.
+        const originalTransform = dataUrl.style.transform
+        dataUrl.style.transform = 'scale(1.25)'
+
+        toPng(dataUrl, { backgroundColor: '#ffffff', pixelRatio: 2, cacheBust: true })
+          .then((url) => {
+            const link = document.createElement('a')
+            link.download = `AI洞察_${viewingInsight?.title ?? '报告'}_${new Date().toISOString().slice(0, 10)}.png`
+            link.href = url
+            link.click()
+          })
+          .catch((err) => {
+            console.error('Failed to export PNG', err)
+            alert('导出失败，请重试')
+          })
+          .finally(() => {
+            dataUrl.style.transform = originalTransform
+            setCollectChartSvgs(false)
+            setIsExporting(false)
+          })
+      })
+    })
+  }, [collectChartSvgs, viewingInsight])
+
+  const handleExportPng = useCallback(() => {
+    if (!document.getElementById('ai-insight-export-root')) return
+    chartSvgRegistry.clear()
+    setIsExporting(true)
+    setCollectChartSvgs(true) // triggers chart components to render <img> tags
+  }, [])
 
   const _closeSse = useCallback(() => {
     if (eventSourceRef.current) {
       eventSourceRef.current.close()
       eventSourceRef.current = null
     }
+    generatingInsightIdRef.current = null
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current)
+      pollingIntervalRef.current = null
+    }
   }, [])
+
+  // Top-level SSE handler — runs independently of the dialog, updates both list and dialog state.
+  // This stays alive even when the user closes the dialog, so list stays in sync.
+  useEffect(() => {
+    const es = eventSourceRef.current
+    if (!es) return
+
+    const insightId = generatingInsightIdRef.current ?? 0
+
+    const onMessage = (e: MessageEvent) => {
+      if (!e.data || e.data.trim() === '') return
+      try {
+        const event: SseEvent = JSON.parse(e.data)
+
+        if (event.type === 'ping') return
+
+        if (event.type === 'status') {
+          generatingInsightIdRef.current = event.insight_id ?? insightId
+          setCurrentSubStatus(event.sub_status ?? null)
+          if (event.status === 'failed') {
+            alert(`生成失败: ${event.error_message || '生成任务失败'}`)
+            _closeSse()
+            setInsightDialogOpen(false)
+            setInsights((prev) => prev.filter((i) => i.id === insightId))
+            return
+          }
+          if (event.content) setStreamingContent(event.content)
+          // Update the optimistic record's sub_status in the list — works even if dialog is closed
+          setInsights((prev) =>
+            prev.map((item) =>
+              item.id === insightId
+                ? {
+                    ...item,
+                    status: event.status === 'completed' ? 'completed' : 'processing',
+                    sub_status: event.sub_status ?? item.sub_status,
+                    title: event.title ? `${event.title}` : item.title,
+                  }
+                : item
+            )
+          )
+        } else if (event.type === 'chunk') {
+          setStreamingContent((prev) => prev + (event.delta || ''))
+          setTimeout(() => {
+            streamingRef.current?.scrollIntoView({ behavior: 'smooth' })
+          }, 50)
+        } else if (event.type === 'done') {
+          setStreamingContent(event.content || streamingContent)
+          setCurrentSubStatus(null)
+          _closeSse()
+          setInsightDialogOpen(false)
+          void loadInsights()
+        } else if (event.type === 'error') {
+          alert(`生成失败: ${event.error}`)
+          _closeSse()
+          setInsightDialogOpen(false)
+          setCurrentSubStatus(null)
+          setInsights((prev) => prev.filter((i) => i.id !== insightId))
+        }
+      } catch (parseErr) {
+        console.warn('Failed to parse SSE event', parseErr)
+      }
+    }
+
+    const onError = () => {
+      _closeSse()
+      void loadInsights()
+    }
+
+    es.addEventListener('message', onMessage)
+    es.onerror = onError
+
+    return () => {
+      es.removeEventListener('message', onMessage)
+      es.onerror = null
+    }
+  }, [_closeSse])
+
+  // Polling fallback: refresh processing insights every 10s in case SSE missed the done event
+  useEffect(() => {
+    const hasProcessing = insights.some((i) => i.status === 'processing')
+    if (!hasProcessing) {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current)
+        pollingIntervalRef.current = null
+      }
+      return
+    }
+    if (pollingIntervalRef.current) return // already polling
+    pollingIntervalRef.current = setInterval(() => {
+      const stillProcessing = insights.some((i) => i.status === 'processing')
+      if (stillProcessing) void loadInsights()
+    }, 10_000)
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current)
+        pollingIntervalRef.current = null
+      }
+    }
+  }, [insights, loadInsights])
 
   const handleGenerate = async () => {
     if (!selectedProjectId || !dateRange?.from || !dateRange?.to) return
@@ -1165,62 +1606,31 @@ export default function AIInsightsPage() {
       const result = await response.json()
       const insightId: number = result.insight_id
       currentInsightId.current = insightId
+      generatingInsightIdRef.current = insightId
 
-      // Open SSE connection for real-time updates
+      // Optimistically add a "processing" record to the list so it shows immediately without a refresh
+      const optimisticRecord: InsightItem = {
+        id: insightId,
+        project_id: selectedProjectId,
+        project_name: selectedProjectName || '',
+        country: selectedCountry,
+        title: '洞察报告生成中...',
+        insight_type: insightType,
+        date_range_start: formatYMD(dateRange.from!, selectedCountry),
+        date_range_end: formatYMD(dateRange.to!, selectedCountry),
+        status: 'processing',
+        sub_status: null,
+        created_by: session?.user?.name || '',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+      setInsights((prev) => [optimisticRecord, ...prev])
+
+      // SSE is attached by the top-level useEffect — do NOT close it when dialog closes
       const es = new EventSource(
         `/api/backend/v1/ai-insights/${insightId}/stream`
       )
       eventSourceRef.current = es
-
-      es.onmessage = (e) => {
-        if (!e.data || e.data.trim() === '') return
-        try {
-          const event: SseEvent = JSON.parse(e.data)
-
-          if (event.type === 'ping') return
-
-          if (event.type === 'status') {
-            currentInsightId.current = event.insight_id ?? insightId
-            setCurrentSubStatus(event.sub_status ?? null)
-            if (event.status === 'failed') {
-              alert(`生成失败: ${event.error_message || '生成任务失败'}`)
-              _closeSse()
-              setInsightDialogOpen(false)
-              return
-            }
-            if (event.content) {
-              setStreamingContent(event.content)
-            }
-          } else if (event.type === 'chunk') {
-            setStreamingContent((prev) => prev + (event.delta || ''))
-            setTimeout(() => {
-              streamingRef.current?.scrollIntoView({ behavior: 'smooth' })
-            }, 50)
-          } else if (event.type === 'done') {
-            setStreamingContent(event.content || streamingContent)
-            setCurrentSubStatus(null)
-            _closeSse()
-            // Close the dialog after a short delay so user sees the result
-            setTimeout(() => {
-              setInsightDialogOpen(false)
-              void loadInsights()
-            }, 1500)
-          } else if (event.type === 'error') {
-            alert(`生成失败: ${event.error}`)
-            _closeSse()
-            setInsightDialogOpen(false)
-            setCurrentSubStatus(null)
-          }
-        } catch (parseErr) {
-          console.warn('Failed to parse SSE event', parseErr)
-        }
-      }
-
-      es.onerror = () => {
-        console.warn('SSE connection error, will refresh list on close')
-        _closeSse()
-        void loadInsights()
-      }
 
     } catch (e) {
       console.error('Failed to start insight generation', e)
@@ -1234,9 +1644,7 @@ export default function AIInsightsPage() {
   // Cleanup SSE on unmount
   useEffect(() => {
     return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close()
-      }
+      _closeSse()
     }
   }, [_closeSse])
 
@@ -1255,8 +1663,9 @@ export default function AIInsightsPage() {
   }
 
   const formatDate = (dateStr: string) => {
+    const tz = COUNTRY_TIMEZONE_MAP[selectedCountry] ?? 'UTC'
     const d = new Date(dateStr)
-    return d.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
+    return d.toLocaleDateString('zh-CN', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' })
   }
 
   const selectedProjectName = projects.find((p) => p.id === selectedProjectId)?.name || ''
@@ -1536,10 +1945,8 @@ export default function AIInsightsPage() {
 
       {/* Live generation progress dialog */}
       <Dialog open={insightDialogOpen} onOpenChange={(open) => {
-        if (!open) {
-          // Closing dialog does NOT cancel the generation — it keeps running in background
-          _closeSse()
-        }
+        // SSE stays alive even when dialog closes — it continues updating the list
+        if (!open) setCurrentSubStatus(null)
         setInsightDialogOpen(open)
       }}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
@@ -1554,7 +1961,7 @@ export default function AIInsightsPage() {
               <GenerationProgress currentSubStatus={currentSubStatus} />
             ) : (
               <div ref={streamingRef}>
-                <MarkdownContent content={streamingContent} />
+                <MarkdownContent content={streamingContent} collectChartSvgs={collectChartSvgs} />
               </div>
             )}
           </div>
@@ -1665,7 +2072,7 @@ export default function AIInsightsPage() {
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">预览</p>
                   </div>
                   <div className="flex-1 overflow-y-auto px-4 py-4">
-                    <MarkdownContent content={editingContent} />
+                    <MarkdownContent content={editingContent} collectChartSvgs={collectChartSvgs} />
                   </div>
                 </div>
                 <div className="flex flex-col gap-3 min-h-0">
@@ -1688,12 +2095,12 @@ export default function AIInsightsPage() {
                 <GenerationProgress currentSubStatus={viewLiveSubStatus} />
                 {viewLiveContent && (
                   <div className="border-t border-border/40 pt-6">
-                    <MarkdownContent content={viewLiveContent} />
+                    <MarkdownContent content={viewLiveContent} collectChartSvgs={collectChartSvgs} />
                   </div>
                 )}
               </div>
             ) : viewingInsight?.content ? (
-              <MarkdownContent content={viewingInsight.content} />
+              <MarkdownContent content={viewingInsight.content} collectChartSvgs={collectChartSvgs} />
             ) : viewingInsight?.error_message ? (
               <div className="rounded-lg border border-red-500/20 bg-red-500/5 px-4 py-3 text-sm text-red-600">
                 生成失败：{viewingInsight.error_message}

@@ -104,6 +104,31 @@ PostgreSQL only — no SQLite fallback. All models are in `backend/app/models/`.
 - `backend/REDIS_PLAN.md` — Redis integration plan (Celery/Redis are optional)
 - `backend/docs/report-processing-sync-spec.md` — report processing sync specification
 
+## Design Context
+
+### Users
+Operations teams managing cross-border e-commerce on Amazon. They live in the dashboard daily — monitoring KPIs, uploading reports, running AI-generated analysis. They are power users who need efficiency, clarity, and trust in the data. They are not casual consumers; the interface should respect their expertise and time.
+
+### Brand Personality
+**Professional, data-driven, calm confidence.** Like Linear or Stripe — tools that feel precise and in-control. Not playful, not corporate-stiff. The brand name "BelieveBoy" suggests human warmth beneath the professionalism.
+
+Three-word personality: **Precise · Clear · Trusted**
+
+### Aesthetic Direction
+B2B SaaS dashboard with a light-mode-first design. Inspired by Linear's information density and clarity, Vercel's clean white surfaces, and Stripe's confident use of color for data semantics. Anti-references: busy enterprise dashboards with cluttered cards, or generic dark-only tech UIs.
+
+- Light mode primary, dark mode fully supported
+- Frosted glass surfaces (`.dashboard-surface`) for visual layering without clutter
+- Data colors: green (positive), amber (warning), red (negative), neutral gray — semantic, not decorative
+- Generous but purposeful whitespace; information density is okay on data tables
+
+### Design Principles
+1. **Data clarity first** — Every visual decision serves the numbers. Charts, colors, and spacing must make data easier to read, not prettier to look at.
+2. **Calm surfaces, confident accents** — Light neutral backgrounds with a single strong blue primary. Color appears mostly on data (charts, status badges) and interactive elements.
+3. **Motion with purpose** — Animations communicate state (streaming, loading, transitions). Never decorative. Respect `prefers-reduced-motion`.
+4. **Consistent surface language** — Use `.dashboard-surface`, `.dashboard-panel`, `.dashboard-toolbar` consistently. Avoid ad-hoc card styling.
+5. **Typography creates hierarchy** — Space Grotesk for display/numbers, Manrope for UI text. Large display numbers for KPIs, small kicker labels for metadata.
+
 ## Key Conventions
 - Backend uses Pydantic v2 (`pydantic-settings` for env config)
 - Frontend uses React 18 with TanStack Table v8 and Recharts

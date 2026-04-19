@@ -32,6 +32,7 @@ import {
   DataCardContent,
   DataTableCard,
   DataTableCardHeader,
+  DataTableCardMetrics,
   DataTableCardBody,
 } from '@/components/ui/data-card'
 import {
@@ -745,12 +746,12 @@ function SearchableSkuField({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <Button
-        type='button'
-        variant='outline'
-        className='h-10 w-[200px] justify-between px-3 font-normal shadow-sm'
-        onClick={() => setOpen(true)}
-      >
+        <Button
+          type='button'
+          variant='outline'
+          className='h-9 w-[200px] justify-between px-3 font-normal shadow-sm'
+          onClick={() => setOpen(true)}
+        >
         <span
           className={cn(
             'truncate text-left',
@@ -1352,14 +1353,15 @@ export default function DailyAnalysisPage() {
           titleClassName='text-2xl tracking-tight'
           badge={<p className='dashboard-kicker'>Analysis Console</p>}
         />
-        <div className='dashboard-toolbar flex-nowrap items-end gap-3 border-0 shadow-none'>
-          <div className='flex flex-wrap items-end gap-3'>
-            <div className='space-y-2'>
+        <div className='space-y-0'>
+          {/* 筛选区 */}
+          <div className='dashboard-toolbar flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-4 md:px-6 md:py-5'>
+            <div className='flex flex-col gap-1.5'>
               <div className='text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground'>
                 项目
               </div>
               <Select value={projectId} onValueChange={setProjectId}>
-                <SelectTrigger className='h-10 w-[160px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none [&>span]:truncate dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]'>
+                <SelectTrigger className='h-9 w-[160px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none [&>span]:truncate dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]'>
                   <SelectValue placeholder='选择项目' />
                 </SelectTrigger>
                 <SelectContent>
@@ -1372,7 +1374,7 @@ export default function DailyAnalysisPage() {
               </Select>
             </div>
 
-            <div className='space-y-2'>
+            <div className='flex flex-col gap-1.5'>
               <div className='text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground'>
                 国家站点
               </div>
@@ -1380,7 +1382,7 @@ export default function DailyAnalysisPage() {
                 value={country}
                 onValueChange={(value) => setCountry(value as CountryOption)}
               >
-                <SelectTrigger className='h-10 w-[140px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none [&>span]:truncate dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]'>
+                <SelectTrigger className='h-9 w-[140px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none [&>span]:truncate dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]'>
                   <SelectValue placeholder='国家站点' />
                 </SelectTrigger>
                 <SelectContent>
@@ -1393,7 +1395,7 @@ export default function DailyAnalysisPage() {
               </Select>
             </div>
 
-            <div className='space-y-2'>
+            <div className='flex flex-col gap-1.5'>
               <div className='text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground'>
                 SKU
               </div>
@@ -1408,197 +1410,160 @@ export default function DailyAnalysisPage() {
               />
             </div>
 
-            <div className='space-y-2'>
+            <div className='flex flex-col gap-1.5'>
               <div className='text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground'>
                 日期范围
               </div>
-              <div className='flex flex-wrap items-center gap-2'>
+              <div className='flex items-center gap-1.5'>
                 <DateRangePicker
                   value={dateRange}
                   onChange={setDateRange}
-                  className='h-10 w-[240px]'
+                  className='h-9 w-[240px]'
                   timezone={COUNTRY_TIMEZONE_MAP[country]}
                   onApply={() => void loadData()}
                 />
-                <div className='flex items-center gap-1'>
-                  <Button
-                    type='button'
-                    variant='secondary'
-                    className='h-10 px-3'
-                    onClick={() => {
-                      if (!dateRange?.from) return
-                      const newFrom = new Date(dateRange.from)
-                      newFrom.setMonth(newFrom.getMonth() - 1)
-                      const newTo = new Date(newFrom)
-                      newTo.setMonth(newTo.getMonth() + 1)
-                      newTo.setDate(newTo.getDate() - 1)
-                      void handleQuickRange({ from: newFrom, to: newTo })
-                    }}
-                    title='前一个月'
-                  >
-                    <ChevronLeft className='h-4 w-4' />
-                    <span className='sr-only sm:not-sr-only sm:ml-1'>上月</span>
-                  </Button>
-                  <Button
-                    type='button'
-                    variant='secondary'
-                    className='h-10 px-3'
-                    onClick={() => {
-                      const nextRange = getNextMonthRange(dateRange)
-                      if (!nextRange) return
-                      void handleQuickRange(nextRange)
-                    }}
-                    title='后一个月'
-                  >
-                    <span className='sr-only sm:not-sr-only sm:mr-1'>下月</span>
-                    <ChevronRight className='h-4 w-4' />
-                  </Button>
-                </div>
+                <Button
+                  type='button'
+                  variant='secondary'
+                  className='h-9 w-9 p-0'
+                  onClick={() => {
+                    if (!dateRange?.from) return
+                    const newFrom = new Date(dateRange.from)
+                    newFrom.setMonth(newFrom.getMonth() - 1)
+                    const newTo = new Date(newFrom)
+                    newTo.setMonth(newTo.getMonth() + 1)
+                    newTo.setDate(newTo.getDate() - 1)
+                    void handleQuickRange({ from: newFrom, to: newTo })
+                  }}
+                  title='前一个月'
+                >
+                  <ChevronLeft className='h-4 w-4' />
+                </Button>
+                <Button
+                  type='button'
+                  variant='secondary'
+                  className='h-9 w-9 p-0'
+                  onClick={() => {
+                    const nextRange = getNextMonthRange(dateRange)
+                    if (!nextRange) return
+                    void handleQuickRange(nextRange)
+                  }}
+                  title='后一个月'
+                >
+                  <ChevronRight className='h-4 w-4' />
+                </Button>
               </div>
             </div>
 
             <div className='ml-auto flex items-center gap-2'>
-              <div className='flex items-center gap-1'>
-                <Button
-                  type='button'
-                  variant='secondary'
-                  className='h-10 px-3'
-                  onClick={() =>
-                    void handleQuickRange(getYesterdayRange(country))
-                  }
-                >
-                  昨天
-                </Button>
-                <Button
-                  type='button'
-                  variant='secondary'
-                  className='h-10 px-3'
-                  onClick={() =>
-                    void handleQuickRange(lastSevenDaysRange(country))
-                  }
-                >
-                  近7天
-                </Button>
-              </div>
+              <Button
+                type='button'
+                variant='secondary'
+                className='h-9 px-3'
+                onClick={() =>
+                  void handleQuickRange(getYesterdayRange(country))
+                }
+              >
+                昨天
+              </Button>
+              <Button
+                type='button'
+                variant='secondary'
+                className='h-9 px-3'
+                onClick={() =>
+                  void handleQuickRange(lastSevenDaysRange(country))
+                }
+              >
+                近7天
+              </Button>
               <Button
                 type='button'
                 onClick={() => void loadData()}
                 disabled={loading || projectsLoading}
-                className='h-10 px-5'
+                className='h-9 px-4'
               >
                 {loading ? (
                   <Loader2 className='h-4 w-4 animate-spin' />
                 ) : (
                   <RefreshCcw className='h-4 w-4' />
                 )}
-                刷新视图
-              </Button>
-            </div>
+              刷新视图
+            </Button>
           </div>
+        </div>
+
+        {goalProgress && goalProgress.target_amount > 0 && (
+            <div className='dashboard-toolbar flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border/50 px-4 py-4 md:px-6'>
+              <Target className='h-4 w-4 shrink-0 text-blue-500' />
+              <div className='text-xs font-medium text-foreground shrink-0'>
+                {new Date().getMonth() + 1}月目标
+                <span className='ml-1.5 text-muted-foreground'>
+                  {goalProgress.today_day}/{goalProgress.days_in_month}日
+                </span>
+              </div>
+              <div className='flex items-center gap-1.5 shrink-0'>
+                <div className='w-24 rounded-full bg-muted/70 h-1'>
+                  <div
+                    className='h-full rounded-full transition-all'
+                    style={{
+                      width: `${Math.min(goalProgress.completion_vs_monthly * 100, 100)}%`,
+                      background:
+                        goalProgress.completion_vs_monthly >= 1
+                          ? '#22c55e'
+                          : '#3b82f6',
+                    }}
+                  />
+                </div>
+                <span className='text-xs font-semibold tabular-nums'>
+                  {(goalProgress.completion_vs_monthly * 100).toFixed(1)}%
+                </span>
+              </div>
+              <div className='flex items-center gap-1.5 shrink-0'>
+                <div className='w-24 rounded-full bg-muted/70 h-1'>
+                  <div
+                    className='h-full rounded-full transition-all'
+                    style={{
+                      width: `${Math.min(goalProgress.completion_vs_daily * 100, 100)}%`,
+                      background:
+                        goalProgress.completion_vs_daily >= 1
+                          ? '#22c55e'
+                          : '#8b5cf6',
+                    }}
+                  />
+                </div>
+                <span className='text-xs font-semibold tabular-nums'>
+                  {(goalProgress.completion_vs_daily * 100).toFixed(1)}%
+                </span>
+              </div>
+              <span className='text-xs text-muted-foreground truncate'>
+                {goalProgress.currency}{goalProgress.achieved_amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / {goalProgress.currency}{goalProgress.target_amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+              <Link
+                href={`/dashboard/data-analysis/project-goals?project=${projectId}&country=${country}`}
+                className='shrink-0 text-xs text-blue-500 hover:text-blue-600 hover:underline'
+              >
+                目标详情 →
+              </Link>
+            </div>
+          )}
         </div>
       </DataCard>
 
-      {/* Goal Progress Banner */}
-      {goalProgress && goalProgress.target_amount > 0 && (
-        <DataCard>
-          <DataCardContent className='py-3'>
-            <div className='flex flex-wrap items-center justify-between gap-4'>
-              <div className='flex items-center gap-3'>
-                <Target className='h-5 w-5 text-blue-500' />
-                <div>
-                  <div className='text-sm font-medium'>
-                    {new Date().getMonth() + 1}月目标进度
-                    <span className='ml-2 text-xs text-muted-foreground'>
-                      · {new Date().getFullYear()}年 · {goalProgress.today_day}/
-                      {goalProgress.days_in_month}日
-                    </span>
-                  </div>
-                  <div className='mt-1 flex items-center gap-6'>
-                    <div className='space-y-1'>
-                      <div className='text-xs text-muted-foreground'>
-                        月度完成率
-                      </div>
-                      <div className='flex items-center gap-2'>
-                        <div className='w-32 rounded-full bg-muted/70 h-1.5'>
-                          <div
-                            className='h-full rounded-full transition-all'
-                            style={{
-                              width: `${Math.min(goalProgress.completion_vs_monthly * 100, 100)}%`,
-                              background:
-                                goalProgress.completion_vs_monthly >= 1
-                                  ? '#22c55e'
-                                  : '#3b82f6',
-                            }}
-                          />
-                        </div>
-                        <span className='text-sm font-semibold'>
-                          {(goalProgress.completion_vs_monthly * 100).toFixed(
-                            1,
-                          )}
-                          %
-                        </span>
-                      </div>
-                    </div>
-                    <div className='space-y-1'>
-                      <div className='text-xs text-muted-foreground'>
-                        日均完成率
-                      </div>
-                      <div className='flex items-center gap-2'>
-                        <div className='w-32 rounded-full bg-muted/70 h-1.5'>
-                          <div
-                            className='h-full rounded-full transition-all'
-                            style={{
-                              width: `${Math.min(goalProgress.completion_vs_daily * 100, 100)}%`,
-                              background:
-                                goalProgress.completion_vs_daily >= 1
-                                  ? '#22c55e'
-                                  : '#8b5cf6',
-                            }}
-                          />
-                        </div>
-                        <span className='text-sm font-semibold'>
-                          {(goalProgress.completion_vs_daily * 100).toFixed(1)}%
-                        </span>
-                      </div>
-                    </div>
-                    <div className='text-xs text-muted-foreground'>
-                      {goalProgress.currency}{' '}
-                      {goalProgress.achieved_amount.toLocaleString('zh-CN', {
-                        minimumFractionDigits: 2,
-                      })}{' '}
-                      / {goalProgress.currency}{' '}
-                      {goalProgress.target_amount.toLocaleString('zh-CN', {
-                        minimumFractionDigits: 2,
-                      })}
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <Link
-                href={`/dashboard/data-analysis/project-goals?project=${projectId}&country=${country}`}
-                className='text-xs text-blue-500 hover:text-blue-600 hover:underline'
-              >
-                查看全部目标 →
-              </Link>
-            </div>
-          </DataCardContent>
-        </DataCard>
-      )}
-
       <DataCard>
         <DataCardContent className='space-y-4'>
-          <div className='flex flex-wrap items-center gap-2'>
-            <Badge
-              variant='outline'
-              className='border-border/60 bg-background/85 px-3 py-1 text-foreground'
-            >
-              对比区间：{formatRangeLabel(comparisonRange)}
-            </Badge>
-          </div>
+          {comparisonDataRows.length > 0 && (
+            <div className='flex flex-wrap items-center gap-2'>
+              <Badge
+                variant='outline'
+                className='border-border/60 bg-background/85 px-3 py-1 text-foreground'
+              >
+                对比区间：{formatRangeLabel(comparisonRange)}
+              </Badge>
+            </div>
+          )}
           {summaryRows.length ? (
             <>
-              <div className='px-2 md:px-4'>
-                <div className='grid gap-2.5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7'>
+              <DataTableCardMetrics className='grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7'>
                   {metricCards.map((metric) => {
                     const isActive = metric.key === activeChartMetric
                     const showIncrease =
@@ -1704,9 +1669,8 @@ export default function DailyAnalysisPage() {
                         </div>
                       </button>
                     )
-                  })}
-                </div>
-              </div>
+              })}
+              </DataTableCardMetrics>
 
               <div className='rounded-lg bg-[hsl(var(--surface-soft))]/82 p-4 md:p-5'>
                 <div className='mb-4 flex flex-wrap items-center gap-4 text-xs text-muted-foreground'>

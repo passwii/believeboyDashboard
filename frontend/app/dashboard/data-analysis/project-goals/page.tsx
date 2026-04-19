@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Loader2, Plus, Pencil, Trash2, Target, TrendingUp, Calendar, DollarSign, AlertCircle, BarChart3, Layers } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
@@ -147,10 +148,11 @@ function ProgressBar({ value, className, isPastIncomplete }: { value: number; cl
 export default function ProjectGoalsPage() {
   const { data: session } = useSession()
   const { notify } = useNotifications()
+  const searchParams = useSearchParams()
 
   const [projects, setProjects] = useState<ProjectOption[]>([])
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('')
-  const [selectedCountry, setSelectedCountry] = useState<string>('US')
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(searchParams.get('project') ?? '')
+  const [selectedCountry, setSelectedCountry] = useState<string>(searchParams.get('country') ?? 'US')
   const [selectedYear, setSelectedYear] = useState<string>(
     String(getTodayInTimezone(COUNTRY_TIMEZONE_MAP.US).getFullYear()),
   )

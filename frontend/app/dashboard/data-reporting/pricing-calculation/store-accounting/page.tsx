@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import {
   Calculator,
   Download,
-  Globe,
   Loader2,
   Search,
 } from 'lucide-react'
@@ -339,17 +338,19 @@ export default function StoreAccountingPage() {
 
           cell.alignment = { horizontal: 'center', vertical: 'middle' }
 
-          if (Number.isFinite(num)) {
+          // Profit / profit rate columns: apply percentage format to rate, color to both
+          const isProfitRateCol = (isUS && colNum === 25) || (!isUS && colNum === 23)
+          const isProfitCol = (isUS && (colNum === 24 || colNum === 25)) ||
+                              (!isUS && (colNum === 22 || colNum === 23))
+          if (isProfitRateCol) {
+            cell.numFmt = '0.00%'
+          } else if (Number.isFinite(num)) {
             if (Number.isInteger(num)) {
               cell.numFmt = '#,##0'
             } else {
-              cell.numFmt = '#,##0.####'
+              cell.numFmt = '#,##0.00'
             }
           }
-
-          // Profit color: US col 25/26, EU col 23/24
-          const isProfitCol = (isUS && (colNum === 25 || colNum === 26)) ||
-                              (!isUS && (colNum === 23 || colNum === 24))
           if (isProfitCol) {
             if (num >= 0) {
               cell.font = { name: 'Microsoft YaHei', size: 9, color: { argb: 'FF16A34A' } }
@@ -412,9 +413,9 @@ export default function StoreAccountingPage() {
             <div className='absolute -right-16 -top-16 h-56 w-56 rounded-full bg-[hsl(var(--primary)/0.06)] blur-3xl' />
           </div>
 
-          <div className='relative z-10 flex flex-col gap-4 px-6 py-4'>
-            {/* Top: Title */}
-            <div className='flex min-w-0 items-center gap-3'>
+          <div className='relative z-10 flex flex-col gap-0 px-6 py-4'>
+            {/* Top Row: Icon + Title */}
+            <div className='flex items-center gap-3'>
               <div className='flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-[hsl(var(--primary)/0.1)]'>
                 <Calculator className='h-5 w-5 text-[hsl(var(--primary))]' strokeWidth={2} />
               </div>
@@ -425,49 +426,52 @@ export default function StoreAccountingPage() {
               </div>
             </div>
 
-            {/* Bottom: Filters + Actions */}
-            <div className='flex flex-wrap items-end gap-3'>
-              {/* Left: Project + SKU Search + Export */}
-              <div className='flex flex-wrap items-end gap-3'>
-                {/* Project selector */}
-                <div className='flex flex-col gap-1'>
-                  <Label className='dashboard-kicker h-4 leading-4'>项目</Label>
-                  {projectsLoading ? (
-                    <Skeleton className='h-8 w-[180px]' />
-                  ) : (
-                    <Select value={selectedProjectName} onValueChange={setSelectedProjectName}>
-                      <SelectTrigger className='h-8 w-[180px] text-xs'>
-                        <SelectValue placeholder='选择项目' />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {projects.map((p) => (
-                          <SelectItem key={p.id} value={p.name} className='text-xs'>{p.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
+            {/* Divider */}
+            <div className='mt-4 mb-4 h-px bg-border/60' />
 
-                {/* SKU search */}
-                <div className='flex flex-col gap-1'>
-                  <Label className='dashboard-kicker h-4 leading-4'>搜索 SKU</Label>
-                  <div className='relative'>
-                    <Search className='pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground' />
-                    <Input
-                      value={skuKeyword}
-                      onChange={(e) => setSkuKeyword(e.target.value)}
-                      placeholder='SKU / ASIN'
-                      className='h-8 w-[180px] pl-8 text-xs'
-                    />
-                  </div>
-                </div>
+            {/* Bottom Row: Three Modules + Country Switch */}
+            <div className='flex flex-wrap items-end gap-6'>
+              {/* Module 1: 项目 */}
+              <div className='flex w-full max-w-44 flex-shrink-0 flex-col gap-2'>
+                <span className='text-xs font-semibold text-muted-foreground uppercase tracking-wide'>项目</span>
+                {projectsLoading ? (
+                  <Skeleton className='h-9 w-full' />
+                ) : (
+                  <Select value={selectedProjectName} onValueChange={setSelectedProjectName}>
+                    <SelectTrigger className='h-9 text-xs'>
+                      <SelectValue placeholder='选择项目' />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {projects.map((p) => (
+                        <SelectItem key={p.id} value={p.name} className='text-xs'>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
 
-                {/* Export button */}
+              {/* Module 2: 搜索 SKU */}
+              <div className='flex w-full max-w-44 flex-shrink-0 flex-col gap-2'>
+                <span className='text-xs font-semibold text-muted-foreground uppercase tracking-wide'>搜索 SKU</span>
+                <div className='relative'>
+                  <Search className='pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground' />
+                  <Input
+                    value={skuKeyword}
+                    onChange={(e) => setSkuKeyword(e.target.value)}
+                    placeholder='SKU / ASIN'
+                    className='h-9 pl-8 text-xs'
+                  />
+                </div>
+              </div>
+
+              {/* Module 3: 导出 Excel */}
+              <div className='flex w-full max-w-44 flex-shrink-0 flex-col gap-2'>
+                <span className='text-xs font-semibold text-muted-foreground uppercase tracking-wide'>导出 Excel</span>
                 <Button
                   variant='outline'
                   onClick={handleExport}
                   disabled={exporting || !hasCalculatedRows}
-                  className='h-8 w-[100px] text-xs'
+                  className='h-9 text-xs'
                 >
                   {exporting ? (
                     <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
@@ -478,23 +482,20 @@ export default function StoreAccountingPage() {
                 </Button>
               </div>
 
-              {/* Right: Country Switch */}
-              <div className='ml-auto flex items-center gap-3'>
-                <Globe className='h-3.5 w-3.5 flex-shrink-0 text-muted-foreground' />
+              {/* Module 4: 站点 */}
+              <div className='flex w-full max-w-44 flex-shrink-0 flex-col gap-2'>
+                <span className='text-xs font-semibold text-muted-foreground uppercase tracking-wide'>站点</span>
                 <div
-                  className='inline-flex rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-0.5'
+                  className='flex h-9 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-0.5'
                   role='group'
                   aria-label='选择站点'
                 >
                   {COUNTRY_OPTIONS.map((opt) => (
                     <button
                       key={opt.value}
-                      onClick={() => {
-                        setSelectedCountry(opt.value)
-                        setSelectedProjectName('')
-                      }}
+                      onClick={() => setSelectedCountry(opt.value)}
                       className={cn(
-                        'rounded-md px-3 py-1.5 text-xs font-semibold transition-all duration-[160ms] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]/40',
+                        'flex-1 h-full rounded-md px-2 py-1 text-center text-xs font-semibold transition-all duration-[160ms] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]/40',
                         selectedCountry === opt.value
                           ? opt.region === 'US'
                             ? 'bg-[hsl(var(--primary))] text-primary-foreground shadow-sm'
