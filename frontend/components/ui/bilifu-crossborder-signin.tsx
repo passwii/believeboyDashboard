@@ -297,14 +297,14 @@ const SignInCard = () => {
   };
 
   return (
-    <div className="flex h-full w-full items-center justify-center">
+    <div className="flex h-full w-full items-center justify-center px-2 sm:px-0">
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.5 }}
-        className="flex w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-xl"
+        className="flex w-full max-w-[min(90vw,56rem)] overflow-hidden rounded-2xl bg-white shadow-xl"
       >
-        <div className="relative hidden h-[600px] w-1/2 overflow-hidden border-r border-gray-100 md:block">
+        <div className="relative hidden h-[clamp(400px,70vh,600px)] w-1/2 overflow-hidden border-r border-gray-100 lg:block">
           <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-indigo-100">
             <DotMap />
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-8">
@@ -338,7 +338,7 @@ const SignInCard = () => {
           </div>
         </div>
 
-        <div className="flex w-full flex-col justify-center bg-white p-8 md:w-1/2 md:p-10">
+        <div className="flex w-full flex-col justify-center bg-white p-6 sm:p-8 lg:p-10 xl:w-1/2">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
             <h1 className="mb-1 text-2xl font-bold text-gray-800 md:text-3xl">欢迎登录</h1>
             <p className="mb-8 text-gray-500">为跨境销售与全球推广团队提供高效、可执行的品牌增长支持</p>
@@ -442,7 +442,7 @@ const SignInCard = () => {
 const Index = () => {
   return (
     <div
-      className="flex min-h-screen w-full items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4"
+      className="flex min-h-screen w-full items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4 sm:px-6 md:px-8"
       style={{
         backgroundImage:
           "linear-gradient(to bottom right, rgba(239,246,255,0.95), rgba(224,231,255,0.95)), url('https://images.unsplash.com/photo-1488085061387-422e29b40080?auto=format&fit=crop&w=1800&q=80')",

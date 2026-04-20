@@ -76,6 +76,21 @@ import { useNotifications } from '@/components/notifications'
 import { cn } from '@/lib/utils'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
 
+type ExcelCell = import('exceljs').Cell
+
+function applyBorder(cell: ExcelCell, color = 'FFE2E8F0') {
+  cell.border = {
+    top: { style: 'thin', color: { argb: color } },
+    left: { style: 'thin', color: { argb: color } },
+    bottom: { style: 'thin', color: { argb: color } },
+    right: { style: 'thin', color: { argb: color } },
+  }
+}
+
+function applyHeaderBorder(cell: ExcelCell) {
+  applyBorder(cell, 'FFCBD5E1')
+}
+
 type CountryOption = 'US' | 'DE' | 'UK'
 type ViewTab = 'summary' | 'details'
 const VIEW_TAB_ORDER: ViewTab[] = ['summary', 'details']
@@ -397,7 +412,7 @@ async function exportDailyAnalysisToExcel(
 
   // Sheet 1: 汇总
   const summarySheet = workbook.addWorksheet('日报汇总', {
-    views: [{ state: 'frozen', ySplit: 3 }],
+    views: [{ state: 'frozen', ySplit: 3, showGridLines: false }],
   })
 
   const summaryCols = [
@@ -470,12 +485,7 @@ async function exportDailyAnalysisToExcel(
       pattern: 'solid',
       fgColor: { argb: 'FFE2E8F0' },
     }
-    cell.border = {
-      top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-      left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-      bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-      right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-    }
+    applyHeaderBorder(cell)
   })
 
   summaryRows.forEach((row, rowIndex) => {
@@ -499,18 +509,13 @@ async function exportDailyAnalysisToExcel(
         vertical: 'middle',
         horizontal: colNumber === 1 ? 'center' : 'right',
       }
-      cell.border = {
-        top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-        left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-        bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-        right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-      }
+      applyBorder(cell)
     })
   })
 
   // Sheet 2: SKU明细
   const detailSheet = workbook.addWorksheet('SKU明细', {
-    views: [{ state: 'frozen', ySplit: 3 }],
+    views: [{ state: 'frozen', ySplit: 3, showGridLines: false }],
   })
 
   const detailCols = [
@@ -585,12 +590,7 @@ async function exportDailyAnalysisToExcel(
       pattern: 'solid',
       fgColor: { argb: 'FFE2E8F0' },
     }
-    cell.border = {
-      top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-      left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-      bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-      right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-    }
+    applyHeaderBorder(cell)
   })
 
   detailRows.forEach((row, rowIndex) => {
@@ -616,12 +616,7 @@ async function exportDailyAnalysisToExcel(
         vertical: 'middle',
         horizontal: colNumber <= 3 ? 'left' : 'right',
       }
-      cell.border = {
-        top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-        left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-        bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-        right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-      }
+      applyBorder(cell)
     })
   })
 

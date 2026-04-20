@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any, Callable
 
@@ -84,6 +85,7 @@ def _get_project_or_404(db: Session, project_id: int) -> Project | None:
 def _report(progress_cb: ProgressCallback | None, step: str) -> None:
     if progress_cb:
         progress_cb(step)
+    time.sleep(0.5)
 
 
 def aggregate_project_data(
@@ -373,28 +375,21 @@ def _aggregate_inventory_summary(
     db = session_factory()
     try:
         _report(progress_cb, step)
-        end_dt = datetime.combine(as_of_date, datetime.max.time(), tzinfo=UTC)
 
+        # Use report_date (the business date) for ordering and filtering.
+        # Old rows with report_date=NULL retain the upload-time snapshot_at value,
+        # which would sort above the correct business-date rows — exclude them.
         stmt = (
             select(AnalysisSourceFile)
             .where(
                 AnalysisSourceFile.project_id == project_id,
                 AnalysisSourceFile.report_type == "inventory_report",
                 AnalysisSourceFile.country == country,
-                AnalysisSourceFile.is_current.is_(True),
-                (
-                    (AnalysisSourceFile.report_date.is_not(None))
-                    & (AnalysisSourceFile.report_date <= as_of_date)
-                )
-                | (
-                    AnalysisSourceFile.report_date.is_(None)
-                    & AnalysisSourceFile.snapshot_at.is_not(None)
-                    & (AnalysisSourceFile.snapshot_at <= end_dt)
-                ),
+                AnalysisSourceFile.report_date.isnot(None),
+                AnalysisSourceFile.report_date <= as_of_date,
             )
             .order_by(
                 AnalysisSourceFile.report_date.desc(),
-                AnalysisSourceFile.snapshot_at.desc(),
                 AnalysisSourceFile.version.desc(),
                 AnalysisSourceFile.id.desc(),
             )
@@ -452,10 +447,10 @@ def _aggregate_inventory_summary(
             "out_of_stock_count": int(agg.out_of_stock_count or 0),
             "aging_summary": aging_total,
             "snapshot_date": (
-                source.report_date.isoformat()
-                if source.report_date
-                else source.snapshot_at.isoformat()
+                source.snapshot_at.isoformat()
                 if source.snapshot_at
+                else source.report_date.isoformat()
+                if source.report_date
                 else None
             ),
         }

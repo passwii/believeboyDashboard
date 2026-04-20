@@ -95,23 +95,26 @@ def list_inventory_snapshot_options(
 ) -> list[InventorySnapshotOption]:
     from sqlalchemy import select
 
+    from sqlalchemy import func
+
     rows = db.execute(
-        select(AnalysisSourceFile.snapshot_at, AnalysisSourceFile.is_current)
+        select(
+            func.date(AnalysisSourceFile.snapshot_at).label("snapshot_date"),
+            func.max(AnalysisSourceFile.snapshot_at).label("latest_snapshot_at"),
+        )
         .where(
             AnalysisSourceFile.project_id == project_id,
             AnalysisSourceFile.report_type == "inventory_report",
             AnalysisSourceFile.country == country,
             AnalysisSourceFile.snapshot_at.isnot(None),
         )
-        .order_by(AnalysisSourceFile.snapshot_at.desc())
+        .group_by(func.date(AnalysisSourceFile.snapshot_at))
+        .order_by(func.date(AnalysisSourceFile.snapshot_at).desc())
     ).all()
 
     return [
-        InventorySnapshotOption(
-            snapshot_at=row.snapshot_at, is_current=bool(row.is_current)
-        )
+        InventorySnapshotOption(snapshot_at=row.latest_snapshot_at, is_current=False)
         for row in rows
-        if row.snapshot_at is not None
     ]
 
 

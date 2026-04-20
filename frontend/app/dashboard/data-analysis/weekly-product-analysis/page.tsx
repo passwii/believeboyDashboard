@@ -1617,7 +1617,9 @@ export default function WeeklyProductAnalysisPage() {
       workbook.creator = 'Codex'
       workbook.created = new Date()
 
-      const summarySheet = workbook.addWorksheet('汇总')
+      const summarySheet = workbook.addWorksheet('汇总', {
+        views: [{ state: 'frozen', ySplit: 4, showGridLines: false }],
+      })
       fillSummaryWorksheet(summarySheet, summaryRows, summaryTotals, {
         projectName,
         country,
@@ -1625,7 +1627,9 @@ export default function WeeklyProductAnalysisPage() {
         endDate,
       })
 
-      const detailSheet = workbook.addWorksheet('SKU明细')
+      const detailSheet = workbook.addWorksheet('SKU明细', {
+        views: [{ state: 'frozen', ySplit: 4, showGridLines: false }],
+      })
       fillDetailWorksheet(
         detailSheet,
         exportDetailColumns,

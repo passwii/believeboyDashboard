@@ -23,6 +23,21 @@ import {
   type StoreAccountingPayload,
 } from '@/lib/pricing-calculation-api'
 
+type ExcelCell = import('exceljs').Cell
+
+function applyBorder(cell: ExcelCell, color = 'FFE2E8F0') {
+  cell.border = {
+    top: { style: 'thin', color: { argb: color } },
+    left: { style: 'thin', color: { argb: color } },
+    bottom: { style: 'thin', color: { argb: color } },
+    right: { style: 'thin', color: { argb: color } },
+  }
+}
+
+function applyHeaderBorder(cell: ExcelCell) {
+  applyBorder(cell, 'FFCBD5E1')
+}
+
 const API_BASE = '/api/backend'
 
 type StoreSkuDraft = {
@@ -452,6 +467,7 @@ export function StoreAccountingUsSection({
       const ExcelJS = await import('exceljs')
       const workbook = new ExcelJS.Workbook()
       const worksheet = workbook.addWorksheet('美国店铺SKU核算')
+      worksheet.views = [{ showGridLines: false }]
 
       // ── Title row (row 1, spans all 27 columns) ──────────────────────────────
       worksheet.mergeCells(1, 1, 1, 27)
@@ -481,6 +497,7 @@ export function StoreAccountingUsSection({
         cell.font = { name: 'Microsoft YaHei', size: 10, bold: true, color: { argb: 'FFFFFFFF' } }
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: g.dark } }
         cell.alignment = { horizontal: 'center', vertical: 'middle' }
+        applyHeaderBorder(cell)
         // Merge across group columns
         if (g.end > g.start) {
           worksheet.mergeCells(2, g.start, 2, g.end)
@@ -508,6 +525,7 @@ export function StoreAccountingUsSection({
         if (group) {
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: group.sub } }
         }
+        applyHeaderBorder(cell)
       })
 
       // ── Column-level alignment ───────────────────────────────────────────────
@@ -583,6 +601,7 @@ export function StoreAccountingUsSection({
           // Background
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isOdd ? oddBg : evenBg } }
           cell.font = { name: 'Microsoft YaHei', size: 9 }
+          applyBorder(cell)
 
           cell.alignment = { horizontal: 'center', vertical: 'middle' }
 

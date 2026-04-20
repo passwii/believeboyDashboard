@@ -901,7 +901,9 @@ def _persist_one_source_file(
         report_date=report_date,
         period_start_date=period_start_date,
         period_end_date=period_end_date,
-        snapshot_at=now if report_type == 'inventory_report' else None,
+        snapshot_at=datetime.combine(report_date, datetime.min.time())
+        if report_type == 'inventory_report' and report_date
+        else None,
         version=version,
         is_current=False,
         superseded_at=None,

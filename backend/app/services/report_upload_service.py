@@ -1161,6 +1161,7 @@ def list_report_upload_statuses(
         db, operator=operator, is_admin=is_admin
     )
     project_map = {int(project.id): project.project_name for project in projects}
+    project_sort_orders = {int(project.id): project.sort_order for project in projects}
     normalized_country = _normalize_country(country)
     if not project_map:
         return ReportStatusResponse(country=normalized_country, items=[])
@@ -1304,6 +1305,6 @@ def list_report_upload_statuses(
             project_name=project_map[project_id],
             statuses=status_by_project[project_id],
         )
-        for project_id in sorted(project_ids, key=lambda item: project_map[item])
+        for project_id in sorted(project_ids, key=lambda item: (project_sort_orders.get(item, 0), project_map[item]))
     ]
     return ReportStatusResponse(country=normalized_country, items=items)

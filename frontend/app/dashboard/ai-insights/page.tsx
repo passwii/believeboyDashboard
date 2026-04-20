@@ -102,8 +102,8 @@ type InsightItem = {
 type SseEvent =
   | { type: 'status'; status: string; sub_status?: string | null; insight_id?: number; title?: string; content?: string; error_message?: string | null }
   | { type: 'chunk'; delta: string }
-  | { type: 'done'; insight_id: number; title: string; content?: string }
-  | { type: 'error'; error: string; insight_id?: number | null }
+  | { type: 'done'; insight_id: number; title: string; content?: string; status?: string; error_message?: string | null }
+  | { type: 'error'; error: string; insight_id?: number | null; status?: string; error_message?: string | null }
   | { type: 'ping' }
 
 type AIModelConfig = {
@@ -129,6 +129,7 @@ const INSIGHT_TYPE_OPTIONS = [
 ]
 
 const SUB_STATUS_LABELS: Record<string, string> = {
+  queued: '排队中...',
   data_aggregating: '正在聚合数据...',
   data_aggregating_sales: '抓取销售数据...',
   data_aggregating_ad: '抓取广告数据...',
@@ -177,12 +178,6 @@ function lastSevenDaysRange(country: string) {
   const end = today
   const start = addDays(end, -6)
   return { from: start, to: end }
-}
-
-function getYesterdayRange(country: string) {
-  const today = getTodayInTimezone(COUNTRY_TIMEZONE_MAP[country] ?? 'UTC')
-  const yesterday = addDays(today, -1)
-  return { from: yesterday, to: yesterday }
 }
 
 function GenerationProgress({ currentSubStatus }: { currentSubStatus: string | null }) {
@@ -1129,7 +1124,8 @@ export default function AIInsightsPage() {
   const searchParams = useSearchParams()
 
   const [projects, setProjects] = useState<ProjectOption[]>([])
-  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null)
+  // 'all' means show all managed projects; a number means filter by that project
+  const [selectedProjectId, setSelectedProjectId] = useState<number | 'all'>('all')
   const [selectedCountry, setSelectedCountry] = useState('US')
   const defaultRange = useMemo(() => lastSevenDaysRange(selectedCountry), [selectedCountry])
   const [dateRange, setDateRange] = useState<DateRange | undefined>(defaultRange)
@@ -1167,7 +1163,8 @@ export default function AIInsightsPage() {
   const [viewLiveContent, setViewLiveContent] = useState('')
   const [viewLiveSubStatus, setViewLiveSubStatus] = useState<string | null>(null)
   const [viewLiveRefreshing, setViewLiveRefreshing] = useState(false)
-  const generatingInsightIdRef = useRef<number | null>(null)
+  // Track sub_status per insight — key is insight ID, value is sub_status string
+  const insightSubStatusRef = useRef<Record<number, string | null>>({})
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
@@ -1180,9 +1177,8 @@ export default function AIInsightsPage() {
           const paramProjectId = searchParams.get('project_id')
           if (paramProjectId) {
             setSelectedProjectId(Number(paramProjectId))
-          } else {
-            setSelectedProjectId(rows[0].id)
           }
+          // Default to 'all' — no need to set explicitly since that is already the initial state
         }
       } catch (e) {
         console.error('Failed to load projects', e)
@@ -1202,10 +1198,10 @@ export default function AIInsightsPage() {
     if (!selectedProjectId) return
     setIsLoadingInsights(true)
     try {
-      const params = new URLSearchParams({
-        project_id: String(selectedProjectId),
-        limit: '20',
-      })
+      const params = new URLSearchParams({ limit: '20' })
+      if (selectedProjectId !== 'all') {
+        params.set('project_id', String(selectedProjectId))
+      }
       const res = await fetch(`/api/backend/v1/ai-insights?${params}`)
       if (!res.ok) throw new Error(await parseResponseError(res, '加载失败'))
       const data = await res.json()
@@ -1299,10 +1295,10 @@ export default function AIInsightsPage() {
           _closeViewSse()
           setViewingInsight((prev) => prev ? {
             ...prev,
-            status: 'completed',
+            status: event.status === 'failed' ? 'failed' : 'completed',
             title: event.title || prev.title,
             content: event.content || '',
-            error_message: null,
+            error_message: event.error_message ?? null,
           } : prev)
           void loadInsights()
         } else if (event.type === 'error') {
@@ -1311,7 +1307,7 @@ export default function AIInsightsPage() {
           setViewingInsight((prev) => prev ? {
             ...prev,
             status: 'failed',
-            error_message: event.error ?? '生成任务失败',
+            error_message: event.error_message ?? event.error ?? '生成任务失败',
             content: '',
           } : prev)
           void loadInsights()
@@ -1341,7 +1337,7 @@ export default function AIInsightsPage() {
       if (!res.ok) throw new Error(await parseResponseError(res, '加载失败'))
       const data: InsightItem = await res.json()
       setViewingInsight(data)
-      if (data.status === 'generating') {
+      if (data.status === 'generating' || data.status === 'pending') {
         // Live mode: attach SSE to watch generation progress in the dialog
         _attachViewSse(insightId)
         setIsLoadingDetail(false)
@@ -1489,7 +1485,6 @@ export default function AIInsightsPage() {
       eventSourceRef.current.close()
       eventSourceRef.current = null
     }
-    generatingInsightIdRef.current = null
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current)
       pollingIntervalRef.current = null
@@ -1502,8 +1497,6 @@ export default function AIInsightsPage() {
     const es = eventSourceRef.current
     if (!es) return
 
-    const insightId = generatingInsightIdRef.current ?? 0
-
     const onMessage = (e: MessageEvent) => {
       if (!e.data || e.data.trim() === '') return
       try {
@@ -1512,23 +1505,24 @@ export default function AIInsightsPage() {
         if (event.type === 'ping') return
 
         if (event.type === 'status') {
-          generatingInsightIdRef.current = event.insight_id ?? insightId
+          const sid = event.insight_id ?? currentInsightId.current
+          if (sid) insightSubStatusRef.current[sid] = event.sub_status ?? null
           setCurrentSubStatus(event.sub_status ?? null)
           if (event.status === 'failed') {
             alert(`生成失败: ${event.error_message || '生成任务失败'}`)
             _closeSse()
             setInsightDialogOpen(false)
-            setInsights((prev) => prev.filter((i) => i.id === insightId))
+            setInsights((prev) => prev.filter((i) => i.id !== sid))
             return
           }
           if (event.content) setStreamingContent(event.content)
           // Update the optimistic record's sub_status in the list — works even if dialog is closed
           setInsights((prev) =>
             prev.map((item) =>
-              item.id === insightId
+              item.id === sid
                 ? {
                     ...item,
-                    status: event.status === 'completed' ? 'completed' : 'processing',
+                    status: event.status,
                     sub_status: event.sub_status ?? item.sub_status,
                     title: event.title ? `${event.title}` : item.title,
                   }
@@ -1541,17 +1535,24 @@ export default function AIInsightsPage() {
             streamingRef.current?.scrollIntoView({ behavior: 'smooth' })
           }, 50)
         } else if (event.type === 'done') {
+          const sid = event.insight_id ?? currentInsightId.current
+          if (event.status === 'failed') {
+            alert(`生成失败: ${event.error_message || '生成任务失败'}`)
+            setInsights((prev) => prev.filter((i) => i.id !== sid))
+          } else {
+            setInsightDialogOpen(false)
+          }
           setStreamingContent(event.content || streamingContent)
           setCurrentSubStatus(null)
           _closeSse()
-          setInsightDialogOpen(false)
           void loadInsights()
         } else if (event.type === 'error') {
+          const sid = event.insight_id ?? currentInsightId.current
           alert(`生成失败: ${event.error}`)
           _closeSse()
           setInsightDialogOpen(false)
           setCurrentSubStatus(null)
-          setInsights((prev) => prev.filter((i) => i.id !== insightId))
+          setInsights((prev) => prev.filter((i) => i.id !== sid))
         }
       } catch (parseErr) {
         console.warn('Failed to parse SSE event', parseErr)
@@ -1596,7 +1597,7 @@ export default function AIInsightsPage() {
   }, [insights, loadInsights])
 
   const handleGenerate = async () => {
-    if (!selectedProjectId || !dateRange?.from || !dateRange?.to) return
+    if (!selectedProjectId || selectedProjectId === 'all' || !dateRange?.from || !dateRange?.to) return
 
     setIsGenerating(true)
     setStreamingContent('')
@@ -1626,7 +1627,6 @@ export default function AIInsightsPage() {
       const result = await response.json()
       const insightId: number = result.insight_id
       currentInsightId.current = insightId
-      generatingInsightIdRef.current = insightId
 
       // Optimistically add a "processing" record to the list so it shows immediately without a refresh
       const optimisticRecord: InsightItem = {
@@ -1638,8 +1638,8 @@ export default function AIInsightsPage() {
         insight_type: insightType,
         date_range_start: formatYMD(dateRange.from!),
         date_range_end: formatYMD(dateRange.to!),
-        status: 'processing',
-        sub_status: null,
+        status: 'generating',
+        sub_status: 'queued',
         created_by: session?.user?.name || '',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -1688,6 +1688,17 @@ export default function AIInsightsPage() {
     return `${year}-${month}-${day}`
   }
 
+  const formatDateTime = (dateStr: string) => {
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return dateStr
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    const hour = String(d.getHours()).padStart(2, '0')
+    const minute = String(d.getMinutes()).padStart(2, '0')
+    return `${year}-${month}-${day} ${hour}:${minute}`
+  }
+
   const selectedProjectName = projects.find((p) => p.id === selectedProjectId)?.name || ''
 
   return (
@@ -1707,17 +1718,24 @@ export default function AIInsightsPage() {
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" className="h-10 w-[180px] justify-between border-border/70 bg-[hsl(var(--surface-soft))] shadow-none">
-                      {selectedProjectId
-                        ? projects.find((p) => p.id === selectedProjectId)?.name
-                        : '选择项目'}
+                      {selectedProjectId === 'all'
+                        ? '全部项目'
+                        : projects.find((p) => p.id === selectedProjectId)?.name ?? '选择项目'}
                       <ChevronDown className="h-4 w-4 opacity-50" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="w-[180px]">
+                    <DropdownMenuItem
+                      key="all"
+                      onClick={() => setSelectedProjectId('all')}
+                      className={cn(selectedProjectId === 'all' && 'bg-primary/10')}
+                    >
+                      全部项目
+                    </DropdownMenuItem>
                     {projects.map((p) => (
                       <DropdownMenuItem
                         key={p.id}
-                        onClick={() => setSelectedProjectId(p.id)}
+                        onClick={() => p.id !== null && setSelectedProjectId(p.id)}
                         className={cn(selectedProjectId === p.id && 'bg-primary/10')}
                       >
                         {p.name}
@@ -1812,28 +1830,9 @@ export default function AIInsightsPage() {
                 className="h-10 w-[240px]"
                 timezone={COUNTRY_TIMEZONE_MAP[selectedCountry]}
               />
-              <div className="flex items-center gap-1">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="h-10 px-3"
-                  onClick={() => setDateRange(getYesterdayRange(selectedCountry))}
-                >
-                  昨天
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="h-10 px-3"
-                  onClick={() => setDateRange(lastSevenDaysRange(selectedCountry))}
-                >
-                  近7天
-                </Button>
-              </div>
-
               <Button
                 onClick={() => void handleGenerate()}
-                disabled={!selectedProjectId || !dateRange?.from || !dateRange?.to || isGenerating}
+                disabled={!selectedProjectId || selectedProjectId === 'all' || !dateRange?.from || !dateRange?.to || isGenerating}
                 className="h-10 gap-2"
               >
                 {isGenerating ? (
@@ -1874,7 +1873,7 @@ export default function AIInsightsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>标题</TableHead>
+                  <TableHead className="w-[300px]">标题</TableHead>
                   <TableHead>项目</TableHead>
                   <TableHead>国家</TableHead>
                   <TableHead>类型</TableHead>
@@ -1891,12 +1890,12 @@ export default function AIInsightsPage() {
                     className={cn('cursor-pointer', insight.status === 'generating' && 'opacity-70')}
                     onClick={() => void handleViewInsight(insight.id)}
                   >
-                    <TableCell className="font-medium">
-                      {insight.status === 'generating' ? (
+                    <TableCell className="font-medium whitespace-normal break-words">
+                      {insight.status === 'generating' || insight.status === 'pending' ? (
                         <span className="flex items-center gap-2">
                           <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
                           <span className="text-muted-foreground">
-                            {SUB_STATUS_LABELS[currentSubStatus ?? insight.sub_status ?? ''] ?? '生成中'}
+                            {SUB_STATUS_LABELS[insightSubStatusRef.current[insight.id] ?? insight.sub_status ?? ''] ?? '生成中'}
                           </span>
                         </span>
                       ) : (
@@ -1921,18 +1920,22 @@ export default function AIInsightsPage() {
                             ? 'bg-emerald-500/10 text-emerald-600'
                             : insight.status === 'failed'
                               ? 'bg-red-500/10 text-red-600'
-                              : 'bg-amber-500/10 text-amber-600 animate-pulse'
+                              : insight.status === 'pending'
+                                ? 'bg-blue-500/10 text-blue-600 animate-pulse'
+                                : 'bg-amber-500/10 text-amber-600 animate-pulse'
                         )}
                       >
                         {insight.status === 'completed'
                           ? '已完成'
                           : insight.status === 'failed'
                             ? '失败'
-                            : SUB_STATUS_LABELS[currentSubStatus ?? insight.sub_status ?? ''] ?? '生成中'}
+                            : insight.status === 'pending'
+                              ? '排队中'
+                              : SUB_STATUS_LABELS[insightSubStatusRef.current[insight.id] ?? insight.sub_status ?? ''] ?? '生成中'}
                       </span>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {formatDate(insight.created_at)}
+                      {formatDateTime(insight.created_at)}
                     </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-1">
@@ -2010,10 +2013,10 @@ export default function AIInsightsPage() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <DialogTitle className="flex items-center gap-2">
-                  {viewingInsight?.status === 'generating' || viewLiveRefreshing ? (
+                  {viewingInsight?.status === 'generating' || viewingInsight?.sub_status === 'queued' || viewLiveRefreshing ? (
                     <>
                       <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                      正在生成洞察...
+                      {viewingInsight?.sub_status === 'queued' ? '排队中...' : '正在生成洞察...'}
                     </>
                   ) : (
                     <>
@@ -2027,13 +2030,13 @@ export default function AIInsightsPage() {
                     {viewingInsight.project_name} · {COUNTRY_OPTIONS.find((c) => c.value === viewingInsight.country)?.label} ·{' '}
                     {formatDate(viewingInsight.date_range_start)} ~ {formatDate(viewingInsight.date_range_end)} ·{' '}
                     {INSIGHT_TYPE_OPTIONS.find((t) => t.value === viewingInsight.insight_type)?.label} ·{' '}
-                    {formatDate(viewingInsight.created_at)} 生成
+                    {formatDateTime(viewingInsight.created_at)} 生成
                   </p>
                 )}
               </div>
 
               {/* Live / Retry button */}
-              {(viewingInsight?.status === 'generating' || viewLiveRefreshing) && (
+              {(viewingInsight?.status === 'generating' || viewingInsight?.sub_status === 'queued' || viewLiveRefreshing) && (
                 <div className="flex shrink-0 items-center gap-2">
                   <div className="flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-xs text-primary">
                     <Loader2 className="h-3 w-3 animate-spin" />
@@ -2130,7 +2133,7 @@ export default function AIInsightsPage() {
                   />
                 </div>
               </div>
-            ) : viewingInsight?.status === 'generating' || viewLiveRefreshing ? (
+            ) : (viewingInsight?.status === 'generating' || viewingInsight?.sub_status === 'queued' || viewLiveRefreshing) ? (
               /* Live generation view — stepper + streaming content */
               <div ref={streamingRef} className="space-y-6">
                 <GenerationProgress currentSubStatus={viewLiveSubStatus} />

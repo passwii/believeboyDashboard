@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import text
@@ -57,15 +59,10 @@ class UpdateUserResponse(BaseModel):
     item: UserItem
 
 
-def _is_yawei_account(name: str, email: str) -> bool:
-    return name.strip().lower() == "yawei" or email.strip().lower().startswith("yawei@")
-
-
 def _to_item(row: dict) -> UserItem:
-    is_yawei = _is_yawei_account(str(row["name"]), str(row["email"]))
     return UserItem(
         id=str(row["id"]),
-        name="Yawei" if is_yawei else str(row["name"]),
+        name=str(row["name"]),
         email=str(row["email"]),
         full_name=(str(row["full_name"]) if row["full_name"] is not None else None),
         operator_name_zh=(
@@ -73,8 +70,8 @@ def _to_item(row: dict) -> UserItem:
             if row["operator_name_zh"] is not None
             else None
         ),
-        is_admin=True if is_yawei else bool(row["is_admin"]),
-        is_active=True if is_yawei else bool(row["is_active"]),
+        is_admin=bool(row["is_admin"]),
+        is_active=bool(row["is_active"]),
         created_at=str(row["created_at"]),
         updated_at=str(row["updated_at"]),
     )
@@ -259,6 +256,7 @@ def update_user(
         else None
     )
     password_hash = hash_password(password) if password is not None else None
+    password_changed_at = datetime.now(timezone.utc) if password is not None else None
 
     row = (
         db.execute(
@@ -266,21 +264,13 @@ def update_user(
                 """
             update public.user_accounts
             set
-              name = case
-                when lower(email) like 'yawei@%' or lower(name) = 'yawei' then 'Yawei'
-                else coalesce(:name, name)
-              end,
-              is_admin = case
-                when lower(email) like 'yawei@%' or lower(name) = 'yawei' then true
-                else coalesce(:is_admin, is_admin)
-              end,
-              is_active = case
-                when lower(email) like 'yawei@%' or lower(name) = 'yawei' then true
-                else coalesce(:is_active, is_active)
-              end,
+              name = coalesce(:name, name),
+              is_admin = coalesce(:is_admin, is_admin),
+              is_active = coalesce(:is_active, is_active),
               full_name = coalesce(:full_name, full_name),
               operator_name_zh = coalesce(:operator_name_zh, operator_name_zh),
               password_hash = coalesce(:password_hash, password_hash),
+              password_changed_at = coalesce(:password_changed_at, password_changed_at),
               updated_at = now()
             where id::text = :user_id
             returning
@@ -303,6 +293,7 @@ def update_user(
                 "is_admin": is_admin,
                 "is_active": is_active,
                 "password_hash": password_hash,
+                "password_changed_at": password_changed_at,
             },
         )
         .mappings()

@@ -59,6 +59,8 @@ class Settings(BaseSettings):
     redis_password: str = Field(default="", max_length=200)
     redis_db: int = Field(default=0, ge=0, le=15)
 
+    frontend_url: str = Field(default="", max_length=500)
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -77,6 +77,21 @@ import { logClientOperation } from '@/lib/operation-audit'
 import { cn, formatLocalTimestampForFilename } from '@/lib/utils'
 import { useNotifications } from '@/components/notifications'
 
+type ExcelCell = import('exceljs').Cell
+
+function applyBorder(cell: ExcelCell, color = 'FFE2E8F0') {
+  cell.border = {
+    top: { style: 'thin', color: { argb: color } },
+    left: { style: 'thin', color: { argb: color } },
+    bottom: { style: 'thin', color: { argb: color } },
+    right: { style: 'thin', color: { argb: color } },
+  }
+}
+
+function applyHeaderBorder(cell: ExcelCell) {
+  applyBorder(cell, 'FFCBD5E1')
+}
+
 const API_BASE = '/api/backend'
 const MAX_VISIBLE_RUNS = 12
 const MAX_SELECTED_RUNS = 8
@@ -1018,7 +1033,7 @@ async function exportComparisonMatrixToExcel(
   workbook.created = new Date()
 
   const worksheet = workbook.addWorksheet('测算对比矩阵', {
-    views: [{ state: 'frozen', ySplit: 4, xSplit: 2 }],
+    views: [{ state: 'frozen', ySplit: 4, xSplit: 2, showGridLines: false }],
   })
 
   const title = `测算对比矩阵 (${runs.length} 个产品)`
@@ -1078,6 +1093,7 @@ async function exportComparisonMatrixToExcel(
   }
 
   headerRow.eachCell((cell, colNumber) => {
+    applyHeaderBorder(cell)
     cell.font = {
       name: 'Microsoft YaHei',
       bold: true,
@@ -1092,12 +1108,6 @@ async function exportComparisonMatrixToExcel(
       type: 'pattern',
       pattern: 'solid',
       fgColor: { argb: 'FFE2E8F0' },
-    }
-    cell.border = {
-      top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-      left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-      bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-      right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
     }
   })
 
@@ -1189,12 +1199,7 @@ async function exportComparisonMatrixToExcel(
       })
 
       excelRow.eachCell((cell) => {
-        cell.border = {
-          top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-          left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-          bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-          right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-        }
+        applyBorder(cell)
       })
 
       currentRowIndex += 1
@@ -1218,12 +1223,7 @@ async function exportComparisonMatrixToExcel(
       pattern: 'solid',
       fgColor: { argb: colors.section },
     }
-    sectionCell.border = {
-      top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-      left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-      bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-      right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-    }
+    applyHeaderBorder(sectionCell)
   })
 
   const buffer = await workbook.xlsx.writeBuffer()
@@ -1251,7 +1251,7 @@ async function exportStoreSkuTableToExcel(
   workbook.created = new Date()
 
   const worksheet = workbook.addWorksheet('店铺SKU核算表', {
-    views: [{ state: 'frozen', xSplit: 2, ySplit: 4 }],
+    views: [{ state: 'frozen', xSplit: 2, ySplit: 4, showGridLines: false }],
   })
 
   const title = `店铺SKU核算表 - ${projectName}`
@@ -1365,12 +1365,7 @@ async function exportStoreSkuTableToExcel(
       horizontal: 'center',
       wrapText: true,
     }
-    cell.border = {
-      top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-      left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-      bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-      right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-    }
+    applyHeaderBorder(cell)
   })
 
   // 细分表头（第4行）
@@ -1492,12 +1487,7 @@ async function exportStoreSkuTableToExcel(
       pattern: 'solid',
       fgColor: { argb: colorGroup.bg },
     }
-    cell.border = {
-      top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-      left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-      bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-      right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-    }
+    applyHeaderBorder(cell)
   })
 
   let currentRowIndex = 5
@@ -1655,12 +1645,7 @@ async function exportStoreSkuTableToExcel(
         pattern: 'solid',
         fgColor: { argb: colorGroup.sub },
       }
-      cell.border = {
-        top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-        left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-        bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-        right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-      }
+      applyBorder(cell)
     })
 
     currentRowIndex += 1

@@ -37,6 +37,21 @@ import { DENSE_CELL, DENSE_HEAD, DataTableCardStatBar } from '@/components/ui/da
 const API_BASE = '/api/backend'
 const HISTORY_SHIPMENT_STATUSES = ['completed', 'in_transit'] as const
 
+type ExcelCell = import('exceljs').Cell
+
+function applyBorder(cell: ExcelCell, color = 'FFE2E8F0') {
+  cell.border = {
+    top: { style: 'thin', color: { argb: color } },
+    left: { style: 'thin', color: { argb: color } },
+    bottom: { style: 'thin', color: { argb: color } },
+    right: { style: 'thin', color: { argb: color } },
+  }
+}
+
+function applyHeaderBorder(cell: ExcelCell) {
+  applyBorder(cell, 'FFCBD5E1')
+}
+
 type ProjectOption = {
   id: number
   name: string
@@ -1608,7 +1623,7 @@ export default function ShipmentManagementPage() {
       workbook.created = new Date()
 
       const worksheet = workbook.addWorksheet('船期批次总览', {
-        views: [{ state: 'frozen', ySplit: 4, xSplit: 1 }],
+        views: [{ state: 'frozen', ySplit: 4, xSplit: 1, showGridLines: false }],
       })
 
       const columns = [
@@ -1663,12 +1678,7 @@ export default function ShipmentManagementPage() {
         cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
         cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
-        cell.border = {
-          top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-        }
+        applyHeaderBorder(cell)
       })
 
       items.forEach((item, index) => {
@@ -1701,12 +1711,7 @@ export default function ShipmentManagementPage() {
           if (colNumber === 10 || colNumber === 11) {
             cell.numFmt = '#,##0'
           }
-          cell.border = {
-            top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-            left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-            bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-            right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-          }
+          applyBorder(cell)
           if (colNumber === 4) {
             const statusColorMap: Record<string, string> = {
               草稿: 'FFF1F5F9',
@@ -1729,12 +1734,7 @@ export default function ShipmentManagementPage() {
       totalRow.eachCell((cell) => {
         cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
-        cell.border = {
-          top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-        }
+        applyHeaderBorder(cell)
       })
       totalRow.getCell(11).numFmt = '#,##0'
       totalRow.getCell(12).numFmt = '#,##0'
@@ -1782,7 +1782,7 @@ export default function ShipmentManagementPage() {
       workbook.created = new Date()
 
       const worksheet = workbook.addWorksheet('发货费用', {
-        views: [{ state: 'frozen', ySplit: 4, xSplit: 1 }],
+        views: [{ state: 'frozen', ySplit: 4, xSplit: 1, showGridLines: false }],
       })
 
       const columns = [
@@ -1836,12 +1836,7 @@ export default function ShipmentManagementPage() {
         cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
         cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
-        cell.border = {
-          top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-        }
+        applyHeaderBorder(cell)
       })
 
       items.forEach((item, index) => {
@@ -1872,12 +1867,7 @@ export default function ShipmentManagementPage() {
           if (colNumber === 8) cell.numFmt = '#,##0.0000'
           if (colNumber === 9 || colNumber === 11) cell.numFmt = '#,##0.00'
           if (colNumber === 10) cell.numFmt = '#,##0.0000'
-          cell.border = {
-            top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-            left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-            bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-            right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-          }
+          applyBorder(cell)
           if (colNumber === 4) {
             const statusColorMap: Record<string, string> = {
               草稿: 'FFF1F5F9',
@@ -1902,12 +1892,7 @@ export default function ShipmentManagementPage() {
       totalRow.eachCell((cell) => {
         cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
-        cell.border = {
-          top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-        }
+        applyHeaderBorder(cell)
       })
       totalRow.getCell(6).numFmt = '#,##0'
       totalRow.getCell(7).numFmt = '#,##0.000'
@@ -1957,7 +1942,7 @@ export default function ShipmentManagementPage() {
       workbook.created = new Date()
 
       const worksheet = workbook.addWorksheet('SKU汇总', {
-        views: [{ state: 'frozen', ySplit: 4, xSplit: 1 }],
+        views: [{ state: 'frozen', ySplit: 4, xSplit: 1, showGridLines: false }],
       })
 
       const columns = [
@@ -2008,12 +1993,7 @@ export default function ShipmentManagementPage() {
         cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
         cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
-        cell.border = {
-          top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-        }
+        applyHeaderBorder(cell)
       })
 
       skuSummaryItems.forEach((item, index) => {
@@ -2040,12 +2020,7 @@ export default function ShipmentManagementPage() {
           if (colNumber === 6) cell.numFmt = '#,##0.000'
           if (colNumber === 7) cell.numFmt = '#,##0.00'
           if (colNumber === 8) cell.numFmt = '#,##0.0000'
-          cell.border = {
-            top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-            left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-            bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-            right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-          }
+          applyBorder(cell)
         })
       })
 
@@ -2058,12 +2033,7 @@ export default function ShipmentManagementPage() {
       totalRow.eachCell((cell) => {
         cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
-        cell.border = {
-          top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-        }
+        applyHeaderBorder(cell)
       })
       totalRow.getCell(4).numFmt = '#,##0'
       totalRow.getCell(5).numFmt = '#,##0'
@@ -2112,7 +2082,7 @@ export default function ShipmentManagementPage() {
       workbook.created = new Date()
 
       const worksheet = workbook.addWorksheet('FBA箱单明细', {
-        views: [{ state: 'frozen', ySplit: 3 }],
+        views: [{ state: 'frozen', ySplit: 3, showGridLines: false }],
       })
 
       const columns = [
@@ -2162,12 +2132,7 @@ export default function ShipmentManagementPage() {
         cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
         cell.alignment = { vertical: 'middle', horizontal: 'center' }
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
-        cell.border = {
-          top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-        }
+        applyHeaderBorder(cell)
       })
 
       fbaBoxItems.forEach((item, index) => {
@@ -2203,12 +2168,7 @@ export default function ShipmentManagementPage() {
           }
           if (colNumber === 19) cell.numFmt = '#,##0.0000'
           if (colNumber === 20) cell.numFmt = '#,##0.000'
-          cell.border = {
-            top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-            left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-            bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-            right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-          }
+          applyBorder(cell)
         })
       })
 
@@ -2221,12 +2181,7 @@ export default function ShipmentManagementPage() {
       totalRow.eachCell((cell) => {
         cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
-        cell.border = {
-          top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-        }
+        applyHeaderBorder(cell)
       })
       totalRow.getCell(19).numFmt = '#,##0.0000'
       totalRow.getCell(20).numFmt = '#,##0.000'
@@ -2272,38 +2227,73 @@ export default function ShipmentManagementPage() {
       workbook.creator = 'Codex'
       workbook.created = new Date()
 
+      // DE/UK 使用 cm/kg + 额外两行 + 两列，US 使用 in/lb
+      const useMetric = detail.country === 'DE' || detail.country === 'UK'
+
       // Sheet name: Create workflow – template
       const worksheet = workbook.addWorksheet('Create workflow – template', {
-        views: [{ state: 'frozen', ySplit: 1 }],
+        views: [{ state: 'frozen', ySplit: useMetric ? 3 : 1, showGridLines: false }],
       })
 
-      // 列定义：Merchant SKU, Quantity, Units per box, Number of boxes, Box length (in), Box width (in), Box height (in), Box weight (lb)
-      const columns = [
+      // DE/UK 列定义（多出 Prep owner / Labeling owner 两列）
+      // 列顺序：Merchant SKU, Quantity, Prep owner, Labeling owner, Units per box, Number of boxes, ...
+      const baseColumns = [
         { header: 'Merchant SKU', key: 'merchant_sku', width: 24 },
         { header: 'Quantity', key: 'quantity', width: 12 },
+        { header: useMetric ? 'Prep owner' : undefined, key: 'prep_owner', width: 14 },
+        { header: useMetric ? 'Labeling owner' : undefined, key: 'labeling_owner', width: 16 },
         { header: 'Units per box', key: 'units_per_box', width: 14 },
         { header: 'Number of boxes', key: 'number_of_boxes', width: 16 },
-        { header: 'Box length (in)', key: 'box_length_in', width: 16 },
-        { header: 'Box width (in)', key: 'box_width_in', width: 16 },
-        { header: 'Box height (in)', key: 'box_height_in', width: 16 },
-        { header: 'Box weight (lb)', key: 'box_weight_lb', width: 14 },
-      ] as const
+        { header: useMetric ? 'Box length (cm)' : 'Box length (in)', key: 'box_length', width: 16 },
+        { header: useMetric ? 'Box width (cm)' : 'Box width (in)', key: 'box_width', width: 16 },
+        { header: useMetric ? 'Box height (cm)' : 'Box height (in)', key: 'box_height', width: 16 },
+        { header: useMetric ? 'Box weight (kg)' : 'Box weight (lb)', key: 'box_weight', width: 14 },
+      ]
+
+      const columns = baseColumns.filter((c) => c.header !== undefined) as {
+        header: string
+        key: string
+        width: number
+      }[]
 
       worksheet.columns = columns.map((c) => ({ header: c.header, key: c.key, width: c.width }))
 
-      // 设置表头样式
-      const headerRow = worksheet.getRow(1)
+      // ---- DE/UK：写入前两行固定内容 ----
+      if (useMetric) {
+        const infoRow1 = worksheet.getRow(1)
+        infoRow1.height = 18
+        infoRow1.values = ['Default prep owner', 'Seller']
+        infoRow1.eachCell((cell) => {
+          cell.font = { name: 'Microsoft YaHei', size: 9, color: { argb: 'FF0F172A' } }
+          cell.alignment = { vertical: 'middle', horizontal: 'left' }
+          applyBorder(cell)
+        })
+
+        const infoRow2 = worksheet.getRow(2)
+        infoRow2.height = 18
+        infoRow2.values = ['Default labeling owner', 'Seller']
+        infoRow2.eachCell((cell) => {
+          cell.font = { name: 'Microsoft YaHei', size: 9, color: { argb: 'FF0F172A' } }
+          cell.alignment = { vertical: 'middle', horizontal: 'left' }
+          applyBorder(cell)
+        })
+      }
+
+      // ---- 表头行（DE/UK 为第 3 行，US 为第 1 行）----
+      const headerRow = worksheet.getRow(useMetric ? 3 : 1)
       headerRow.height = 22
+
+      // DE/UK: columns 已在 worksheet.columns 时写入了 row 1，需显式写到 row 3
+      if (useMetric) {
+        const headerValues = columns.map((c) => c.header)
+        headerRow.values = headerValues
+      }
+
       headerRow.eachCell((cell) => {
         cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
         cell.alignment = { vertical: 'middle', horizontal: 'center' }
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
-        cell.border = {
-          top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-        }
+        applyHeaderBorder(cell)
       })
 
       // cm to inches: 1 inch = 2.54 cm
@@ -2323,39 +2313,63 @@ export default function ShipmentManagementPage() {
         editableCartonMap.set(item.sku, item.cartonCount)
       }
 
+      // ---- 数据行（DE/UK 从第 4 行开始，US 从第 2 行开始）----
+      const dataStartRow = useMetric ? 4 : 2
       detail.items.forEach((item, index) => {
-        const row = worksheet.getRow(index + 2)
+        const row = worksheet.getRow(dataStartRow + index)
         const skuInfo = skuInfoMap.get(item.sku)
         const userCartonCount = editableCartonMap.get(item.sku)
         const cartonCount = userCartonCount && Number(userCartonCount) > 0
           ? Number(userCartonCount)
           : (item.carton_count ?? 0)
         const unitsPerBox = skuInfo?.units_per_carton ?? 0
-        const boxLengthIn = skuInfo?.carton_length_cm ? Number((skuInfo.carton_length_cm / CM_TO_INCH).toFixed(2)) : ''
-        const boxWidthIn = skuInfo?.carton_width_cm ? Number((skuInfo.carton_width_cm / CM_TO_INCH).toFixed(2)) : ''
-        const boxHeightIn = skuInfo?.carton_height_cm ? Number((skuInfo.carton_height_cm / CM_TO_INCH).toFixed(2)) : ''
-        const boxWeightLb = skuInfo?.carton_weight_kg ? Number((skuInfo.carton_weight_kg * KG_TO_LB).toFixed(2)) : ''
 
-        row.values = [
-          item.sku,
-          item.quantity,
-          unitsPerBox > 0 ? unitsPerBox : '',
-          cartonCount > 0 ? cartonCount : '',
-          boxLengthIn,
-          boxWidthIn,
-          boxHeightIn,
-          boxWeightLb,
-        ]
+        // DE/UK: keep cm/kg; US: convert to in/lb
+        const boxLength = useMetric
+          ? (skuInfo?.carton_length_cm ? Number(skuInfo.carton_length_cm.toFixed(2)) : '')
+          : (skuInfo?.carton_length_cm ? Number((skuInfo.carton_length_cm / CM_TO_INCH).toFixed(2)) : '')
+        const boxWidth = useMetric
+          ? (skuInfo?.carton_width_cm ? Number(skuInfo.carton_width_cm.toFixed(2)) : '')
+          : (skuInfo?.carton_width_cm ? Number((skuInfo.carton_width_cm / CM_TO_INCH).toFixed(2)) : '')
+        const boxHeight = useMetric
+          ? (skuInfo?.carton_height_cm ? Number(skuInfo.carton_height_cm.toFixed(2)) : '')
+          : (skuInfo?.carton_height_cm ? Number((skuInfo.carton_height_cm / CM_TO_INCH).toFixed(2)) : '')
+        const boxWeight = useMetric
+          ? (skuInfo?.carton_weight_kg ? Number(skuInfo.carton_weight_kg.toFixed(2)) : '')
+          : (skuInfo?.carton_weight_kg ? Number((skuInfo.carton_weight_kg * KG_TO_LB).toFixed(2)) : '')
+
+        // DE/UK 有 10 列，US 有 8 列
+        if (useMetric) {
+          row.values = [
+            item.sku,
+            item.quantity,
+            'Seller',
+            'Seller',
+            unitsPerBox > 0 ? unitsPerBox : '',
+            cartonCount > 0 ? cartonCount : '',
+            boxLength,
+            boxWidth,
+            boxHeight,
+            boxWeight,
+          ]
+        } else {
+          row.values = [
+            item.sku,
+            item.quantity,
+            unitsPerBox > 0 ? unitsPerBox : '',
+            cartonCount > 0 ? cartonCount : '',
+            boxLength,
+            boxWidth,
+            boxHeight,
+            boxWeight,
+          ]
+        }
+
         row.height = 18
         row.eachCell((cell, colNumber) => {
           cell.font = { name: 'Microsoft YaHei', size: 9, color: { argb: 'FF0F172A' } }
           cell.alignment = { vertical: 'middle', horizontal: colNumber >= 5 ? 'right' : 'left' }
-          cell.border = {
-            top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-            left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-            bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-            right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-          }
+          applyBorder(cell)
         })
       })
 

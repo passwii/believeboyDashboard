@@ -32,6 +32,21 @@ import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useNotifications } from '@/components/notifications'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
 
+type ExcelCell = import('exceljs').Cell
+
+function applyBorder(cell: ExcelCell, color = 'FFE2E8F0') {
+  cell.border = {
+    top: { style: 'thin', color: { argb: color } },
+    left: { style: 'thin', color: { argb: color } },
+    bottom: { style: 'thin', color: { argb: color } },
+    right: { style: 'thin', color: { argb: color } },
+  }
+}
+
+function applyHeaderBorder(cell: ExcelCell) {
+  applyBorder(cell, 'FFCBD5E1')
+}
+
 const API_BASE = '/api/backend'
 
 type ProjectOption = {
@@ -504,7 +519,7 @@ export default function InventoryReplenishmentPage() {
       workbook.created = new Date()
 
       const worksheet = workbook.addWorksheet('补货分析', {
-        views: [{ state: 'frozen', ySplit: 4, xSplit: 1 }],
+        views: [{ state: 'frozen', ySplit: 4, xSplit: 1, showGridLines: false }],
       })
 
       const columns = [
@@ -566,12 +581,7 @@ export default function InventoryReplenishmentPage() {
         cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
         cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
-        cell.border = {
-          top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-        }
+        applyHeaderBorder(cell)
       })
 
       rows.forEach((row, index) => {
@@ -632,12 +642,7 @@ export default function InventoryReplenishmentPage() {
           if (colNumber === 12) cell.numFmt = '0.00%'
           if (colNumber === 13 || colNumber === 14) cell.numFmt = '0.00'
           if (colNumber === 22) cell.numFmt = '#,##0'
-          cell.border = {
-            top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-            left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-            bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-            right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-          }
+          applyBorder(cell)
         })
       })
 
@@ -657,12 +662,7 @@ export default function InventoryReplenishmentPage() {
         cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
         cell.alignment = { vertical: 'middle', wrapText: true }
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
-        cell.border = {
-          top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-        }
+        applyHeaderBorder(cell)
       })
       totalRow.getCell(5).numFmt = '#,##0'
       totalRow.getCell(6).numFmt = '#,##0'

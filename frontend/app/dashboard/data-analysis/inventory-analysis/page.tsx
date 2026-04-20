@@ -16,6 +16,21 @@ import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useNotifications } from '@/components/notifications'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
 
+type ExcelCell = import('exceljs').Cell
+
+function applyBorder(cell: ExcelCell, color = 'FFE2E8F0') {
+  cell.border = {
+    top: { style: 'thin', color: { argb: color } },
+    left: { style: 'thin', color: { argb: color } },
+    bottom: { style: 'thin', color: { argb: color } },
+    right: { style: 'thin', color: { argb: color } },
+  }
+}
+
+function applyHeaderBorder(cell: ExcelCell) {
+  applyBorder(cell, 'FFCBD5E1')
+}
+
 const API_BASE = '/api/backend/api/v1'
 
 type ProjectOption = {
@@ -83,9 +98,13 @@ function formatInt(value: number | null | undefined): string {
 
 function formatSnapshot(value: string | null): string {
   if (!value) return '暂无快照'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '暂无快照'
-  return date.toLocaleString('zh-CN', { hour12: false })
+  // snapshot_at is a naive datetime (no timezone) representing the business date.
+  // Extract the date part directly to avoid any timezone conversion.
+  const datePart = String(value).split('T')[0]
+  if (!datePart) return '暂无快照'
+  const [year, month, day] = datePart.split('-')
+  if (!year || !month || !day) return '暂无快照'
+  return `${year}年${month}月${day}日`
 }
 
 function stockMeta(status: string): { label: string; className: string } {
@@ -283,7 +302,7 @@ export default function InventoryAnalysisPage() {
       workbook.created = new Date()
 
       const worksheet = workbook.addWorksheet('库存分析', {
-        views: [{ state: 'frozen', ySplit: 4, xSplit: 2 }],
+        views: [{ state: 'frozen', ySplit: 4, xSplit: 2, showGridLines: false }],
       })
 
       const selectedProject = projects.find((project) => String(project.id) === projectId)
@@ -331,12 +350,7 @@ export default function InventoryAnalysisPage() {
         cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
         cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
-        cell.border = {
-          top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-        }
+        applyHeaderBorder(cell)
       })
 
       rows.forEach((row, index) => {
@@ -373,12 +387,7 @@ export default function InventoryAnalysisPage() {
           if (colNumber === 11) {
             cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: agingExcelFontColor(row.aging_status) } }
           }
-          cell.border = {
-            top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-            left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-            bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-            right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-          }
+          applyBorder(cell)
         })
       })
 
@@ -399,12 +408,7 @@ export default function InventoryAnalysisPage() {
       totalRow.eachCell((cell, colNumber) => {
         cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
-        cell.border = {
-          top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-        }
+        applyHeaderBorder(cell)
         cell.alignment = {
           vertical: 'middle',
           horizontal: colNumber >= 3 && colNumber <= 8 ? 'right' : 'left',

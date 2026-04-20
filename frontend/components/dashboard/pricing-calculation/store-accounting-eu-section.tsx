@@ -16,6 +16,21 @@ import type {
   StoreAccountingItem,
 } from '@/lib/pricing-calculation-types'
 
+type ExcelCell = import('exceljs').Cell
+
+function applyBorder(cell: ExcelCell, color = 'FFE2E8F0') {
+  cell.border = {
+    top: { style: 'thin', color: { argb: color } },
+    left: { style: 'thin', color: { argb: color } },
+    bottom: { style: 'thin', color: { argb: color } },
+    right: { style: 'thin', color: { argb: color } },
+  }
+}
+
+function applyHeaderBorder(cell: ExcelCell) {
+  applyBorder(cell, 'FFCBD5E1')
+}
+
 const API_BASE = '/api/backend'
 
 type StoreSkuDraft = {
@@ -464,6 +479,7 @@ export function StoreAccountingEuSection({
       const ExcelJS = await import('exceljs')
       const workbook = new ExcelJS.Workbook()
       const worksheet = workbook.addWorksheet('欧洲店铺SKU核算')
+      worksheet.views = [{ showGridLines: false }]
       const countryLabel = EU_COUNTRY_OPTIONS.find((o) => o.value === selectedCountry)?.label ?? selectedCountry
       const ddpCurrency = selectedCountry === 'DE' ? 'EUR' : selectedCountry === 'UK' ? 'GBP' : 'USD'
       const saleCurrency = ddpCurrency
@@ -497,6 +513,7 @@ export function StoreAccountingEuSection({
         cell.font = { name: 'Microsoft YaHei', size: 11, bold: true, color: { argb: 'FFFFFFFF' } }
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: g.color } }
         cell.alignment = { horizontal: 'center', vertical: 'middle' }
+        applyHeaderBorder(cell)
       }
 
       const headers = [
@@ -509,6 +526,7 @@ export function StoreAccountingEuSection({
       const headerRow = worksheet.addRow(headers)
       headerRow.font = { name: 'Microsoft YaHei', bold: true }
       headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFCBD5E1' } }
+      headerRow.eachCell((cell) => { applyHeaderBorder(cell) })
 
       itemsWithResults.forEach((item, rowIdx) => {
         const result = storeRows[item.id]!.result!
@@ -539,6 +557,7 @@ export function StoreAccountingEuSection({
           const cell = worksheet.getCell(row.number, c)
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgColor } }
           cell.alignment = { horizontal: 'center', vertical: 'middle' }
+          applyBorder(cell)
         }
         // Color-code profit amount column (col 22): green if >=0, red if <0
         const profitCell = worksheet.getCell(row.number, 22)

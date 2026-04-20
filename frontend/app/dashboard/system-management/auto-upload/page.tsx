@@ -43,6 +43,7 @@ const REPORT_TYPE_LABELS: Record<string, string> = {
   ad_product_report: '广告 - 已推广商品',
   sales_report: '销售报表 - 所有订单',
   payment_report: '付款报告',
+  return_report: '退货报告',
 }
 
 function getReportTypeLabel(type: UploadQueueItem['reportType']): string {
@@ -295,15 +296,15 @@ export default function AutoUploadPage() {
       <div className='grid gap-4 lg:grid-cols-[1fr_2fr] lg:flex-1 lg:overflow-hidden'>
         {/* Dropzone */}
         <Card className='overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-sm'>
-          <CardContent className='!px-3 !py-3 flex h-full items-center'>
+          <CardContent className='!px-3 !py-3 flex h-full'>
             <div
               className={cn(
-                'relative flex w-full flex-col items-center justify-center rounded-2xl border border-dashed px-5 py-8 transition-[border-color,background-color] duration-200',
+                'relative flex w-full flex-col items-center justify-center rounded-2xl border border-dashed px-5 transition-[border-color,background-color] duration-200',
                 dragActive
                   ? 'border-sky-500/70 bg-sky-500/8'
                   : 'border-border/70 bg-[hsl(var(--surface-subtle))]',
               )}
-              style={{ minHeight: '200px' }}
+              style={{ flex: 1 }}
               onDrop={(e) => {
                 e.preventDefault()
                 setDragActive(false)
@@ -326,9 +327,9 @@ export default function AutoUploadPage() {
                   e.target.value = ''
                 }}
               />
-              <label
+<label
                 htmlFor='auto-upload-input'
-                className='flex cursor-pointer flex-col items-center justify-center gap-3 text-center'
+                className='flex h-full w-full cursor-pointer flex-col items-center justify-center gap-3 text-center'
               >
                 <div className='flex h-14 w-14 items-center justify-center rounded-xl border border-border/60 bg-[hsl(var(--surface-soft))] shadow-sm'>
                   <FileUp className='h-6 w-6 text-sky-600 dark:text-sky-300' />

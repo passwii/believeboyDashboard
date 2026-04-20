@@ -140,37 +140,48 @@ def _get_inventory_source(
     """
     获取库存快照数据源文件。
     如果指定了 snapshot_at，则查找最接近该时间的快照；
-    否则查找当前标记为 is_current=True 的快照。
+    否则查找业务日期最新的一条。
+
+    Uses report_date as the business date for ordering and filtering, since
+    snapshot_at may contain old upload-time values on rows that weren't migrated.
     """
+    base_conditions = [
+        AnalysisSourceFile.project_id == project_id,
+        AnalysisSourceFile.report_type == "inventory_report",
+        AnalysisSourceFile.country == country,
+        AnalysisSourceFile.report_date.isnot(None),
+    ]
+
     if snapshot_at is not None:
-        # 查找最接近指定时间的快照
+        # Find the latest snapshot on or before snapshot_at
         return (
             db.execute(
                 select(AnalysisSourceFile)
                 .where(
-                    AnalysisSourceFile.project_id == project_id,
-                    AnalysisSourceFile.report_type == "inventory_report",
-                    AnalysisSourceFile.country == country,
-                    AnalysisSourceFile.snapshot_at <= snapshot_at,
+                    *base_conditions,
+                    AnalysisSourceFile.report_date <= snapshot_at.date(),
                 )
-                .order_by(AnalysisSourceFile.snapshot_at.desc())
+                .order_by(
+                    AnalysisSourceFile.report_date.desc(),
+                    AnalysisSourceFile.version.desc(),
+                    AnalysisSourceFile.id.desc(),
+                )
                 .limit(1)
             )
             .scalars()
             .first()
         )
     else:
-        # 默认获取当前快照
+        # Default: get the latest business-date snapshot
         return (
             db.execute(
                 select(AnalysisSourceFile)
-                .where(
-                    AnalysisSourceFile.project_id == project_id,
-                    AnalysisSourceFile.report_type == "inventory_report",
-                    AnalysisSourceFile.country == country,
-                    AnalysisSourceFile.is_current.is_(True),
+                .where(*base_conditions)
+                .order_by(
+                    AnalysisSourceFile.report_date.desc(),
+                    AnalysisSourceFile.version.desc(),
+                    AnalysisSourceFile.id.desc(),
                 )
-                .order_by(AnalysisSourceFile.id.desc())
                 .limit(1)
             )
             .scalars()

@@ -67,6 +67,21 @@ const RETURN_REASON_LABELS: Record<string, string> = {
 // const DETAILED_DISPOSITION_LABELS: Record<string, string> = { ... }
 // const RETURN_STATUS_LABELS: Record<string, string> = { ... }
 
+type ExcelCell = import('exceljs').Cell
+
+function applyBorder(cell: ExcelCell, color = 'FFE2E8F0') {
+  cell.border = {
+    top: { style: 'thin', color: { argb: color } },
+    left: { style: 'thin', color: { argb: color } },
+    bottom: { style: 'thin', color: { argb: color } },
+    right: { style: 'thin', color: { argb: color } },
+  }
+}
+
+function applyHeaderBorder(cell: ExcelCell) {
+  applyBorder(cell, 'FFCBD5E1')
+}
+
 function translateReason(value: string): string {
   return RETURN_REASON_LABELS[value] || value
 }
@@ -341,6 +356,7 @@ export default function ReturnAnalysisPage() {
           cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
           cell.alignment = { vertical: 'middle', horizontal: 'center' }
+          applyHeaderBorder(cell)
         })
         return row
       }
@@ -405,10 +421,11 @@ export default function ReturnAnalysisPage() {
             row.sales_quantity > 0 ? parseFloat(row.return_rate.toFixed(2)) : null,
           ])
           r.font = { name: 'Microsoft YaHei' }
+          r.eachCell((cell) => { applyBorder(cell) })
         })
 
         // freeze title+meta rows
-        ws.views = [{ state: 'frozen', ySplit: 3 }]
+        ws.views = [{ state: 'frozen', ySplit: 3, showGridLines: false }]
       }
 
       // ── Sheet 2: 退货原因 ──
@@ -431,9 +448,10 @@ export default function ReturnAnalysisPage() {
             parseFloat(row.percentage.toFixed(2)),
           ])
           r.font = { name: 'Microsoft YaHei' }
+          r.eachCell((cell) => { applyBorder(cell) })
         })
 
-        ws.views = [{ state: 'frozen', ySplit: 3 }]
+        ws.views = [{ state: 'frozen', ySplit: 3, showGridLines: false }]
       }
 
       // ── Sheet 3: 商品状态 ──
@@ -456,9 +474,10 @@ export default function ReturnAnalysisPage() {
             parseFloat(row.percentage.toFixed(2)),
           ])
           r.font = { name: 'Microsoft YaHei' }
+          r.eachCell((cell) => { applyBorder(cell) })
         })
 
-        ws.views = [{ state: 'frozen', ySplit: 3 }]
+        ws.views = [{ state: 'frozen', ySplit: 3, showGridLines: false }]
       }
 
       // ── Sheet 4: 库存状态 ──
@@ -481,9 +500,10 @@ export default function ReturnAnalysisPage() {
             parseFloat(row.percentage.toFixed(2)),
           ])
           r.font = { name: 'Microsoft YaHei' }
+          r.eachCell((cell) => { applyBorder(cell) })
         })
 
-        ws.views = [{ state: 'frozen', ySplit: 3 }]
+        ws.views = [{ state: 'frozen', ySplit: 3, showGridLines: false }]
       }
 
       // ── Sheet 5: 顾客反馈 ──
@@ -507,9 +527,10 @@ export default function ReturnAnalysisPage() {
             row.customer_comment,
           ])
           r.font = { name: 'Microsoft YaHei' }
+          r.eachCell((cell) => { applyBorder(cell) })
         })
 
-        ws.views = [{ state: 'frozen', ySplit: 3 }]
+        ws.views = [{ state: 'frozen', ySplit: 3, showGridLines: false }]
       }
 
       const buffer = await workbook.xlsx.writeBuffer()

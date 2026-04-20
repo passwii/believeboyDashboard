@@ -23,11 +23,13 @@ create table if not exists public.user_accounts (
   is_admin boolean not null default false,
   is_active boolean not null default true,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  password_changed_at timestamptz not null default now()
 );
 
 alter table public.user_accounts add column if not exists operator_name_zh text;
 alter table public.user_accounts add column if not exists full_name text;
+alter table public.user_accounts add column if not exists password_changed_at timestamptz not null default now();
 
 create unique index if not exists ux_user_accounts_email_ci
 on public.user_accounts ((lower(email)));

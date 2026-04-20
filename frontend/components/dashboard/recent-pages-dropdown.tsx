@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
-import { useRecentPages, shortPath } from '@/lib/recent-pages'
+import { useRecentPages } from '@/lib/recent-pages'
 import { cn } from '@/lib/utils'
 import { Clock, Trash2 } from 'lucide-react'
 
@@ -24,31 +24,26 @@ function formatRelativeTime(timestamp: number): string {
   return `${Math.floor(days / 7)} 周前`
 }
 
-interface RecentPageItemProps {
+interface PageItemProps {
   path: string
   title: string
   visitedAt: number
-  isActive: boolean
   index: number
 }
 
-function RecentPageItem({ path, title, visitedAt, isActive, index }: RecentPageItemProps) {
+function PageItem({ path, title, visitedAt, index }: PageItemProps) {
   return (
     <RouteLoadingLink href={path}>
       <div
         className={cn(
-          'group flex min-w-0 cursor-pointer items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors',
+          'group flex min-w-0 cursor-pointer items-center justify-between gap-3 rounded-md px-3 py-2.5 text-sm transition-colors',
           'hover:bg-[hsl(var(--surface-subtle))]',
-          isActive
-            ? 'bg-[hsl(var(--surface-subtle))] text-foreground'
-            : 'text-muted-foreground'
+          'text-muted-foreground'
         )}
         style={{ animationDelay: `${index * 30}ms` }}
       >
-        <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />
         <div className="min-w-0 flex-1">
           <div className="truncate font-medium text-foreground/90">{title}</div>
-          <div className="truncate text-xs text-muted-foreground/60">{shortPath(path)}</div>
         </div>
         <span className="shrink-0 text-xs text-muted-foreground/50 tabular-nums">
           {formatRelativeTime(visitedAt)}
@@ -131,12 +126,11 @@ export function RecentPagesDropdown() {
           <ScrollArea className="max-h-[22rem]">
             <div className="p-1.5">
               {recentPages.map((page, index) => (
-                <RecentPageItem
+                <PageItem
                   key={page.path}
                   path={page.path}
                   title={page.title}
                   visitedAt={page.visitedAt}
-                  isActive={false}
                   index={index}
                 />
               ))}

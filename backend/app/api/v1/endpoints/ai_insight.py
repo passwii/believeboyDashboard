@@ -1,6 +1,7 @@
 import json
 import queue
 import threading
+import time
 from datetime import datetime, timezone
 from typing import Any
 
@@ -127,12 +128,17 @@ def _run_insight_generation(
             q = queue.Queue(maxsize=200)
             _insight_queues[insight_id] = q
 
+        # Send pending event so frontend knows job is queued
+        _enqueue_if_exists(insight_id, {"type": "status", "status": "pending", "sub_status": "queued", "insight_id": insight_id})
+        time.sleep(0.5)
+
         # Mark as generating
         gen_db.query(AIInsight).filter(AIInsight.id == insight_id).update({
             AIInsight.status: InsightStatus.generating,
         })
         gen_db.commit()
         _enqueue_if_exists(insight_id, {"type": "status", "status": "generating", "sub_status": None})
+        time.sleep(0.5)
 
         # Stage 1: Data aggregation (now reports granular sub-status via callback)
         gen_db.query(AIInsight).filter(AIInsight.id == insight_id).update({
@@ -140,6 +146,7 @@ def _run_insight_generation(
         })
         gen_db.commit()
         _enqueue_if_exists(insight_id, {"type": "status", "status": "generating", "sub_status": "data_aggregating"})
+        time.sleep(0.5)
 
         from datetime import date as date_type
         start_date = date_type.fromisoformat(payload["start_date"])
@@ -165,6 +172,7 @@ def _run_insight_generation(
         })
         gen_db.commit()
         _enqueue_if_exists(insight_id, {"type": "status", "status": "generating", "sub_status": "ai_generating"})
+        time.sleep(0.5)
 
         content_chunks: list[str] = []
         for chunk in generate_insight_stream(
@@ -184,6 +192,7 @@ def _run_insight_generation(
         })
         gen_db.commit()
         _enqueue_if_exists(insight_id, {"type": "status", "status": "generating", "sub_status": "title_generating"})
+        time.sleep(0.5)
 
         title = generate_insight_title(
             settings,
@@ -206,9 +215,11 @@ def _run_insight_generation(
 
         _enqueue_if_exists(insight_id, {
             "type": "done",
+            "status": "completed",
             "insight_id": insight_id,
             "title": title,
             "content": final_content,
+            "error_message": None,
         })
 
     except Exception as exc:
@@ -221,7 +232,7 @@ def _run_insight_generation(
             gen_db.commit()
         except Exception:
             pass
-        _enqueue_if_exists(insight_id, {"type": "error", "error": str(exc), "insight_id": insight_id})
+        _enqueue_if_exists(insight_id, {"type": "error", "error": str(exc), "insight_id": insight_id, "status": "failed", "error_message": str(exc)})
 
     finally:
         with _insight_queues_lock:
@@ -315,13 +326,21 @@ def stream_insight(
             })
             return
 
+        # If pending, send queued state immediately and wait for the background thread
+        if start_status == InsightStatus.pending:
+            yield _encode_sse_event({
+                "type": "status",
+                "status": "pending",
+                "sub_status": "queued",
+                "insight_id": insight_id_val,
+            })
+
         # Get or create queue for this insight
         with _insight_queues_lock:
             q = _insight_queues.get(insight_id_val)
 
         if q is None:
             # Status is pending but queue not registered yet — wait for it briefly
-            import time
             for _ in range(20):  # ~2 seconds
                 time.sleep(0.1)
                 with _insight_queues_lock:

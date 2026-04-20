@@ -5,11 +5,15 @@ from uuid import uuid4
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.services.audit_log_service import sync_operation_audit_log_sequence
+
+limiter = Limiter(key_func=get_remote_address, default_limits=[])
 
 settings = get_settings()
 
@@ -19,13 +23,34 @@ performance_logger = logging.getLogger('app.performance')
 logging.getLogger('uvicorn.access').disabled = True
 
 app = FastAPI(title=settings.app_name)
+app.state.limiter = limiter
+
+if not settings.frontend_url:
+    raise Exception(
+        "frontend_url must be set in backend .env. "
+        "Add FRONTEND_URL=http://localhost:3000 (dev) or your production URL to backend/.env"
+    )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=['*'],
+    allow_origins=[settings.frontend_url],
     allow_credentials=True,
-    allow_methods=['*'],
-    allow_headers=['*'],
+    allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=[
+        "Authorization",
+        "Content-Type",
+        "X-API-Key",
+        "X-User-Id",
+        "X-User-Name",
+        "X-User-Email",
+        "X-Operator",
+        "X-Is-Admin",
+        "X-Request-Id",
+        "X-Forwarded-For",
+        "User-Agent",
+        "Accept",
+        "Accept-Language",
+    ],
 )
 
 
