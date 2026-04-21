@@ -32,3 +32,12 @@ def get_request_is_admin(x_is_admin: str | None = Header(default=None, alias='X-
     if x_is_admin is None:
         return False
     return x_is_admin.strip().lower() in {'1', 'true', 'yes', 'on'}
+
+
+def get_request_role_type(x_role_type: str | None = Header(default=None, alias='X-Role-Type')) -> str | None:
+    if x_role_type is None:
+        return None
+    value = unquote(x_role_type).strip()
+    if not value:
+        return None
+    return value[:32]

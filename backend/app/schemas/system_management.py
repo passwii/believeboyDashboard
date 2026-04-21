@@ -81,6 +81,13 @@ class UpdateDataStatusResponse(BaseModel):
     updated_by: str | None = None
 
 
+class UserRoleType(str, Enum):
+    admin = "admin"
+    operator = "operator"
+    businessdev = "businessdev"
+    factory = "factory"
+
+
 class CommissionIncomeCategory(str, Enum):
     operator = "operator"
     assistant = "assistant"

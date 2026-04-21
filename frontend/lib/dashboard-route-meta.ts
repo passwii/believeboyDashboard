@@ -30,6 +30,7 @@ export const DASHBOARD_PAGE_TITLES: Array<{ match: string; title: string }> = [
   { match: '/ai-panel/chat', title: 'AI 聊天面板' },
   { match: '/ai-insights', title: 'AI 洞察' },
   { match: '/tools/research-analysis', title: '调研分析' },
+  { match: '/tools/rpa-reports', title: 'RPA 报表状态' },
   { match: '/change-password', title: '修改密码' },
   { match: '/feature-updates', title: '产品更新' },
   { match: '/changelog', title: '更新日志' },

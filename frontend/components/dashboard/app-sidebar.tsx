@@ -144,7 +144,10 @@ const primaryGroups: NavGroup[] = [
     activeAccent: 'bg-[linear-gradient(180deg,#118166,#1cab86)] text-white',
     iconAccent: '#888888',
     activeIconAccent: 'rgba(255,255,255,0.95)',
-    items: [{ title: '调研分析', url: '/dashboard/tools/research-analysis' }],
+    items: [
+      { title: '调研分析', url: '/dashboard/tools/research-analysis' },
+      { title: 'RPA 报表', url: '/dashboard/tools/rpa-reports' },
+    ],
   },
   {
     label: '数据管理',
@@ -293,7 +296,7 @@ export function AppSidebar({
     name: user?.name || 'User',
     email: user?.email || 'unknown',
     avatar: user?.image || '/avatars/default.svg',
-    isAdmin: Boolean(user?.isAdmin),
+    roleType: user?.roleType,
   }
 
   return (
@@ -378,7 +381,7 @@ export function AppSidebar({
               <SidebarGroupBlock key={group.label} group={group} />
             ))}
 
-            {displayUser.isAdmin ? (
+            {displayUser.roleType === 'admin' ? (
               <SidebarGroupBlock group={adminGroup} />
             ) : null}
 

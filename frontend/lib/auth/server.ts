@@ -16,7 +16,7 @@ export async function requireUserSession() {
 
 export async function requireAdminSession() {
   const session = await getServerAuthSession()
-  if (!session?.user?.id || !session.user.isAdmin) {
+  if (!session?.user?.id || session.user.roleType !== 'admin') {
     return null
   }
   return session

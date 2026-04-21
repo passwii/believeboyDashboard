@@ -1,7 +1,9 @@
+import { getServerAuthSession } from '@/lib/auth/server'
 import { ArrowRight, CalendarDays, Download, Sparkles, TriangleAlert } from 'lucide-react'
 import { MetricCards } from '@/components/dashboard/metric-cards'
 import { VisitorsChart } from '@/components/dashboard/charts'
 import { DataTable } from '@/components/dashboard/data-table'
+import { FactoryDashboard } from '@/components/dashboard/factory-dashboard'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -30,7 +32,15 @@ const actionQueue = [
   { label: '广告词包整理', owner: 'Nora', eta: '明天 10:00', status: '待确认' },
 ]
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const session = await getServerAuthSession()
+  const roleType = session?.user?.roleType as string | undefined
+  const operatorName = session?.user?.operatorNameZh ?? session?.user?.name ?? undefined
+
+  if (roleType === 'factory') {
+    return <FactoryDashboard operatorName={operatorName} />
+  }
+
   return (
     <div className="space-y-8 md:space-y-10">
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_22rem]">

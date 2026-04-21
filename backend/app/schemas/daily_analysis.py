@@ -55,3 +55,10 @@ class DailyAnalysisResponse(BaseModel):
     detail_rows: list[DailyAnalysisDetailRow]
     available_dates: dict[str, Any]
     comparison_summary_rows: list[DailyAnalysisSummaryRow] | None = None
+
+
+class DailyAnalysisAllProjectsResponse(BaseModel):
+    summary_rows: list[DailyAnalysisSummaryRow]
+    detail_rows: list[DailyAnalysisDetailRow]
+    available_dates: dict[str, Any]
+    project_breakdown: dict[int, dict[str, object]]

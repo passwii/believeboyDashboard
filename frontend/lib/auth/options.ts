@@ -31,6 +31,7 @@ export const authOptions: NextAuthOptions = {
             operator_name_zh: string | null
             is_admin: boolean
             is_active: boolean
+            role_type: 'admin' | 'operator' | 'businessdev' | 'factory'
           }>('/api/v1/auth/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -44,6 +45,7 @@ export const authOptions: NextAuthOptions = {
             email: account.email,
             isAdmin: account.is_admin,
             operatorNameZh: account.operator_name_zh,
+            roleType: account.role_type,
           }
         } catch {
           return null
@@ -57,6 +59,7 @@ export const authOptions: NextAuthOptions = {
         token.uid = user.id
         token.isAdmin = Boolean(user.isAdmin)
         token.operatorNameZh = typeof user.operatorNameZh === 'string' ? user.operatorNameZh : null
+        token.roleType = (user.roleType as 'admin' | 'operator' | 'businessdev' | 'factory') ?? (user.isAdmin ? 'admin' : 'operator')
       }
       return token
     },
@@ -65,6 +68,7 @@ export const authOptions: NextAuthOptions = {
         session.user.id = String(token.uid ?? '')
         session.user.isAdmin = Boolean(token.isAdmin)
         session.user.operatorNameZh = typeof token.operatorNameZh === 'string' ? token.operatorNameZh : null
+        session.user.roleType = (token.roleType as 'admin' | 'operator' | 'businessdev' | 'factory') ?? (token.isAdmin ? 'admin' : 'operator')
       }
       return session
     },

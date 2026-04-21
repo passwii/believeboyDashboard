@@ -12,10 +12,10 @@ function normalizeScopePart(value: string | null | undefined): string {
 }
 
 function managedProjectsCacheKey(session?: Session | null, showInactive?: boolean): string {
-  const isAdmin = Boolean(session?.user?.isAdmin)
+  const roleType = session?.user?.roleType ?? 'unknown'
   const operatorName = normalizeScopePart(session?.user?.operatorNameZh)
   const userId = normalizeScopePart(session?.user?.id)
-  return `${PROJECT_CACHE_PREFIX}manage:${isAdmin ? 'admin' : 'member'}:${operatorName}:${userId}:showInactive:${showInactive ?? false}`
+  return `${PROJECT_CACHE_PREFIX}manage:${roleType}:${operatorName}:${userId}:showInactive:${showInactive ?? false}`
 }
 
 async function parseError(response: Response, fallback: string): Promise<string> {

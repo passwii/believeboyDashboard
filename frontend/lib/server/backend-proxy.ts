@@ -37,8 +37,12 @@ export function buildBackendProxyHeaders(session: Session | null, requestHeaders
     headers.set('Accept', accept)
   }
 
-  if (session?.user?.isAdmin) {
+  const roleType = session?.user?.roleType
+  if (roleType === 'admin') {
     headers.set('X-Is-Admin', 'true')
+  }
+  if (roleType) {
+    headers.set('X-Role-Type', roleType)
   }
 
   const userId = session?.user?.id?.trim()
