@@ -1,12 +1,35 @@
 """Configuration for the auto-report-upload service."""
 
+import platform
+import os
 from pathlib import Path
 
+# ─── Platform detection ────────────────────────────────────────────────────────
+IS_WINDOWS = platform.system() == "Windows"
+IS_MAC = platform.system() == "Darwin"
+
 # OneDrive sync root — contains sub-folders named after each project
-WATCH_ROOT = Path(
+# macOS: iCloud/OneDrive local sync folder
+WATCH_ROOT_MAC = Path(
     "/Users/damon/Library/CloudStorage/OneDrive-BelieveboysTeam/"
     "BLF-运营中心 - 文档/W_Sync_Docs"
 )
+
+# Windows: OneDrive local sync folder (EDY's machine)
+WATCH_ROOT_WINDOWS = Path(
+    r"C:\Users\EDY\OneDrive - Believeboys Team\BLF-运营中心 - 文档\W_Sync_Docs"
+)
+
+# Auto-select based on platform; env var overrides everything
+def _resolve_watch_root() -> Path:
+    env_path = os.environ.get("WATCH_ROOT", "").strip()
+    if env_path:
+        return Path(env_path)
+    if IS_WINDOWS:
+        return WATCH_ROOT_WINDOWS
+    return WATCH_ROOT_MAC
+
+WATCH_ROOT = _resolve_watch_root()
 
 # All project folder names (must match projects.project_name in the DB)
 PROJECTS = [
