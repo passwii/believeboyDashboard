@@ -9,7 +9,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from config import CHECK_INTERVAL_MINUTES, IGNORED_DIRS, PROCESSED_SUBDIR, PROJECTS, SUPPORTED_EXTENSIONS, WATCH_ROOT
+from config import CHECK_INTERVAL_MINUTES, IGNORED_DIRS, IS_WINDOWS, PROCESSED_SUBDIR, PROJECTS, SUPPORTED_EXTENSIONS, WATCH_ROOT
 from db import get_db_session
 from processor import ProcessResult, process_file
 
@@ -118,9 +118,10 @@ def main_loop(dry_run: bool = False) -> None:
     logs_dir = Path(__file__).parent / "logs"
     logger = RunLogger(logs_dir)
 
+    platform_label = "Windows" if IS_WINDOWS else "macOS"
     logger.info("=" * 60)
     logger.info("autoReportUpload 服务启动")
-    logger.info(f"监控目录: {WATCH_ROOT}")
+    logger.info(f"平台: {platform_label}  监控目录: {WATCH_ROOT}")
     logger.info(f"项目列表: {', '.join(PROJECTS)}")
     logger.info(f"检查间隔: {CHECK_INTERVAL_MINUTES} 分钟")
     logger.info(f"dry_run: {dry_run}")
