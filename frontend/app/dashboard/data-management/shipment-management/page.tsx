@@ -853,6 +853,23 @@ export default function ShipmentManagementPage() {
     return groups
   }, [fbaBoxItems])
 
+  const fbaBoxLabelRanges = useMemo(() => {
+    const ranges: string[] = []
+    let counter = 1
+    fbaBoxItems.forEach((item) => {
+      const count = item.carton_count ?? 0
+      if (count <= 0) {
+        ranges.push('-')
+      } else {
+        const start = counter
+        const end = counter + count - 1
+        ranges.push(`${String(start).padStart(3, '0')}-${String(end).padStart(3, '0')}`)
+        counter += count
+      }
+    })
+    return ranges
+  }, [fbaBoxItems])
+
   const loadProjects = useCallback(async () => {
     if (status === 'loading') {
       return
@@ -2103,6 +2120,7 @@ export default function ShipmentManagementPage() {
         { header: '外箱重量(kg)', key: 'carton_weight', width: 14 },
         { header: '装箱率', key: 'packing_rate', width: 12 },
         { header: '总箱数', key: 'carton_count', width: 10 },
+        { header: '标签号段', key: 'label_range', width: 14 },
         { header: '总数量', key: 'quantity', width: 10 },
         { header: '总体积(m³)', key: 'total_volume', width: 14 },
         { header: '总重量(kg)', key: 'total_weight', width: 14 },
@@ -2155,6 +2173,7 @@ export default function ShipmentManagementPage() {
           item.carton_weight_kg ? formatDecimal(item.carton_weight_kg, 3) : '-',
           item.units_per_carton > 0 ? `${item.units_per_carton} / 箱` : '-',
           item.carton_count > 0 ? item.carton_count : '-',
+          fbaBoxLabelRanges[index] ?? '-',
           item.quantity > 0 ? item.quantity : '-',
           item.total_volume_m3,
           item.total_weight_kg,
@@ -2906,13 +2925,14 @@ export default function ShipmentManagementPage() {
                             <TableHead className={`whitespace-nowrap w-[180px] ${DENSE_HEAD}`}>外箱尺寸和重量</TableHead>
                             <TableHead className={`whitespace-nowrap w-[80px] text-right ${DENSE_HEAD}`}>装箱率</TableHead>
                             <TableHead className={`whitespace-nowrap w-[60px] text-right ${DENSE_HEAD}`}>总箱数</TableHead>
+                            <TableHead className={`whitespace-nowrap w-[100px] text-right ${DENSE_HEAD}`}>标签号段</TableHead>
                             <TableHead className={`whitespace-nowrap w-[80px] text-right ${DENSE_HEAD}`}>总数量</TableHead>
                             <TableHead className={`whitespace-nowrap w-[80px] text-right ${DENSE_HEAD}`}>总体积(m³)</TableHead>
                             <TableHead className={`whitespace-nowrap w-[80px] text-right ${DENSE_HEAD}`}>总重量(kg)</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {fbaBoxLoading && fbaBoxItems.length === 0 ? <ShipmentTableSkeleton columns={10} /> : null}
+                          {fbaBoxLoading && fbaBoxItems.length === 0 ? <ShipmentTableSkeleton columns={11} /> : null}
                           {fbaBoxItems.map((item, index) => {
                             const group = fbaBoxWarehouseGroups.find(
                               (g) => g.shipmentNo === item.shipment_no && index >= g.startIndex && index <= g.endIndex
@@ -2943,6 +2963,7 @@ export default function ShipmentManagementPage() {
                                 <TableCell className={DENSE_CELL}>{cartonInfo}</TableCell>
                                 <TableCell className={`text-right ${DENSE_CELL}`}>{item.units_per_carton > 0 ? `${item.units_per_carton} / 箱` : '-'}</TableCell>
                                 <TableCell className={`text-right ${DENSE_CELL}`}>{item.carton_count > 0 ? item.carton_count : '-'}</TableCell>
+                                <TableCell className={`text-right font-mono text-xs ${DENSE_CELL}`}>{fbaBoxLabelRanges[index] ?? '-'}</TableCell>
                                 <TableCell className={`text-right ${DENSE_CELL}`}>{item.quantity > 0 ? item.quantity : '-'}</TableCell>
                                 <TableCell className={`text-right ${DENSE_CELL}`}>{formatDecimal(item.total_volume_m3, 4)}</TableCell>
                                 <TableCell className={`text-right ${DENSE_CELL}`}>{item.total_weight_kg > 0 ? formatDecimal(item.total_weight_kg) : '0'}</TableCell>
