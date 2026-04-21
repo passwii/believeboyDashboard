@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.passwords import verify_password
 from app.db.session import SessionLocal
+from app.schemas.system_management import UserRoleType
 from app.services.audit_log_service import append_operation_audit_log
 from app.services.rate_limit_service import clear_key, increment_and_check
 
@@ -35,6 +36,7 @@ class LoginResponse(BaseModel):
     operator_name_zh: str | None = None
     is_admin: bool
     is_active: bool
+    role_type: UserRoleType = UserRoleType.operator
 
 
 class MeResponse(BaseModel):
@@ -44,6 +46,7 @@ class MeResponse(BaseModel):
     operator_name_zh: str | None = None
     is_admin: bool
     is_active: bool
+    role_type: UserRoleType = UserRoleType.operator
     password_changed_at: str | None = None
 
 
@@ -98,7 +101,8 @@ def login(request: Request, payload: LoginRequest) -> LoginResponse | JSONRespon
                   password_hash,
                   operator_name_zh,
                   is_admin,
-                  is_active
+                  is_active,
+                  role_type
                 from public.user_accounts
                 where lower(email) = lower(:email)
                 limit 1
@@ -158,6 +162,7 @@ def login(request: Request, payload: LoginRequest) -> LoginResponse | JSONRespon
             operator_name_zh=(str(row['operator_name_zh']) if row['operator_name_zh'] is not None else None),
             is_admin=bool(row['is_admin']),
             is_active=bool(row['is_active']),
+            role_type=UserRoleType(row['role_type']) if row['role_type'] else (UserRoleType.admin if row['is_admin'] else UserRoleType.operator),
         )
     finally:
         db.close()
@@ -181,6 +186,7 @@ def get_current_user(
                   operator_name_zh,
                   is_admin,
                   is_active,
+                  role_type,
                   password_changed_at
                 from public.user_accounts
                 where id::text = :user_id and lower(email) = lower(:email)
@@ -197,6 +203,7 @@ def get_current_user(
             operator_name_zh=(str(row["operator_name_zh"]) if row["operator_name_zh"] else None),
             is_admin=bool(row["is_admin"]),
             is_active=bool(row["is_active"]),
+            role_type=UserRoleType(row["role_type"]) if row["role_type"] else (UserRoleType.admin if row["is_admin"] else UserRoleType.operator),
             password_changed_at=(str(row["password_changed_at"]) if row["password_changed_at"] else None),
         )
     finally:

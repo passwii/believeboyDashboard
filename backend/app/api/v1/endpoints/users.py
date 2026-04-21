@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, get_request_operator, protected
 from app.core.passwords import hash_password
+from app.schemas.system_management import UserRoleType
 from app.services.audit_log_service import (
     append_operation_audit_log,
     append_operation_view_log,
@@ -25,6 +26,7 @@ class UserItem(BaseModel):
     operator_name_zh: str | None = None
     is_admin: bool
     is_active: bool
+    role_type: UserRoleType = UserRoleType.operator
     created_at: str
     updated_at: str
 
@@ -40,6 +42,7 @@ class CreateUserRequest(BaseModel):
     operator_name_zh: str | None = Field(default=None, max_length=255)
     password: str = Field(min_length=8, max_length=128)
     is_admin: bool = False
+    role_type: UserRoleType = UserRoleType.operator
 
 
 class CreateUserResponse(BaseModel):
@@ -52,6 +55,7 @@ class UpdateUserRequest(BaseModel):
     operator_name_zh: str | None = Field(default=None, max_length=255)
     is_admin: bool | None = None
     is_active: bool | None = None
+    role_type: UserRoleType | None = None
     password: str | None = Field(default=None, min_length=8, max_length=128)
 
 
@@ -72,6 +76,7 @@ def _to_item(row: dict) -> UserItem:
         ),
         is_admin=bool(row["is_admin"]),
         is_active=bool(row["is_active"]),
+        role_type=UserRoleType(row["role_type"]) if row.get("role_type") else (UserRoleType.admin if row.get("is_admin") else UserRoleType.operator),
         created_at=str(row["created_at"]),
         updated_at=str(row["updated_at"]),
     )
@@ -86,6 +91,7 @@ def _serialize_user_item(item: UserItem) -> dict[str, object | None]:
         "operator_name_zh": item.operator_name_zh,
         "is_admin": item.is_admin,
         "is_active": item.is_active,
+        "role_type": item.role_type.value,
     }
 
 
@@ -107,6 +113,7 @@ def list_users(
               operator_name_zh,
               is_admin,
               is_active,
+              role_type,
               created_at,
               updated_at
             from public.user_accounts
@@ -142,8 +149,8 @@ def create_user(
             db.execute(
                 text(
                     """
-                insert into public.user_accounts (name, email, full_name, operator_name_zh, password_hash, is_admin, is_active)
-                values (:name, :email, :full_name, :operator_name_zh, :password_hash, :is_admin, true)
+                insert into public.user_accounts (name, email, full_name, operator_name_zh, password_hash, is_admin, role_type, is_active)
+                values (:name, :email, :full_name, :operator_name_zh, :password_hash, :is_admin, :role_type, true)
                 returning
                   id::text as id,
                   name,
@@ -152,6 +159,7 @@ def create_user(
                   operator_name_zh,
                   is_admin,
                   is_active,
+                  role_type,
                   created_at,
                   updated_at
                 """
@@ -167,6 +175,7 @@ def create_user(
                     else None,
                     "password_hash": password_hash,
                     "is_admin": bool(payload.is_admin),
+                    "role_type": payload.role_type.value,
                 },
             )
             .mappings()
@@ -227,6 +236,7 @@ def update_user(
               operator_name_zh,
               is_admin,
               is_active,
+              role_type,
               created_at,
               updated_at
             from public.user_accounts
@@ -250,6 +260,10 @@ def update_user(
     )
     is_admin = payload.is_admin if isinstance(payload.is_admin, bool) else None
     is_active = payload.is_active if isinstance(payload.is_active, bool) else None
+    role_type = payload.role_type.value if isinstance(payload.role_type, UserRoleType) else None
+    # Keep is_admin in sync with role_type: when role_type changes, auto-derive is_admin
+    if role_type is not None:
+        is_admin = (role_type == UserRoleType.admin.value)
     password = (
         payload.password
         if isinstance(payload.password, str) and payload.password
@@ -269,6 +283,7 @@ def update_user(
               is_active = coalesce(:is_active, is_active),
               full_name = coalesce(:full_name, full_name),
               operator_name_zh = coalesce(:operator_name_zh, operator_name_zh),
+              role_type = coalesce(:role_type, role_type),
               password_hash = coalesce(:password_hash, password_hash),
               password_changed_at = coalesce(:password_changed_at, password_changed_at),
               updated_at = now()
@@ -281,6 +296,7 @@ def update_user(
               operator_name_zh,
               is_admin,
               is_active,
+              role_type,
               created_at,
               updated_at
             """
@@ -292,6 +308,7 @@ def update_user(
                 "operator_name_zh": operator_name_zh,
                 "is_admin": is_admin,
                 "is_active": is_active,
+                "role_type": role_type,
                 "password_hash": password_hash,
                 "password_changed_at": password_changed_at,
             },

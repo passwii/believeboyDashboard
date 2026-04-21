@@ -12,6 +12,7 @@ type UserItem = {
   operator_name_zh?: string | null
   is_admin: boolean
   is_active: boolean
+  role_type: 'admin' | 'operator' | 'businessdev' | 'factory'
   created_at: string
   updated_at: string
 }
@@ -25,6 +26,7 @@ function toFrontendUser(item: UserItem) {
     operatorNameZh: item.operator_name_zh ?? null,
     isAdmin: item.is_admin,
     isActive: item.is_active,
+    roleType: item.role_type,
     createdAt: item.created_at,
     updatedAt: item.updated_at,
   }
@@ -44,35 +46,40 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   const body = (await request.json()) as {
     name?: string
     fullName?: string
-    isAdmin?: boolean
     isActive?: boolean
+    roleType?: 'admin' | 'operator' | 'businessdev' | 'factory'
     password?: string
+    operator_name_zh?: string | null
   }
 
   if (body.password && body.password.length < 8) {
     return NextResponse.json({ message: '密码长度至少 8 位' }, { status: 400 })
   }
 
-  if (params.id === session.user.id && (body.isAdmin === false || body.isActive === false)) {
-    return NextResponse.json({ message: '不能禁用或降级当前登录管理员' }, { status: 400 })
+  if (params.id === session.user.id && body.isActive === false) {
+    return NextResponse.json({ message: '不能停用当前登录账号' }, { status: 400 })
   }
 
   try {
-    const data = await backendFetchJson<{ item: UserItem }>(`/api/v1/system-management/users/${params.id}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': apiKey,
+    const data = await backendFetchJson<{ item: UserItem }>(
+      `/api/v1/system-management/users/${params.id}`,
+      {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': apiKey,
+        },
+        body: JSON.stringify({
+          name: body.name,
+          full_name: body.fullName,
+          is_active: body.isActive,
+          role_type: body.roleType,
+          password: body.password,
+          operator_name_zh: body.operator_name_zh,
+        }),
+        cache: 'no-store',
       },
-      body: JSON.stringify({
-        name: body.name,
-        full_name: body.fullName,
-        is_admin: body.isAdmin,
-        is_active: body.isActive,
-        password: body.password,
-      }),
-      cache: 'no-store',
-    })
+    )
     return NextResponse.json({ item: toFrontendUser(data.item) })
   } catch (err) {
     const message = normalizeErrorMessage(err, '更新失败')

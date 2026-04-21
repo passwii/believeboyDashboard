@@ -127,7 +127,7 @@ export async function middleware(request: NextRequest) {
       )
     }
 
-    if (pathname.startsWith('/dashboard/system-management') && !token.isAdmin) {
+    if (pathname.startsWith('/dashboard/system-management') && !(token.isAdmin || token.roleType === 'admin')) {
       return NextResponse.redirect(new URL('/dashboard?forbidden=1', request.url))
     }
   }

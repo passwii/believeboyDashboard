@@ -443,8 +443,12 @@ const ANALYSIS_SECTIONS: AnalysisSection[] = [
   { key: 'price', label: '价格', prompt: '回答销量集中在哪些价格带，以及价格是否主导决策。' },
 ]
 
-function authHeaders(_operator?: string, _isAdmin = false): Record<string, string> {
-  return {}
+function authHeaders(operator?: string | null, isAdmin = false, roleType?: string | null): Record<string, string> {
+  const headers: Record<string, string> = {}
+  if (isAdmin) headers['X-Is-Admin'] = 'true'
+  if (operator) headers['X-Operator'] = operator
+  if (roleType) headers['X-Role-Type'] = roleType
+  return headers
 }
 
 function resolveApiUrl(path: string) {
@@ -1499,7 +1503,10 @@ export default function CategoryResearchPage() {
   const { notify } = useNotifications()
   const { data: session } = useSession()
   const isAdmin = Boolean(session?.user?.isAdmin)
-  const currentOperator = (session?.user?.operatorNameZh || session?.user?.name || session?.user?.email || '').trim()
+  const operatorName = session?.user?.operatorNameZh ?? null
+  const displayName = (session?.user?.operatorNameZh || session?.user?.name || session?.user?.email || '').trim()
+  const roleType = session?.user?.roleType
+  const isFactoryWithoutOperatorName = roleType === 'factory' && !operatorName
 
   const [marketplace, setMarketplace] = useState('US')
   const [keywordEn, setKeywordEn] = useState('')
@@ -1541,7 +1548,7 @@ export default function CategoryResearchPage() {
       })
       const response = await fetch(resolveApiUrl(`/api/v1/category-research/datasets?${params.toString()}`), {
         cache: 'no-store',
-        headers: authHeaders(currentOperator, isAdmin),
+        headers: authHeaders(operatorName, isAdmin, roleType),
       })
       if (!response.ok) {
         const text = await response.text()
@@ -1571,7 +1578,7 @@ export default function CategoryResearchPage() {
     } finally {
       setKeywordLoading(false)
     }
-  }, [marketplace, currentOperator, isAdmin])
+  }, [marketplace, operatorName, isAdmin, roleType])
 
   const loadDatasets = useCallback(async (keyword: string) => {
     const normalizedKeyword = keyword.trim()
@@ -1589,7 +1596,7 @@ export default function CategoryResearchPage() {
       })
       const response = await fetch(resolveApiUrl(`/api/v1/category-research/datasets?${params.toString()}`), {
         cache: 'no-store',
-        headers: authHeaders(currentOperator, isAdmin),
+        headers: authHeaders(operatorName, isAdmin, roleType),
       })
       if (!response.ok) {
         const text = await response.text()
@@ -1605,7 +1612,7 @@ export default function CategoryResearchPage() {
     } finally {
       setDatasetLoading(false)
     }
-  }, [marketplace, currentOperator, isAdmin])
+  }, [marketplace, operatorName, isAdmin, roleType])
 
   const loadOverview = useCallback(async (datasetId: number) => {
     setOverviewLoading(true)
@@ -1614,7 +1621,7 @@ export default function CategoryResearchPage() {
       appendPriceBandParams(params, priceBandStandard, priceBandBreaksText)
       const response = await fetch(resolveApiUrl(`/api/v1/category-research/datasets/${datasetId}?${params.toString()}`), {
         cache: 'no-store',
-        headers: authHeaders(currentOperator, isAdmin),
+        headers: authHeaders(operatorName, isAdmin, roleType),
       })
       if (!response.ok) {
         const text = await response.text()
@@ -1630,14 +1637,14 @@ export default function CategoryResearchPage() {
     } finally {
       setOverviewLoading(false)
     }
-  }, [currentOperator, isAdmin, priceBandBreaksText, priceBandStandard])
+  }, [operatorName, isAdmin, priceBandBreaksText, priceBandStandard, roleType])
 
   const loadMarketTrend = useCallback(async (datasetId: number) => {
     setMarketTrendLoading(true)
     try {
       const response = await fetch(resolveApiUrl(`/api/v1/category-research/datasets/${datasetId}/market-trend?months=24`), {
         cache: 'no-store',
-        headers: authHeaders(currentOperator, isAdmin),
+        headers: authHeaders(operatorName, isAdmin, roleType),
       })
       if (!response.ok) {
         const text = await response.text()
@@ -1653,7 +1660,7 @@ export default function CategoryResearchPage() {
     } finally {
       setMarketTrendLoading(false)
     }
-  }, [currentOperator, isAdmin])
+  }, [operatorName, isAdmin, roleType])
 
   useEffect(() => {
     void loadKeywordOptions()
@@ -1709,7 +1716,7 @@ export default function CategoryResearchPage() {
 
       const response = await fetch(resolveApiUrl('/api/v1/category-research/datasets/import'), {
         method: 'POST',
-        headers: authHeaders(currentOperator, isAdmin),
+        headers: authHeaders(operatorName, isAdmin, roleType),
         body: formData,
       })
       if (!response.ok) {
@@ -1750,7 +1757,7 @@ export default function CategoryResearchPage() {
     try {
       const response = await fetch(resolveApiUrl(`/api/v1/category-research/datasets/${selectedDatasetId}/recompute`), {
         method: 'POST',
-        headers: authHeaders(currentOperator, isAdmin),
+        headers: authHeaders(operatorName, isAdmin, roleType),
       })
       if (!response.ok) {
         const text = await response.text()
@@ -1793,7 +1800,7 @@ export default function CategoryResearchPage() {
       })
       const response = await fetch(resolveApiUrl(`/api/v1/category-research/datasets/recompute?${params.toString()}`), {
         method: 'POST',
-        headers: authHeaders(currentOperator, isAdmin),
+        headers: authHeaders(operatorName, isAdmin, roleType),
       })
       if (!response.ok) {
         const text = await response.text()
@@ -1985,7 +1992,7 @@ export default function CategoryResearchPage() {
       const query = params.toString()
       const endpoint = `/api/v1/category-research/datasets/${selectedDatasetId}/exports/${exportKey}${query ? `?${query}` : ''}`
       const response = await fetch(resolveApiUrl(endpoint), {
-        headers: authHeaders(currentOperator, isAdmin),
+        headers: authHeaders(operatorName, isAdmin, roleType),
       })
       if (!response.ok) {
         const text = await response.text()
@@ -2001,7 +2008,7 @@ export default function CategoryResearchPage() {
     } finally {
       setExportingKey(null)
     }
-  }, [currentOperator, isAdmin, priceBandBreaksText, priceBandStandard, selectedDatasetId])
+  }, [operatorName, isAdmin, priceBandBreaksText, priceBandStandard, selectedDatasetId, roleType])
 
   return (
     <Tabs
@@ -2092,6 +2099,16 @@ export default function CategoryResearchPage() {
           </DataCardContent>
         </DataCard>
         </>
+      ) : isFactoryWithoutOperatorName ? (
+        <DataCard>
+          <DataCardContent className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+            <ShieldAlert className="h-10 w-10 text-muted-foreground" />
+            <div>
+              <p className="font-semibold">无法访问分析数据</p>
+              <p className="mt-1 text-sm text-muted-foreground">您的账号未设置运营姓名，无法加载调研记录。请联系管理员完善账号信息后重试。</p>
+            </div>
+          </DataCardContent>
+        </DataCard>
       ) : (
         <>
         <DataCard className="overflow-hidden border-border/80 shadow-[0_20px_45px_-24px_rgba(15,23,42,0.3)]">
@@ -2168,11 +2185,11 @@ export default function CategoryResearchPage() {
                 {datasetLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Database className="mr-2 h-4 w-4" />}
                 加载版本
               </Button>
-              <Button variant="outline" className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring" onClick={() => void onRecomputeCurrent()} disabled={recomputingCurrent || !selectedDatasetId}>
+              <Button variant="outline" className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring" onClick={() => void onRecomputeCurrent()} disabled={recomputingCurrent || !selectedDatasetId || roleType === 'factory'}>
                 {recomputingCurrent ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
                 重算当前版本
               </Button>
-              <Button variant="outline" className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring" onClick={() => void onRecomputeHistory()} disabled={recomputingHistory || !analysisKeyword.trim()}>
+              <Button variant="outline" className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring" onClick={() => void onRecomputeHistory()} disabled={recomputingHistory || !analysisKeyword.trim() || roleType === 'factory'}>
                 {recomputingHistory ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
                 重算历史版本
               </Button>

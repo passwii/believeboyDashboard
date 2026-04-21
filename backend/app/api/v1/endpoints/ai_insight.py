@@ -10,7 +10,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, get_request_operator, protected
+from app.api.deps import get_db_session, get_request_is_admin, get_request_operator, protected
 from app.core.config import Settings, get_settings
 from app.models import AIInsight, InsightStatus, InsightType, Project
 from app.schemas.ai_insight import (
@@ -25,6 +25,7 @@ from app.schemas.ai_insight import (
     InsightUpdateRequest,
 )
 from app.services import ai_chat_service
+from app.services import project_service
 from app.services.ai_insight_aggregator import aggregate_project_data
 from app.services.ai_insight_generator import (
     generate_insight_stream,
@@ -246,11 +247,13 @@ def generate_insight(
     db: Session = Depends(get_db_session),
     settings: Settings = Depends(get_settings),
     x_operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Depends(get_request_is_admin),
 ):
     """
     Start insight generation in the background.
     Returns immediately with the insight ID. Poll /ai-insights/{id}/stream for progress.
     """
+    project_service.ensure_project_access(db, payload.project_id, operator=x_operator, is_admin=is_admin)
     project = _get_project_or_404(db, payload.project_id)
 
     insight = AIInsight(
@@ -298,6 +301,8 @@ def generate_insight(
 def stream_insight(
     insight_id: int,
     db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Depends(get_request_is_admin),
 ):
     """
     SSE stream for insight generation progress.
@@ -307,6 +312,9 @@ def stream_insight(
     insight = db.get(AIInsight, insight_id)
     if insight is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="洞察不存在")
+
+    # Access check: non-admin users can only stream insights from projects they manage
+    project_service.ensure_project_access(db, insight.project_id, operator=operator, is_admin=is_admin)
 
     insight_id_val = insight.id
     start_status = insight.status
@@ -388,11 +396,13 @@ def generate_insight_stream_endpoint(
     db: Session = Depends(get_db_session),
     settings: Settings = Depends(get_settings),
     operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Depends(get_request_is_admin),
 ):
     """
     Legacy endpoint: generates insight in the request thread with streaming response.
     Prefer POST /generate + GET /{id}/stream for background execution.
     """
+    project_service.ensure_project_access(db, payload.project_id, operator=operator, is_admin=is_admin)
     project = _get_project_or_404(db, payload.project_id)
     project_name = project.project_name
     start_date_str = payload.date_range_start.isoformat()
@@ -512,9 +522,21 @@ def list_insights(
     limit: int = 20,
     offset: int = 0,
     db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Depends(get_request_is_admin),
 ) -> InsightListResponse:
+    accessible_ids = project_service.list_accessible_project_ids(db, operator=operator, is_admin=is_admin)
+
     stmt = select(AIInsight)
     count_stmt = select(func.count(AIInsight.id))
+
+    # Non-admin users can only see insights from projects they have access to
+    if accessible_ids is not None:
+        stmt = stmt.where(AIInsight.project_id.in_(accessible_ids))
+        count_stmt = count_stmt.where(AIInsight.project_id.in_(accessible_ids))
+        # If user has no accessible projects, return empty result
+        if not accessible_ids:
+            return InsightListResponse(items=[], total=0)
 
     if project_id is not None:
         stmt = stmt.where(AIInsight.project_id == project_id)
@@ -541,7 +563,12 @@ def get_latest_insight(
     project_id: int,
     country: str = "US",
     db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Depends(get_request_is_admin),
 ) -> InsightDetail | InsightStatusResponse:
+    # Access check: non-admin users can only view latest insight from projects they manage
+    project_service.ensure_project_access(db, project_id, operator=operator, is_admin=is_admin)
+
     stmt = (
         select(AIInsight)
         .where(
@@ -562,10 +589,16 @@ def get_latest_insight(
 def get_insight(
     insight_id: int,
     db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Depends(get_request_is_admin),
 ) -> InsightDetail:
     row = db.get(AIInsight, insight_id)
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="洞察不存在")
+
+    # Access check: non-admin users can only view insights from projects they manage
+    project_service.ensure_project_access(db, row.project_id, operator=operator, is_admin=is_admin)
+
     return InsightDetail(
         id=row.id,
         project_id=row.project_id,
@@ -590,10 +623,14 @@ def update_insight(
     insight_id: int,
     payload: InsightUpdateRequest,
     db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Depends(get_request_is_admin),
 ) -> InsightDetail:
     row = db.get(AIInsight, insight_id)
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="洞察不存在")
+
+    project_service.ensure_project_access(db, row.project_id, operator=operator, is_admin=is_admin)
 
     row.content = normalize_insight_markdown(payload.content.strip())
     row.updated_at = datetime.now(timezone.utc)
@@ -610,6 +647,7 @@ def retry_insight(
     db: Session = Depends(get_db_session),
     settings: Settings = Depends(get_settings),
     x_operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Depends(get_request_is_admin),
 ):
     """
     Retry a failed or stuck insight by resetting it and spawning a new background
@@ -618,6 +656,9 @@ def retry_insight(
     row = db.get(AIInsight, insight_id)
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="洞察不存在")
+
+    # Access check: non-admin users can only retry insights from projects they manage
+    project_service.ensure_project_access(db, row.project_id, operator=x_operator, is_admin=is_admin)
 
     if row.status == InsightStatus.completed:
         raise HTTPException(
@@ -656,11 +697,16 @@ def retry_insight(
 def delete_insight(
     insight_id: int,
     db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Depends(get_request_is_admin),
 ):
     from app.schemas.ai_insight import InsightDeleteResponse
     row = db.get(AIInsight, insight_id)
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="洞察不存在")
+
+    project_service.ensure_project_access(db, row.project_id, operator=operator, is_admin=is_admin)
+
     db.delete(row)
     db.commit()
     return InsightDeleteResponse(deleted=True, id=insight_id)

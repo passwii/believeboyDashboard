@@ -28,6 +28,7 @@ from app.api.v1.endpoints.users import router as users_router
 from app.api.v1.endpoints.category_research import router as category_research_router
 from app.api.v1.endpoints.return_analysis import router as return_analysis_router
 from app.api.v1.endpoints.project_goals import router as project_goals_router
+from app.api.v1.endpoints.rpa_reports import router as rpa_reports_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router)
@@ -58,3 +59,4 @@ api_router.include_router(users_router)
 api_router.include_router(presence_router)
 api_router.include_router(return_analysis_router)
 api_router.include_router(project_goals_router)
+api_router.include_router(rpa_reports_router)

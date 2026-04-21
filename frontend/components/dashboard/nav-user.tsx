@@ -1,6 +1,7 @@
 'use client'
 
-import { ChevronsUpDown, KeyRound, LogOut } from 'lucide-react'
+import { Factory, KeyRound, LogOut, Shield, Store } from 'lucide-react'
+import { ChevronsUpDown } from 'lucide-react'
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
@@ -15,11 +16,25 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/components/ui/sidebar'
 
+const ROLE_ICONS = {
+  admin: <Shield className="h-3 w-3" />,
+  operator: <Shield className="h-3 w-3" />,
+  businessdev: <Store className="h-3 w-3" />,
+  factory: <Factory className="h-3 w-3" />,
+} as const
+
+const ROLE_LABELS = {
+  admin: '管理员',
+  operator: '运营',
+  businessdev: '招商',
+  factory: '工厂',
+} as const
+
 interface User {
   name: string
   email: string
   avatar?: string
-  isAdmin?: boolean
+  roleType?: 'admin' | 'operator' | 'businessdev' | 'factory'
 }
 
 interface NavUserProps {
@@ -30,6 +45,7 @@ interface NavUserProps {
 export function NavUser({ user, onLogout }: NavUserProps) {
   const { isMobile } = useSidebar()
   const fallback = user.name?.[0]?.toUpperCase() || 'U'
+  const roleLabel = user.roleType ? ROLE_LABELS[user.roleType] : null
 
   return (
     <SidebarMenu>
@@ -67,7 +83,7 @@ export function NavUser({ user, onLogout }: NavUserProps) {
                   <span className="truncate font-semibold">{user.name}</span>
                   <span className="truncate text-sm">
                     {user.email}
-                    {user.isAdmin ? ' · 管理员' : ' · 普通用户'}
+                    {roleLabel ? ` · ${roleLabel}` : ''}
                   </span>
                 </div>
               </div>

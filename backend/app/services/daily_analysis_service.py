@@ -288,6 +288,163 @@ def build_daily_analysis(
     return result
 
 
+def _aggregate_buckets(
+    detail_buckets: dict[tuple[str, str], _MetricBucket],
+    sku_filter: str | None,
+) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+    detail_rows: list[dict[str, object]] = []
+    summary_map: dict[str, dict[str, object]] = {}
+    for (day_text, bucket_sku), bucket in sorted(
+        detail_buckets.items(), key=lambda item: (item[0][0], item[0][1])
+    ):
+        if sku_filter is not None and bucket_sku != sku_filter:
+            continue
+
+        detail_row = {
+            "date": day_text,
+            "sku": bucket_sku,
+            "asin": bucket.asin,
+            "order_qty": int(bucket.order_qty),
+            "sales_amount": _round_money(bucket.sales_amount),
+            "impressions": int(bucket.impressions),
+            "clicks": int(bucket.clicks),
+            "cpc": _safe_ratio(bucket.ad_spend, bucket.clicks),
+            "ad_spend": _round_money(bucket.ad_spend),
+            "ad_orders": int(bucket.ad_orders),
+            "available_qty": int(bucket.available_qty),
+        }
+        detail_rows.append(detail_row)
+
+        summary = summary_map.setdefault(
+            day_text,
+            {
+                "date": day_text,
+                "order_qty": 0,
+                "sales_amount": Decimal("0"),
+                "impressions": 0,
+                "clicks": 0,
+                "ad_spend": Decimal("0"),
+                "ad_orders": 0,
+                "available_qty": 0,
+            },
+        )
+        summary["order_qty"] = int(summary["order_qty"]) + int(bucket.order_qty)
+        summary["sales_amount"] = Decimal(summary["sales_amount"]) + bucket.sales_amount
+        summary["impressions"] = int(summary["impressions"]) + int(bucket.impressions)
+        summary["clicks"] = int(summary["clicks"]) + int(bucket.clicks)
+        summary["ad_spend"] = Decimal(summary["ad_spend"]) + bucket.ad_spend
+        summary["ad_orders"] = int(summary["ad_orders"]) + int(bucket.ad_orders)
+        summary["available_qty"] = int(summary["available_qty"]) + int(
+            bucket.available_qty
+        )
+
+    summary_rows = [
+        {
+            "date": item["date"],
+            "order_qty": int(item["order_qty"]),
+            "sales_amount": _round_money(Decimal(item["sales_amount"])),
+            "impressions": int(item["impressions"]),
+            "clicks": int(item["clicks"]),
+            "cpc": _safe_ratio(Decimal(item["ad_spend"]), int(item["clicks"])),
+            "ad_spend": _round_money(Decimal(item["ad_spend"])),
+            "ad_orders": int(item["ad_orders"]),
+            "available_qty": int(item["available_qty"]),
+        }
+        for item in sorted(summary_map.values(), key=lambda row: str(row["date"]))
+    ]
+    return detail_rows, summary_rows
+
+
+def build_daily_analysis_all_projects(
+    db: Session,
+    *,
+    project_ids: list[int],
+    country: str,
+    start_date: str,
+    end_date: str,
+    sku: str | None = None,
+) -> dict[str, object]:
+    normalized_country = _normalize_country(country)
+    normalized_start = _parse_date(start_date, "start_date")
+    normalized_end = _parse_date(end_date, "end_date")
+
+    if normalized_start > normalized_end:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="start_date cannot be greater than end_date",
+        )
+
+    project_breakdown: dict[int, dict[str, object]] = {}
+    global_buckets: dict[tuple[str, str], _MetricBucket] = {}
+
+    for project_id in project_ids:
+        project = _get_project_or_404(db, project_id)
+        detail_buckets: dict[tuple[str, str], _MetricBucket] = {}
+
+        _load_sales_metrics(
+            db,
+            detail_buckets=detail_buckets,
+            project_id=project_id,
+            country=normalized_country,
+            start_date=normalized_start,
+            end_date=normalized_end,
+        )
+        _load_ad_metrics(
+            db,
+            detail_buckets=detail_buckets,
+            project_id=project_id,
+            country=normalized_country,
+            start_date=normalized_start,
+            end_date=normalized_end,
+        )
+        _load_inventory_metrics(
+            db,
+            detail_buckets=detail_buckets,
+            project_id=project_id,
+            country=normalized_country,
+            start_date=normalized_start,
+            end_date=normalized_end,
+        )
+
+        project_detail, project_summary = _aggregate_buckets(
+            detail_buckets, sku_filter=sku
+        )
+        project_breakdown[project_id] = {
+            "project_name": project.project_name,
+            "summary_rows": project_summary,
+            "detail_rows": project_detail,
+        }
+
+        for key, bucket in detail_buckets.items():
+            global_bucket = global_buckets.setdefault(key, _MetricBucket())
+            global_bucket.asin = bucket.asin
+            global_bucket.order_qty += bucket.order_qty
+            global_bucket.sales_amount += bucket.sales_amount
+            global_bucket.impressions += bucket.impressions
+            global_bucket.clicks += bucket.clicks
+            global_bucket.ad_spend += bucket.ad_spend
+            global_bucket.ad_orders += bucket.ad_orders
+            global_bucket.available_qty += bucket.available_qty
+
+    global_detail, global_summary = _aggregate_buckets(global_buckets, sku_filter=sku)
+
+    available_dates: dict[str, list[str]] = {
+        "sales_report": [],
+        "ad_product_report": [],
+        "inventory_report": [],
+    }
+    requested_dates = [
+        item.isoformat() for item in _daterange(normalized_start, normalized_end)
+    ]
+
+    return {
+        "summary_rows": global_summary,
+        "detail_rows": global_detail,
+        "available_dates": available_dates,
+        "project_breakdown": project_breakdown,
+    }
+
+
 def _load_sales_metrics(
     db: Session,
     *,

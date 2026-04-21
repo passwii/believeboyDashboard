@@ -154,6 +154,20 @@ type DailyAnalysisResponse = {
   available_dates: Record<string, string[]>
 }
 
+type DailyAnalysisAllProjectsResponse = {
+  summary_rows: DailyAnalysisRow[]
+  detail_rows: DailyAnalysisDetailRow[]
+  available_dates: Record<string, string[]>
+  project_breakdown: Record<
+    number,
+    {
+      project_name: string
+      summary_rows: DailyAnalysisRow[]
+      detail_rows: DailyAnalysisDetailRow[]
+    }
+  >
+}
+
 type DetailDisplayRow = {
   row: DailyAnalysisDetailRow
   rowKey: string
@@ -856,7 +870,7 @@ export default function DailyAnalysisPage() {
   const { data: session } = useSession()
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
-  const [projectId, setProjectId] = useState('')
+  const [projectId, setProjectId] = useState<string>('')
   const [country, setCountry] = useState<CountryOption>('US')
   const defaultRange = useMemo(() => lastSevenDaysRange(country), [country])
   const [dateRange, setDateRange] = useState<DateRange | undefined>(
@@ -916,6 +930,8 @@ export default function DailyAnalysisPage() {
     if (first?.id != null) setProjectId(String(first.id))
   }, [projectId, projects])
 
+  const isAllProjects = projectId === 'all'
+
   // When country changes, reset dateRange to "last 7 days in that country's timezone".
   useEffect(() => {
     setDateRange(defaultRange)
@@ -923,10 +939,6 @@ export default function DailyAnalysisPage() {
 
   const loadData = useCallback(
     async (rangeOverride?: DateRange) => {
-      if (!projectId) {
-        notify({ type: 'error', title: '请先选择项目' })
-        return
-      }
       const effectiveRange = normalizeDateRange(rangeOverride ?? dateRange)
       if (!effectiveRange?.from || !effectiveRange?.to) {
         notify({ type: 'error', title: '请选择开始和结束日期' })
@@ -941,59 +953,141 @@ export default function DailyAnalysisPage() {
       const requestId = latestLoadRequestRef.current + 1
       latestLoadRequestRef.current = requestId
       try {
-        const search = new URLSearchParams({
-          project_id: projectId,
-          country,
-          start_date: startDate,
-          end_date: endDate,
-          ...(selectedSku && { sku: selectedSku }),
-        })
-        const compareSearch = previousRange
-          ? new URLSearchParams({
-              project_id: projectId,
+        if (isAllProjects) {
+          const ids = projects.map((p) => String(p.id)).join(',')
+          const search = new URLSearchParams({
+            project_ids: ids,
+            country,
+            start_date: startDate,
+            end_date: endDate,
+            ...(selectedSku && { sku: selectedSku }),
+          })
+          const compareSearch = previousRange
+            ? new URLSearchParams({
+                project_ids: ids,
+                country,
+                start_date: formatYMD(previousRange.from!),
+                end_date: formatYMD(previousRange.to!),
+                ...(selectedSku && { sku: selectedSku }),
+              })
+            : null
+
+          const [response, compareResponse] = await Promise.all([
+            fetch(`${API_BASE}/api/v1/daily-analysis/all?${search.toString()}`, {
+              headers: authHeaders(),
+              cache: 'no-store',
+            }),
+            compareSearch
+              ? fetch(
+                  `${API_BASE}/api/v1/daily-analysis/all?${compareSearch.toString()}`,
+                  {
+                    headers: authHeaders(),
+                    cache: 'no-store',
+                  },
+                )
+              : Promise.resolve(null),
+          ])
+          if (!response.ok) {
+            const payload = await response.json().catch(() => null)
+            throw new Error(payload?.detail || '销售数据加载失败')
+          }
+          if (compareResponse && !compareResponse.ok) {
+            const payload = await compareResponse.json().catch(() => null)
+            throw new Error(payload?.detail || '销售数据对比加载失败')
+          }
+
+          const payload = (await response.json()) as DailyAnalysisAllProjectsResponse
+          const comparePayload = compareResponse
+            ? ((await compareResponse.json()) as DailyAnalysisAllProjectsResponse)
+            : null
+          if (requestId !== latestLoadRequestRef.current) return
+          setData({
+            console: {
+              project_id: 0,
+              project_name: '全部项目',
               country,
-              start_date: formatYMD(previousRange.from!),
-              end_date: formatYMD(previousRange.to!),
-              ...(selectedSku && { sku: selectedSku }),
-            })
-          : null
+              start_date: startDate,
+              end_date: endDate,
+              requested_days: 0,
+              summary_days: payload.summary_rows.length,
+              detail_rows: payload.detail_rows.length,
+              sales_source_days: 0,
+              ad_source_days: 0,
+              inventory_source_days: 0,
+              missing_dates: [],
+              latest_sales_date: null,
+              latest_ad_date: null,
+              latest_inventory_date: null,
+            },
+            summary_rows: payload.summary_rows,
+            detail_rows: payload.detail_rows,
+            available_dates: payload.available_dates,
+          })
+          setComparisonSummaryRows(
+            comparePayload?.summary_rows ?? EMPTY_SUMMARY_ROWS,
+          )
+          setComparisonDetailRows(
+            comparePayload?.detail_rows ?? EMPTY_DETAIL_ROWS,
+          )
+        } else {
+          if (!projectId) {
+            notify({ type: 'error', title: '请先选择项目' })
+            return
+          }
+          const search = new URLSearchParams({
+            project_id: projectId,
+            country,
+            start_date: startDate,
+            end_date: endDate,
+            ...(selectedSku && { sku: selectedSku }),
+          })
+          const compareSearch = previousRange
+            ? new URLSearchParams({
+                project_id: projectId,
+                country,
+                start_date: formatYMD(previousRange.from!),
+                end_date: formatYMD(previousRange.to!),
+                ...(selectedSku && { sku: selectedSku }),
+              })
+            : null
 
-        const [response, compareResponse] = await Promise.all([
-          fetch(`${API_BASE}/api/v1/daily-analysis?${search.toString()}`, {
-            headers: authHeaders(),
-            cache: 'no-store',
-          }),
-          compareSearch
-            ? fetch(
-                `${API_BASE}/api/v1/daily-analysis?${compareSearch.toString()}`,
-                {
-                  headers: authHeaders(),
-                  cache: 'no-store',
-                },
-              )
-            : Promise.resolve(null),
-        ])
-        if (!response.ok) {
-          const payload = await response.json().catch(() => null)
-          throw new Error(payload?.detail || '销售数据加载失败')
-        }
-        if (compareResponse && !compareResponse.ok) {
-          const payload = await compareResponse.json().catch(() => null)
-          throw new Error(payload?.detail || '销售数据对比加载失败')
-        }
+          const [response, compareResponse] = await Promise.all([
+            fetch(`${API_BASE}/api/v1/daily-analysis?${search.toString()}`, {
+              headers: authHeaders(),
+              cache: 'no-store',
+            }),
+            compareSearch
+              ? fetch(
+                  `${API_BASE}/api/v1/daily-analysis?${compareSearch.toString()}`,
+                  {
+                    headers: authHeaders(),
+                    cache: 'no-store',
+                  },
+                )
+              : Promise.resolve(null),
+          ])
+          if (!response.ok) {
+            const payload = await response.json().catch(() => null)
+            throw new Error(payload?.detail || '销售数据加载失败')
+          }
+          if (compareResponse && !compareResponse.ok) {
+            const payload = await compareResponse.json().catch(() => null)
+            throw new Error(payload?.detail || '销售数据对比加载失败')
+          }
 
-        const payload = (await response.json()) as DailyAnalysisResponse
-        const comparePayload = compareResponse
-          ? ((await compareResponse.json()) as DailyAnalysisResponse)
-          : null
-        if (requestId !== latestLoadRequestRef.current) return
-        setData(payload)
-        setComparisonSummaryRows(
-          comparePayload?.summary_rows ?? EMPTY_SUMMARY_ROWS,
-        )
-        setComparisonDetailRows(
-          comparePayload?.detail_rows ?? EMPTY_DETAIL_ROWS,
-        )
+          const payload = (await response.json()) as DailyAnalysisResponse
+          const comparePayload = compareResponse
+            ? ((await compareResponse.json()) as DailyAnalysisResponse)
+            : null
+          if (requestId !== latestLoadRequestRef.current) return
+          setData(payload)
+          setComparisonSummaryRows(
+            comparePayload?.summary_rows ?? EMPTY_SUMMARY_ROWS,
+          )
+          setComparisonDetailRows(
+            comparePayload?.detail_rows ?? EMPTY_DETAIL_ROWS,
+          )
+        }
       } catch (fetchError) {
         if (requestId !== latestLoadRequestRef.current) return
         notify({
@@ -1012,7 +1106,7 @@ export default function DailyAnalysisPage() {
         setLoading(false)
       }
     },
-    [projectId, country, dateRange, selectedSku, notify],
+    [projectId, country, dateRange, selectedSku, notify, isAllProjects, projects],
   )
 
   const loadProjectSkus = useCallback(
@@ -1111,7 +1205,7 @@ export default function DailyAnalysisPage() {
 
   // Fetch current month goal progress
   useEffect(() => {
-    if (!projectId) {
+    if (!projectId || isAllProjects) {
       setGoalProgress(null)
       return
     }
@@ -1360,6 +1454,9 @@ export default function DailyAnalysisPage() {
                   <SelectValue placeholder='选择项目' />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem key='all' value='all'>
+                    全部项目
+                  </SelectItem>
                   {projects.map((item) => (
                     <SelectItem key={item.id} value={String(item.id)}>
                       {item.name}

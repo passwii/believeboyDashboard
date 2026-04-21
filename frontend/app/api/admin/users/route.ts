@@ -12,6 +12,7 @@ type UserItem = {
   operator_name_zh?: string | null
   is_admin: boolean
   is_active: boolean
+  role_type: 'admin' | 'operator' | 'businessdev' | 'factory'
   created_at: string
   updated_at: string
 }
@@ -25,6 +26,7 @@ function toFrontendUser(item: UserItem) {
     operatorNameZh: item.operator_name_zh ?? null,
     isAdmin: item.is_admin,
     isActive: item.is_active,
+    roleType: item.role_type,
     createdAt: item.created_at,
     updatedAt: item.updated_at,
   }
@@ -70,6 +72,8 @@ export async function POST(request: Request) {
     fullName?: string
     password?: string
     isAdmin?: boolean
+    roleType?: 'admin' | 'operator' | 'businessdev' | 'factory'
+    operator_name_zh?: string | null
   }
 
   try {
@@ -85,6 +89,8 @@ export async function POST(request: Request) {
         full_name: body.fullName,
         password: body.password,
         is_admin: Boolean(body.isAdmin),
+        role_type: body.roleType ?? 'operator',
+        operator_name_zh: body.operator_name_zh,
       }),
       cache: 'no-store',
     })

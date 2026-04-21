@@ -26,6 +26,7 @@ from app.models import (
     CategoryResearchProductDetail,
     CategoryResearchSalesTrend,
 )
+from app.schemas.system_management import UserRoleType
 from app.services.upload_service import resolve_upload_file_path, save_upload_file
 
 _SQLITE_TABLES_READY = False
@@ -224,6 +225,8 @@ def list_datasets(
     marketplace: str | None = None,
     category_keyword_en: str | None = None,
     current_only: bool = True,
+    role_type: str | None = None,
+    operator: str | None = None,
 ) -> list[CategoryResearchDataset]:
     ensure_tables(db)
 
@@ -238,6 +241,8 @@ def list_datasets(
         stmt = stmt.where(CategoryResearchDataset.marketplace == _normalize_marketplace(marketplace))
     if category_keyword_en:
         stmt = stmt.where(CategoryResearchDataset.category_keyword_en == _normalize_category_keyword(category_keyword_en))
+    if role_type == UserRoleType.factory.value and operator:
+        stmt = stmt.where(CategoryResearchDataset.created_by == operator)
 
     return list(db.execute(stmt).scalars().all())
 
