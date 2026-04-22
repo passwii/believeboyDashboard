@@ -16,7 +16,14 @@ import { ThemeToggle } from '@/components/theme-toggle'
 import { getDashboardPageTitle } from '@/lib/dashboard-route-meta'
 import { useRecentPages } from '@/lib/recent-pages'
 import { useGlobalLoading } from '@/components/global-loading-provider'
-import { Bell, BookOpen, ChevronRight, Search } from 'lucide-react'
+import {
+  Bell,
+  BookOpen,
+  ChevronDown,
+  ChevronRight,
+  MoreHorizontal,
+  Search,
+} from 'lucide-react'
 
 function getDashboardBreadcrumbLabel(pathname: string, pageTitle: string) {
   if (pathname === '/dashboard') return '运营总览'
@@ -74,6 +81,7 @@ export default function DashboardLayout({
   const isAiChatPage = pathname === '/dashboard/ai-panel/chat'
   const isAiChatRoute = effectivePathname === '/dashboard/ai-panel/chat'
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [iconsExpanded, setIconsExpanded] = useState(false)
   const pageTitle = useMemo(() => getDashboardPageTitle(effectivePathname), [effectivePathname])
   const breadcrumbLabel = useMemo(
     () => getDashboardBreadcrumbLabel(effectivePathname, pageTitle),
@@ -97,8 +105,8 @@ export default function DashboardLayout({
         <AppSidebar variant="sidebar" aiChatMode={isAiChatRoute} />
         <SidebarInset className="min-w-0 overflow-x-clip bg-[hsl(var(--surface-low))]">
           <header className="sticky top-0 z-20 border-b border-border/70 bg-[hsl(var(--surface-overlay)/0.82)] backdrop-blur-xl">
-            <div className="flex min-h-[4.5rem] items-center gap-4 px-3 md:px-5 lg:px-6 xl:px-8">
-              <SidebarTrigger className="h-10 w-10 rounded-xl border border-border/65 bg-[hsl(var(--surface-overlay)/0.65)] text-secondary shadow-none hover:bg-[hsl(var(--surface-subtle))]" />
+            <div className="flex min-h-[4.5rem] items-center gap-2 px-2 sm:gap-3 md:px-5 lg:px-6 xl:gap-4 xl:px-8">
+              <SidebarTrigger className="h-9 w-9 shrink-0 rounded-xl border border-border/65 bg-[hsl(var(--surface-overlay)/0.65)] text-secondary shadow-none hover:bg-[hsl(var(--surface-subtle))] sm:h-10 sm:w-10" />
               <div className="min-w-0 flex-1">
                 <nav className="flex items-center gap-1.5 overflow-hidden text-[1rem] font-medium text-muted-foreground md:text-[1.08rem]">
                   {breadcrumbLabel.split(' > ').map((segment, index, items) => (
@@ -128,20 +136,66 @@ export default function DashboardLayout({
                   <span className="rounded-sm bg-background/90 px-2 py-1 text-[0.68rem] font-semibold text-foreground/70">⌘K</span>
                 </Button>
               </div>
-              <LivePresence />
-              <div className="flex items-center justify-end gap-2">
+              {/* Mobile: toggle + RecentPagesDropdown always visible */}
+              <div className="flex items-center justify-end gap-1.5 xl:hidden">
                 <Button
                   variant="outline"
                   size="icon"
-                  className="h-10 w-10 rounded-xl border-border/65 bg-[hsl(var(--surface-subtle))] shadow-none xl:hidden"
+                  className="h-9 w-9 shrink-0 rounded-xl border-border/65 bg-[hsl(var(--surface-subtle))] shadow-none sm:h-10 sm:w-10"
+                  onClick={() => setIconsExpanded((v) => !v)}
+                  aria-label={iconsExpanded ? '收起工具栏' : '展开工具栏'}
+                >
+                  {iconsExpanded ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : (
+                    <MoreHorizontal className="h-4 w-4" />
+                  )}
+                </Button>
+                <RecentPagesDropdown />
+              </div>
+
+              {/* Desktop icons toolbar */}
+              <div className="hidden items-center justify-end gap-2 xl:flex">
+                <LivePresence />
+                <div className="flex items-center justify-end gap-2">
+                  <ThemeToggle />
+                  <NotificationBell />
+                  <RecentPagesDropdown />
+                  <Button
+                    asChild
+                    variant="ghost"
+                    size="icon"
+                    className="h-10 w-10 rounded-xl border border-transparent bg-transparent text-secondary hover:bg-[hsl(var(--surface-subtle))]"
+                  >
+                    <RouteLoadingLink href="/dashboard/changelog" aria-label="帮助与功能说明">
+                      <BookOpen className="h-4 w-4" />
+                      <span className="sr-only">Help</span>
+                    </RouteLoadingLink>
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Mobile expanded icons toolbar — overlays content below, doesn't push layout */}
+            <div
+              className={`xl:hidden overflow-hidden border-t border-border/60 bg-[hsl(var(--surface-overlay)/0.92)] backdrop-blur-xl transition-all duration-200 ease-out ${
+                iconsExpanded
+                  ? 'max-h-24 opacity-100'
+                  : 'max-h-0 opacity-0'
+              }`}
+            >
+              <div className="flex items-center justify-end gap-2 px-2 py-2.5">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-10 w-10 rounded-xl border-border/65 bg-[hsl(var(--surface-subtle))] shadow-none"
                   onClick={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))}
                 >
                   <Search className="h-4 w-4" />
-                  <span className="sr-only">Search</span>
+                  <span className="sr-only">搜索</span>
                 </Button>
                 <ThemeToggle />
                 <NotificationBell />
-                <RecentPagesDropdown />
                 <Button
                   asChild
                   variant="ghost"
@@ -150,7 +204,7 @@ export default function DashboardLayout({
                 >
                   <RouteLoadingLink href="/dashboard/changelog" aria-label="帮助与功能说明">
                     <BookOpen className="h-4 w-4" />
-                    <span className="sr-only">Help</span>
+                    <span className="sr-only">帮助</span>
                   </RouteLoadingLink>
                 </Button>
               </div>
