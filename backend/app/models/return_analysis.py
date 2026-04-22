@@ -43,6 +43,8 @@ class ReturnAnalysisRecord(Base):
     original_return_datetime: Mapped[str] = mapped_column(String(30), nullable=False)
     # 是否当前版本
     is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # 标记空上传（无实际退货数据时写入，用于 RPA 状态判断）
+    is_upload_marker: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=datetime.utcnow
     )

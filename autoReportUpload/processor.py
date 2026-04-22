@@ -419,12 +419,33 @@ def _persist_return_report(
             inserted += 1
         except Exception:
             # 唯一约束冲突：同一行已存在，跳过继续处理其他行
-            db.rollback()
             continue
 
     if inserted == 0:
-        # 所有行都冲突 → 视为重复文件
-        return {"success": False, "error": "UniqueViolation: all rows duplicate"}
+        # 所有行都冲突 → 写入标记行，标记该日期已有文件上传（无实际退货数据）
+        report_start = min(all_us_dates) if all_us_dates else None
+        report_end = max(all_us_dates) if all_us_dates else None
+        marker = ReturnAnalysisRecord(
+            project_id=project.id,
+            country=country,
+            return_date=report_end or "",
+            order_id="__UPLOAD_MARKER__",
+            sku="__UPLOAD_MARKER__",
+            original_return_datetime="1970-01-01T00:00:00Z",
+            detailed_disposition="__MARKER__",
+            reason="__MARKER__",
+            status="__MARKER__",
+            is_upload_marker=True,
+        )
+        db.add(marker)
+        db.commit()
+        return {
+            "success": True,
+            "source_id": marker.id,
+            "row_count": 0,
+            "report_start_date": report_start,
+            "report_end_date": report_end,
+        }
     db.commit()
     report_start = min(all_us_dates) if all_us_dates else None
     report_end = max(all_us_dates) if all_us_dates else None

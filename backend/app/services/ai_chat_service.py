@@ -758,6 +758,7 @@ def _stream_with_retries(
                     continue
 
                 # Non-retryable or exhausted retries — try next model if available
+                exc.response.read()
                 detail = exc.response.text[:200]
                 if attempt_idx < len(models_to_try) - 1:
                     # Not the last model — switch to it

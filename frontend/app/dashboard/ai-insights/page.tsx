@@ -186,9 +186,10 @@ function GenerationProgress({ currentSubStatus }: { currentSubStatus: string | n
     ? GENERATION_STEPS.findIndex((s) => s.key === currentSubStatus)
     : -1
 
-  // Whether we're inside the data aggregation phase
-  const isInDataAggregation = currentSubStatus?.startsWith('data_aggregating') && currentSubStatus !== 'data_aggregating'
-  const activeDataStepIndex = currentSubStatus
+  // True when we're inside data aggregation sub-steps (e.g. data_aggregating_sales)
+  const isInSubSteps = currentSubStatus?.startsWith('data_aggregating') && currentSubStatus !== 'data_aggregating'
+  // The active sub-step index
+  const activeSubStepIndex = currentSubStatus
     ? DATA_STEPS.findIndex((s) => s.key === currentSubStatus)
     : -1
 
@@ -208,17 +209,26 @@ function GenerationProgress({ currentSubStatus }: { currentSubStatus: string | n
       <div className="space-y-0">
         {GENERATION_STEPS.map((step, index) => {
           const isActive = index === topLevelIndex
-          const isCompleted = index < topLevelIndex || (index === topLevelIndex && currentSubStatus === 'ai_generating' && topLevelIndex === 1)
+          // Completed if we've moved past this step, OR we've entered a sub-step of this step
+          const isCompleted = index < topLevelIndex
+            || (topLevelIndex === index && isInSubSteps)
+            || (topLevelIndex === 1 && currentSubStatus === 'ai_generating' && index === 0)
+          const isPending = !isActive && !isCompleted
+
+          // Determine connector fill: step 1 needs topLevelIndex >= 1; step 2 needs >= 2
+          const connectorFilled = index === 1
+            ? topLevelIndex >= 1
+            : topLevelIndex >= 2
 
           return (
             <div key={step.key} className="flex items-start gap-4">
-              {/* Connector line (except for first step) */}
+              {/* Connector line */}
               {index > 0 && (
                 <div className="flex flex-col items-center">
                   <div
                     className={cn(
-                      'w-0.5 h-4 transition-colors duration-300',
-                      index <= topLevelIndex ? 'bg-primary' : 'bg-border'
+                      'w-0.5 h-4 transition-colors duration-500',
+                      connectorFilled ? 'bg-primary' : 'bg-border'
                     )}
                   />
                 </div>
@@ -226,15 +236,23 @@ function GenerationProgress({ currentSubStatus }: { currentSubStatus: string | n
               {index === 0 && <div className="w-5" />}
 
               {/* Step indicator */}
-              <div className="flex flex-col items-center">
+              <div className="relative flex flex-col items-center shrink-0">
+                {/* Pulsing glow ring when this step is active (matches Loader2 spinner above) */}
+                {isActive && !isInSubSteps && (
+                  <div
+                    className="absolute rounded-full bg-primary/20 animate-ping"
+                    style={{ width: 20, height: 20, top: -7, left: -7 }}
+                  />
+                )}
                 <div
                   className={cn(
-                    'flex h-5 w-5 items-center justify-center rounded-full border-2 transition-all duration-300 shrink-0',
+                    'flex items-center justify-center rounded-full border-2 transition-all duration-300',
                     isCompleted
                       ? 'border-primary bg-primary text-white'
                       : isActive
                         ? 'border-primary bg-primary/10 text-primary'
-                        : 'border-border bg-muted text-muted-foreground'
+                        : 'border-border bg-muted text-muted-foreground',
+                    isActive ? 'h-5 w-5' : 'h-5 w-5'
                   )}
                 >
                   {isCompleted ? (
@@ -242,7 +260,11 @@ function GenerationProgress({ currentSubStatus }: { currentSubStatus: string | n
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
                   ) : isActive ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
+                    isInSubSteps ? (
+                      <span className="text-xs font-bold">{index + 1}</span>
+                    ) : (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    )
                   ) : (
                     <span className="text-xs font-medium">{index + 1}</span>
                   )}
@@ -261,27 +283,53 @@ function GenerationProgress({ currentSubStatus }: { currentSubStatus: string | n
                 </p>
                 <p className="text-xs text-muted-foreground mt-0.5">{step.description}</p>
 
-                {/* Nested data sub-steps when in data_aggregating */}
+                {/* Nested data sub-steps when in data_aggregating phase */}
                 {step.key === 'data_aggregating' && (
-                  <div className="mt-2 pl-2 border-l-2 border-primary/20 space-y-1">
-                    {DATA_STEPS.map((ds) => {
-                      const di = DATA_STEPS.findIndex((d) => d.key === ds.key)
-                      const isDCompleted = currentSubStatus ? DATA_STEPS.findIndex((d) => d.key === currentSubStatus) > di : false
+                  <div className="mt-2 pl-2 border-l-2 border-primary/20 space-y-1.5">
+                    {DATA_STEPS.map((ds, di) => {
+                      const isDCompleted = activeSubStepIndex > di
                       const isDActive = currentSubStatus === ds.key
                       return (
-                        <div key={ds.key} className="flex items-center gap-2">
-                          <div className={cn('h-1.5 w-1.5 rounded-full', isDCompleted || isDActive ? 'bg-primary' : 'bg-border')} />
-                          <span className={cn('text-xs', isDActive ? 'text-primary font-medium' : isDCompleted ? 'text-foreground' : 'text-muted-foreground')}>
+                        <div key={ds.key} className={cn(
+                          'flex items-center gap-2 transition-all duration-300',
+                          isDActive ? 'translate-x-1' : ''
+                        )}>
+                          <div className="relative flex items-center justify-center w-3 h-3">
+                            {/* Running dot for active step */}
+                            {isDActive && (
+                              <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
+                            )}
+                            <div className={cn(
+                              'h-1.5 w-1.5 rounded-full transition-colors duration-300',
+                              isDActive ? 'bg-primary' : isDCompleted ? 'bg-primary' : 'bg-border'
+                            )} />
+                          </div>
+                          <span className={cn(
+                            'text-xs transition-colors duration-300',
+                            isDActive ? 'text-primary font-semibold' : isDCompleted ? 'text-foreground' : 'text-muted-foreground'
+                          )}>
                             {ds.label}
                           </span>
+                          {/* Animated indicator for active sub-step */}
+                          {isDActive && (
+                            <div className="ml-auto flex gap-0.5">
+                              {[0, 1, 2].map((i) => (
+                                <div
+                                  key={i}
+                                  className="h-1 w-1 rounded-full bg-primary animate-bounce"
+                                  style={{ animationDelay: `${i * 120}ms` }}
+                                />
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )
                     })}
                   </div>
                 )}
 
-                {/* Animated dots for active step */}
-                {isActive && !isInDataAggregation && (
+                {/* Animated dots for active top-level step (AI generating / title generating) */}
+                {isActive && !isInSubSteps && (
                   <div className="flex gap-1 mt-2">
                     {[0, 1, 2].map((i) => (
                       <div
@@ -1163,9 +1211,12 @@ export default function AIInsightsPage() {
   const [viewLiveContent, setViewLiveContent] = useState('')
   const [viewLiveSubStatus, setViewLiveSubStatus] = useState<string | null>(null)
   const [viewLiveRefreshing, setViewLiveRefreshing] = useState(false)
+  const [viewLiveError, setViewLiveError] = useState<string | null>(null)
   // Track sub_status per insight — key is insight ID, value is sub_status string
   const insightSubStatusRef = useRef<Record<number, string | null>>({})
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // Track which EventSource instances this effect has already attached listeners to
+  const _attachedEses = useRef<Set<EventSource>>(new Set())
 
   useEffect(() => {
     async function loadProjects() {
@@ -1270,7 +1321,8 @@ export default function AIInsightsPage() {
 
         if (event.type === 'status') {
           setViewLiveSubStatus(event.sub_status ?? null)
-          if (event.content) setViewLiveContent(event.content)
+          // Keep viewingInsight.sub_status in sync so dialog conditions stay satisfied
+          setViewingInsight((prev) => prev ? { ...prev, sub_status: event.sub_status ?? prev.sub_status } : prev)
           if (event.status === 'failed') {
             setViewLiveRefreshing(false)
             _closeViewSse()
@@ -1290,24 +1342,26 @@ export default function AIInsightsPage() {
             streamingRef.current?.scrollIntoView({ behavior: 'smooth' })
           }, 50)
         } else if (event.type === 'done') {
-          setViewLiveContent(event.content || viewLiveContent)
+          setViewLiveContent((prev) => event.content ?? prev)
           setViewLiveSubStatus(null)
+          setViewLiveRefreshing(false)
           _closeViewSse()
           setViewingInsight((prev) => prev ? {
             ...prev,
             status: event.status === 'failed' ? 'failed' : 'completed',
             title: event.title || prev.title,
-            content: event.content || '',
+            content: event.content || prev.content,
             error_message: event.error_message ?? null,
           } : prev)
           void loadInsights()
         } else if (event.type === 'error') {
           setViewLiveRefreshing(false)
+          setViewLiveError(event.error_message ?? event.error ?? '无法连接到生成任务')
           _closeViewSse()
           setViewingInsight((prev) => prev ? {
             ...prev,
             status: 'failed',
-            error_message: event.error_message ?? event.error ?? '生成任务失败',
+            error_message: event.error_message ?? event.error ?? '无法连接到生成任务',
             content: '',
           } : prev)
           void loadInsights()
@@ -1318,8 +1372,11 @@ export default function AIInsightsPage() {
     }
 
     es.onerror = () => {
+      const errMsg = 'SSE 连接中断，请关闭窗口后重试'
       setViewLiveRefreshing(false)
+      setViewLiveError(errMsg)
       _closeViewSse()
+      setViewingInsight((prev) => prev ? { ...prev, status: 'failed', error_message: errMsg, content: '' } : prev)
       void loadInsights()
     }
   }, [_closeViewSse, loadInsights, viewLiveContent])
@@ -1332,12 +1389,18 @@ export default function AIInsightsPage() {
     setEditingContent('')
     setViewLiveContent('')
     setViewLiveSubStatus(null)
+    setViewLiveError(null)
     try {
       const res = await fetch(`/api/backend/v1/ai-insights/${insightId}`)
       if (!res.ok) throw new Error(await parseResponseError(res, '加载失败'))
       const data: InsightItem = await res.json()
+      // Sync SSE current state into view state immediately so stepper is visible before first event
+      const liveStatus = insightSubStatusRef.current[insightId] ?? data.sub_status
+      setViewLiveSubStatus(liveStatus)
       setViewingInsight(data)
       if (data.status === 'generating' || data.status === 'pending') {
+        // Immediately show "live" mode so stepper appears before SSE's first event fires
+        setViewLiveRefreshing(true)
         // Live mode: attach SSE to watch generation progress in the dialog
         _attachViewSse(insightId)
         setIsLoadingDetail(false)
@@ -1359,6 +1422,7 @@ export default function AIInsightsPage() {
     setViewLiveRefreshing(true)
     setViewLiveContent('')
     setViewLiveSubStatus(null)
+    setViewLiveError(null)
     // Mark as loading so the dialog shows a clean state while SSE connects
     setIsLoadingDetail(true)
     setIsEditingDetail(false)
@@ -1449,10 +1513,6 @@ export default function AIInsightsPage() {
           return
         }
 
-        // Scale to 125% before capture so exported image is clearer on mobile.
-        const originalTransform = dataUrl.style.transform
-        dataUrl.style.transform = 'scale(1.25)'
-
         toPng(dataUrl, { backgroundColor: '#ffffff', pixelRatio: 2, cacheBust: true })
           .then((url) => {
             const link = document.createElement('a')
@@ -1465,7 +1525,6 @@ export default function AIInsightsPage() {
             alert('导出失败，请重试')
           })
           .finally(() => {
-            dataUrl.style.transform = originalTransform
             setCollectChartSvgs(false)
             setIsExporting(false)
           })
@@ -1491,11 +1550,15 @@ export default function AIInsightsPage() {
     }
   }, [])
 
-  // Top-level SSE handler — runs independently of the dialog, updates both list and dialog state.
-  // This stays alive even when the user closes the dialog, so list stays in sync.
+  // Top-level SSE handler — runs whenever eventSourceRef.current changes.
+  // Uses a Set to safely handle re-runs without duplicate listener attachment.
   useEffect(() => {
     const es = eventSourceRef.current
     if (!es) return
+
+    // Guard: don't double-attach if this EventSource already has handlers
+    if (_attachedEses.current.has(es)) return
+    _attachedEses.current.add(es)
 
     const onMessage = (e: MessageEvent) => {
       if (!e.data || e.data.trim() === '') return
@@ -1515,7 +1578,6 @@ export default function AIInsightsPage() {
             setInsights((prev) => prev.filter((i) => i.id !== sid))
             return
           }
-          if (event.content) setStreamingContent(event.content)
           // Update the optimistic record's sub_status in the list — works even if dialog is closed
           setInsights((prev) =>
             prev.map((item) =>
@@ -1542,7 +1604,8 @@ export default function AIInsightsPage() {
           } else {
             setInsightDialogOpen(false)
           }
-          setStreamingContent(event.content || streamingContent)
+          // content 只从 done 事件获取，不再从 status 中途获取
+          if (event.content) setStreamingContent(event.content)
           setCurrentSubStatus(null)
           _closeSse()
           void loadInsights()
@@ -1561,6 +1624,8 @@ export default function AIInsightsPage() {
 
     const onError = () => {
       _closeSse()
+      setInsightDialogOpen(false)
+      alert('SSE 连接中断，生成任务可能仍在后台运行，请稍后在列表中查看结果')
       void loadInsights()
     }
 
@@ -1570,12 +1635,13 @@ export default function AIInsightsPage() {
     return () => {
       es.removeEventListener('message', onMessage)
       es.onerror = null
+      _attachedEses.current.delete(es)
     }
-  }, [_closeSse])
+  }, [_closeSse, eventSourceRef.current])
 
   // Polling fallback: refresh processing insights every 10s in case SSE missed the done event
   useEffect(() => {
-    const hasProcessing = insights.some((i) => i.status === 'processing')
+    const hasProcessing = insights.some((i) => i.status === 'generating' || i.status === 'pending')
     if (!hasProcessing) {
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current)
@@ -1585,7 +1651,7 @@ export default function AIInsightsPage() {
     }
     if (pollingIntervalRef.current) return // already polling
     pollingIntervalRef.current = setInterval(() => {
-      const stillProcessing = insights.some((i) => i.status === 'processing')
+      const stillProcessing = insights.some((i) => i.status === 'generating' || i.status === 'pending')
       if (stillProcessing) void loadInsights()
     }, 10_000)
     return () => {
@@ -1601,6 +1667,7 @@ export default function AIInsightsPage() {
 
     setIsGenerating(true)
     setStreamingContent('')
+    setCurrentSubStatus('data_aggregating')  // Immediately show step 1 as active
     setInsightDialogOpen(true)
     currentInsightId.current = null
 
@@ -2002,6 +2069,7 @@ export default function AIInsightsPage() {
             setEditingContent('')
             setViewLiveContent('')
             setViewLiveSubStatus(null)
+            setViewLiveError(null)
           }
         }}
       >

@@ -147,7 +147,6 @@ const primaryGroups: NavGroup[] = [
     activeIconAccent: 'rgba(255,255,255,0.95)',
     items: [
       { title: '调研分析', url: '/dashboard/tools/research-analysis' },
-      { title: 'RPA 报表', url: '/dashboard/tools/rpa-reports' },
     ],
   },
   {
@@ -159,13 +158,14 @@ const primaryGroups: NavGroup[] = [
     activeIconAccent: 'rgba(255,255,255,0.95)',
     items: [
       { title: '广告管理', url: '/dashboard/data-management/ad-upload' },
-      { title: '报表上传', url: '/dashboard/data-management/report-upload' },
+      // { title: '报表上传', url: '/dashboard/data-management/report-upload' }, // 后端保留，前端临时隐藏
       {
         title: '发货管理',
         url: '/dashboard/data-management/shipment-management',
       },
       { title: 'SKU 信息', url: '/dashboard/data-management/sku-cost' },
       { title: '汇率信息', url: '/dashboard/data-management/exchange-rate' },
+      { title: '报表自动化', url: '/dashboard/data-management/auto-upload' },
     ],
   },
 ]
@@ -218,7 +218,6 @@ const adminGroup: NavGroup = {
       url: '/dashboard/system-management/commission-overview',
     },
     { title: '日志查看', url: '/dashboard/system-management/logs' },
-    { title: '报表自动化', url: '/dashboard/system-management/auto-upload' },
   ],
 }
 
