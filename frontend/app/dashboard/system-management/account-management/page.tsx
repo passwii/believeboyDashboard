@@ -1,7 +1,14 @@
 'use client'
 
 import { FormEvent, useCallback, useEffect, useState } from 'react'
-import { Factory, Loader2, RefreshCw, Shield, Store } from 'lucide-react'
+import { Factory, Loader2, MoreHorizontal, RefreshCw, Shield, Store } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -221,7 +228,7 @@ export default function AccountManagementPage() {
 
   const onEditOpen = (user: UserItem) => {
     setEditUser(user)
-    setEditOperatorNameZh(user.operatorNameZh ?? '')
+    setEditOperatorNameZh(user.fullName ?? user.operatorNameZh ?? '')
     setEditOpen(true)
   }
 
@@ -284,7 +291,7 @@ export default function AccountManagementPage() {
                   <TableHead>角色属性</TableHead>
                   <TableHead>状态</TableHead>
                   <TableHead>更新时间</TableHead>
-                  <TableHead className="w-[300px]">操作</TableHead>
+                  <TableHead className="w-[140px]">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -320,41 +327,42 @@ export default function AccountManagementPage() {
                         </TableCell>
                         <TableCell>{fmtTime(item.updatedAt)}</TableCell>
                         <TableCell>
-                          <div className="flex flex-wrap gap-2">
+                          <div className="flex items-center gap-2">
                             <Button
-                              variant="outline"
+                              variant={item.isActive ? 'outline' : 'default'}
                               size="sm"
                               disabled={busyId === item.id || (isProtected && item.isActive)}
                               onClick={() => void updateOne(item.id, { isActive: !item.isActive })}
                             >
                               {item.isActive ? '停用' : '启用'}
                             </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={item.roleType === 'admin' || busyId === item.id}
-                              onClick={() => void updateOne(item.id, { roleType: NEXT_ROLE_TYPE[item.roleType as 'operator' | 'businessdev' | 'factory'] })}
-                            >
-                              改角色属性
-                            </Button>
-                            <Button
-                              size="sm"
-                              disabled={busyId === item.id}
-                              onClick={() => {
-                                setResetUser(item)
-                                setResetOpen(true)
-                              }}
-                            >
-                              重置密码
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={busyId === item.id}
-                              onClick={() => onEditOpen(item)}
-                            >
-                              编辑
-                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="outline" size="sm" disabled={busyId === item.id}>
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  disabled={item.roleType === 'admin'}
+                                  onClick={() => void updateOne(item.id, { roleType: NEXT_ROLE_TYPE[item.roleType as 'operator' | 'businessdev' | 'factory'] })}
+                                >
+                                  改角色属性
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setResetUser(item)
+                                    setResetOpen(true)
+                                  }}
+                                >
+                                  重置密码
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={() => onEditOpen(item)}>
+                                  编辑运营姓名
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -495,7 +503,7 @@ export default function AccountManagementPage() {
                 id="edit-operator-name-zh"
                 value={editOperatorNameZh}
                 onChange={(e) => setEditOperatorNameZh(e.target.value)}
-                placeholder="工厂用户必须填写，用于权限控制"
+                placeholder="用于权限控制和操作记录"
               />
               <p className="text-xs text-muted-foreground">
                 工厂账号请务必填写，与调研分析权限控制相关
