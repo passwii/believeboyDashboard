@@ -192,6 +192,7 @@ class ShipmentFbaBoxDetailItem(BaseModel):
     outer_box_text: str
     total_weight_kg: float
     total_volume_m3: float
+    fba_label_prefix: str
 
 
 class ShipmentFbaBoxDetailResponse(BaseModel):

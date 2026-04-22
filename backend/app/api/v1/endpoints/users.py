@@ -254,7 +254,7 @@ def update_user(
         payload.full_name.strip() if isinstance(payload.full_name, str) else None
     )
     operator_name_zh = (
-        payload.operator_name_zh.strip()
+        payload.operator_name_zh.strip() or None
         if isinstance(payload.operator_name_zh, str)
         else None
     )
