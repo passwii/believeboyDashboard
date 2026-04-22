@@ -53,7 +53,7 @@ OPENPYXL_MISSING_DEFAULT_STYLE_WARNING = (
 
 SCOPE_INCLUDED = "included_product"
 SCOPE_EXCLUDED_UNMAPPED = "excluded_unmapped"
-PERIODIC_REPORT_TYPES = {"business_report", "payment_report", AD_PRODUCT_REPORT, "sales_report"}
+PERIODIC_REPORT_TYPES = {"business_report", "payment_report", AD_PRODUCT_REPORT, "sales_report", "inventory_report"}
 
 
 # ─── Result dataclass ─────────────────────────────────────────────────────────
@@ -214,6 +214,8 @@ def _persist_one_file(
             period_start = period_end = dates[0]
             report_date = dates[0]
     elif report_type == "inventory_report":
+        if result.detected_date:
+            report_date = _parse_yyyy_mm_dd(result.detected_date)
         snapshot_at = now
     else:
         if result.detected_date:

@@ -1,7 +1,7 @@
 """Configuration for the auto-report-upload service."""
 
-import platform
 import os
+import platform
 from pathlib import Path
 
 # ─── Platform detection ────────────────────────────────────────────────────────
@@ -17,7 +17,7 @@ WATCH_ROOT_MAC = Path(
 
 # Windows: OneDrive local sync folder (EDY's machine)
 WATCH_ROOT_WINDOWS = Path(
-    r"C:\Users\EDY\OneDrive - Believeboys Team\BLF-运营中心 - 文档\W_Sync_Docs"
+    r"C:\Users\damon\OneDrive - Believeboys Team\BLF-运营中心 - 文档\W_Sync_Docs"
 )
 
 # Auto-select based on platform; env var overrides everything
