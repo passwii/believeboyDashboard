@@ -1,6 +1,6 @@
 """退货分析服务 - 处理退货报告的解析和入库"""
 
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -162,12 +162,18 @@ def persist_return_report(
             )
 
         if not new_records_data:
+            # 无有效退货记录，以美国时区今天作为标记日期
+            marker_date = (
+                all_us_dates[0]
+                if all_us_dates
+                else date.today().isoformat()
+            )
             # 检查该日期是否已有标记记录（幂等处理）
             existing = db.execute(
                 ReturnAnalysisRecord.__table__.select().where(
                     ReturnAnalysisRecord.project_id == project_id,
                     ReturnAnalysisRecord.country == country,
-                    ReturnAnalysisRecord.return_date == report_date,
+                    ReturnAnalysisRecord.return_date == marker_date,
                     ReturnAnalysisRecord.is_upload_marker == True,
                 )
             ).fetchone()
@@ -183,7 +189,7 @@ def persist_return_report(
             marker = ReturnAnalysisRecord(
                 project_id=project_id,
                 country=country,
-                return_date=report_date,
+                return_date=marker_date,
                 order_id="__MARKER__",
                 sku="__MARKER__",
                 asin=None,
@@ -346,7 +352,6 @@ def _build_summary_text(
 
     # Calculate date range in days
     try:
-        from datetime import datetime
         start_dt = datetime.strptime(start_date, "%Y-%m-%d")
         end_dt = datetime.strptime(end_date, "%Y-%m-%d")
         date_range_days = (end_dt - start_dt).days + 1
@@ -1014,7 +1019,6 @@ def build_return_analysis(
 
     # ── 星期分布 ────────────────────────────────────────────────────────────────
     from collections import Counter
-    from datetime import datetime
 
     weekday_counter: dict[int, int] = Counter()
     for r in records:
