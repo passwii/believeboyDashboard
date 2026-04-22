@@ -177,6 +177,7 @@ type ShipmentFbaBoxDetailItem = {
   outer_box_text: string
   total_weight_kg: number
   total_volume_m3: number
+  fba_label_prefix: string
 }
 
 type ShipmentFbaBoxDetailResponse = {
@@ -855,16 +856,19 @@ export default function ShipmentManagementPage() {
 
   const fbaBoxLabelRanges = useMemo(() => {
     const ranges: string[] = []
-    let counter = 1
+    const countersByShipment = new Map<string, number>()
+
     fbaBoxItems.forEach((item) => {
       const count = item.carton_count ?? 0
       if (count <= 0) {
         ranges.push('-')
       } else {
+        const shipmentNo = item.shipment_no
+        const counter = countersByShipment.get(shipmentNo) ?? 1
+        countersByShipment.set(shipmentNo, counter + count)
         const start = counter
         const end = counter + count - 1
-        ranges.push(`${String(start).padStart(3, '0')}-${String(end).padStart(3, '0')}`)
-        counter += count
+        ranges.push(`${item.fba_label_prefix}U000${String(start).padStart(3, '0')}-${String(end).padStart(3, '0')}`)
       }
     })
     return ranges
@@ -2194,16 +2198,16 @@ export default function ShipmentManagementPage() {
       const totalRow = worksheet.getRow(fbaBoxItems.length + 4)
       totalRow.getCell(1).value = '合计'
       totalRow.getCell(17).value = fbaBoxSummary.totalCartons
-      totalRow.getCell(18).value = fbaBoxSummary.totalQuantity
-      totalRow.getCell(19).value = fbaBoxSummary.totalVolumeM3
-      totalRow.getCell(20).value = fbaBoxSummary.totalWeightKg
+      totalRow.getCell(19).value = fbaBoxSummary.totalQuantity
+      totalRow.getCell(20).value = fbaBoxSummary.totalVolumeM3
+      totalRow.getCell(21).value = fbaBoxSummary.totalWeightKg
       totalRow.eachCell((cell) => {
         cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
         applyHeaderBorder(cell)
       })
-      totalRow.getCell(19).numFmt = '#,##0.0000'
-      totalRow.getCell(20).numFmt = '#,##0.000'
+      totalRow.getCell(20).numFmt = '#,##0.0000'
+      totalRow.getCell(21).numFmt = '#,##0.000'
 
       const buffer = await workbook.xlsx.writeBuffer()
       const blob = new Blob([buffer], {
