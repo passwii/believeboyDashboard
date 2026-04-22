@@ -446,7 +446,7 @@ const ANALYSIS_SECTIONS: AnalysisSection[] = [
 function authHeaders(operator?: string | null, isAdmin = false, roleType?: string | null): Record<string, string> {
   const headers: Record<string, string> = {}
   if (isAdmin) headers['X-Is-Admin'] = 'true'
-  if (operator) headers['X-Operator'] = operator
+  if (operator) headers['X-Operator'] = /^[\x00-\x7F]*$/.test(operator) ? operator : btoa(unescape(encodeURIComponent(operator)))
   if (roleType) headers['X-Role-Type'] = roleType
   return headers
 }
