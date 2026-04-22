@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, get_request_operator, protected
 from app.models import AnalysisSourceFile
+from sqlalchemy import func, select
 from app.schemas.inventory_replenishment import (
     InventoryAnalysisItem,
     InventoryAnalysisResponse,
@@ -93,14 +94,42 @@ def list_inventory_snapshot_options(
     country: str = Query(default="US"),
     db: Session = Depends(get_db_session),
 ) -> list[InventorySnapshotOption]:
-    from sqlalchemy import select
-
-    from sqlalchemy import func
-
     rows = db.execute(
+        select(
+            func.max(AnalysisSourceFile.id).label("max_id"),
+        )
+        .where(
+            AnalysisSourceFile.project_id == project_id,
+            AnalysisSourceFile.report_type == "inventory_report",
+            AnalysisSourceFile.country == country,
+            AnalysisSourceFile.report_date.isnot(None),
+        )
+        .group_by(
+            AnalysisSourceFile.project_id,
+            AnalysisSourceFile.country,
+            AnalysisSourceFile.report_date,
+        )
+    ).all()
+
+    current_ids = set()
+    if rows:
+        current_rows = db.execute(
+            select(AnalysisSourceFile.id)
+            .where(
+                AnalysisSourceFile.project_id == project_id,
+                AnalysisSourceFile.report_type == "inventory_report",
+                AnalysisSourceFile.country == country,
+                AnalysisSourceFile.report_date.isnot(None),
+                AnalysisSourceFile.is_current.is_(True),
+            )
+        ).all()
+        current_ids = {r.id for r in current_rows}
+
+    option_rows = db.execute(
         select(
             func.date(AnalysisSourceFile.snapshot_at).label("snapshot_date"),
             func.max(AnalysisSourceFile.snapshot_at).label("latest_snapshot_at"),
+            func.max(AnalysisSourceFile.id).label("max_id"),
         )
         .where(
             AnalysisSourceFile.project_id == project_id,
@@ -113,8 +142,8 @@ def list_inventory_snapshot_options(
     ).all()
 
     return [
-        InventorySnapshotOption(snapshot_at=row.latest_snapshot_at, is_current=False)
-        for row in rows
+        InventorySnapshotOption(snapshot_at=row.latest_snapshot_at, is_current=row.max_id in current_ids)
+        for row in option_rows
     ]
 
 

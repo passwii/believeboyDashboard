@@ -943,6 +943,7 @@ def list_shipment_fba_box_details(
                     "outer_box_text": outer_box_text,
                     "total_weight_kg": _decimal_to_float(total_weight_kg, WEIGHT_QUANT),
                     "total_volume_m3": _decimal_to_float(total_volume_m3, VOLUME_QUANT),
+                    "fba_label_prefix": str(row.shipment_no),
                 }
             )
 
