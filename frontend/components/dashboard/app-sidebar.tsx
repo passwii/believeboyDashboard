@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   Package,
   ShieldUser,
+  Store,
   TrendingUp,
   Upload,
   Wrench,
@@ -176,6 +177,20 @@ const utilityLinks: Array<NavLink & { icon: React.ReactNode }> = [
     icon: <Database className='h-6 w-6' />,
   },
 ]
+
+const businessDevGroup: NavGroup = {
+  label: '招商管理',
+  icon: <Store className='h-6 w-6' />,
+  accent: 'bg-[linear-gradient(180deg,#1a3a5c,#2a5a8c)] text-[#b3d4ff]',
+  activeAccent: 'bg-[linear-gradient(180deg,#1e4a72,#3478b0)] text-white',
+  iconAccent: '#888888',
+  activeIconAccent: 'rgba(255,255,255,0.95)',
+  items: [
+    { title: '招商面板（占位）', url: '/dashboard/business-dev/overview' },
+    { title: '供应商管理（占位）', url: '/dashboard/business-dev/suppliers' },
+    { title: '招商报表（占位）', url: '/dashboard/business-dev/reports' },
+  ],
+}
 
 const adminGroup: NavGroup = {
   label: '系统管理',
@@ -383,6 +398,10 @@ export function AppSidebar({
 
             {displayUser.roleType === 'admin' ? (
               <SidebarGroupBlock group={adminGroup} />
+            ) : null}
+
+            {displayUser.roleType === 'businessdev' || displayUser.roleType === 'admin' ? (
+              <SidebarGroupBlock group={businessDevGroup} />
             ) : null}
 
             <SidebarGroup className='mt-auto px-2 py-0'>
