@@ -369,6 +369,7 @@ export function AppSidebar({
                 </TooltipContent>
               </Tooltip>
 
+              {/* 报表上传 - 已在主导航中隐藏
               <Tooltip>
                 <TooltipTrigger asChild>
                   <RouteLoadingLink
@@ -385,6 +386,7 @@ export function AppSidebar({
                   报表上传
                 </TooltipContent>
               </Tooltip>
+              */}
             </div>
           </div>
 
