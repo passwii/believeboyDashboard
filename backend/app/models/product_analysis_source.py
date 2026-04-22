@@ -105,6 +105,8 @@ class AnalysisSourceFile(Base):
     version: Mapped[int] = mapped_column(Integer, nullable=False, server_default='1')
     is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default='false')
     superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # 标记空上传（无实际数据行时写入，用于 RPA 状态判断）
+    is_upload_marker: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default='false')
 
     upload_file_id: Mapped[str] = mapped_column(String(255), nullable=False)
     upload_file_path: Mapped[str] = mapped_column(String(1024), nullable=False)

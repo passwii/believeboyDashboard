@@ -590,7 +590,75 @@ def persist_sales_report_by_purchase_date(
         grouped_rows.setdefault(purchase_date_pt, []).append(row)
 
     if not grouped_rows:
-        raise ValueError('Sales report has no valid purchase-date rows')
+        # 无有效购买日期行 —— 写入标记记录，确保 RPA 状态正确显示"已上传（无数据）"
+        target_date = date.today()
+        version = _next_version(
+            db,
+            project_id=project.id,
+            report_type='sales_report',
+            country=normalized_country,
+            period_start_date=target_date,
+            period_end_date=target_date,
+        )
+        now = datetime.now(UTC)
+        file_size_bytes = path.stat().st_size
+        file_sha256 = _sha256_file(path)
+        extension = (path.suffix or Path(upload_file_id).suffix or '').lower()
+        project_slug = _project_slug(project.project_name)
+        source = AnalysisSourceFile(
+            project_id=project.id,
+            report_type='sales_report',
+            country=normalized_country,
+            report_date=target_date,
+            period_start_date=target_date,
+            period_end_date=target_date,
+            snapshot_at=None,
+            version=version,
+            is_current=False,
+            superseded_at=None,
+            upload_file_id=upload_file_id,
+            upload_file_path=upload_file_path,
+            original_filename=_restore_original_filename(upload_file_id),
+            stored_filename=upload_file_id,
+            logical_filename=_build_logical_filename(
+                project_slug=project_slug,
+                report_type='sales_report',
+                period_start_date=target_date,
+                period_end_date=target_date,
+                snapshot_at=now,
+                version=version,
+                extension=extension,
+            ),
+            storage_key=_build_storage_key(
+                project_slug=project_slug,
+                report_type='sales_report',
+                period_start_date=target_date,
+                period_end_date=target_date,
+                snapshot_at=now,
+                version=version,
+                upload_file_id=upload_file_id,
+            ),
+            file_size_bytes=file_size_bytes,
+            file_sha256=file_sha256,
+            ingestion_status='success',
+            ingestion_error=None,
+            row_count_total=0,
+            row_count_included=0,
+            created_by=(created_by or '').strip()[:255] or None,
+            is_upload_marker=True,
+        )
+        db.add(source)
+        db.commit()
+        return {
+            'success': True,
+            'latest_source_id': source.id,
+            'report_start_date': target_date.isoformat(),
+            'report_end_date': target_date.isoformat(),
+            'report_dates': [target_date.isoformat()],
+            'days_persisted': 1,
+            'row_count_total': 0,
+            'message': '销售报表无有效购买日期记录，已记录空上传',
+        }
 
     file_size_bytes = path.stat().st_size
     file_sha256 = _sha256_file(path)

@@ -8,6 +8,7 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
 from app.models import AnalysisSourceFile, Project
+from app.models.return_analysis import ReturnAnalysisRecord
 from app.services import project_service
 
 REPORT_TYPES = [
@@ -34,7 +35,8 @@ REPORT_TYPES = [
 @dataclass
 class ReportTypeStatus:
     report_type: str
-    has_data: bool
+    has_data: bool  # 有真实业务数据（非标记行）
+    is_uploaded: bool  # 有任何上传记录（真实行 OR 标记行）= RPA 应显示绿色
     latest_date: Optional[str] = None
     original_filename: Optional[str] = None
 
@@ -78,7 +80,7 @@ def get_report_status_for_date(
 
     # Build a map: (project_id, report_type) -> latest row
     status_by_project: dict[int, dict[str, ReportTypeStatus]] = {
-        pid: {rt: ReportTypeStatus(report_type=rt, has_data=False) for rt in REPORT_TYPES}
+        pid: {rt: ReportTypeStatus(report_type=rt, has_data=False, is_uploaded=False) for rt in REPORT_TYPES}
         for pid in project_ids
     }
 
@@ -97,16 +99,98 @@ def get_report_status_for_date(
                 .where(AnalysisSourceFile.period_end_date >= target_date)
                 .order_by(AnalysisSourceFile.updated_at.desc())
             )
+        elif rt == "return_report":
+            # return_report data lives in return_analysis_records
+            # Filter out marker rows to determine "has real data"
+            real_stmt = (
+                select(ReturnAnalysisRecord)
+                .where(ReturnAnalysisRecord.project_id.in_(project_ids))
+                .where(ReturnAnalysisRecord.country == country)
+                .where(ReturnAnalysisRecord.return_date == report_date)
+                .where(ReturnAnalysisRecord.is_upload_marker == False)
+                .order_by(ReturnAnalysisRecord.updated_at.desc())
+            )
+            real_rows = db.execute(real_stmt).scalars().all()
+
+            # Marker rows exist → uploaded even if no real data
+            marker_stmt = (
+                select(ReturnAnalysisRecord)
+                .where(ReturnAnalysisRecord.project_id.in_(project_ids))
+                .where(ReturnAnalysisRecord.country == country)
+                .where(ReturnAnalysisRecord.return_date == report_date)
+                .where(ReturnAnalysisRecord.is_upload_marker == True)
+            )
+            marker_exists = db.execute(
+                marker_stmt.limit(1)
+            ).scalar_one_or_none() is not None
+
+            for row in real_rows:
+                pid = int(row.project_id)
+                if pid in status_by_project:
+                    status_by_project[pid][rt] = ReportTypeStatus(
+                        report_type=rt,
+                        has_data=True,
+                        is_uploaded=True,
+                        latest_date=row.return_date,
+                        original_filename=None,
+                    )
+
+            for pid in project_ids:
+                if status_by_project[pid][rt].is_uploaded is False and marker_exists:
+                    # Real rows not found for this project, but marker row exists
+                    status_by_project[pid][rt] = ReportTypeStatus(
+                        report_type=rt,
+                        has_data=False,
+                        is_uploaded=True,
+                        latest_date=report_date,
+                        original_filename=None,
+                    )
+            continue
         else:
-            # Exact match on report_date
-            stmt = (
+            # Exact match on report_date — check both real rows and marker rows
+            real_stmt = (
                 select(AnalysisSourceFile)
                 .where(AnalysisSourceFile.project_id.in_(project_ids))
                 .where(AnalysisSourceFile.report_type == rt)
                 .where(AnalysisSourceFile.country == country)
                 .where(AnalysisSourceFile.report_date == target_date)
+                .where(AnalysisSourceFile.is_upload_marker == False)
                 .order_by(AnalysisSourceFile.updated_at.desc())
             )
+            marker_stmt = (
+                select(AnalysisSourceFile)
+                .where(AnalysisSourceFile.project_id.in_(project_ids))
+                .where(AnalysisSourceFile.report_type == rt)
+                .where(AnalysisSourceFile.country == country)
+                .where(AnalysisSourceFile.report_date == target_date)
+                .where(AnalysisSourceFile.is_upload_marker == True)
+                .limit(1)
+            )
+
+            real_rows = db.execute(real_stmt).scalars().all()
+            marker_exists = db.execute(marker_stmt).scalar_one_or_none() is not None
+
+            for row in real_rows:
+                pid = int(row.project_id)
+                if pid in status_by_project and not status_by_project[pid][rt].has_data:
+                    status_by_project[pid][rt] = ReportTypeStatus(
+                        report_type=rt,
+                        has_data=True,
+                        is_uploaded=True,
+                        latest_date=row.report_date.isoformat() if row.report_date else None,
+                        original_filename=row.original_filename,
+                    )
+
+            for pid in project_ids:
+                if status_by_project[pid][rt].is_uploaded is False and marker_exists:
+                    status_by_project[pid][rt] = ReportTypeStatus(
+                        report_type=rt,
+                        has_data=False,
+                        is_uploaded=True,
+                        latest_date=target_date.isoformat() if target_date else None,
+                        original_filename=None,
+                    )
+            continue
 
         rows = db.execute(stmt).scalars().all()
 
@@ -127,6 +211,7 @@ def get_report_status_for_date(
                 status_by_project[pid][rt] = ReportTypeStatus(
                     report_type=rt,
                     has_data=True,
+                    is_uploaded=True,
                     latest_date=display_date,
                     original_filename=row.original_filename,
                 )

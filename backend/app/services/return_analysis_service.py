@@ -162,9 +162,51 @@ def persist_return_report(
             )
 
         if not new_records_data:
+            # 检查该日期是否已有标记记录（幂等处理）
+            existing = db.execute(
+                ReturnAnalysisRecord.__table__.select().where(
+                    ReturnAnalysisRecord.project_id == project_id,
+                    ReturnAnalysisRecord.country == country,
+                    ReturnAnalysisRecord.return_date == report_date,
+                    ReturnAnalysisRecord.is_upload_marker == True,
+                )
+            ).fetchone()
+            if existing:
+                return {
+                    "success": True,
+                    "source_id": existing.id,
+                    "report_start_date": None,
+                    "report_end_date": None,
+                    "message": "无有效退货记录，已记录空上传",
+                }
+            # 插入标记记录，确保 RPA 状态正确显示"已上传（无数据）"
+            marker = ReturnAnalysisRecord(
+                project_id=project_id,
+                country=country,
+                return_date=report_date,
+                order_id="__MARKER__",
+                sku="__MARKER__",
+                asin=None,
+                fnsku=None,
+                product_name=None,
+                quantity=0,
+                fulfillment_center_id=None,
+                detailed_disposition="__MARKER__",
+                reason="__MARKER__",
+                status="__MARKER__",
+                license_plate_number=None,
+                original_return_datetime="1970-01-01T00:00:00+00:00",
+                is_current=True,
+                is_upload_marker=True,
+            )
+            db.add(marker)
+            db.commit()
             return {
-                "success": False,
-                "error_message": "没有有效的退货记录",
+                "success": True,
+                "source_id": marker.id,
+                "report_start_date": None,
+                "report_end_date": None,
+                "message": "无有效退货记录，已记录空上传",
             }
 
         # 完全相同的原始记录在同一文件内只保留一条，避免源文件脏数据重复落库

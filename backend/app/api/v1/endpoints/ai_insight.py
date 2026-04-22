@@ -484,6 +484,7 @@ def generate_insight_stream_endpoint(
                 "type": "done",
                 "insight_id": insight_id,
                 "title": title,
+                "content": final_content,
             })
 
         except Exception as exc:

@@ -7,6 +7,7 @@ from typing import Optional
 class ReportTypeStatusSchema(BaseModel):
     report_type: str
     has_data: bool
+    is_uploaded: bool
     latest_date: Optional[str] = None
     original_filename: Optional[str] = None
 

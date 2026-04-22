@@ -73,6 +73,7 @@ function shiftDateString(value: string, offsetDays: number): string {
 type StatusCell = {
   report_type: string
   has_data: boolean
+  is_uploaded: boolean
   latest_date: string | null
   original_filename: string | null
 }
@@ -338,19 +339,19 @@ export default function RpaReportsPage() {
                       </div>
                       {REPORT_TYPES.map((rt, colIdx) => {
                         const cell = row.statuses.find((s) => s.report_type === rt.key)
-                        const hasData = cell?.has_data ?? false
+                        const isUploaded = cell?.is_uploaded ?? false
                         return (
                           <div
                             key={rt.key}
                             className={`flex items-center justify-center border-border/50 px-1 py-2.5${colIdx < REPORT_TYPES.length - 1 ? ' border-r' : ''}${
                               !rt.active
                                 ? ''
-                                : hasData
+                                : isUploaded
                                   ? ' bg-emerald-600'
                                   : ' bg-rose-500'
                             }`}
                           >
-                            {hasData ? (
+                            {isUploaded ? (
                               <CheckCircle2 className='h-4 w-4 text-white' />
                             ) : (
                               <CircleX className='h-4 w-4 text-white' />
