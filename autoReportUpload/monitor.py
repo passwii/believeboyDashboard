@@ -138,12 +138,11 @@ def main_loop(dry_run: bool = False) -> None:
     # ── Periodic loop ───────────────────────────────────────────────────
     interval_secs = CHECK_INTERVAL_MINUTES * 60
     while True:
-        logger.info(f"\n等待 {CHECK_INTERVAL_MINUTES} 分钟后下次检查 ...")
         time.sleep(interval_secs)
 
-        logger.info("\n>>> 定时扫描开始")
         stats = run_cycle(logger, dry_run=dry_run)
-        logger.info(
-            f"定时扫描完成: {stats['files_seen']} 文件, "
-            f"{stats['success']} 成功, {stats['skipped']} 跳过, {stats['failed']} 失败"
-        )
+        if stats["files_seen"] > 0:
+            logger.info(
+                f"定时扫描完成: {stats['files_seen']} 文件, "
+                f"{stats['success']} 成功, {stats['skipped']} 跳过, {stats['failed']} 失败"
+            )
