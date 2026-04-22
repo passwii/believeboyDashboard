@@ -46,10 +46,11 @@ The frontend **never connects to PostgreSQL directly**. All backend calls go thr
   - `auth`, `users`, `projects`, `product_costs`, `exchange_rates`
   - `daily_reports`, `monthly_reports`, `product_analysis`, `product_analysis_reports`
   - `daily_analysis`, `ad_analysis`, `ad_upload`, `inventory_replenishment`
-  - `pricing_calculation`, `shipment_schedules`, `store_sku_pricing_snapshots`
+  - `pricing_calculation`, `store_accounting`, `shipment_schedules`, `store_sku_pricing_snapshots`
   - `category_research`, `report_upload`
-  - `ai_chat`, `ai_file_upload`, `jobs`, `uploads`
+  - `ai_chat`, `ai_file_upload`, `ai_insight`, `jobs`, `uploads`
   - `system_management`, `presence`, `health`
+  - `return_analysis`, `project_goals`, `rpa_reports`
 - Services: `backend/app/services/` (one service file per resource)
 - Models: `backend/app/models/` (SQLAlchemy ORM models)
 - Schemas: `backend/app/schemas/` (Pydantic request/response models)
@@ -58,12 +59,13 @@ The frontend **never connects to PostgreSQL directly**. All backend calls go thr
 ### Frontend Structure
 - `frontend/app/dashboard/` — page components (Next.js App Router):
   - `ai-panel/` — AI chat
+  - `ai-insights/` — AI-powered data insights and analytics
   - `operations/` — site/store navigation, collaboration
-  - `data-reporting/` — daily-report, monthly-report, product-analysis, pricing-calculation
-  - `data-analysis/` — financial-data, weekly-product-analysis, daily-analysis, ad-analysis, inventory-analysis, inventory-replenishment
+  - `data-reporting/` — daily-report, monthly-report, product-analysis, pricing-calculation, store-accounting, new-product
+  - `data-analysis/` — financial-data, weekly-product-analysis, daily-analysis, ad-analysis, inventory-analysis, inventory-replenishment, return-analysis, project-goals
   - `data-management/` — sku-cost, exchange-rate, report-upload, ad-upload, shipment-management
-  - `system-management/` — account-management, operator-management, project-info, commission-management, commission-overview, logs
-  - `tools/` — research-analysis
+  - `system-management/` — account-management, operator-management, project-info, commission-management, commission-overview, logs, auto-upload
+  - `tools/` — research-analysis, rpa-reports
   - `changelog/`
 - `frontend/components/dashboard/` — shared dashboard components
 - `frontend/components/ui/` — shadcn/ui base components
@@ -78,8 +80,18 @@ The frontend **never connects to PostgreSQL directly**. All backend calls go thr
 ### Background Jobs
 Jobs run as one-off Python processes via `backend/app/tasks/scripts/`. Celery + Redis are configured but not required in the current mode.
 
+### autoReportUpload
+A standalone Python service (`autoReportUpload/`) that monitors configured directories for new report files, auto-recognizes and uploads them to the backend. It is **not** part of the FastAPI app — run independently:
+
+```bash
+cd autoReportUpload && source ../backend/.venv/bin/activate
+python run.py                  # normal mode (periodic loop)
+python run.py --dry-run        # recognize only, no DB writes or file moves
+python run.py --once           # single scan, no loop
+```
+
 ### AI Chat
-Uses an external AI provider configured via `AI_CHAT_PROVIDER_*` env vars. Web search is available via `AI_CHAT_WEB_SEARCH_*` vars. Chat history is stored in `AIConversation` / `AIMessage` models.
+Uses an external AI provider configured via `AI_CHAT_PROVIDER_*` env vars. Web search is available via `AI_CHAT_WEB_SEARCH_*` vars. Chat history is stored in `AIConversation` / `AIMessage` models. AI-powered data insights are available via the `ai_insight` endpoint.
 
 ## Environment Variables
 
