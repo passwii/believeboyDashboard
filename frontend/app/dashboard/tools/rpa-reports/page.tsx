@@ -339,18 +339,15 @@ export default function RpaReportsPage() {
                       {REPORT_TYPES.map((rt, colIdx) => {
                         const cell = row.statuses.find((s) => s.report_type === rt.key)
                         const hasData = cell?.has_data ?? false
-                        const isToday = statusDate === toLocalDateInputValue(undefined, country)
                         return (
                           <div
                             key={rt.key}
                             className={`flex items-center justify-center border-border/50 px-1 py-2.5${colIdx < REPORT_TYPES.length - 1 ? ' border-r' : ''}${
                               !rt.active
                                 ? ''
-                                : isToday
-                                  ? ''
-                                  : hasData
-                                    ? ' bg-emerald-600'
-                                    : ' bg-rose-500'
+                                : hasData
+                                  ? ' bg-emerald-600'
+                                  : ' bg-rose-500'
                             }`}
                           >
                             {hasData ? (
