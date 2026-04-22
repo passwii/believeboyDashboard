@@ -406,23 +406,8 @@ class ReturnAnalysisRecord(Base):
     detailed_disposition: Mapped[str] = mapped_column(String(50), nullable=False)
     reason: Mapped[str] = mapped_column(String(100), nullable=False)
     status: Mapped[str] = mapped_column(String(100), nullable=False)
-        license_plate_number: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    license_plate_number: Mapped[str | None] = mapped_column(String(30), nullable=True)
     original_return_datetime: Mapped[str] = mapped_column(String(30), nullable=False)
-    is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    is_upload_marker: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now()
-    )30), nullable=False)
-    is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now()
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        server_default=func.now(),
-        onupdate=func.now(),
-    )
 
 
 class ReturnCustomerComment(Base):
