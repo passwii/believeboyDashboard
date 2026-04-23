@@ -4,8 +4,8 @@ upload_marker_date stores the LOCAL upload date (not the business report date).
 Marker rows use this field exclusively, leaving report_date/return_date NULL.
 
 Revision ID: 20260423_102
-Revises: ('a5571a96e542', '20260422_101')
-Merge revision — both branches must be upgraded together.
+Revises: a5571a96e542
+Linear chain: a5571a96e542 is already ahead of 20260422_101 in prod.
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = "20260423_102"
-down_revision: tuple[str, str] | None = ("a5571a96e542", "20260422_101")
+down_revision: str | Sequence[str] | None = "a5571a96e542"
 branch_labels: Sequence[str] | None = None
 depends_on: Sequence[str] | None = None
 
