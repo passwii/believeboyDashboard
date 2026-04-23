@@ -297,7 +297,7 @@ def _persist_single_source(
         row_count_total=0,
         row_count_included=0,
         is_upload_marker=False,
-        upload_marker_date=None,
+        upload_marker_date=now.astimezone(COUNTRY_TIMEZONE.get(country, PT_TIMEZONE)).date(),
     )
     db.add(source)
     db.flush()
@@ -332,6 +332,10 @@ def _persist_return_report(
     country: str,
 ) -> dict[str, Any]:
     """Persist return report directly to ReturnAnalysisRecord (no AnalysisSourceFile)."""
+    # 上传时刻的当地日期，用于标记"今日已上传"状态
+    local_tz = COUNTRY_TIMEZONE.get(country, PT_TIMEZONE)
+    now_local = datetime.now(UTC).astimezone(local_tz)
+    file_upload_date = now_local.date().isoformat()
     df = _recog_csv(file_path, sep="\t")
     df.columns = [str(c).strip() for c in df.columns]
 
@@ -407,7 +411,7 @@ def _persist_return_report(
                 original_return_datetime=original_dt_str,
                 is_current=True,
                 is_upload_marker=False,
-                upload_marker_date=None,
+                upload_marker_date=file_upload_date,
             )
             db.add(record)
             db.flush()
@@ -426,15 +430,11 @@ def _persist_return_report(
             continue
 
     # 没有真实数据入库 → 写入标记行（文件无有效行 或 全部行唯一约束冲突）
-    # Marker 行使用 upload_marker_date（上传状态日期），return_date 留 NULL
     if inserted == 0:
-        local_tz = COUNTRY_TIMEZONE.get(country, PT_TIMEZONE)
-        now_local = datetime.now(UTC).astimezone(local_tz)
-        target_date = now_local.date().isoformat()
         marker = ReturnAnalysisRecord(
             project_id=project.id,
             country=country,
-            return_date="1970-01-01",  # 哨兵值，表示 marker；业务日期不写入
+            return_date="1970-01-01",
             order_id="__UPLOAD_MARKER__",
             sku="__UPLOAD_MARKER__",
             original_return_datetime="1970-01-01T00:00:00Z",
@@ -444,7 +444,7 @@ def _persist_return_report(
             license_plate_number=None,
             is_current=True,
             is_upload_marker=True,
-            upload_marker_date=target_date,
+            upload_marker_date=file_upload_date,
         )
         db.add(marker)
         db.commit()
@@ -452,8 +452,8 @@ def _persist_return_report(
             "success": True,
             "source_id": marker.id,
             "row_count": 0,
-            "report_start_date": target_date,
-            "report_end_date": target_date,
+            "report_start_date": file_upload_date,
+            "report_end_date": file_upload_date,
         }
     db.commit()
     report_start = min(all_us_dates) if all_us_dates else None
@@ -590,6 +590,11 @@ def _persist_sales_report(
     sha = _sha256_file(file_path)
     latest_id = None
 
+    # 上传时刻的当地日期，用于标记"今日已上传"状态
+    local_tz = COUNTRY_TIMEZONE.get(country, PT_TIMEZONE)
+    now_local = datetime.now(UTC).astimezone(local_tz)
+    file_upload_date = now_local.date()
+
     for report_date in sorted(grouped):
         version = _next_version(
             db, project.id, "sales_report", country, report_date, report_date
@@ -624,10 +629,12 @@ def _persist_sales_report(
             row_count_total=0,
             row_count_included=0,
             is_upload_marker=False,
-            upload_marker_date=None,
+            upload_marker_date=file_upload_date,
         )
         db.add(source)
         db.flush()
+
+        daily_rows = grouped[report_date]
         included = 0
         payloads = []
         for row in daily_rows:

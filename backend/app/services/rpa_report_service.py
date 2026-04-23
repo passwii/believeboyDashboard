@@ -112,13 +112,12 @@ def get_report_status_for_date(
             )
             real_rows = db.execute(real_stmt).scalars().all()
 
-            # Marker: match by upload_marker_date (upload status date, not business date)
+            # Marker: any return file uploaded today → uploaded even if business date is older
             marker_stmt = (
                 select(ReturnAnalysisRecord)
                 .where(ReturnAnalysisRecord.project_id.in_(project_ids))
                 .where(ReturnAnalysisRecord.country == country)
                 .where(ReturnAnalysisRecord.upload_marker_date == report_date)
-                .where(ReturnAnalysisRecord.is_upload_marker == True)
             )
             marker_exists = db.execute(
                 marker_stmt.limit(1)
@@ -156,14 +155,13 @@ def get_report_status_for_date(
                 .where(AnalysisSourceFile.is_upload_marker == False)
                 .order_by(AnalysisSourceFile.updated_at.desc())
             )
-            # Marker: match by upload_marker_date (upload status date, not business date)
+            # Marker: any source file uploaded today → uploaded even if business date is older
             marker_stmt = (
                 select(AnalysisSourceFile)
                 .where(AnalysisSourceFile.project_id.in_(project_ids))
                 .where(AnalysisSourceFile.report_type == rt)
                 .where(AnalysisSourceFile.country == country)
                 .where(AnalysisSourceFile.upload_marker_date == target_date)
-                .where(AnalysisSourceFile.is_upload_marker == True)
                 .limit(1)
             )
 

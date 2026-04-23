@@ -12,6 +12,11 @@ from pathlib import Path
 from config import CHECK_INTERVAL_MINUTES, IGNORED_DIRS, IS_WINDOWS, PROCESSED_SUBDIR, PROJECTS, SUPPORTED_EXTENSIONS, WATCH_ROOT
 from db import get_db_session
 from processor import ProcessResult, process_file
+try:
+    from client import report_scan_start, report_scan_progress, report_scan_complete, report_scan_error
+    HAS_CLIENT = True
+except ImportError:
+    HAS_CLIENT = False
 
 
 class RunLogger:
@@ -81,6 +86,11 @@ def _collect_files(project_dir: Path) -> list[Path]:
 def run_cycle(logger: RunLogger, dry_run: bool = False) -> dict:
     """Scan all project folders and process new files. Returns summary stats."""
     stats = {"projects": 0, "files_seen": 0, "skipped": 0, "success": 0, "failed": 0}
+    task_id = None
+
+    if HAS_CLIENT:
+        task_id = report_scan_start(", ".join(PROJECTS))
+        report_scan_progress(task_id, f"扫描 {len(PROJECTS)} 个项目目录", 0, 0)
 
     for project_name in PROJECTS:
         project_dir = WATCH_ROOT / project_name
@@ -97,8 +107,10 @@ def run_cycle(logger: RunLogger, dry_run: bool = False) -> dict:
 
         db = get_db_session()
         try:
-            for file_path in sorted(files):
+            for i, file_path in enumerate(sorted(files)):
                 stats["files_seen"] += 1
+                if HAS_CLIENT:
+                    report_scan_progress(task_id, f"处理: {file_path.name}", stats["files_seen"], i + 1)
                 result = process_file(file_path, project_name, db, dry_run=dry_run)
                 logger.result(file_path, project_name, result)
                 if result.skipped:
@@ -109,6 +121,12 @@ def run_cycle(logger: RunLogger, dry_run: bool = False) -> dict:
                     stats["failed"] += 1
         finally:
             db.close()
+
+    if HAS_CLIENT:
+        if stats["failed"] > 0:
+            report_scan_error(task_id, f"{stats['failed']} 个文件处理失败")
+        else:
+            report_scan_complete(task_id, stats)
 
     return stats
 
