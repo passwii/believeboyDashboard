@@ -1,4 +1,5 @@
 import json
+import os
 import queue
 import threading
 import time
@@ -32,6 +33,14 @@ from app.services.ai_insight_generator import (
     generate_insight_title,
     normalize_insight_markdown,
 )
+from app.services.digital_employee_reporter import (
+    ai_insight_start,
+    ai_insight_progress,
+    ai_insight_complete,
+)
+
+# 数字员工 ID（AI洞察报告员工 = id=4，通过环境变量可配置）
+_EMPLOYEE_ID = int(os.environ.get("AI_INSIGHT_EMPLOYEE_ID", "4"))
 
 router = APIRouter(prefix="/ai-insights", tags=["ai-insights"], dependencies=[Depends(protected)])
 
@@ -119,6 +128,19 @@ def _run_insight_generation(
     gen_db = SessionLocal()
     q: queue.Queue | None = None
 
+    # 注册数字员工任务
+    task_id = f"ai-insight-{insight_id}"
+    try:
+        ai_insight_start(gen_db, _EMPLOYEE_ID, insight_id, payload.get("project_name", ""))
+    except Exception:
+        pass  # 不阻塞核心流程
+
+    def _report_progress(step: str, progress: int) -> None:
+        try:
+            ai_insight_progress(gen_db, _EMPLOYEE_ID, task_id, step, progress)
+        except Exception:
+            pass
+
     def progress_callback(step: str) -> None:
         """Called by the aggregator as each sub-step starts. Only enqueues SSE events (no DB access)."""
         _enqueue_if_exists(insight_id, {"type": "status", "status": "generating", "sub_status": step})
@@ -148,6 +170,7 @@ def _run_insight_generation(
         gen_db.commit()
         _enqueue_if_exists(insight_id, {"type": "status", "status": "generating", "sub_status": "data_aggregating"})
         time.sleep(0.5)
+        _report_progress("data_aggregating", 10)
 
         from datetime import date as date_type
         start_date = date_type.fromisoformat(payload["start_date"])
@@ -164,6 +187,7 @@ def _run_insight_generation(
 
         if aggregated is None:
             raise RuntimeError("无法获取项目数据")
+        _report_progress("data_aggregating", 40)
 
         data_dict = aggregated.to_dict()
 
@@ -174,8 +198,10 @@ def _run_insight_generation(
         gen_db.commit()
         _enqueue_if_exists(insight_id, {"type": "status", "status": "generating", "sub_status": "ai_generating"})
         time.sleep(0.5)
+        _report_progress("ai_generating", 50)
 
         content_chunks: list[str] = []
+        chunk_count = 0
         for chunk in generate_insight_stream(
             settings,
             data_dict,
@@ -183,7 +209,13 @@ def _run_insight_generation(
         ):
             if chunk:
                 content_chunks.append(chunk)
+                chunk_count += 1
                 _enqueue_if_exists(insight_id, {"type": "chunk", "delta": chunk})
+                if chunk_count % 5 == 0:
+                    _report_progress("ai_generating", 50 + min(40, chunk_count // 2))
+
+        final_content = normalize_insight_markdown("".join(content_chunks))
+        _report_progress("ai_generating", 90)
 
         final_content = normalize_insight_markdown("".join(content_chunks))
 
@@ -222,6 +254,10 @@ def _run_insight_generation(
             "content": final_content,
             "error_message": None,
         })
+        try:
+            ai_insight_complete(gen_db, _EMPLOYEE_ID, task_id, success=True)
+        except Exception:
+            pass
 
     except Exception as exc:
         try:
@@ -234,6 +270,10 @@ def _run_insight_generation(
         except Exception:
             pass
         _enqueue_if_exists(insight_id, {"type": "error", "error": str(exc), "insight_id": insight_id, "status": "failed", "error_message": str(exc)})
+        try:
+            ai_insight_complete(gen_db, _EMPLOYEE_ID, task_id, success=False, error=str(exc))
+        except Exception:
+            pass
 
     finally:
         with _insight_queues_lock:

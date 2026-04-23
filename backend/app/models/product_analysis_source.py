@@ -41,7 +41,7 @@ class AnalysisSourceFile(Base):
             name='analysis_sources_period_version_key',
         ),
         CheckConstraint(
-            "report_type in ('business_report', 'payment_report', 'ad_product_report', 'sales_report', 'inventory_report')",
+            "report_type in ('business_report', 'payment_report', 'ad_product_report', 'sales_report', 'inventory_report', 'return_report')",
             name='ck_analysis_sources_report_type',
         ),
         CheckConstraint('version >= 1', name='ck_analysis_sources_version_positive'),
@@ -51,7 +51,7 @@ class AnalysisSourceFile(Base):
         ),
         CheckConstraint(
             "("
-            "report_type in ('business_report', 'payment_report', 'ad_product_report', 'sales_report') "
+            "report_type in ('business_report', 'payment_report', 'ad_product_report', 'sales_report', 'return_report') "
             'and period_start_date is not null '
             'and period_end_date is not null '
             'and period_start_date <= period_end_date '
@@ -105,10 +105,6 @@ class AnalysisSourceFile(Base):
     version: Mapped[int] = mapped_column(Integer, nullable=False, server_default='1')
     is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default='false')
     superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    # 标记空上传（无实际数据行时写入，用于 RPA 状态判断）
-    is_upload_marker: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default='false')
-    # 上传状态确认日期（当地当天）；marker 行专用，不写入业务日期
-    upload_marker_date: Mapped[date | None] = mapped_column(Date(), nullable=True)
 
     upload_file_id: Mapped[str] = mapped_column(String(255), nullable=False)
     upload_file_path: Mapped[str] = mapped_column(String(1024), nullable=False)
@@ -150,6 +146,10 @@ class AnalysisSourceFile(Base):
         cascade='all, delete-orphan',
     )
     sales_order_rows: Mapped[list['AnalysisSalesOrderRow']] = relationship(
+        back_populates='source_file',
+        cascade='all, delete-orphan',
+    )
+    return_rows: Mapped[list['AnalysisReturnRow']] = relationship(
         back_populates='source_file',
         cascade='all, delete-orphan',
     )
@@ -309,6 +309,47 @@ class InventorySnapshotRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
     source_file: Mapped[AnalysisSourceFile] = relationship(back_populates='inventory_rows')
+
+
+class AnalysisReturnRow(Base):
+    __tablename__ = 'analysis_return_rows'
+    __table_args__ = (
+        UniqueConstraint('source_file_id', 'source_row_no', name='analysis_return_rows_source_row_key'),
+        Index('idx_analysis_return_source_id', 'source_file_id'),
+        Index('idx_analysis_return_source_date', 'source_file_id', 'return_date'),
+        Index('idx_analysis_return_sku', 'sku'),
+        Index('idx_analysis_return_order_id', 'order_id'),
+    )
+
+    id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, 'sqlite'),
+        primary_key=True,
+        autoincrement=True,
+    )
+    source_file_id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, 'sqlite'),
+        ForeignKey('analysis_source_files.id', ondelete='CASCADE'),
+        nullable=False,
+    )
+    source_row_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    return_date: Mapped[date] = mapped_column(Date(), nullable=False)
+    order_id: Mapped[str] = mapped_column(String(50), nullable=False)
+    sku: Mapped[str] = mapped_column(String(100), nullable=False)
+    asin: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    fnsku: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    product_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False, server_default='1')
+    fulfillment_center_id: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    detailed_disposition: Mapped[str] = mapped_column(String(50), nullable=False)
+    reason: Mapped[str] = mapped_column(String(100), nullable=False)
+    status: Mapped[str] = mapped_column(String(100), nullable=False)
+    license_plate_number: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    original_return_datetime: Mapped[str] = mapped_column(String(30), nullable=False)
+    customer_comments: Mapped[str | None] = mapped_column(Text, nullable=True)
+    raw_row: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    source_file: Mapped[AnalysisSourceFile] = relationship(back_populates='return_rows')
 
 
 class AnalysisSalesOrderRow(Base):

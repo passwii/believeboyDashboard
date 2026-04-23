@@ -4,6 +4,14 @@ import os
 import platform
 from pathlib import Path
 
+# ─── Environment selection ────────────────────────────────────────────────────
+# Set AUTO_REPORT_ENV to "local" or "production" (defaults to "local")
+# - local:      uses localhost DB, localhost API, does NOT move files to processed/
+# - production: uses remote DB / API, moves files to processed/ after ingestion
+ENV = os.environ.get("AUTO_REPORT_ENV", "local").lower().strip()
+IS_LOCAL = ENV == "local"
+IS_PRODUCTION = ENV == "production"
+
 # ─── Platform detection ────────────────────────────────────────────────────────
 IS_WINDOWS = platform.system() == "Windows"
 IS_MAC = platform.system() == "Darwin"
@@ -59,3 +67,20 @@ IGNORED_DIRS = {"sync.ffs_db"}
 
 # File extensions the service cares about
 SUPPORTED_EXTENSIONS = {".txt", ".csv", ".xlsx"}
+
+# ─── Environment-specific defaults ────────────────────────────────────────────
+LOCAL_DATABASE_URL = "postgresql+psycopg://damon:jrway2012@localhost:5432/BLF"
+LOCAL_API_BASE = "http://127.0.0.1:8000"
+
+PROD_DATABASE_URL = "postgresql+psycopg://damon:jrway2012@145.79.143.98:5432/BLF"
+PROD_API_BASE = os.environ.get("BACKEND_API_BASE", "http://145.79.143.98:8000")
+
+# Resolved configs (env vars override everything)
+DATABASE_URL = os.environ.get(
+    "DATABASE_URL",
+    LOCAL_DATABASE_URL if IS_LOCAL else PROD_DATABASE_URL,
+)
+API_BASE = os.environ.get(
+    "BACKEND_API_BASE",
+    LOCAL_API_BASE if IS_LOCAL else PROD_API_BASE,
+)

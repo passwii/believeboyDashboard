@@ -12,11 +12,8 @@ from sqlalchemy.orm import Session, sessionmaker
 _env_path = Path(__file__).parent / ".env"
 load_dotenv(_env_path)
 
-# Read from environment variables (fall back to .env values)
-DATABASE_URL = os.environ.get(
-    "DATABASE_URL",
-    "postgresql+psycopg://damon:jrway2012@localhost:5432/BLF",
-)
+# Import config so that ENV is evaluated and defaults are set before we read DB url
+from config import DATABASE_URL  # noqa: E402
 
 engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_size=5)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)

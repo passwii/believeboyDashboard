@@ -14,6 +14,7 @@ import {
   TrendingUp,
   Upload,
   Wrench,
+  Users,
 } from 'lucide-react'
 import { signOut, useSession } from 'next-auth/react'
 import { usePathname } from 'next/navigation'
@@ -147,6 +148,17 @@ const primaryGroups: NavGroup[] = [
     activeIconAccent: 'rgba(255,255,255,0.95)',
     items: [
       { title: '调研分析', url: '/dashboard/tools/research-analysis' },
+    ],
+  },
+  {
+    label: '数字员工',
+    icon: <Users className='h-6 w-6' />,
+    accent: 'bg-[linear-gradient(180deg,#1a5276,#2980b9)] text-[#d6eaf8]',
+    activeAccent: 'bg-[linear-gradient(180deg,#1f6dad,#2980b9)] text-white',
+    iconAccent: '#888888',
+    activeIconAccent: 'rgba(255,255,255,0.95)',
+    items: [
+      { title: '数字员工', url: '/dashboard/digital-employees' },
     ],
   },
   {
