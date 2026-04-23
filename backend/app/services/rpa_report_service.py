@@ -101,7 +101,7 @@ def get_report_status_for_date(
             )
         elif rt == "return_report":
             # return_report data lives in return_analysis_records
-            # Filter out marker rows to determine "has real data"
+            # Real data: match by business return_date
             real_stmt = (
                 select(ReturnAnalysisRecord)
                 .where(ReturnAnalysisRecord.project_id.in_(project_ids))
@@ -112,12 +112,12 @@ def get_report_status_for_date(
             )
             real_rows = db.execute(real_stmt).scalars().all()
 
-            # Marker rows exist → uploaded even if no real data
+            # Marker: match by upload_marker_date (upload status date, not business date)
             marker_stmt = (
                 select(ReturnAnalysisRecord)
                 .where(ReturnAnalysisRecord.project_id.in_(project_ids))
                 .where(ReturnAnalysisRecord.country == country)
-                .where(ReturnAnalysisRecord.return_date == report_date)
+                .where(ReturnAnalysisRecord.upload_marker_date == report_date)
                 .where(ReturnAnalysisRecord.is_upload_marker == True)
             )
             marker_exists = db.execute(
@@ -137,7 +137,6 @@ def get_report_status_for_date(
 
             for pid in project_ids:
                 if status_by_project[pid][rt].is_uploaded is False and marker_exists:
-                    # Real rows not found for this project, but marker row exists
                     status_by_project[pid][rt] = ReportTypeStatus(
                         report_type=rt,
                         has_data=False,
@@ -147,7 +146,7 @@ def get_report_status_for_date(
                     )
             continue
         else:
-            # Exact match on report_date — check both real rows and marker rows
+            # Real data: exact match on business report_date
             real_stmt = (
                 select(AnalysisSourceFile)
                 .where(AnalysisSourceFile.project_id.in_(project_ids))
@@ -157,12 +156,13 @@ def get_report_status_for_date(
                 .where(AnalysisSourceFile.is_upload_marker == False)
                 .order_by(AnalysisSourceFile.updated_at.desc())
             )
+            # Marker: match by upload_marker_date (upload status date, not business date)
             marker_stmt = (
                 select(AnalysisSourceFile)
                 .where(AnalysisSourceFile.project_id.in_(project_ids))
                 .where(AnalysisSourceFile.report_type == rt)
                 .where(AnalysisSourceFile.country == country)
-                .where(AnalysisSourceFile.report_date == target_date)
+                .where(AnalysisSourceFile.upload_marker_date == target_date)
                 .where(AnalysisSourceFile.is_upload_marker == True)
                 .limit(1)
             )

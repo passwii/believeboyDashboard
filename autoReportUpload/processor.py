@@ -296,6 +296,8 @@ def _persist_single_source(
         ingestion_status="running",
         row_count_total=0,
         row_count_included=0,
+        is_upload_marker=False,
+        upload_marker_date=None,
     )
     db.add(source)
     db.flush()
@@ -404,6 +406,8 @@ def _persist_return_report(
                 license_plate_number=license_plate,
                 original_return_datetime=original_dt_str,
                 is_current=True,
+                is_upload_marker=False,
+                upload_marker_date=None,
             )
             db.add(record)
             db.flush()
@@ -421,21 +425,26 @@ def _persist_return_report(
             # 唯一约束冲突：同一行已存在，跳过继续处理其他行
             continue
 
+    # 没有真实数据入库 → 写入标记行（文件无有效行 或 全部行唯一约束冲突）
+    # Marker 行使用 upload_marker_date（上传状态日期），return_date 留 NULL
     if inserted == 0:
-        # 所有行都冲突 → 写入标记行，标记该日期已有文件上传（无实际退货数据）
-        report_start = min(all_us_dates) if all_us_dates else None
-        report_end = max(all_us_dates) if all_us_dates else None
+        local_tz = COUNTRY_TIMEZONE.get(country, PT_TIMEZONE)
+        now_local = datetime.now(UTC).astimezone(local_tz)
+        target_date = now_local.date().isoformat()
         marker = ReturnAnalysisRecord(
             project_id=project.id,
             country=country,
-            return_date=report_end or "",
+            return_date="1970-01-01",  # 哨兵值，表示 marker；业务日期不写入
             order_id="__UPLOAD_MARKER__",
             sku="__UPLOAD_MARKER__",
             original_return_datetime="1970-01-01T00:00:00Z",
             detailed_disposition="__MARKER__",
             reason="__MARKER__",
             status="__MARKER__",
+            license_plate_number=None,
+            is_current=True,
             is_upload_marker=True,
+            upload_marker_date=target_date,
         )
         db.add(marker)
         db.commit()
@@ -443,8 +452,8 @@ def _persist_return_report(
             "success": True,
             "source_id": marker.id,
             "row_count": 0,
-            "report_start_date": report_start,
-            "report_end_date": report_end,
+            "report_start_date": target_date,
+            "report_end_date": target_date,
         }
     db.commit()
     report_start = min(all_us_dates) if all_us_dates else None
@@ -484,6 +493,72 @@ def _split_customer_comments(comment: str) -> list[str]:
 # ─── Sales report ─────────────────────────────────────────────────────────────
 
 
+def _persist_sales_report_marker(
+    db: Session,
+    file_path: Path,
+    project: Project,
+    country: str,
+    file_id: str,
+    extension: str,
+    project_slug: str,
+    now: datetime,
+) -> dict[str, Any]:
+    """Write a marker source file when sales report has no valid rows.
+
+    Marker rows use upload_marker_date (upload status date) exclusively.
+    report_date is left NULL so marker never pollutes business date range.
+    """
+    local_tz = COUNTRY_TIMEZONE.get(country, PT_TIMEZONE)
+    now_local = datetime.now(UTC).astimezone(local_tz)
+    target_date = now_local.date()
+    version = _next_version(
+        db, project.id, "sales_report", country, target_date, target_date
+    )
+    logical_filename = _build_logical_filename(
+        project_slug, "sales_report", target_date, target_date, now, version, extension
+    )
+    storage_key = _build_storage_key(
+        project_slug, "sales_report", target_date, target_date, version, file_id
+    )
+    source = AnalysisSourceFile(
+        project_id=project.id,
+        report_type="sales_report",
+        country=country,
+        report_date=None,  # 无业务日期
+        period_start_date=target_date,
+        period_end_date=target_date,
+        snapshot_at=None,
+        version=version,
+        is_current=True,
+        superseded_at=None,
+        upload_file_id=file_id,
+        upload_file_path=str(file_path),
+        original_filename=file_path.name,
+        stored_filename=file_id,
+        logical_filename=logical_filename,
+        storage_key=storage_key,
+        file_size_bytes=file_path.stat().st_size,
+        file_sha256=_sha256_file(file_path),
+        ingestion_status="success",
+        row_count_total=0,
+        row_count_included=0,
+        is_upload_marker=True,
+        upload_marker_date=target_date,
+    )
+    db.add(source)
+    db.flush()
+    _replace_current_pointer(db, source)
+    source.superseded_at = None
+    db.commit()
+    return {
+        "success": True,
+        "source_id": source.id,
+        "row_count": 0,
+        "report_start_date": target_date.isoformat(),
+        "report_end_date": target_date.isoformat(),
+    }
+
+
 def _persist_sales_report(
     db: Session,
     file_path: Path,
@@ -498,7 +573,11 @@ def _persist_sales_report(
 ) -> dict[str, Any]:
     rows, total, _ = _parse_sales_rows(file_path, 0, country=country)
     if not rows:
-        return {"success": False, "error": "销售报表无有效行"}
+        # 无有效行 → 写入标记记录，确保 RPA 状态显示"已上传（无数据）"
+        return _persist_sales_report_marker(
+            db, file_path, project, country, file_id, extension,
+            project_slug, now,
+        )
 
     # Group by purchase date
     grouped: dict[date, list[dict]] = {}
@@ -544,11 +623,11 @@ def _persist_sales_report(
             ingestion_status="running",
             row_count_total=0,
             row_count_included=0,
+            is_upload_marker=False,
+            upload_marker_date=None,
         )
         db.add(source)
         db.flush()
-
-        daily_rows = grouped[report_date]
         included = 0
         payloads = []
         for row in daily_rows:
