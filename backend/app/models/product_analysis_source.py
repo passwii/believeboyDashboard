@@ -107,6 +107,8 @@ class AnalysisSourceFile(Base):
     superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # 标记空上传（无实际数据行时写入，用于 RPA 状态判断）
     is_upload_marker: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default='false')
+    # 上传状态确认日期（当地当天）；marker 行专用，不写入业务日期
+    upload_marker_date: Mapped[date | None] = mapped_column(Date(), nullable=True)
 
     upload_file_id: Mapped[str] = mapped_column(String(255), nullable=False)
     upload_file_path: Mapped[str] = mapped_column(String(1024), nullable=False)

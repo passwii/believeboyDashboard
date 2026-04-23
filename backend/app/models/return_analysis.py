@@ -45,6 +45,8 @@ class ReturnAnalysisRecord(Base):
     is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     # 标记空上传（无实际退货数据时写入，用于 RPA 状态判断）
     is_upload_marker: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # 上传状态确认日期（当地当天）；marker 行专用，不写入业务日期
+    upload_marker_date: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=datetime.utcnow
     )

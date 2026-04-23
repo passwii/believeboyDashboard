@@ -178,6 +178,7 @@ class AnalysisSourceFile(Base):
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_upload_marker: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    upload_marker_date: Mapped[date | None] = mapped_column(Date(), nullable=True)
     superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     upload_file_id: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -408,6 +409,18 @@ class ReturnAnalysisRecord(Base):
     status: Mapped[str] = mapped_column(String(100), nullable=False)
     license_plate_number: Mapped[str | None] = mapped_column(String(30), nullable=True)
     original_return_datetime: Mapped[str] = mapped_column(String(30), nullable=False)
+    is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    is_upload_marker: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    upload_marker_date: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
 
 
 class ReturnCustomerComment(Base):
