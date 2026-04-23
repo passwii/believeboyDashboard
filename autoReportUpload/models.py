@@ -144,13 +144,29 @@ class AnalysisSourceFile(Base):
         ),
         CheckConstraint(
             "report_type in ('business_report', 'payment_report', 'ad_product_report', "
-            "'sales_report', 'inventory_report')",
+            "'sales_report', 'inventory_report', 'return_report')",
             name="ck_analysis_sources_report_type",
         ),
         CheckConstraint("version >= 1", name="ck_analysis_sources_version_positive"),
         CheckConstraint(
             "ingestion_status in ('pending', 'running', 'success', 'failed')",
             name="ck_analysis_sources_ingestion_status",
+        ),
+        CheckConstraint(
+            "("
+            "report_type in ('business_report', 'payment_report', 'ad_product_report', "
+            "'sales_report', 'return_report') "
+            "and period_start_date is not null "
+            "and period_end_date is not null "
+            "and period_start_date <= period_end_date "
+            "and snapshot_at is null"
+            ")"
+            " or "
+            "("
+            "report_type = 'inventory_report' "
+            "and snapshot_at is not null"
+            ")",
+            name="ck_analysis_sources_period_or_snapshot",
         ),
         Index("idx_analysis_sources_project_id", "project_id"),
         Index("idx_analysis_sources_report_type", "report_type"),
@@ -177,8 +193,6 @@ class AnalysisSourceFile(Base):
     snapshot_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    is_upload_marker: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    upload_marker_date: Mapped[date | None] = mapped_column(Date(), nullable=True)
     superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     upload_file_id: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -374,19 +388,12 @@ class InventorySnapshotRow(Base):
 # ─── return_analysis_records ──────────────────────────────────────────────────
 
 
-class ReturnAnalysisRecord(Base):
-    __tablename__ = "return_analysis_records"
+class ReportUploadLog(Base):
+    """Records every file upload attempt for RPA status dashboard."""
+
+    __tablename__ = "report_upload_logs"
     __table_args__ = (
-        UniqueConstraint(
-            "project_id",
-            "country",
-            "order_id",
-            "sku",
-            "original_return_datetime",
-            "license_plate_number",
-            name="uq_return_record_key",
-        ),
-        Index("idx_return_analysis_project_date", "project_id", "return_date"),
+        Index("idx_upload_logs_lookup", "project_id", "report_type", "country", "upload_date"),
     )
 
     id: Mapped[int] = mapped_column(
@@ -394,32 +401,24 @@ class ReturnAnalysisRecord(Base):
         primary_key=True,
         autoincrement=True,
     )
-    project_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
-    country: Mapped[str] = mapped_column(String(10), nullable=False, default="US")
-    return_date: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
-    order_id: Mapped[str] = mapped_column(String(50), nullable=False)
-    sku: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
-    asin: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    fnsku: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    product_name: Mapped[str | None] = mapped_column(Text, nullable=True)
-    quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    fulfillment_center_id: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    detailed_disposition: Mapped[str] = mapped_column(String(50), nullable=False)
-    reason: Mapped[str] = mapped_column(String(100), nullable=False)
-    status: Mapped[str] = mapped_column(String(100), nullable=False)
-    license_plate_number: Mapped[str | None] = mapped_column(String(30), nullable=True)
-    original_return_datetime: Mapped[str] = mapped_column(String(30), nullable=False)
-    is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    is_upload_marker: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    upload_marker_date: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    project_id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    report_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    country: Mapped[str] = mapped_column(String(2), nullable=False, default="US")
+    upload_date: Mapped[date] = mapped_column(Date(), nullable=False)
+    has_real_data: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    row_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    source_file_id: Mapped[int | None] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"),
+        ForeignKey("analysis_source_files.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    original_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        server_default=func.now(),
-        onupdate=func.now(),
     )
 
 
@@ -442,6 +441,47 @@ class ReturnCustomerComment(Base):
     sku: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     order_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     customer_comment: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class AnalysisReturnRow(Base):
+    __tablename__ = "analysis_return_rows"
+    __table_args__ = (
+        UniqueConstraint("source_file_id", "source_row_no", name="analysis_return_rows_source_row_key"),
+        Index("idx_analysis_return_source_id", "source_file_id"),
+        Index("idx_analysis_return_source_date", "source_file_id", "return_date"),
+        Index("idx_analysis_return_sku", "sku"),
+        Index("idx_analysis_return_order_id", "order_id"),
+    )
+
+    id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"),
+        primary_key=True,
+        autoincrement=True,
+    )
+    source_file_id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"),
+        ForeignKey("analysis_source_files.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    source_row_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    return_date: Mapped[date] = mapped_column(Date(), nullable=False)
+    order_id: Mapped[str] = mapped_column(String(50), nullable=False)
+    sku: Mapped[str] = mapped_column(String(100), nullable=False)
+    asin: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    fnsku: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    product_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    fulfillment_center_id: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    detailed_disposition: Mapped[str] = mapped_column(String(50), nullable=False)
+    reason: Mapped[str] = mapped_column(String(100), nullable=False)
+    status: Mapped[str] = mapped_column(String(100), nullable=False)
+    license_plate_number: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    original_return_datetime: Mapped[str] = mapped_column(String(30), nullable=False)
+    customer_comments: Mapped[str | None] = mapped_column(Text, nullable=True)
+    raw_row: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

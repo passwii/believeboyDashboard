@@ -51,28 +51,18 @@ const API_BASE = '/api/backend'
 
 // ── RPA Status types ──────────────────────────────────────────────────────────
 
-const COUNTRY_TIMEZONE_MAP: Record<string, string> = {
-  US: 'America/Los_Angeles',
-  DE: 'Europe/Berlin',
-  UK: 'Europe/London',
-}
-
 const COUNTRY_OPTIONS = [
   { value: 'US', label: '美国站' },
   { value: 'DE', label: '德国站' },
   { value: 'UK', label: '英国站' },
 ]
 
-function getTodayInTimezone(country: string): Date {
-  const tz = COUNTRY_TIMEZONE_MAP[country] ?? 'UTC'
-  const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: tz })
-  const now = new Date()
-  const [y, m, d] = formatter.format(now).split('-').map(Number)
-  return new Date(y!, m! - 1, d!)
+function getTodayLocal(): Date {
+  return new Date()
 }
 
-function toLocalDateInputValue(input?: Date, country?: string): string {
-  const date = input ?? (country ? getTodayInTimezone(country) : new Date())
+function toLocalDateInputValue(input?: Date): string {
+  const date = input ?? getTodayLocal()
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
@@ -154,10 +144,11 @@ function RpaStatusGrid() {
   const [statusError, setStatusError] = useState<string | null>(null)
 
   const [country, setCountry] = useState('US')
-  const [statusDate, setStatusDate] = useState(() => toLocalDateInputValue(undefined, 'US'))
+  const [statusDate, setStatusDate] = useState(() => toLocalDateInputValue())
 
   useEffect(() => {
-    setStatusDate(toLocalDateInputValue(undefined, country))
+    // 切换站点时，日期保持不变（不再根据站点时区重新计算）
+    // 用户始终以本地时间查看状态
   }, [country])
 
   useEffect(() => {
@@ -175,30 +166,31 @@ function RpaStatusGrid() {
     void loadProjects()
   }, [session])
 
-  useEffect(() => {
-    const loadStatus = async () => {
-      setStatusLoading(true)
-      setStatusError(null)
-      try {
-        const query = new URLSearchParams({ report_date: statusDate, country })
-        const response = await fetch(
-          `${API_BASE}/api/v1/rpa-reports/status?${query.toString()}`,
-          { cache: 'no-store' },
-        )
-        if (!response.ok) {
-          const text = await response.text()
-          throw new Error(text || `HTTP ${response.status}`)
-        }
-        const payload = (await response.json()) as { items: ProjectRow[] }
-        setStatusRows(payload.items || [])
-      } catch (error) {
-        setStatusError(normalizeErrorMessage(error, '报表状态加载失败'))
-      } finally {
-        setStatusLoading(false)
+  const loadStatus = async () => {
+    setStatusLoading(true)
+    setStatusError(null)
+    try {
+      const query = new URLSearchParams({ report_date: statusDate, country })
+      const response = await fetch(
+        `${API_BASE}/api/v1/rpa-reports/status?${query.toString()}`,
+        { cache: 'no-store' },
+      )
+      if (!response.ok) {
+        const text = await response.text()
+        throw new Error(text || `HTTP ${response.status}`)
       }
+      const payload = (await response.json()) as { items: ProjectRow[] }
+      setStatusRows(payload.items || [])
+    } catch (error) {
+      setStatusError(normalizeErrorMessage(error, '报表状态加载失败'))
+    } finally {
+      setStatusLoading(false)
     }
+  }
+
+  useEffect(() => {
     void loadStatus()
-  }, [statusDate, country])
+  }, [statusDate, country]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const filteredRows = useMemo(() => {
     if (selectedProjects.length === 0) return statusRows
@@ -214,17 +206,12 @@ function RpaStatusGrid() {
   return (
     <Card className='flex flex-1 flex-col overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-sm'>
       <CardHeader className='border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-6 py-5 shrink-0'>
-        <div className='flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between'>
-          <div className='flex items-center gap-3'>
+        <div className='flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between'>
+          <div className='flex h-11 items-center gap-3'>
             <div className='flex h-11 w-11 items-center justify-center rounded-lg border border-border/60 bg-[hsl(var(--surface-soft))] text-muted-foreground'>
               <LayoutDashboard className='h-5 w-5' />
             </div>
-            <div className='space-y-1'>
-              <CardTitle>RPA 报表状态</CardTitle>
-              <p className='text-sm text-muted-foreground'>
-                查看 RPA 自动接入的报表入库情况（autoReportUpload）
-              </p>
-            </div>
+            <CardTitle className='self-center'>RPA 报表状态</CardTitle>
           </div>
 
           <div className='flex flex-wrap items-center gap-2 lg:justify-end'>
@@ -303,12 +290,32 @@ function RpaStatusGrid() {
             >
               <ChevronRight className='h-4 w-4' />
             </Button>
+           
+            <Button
+              type='button'
+              variant='outline'
+              size='icon'
+              onClick={() => setStatusDate((v) => shiftDateString(v, 1))}
+            >
+              <ChevronRight className='h-4 w-4' />
+            </Button>
             <Button
               type='button'
               variant='secondary'
-              onClick={() => setStatusDate(toLocalDateInputValue(undefined, country))}
+              onClick={() => setStatusDate(toLocalDateInputValue(undefined))}
             >
               今天
+            </Button>
+
+            <Button
+              type='button'
+              variant='outline'
+              size='icon'
+              onClick={() => void loadStatus()}
+              disabled={statusLoading}
+              title='刷新状态'
+            >
+              <Loader2 className={cn('h-4 w-4', statusLoading && 'animate-spin')} />
             </Button>
           </div>
         </div>
@@ -798,9 +805,6 @@ export default function AutoUploadPage() {
       {/* Page header */}
       <div className='shrink-0'>
         <h1 className='text-2xl font-semibold tracking-tight'>报表自动化</h1>
-        <p className='mt-1 text-sm text-muted-foreground'>
-          拖拽上传报表，系统自动识别项目与日期；查看 RPA 自动接入的报表入库情况。
-        </p>
       </div>
 
       {/* Tab switcher */}

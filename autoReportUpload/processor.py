@@ -10,6 +10,21 @@ import re
 import shutil
 import uuid
 from datetime import UTC, date, datetime
+
+PT_TIMEZONE = __import__("zoneinfo", fromlist=["ZoneInfo"]).ZoneInfo("America/Los_Angeles")
+COUNTRY_TIMEZONE = {
+    "US": PT_TIMEZONE,
+    "CA": PT_TIMEZONE,
+    "MX": PT_TIMEZONE,
+    "UK": __import__("zoneinfo", fromlist=["ZoneInfo"]).ZoneInfo("Europe/London"),
+    "DE": __import__("zoneinfo", fromlist=["ZoneInfo"]).ZoneInfo("Europe/Berlin"),
+    "FR": __import__("zoneinfo", fromlist=["ZoneInfo"]).ZoneInfo("Europe/Paris"),
+    "IT": __import__("zoneinfo", fromlist=["ZoneInfo"]).ZoneInfo("Europe/Rome"),
+    "ES": __import__("zoneinfo", fromlist=["ZoneInfo"]).ZoneInfo("Europe/Madrid"),
+    "JP": __import__("zoneinfo", fromlist=["ZoneInfo"]).ZoneInfo("Asia/Tokyo"),
+    "AU": __import__("zoneinfo", fromlist=["ZoneInfo"]).ZoneInfo("Australia/Sydney"),
+    "IN": __import__("zoneinfo", fromlist=["ZoneInfo"]).ZoneInfo("Asia/Kolkata"),
+}
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
@@ -20,18 +35,18 @@ from slugify import slugify
 from sqlalchemy import func, insert, select, update as sa_update
 from sqlalchemy.orm import Session
 
-from config import PROCESSED_SUBDIR
+from config import IS_LOCAL, PROCESSED_SUBDIR
 from models import (
     AnalysisAdProductRow,
     AnalysisBusinessRow,
     AnalysisPaymentRow,
+    AnalysisReturnRow,
     AnalysisSalesOrderRow,
     AnalysisSourceFile,
     InventorySnapshotRow,
     ProductCost,
     Project,
-    ReturnAnalysisRecord,
-    ReturnCustomerComment,
+    ReportUploadLog,
 )
 from recognition import (
     AD_PRODUCT_REPORT,
@@ -40,12 +55,9 @@ from recognition import (
     _read_csv_with_encoding_fallback as _recog_csv,
 )
 
-PT_TIMEZONE = __import__("zoneinfo", fromlist=["ZoneInfo"]).ZoneInfo("America/Los_Angeles")
-COUNTRY_TIMEZONE = {
-    "US": PT_TIMEZONE,
-    "DE": __import__("zoneinfo", fromlist=["ZoneInfo"]).ZoneInfo("Europe/Berlin"),
-    "UK": __import__("zoneinfo", fromlist=["ZoneInfo"]).ZoneInfo("Europe/London"),
-}
+def _resolve_upload_date(now: datetime) -> date:
+    """返回当前本地日期作为 upload_log 日期。"""
+    return now.date()
 
 OPENPYXL_MISSING_DEFAULT_STYLE_WARNING = (
     r"Workbook contains no default style, apply openpyxl's default"
@@ -53,7 +65,7 @@ OPENPYXL_MISSING_DEFAULT_STYLE_WARNING = (
 
 SCOPE_INCLUDED = "included_product"
 SCOPE_EXCLUDED_UNMAPPED = "excluded_unmapped"
-PERIODIC_REPORT_TYPES = {"business_report", "payment_report", AD_PRODUCT_REPORT, "sales_report", "inventory_report"}
+PERIODIC_REPORT_TYPES = {"business_report", "payment_report", AD_PRODUCT_REPORT, "sales_report", "inventory_report", "return_report"}
 
 
 # ─── Result dataclass ─────────────────────────────────────────────────────────
@@ -156,11 +168,12 @@ def process_file(
             or "uq_return_record_key" in error_msg
         )
         if is_duplicate:
-            _move_to_processed(file_path)
+            if not IS_LOCAL:
+                _move_to_processed(file_path)
             return ProcessResult(
                 skipped=True,
                 report_type=result.report_type,
-                reason="数据已存在（唯一约束冲突），文件已移走",
+                reason="数据已存在（唯一约束冲突），文件已移走" if not IS_LOCAL else "数据已存在（唯一约束冲突），local 模式下不移动文件",
             )
         return ProcessResult(
             skipped=False,
@@ -170,8 +183,9 @@ def process_file(
             error=error_msg,
         )
 
-    # 3. Move file to processed/
-    _move_to_processed(file_path)
+    # 3. Move file to processed/ (skip in local env)
+    if not IS_LOCAL:
+        _move_to_processed(file_path)
 
     return ProcessResult(
         success=True,
@@ -199,7 +213,7 @@ def _persist_one_file(
     project = _get_project_by_name(db, project_name)
     report_type = result.report_type
     country = result.country or "US"
-    now = datetime.now(UTC)
+    now = datetime.now()
 
     known_skus, known_asins = _load_project_product_mapping(db, project_name, country)
 
@@ -245,6 +259,31 @@ def _persist_one_file(
         report_date, period_start, period_end, snapshot_at,
         known_skus, known_asins, now,
     )
+
+
+def _write_upload_log(
+    db: Session,
+    project_id: int,
+    report_type: str,
+    country: str,
+    upload_date: date,
+    has_real_data: bool,
+    row_count: int,
+    source_file_id: int | None,
+    original_filename: str,
+) -> None:
+    """Write a single upload log entry."""
+    log = ReportUploadLog(
+        project_id=project_id,
+        report_type=report_type,
+        country=country,
+        upload_date=upload_date,
+        has_real_data=has_real_data,
+        row_count=row_count,
+        source_file_id=source_file_id,
+        original_filename=original_filename,
+    )
+    db.add(log)
 
 
 def _persist_single_source(
@@ -296,8 +335,6 @@ def _persist_single_source(
         ingestion_status="running",
         row_count_total=0,
         row_count_included=0,
-        is_upload_marker=False,
-        upload_marker_date=now.astimezone(COUNTRY_TIMEZONE.get(country, PT_TIMEZONE)).date(),
     )
     db.add(source)
     db.flush()
@@ -313,8 +350,13 @@ def _persist_single_source(
         _replace_current_pointer(db, source)
         source.is_current = True
         source.superseded_at = None
-        db.commit()
+        db.flush()
 
+        # Write upload log（使用本地时间）
+        upload_date = _resolve_upload_date(now)
+        _write_upload_log(db, project.id, report_type, country, upload_date, total > 0, total, source.id, file_path.name)
+
+        db.commit()
         return {"success": True, "source_id": source.id, "row_count": total}
     except Exception as exc:  # noqa: BLE001
         source.ingestion_status = "failed"
@@ -331,32 +373,73 @@ def _persist_return_report(
     project: Project,
     country: str,
 ) -> dict[str, Any]:
-    """Persist return report directly to ReturnAnalysisRecord (no AnalysisSourceFile)."""
-    # 上传时刻的当地日期，用于标记"今日已上传"状态
-    local_tz = COUNTRY_TIMEZONE.get(country, PT_TIMEZONE)
-    now_local = datetime.now(UTC).astimezone(local_tz)
-    file_upload_date = now_local.date().isoformat()
+    """Persist return report to AnalysisSourceFile + AnalysisReturnRow."""
+    now = datetime.now()
+    upload_date = now.date()
+
+    # Create source file record
+    file_id = _generate_file_id(file_path.name)
+    extension = file_path.suffix.lower()
+    project_slug = _project_slug(project.project_name)
+    version = _next_version(db, project.id, "return_report", country, upload_date, upload_date)
+    logical_filename = _build_logical_filename(
+        project_slug, "return_report", upload_date, upload_date, now, version, extension
+    )
+    storage_key = _build_storage_key(
+        project_slug, "return_report", upload_date, upload_date, version, file_id
+    )
+
+    source = AnalysisSourceFile(
+        project_id=project.id,
+        report_type="return_report",
+        country=country,
+        report_date=None,
+        period_start_date=upload_date,
+        period_end_date=upload_date,
+        snapshot_at=None,
+        version=version,
+        is_current=False,
+        superseded_at=None,
+        upload_file_id=file_id,
+        upload_file_path=str(file_path),
+        original_filename=file_path.name,
+        stored_filename=file_id,
+        logical_filename=logical_filename,
+        storage_key=storage_key,
+        file_size_bytes=file_path.stat().st_size,
+        file_sha256=_sha256_file(file_path),
+        ingestion_status="running",
+        row_count_total=0,
+        row_count_included=0,
+    )
+    db.add(source)
+    db.flush()
+
+    # Parse return rows
     df = _recog_csv(file_path, sep="\t")
     df.columns = [str(c).strip() for c in df.columns]
 
     required = ["return-date", "sku"]
     missing = [c for c in required if c not in df.columns]
     if missing:
+        source.ingestion_status = "failed"
+        source.ingestion_error = f"缺少必要字段: {missing}"
+        db.commit()
         return {"success": False, "error": f"缺少必要字段: {missing}"}
 
-    all_us_dates: list[str] = []
     seen_keys: set[tuple] = set()
-    inserted = 0
+    rows: list[dict] = []
+    all_us_dates: list[date] = []
 
-    for _, row in df.iterrows():
+    for idx, row in df.iterrows():
         original_dt_str = str(row.get("return-date", "")).strip()
-        original_dt = _parse_iso_datetime_with_timezone(original_dt_str)
+        original_dt = _parse_iso_datetime(original_dt_str)
         if original_dt is None:
             continue
 
-        us_date = _convert_to_us_date(original_dt)
+        return_date_str = _convert_to_us_date(original_dt)
+        us_date = _parse_yyyy_mm_dd(return_date_str)
         all_us_dates.append(us_date)
-
         order_id = str(row.get("order-id", "")).strip()
         sku = str(row.get("sku", "")).strip()
         asin = str(row.get("asin", "")) if pd.notna(row.get("asin")) else None
@@ -392,82 +475,55 @@ def _persist_return_report(
             continue
         seen_keys.add(dedupe_key)
 
-        try:
-            record = ReturnAnalysisRecord(
-                project_id=project.id,
-                country=country,
-                return_date=us_date,
-                order_id=order_id,
-                sku=sku,
-                asin=asin,
-                fnsku=fnsku,
-                product_name=product_name,
-                quantity=quantity,
-                fulfillment_center_id=fulfillment_center_id,
-                detailed_disposition=detailed_disposition,
-                reason=reason,
-                status=status,
-                license_plate_number=license_plate,
-                original_return_datetime=original_dt_str,
-                is_current=True,
-                is_upload_marker=False,
-                upload_marker_date=file_upload_date,
-            )
-            db.add(record)
-            db.flush()
+        rows.append({
+            "source_file_id": source.id,
+            "source_row_no": idx + 1,
+            "return_date": us_date,
+            "order_id": order_id,
+            "sku": sku,
+            "asin": asin,
+            "fnsku": fnsku,
+            "product_name": product_name,
+            "quantity": quantity,
+            "fulfillment_center_id": fulfillment_center_id,
+            "detailed_disposition": detailed_disposition,
+            "reason": reason,
+            "status": status,
+            "license_plate_number": license_plate,
+            "original_return_datetime": original_dt_str,
+            "customer_comments": customer_comments if customer_comments else None,
+            "raw_row": _to_raw_row(row.to_dict()),
+        })
 
-            comment_parts = _split_customer_comments(customer_comments)
-            for comment_text in comment_parts:
-                db.add(ReturnCustomerComment(
-                    return_record_id=record.id,
-                    sku=sku,
-                    order_id=order_id,
-                    customer_comment=comment_text,
-                ))
-            inserted += 1
-        except Exception:
-            # 唯一约束冲突：同一行已存在，跳过继续处理其他行
-            continue
+    # Insert rows
+    if rows:
+        db.execute(insert(AnalysisReturnRow), rows)
 
-    # 没有真实数据入库 → 写入标记行（文件无有效行 或 全部行唯一约束冲突）
-    if inserted == 0:
-        marker = ReturnAnalysisRecord(
-            project_id=project.id,
-            country=country,
-            return_date="1970-01-01",
-            order_id="__UPLOAD_MARKER__",
-            sku="__UPLOAD_MARKER__",
-            original_return_datetime="1970-01-01T00:00:00Z",
-            detailed_disposition="__MARKER__",
-            reason="__MARKER__",
-            status="__MARKER__",
-            license_plate_number=None,
-            is_current=True,
-            is_upload_marker=True,
-            upload_marker_date=file_upload_date,
-        )
-        db.add(marker)
-        db.commit()
-        return {
-            "success": True,
-            "source_id": marker.id,
-            "row_count": 0,
-            "report_start_date": file_upload_date,
-            "report_end_date": file_upload_date,
-        }
+    source.row_count_total = len(rows)
+    source.row_count_included = len(rows)
+    source.ingestion_status = "success"
+
+    _replace_current_pointer(db, source)
+    source.is_current = True
+    source.superseded_at = None
+    db.flush()
+
+    # Write upload log（使用本地时间）
+    log_date = _resolve_upload_date(now)
+    _write_upload_log(db, project.id, "return_report", country, log_date, len(rows) > 0, len(rows), source.id, file_path.name)
+
     db.commit()
-    report_start = min(all_us_dates) if all_us_dates else None
-    report_end = max(all_us_dates) if all_us_dates else None
+
     return {
         "success": True,
-        "source_id": inserted,
-        "row_count": inserted,
-        "report_start_date": report_start,
-        "report_end_date": report_end,
+        "source_id": source.id,
+        "row_count": len(rows),
+        "report_start_date": min(all_us_dates).isoformat() if all_us_dates else upload_date.isoformat(),
+        "report_end_date": max(all_us_dates).isoformat() if all_us_dates else upload_date.isoformat(),
     }
 
 
-def _parse_iso_datetime_with_timezone(date_str: str):
+def _parse_iso_datetime(date_str: str):
     if not date_str or pd.isna(date_str):
         return None
     parsed = pd.to_datetime(date_str, errors="coerce", utc=True)
@@ -477,8 +533,9 @@ def _parse_iso_datetime_with_timezone(date_str: str):
 
 
 def _convert_to_us_date(iso_datetime) -> str:
+    """Convert a UTC-aware datetime to PT date string (先转时区再取日期)."""
     if iso_datetime.tzinfo is None:
-        iso_datetime = iso_datetime.replace(tzinfo=None)
+        iso_datetime = iso_datetime.replace(tzinfo=UTC)
     us_dt = iso_datetime.astimezone(PT_TIMEZONE)
     return us_dt.strftime("%Y-%m-%d")
 
@@ -508,9 +565,7 @@ def _persist_sales_report_marker(
     Marker rows use upload_marker_date (upload status date) exclusively.
     report_date is left NULL so marker never pollutes business date range.
     """
-    local_tz = COUNTRY_TIMEZONE.get(country, PT_TIMEZONE)
-    now_local = datetime.now(UTC).astimezone(local_tz)
-    target_date = now_local.date()
+    target_date = now.date()
     version = _next_version(
         db, project.id, "sales_report", country, target_date, target_date
     )
@@ -542,8 +597,6 @@ def _persist_sales_report_marker(
         ingestion_status="success",
         row_count_total=0,
         row_count_included=0,
-        is_upload_marker=True,
-        upload_marker_date=target_date,
     )
     db.add(source)
     db.flush()
@@ -590,10 +643,8 @@ def _persist_sales_report(
     sha = _sha256_file(file_path)
     latest_id = None
 
-    # 上传时刻的当地日期，用于标记"今日已上传"状态
-    local_tz = COUNTRY_TIMEZONE.get(country, PT_TIMEZONE)
-    now_local = datetime.now(UTC).astimezone(local_tz)
-    file_upload_date = now_local.date()
+    # 上传时刻的日期，用于标记"今日已上传"状态
+    file_upload_date = now.date()
 
     for report_date in sorted(grouped):
         version = _next_version(
@@ -628,8 +679,6 @@ def _persist_sales_report(
             ingestion_status="running",
             row_count_total=0,
             row_count_included=0,
-            is_upload_marker=False,
-            upload_marker_date=file_upload_date,
         )
         db.add(source)
         db.flush()
@@ -932,7 +981,7 @@ def _parse_sales_rows(
 
     for idx, row in df.iterrows():
         order_id = _normalize_text(row.get("amazon-order-id"))
-        parsed_utc = pd.to_datetime(row.get("purchase-date"), utc=True, errors="coerce")
+        parsed_utc = pd.to_datetime(row.get("purchase-date"), errors="coerce", utc=True)
         if not order_id or pd.isna(parsed_utc):
             continue
 
@@ -977,11 +1026,10 @@ def _extract_sales_report_dates(path: Path, country: str) -> list[date]:
     df = pd.read_csv(path, sep="\t", encoding="utf-8-sig", nrows=200)
     if "purchase-date" not in df.columns:
         return []
-    dates = pd.to_datetime(df["purchase-date"], utc=True, errors="coerce").dropna()
+    dates = pd.to_datetime(df["purchase-date"], errors="coerce").dropna()
     if dates.empty:
         return []
-    local_tz = COUNTRY_TIMEZONE.get(country, PT_TIMEZONE)
-    return list(dates.dt.tz_convert(local_tz).dt.date.unique())
+    return list(dates.dt.date.unique())
 
 
 def _validate_inventory(
@@ -1097,7 +1145,7 @@ def _replace_current_pointer(db: Session, source: AnalysisSourceFile) -> None:
     db.execute(
         sa_update(AnalysisSourceFile)
         .where(*conditions)
-        .values(is_current=False, superseded_at=datetime.now(UTC))
+        .values(is_current=False, superseded_at=datetime.now())
     )
 
 
@@ -1179,7 +1227,7 @@ def _parse_transaction_at(row: pd.Series) -> datetime | None:
         val = row.get(key)
         if val is None:
             continue
-        parsed = pd.to_datetime(val, utc=True, errors="coerce")
+        parsed = pd.to_datetime(val, errors="coerce")
         if pd.isna(parsed):
             continue
         return parsed.to_pydatetime()

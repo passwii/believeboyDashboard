@@ -11,8 +11,6 @@ from pathlib import Path
 from typing import Any
 import warnings
 import re
-from zoneinfo import ZoneInfo
-
 import pandas as pd
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -24,12 +22,6 @@ AD_PRODUCT_REPORT = "ad_product_report"
 OPENPYXL_MISSING_DEFAULT_STYLE_WARNING = (
     r"Workbook contains no default style, apply openpyxl's default"
 )
-
-COUNTRY_TIMEZONE = {
-    "US": ZoneInfo("America/Los_Angeles"),
-    "DE": ZoneInfo("Europe/Berlin"),
-    "UK": ZoneInfo("Europe/London"),
-}
 
 COUNTRY_ALIASES = {
     "US": "US",
@@ -118,18 +110,7 @@ def _date_to_string(value: object) -> str | None:
 
 
 def _date_to_string_by_country(value: object, country: str) -> str | None:
-    if value is None or value == "":
-        return None
-    try:
-        parsed = pd.to_datetime(value, errors="coerce")
-    except Exception:
-        return None
-    if parsed is None or pd.isna(parsed):
-        return None
-    if parsed.tzinfo is None:
-        return parsed.strftime("%Y-%m-%d")
-    tz = COUNTRY_TIMEZONE.get(country, COUNTRY_TIMEZONE["US"])
-    return parsed.tz_convert(tz).strftime("%Y-%m-%d")
+    return _date_to_string(value)
 
 
 def _normalize_country(value: str) -> str:
@@ -361,12 +342,11 @@ def _recognize_sales_report(db: Session, path: Path, country: str = "US") -> Rec
     if any(c not in df.columns for c in required):
         raise ValueError(f"Sales report missing required columns: {required}")
 
-    purchase_dates = pd.to_datetime(df["purchase-date"], utc=True, errors="coerce").dropna()
+    purchase_dates = pd.to_datetime(df["purchase-date"], errors="coerce").dropna()
     detected_start_date: str | None = None
     detected_end_date: str | None = None
     if not purchase_dates.empty:
-        local_tz = COUNTRY_TIMEZONE.get(country, COUNTRY_TIMEZONE["US"])
-        local_dates = purchase_dates.dt.tz_convert(local_tz).dt.strftime("%Y-%m-%d")
+        local_dates = purchase_dates.dt.strftime("%Y-%m-%d")
         detected_start_date = str(local_dates.min())
         detected_end_date = str(local_dates.max())
 
@@ -470,12 +450,11 @@ def _recognize_return_report(db: Session, path: Path, country: str = "US") -> Re
     if any(c not in df.columns for c in required):
         raise ValueError(f"Return report missing required columns: {required}")
 
-    return_dates = pd.to_datetime(df["return-date"], utc=True, errors="coerce").dropna()
+    return_dates = pd.to_datetime(df["return-date"], errors="coerce").dropna()
     detected_start_date: str | None = None
     detected_end_date: str | None = None
     if not return_dates.empty:
-        local_tz = COUNTRY_TIMEZONE.get(country, COUNTRY_TIMEZONE["US"])
-        local_dates = return_dates.dt.tz_convert(local_tz).dt.strftime("%Y-%m-%d")
+        local_dates = return_dates.dt.strftime("%Y-%m-%d")
         detected_start_date = str(local_dates.min())
         detected_end_date = str(local_dates.max())
 

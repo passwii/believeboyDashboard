@@ -526,6 +526,37 @@
     transform: rotate(180deg);
   }
 
+/* ── Digital Employee Card Animations ─────────────────────────────────────── */
+
+  @keyframes de-shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+
+  @keyframes de-shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
+    20%, 40%, 60%, 80% { transform: translateX(2px); }
+  }
+
+  @keyframes de-running-glow {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+  }
+
+  .de-animate-shimmer {
+    background-size: 200% 100%;
+    animation: de-shimmer 2s linear infinite;
+  }
+
+  .de-animate-shake {
+    animation: de-shake 0.5s ease-in-out;
+  }
+
+  .de-running-glow {
+    animation: de-running-glow 1.5s ease-in-out infinite;
+  }
+
   .web-search-toggle {
     transition:
       background-color var(--motion-fast) var(--motion-ease-out),
