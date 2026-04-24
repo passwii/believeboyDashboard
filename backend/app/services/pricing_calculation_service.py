@@ -331,6 +331,9 @@ def create_pricing_fbm_run(
         vat_usd=computed["profit_decimal"].get("vat_usd", Decimal("0")),
         profit_after_vat_usd=computed["profit_decimal"].get("profit_after_vat_usd"),
         profit_after_vat_rate=computed["profit_decimal"].get("profit_after_vat_rate"),
+        delivery_fee_usd=computed["fees_decimal"]["delivery_fee_usd"],
+        full_container_quantity=payload.full_container_quantity,
+        full_container_price_rmb=payload.full_container_price_rmb,
         warnings_json=computed["warnings"],
         notes="\n".join(computed["warnings"]) if computed["warnings"] else None,
         created_by=(operator or "").strip() or None,
@@ -565,6 +568,9 @@ def serialize_pricing_run(row: PricingCalculationRun) -> dict[str, object]:
         "created_by": row.created_by,
         "created_at": _to_iso(row.created_at),
         "updated_at": _to_iso(row.updated_at),
+        "delivery_fee_usd": float(row.delivery_fee_usd) if row.delivery_fee_usd is not None else 0.0,
+        "full_container_quantity": float(row.full_container_quantity) if row.full_container_quantity is not None else 0.0,
+        "full_container_price_rmb": float(row.full_container_price_rmb) if row.full_container_price_rmb is not None else 0.0,
     }
 
 
