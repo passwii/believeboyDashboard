@@ -141,6 +141,11 @@ B2B SaaS dashboard with a light-mode-first design. Inspired by Linear's informat
 4. **Consistent surface language** — Use `.dashboard-surface`, `.dashboard-panel`, `.dashboard-toolbar` consistently. Avoid ad-hoc card styling.
 5. **Typography creates hierarchy** — Space Grotesk for display/numbers, Manrope for UI text. Large display numbers for KPIs, small kicker labels for metadata.
 
+## Git Workflow
+
+### Before Pushing
+Always run `pnpm build` in the frontend directory before pushing to ensure the build passes. If there are build errors, fix them before pushing.
+
 ## Key Conventions
 - Backend uses Pydantic v2 (`pydantic-settings` for env config)
 - Frontend uses React 18 with TanStack Table v8 and Recharts
