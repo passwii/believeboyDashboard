@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date
 
 from fastapi import APIRouter, Depends, Header, Query, Request
 from sqlalchemy.orm import Session
@@ -39,9 +39,9 @@ def get_inventory_analysis(
     request: Request,
     project_id: int = Query(gt=0),
     country: str = Query(default="US"),
-    snapshot_at: datetime | None = Query(
+    report_date: date | None = Query(
         default=None,
-        description="筛选特定快照时间的库存数据，格式: YYYY-MM-DD 或 YYYY-MM-DDTHH:MM:SS",
+        description="筛选特定业务日期的库存数据，格式: YYYY-MM-DD",
     ),
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
@@ -57,7 +57,7 @@ def get_inventory_analysis(
         db,
         project_id=project_id,
         country=country,
-        snapshot_at=snapshot_at,
+        report_date=report_date,
     )
     append_operation_view_log(
         db,
@@ -68,7 +68,7 @@ def get_inventory_analysis(
         after={
             "project_id": project_id,
             "country": country,
-            "snapshot_at": str(snapshot_at) if snapshot_at else "current",
+            "report_date": str(report_date) if report_date else "current",
             "item_count": len(payload["items"]),
         },
         request=request,
@@ -78,7 +78,7 @@ def get_inventory_analysis(
         project_id=int(payload["project_id"]),
         project_name=str(payload["project_name"]),
         country=str(payload["country"]),
-        snapshot_at=payload["snapshot_at"],
+        report_date=payload["report_date"],
         summary=InventoryAnalysisSummary(**payload["summary"]),
         action_options=[str(item) for item in payload["action_options"]],
         items=[InventoryAnalysisItem(**item) for item in payload["items"]],
@@ -127,22 +127,21 @@ def list_inventory_snapshot_options(
 
     option_rows = db.execute(
         select(
-            func.date(AnalysisSourceFile.snapshot_at).label("snapshot_date"),
-            func.max(AnalysisSourceFile.snapshot_at).label("latest_snapshot_at"),
+            AnalysisSourceFile.report_date.label("report_date"),
             func.max(AnalysisSourceFile.id).label("max_id"),
         )
         .where(
             AnalysisSourceFile.project_id == project_id,
             AnalysisSourceFile.report_type == "inventory_report",
             AnalysisSourceFile.country == country,
-            AnalysisSourceFile.snapshot_at.isnot(None),
+            AnalysisSourceFile.report_date.isnot(None),
         )
-        .group_by(func.date(AnalysisSourceFile.snapshot_at))
-        .order_by(func.date(AnalysisSourceFile.snapshot_at).desc())
+        .group_by(AnalysisSourceFile.report_date)
+        .order_by(AnalysisSourceFile.report_date.desc())
     ).all()
 
     return [
-        InventorySnapshotOption(snapshot_at=row.latest_snapshot_at, is_current=row.max_id in current_ids)
+        InventorySnapshotOption(report_date=row.report_date, is_current=row.max_id in current_ids)
         for row in option_rows
     ]
 
