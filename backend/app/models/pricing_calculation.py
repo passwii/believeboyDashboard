@@ -76,6 +76,9 @@ class PricingCalculationRun(Base):
     vat_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, server_default='0.00')
     profit_after_vat_usd: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     profit_after_vat_rate: Mapped[Decimal | None] = mapped_column(Numeric(8, 6), nullable=True)
+    delivery_fee_usd: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    full_container_quantity: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
+    full_container_price_rmb: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
 
     warnings_json: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)

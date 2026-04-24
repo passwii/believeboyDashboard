@@ -155,6 +155,9 @@ class PricingCalculationProfit(BaseModel):
     vat_usd: float = 0.0
     profit_after_vat_usd: float | None = None
     profit_after_vat_rate: float | None = None
+    delivery_fee_usd: float = 0.0
+    full_container_quantity: float = 0.0
+    full_container_price_rmb: float = 0.0
 
 
 class PricingCalculationRunItem(BaseModel):
@@ -193,6 +196,9 @@ class PricingCalculationRunItem(BaseModel):
     created_by: str | None = None
     created_at: str
     updated_at: str
+    delivery_fee_usd: float = 0.0
+    full_container_quantity: float = 0.0
+    full_container_price_rmb: float = 0.0
 
 
 class PricingCalculationRunListResponse(BaseModel):
