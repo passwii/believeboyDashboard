@@ -334,3 +334,59 @@ def update_user(
     )
     db.commit()
     return UpdateUserResponse(item=item)
+
+
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_user(
+    user_id: str,
+    request: Request,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+) -> None:
+    before_row = (
+        db.execute(
+            text(
+                """
+            select
+              id::text as id,
+              name,
+              email,
+              full_name,
+              operator_name_zh,
+              is_admin,
+              is_active,
+              role_type,
+              created_at,
+              updated_at
+            from public.user_accounts
+            where id::text = :user_id
+            """
+            ),
+            {"user_id": user_id},
+        )
+        .mappings()
+        .first()
+    )
+
+    if before_row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
+
+    before_item = _to_item(before_row)
+    if before_item.name.lower() in ("yawei",) or before_item.email.lower().startswith("yawei@"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Yawei 账号不允许删除")
+
+    db.execute(text("delete from public.user_accounts where id::text = :user_id"), {"user_id": user_id})
+    try:
+        append_operation_audit_log(
+            db,
+            action="users.delete",
+            target_type="user_account",
+            target_id=user_id,
+            operator=operator,
+            before=_serialize_user_item(before_item),
+            request=request,
+        )
+    except Exception:
+        pass  # non-critical
+    db.commit()
+    return None

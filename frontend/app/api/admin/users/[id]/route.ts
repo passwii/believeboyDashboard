@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { requireAdminSession } from '@/lib/auth/server'
-import { normalizeErrorMessage } from '@/lib/error-utils'
-import { backendFetchJson, getBackendApiKey } from '@/lib/server/backend-api'
+import { getBackendApiKey, getBackendBaseUrl } from '@/lib/server/backend-api'
 
 type UserItem = {
   id: string
@@ -86,4 +85,39 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     const status = message.includes('不存在') ? 404 : 500
     return NextResponse.json({ message }, { status })
   }
+}
+
+export async function DELETE(_: Request, { params }: { params: { id: string } }) {
+  const session = await requireAdminSession()
+  if (!session) {
+    return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
+  }
+
+  const apiKey = getBackendApiKey()
+  if (!apiKey) {
+    return NextResponse.json({ message: '缺少后端 API Key 配置' }, { status: 500 })
+  }
+
+  const baseUrl = getBackendBaseUrl()
+  const response = await fetch(`${baseUrl}/api/v1/system-management/users/${params.id}`, {
+    method: 'DELETE',
+    headers: {
+      'X-API-Key': apiKey,
+    },
+    cache: 'no-store',
+  })
+
+  if (response.ok) {
+    return new NextResponse(null, { status: 204 })
+  }
+
+  let message = '删除失败'
+  try {
+    const data = (await response.json()) as { message?: string; detail?: string }
+    message = data.message || data.detail || message
+  } catch {
+    // ignore parse error
+  }
+  const status = message.includes('不存在') ? 404 : message.includes('不允许') ? 403 : 500
+  return NextResponse.json({ message }, { status })
 }
