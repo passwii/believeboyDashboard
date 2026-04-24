@@ -2173,10 +2173,6 @@ export default function PricingCalculationPage() {
         run.full_container_price_rmb !== undefined && run.full_container_price_rmb > 0
           ? String(run.full_container_price_rmb)
           : '',
-      delivery_fee_usd:
-        run.delivery_fee_usd !== undefined && run.delivery_fee_usd > 0
-          ? String(run.delivery_fee_usd)
-          : '',
       inbound_placement_mode: run.inbound_placement_mode,
       usd_to_rmb_rate:
         run.usd_to_rmb_rate > 0 ? String(run.usd_to_rmb_rate) : '',
