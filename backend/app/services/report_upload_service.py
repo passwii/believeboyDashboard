@@ -1206,6 +1206,7 @@ def list_report_upload_statuses(
             (AnalysisSourceFile.report_date == target_report_date)
             | (
                 (AnalysisSourceFile.report_type == "payment_report")
+                & (AnalysisSourceFile.report_date.is_(None))
                 & (AnalysisSourceFile.period_start_date.is_not(None))
                 & (AnalysisSourceFile.period_end_date.is_not(None))
                 & (AnalysisSourceFile.period_start_date <= target_report_date)
@@ -1258,12 +1259,13 @@ def list_report_upload_statuses(
         is_period_match = (
             target_report_date is not None
             and row.report_type == "payment_report"
+            and row.report_date is None
             and row.period_start_date is not None
             and row.period_end_date is not None
             and row.period_start_date <= target_report_date <= row.period_end_date
         )
         message = (
-            "周期覆盖已入库"
+            "历史周期数据已入库"
             if is_period_match
             else ("当日已入库" if target_report_date is not None else "当前版本")
         )

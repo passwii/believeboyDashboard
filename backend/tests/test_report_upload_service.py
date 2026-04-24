@@ -279,7 +279,7 @@ def test_list_report_upload_statuses_filters_by_report_date():
     assert row.statuses["payment_report"].display_date == "2026-03-18"
     assert row.statuses["payment_report"].report_start_date == "2026-03-17"
     assert row.statuses["payment_report"].report_end_date == "2026-03-17"
-    assert row.statuses["payment_report"].message == "周期覆盖已入库"
+    assert row.statuses["payment_report"].message == "历史周期数据已入库"
 
 
 def test_list_report_upload_statuses_filters_by_country():
