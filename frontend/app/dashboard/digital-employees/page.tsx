@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Monitor, RefreshCw, Users } from 'lucide-react'
+import { Monitor, RefreshCw, Users, Activity, ChevronDown } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -11,6 +11,7 @@ import { Search } from 'lucide-react'
 import { useDigitalEmployees } from '@/hooks/use-digital-employees'
 import { DigitalEmployeeGrid } from '@/components/digital-employee/digital-employee-grid'
 import { DigitalEmployeeStats } from '@/components/digital-employee/stats'
+import { ActivityFeed } from '@/components/digital-employee/activity-feed'
 import { cn } from '@/lib/utils'
 
 const STATUS_FILTERS = [
@@ -27,6 +28,7 @@ export default function DigitalEmployeesPage() {
   const { employees, isLoading, error, mutate } = useDigitalEmployees()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
+  const [showActivityFeed, setShowActivityFeed] = useState(true)
 
   const filtered = employees.filter((emp) => {
     const matchSearch = !search || emp.name.includes(search) || (emp.description ?? '').includes(search)
@@ -151,6 +153,24 @@ export default function DigitalEmployeesPage() {
           )}
         </>
       )}
+
+      {/* Activity Feed */}
+      <div className="space-y-3">
+        <button
+          className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+          onClick={() => setShowActivityFeed((v) => !v)}
+        >
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+          </span>
+          实时动态
+          <ChevronDown className={cn('h-4 w-4 transition-transform', showActivityFeed && 'rotate-180')} />
+        </button>
+        {showActivityFeed && (
+          <ActivityFeed pollInterval={15000} maxHeight="400px" compact />
+        )}
+      </div>
     </div>
   )
 }
