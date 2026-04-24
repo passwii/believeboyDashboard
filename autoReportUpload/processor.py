@@ -602,6 +602,18 @@ def _persist_sales_report_marker(
     db.flush()
     _replace_current_pointer(db, source)
     source.superseded_at = None
+    upload_date = _resolve_upload_date(now)
+    _write_upload_log(
+        db,
+        project.id,
+        "sales_report",
+        country,
+        upload_date,
+        False,
+        0,
+        source.id,
+        file_path.name,
+    )
     db.commit()
     return {
         "success": True,
@@ -642,9 +654,6 @@ def _persist_sales_report(
     file_size = file_path.stat().st_size
     sha = _sha256_file(file_path)
     latest_id = None
-
-    # 上传时刻的日期，用于标记"今日已上传"状态
-    file_upload_date = now.date()
 
     for report_date in sorted(grouped):
         version = _next_version(
@@ -706,6 +715,18 @@ def _persist_sales_report(
         db.flush()
         latest_id = source.id
 
+    upload_date = _resolve_upload_date(now)
+    _write_upload_log(
+        db,
+        project.id,
+        "sales_report",
+        country,
+        upload_date,
+        total > 0,
+        total,
+        latest_id,
+        file_path.name,
+    )
     db.commit()
     dates = sorted(grouped)
     return {
