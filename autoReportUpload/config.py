@@ -5,10 +5,10 @@ import platform
 from pathlib import Path
 
 # ─── Environment selection ────────────────────────────────────────────────────
-# Set AUTO_REPORT_ENV to "local" or "production" (defaults to "local")
+# Set AUTO_REPORT_ENV to "local" or "production" (defaults to "production")
 # - local:      uses localhost DB, localhost API, does NOT move files to processed/
 # - production: uses remote DB / API, moves files to processed/ after ingestion
-ENV = os.environ.get("AUTO_REPORT_ENV", "local").lower().strip()
+ENV = os.environ.get("AUTO_REPORT_ENV", "production").lower().strip()
 IS_LOCAL = ENV == "local"
 IS_PRODUCTION = ENV == "production"
 
