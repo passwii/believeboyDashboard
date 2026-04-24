@@ -8,11 +8,8 @@ import {
   ChevronDown,
   Database,
   LayoutDashboard,
-  Package,
   ShieldUser,
   Store,
-  TrendingUp,
-  Upload,
   Wrench,
   Users,
 } from 'lucide-react'
@@ -23,6 +20,11 @@ import { AIChatSidebar } from '@/components/dashboard/ai-chat-sidebar'
 import { useDashboardAISidebar } from '@/components/dashboard/ai-sidebar-bridge'
 import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
 import { NavUser } from '@/components/dashboard/nav-user'
+import {
+  SidebarPinnedItem,
+  SidebarPinSettings,
+  useSidebarPinnedItems,
+} from '@/components/dashboard/sidebar-pin-settings'
 import {
   Sidebar,
   SidebarContent,
@@ -37,11 +39,6 @@ import {
   SidebarSeparator,
   SidebarRail,
 } from '@/components/ui/sidebar'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
 
 type NavLink = {
   title: string
@@ -325,6 +322,8 @@ export function AppSidebar({
     roleType: user?.roleType,
   }
 
+  const { pinnedUrls, toggle } = useSidebarPinnedItems()
+
   return (
     <Sidebar collapsible='offcanvas' {...props}>
       {isAiChatPage && sidebarState ? (
@@ -346,59 +345,11 @@ export function AppSidebar({
 
           {/* Quick Access Bar */}
           <div className='px-3 py-2'>
-            <div className='flex items-center justify-around gap-1.5'>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <RouteLoadingLink
-                    href='/dashboard/data-management/shipment-management'
-                    className='flex h-11 w-11 min-w-touch items-center justify-center rounded-[0.65rem] border border-[hsl(var(--sidebar-foreground)/0.08)] bg-[hsl(var(--sidebar-foreground)/0.03)] text-sidebar-foreground/72 shadow-none transition-all duration-200 hover:bg-[hsl(var(--sidebar-foreground)/0.08)] hover:text-sidebar-foreground group-data-[collapsible=icon]:hidden'
-                  >
-                    <Package className='h-4 w-4' />
-                  </RouteLoadingLink>
-                </TooltipTrigger>
-                <TooltipContent
-                  side='right'
-                  className='group-data-[collapsible=icon]:hidden'
-                >
-                  发货管理
-                </TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <RouteLoadingLink
-                    href='/dashboard/data-analysis/daily-analysis'
-                    className='flex h-11 w-11 min-w-touch items-center justify-center rounded-[0.65rem] border border-[hsl(var(--sidebar-foreground)/0.08)] bg-[hsl(var(--sidebar-foreground)/0.03)] text-sidebar-foreground/72 shadow-none transition-all duration-200 hover:bg-[hsl(var(--sidebar-foreground)/0.08)] hover:text-sidebar-foreground group-data-[collapsible=icon]:hidden'
-                  >
-                    <TrendingUp className='h-4 w-4' />
-                  </RouteLoadingLink>
-                </TooltipTrigger>
-                <TooltipContent
-                  side='right'
-                  className='group-data-[collapsible=icon]:hidden'
-                >
-                  销售数据
-                </TooltipContent>
-              </Tooltip>
-
-              {/* 报表上传 - 已在主导航中隐藏
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <RouteLoadingLink
-                    href='/dashboard/data-management/report-upload'
-                    className='flex h-11 w-11 min-w-touch items-center justify-center rounded-[0.65rem] border border-[hsl(var(--sidebar-foreground)/0.08)] bg-[hsl(var(--sidebar-foreground)/0.03)] text-sidebar-foreground/72 shadow-none transition-all duration-200 hover:bg-[hsl(var(--sidebar-foreground)/0.08)] hover:text-sidebar-foreground group-data-[collapsible=icon]:hidden'
-                  >
-                    <Upload className='h-4 w-4' />
-                  </RouteLoadingLink>
-                </TooltipTrigger>
-                <TooltipContent
-                  side='right'
-                  className='group-data-[collapsible=icon]:hidden'
-                >
-                  报表上传
-                </TooltipContent>
-              </Tooltip>
-              */}
+            <div className='flex items-center gap-1.5'>
+              {pinnedUrls.map((url) => (
+                <SidebarPinnedItem key={url} url={url} title='' />
+              ))}
+              <SidebarPinSettings pinnedUrls={pinnedUrls} onToggle={toggle} />
             </div>
           </div>
 
