@@ -33,10 +33,14 @@ def _decode_header_value(value: str) -> str:
     return unquote(value).strip()
 
 
-def get_request_operator(x_operator: str | None = Header(default=None, alias='X-Operator')) -> str | None:
-    if x_operator is None:
+def get_request_operator(
+    x_operator: str | None = Header(default=None, alias='X-Operator'),
+    x_user_name: str | None = Header(default=None, alias='X-User-Name'),
+) -> str | None:
+    raw_value = x_operator if x_operator is not None else x_user_name
+    if raw_value is None:
         return None
-    value = _decode_header_value(x_operator)
+    value = _decode_header_value(raw_value)
     return value[:255] if value else None
 
 

@@ -110,7 +110,12 @@ export default function AccountManagementPage() {
   const [editOpen, setEditOpen] = useState(false)
   const [editUser, setEditUser] = useState<UserItem | null>(null)
   const [editOperatorNameZh, setEditOperatorNameZh] = useState('')
+  const [editRoleType, setEditRoleType] = useState<UserRoleType>('operator')
   const [editBusy, setEditBusy] = useState(false)
+
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteUser, setDeleteUser] = useState<UserItem | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -229,6 +234,7 @@ export default function AccountManagementPage() {
   const onEditOpen = (user: UserItem) => {
     setEditUser(user)
     setEditOperatorNameZh(user.fullName ?? user.operatorNameZh ?? '')
+    setEditRoleType(user.roleType)
     setEditOpen(true)
   }
 
@@ -240,7 +246,10 @@ export default function AccountManagementPage() {
       const response = await fetch(`/api/admin/users/${editUser.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ operator_name_zh: editOperatorNameZh || null }),
+        body: JSON.stringify({
+          operator_name_zh: editOperatorNameZh || null,
+          role_type: editRoleType,
+        }),
       })
       const data = (await response.json()) as { item?: UserItem; message?: string }
       if (!response.ok || !data.item) {
@@ -248,11 +257,35 @@ export default function AccountManagementPage() {
       }
       setItems((prev) => prev.map((item) => (item.id === editUser.id ? data.item! : item)))
       setEditOpen(false)
-      notify({ type: 'success', title: '运营姓名已更新' })
+      notify({ type: 'success', title: '账号已更新' })
     } catch (err) {
       notify({ type: 'error', title: '更新失败', message: err instanceof Error ? err.message : '更新失败' })
     } finally {
       setEditBusy(false)
+    }
+  }
+
+  const onDeleteOpen = (user: UserItem) => {
+    setDeleteUser(user)
+    setDeleteOpen(true)
+  }
+
+  const onDelete = async () => {
+    if (!deleteUser) return
+    setDeleting(true)
+    try {
+      const response = await fetch(`/api/admin/users/${deleteUser.id}`, { method: 'DELETE' })
+      if (!response.ok) {
+        const data = (await response.json().catch(() => ({}))) as { message?: string }
+        throw new Error(data.message || '删除失败')
+      }
+      setItems((prev) => prev.filter((item) => item.id !== deleteUser.id))
+      setDeleteOpen(false)
+      notify({ type: 'success', title: '账号已删除' })
+    } catch (err) {
+      notify({ type: 'error', title: '删除失败', message: err instanceof Error ? err.message : '删除失败' })
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -343,11 +376,8 @@ export default function AccountManagementPage() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem
-                                  disabled={item.roleType === 'admin'}
-                                  onClick={() => void updateOne(item.id, { roleType: NEXT_ROLE_TYPE[item.roleType as 'operator' | 'businessdev' | 'factory'] })}
-                                >
-                                  改角色属性
+                                <DropdownMenuItem onClick={() => onEditOpen(item)}>
+                                  改角色属性 / 编辑
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={() => {
@@ -358,8 +388,12 @@ export default function AccountManagementPage() {
                                   重置密码
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => onEditOpen(item)}>
-                                  编辑运营姓名
+                                <DropdownMenuItem
+                                  disabled={isProtected}
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={() => onDeleteOpen(item)}
+                                >
+                                  删除账号
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -494,7 +528,7 @@ export default function AccountManagementPage() {
         <DialogContent className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
           <DialogHeader>
             <DialogTitle>编辑账号</DialogTitle>
-            <DialogDescription>修改运营姓名，用于权限控制和操作记录。</DialogDescription>
+            <DialogDescription>修改运营姓名和角色属性。</DialogDescription>
           </DialogHeader>
           <form className="space-y-4" onSubmit={onEdit}>
             <div className="space-y-2">
@@ -509,6 +543,27 @@ export default function AccountManagementPage() {
                 工厂账号请务必填写，与调研分析权限控制相关
               </p>
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-role-type">角色属性</Label>
+              <Select
+                value={editRoleType}
+                onValueChange={(v) => setEditRoleType(v as UserRoleType)}
+              >
+                <SelectTrigger id="edit-role-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ROLE_TYPE_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      <span className="inline-flex items-center gap-1.5">
+                        {opt.icon}
+                        {opt.label}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setEditOpen(false)} disabled={editBusy}>
                 取消
@@ -519,6 +574,26 @@ export default function AccountManagementPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
+          <DialogHeader>
+            <DialogTitle>删除账号</DialogTitle>
+            <DialogDescription>
+              确定要删除账号 <strong>{deleteUser?.email}</strong> 吗？此操作不可恢复。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>
+              取消
+            </Button>
+            <Button type="button" variant="destructive" onClick={() => void onDelete()} disabled={deleting}>
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {deleting ? '删除中...' : '确认删除'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
