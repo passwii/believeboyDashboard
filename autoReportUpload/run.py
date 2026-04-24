@@ -3,9 +3,8 @@
 autoReportUpload — entry point.
 
 Usage:
-    python run.py                  # Normal mode (uses .env AUTO_REPORT_ENV setting)
+    python run.py                  # Normal mode (production, uses remote DB/API, moves files)
     python run.py --env local      # Force local mode (localhost DB/API, no file moves)
-    python run.py --env production # Force production mode (remote DB/API, move files)
     python run.py --dry-run        # Dry-run: recognize files only, no DB writes, no file moves
     python run.py --once           # Run once (no periodic loop), useful for testing
 """
@@ -16,7 +15,7 @@ import sys
 
 # ── Parse known args first so --env can override before config is loaded ──────
 _parser = argparse.ArgumentParser(allow_abbrev=False)
-_parser.add_argument("--env", choices=["local", "production"], default=None)
+_parser.add_argument("--env", choices=["local", "production"], default="production")
 _parser.add_argument("--dry-run", action="store_true")
 _parser.add_argument("--once", action="store_true")
 _args, _ = _parser.parse_known_args()
@@ -32,7 +31,7 @@ def main() -> None:
     parser.add_argument(
         "--env",
         choices=["local", "production"],
-        default=None,
+        default="production",
         help="运行环境: local (本地) 或 production (生产)；默认读取 .env",
     )
     parser.add_argument(
