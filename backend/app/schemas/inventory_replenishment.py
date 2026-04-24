@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date
 
 from pydantic import BaseModel, Field
 
@@ -126,12 +126,12 @@ class InventoryAnalysisResponse(BaseModel):
     project_id: int
     project_name: str
     country: str
-    snapshot_at: datetime | None = None
+    report_date: date | None = None
     summary: InventoryAnalysisSummary
     action_options: list[str]
     items: list[InventoryAnalysisItem]
 
 
 class InventorySnapshotOption(BaseModel):
-    snapshot_at: datetime
+    report_date: date
     is_current: bool

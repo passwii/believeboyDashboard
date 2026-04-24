@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date
 import re
 
 from fastapi import HTTPException, status
@@ -135,15 +135,12 @@ def _get_inventory_source(
     *,
     project_id: int,
     country: str,
-    snapshot_at: datetime | None = None,
+    report_date: date | None = None,
 ) -> AnalysisSourceFile | None:
     """
     获取库存快照数据源文件。
-    如果指定了 snapshot_at，则查找最接近该时间的快照；
+    如果指定了 report_date，则查找不晚于该业务日期的最近快照；
     否则查找业务日期最新的一条。
-
-    Uses report_date as the business date for ordering and filtering, since
-    snapshot_at may contain old upload-time values on rows that weren't migrated.
     """
     base_conditions = [
         AnalysisSourceFile.project_id == project_id,
@@ -152,14 +149,14 @@ def _get_inventory_source(
         AnalysisSourceFile.report_date.isnot(None),
     ]
 
-    if snapshot_at is not None:
-        # Find the latest snapshot on or before snapshot_at
+    if report_date is not None:
+        # Find the latest snapshot on or before report_date
         return (
             db.execute(
                 select(AnalysisSourceFile)
                 .where(
                     *base_conditions,
-                    AnalysisSourceFile.report_date <= snapshot_at.date(),
+                    AnalysisSourceFile.report_date <= report_date,
                 )
                 .order_by(
                     AnalysisSourceFile.report_date.desc(),
@@ -197,7 +194,7 @@ def _get_current_inventory_source(
     country: str,
 ) -> AnalysisSourceFile | None:
     return _get_inventory_source(
-        db, project_id=project_id, country=country, snapshot_at=None
+        db, project_id=project_id, country=country, report_date=None
     )
 
 
@@ -303,7 +300,7 @@ def list_inventory_analysis(
     *,
     project_id: int,
     country: str,
-    snapshot_at: datetime | None = None,
+    report_date: date | None = None,
 ) -> dict[str, object]:
     project = _get_project_or_404(db, project_id)
     normalized_country = _normalize_country(country)
@@ -312,7 +309,7 @@ def list_inventory_analysis(
         db,
         project_id=project_id,
         country=normalized_country,
-        snapshot_at=snapshot_at,
+        report_date=report_date,
     )
     aggregated_rows = (
         _load_aggregated_rows(db, source_file_id=int(source.id))
@@ -437,7 +434,7 @@ def list_inventory_analysis(
         "project_id": project.id,
         "project_name": project.project_name,
         "country": normalized_country,
-        "snapshot_at": source.snapshot_at if source is not None else None,
+        "report_date": source.report_date if source is not None else None,
         "summary": summary,
         "action_options": action_options,
         "items": items,

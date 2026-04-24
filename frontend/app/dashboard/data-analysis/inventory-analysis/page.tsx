@@ -74,14 +74,14 @@ type InventoryResponse = {
   project_id: number
   project_name: string
   country: string
-  snapshot_at: string | null
+  report_date: string | null
   summary: InventorySummary
   action_options: string[]
   items: InventoryItem[]
 }
 
 type SnapshotOption = {
-  snapshot_at: string
+  report_date: string
   is_current: boolean
 }
 
@@ -96,10 +96,8 @@ function formatInt(value: number | null | undefined): string {
   return value.toLocaleString('zh-CN')
 }
 
-function formatSnapshot(value: string | null): string {
+function formatBusinessDate(value: string | null): string {
   if (!value) return '暂无快照'
-  // snapshot_at is a naive datetime (no timezone) representing the business date.
-  // Extract the date part directly to avoid any timezone conversion.
   const datePart = String(value).split('T')[0]
   if (!datePart) return '暂无快照'
   const [year, month, day] = datePart.split('-')
@@ -159,7 +157,7 @@ export default function InventoryAnalysisPage() {
   const [projectId, setProjectId] = useState<string>('')
   const [country, setCountry] = useState('US')
 
-  const [snapshotAt, setSnapshotAt] = useState<string | null>(null)
+  const [reportDate, setReportDate] = useState<string | null>(null)
   const [snapshotOptions, setSnapshotOptions] = useState<SnapshotOption[]>([])
   const [selectedSnapshotDate, setSelectedSnapshotDate] = useState<string>('current')
   const [summary, setSummary] = useState<InventorySummary>({
@@ -231,7 +229,7 @@ export default function InventoryAnalysisPage() {
           country,
         })
         if (selectedSnapshotDate !== 'current') {
-          query.set('snapshot_at', selectedSnapshotDate)
+          query.set('report_date', selectedSnapshotDate)
         }
         const response = await fetch(`${API_BASE}/inventory-analysis?${query.toString()}`, {
           headers: {},
@@ -243,7 +241,7 @@ export default function InventoryAnalysisPage() {
         }
         const payload = (await response.json()) as InventoryResponse
         if (!active) return
-        setSnapshotAt(payload.snapshot_at)
+        setReportDate(payload.report_date)
         setSummary(payload.summary)
         setRows(payload.items)
       } catch (loadError) {
@@ -333,7 +331,7 @@ export default function InventoryAnalysisPage() {
       worksheet.getCell(2, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
 
       worksheet.mergeCells(3, 1, 3, lastColumn)
-      worksheet.getCell(3, 1).value = `项目：${selectedProject?.name || '--'}    国家站点：${COUNTRY_OPTIONS.find((option) => option.value === country)?.label || country}    快照时间：${formatSnapshot(snapshotAt)}`
+      worksheet.getCell(3, 1).value = `项目：${selectedProject?.name || '--'}    国家站点：${COUNTRY_OPTIONS.find((option) => option.value === country)?.label || country}    业务日期：${formatBusinessDate(reportDate)}`
       worksheet.getCell(3, 1).font = { name: 'Microsoft YaHei', size: 10, color: { argb: 'FF64748B' } }
       worksheet.getCell(3, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } }
 
@@ -493,16 +491,16 @@ export default function InventoryAnalysisPage() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <div className="text-xs font-medium text-muted-foreground">快照时间</div>
+              <div className="text-xs font-medium text-muted-foreground">业务日期</div>
               <Select value={selectedSnapshotDate} onValueChange={setSelectedSnapshotDate}>
                 <SelectTrigger className="border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
-                  <SelectValue placeholder="选择快照时间" />
+                  <SelectValue placeholder="选择业务日期" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="current">最新快照</SelectItem>
+                  <SelectItem value="current">最新业务日期</SelectItem>
                   {snapshotOptions.map((option) => (
-                    <SelectItem key={option.snapshot_at} value={option.snapshot_at}>
-                      {formatSnapshot(option.snapshot_at)}
+                    <SelectItem key={option.report_date} value={option.report_date}>
+                      {formatBusinessDate(option.report_date)}
                       {option.is_current ? ' (当前)' : ''}
                     </SelectItem>
                   ))}
@@ -512,10 +510,10 @@ export default function InventoryAnalysisPage() {
             <div className="flex items-center gap-3 rounded-md border border-border/70 bg-[linear-gradient(135deg,hsl(var(--primary)/0.08),hsl(var(--surface-subtle))/0.96)] p-3 dark:border-border/85 dark:bg-[linear-gradient(135deg,hsl(var(--surface-overlay)),hsl(var(--surface-strong))]">
               <div className="flex items-center gap-2 text-sm font-medium text-blue-700 dark:text-blue-300">
                 <Clock4 className="h-4 w-4" />
-                当前快照时间
+                当前业务日期
               </div>
               <div className="text-lg font-bold text-blue-900 dark:text-blue-100">
-                {formatSnapshot(snapshotAt)}
+                {formatBusinessDate(reportDate)}
               </div>
             </div>
           </div>
