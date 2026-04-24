@@ -103,3 +103,32 @@ def report_scan_error(task_id: str, error: str) -> None:
         current_step="扫描异常",
         message=error,
     ))
+
+
+def trigger_pt1_recompute(
+    project_id: int,
+    country: str,
+    period_start_date: str,
+    period_end_date: str,
+) -> bool:
+    """
+    Call backend to trigger PT1 recompute for a single period.
+    Used by processor.py after source files are successfully persisted.
+    """
+    if not API_KEY:
+        return False
+    try:
+        with httpx.Client(timeout=30) as client:
+            resp = client.post(
+                f"{API_BASE}/api/v1/product-analysis/trigger-recompute",
+                headers={"X-API-Key": API_KEY},
+                params={
+                    "project_id": str(project_id),
+                    "country": country,
+                    "period_start_date": period_start_date,
+                    "period_end_date": period_end_date,
+                },
+            )
+            return resp.status_code == 200
+    except Exception:
+        return False

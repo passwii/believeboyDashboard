@@ -65,3 +65,52 @@ class ProductAnalysisWeeklyRecomputeResponse(BaseModel):
     recomputed: int
     skipped: int
     periods: list[ProductAnalysisWeeklyRecomputePeriodItem]
+
+
+# --- 产品核算（从数据库读取，无文件上传） ---
+
+from datetime import date as _date
+
+
+class ProductCalculationCheckRequest(BaseModel):
+    project_id: int
+    country: str = "US"
+    start_date: _date
+    end_date: _date
+
+
+class ProductCalculationRunRequest(BaseModel):
+    project_id: int
+    country: str = "US"
+    start_date: _date
+    end_date: _date
+    current_only: bool = True
+
+
+class PaymentPeriodOverlapItem(BaseModel):
+    period_start_date: _date
+    period_end_date: _date
+    source_id: int
+
+
+class ProductCalculationCheckResponse(BaseModel):
+    business_report_missing: list[str]
+    ad_report_missing: list[str]
+    inventory_missing: list[str]
+    payment_periods_overlapping: list[PaymentPeriodOverlapItem]
+    has_minimum_data: bool
+
+
+class CalculationPeriodItem(BaseModel):
+    report_start_date: str
+    report_end_date: str
+    summary: dict[str, Any]
+    details: list[dict[str, Any]]
+
+
+class ProductCalculationRunResponse(BaseModel):
+    project_id: int
+    project_name: str
+    country: str
+    total_periods: int
+    periods: list[CalculationPeriodItem]

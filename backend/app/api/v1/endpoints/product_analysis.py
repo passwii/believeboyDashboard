@@ -15,6 +15,10 @@ from app.schemas.product_analysis_source import (
     AnalysisSourceRowsResponse,
     CurrentInventorySnapshotResponse,
     ProductAnalysisWeeklyRecomputeResponse,
+    ProductCalculationCheckRequest,
+    ProductCalculationCheckResponse,
+    ProductCalculationRunRequest,
+    ProductCalculationRunResponse,
 )
 from app.services.audit_log_service import append_operation_audit_log
 from app.services import product_analysis_source_service, project_service
@@ -734,6 +738,114 @@ def recompute_product_analysis_weekly(
         db.rollback()
         raise
     return payload
+
+
+@router.post("/product-analysis/calculation/check", response_model=ProductCalculationCheckResponse)
+def check_product_calculation_data(
+    body: ProductCalculationCheckRequest,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
+):
+    project_service.ensure_project_access(
+        db,
+        body.project_id,
+        operator=operator,
+        is_admin=bool(is_admin),
+    )
+    normalized_country = _normalize_country(body.country)
+    result = product_analysis_source_service.check_product_calculation_data_availability(
+        db,
+        project_id=body.project_id,
+        country=normalized_country,
+        start_date=body.start_date,
+        end_date=body.end_date,
+    )
+    return result
+
+
+@router.post("/product-analysis/calculation/run", response_model=ProductCalculationRunResponse)
+def run_product_calculation(
+    body: ProductCalculationRunRequest,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
+):
+    project_service.ensure_project_access(
+        db,
+        body.project_id,
+        operator=operator,
+        is_admin=bool(is_admin),
+    )
+    normalized_country = _normalize_country(body.country)
+    result = product_analysis_source_service.run_product_calculation_from_history(
+        db,
+        project_id=body.project_id,
+        country=normalized_country,
+        start_date=body.start_date,
+        end_date=body.end_date,
+        current_only=body.current_only,
+    )
+    return result
+
+
+@router.post("/product-analysis/trigger-recompute")
+def trigger_pt1_recompute(
+    request: Request,
+    project_id: int = Query(gt=0),
+    country: str = Query(default="US"),
+    period_start_date: date = Query(...),
+    period_end_date: date = Query(...),
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
+):
+    """
+    Trigger PT1 recompute for a single period.
+    Called by AutoReportUpload after source files are successfully persisted.
+    """
+    project_service.ensure_project_access(
+        db,
+        project_id,
+        operator=operator,
+        is_admin=bool(is_admin),
+    )
+    normalized_country = _normalize_country(country)
+    try:
+        result = product_analysis_source_service.recompute_pt1_for_period(
+            db,
+            project_id=project_id,
+            country=normalized_country,
+            period_start_date=period_start_date,
+            period_end_date=period_end_date,
+        )
+        invalidate_weekly_analysis_cache()
+        append_operation_audit_log(
+            db,
+            action="product_analysis.trigger_recompute",
+            target_type="product_analysis_pt1",
+            target_id=project_id,
+            operator=operator,
+            after={
+                "project_id": project_id,
+                "country": normalized_country,
+                "period_start_date": period_start_date.isoformat(),
+                "period_end_date": period_end_date.isoformat(),
+                "pt1_id": result.get("pt1_id"),
+            },
+            request=request,
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        detail = str(exc)
+        if detail == "project not found":
+            raise HTTPException(status_code=404, detail=detail) from exc
+        raise HTTPException(status_code=400, detail=detail) from exc
+    except Exception:
+        db.rollback()
+        raise
+    return result
 
 
 def _to_source_item(row) -> AnalysisSourceFileItem:
