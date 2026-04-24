@@ -3047,6 +3047,16 @@ export default function PricingCalculationPage() {
                                           ? COUNTRY_MAP[run.country] ?? run.country
                                           : '--'}
                                       </span>
+                                      {run.created_by ? (
+                                        <>
+                                          <span className='text-muted-foreground/40'>
+                                            /
+                                          </span>
+                                          <span className='shrink-0 truncate text-muted-foreground/70'>
+                                            {run.created_by}
+                                          </span>
+                                        </>
+                                      ) : null}
                                     </div>
 
                                     <div
