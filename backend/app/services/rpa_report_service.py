@@ -7,8 +7,25 @@ from typing import Optional
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.models import AnalysisSourceFile, Project, ReportUploadLog
+from app.models import AnalysisSourceFile, ReportUploadLog
 from app.services import project_service
+
+
+def _business_date_iso(src: AnalysisSourceFile) -> Optional[str]:
+    """Return the business date of a source file as an ISO date string.
+
+    For periodic reports (business_report, payment_report, etc.), uses period_end_date.
+    For inventory snapshots, uses snapshot_at.
+    Returns None if the date field is null.
+    """
+    if src.report_type == "inventory_report":
+        if src.snapshot_at is not None:
+            return src.snapshot_at.date().isoformat()
+        return None
+    # Periodic report — use period_end_date as the canonical business date
+    if src.period_end_date is not None:
+        return src.period_end_date.isoformat()
+    return None
 
 REPORT_TYPES = [
     # 已接入
@@ -35,9 +52,10 @@ REPORT_TYPES = [
 class ReportTypeStatus:
     report_type: str
     has_data: bool  # 有真实业务数据
-    is_uploaded: bool  # 今日是否有上传记录
-    latest_date: Optional[str] = None
+    is_uploaded: bool  # 是否有上传记录（含历史月份补充）
+    latest_date: Optional[str] = None  # 报表实际业务日期（period_end_date / snapshot_at）
     original_filename: Optional[str] = None
+    status_source: Optional[str] = None  # upload_log | business_date_backfill
 
 
 @dataclass
@@ -64,9 +82,14 @@ def get_report_status_for_date(
 ) -> RpaReportStatusResponse:
     """Query RPA report status for a given date using report_upload_logs.
 
-    Unified logic for all report types:
-    1. Check report_upload_logs for today's upload record
-    2. Optionally fetch original_filename from linked source_file
+    Three-priority logic:
+    1. report_upload_logs — today's upload record (upload_date == target_date)
+    2. analysis_source_files — source file whose business date covers the target date
+       (periodic: period_start_date <= target_date <= period_end_date;
+        inventory: snapshot_at date == target_date)
+    3. latest_date reflects the source file's actual business date
+       (period_end_date for periodic reports, snapshot_at date for inventory),
+       not the query parameter — enabling historical month coverage.
     """
     try:
         target_date = date.fromisoformat(report_date)
@@ -77,6 +100,7 @@ def get_report_status_for_date(
         db, operator=operator, is_admin=is_admin
     )
     project_map = {int(p.id): p.project_name for p in projects}
+    project_sort_orders = {int(p.id): p.sort_order for p in projects}
     project_ids = list(project_map.keys())
 
     if not project_ids:
@@ -98,9 +122,7 @@ def get_report_status_for_date(
             )
             for pid in sorted(
                 project_ids,
-                key=lambda pid: next(
-                    (p.sort_order for p in projects if int(p.id) == pid), 0
-                ),
+                key=lambda pid: project_sort_orders.get(pid, 0),
             )
         ]
         return RpaReportStatusResponse(country=country, items=items)
@@ -120,24 +142,44 @@ def get_report_status_for_date(
         if key not in log_map or log.created_at > log_map[key].created_at:
             log_map[key] = log
 
+    source_ids = sorted(
+        {
+            int(log.source_file_id)
+            for log in log_map.values()
+            if log.source_file_id is not None
+        }
+    )
+    source_by_id: dict[int, AnalysisSourceFile] = {}
+    if source_ids:
+        source_by_id = {
+            int(source.id): source
+            for source in db.execute(
+                select(AnalysisSourceFile).where(AnalysisSourceFile.id.in_(source_ids))
+            ).scalars().all()
+        }
+
     # Populate status from upload logs (priority 1)
     for (pid, rt), log in log_map.items():
         if pid not in status_by_project:
             continue
         original_filename = None
+        latest_date: Optional[str] = report_date
         if log.source_file_id:
-            source = db.execute(
-                select(AnalysisSourceFile).where(AnalysisSourceFile.id == log.source_file_id)
-            ).scalar_one_or_none()
+            source = source_by_id.get(int(log.source_file_id))
             if source:
                 original_filename = source.original_filename
+                # Prefer the source file's actual business date over the query param
+                biz = _business_date_iso(source)
+                if biz is not None:
+                    latest_date = biz
 
         status_by_project[pid][rt] = ReportTypeStatus(
             report_type=rt,
             has_data=log.has_real_data,
             is_uploaded=True,
-            latest_date=report_date,
+            latest_date=latest_date,
             original_filename=original_filename,
+            status_source="upload_log",
         )
 
     # ── Fallback: query analysis_source_files for date coverage ──
@@ -150,9 +192,11 @@ def get_report_status_for_date(
         if not st.is_uploaded
     ]
     if missing_pairs and target_date is not None:
+        missing_report_types = sorted({rt for _, rt in missing_pairs})
         sources = db.execute(
             select(AnalysisSourceFile)
             .where(AnalysisSourceFile.project_id.in_(project_ids))
+            .where(AnalysisSourceFile.report_type.in_(missing_report_types))
             .where(AnalysisSourceFile.country == country)
             .where(AnalysisSourceFile.is_current.is_(True))
             .where(AnalysisSourceFile.ingestion_status == "success")
@@ -193,12 +237,14 @@ def get_report_status_for_date(
                 continue
             if status_by_project[pid][rt].is_uploaded:
                 continue  # log already covered
+            biz = _business_date_iso(src)
             status_by_project[pid][rt] = ReportTypeStatus(
                 report_type=rt,
                 has_data=src.row_count_total > 0,
                 is_uploaded=True,
-                latest_date=report_date,
+                latest_date=biz,
                 original_filename=src.original_filename,
+                status_source="business_date_backfill",
             )
 
     items = [
@@ -210,9 +256,7 @@ def get_report_status_for_date(
         )
         for pid in sorted(
             project_ids,
-            key=lambda pid: next(
-                (p.sort_order for p in projects if int(p.id) == pid), 0
-            ),
+            key=lambda pid: project_sort_orders.get(pid, 0),
         )
     ]
     return RpaReportStatusResponse(country=country, items=items)
