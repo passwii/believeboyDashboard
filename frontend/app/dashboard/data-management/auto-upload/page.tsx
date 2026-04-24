@@ -293,14 +293,6 @@ function RpaStatusGrid() {
            
             <Button
               type='button'
-              variant='outline'
-              size='icon'
-              onClick={() => setStatusDate((v) => shiftDateString(v, 1))}
-            >
-              <ChevronRight className='h-4 w-4' />
-            </Button>
-            <Button
-              type='button'
               variant='secondary'
               onClick={() => setStatusDate(toLocalDateInputValue(undefined))}
             >
