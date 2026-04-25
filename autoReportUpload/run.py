@@ -3,10 +3,11 @@
 autoReportUpload — entry point.
 
 Usage:
-    python run.py                  # Normal mode (production, uses remote DB/API, moves files)
+    python run.py                  # Normal mode (默认 watchdog 事件监控，文件落盘立即触发)
     python run.py --env local      # Force local mode (localhost DB/API, no file moves)
     python run.py --dry-run        # Dry-run: recognize files only, no DB writes, no file moves
     python run.py --once           # Run once (no periodic loop), useful for testing
+    python run.py --mode polling   # 旧版定时轮询模式（每 5 分钟）
 """
 
 import argparse
@@ -44,6 +45,12 @@ def main() -> None:
         action="store_true",
         help="只运行一次扫描，不进入定时循环（用于测试）",
     )
+    parser.add_argument(
+        "--mode",
+        choices=["watchdog", "polling"],
+        default="watchdog",
+        help="watchdog: 文件系统事件监控（默认）; polling: 旧版定时轮询",
+    )
     args = parser.parse_args()
 
     if args.env:
@@ -73,7 +80,7 @@ def main() -> None:
         print(f"\n日志文件: {logger.log_file}")
         sys.exit(0)
 
-    main_loop(dry_run=args.dry_run)
+    main_loop(dry_run=args.dry_run, mode=args.mode)
 
 
 if __name__ == "__main__":

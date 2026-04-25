@@ -131,7 +131,81 @@ def run_cycle(logger: RunLogger, dry_run: bool = False) -> dict:
     return stats
 
 
-def main_loop(dry_run: bool = False) -> None:
+def _start_watchdog_logger(logger: RunLogger, dry_run: bool):
+    """启动 watchdog 事件监控，文件创建立即触发处理（watchdog 模式）"""
+    from watchdog.observers import Observer
+    from watchdog.events import FileSystemEventHandler
+
+    class ReportFileHandler(FileSystemEventHandler):
+        def __init__(self, logger: RunLogger, dry_run: bool):
+            self.logger = logger
+            self.dry_run = dry_run
+            self._pending: dict[str, float] = {}  # debounce: 忽略 2 秒内重复事件
+
+        def on_created(self, event):
+            if event.is_directory:
+                return
+            file_path = Path(event.src_path)
+            if file_path.suffix.lower() not in SUPPORTED_EXTENSIONS:
+                return
+
+            # debounce
+            key = str(file_path)
+            now = time.time()
+            if key in self._pending and now - self._pending[key] < 2:
+                return
+            self._pending[key] = now
+
+            # 判断属于哪个项目
+            try:
+                project_name = file_path.parent.name
+                # 明确排除 processed/ 子目录，防止处理已归档文件
+                if project_name == PROCESSED_SUBDIR or project_name not in PROJECTS:
+                    return
+            except Exception:
+                return
+
+            logger.info(f"  [watchdog] 检测到新文件: {file_path.name}")
+            db = get_db_session()
+            try:
+                result = process_file(file_path, project_name, db, dry_run=self.dry_run)
+                logger.result(file_path, project_name, result)
+            finally:
+                db.close()
+
+    handler = ReportFileHandler(logger, dry_run)
+    observer = Observer()
+    for project_name in PROJECTS:
+        project_dir = WATCH_ROOT / project_name
+        if project_dir.exists():
+            observer.schedule(handler, str(project_dir), recursive=False)
+    observer.start()
+    logger.info(f"watchdog 监控已启动，监控目录: {WATCH_ROOT}")
+    return observer
+
+
+def _main_loop_polling(logger: RunLogger, dry_run: bool) -> None:
+    """原有定时轮询逻辑（polling 模式）"""
+    logger.info("\n>>> 首次运行：全局扫描所有项目目录")
+    stats = run_cycle(logger, dry_run=dry_run)
+    logger.info(
+        f"\n全局扫描完成: {stats['files_seen']} 文件, "
+        f"{stats['success']} 成功, {stats['skipped']} 跳过, {stats['failed']} 失败"
+    )
+
+    interval_secs = CHECK_INTERVAL_MINUTES * 60
+    while True:
+        time.sleep(interval_secs)
+
+        stats = run_cycle(logger, dry_run=dry_run)
+        if stats["files_seen"] > 0:
+            logger.info(
+                f"定时扫描完成: {stats['files_seen']} 文件, "
+                f"{stats['success']} 成功, {stats['skipped']} 跳过, {stats['failed']} 失败"
+            )
+
+
+def main_loop(dry_run: bool = False, mode: str = "watchdog") -> None:
     """Full main loop: initial global scan then periodic incremental checks."""
     logs_dir = Path(__file__).parent / "logs"
     logger = RunLogger(logs_dir)
@@ -147,22 +221,15 @@ def main_loop(dry_run: bool = False) -> None:
     logger.info(f"dry_run: {dry_run}")
     logger.info("=" * 60)
 
-    # ── Initial global scan ──────────────────────────────────────────────
-    logger.info("\n>>> 首次运行：全局扫描所有项目目录")
-    stats = run_cycle(logger, dry_run=dry_run)
-    logger.info(
-        f"\n全局扫描完成: {stats['files_seen']} 文件, "
-        f"{stats['success']} 成功, {stats['skipped']} 跳过, {stats['failed']} 失败"
-    )
-
-    # ── Periodic loop ───────────────────────────────────────────────────
-    interval_secs = CHECK_INTERVAL_MINUTES * 60
-    while True:
-        time.sleep(interval_secs)
-
-        stats = run_cycle(logger, dry_run=dry_run)
-        if stats["files_seen"] > 0:
-            logger.info(
-                f"定时扫描完成: {stats['files_seen']} 文件, "
-                f"{stats['success']} 成功, {stats['skipped']} 跳过, {stats['failed']} 失败"
-            )
+    if mode == "watchdog":
+        logger.info("监控模式: watchdog（文件事件触发）")
+        observer = _start_watchdog_logger(logger, dry_run)
+        try:
+            while True:
+                time.sleep(5)
+        except KeyboardInterrupt:
+            observer.stop()
+        observer.join()
+    else:
+        logger.info(f"监控模式: polling（每 {CHECK_INTERVAL_MINUTES} 分钟轮询）")
+        _main_loop_polling(logger, dry_run)
