@@ -36,7 +36,6 @@ from sqlalchemy import func, insert, select, update as sa_update
 from sqlalchemy.orm import Session
 
 from config import IS_LOCAL, PROCESSED_SUBDIR
-from client import trigger_pt1_recompute
 from models import (
     AnalysisAdProductRow,
     AnalysisBusinessRow,
@@ -358,16 +357,6 @@ def _persist_single_source(
         _write_upload_log(db, project.id, report_type, country, upload_date, total > 0, total, source.id, file_path.name)
 
         db.commit()
-
-        # Trigger PT1 recompute for this period (source files are now persisted)
-        if report_type in ('business_report', 'payment_report', AD_PRODUCT_REPORT):
-            if source.period_start_date is not None and source.period_end_date is not None:
-                trigger_pt1_recompute(
-                    project_id=int(project.id),
-                    country=country,
-                    period_start_date=source.period_start_date.isoformat(),
-                    period_end_date=source.period_end_date.isoformat(),
-                )
 
         return {"success": True, "source_id": source.id, "row_count": total}
     except Exception as exc:  # noqa: BLE001
