@@ -5,7 +5,6 @@ from io import BytesIO
 from datetime import UTC, date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
-from threading import Lock
 from typing import Any
 
 from fastapi import HTTPException, status
@@ -45,30 +44,6 @@ TZ_OFFSET_BY_ABBR = {
     "EST": -5,
     "EDT": -4,
 }
-_SQLITE_TABLES_READY = False
-_SQLITE_TABLES_LOCK = Lock()
-
-
-def ensure_tables(db: Session) -> None:
-    global _SQLITE_TABLES_READY
-    bind = db.get_bind()
-    if bind.dialect.name != "sqlite":
-        return
-    if _SQLITE_TABLES_READY:
-        return
-
-    with _SQLITE_TABLES_LOCK:
-        if _SQLITE_TABLES_READY:
-            return
-
-        for table in (
-            MonthlyReport.__table__,
-            MonthlyReportTransaction.__table__,
-            MonthlyReportPT3Calculation.__table__,
-            MonthlyReportPT4Calculation.__table__,
-        ):
-            table.create(bind=bind, checkfirst=True)
-        _SQLITE_TABLES_READY = True
 
 
 def parse_report_month(value: str) -> str:
@@ -125,7 +100,6 @@ def prepare_monthly_report(
     summary_pdf_file_path: str | None,
     file_size: int | None,
 ) -> MonthlyReport:
-    ensure_tables(db)
     get_project_or_404(db, project_id)
     normalized_country = normalize_country(country)
 
@@ -324,7 +298,6 @@ def list_reports(
     report_month: str | None = None,
     current_only: bool = True,
 ) -> list[MonthlyReport]:
-    ensure_tables(db)
     stmt = select(MonthlyReport).order_by(
         MonthlyReport.report_month.desc(), MonthlyReport.id.desc()
     )
@@ -340,7 +313,6 @@ def list_reports(
 
 
 def get_report_or_404(db: Session, report_id: int) -> MonthlyReport:
-    ensure_tables(db)
     row = db.get(MonthlyReport, report_id)
     if row is None:
         raise HTTPException(
@@ -381,7 +353,6 @@ def get_financial_series(
     end_month: str | None = None,
     fill_missing: bool = True,
 ) -> dict[str, Any]:
-    ensure_tables(db)
     project = get_project_or_404(db, project_id)
     normalized_country = normalize_country(country)
     if start_month:
@@ -487,7 +458,6 @@ def get_financial_accounting_detail(
     country: str = "US",
     report_month: str,
 ) -> dict[str, Any]:
-    ensure_tables(db)
     month = parse_report_month(report_month)
     project = get_project_or_404(db, project_id)
 
@@ -515,7 +485,6 @@ def export_financial_accounting_detail_workbook(
     report_month: str,
     is_admin: bool = False,
 ) -> tuple[str, bytes]:
-    ensure_tables(db)
     month = parse_report_month(report_month)
     report, pt3 = _load_report_with_pt3_or_404(
         db,

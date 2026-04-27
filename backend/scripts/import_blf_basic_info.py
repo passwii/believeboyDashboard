@@ -30,9 +30,7 @@ def main() -> int:
     args = parse_args()
     session = SessionLocal()
     try:
-        # Bootstrap schema for first local run (especially sqlite dev DB).
-        Base.metadata.create_all(bind=engine)
-        items, source_file = product_cost_service.read_product_cost_csv_file(args.file)
+                items, source_file = product_cost_service.read_product_cost_csv_file(args.file)
         _, inserted, updated = product_cost_service.bulk_upsert_product_costs(session, items, source_file)
         session.commit()
     except OperationalError as exc:  # pragma: no cover - entrypoint fallback

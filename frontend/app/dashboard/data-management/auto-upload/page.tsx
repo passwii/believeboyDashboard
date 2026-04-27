@@ -205,110 +205,126 @@ function RpaStatusGrid() {
 
   return (
     <Card className='flex flex-1 flex-col overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-sm'>
-      <CardHeader className='border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-6 py-5 shrink-0'>
-        <div className='flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between'>
-          <div className='flex h-11 items-center gap-3'>
-            <div className='flex h-11 w-11 items-center justify-center rounded-lg border border-border/60 bg-[hsl(var(--surface-soft))] text-muted-foreground'>
-              <LayoutDashboard className='h-5 w-5' />
+      <CardHeader className='border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3 sm:px-6 sm:py-4 shrink-0'>
+        <div className='flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between'>
+          <div className='flex items-center gap-3'>
+            <div className='flex h-9 w-9 items-center justify-center rounded-lg border border-border/60 bg-[hsl(var(--surface-soft))] text-muted-foreground sm:h-10 sm:w-10'>
+              <LayoutDashboard className='h-4 w-4 sm:h-5 sm:w-5' />
             </div>
-            <CardTitle className='self-center'>RPA 报表状态</CardTitle>
+            <CardTitle className='self-center text-base sm:text-lg'>RPA 报表状态</CardTitle>
           </div>
 
-          <div className='flex flex-wrap items-center gap-2 lg:justify-end'>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type='button'
-                  variant='outline'
-                  className='h-10 min-w-[180px] justify-start border-border/70 bg-background text-left font-normal dark:bg-[hsl(var(--surface-soft))]'
-                >
-                  {projectFilterLabel}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align='end' className='w-[280px]'>
-                <DropdownMenuLabel>项目筛选</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <button
-                  type='button'
-                  className='w-full rounded-sm px-2 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground'
-                  onClick={() => setSelectedProjects([])}
-                >
-                  全部项目
-                </button>
-                <DropdownMenuSeparator />
-                {projects.map((project) => (
-                  <DropdownMenuCheckboxItem
-                    key={project}
-                    checked={selectedProjects.includes(project)}
-                    onSelect={(event) => event.preventDefault()}
-                    onCheckedChange={(checked) => {
-                      setSelectedProjects((prev) => {
-                        if (checked) {
-                          return prev.includes(project) ? prev : [...prev, project]
-                        }
-                        return prev.filter((p) => p !== project)
-                      })
-                    }}
+          {/* Mobile: 2-column grid; lg+: horizontal row */}
+          <div className='grid grid-cols-2 gap-2 sm:grid-cols-3 lg:flex lg:flex-row lg:flex-wrap lg:items-center lg:gap-2'>
+            {/* Row 1: 项目 + 站点 */}
+            <div className='contents lg:flex lg:items-center lg:gap-2'>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='sm'
+                    className='h-9 w-full justify-start border-border/70 bg-background text-left font-normal dark:bg-[hsl(var(--surface-soft))] sm:h-10'
                   >
-                    {project}
-                  </DropdownMenuCheckboxItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                    {projectFilterLabel}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align='end' className='w-[280px]'>
+                  <DropdownMenuLabel>项目筛选</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <button
+                    type='button'
+                    className='w-full rounded-sm px-2 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground'
+                    onClick={() => setSelectedProjects([])}
+                  >
+                    全部项目
+                  </button>
+                  <DropdownMenuSeparator />
+                  {projects.map((project) => (
+                    <DropdownMenuCheckboxItem
+                      key={project}
+                      checked={selectedProjects.includes(project)}
+                      onSelect={(event) => event.preventDefault()}
+                      onCheckedChange={(checked) => {
+                        setSelectedProjects((prev) => {
+                          if (checked) {
+                            return prev.includes(project) ? prev : [...prev, project]
+                          }
+                          return prev.filter((p) => p !== project)
+                        })
+                      }}
+                    >
+                      {project}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
 
-            <Select value={country} onValueChange={(value) => setCountry(value)}>
-              <SelectTrigger className='h-10 w-[160px] rounded-md border-border/70 bg-background dark:bg-[hsl(var(--surface-soft))]'>
-                <SelectValue placeholder='选择站点' />
-              </SelectTrigger>
-              <SelectContent>
-                {COUNTRY_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <Select value={country} onValueChange={(value) => setCountry(value)}>
+                <SelectTrigger className='h-9 w-full rounded-md border-border/70 bg-background dark:bg-[hsl(var(--surface-soft))] sm:h-10 sm:w-[140px]'>
+                  <SelectValue placeholder='选择站点' />
+                </SelectTrigger>
+                <SelectContent>
+                  {COUNTRY_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-            <Button
-              type='button'
-              variant='outline'
-              size='icon'
-              onClick={() => setStatusDate((v) => shiftDateString(v, -1))}
-            >
-              <ChevronLeft className='h-4 w-4' />
-            </Button>
-            <SingleDatePicker
-              value={parseDateInputValue(statusDate)}
-              onChange={(date) => setStatusDate(formatDateInputValue(date))}
-              className='w-[180px] bg-background dark:bg-[hsl(var(--surface-soft))]'
-            />
-            <Button
-              type='button'
-              variant='outline'
-              size='icon'
-              onClick={() => setStatusDate((v) => shiftDateString(v, 1))}
-            >
-              <ChevronRight className='h-4 w-4' />
-            </Button>
-           
-            <Button
-              type='button'
-              variant='secondary'
-              onClick={() => setStatusDate(toLocalDateInputValue(undefined))}
-            >
-              今天
-            </Button>
+            {/* Row 2: 日期导航 */}
+            <div className='contents lg:flex lg:items-center lg:gap-1'>
+              <Button
+                type='button'
+                variant='outline'
+                size='icon'
+                className='h-9 w-9 shrink-0 sm:h-10 sm:w-10'
+                onClick={() => setStatusDate((v) => shiftDateString(v, -1))}
+              >
+                <ChevronLeft className='h-4 w-4' />
+              </Button>
+              <SingleDatePicker
+                value={parseDateInputValue(statusDate)}
+                onChange={(date) => setStatusDate(formatDateInputValue(date))}
+                className='h-9 w-full sm:h-10 sm:w-[170px] bg-background dark:bg-[hsl(var(--surface-soft))]'
+              />
+              <Button
+                type='button'
+                variant='outline'
+                size='icon'
+                className='h-9 w-9 shrink-0 sm:h-10 sm:w-10'
+                onClick={() => setStatusDate((v) => shiftDateString(v, 1))}
+              >
+                <ChevronRight className='h-4 w-4' />
+              </Button>
+            </div>
 
-            <Button
-              type='button'
-              variant='outline'
-              size='icon'
-              onClick={() => void loadStatus()}
-              disabled={statusLoading}
-              title='刷新状态'
-            >
-              <Loader2 className={cn('h-4 w-4', statusLoading && 'animate-spin')} />
-            </Button>
+            {/* Row 3: 今天 + 刷新 */}
+            <div className='contents lg:flex lg:items-center lg:gap-1'>
+              <Button
+                type='button'
+                variant='secondary'
+                size='sm'
+                className='h-9 sm:h-10'
+                onClick={() => setStatusDate(toLocalDateInputValue(undefined))}
+              >
+                今天
+              </Button>
+
+              <Button
+                type='button'
+                variant='outline'
+                size='icon'
+                className='h-9 w-9 shrink-0 sm:h-10 sm:w-10'
+                onClick={() => void loadStatus()}
+                disabled={statusLoading}
+                title='刷新状态'
+              >
+                <Loader2 className={cn('h-4 w-4', statusLoading && 'animate-spin')} />
+              </Button>
+            </div>
           </div>
         </div>
       </CardHeader>
@@ -639,7 +655,7 @@ function AutoUploadContent() {
       <div className='grid gap-4 lg:grid-cols-[1fr_2fr] flex-1 overflow-hidden'>
         {/* Dropzone */}
         <Card className='overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-sm'>
-          <CardContent className='!px-3 !py-3 flex h-full'>
+          <CardContent className='!px-3 !py-3 sm:!px-4 sm:!py-4 flex h-full'>
             <div
               className={cn(
                 'relative flex w-full flex-col items-center justify-center rounded-2xl border border-dashed px-5 transition-[border-color,background-color] duration-200',
@@ -674,8 +690,8 @@ function AutoUploadContent() {
                 htmlFor='auto-upload-input'
                 className='flex h-full w-full cursor-pointer flex-col items-center justify-center gap-3 text-center'
               >
-                <div className='flex h-14 w-14 items-center justify-center rounded-xl border border-border/60 bg-[hsl(var(--surface-soft))] shadow-sm'>
-                  <Upload className='h-6 w-6 text-sky-600 dark:text-sky-300' />
+                <div className='flex h-12 w-12 items-center justify-center rounded-xl border border-border/60 bg-[hsl(var(--surface-soft))] shadow-sm sm:h-14 sm:w-14'>
+                  <Upload className='h-5 w-5 sm:h-6 sm:w-6 text-sky-600 dark:text-sky-300' />
                 </div>
                 <div className='space-y-1'>
                   <p className='text-sm font-semibold text-foreground sm:text-base'>
@@ -711,8 +727,8 @@ function AutoUploadContent() {
               ) : null}
             </div>
           </CardHeader>
-          <CardContent className='!px-0 !pt-0 flex h-full flex-col'>
-            <ScrollArea className='flex-1'>
+          <CardContent className='!px-0 !pt-0 flex h-full overflow-hidden'>
+            <ScrollArea className='flex-1 h-full'>
               <div className='space-y-2 p-3'>
                 {queueItems.length === 0 ? (
                   <div className='rounded-xl border border-dashed border-border/70 bg-[hsl(var(--surface-subtle))]/45 px-4 py-8 text-center text-sm text-muted-foreground'>
@@ -793,38 +809,35 @@ export default function AutoUploadPage() {
   const [activeTab, setActiveTab] = useState<'upload' | 'status'>('upload')
 
   return (
-    <div className='flex h-[calc(100vh-8rem)] flex-col gap-6 overflow-hidden'>
-      {/* Page header */}
-      <div className='shrink-0'>
-        <h1 className='text-2xl font-semibold tracking-tight'>报表自动化</h1>
-      </div>
-
+    <div className='flex min-h-[calc(100vh-8rem)] flex-col gap-4 overflow-auto pb-2 sm:gap-6 sm:overflow-hidden lg:min-h-[calc(100vh-8rem)]'>
       {/* Tab switcher */}
-      <div className='flex shrink-0 items-center gap-1 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-1 w-fit'>
-        <button
-          type='button'
-          onClick={() => setActiveTab('upload')}
-          className={cn(
-            'rounded-md px-4 py-2 text-sm font-medium transition-colors',
-            activeTab === 'upload'
-              ? 'bg-[hsl(var(--surface-panel))] text-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground',
-          )}
-        >
-          文件上传
-        </button>
-        <button
-          type='button'
-          onClick={() => setActiveTab('status')}
-          className={cn(
-            'rounded-md px-4 py-2 text-sm font-medium transition-colors',
-            activeTab === 'status'
-              ? 'bg-[hsl(var(--surface-panel))] text-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground',
-          )}
-        >
-          RPA 状态
-        </button>
+      <div className='flex shrink-0 w-fit'>
+        <div className='flex items-center gap-1 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-1'>
+          <button
+            type='button'
+            onClick={() => setActiveTab('upload')}
+            className={cn(
+              'rounded-md px-4 py-2 text-sm font-medium transition-colors',
+              activeTab === 'upload'
+                ? 'bg-[hsl(var(--surface-panel))] text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            文件上传
+          </button>
+          <button
+            type='button'
+            onClick={() => setActiveTab('status')}
+            className={cn(
+              'rounded-md px-4 py-2 text-sm font-medium transition-colors',
+              activeTab === 'status'
+                ? 'bg-[hsl(var(--surface-panel))] text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            RPA 状态
+          </button>
+        </div>
       </div>
 
       {/* Tab content */}

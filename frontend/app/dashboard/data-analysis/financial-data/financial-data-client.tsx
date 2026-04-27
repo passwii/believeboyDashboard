@@ -1919,7 +1919,7 @@ export default function FinancialDataClient({
     <div className='min-w-0 w-full space-y-6 overflow-x-hidden'>
       <DataCard>
         <DataCardHeader
-          title='月度财务分析'
+          title='财务分析'
           titleClassName='text-2xl tracking-tight'
           badge={<p className='dashboard-kicker'>Analysis Console</p>}
         />

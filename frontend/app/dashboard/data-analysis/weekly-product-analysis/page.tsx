@@ -53,6 +53,11 @@ import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
 import { useNotifications } from '@/components/notifications'
+import {
+  CountrySelect,
+  FilterField,
+  RefreshButton,
+} from '@/components/dashboard/console'
 
 type ProjectOption = {
   id: number | null
@@ -125,12 +130,6 @@ function weeklyDataCacheKey(
 function weeklyDetailsCacheKey(pt1Id: number, country: CountryOption): string {
   return `weekly-analysis:details:v2:${pt1Id}:${country}`
 }
-
-const COUNTRY_OPTIONS: Array<{ value: CountryOption; label: string }> = [
-  { value: 'US', label: '美国站 (US)' },
-  { value: 'DE', label: '德国站 (DE)' },
-  { value: 'UK', label: '英国站 (UK)' },
-]
 
 const SUMMARY_COLUMN_GROUPS = [
   {
@@ -1701,19 +1700,18 @@ export default function WeeklyProductAnalysisPage() {
           titleClassName='text-2xl tracking-tight'
           badge={<p className='dashboard-kicker'>Analysis Console</p>}
         />
-        <DataCardContent className='flex flex-wrap items-end gap-3'>
+        <DataCardContent className="flex flex-wrap items-end gap-3">
           {projectsLoading ? (
-            <WeeklyFilterSkeleton width='min-w-[180px]' />
+            <WeeklyFilterSkeleton width="min-w-[180px]" />
           ) : (
-            <div className='min-w-[180px] space-y-1.5'>
-              <label className='text-xs text-muted-foreground'>店铺</label>
+            <FilterField label="店铺">
               <Select
                 value={projectId}
                 onValueChange={setProjectId}
                 disabled={projects.length === 0}
               >
-                <SelectTrigger className='h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]'>
-                  <SelectValue placeholder='请选择店铺' />
+                <SelectTrigger className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
+                  <SelectValue placeholder="请选择店铺" />
                 </SelectTrigger>
                 <SelectContent>
                   {projects.map((project) => (
@@ -1723,46 +1721,32 @@ export default function WeeklyProductAnalysisPage() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </FilterField>
           )}
-          <div className='min-w-[170px] space-y-1.5'>
-            <label className='text-xs text-muted-foreground'>国家站点</label>
-            <Select
+          <FilterField label="国家站点">
+            <CountrySelect
               value={country}
-              onValueChange={(value) => setCountry(value as CountryOption)}
-            >
-              <SelectTrigger className='h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]'>
-                <SelectValue placeholder='请选择国家站点' />
-              </SelectTrigger>
-              <SelectContent>
-                {COUNTRY_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className='min-w-[260px] space-y-1.5'>
-            <label className='text-xs text-muted-foreground'>日期范围</label>
+              onChange={(value) => setCountry(value as CountryOption)}
+              triggerClassName="h-9"
+            />
+          </FilterField>
+          <FilterField label="日期范围">
             <DateRangePicker
               value={parseDateRangeInputValue(startDate, endDate)}
               onChange={(range) => {
                 setStartDate(formatDateInputValue(range?.from))
                 setEndDate(formatDateInputValue(range?.to))
               }}
-              className='h-9'
+              className="h-9"
             />
-          </div>
-          <Button
-            type='button'
-            variant='outline'
-            className='h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]'
+          </FilterField>
+          <RefreshButton
             onClick={() => void loadWeeklyData({ force: true })}
-            disabled={loading || !projectId}
-          >
-            {loading ? '刷新中...' : '刷新数据'}
-          </Button>
+            loading={loading}
+            label="刷新数据"
+            variant="outline"
+            className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
+          />
         </DataCardContent>
 
         {projectLoadError ? (

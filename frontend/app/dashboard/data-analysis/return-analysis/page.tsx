@@ -25,6 +25,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useNotifications } from '@/components/notifications'
+import { applyBorder, applyHeaderBorder } from '@/lib/excel-styles'
+import {
+  CountrySelect,
+  FilterField,
+  RefreshButton,
+} from '@/components/dashboard/console'
 
 const API_BASE = '/api/backend/api/v1'
 
@@ -66,21 +72,6 @@ const RETURN_REASON_LABELS: Record<string, string> = {
 // Reserved for future use - disposition/status translations
 // const DETAILED_DISPOSITION_LABELS: Record<string, string> = { ... }
 // const RETURN_STATUS_LABELS: Record<string, string> = { ... }
-
-type ExcelCell = import('exceljs').Cell
-
-function applyBorder(cell: ExcelCell, color = 'FFE2E8F0') {
-  cell.border = {
-    top: { style: 'thin', color: { argb: color } },
-    left: { style: 'thin', color: { argb: color } },
-    bottom: { style: 'thin', color: { argb: color } },
-    right: { style: 'thin', color: { argb: color } },
-  }
-}
-
-function applyHeaderBorder(cell: ExcelCell) {
-  applyBorder(cell, 'FFCBD5E1')
-}
 
 function translateReason(value: string): string {
   return RETURN_REASON_LABELS[value] || value
@@ -221,12 +212,6 @@ type ReturnAnalysisResponse = {
   multi_item_return_count: number
   multi_item_return_quantity: number
 }
-
-const COUNTRY_OPTIONS = [
-  { value: 'US', label: '美国站 (US)' },
-  { value: 'DE', label: '德国站 (DE)' },
-  { value: 'UK', label: '英国站 (UK)' },
-] as const
 
 const TAB_LABELS: Record<ViewTab, string> = {
   rankings: '高退货排行',
@@ -581,8 +566,7 @@ export default function ReturnAnalysisPage() {
         <DataCardContent className="space-y-5">
           {/* 筛选区域 */}
           <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
-            <div className="space-y-1.5">
-              <div className="text-xs font-medium text-muted-foreground">项目</div>
+            <FilterField label="项目">
               {projectsLoading ? (
                 <Skeleton className="h-9 w-full" />
               ) : (
@@ -599,37 +583,24 @@ export default function ReturnAnalysisPage() {
                   </SelectContent>
                 </Select>
               )}
-            </div>
+            </FilterField>
 
-            <div className="space-y-1.5">
-              <div className="text-xs font-medium text-muted-foreground">国家站点</div>
-              <Select
+            <FilterField label="国家站点">
+              <CountrySelect
                 value={country}
-                onValueChange={(value) => setCountry(value as CountryOption)}
-                disabled
-              >
-                <SelectTrigger className="border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {COUNTRY_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                onChange={(value) => setCountry(value as CountryOption)}
+                triggerClassName="border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
+              />
+            </FilterField>
 
-            <div className="space-y-1.5">
-              <div className="text-xs font-medium text-muted-foreground">日期范围</div>
+            <FilterField label="日期范围">
               <DateRangePicker
                 value={dateRange}
                 onChange={setDateRange}
                 className="h-10 w-[240px]"
                 onApply={() => void loadData()}
               />
-            </div>
+            </FilterField>
 
             <div className="flex items-end gap-2">
               {data && (
@@ -644,15 +615,14 @@ export default function ReturnAnalysisPage() {
                   导出 Excel
                 </Button>
               )}
-              <Button
-                type="button"
+              <RefreshButton
                 onClick={() => void loadData()}
-                disabled={loading || projectsLoading}
+                loading={loading || projectsLoading}
+                label="刷新视图"
+                variant="default"
+                size="default"
                 className="h-10 px-5"
-              >
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
-                刷新视图
-              </Button>
+              />
             </div>
           </div>
 

@@ -17,6 +17,7 @@ class PricingCalculationCreateRequest(BaseModel):
     weight_kg: float = Field(gt=0, le=1000)
     fob_product_cost_rmb: float = Field(ge=0, le=100000000)
     first_leg_cost_rmb: float = Field(ge=0, le=100000000)
+    first_leg_unit_price_rmb: float | None = Field(default=None, ge=0, le=10000)
     project_id: int | None = Field(default=None, gt=0)
     sku: str | None = Field(default=None, min_length=1, max_length=100)
     use_historical_shipping_cost: bool = False
@@ -38,6 +39,7 @@ class PricingCalculationReverseRequest(BaseModel):
     weight_kg: float = Field(gt=0, le=1000)
     fob_product_cost_rmb: float = Field(ge=0, le=100000000)
     first_leg_cost_rmb: float = Field(ge=0, le=100000000)
+    first_leg_unit_price_rmb: float | None = Field(default=None, ge=0, le=10000)
     project_id: int | None = Field(default=None, gt=0)
     sku: str | None = Field(default=None, min_length=1, max_length=100)
     use_historical_shipping_cost: bool = False
@@ -58,6 +60,7 @@ class PricingCalculationCostReverseRequest(BaseModel):
     package_height_cm: float = Field(gt=0, le=1000)
     weight_kg: float = Field(gt=0, le=1000)
     first_leg_cost_rmb: float = Field(ge=0, le=100000000)
+    first_leg_unit_price_rmb: float | None = Field(default=None, ge=0, le=10000)
     project_id: int | None = Field(default=None, gt=0)
     sku: str | None = Field(default=None, min_length=1, max_length=100)
     use_historical_shipping_cost: bool = False
@@ -104,6 +107,7 @@ class PricingCalculationEURequest(BaseModel):
     weight_kg: float = Field(gt=0, le=1000)
     fob_product_cost_rmb: float = Field(ge=0, le=100000000)
     first_leg_cost_rmb: float = Field(ge=0, le=100000000)
+    first_leg_unit_price_rmb: float | None = Field(default=None, ge=0, le=10000)
     project_id: int | None = Field(default=None, gt=0)
     sku: str | None = Field(default=None, min_length=1, max_length=100)
     sale_price_usd: float = Field(gt=0, le=100000000)
@@ -173,6 +177,7 @@ class PricingCalculationRunItem(BaseModel):
     weight_kg: float
     fob_product_cost_rmb: float
     first_leg_cost_rmb: float
+    first_leg_unit_price_rmb_per_kg: float | None = None
     sale_price_usd: float
     commission_rate: float
     advertising_rate: float

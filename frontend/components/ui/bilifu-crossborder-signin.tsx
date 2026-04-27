@@ -43,7 +43,7 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 const Input = ({ className = "", ...props }: InputProps) => {
   return (
     <input
-      className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm text-gray-800 ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+      className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
       {...props}
     />
   );
@@ -302,10 +302,10 @@ const SignInCard = () => {
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.5 }}
-        className="flex w-full max-w-[min(90vw,56rem)] overflow-hidden rounded-2xl bg-white shadow-xl"
+        className="flex w-full max-w-[min(90vw,56rem)] overflow-hidden rounded-2xl bg-white dark:bg-[hsl(var(--card))] shadow-xl"
       >
-        <div className="relative hidden h-[clamp(400px,70vh,600px)] w-1/2 overflow-hidden border-r border-gray-100 lg:block">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="relative hidden h-[clamp(400px,70vh,600px)] w-1/2 overflow-hidden border-r border-gray-100 dark:border-[hsl(var(--border))] lg:block">
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-[hsl(220_25%_12%)] dark:to-[hsl(233_30%_18%)]">
             <DotMap />
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-8">
               <motion.div
@@ -314,15 +314,15 @@ const SignInCard = () => {
                 transition={{ delay: 0.6, duration: 0.5 }}
                 className="mb-6"
               >
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-200">
-                  <ArrowRight className="h-6 w-6 text-white" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-200 dark:shadow-black/40">
+                  <ArrowRight className="h-6 w-6 text-white dark:text-white" />
                 </div>
               </motion.div>
               <motion.h2
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.7, duration: 0.5 }}
-                className="mb-2 bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-center text-3xl font-bold text-transparent"
+                className="mb-2 bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-center text-3xl font-bold text-transparent dark:from-blue-400 dark:to-indigo-400"
               >
                 彼励扶跨境
               </motion.h2>
@@ -330,7 +330,7 @@ const SignInCard = () => {
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.8, duration: 0.5 }}
-                className="max-w-xs text-center text-sm text-gray-600"
+                className="max-w-xs text-center text-sm text-gray-600 dark:text-[hsl(var(--muted-foreground))]"
               >
                 我们专注跨境品牌服务，帮助企业做好跨境销售与全球推广
               </motion.p>
@@ -338,14 +338,14 @@ const SignInCard = () => {
           </div>
         </div>
 
-        <div className="flex w-full flex-col justify-center bg-white p-6 sm:p-8 lg:p-10 xl:w-1/2">
+        <div className="flex w-full flex-col justify-center bg-white dark:bg-[hsl(var(--card))] p-6 sm:p-8 lg:p-10 xl:w-1/2">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-            <h1 className="mb-1 text-2xl font-bold text-gray-800 md:text-3xl">欢迎登录</h1>
-            <p className="mb-8 text-gray-500">为跨境销售与全球推广团队提供高效、可执行的品牌增长支持</p>
+            <h1 className="mb-1 text-2xl font-bold text-gray-800 dark:text-[hsl(var(--card-foreground))] md:text-3xl">欢迎登录</h1>
+            <p className="mb-8 text-gray-500 dark:text-[hsl(var(--muted-foreground))]">为跨境销售与全球推广团队提供高效、可执行的品牌增长支持</p>
 
             <form className="space-y-5" onSubmit={handleSignIn}>
               <div>
-                <label htmlFor="email" className="mb-1 block text-sm font-medium text-gray-700">
+                <label htmlFor="email" className="mb-1 block text-sm font-medium text-gray-700 dark:text-[hsl(var(--foreground))]">
                   企业邮箱 <span className="text-blue-500">*</span>
                 </label>
                 <Input
@@ -356,12 +356,12 @@ const SignInCard = () => {
                   placeholder="请输入企业邮箱"
                   required
                   autoComplete="email"
-                  className="w-full border-gray-200 bg-gray-50 text-gray-800 placeholder:text-gray-400 focus:border-blue-500 focus:ring-blue-500"
+                  className="w-full border-gray-200 bg-gray-50 dark:border-[hsl(var(--border))] dark:bg-[hsl(var(--muted))] dark:text-[hsl(var(--foreground))] dark:placeholder:text-[hsl(var(--muted-foreground))] focus:border-blue-500 focus:ring-blue-500"
                 />
               </div>
 
               <div>
-                <label htmlFor="password" className="mb-1 block text-sm font-medium text-gray-700">
+                <label htmlFor="password" className="mb-1 block text-sm font-medium text-gray-700 dark:text-[hsl(var(--foreground))]">
                   登录密码 <span className="text-blue-500">*</span>
                 </label>
                 <div className="relative">
@@ -373,11 +373,11 @@ const SignInCard = () => {
                     placeholder="请输入登录密码"
                     required
                     autoComplete="current-password"
-                    className="w-full border-gray-200 bg-gray-50 pr-10 text-gray-800 placeholder:text-gray-400 focus:border-blue-500 focus:ring-blue-500"
+                    className="w-full border-gray-200 bg-gray-50 pr-10 dark:border-[hsl(var(--border))] dark:bg-[hsl(var(--muted))] dark:text-[hsl(var(--foreground))] dark:placeholder:text-[hsl(var(--muted-foreground))] focus:border-blue-500 focus:ring-blue-500"
                   />
                   <button
                     type="button"
-                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-gray-700"
+                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-gray-700 dark:text-[hsl(var(--muted-foreground))] dark:hover:text-[hsl(var(--foreground))]"
                     onClick={() => setIsPasswordVisible(!isPasswordVisible)}
                     aria-label={isPasswordVisible ? "隐藏密码" : "显示密码"}
                   >
@@ -392,7 +392,7 @@ const SignInCard = () => {
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -6 }}
-                    className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600"
+                    className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-400"
                   >
                     {error}
                   </motion.div>
@@ -411,7 +411,7 @@ const SignInCard = () => {
                   disabled={submitting}
                   className={cn(
                     "relative w-full overflow-hidden rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 py-2 text-white transition-all duration-300 hover:from-blue-600 hover:to-indigo-700",
-                    isHovered ? "shadow-lg shadow-blue-200" : ""
+                    isHovered ? "shadow-lg shadow-blue-200 dark:shadow-black/30" : ""
                   )}
                 >
                   <span className="flex items-center justify-center">
@@ -430,7 +430,7 @@ const SignInCard = () => {
                 </Button>
               </motion.div>
 
-              <p className="pt-1 text-center text-sm font-medium text-blue-700">品牌跨境，连接全球</p>
+              <p className="pt-1 text-center text-sm font-medium text-blue-700 dark:text-blue-400">品牌跨境，连接全球</p>
             </form>
           </motion.div>
         </div>
@@ -442,7 +442,7 @@ const SignInCard = () => {
 const Index = () => {
   return (
     <div
-      className="flex min-h-screen w-full items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4 sm:px-6 md:px-8"
+      className="flex min-h-screen w-full items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-[hsl(226_38%_11%)] dark:to-[hsl(233_30%_18%)] p-4 sm:px-6 md:px-8"
       style={{
         backgroundImage:
           "linear-gradient(to bottom right, rgba(239,246,255,0.95), rgba(224,231,255,0.95)), url('https://images.unsplash.com/photo-1488085061387-422e29b40080?auto=format&fit=crop&w=1800&q=80')",

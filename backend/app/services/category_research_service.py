@@ -29,8 +29,6 @@ from app.models import (
 from app.schemas.system_management import UserRoleType
 from app.services.upload_service import resolve_upload_file_path, save_upload_file
 
-_SQLITE_TABLES_READY = False
-_SQLITE_TABLES_LOCK = Lock()
 _PRICE_RAW_ALIASES = ['实际价格($)', '目前销售价($)', '价格($)', 'Price']
 _FBA_FEE_RAW_ALIASES = ['FBA费用($)', 'FBA费用']
 _RATING_RAW_ALIASES = ['评分星级', '星级', 'Rating']
@@ -116,26 +114,6 @@ class CategoryResearchExportPayload:
     file_path: Path | None = None
 
 
-def ensure_tables(db: Session) -> None:
-    global _SQLITE_TABLES_READY
-    bind = db.get_bind()
-    if bind.dialect.name != 'sqlite':
-        return
-    if _SQLITE_TABLES_READY:
-        return
-
-    with _SQLITE_TABLES_LOCK:
-        if _SQLITE_TABLES_READY:
-            return
-        for table in (
-            CategoryResearchDataset.__table__,
-            CategoryResearchProductDetail.__table__,
-            CategoryResearchSalesTrend.__table__,
-        ):
-            table.create(bind=bind, checkfirst=True)
-        _SQLITE_TABLES_READY = True
-
-
 def import_category_research_dataset(
     db: Session,
     *,
@@ -146,8 +124,7 @@ def import_category_research_dataset(
     upload_file: Any,
     created_by: str | None = None,
 ) -> CategoryResearchDataset:
-    ensure_tables(db)
-
+    
     normalized_marketplace = _normalize_marketplace(marketplace)
     normalized_keyword = _normalize_category_keyword(category_keyword_en)
     normalized_name_zh = _normalize_name_zh(category_name_zh)
@@ -228,8 +205,7 @@ def list_datasets(
     role_type: str | None = None,
     operator: str | None = None,
 ) -> list[CategoryResearchDataset]:
-    ensure_tables(db)
-
+    
     stmt: Select = select(CategoryResearchDataset).order_by(
         CategoryResearchDataset.data_date.desc(),
         CategoryResearchDataset.created_at.desc(),
@@ -248,7 +224,6 @@ def list_datasets(
 
 
 def recompute_dataset_from_history(db: Session, dataset_id: int) -> CategoryResearchDataset:
-    ensure_tables(db)
     dataset = db.get(CategoryResearchDataset, dataset_id)
     if dataset is None:
         raise ValueError('Dataset not found')
@@ -266,8 +241,7 @@ def recompute_datasets_from_history(
     category_keyword_en: str | None = None,
     include_history: bool = True,
 ) -> dict[str, Any]:
-    ensure_tables(db)
-
+    
     stmt: Select = select(CategoryResearchDataset).order_by(
         CategoryResearchDataset.data_date.desc(),
         CategoryResearchDataset.created_at.desc(),
@@ -300,7 +274,6 @@ def upsert_manual_dimensions(
     dataset_id: int,
     items: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    ensure_tables(db)
     if db.get(CategoryResearchDataset, dataset_id) is None:
         raise ValueError('Dataset not found')
     if not items:
@@ -353,7 +326,6 @@ def effective_dimensions(row: CategoryResearchProductDetail) -> dict[str, str]:
 
 
 def get_dataset_or_none(db: Session, dataset_id: int) -> CategoryResearchDataset | None:
-    ensure_tables(db)
     return db.get(CategoryResearchDataset, dataset_id)
 
 
@@ -470,7 +442,6 @@ def get_dataset_overview(
     price_band_standard: str | None = None,
     price_band_breaks: str | None = None,
 ) -> dict[str, Any]:
-    ensure_tables(db)
     dataset = db.get(CategoryResearchDataset, dataset_id)
     if dataset is None:
         raise ValueError('Dataset not found')
@@ -650,7 +621,6 @@ def list_dataset_products(
     price_band_standard: str | None = None,
     price_band_breaks: str | None = None,
 ) -> tuple[list[CategoryResearchProductDetail], bool]:
-    ensure_tables(db)
     if db.get(CategoryResearchDataset, dataset_id) is None:
         raise ValueError('Dataset not found')
 
@@ -690,7 +660,6 @@ def list_dataset_trend_points(
     dataset_id: int,
     asin: str,
 ) -> list[CategoryResearchSalesTrend]:
-    ensure_tables(db)
     if db.get(CategoryResearchDataset, dataset_id) is None:
         raise ValueError('Dataset not found')
     normalized_asin = _normalize_asin(asin)
@@ -716,7 +685,6 @@ def get_dataset_market_trend_points(
     dataset_id: int,
     months: int = 24,
 ) -> list[dict[str, Any]]:
-    ensure_tables(db)
     if db.get(CategoryResearchDataset, dataset_id) is None:
         raise ValueError('Dataset not found')
     if months < 1:

@@ -13,17 +13,12 @@ settings = get_settings()
 database_url_lower = settings.database_url.lower()
 
 # 根据数据库类型设置连接参数
-if database_url_lower.startswith('sqlite'):
-    connect_args = {'check_same_thread': False}
-else:
-    # PostgreSQL 连接参数
-    connect_args = {
-        'connect_timeout': 60,
-        'options': '-c statement_timeout=120s',
-    }
-    # 仅在明确要求 SSL 或使用 Supabase 域名时启用 SSL。
-    if 'sslmode=require' in database_url_lower or 'supabase.co' in database_url_lower:
-        connect_args['sslmode'] = 'require'
+connect_args = {
+    'connect_timeout': 60,
+    'options': '-c statement_timeout=120s',
+}
+if 'sslmode=require' in database_url_lower or 'supabase.co' in database_url_lower:
+    connect_args['sslmode'] = 'require'
 
 engine = create_engine(
     settings.database_url,

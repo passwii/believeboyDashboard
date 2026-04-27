@@ -25,6 +25,7 @@ class PricingCalculationRun(Base):
 
     fob_product_cost_rmb: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     first_leg_cost_rmb: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    first_leg_unit_price_rmb_per_kg: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
     ddp_cost_rmb: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     ddp_cost_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
 

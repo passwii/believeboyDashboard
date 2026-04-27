@@ -4,7 +4,7 @@ from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
 import math
 
-from sqlalchemy import func, inspect, select, text
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import ExchangeRate, PricingCalculationRun, ShipmentSkuSummary
@@ -106,27 +106,6 @@ TIER_LABELS = {
 }
 
 
-def ensure_tables(db: Session) -> None:
-    bind = db.get_bind()
-    if bind.dialect.name != "sqlite":
-        return
-    PricingCalculationRun.__table__.create(bind=bind, checkfirst=True)
-    inspector = inspect(bind)
-    columns = {
-        column["name"] for column in inspector.get_columns("pricing_calculation_runs")
-    }
-    if "calculation_type" not in columns:
-        bind.execute(
-            text(
-                "ALTER TABLE pricing_calculation_runs ADD COLUMN calculation_type VARCHAR(32) NOT NULL DEFAULT 'profit_calc'"
-            )
-        )
-    if "country" not in columns:
-        bind.execute(
-            text(
-                "ALTER TABLE pricing_calculation_runs ADD COLUMN country VARCHAR(10) NOT NULL DEFAULT 'US'"
-            )
-        )
 
 
 def create_pricing_run(
@@ -135,7 +114,6 @@ def create_pricing_run(
     *,
     operator: str | None = None,
 ) -> PricingCalculationRun:
-    ensure_tables(db)
     computed = _compute_pricing(payload, db)
     row = PricingCalculationRun(
         product_name=payload.product_name.strip(),
@@ -146,6 +124,9 @@ def create_pricing_run(
         weight_kg=computed["inputs"]["weight_kg"],
         fob_product_cost_rmb=computed["inputs"]["fob_product_cost_rmb"],
         first_leg_cost_rmb=computed["inputs"]["first_leg_cost_rmb"],
+        first_leg_unit_price_rmb_per_kg=_money(payload.first_leg_unit_price_rmb)
+        if payload.first_leg_unit_price_rmb is not None
+        else None,
         ddp_cost_rmb=computed["profit_decimal"]["ddp_cost_rmb"],
         ddp_cost_usd=computed["profit_decimal"]["ddp_cost_usd"],
         sale_price_usd=computed["inputs"]["sale_price_usd"],
@@ -207,7 +188,6 @@ def create_pricing_reverse_run(
     *,
     operator: str | None = None,
 ) -> PricingCalculationRun:
-    ensure_tables(db)
     resolved_sale_price_usd = _solve_sale_price_for_profit_rate(payload, db)
     create_payload = PricingCalculationCreateRequest(
         country=payload.country,
@@ -218,6 +198,7 @@ def create_pricing_reverse_run(
         weight_kg=payload.weight_kg,
         fob_product_cost_rmb=payload.fob_product_cost_rmb,
         first_leg_cost_rmb=payload.first_leg_cost_rmb,
+        first_leg_unit_price_rmb=payload.first_leg_unit_price_rmb,
         project_id=payload.project_id,
         sku=payload.sku,
         use_historical_shipping_cost=payload.use_historical_shipping_cost,
@@ -242,7 +223,6 @@ def create_pricing_cost_reverse_run(
     *,
     operator: str | None = None,
 ) -> PricingCalculationRun:
-    ensure_tables(db)
     resolved_fob_cost_rmb = _solve_fob_cost_for_profit_rate(payload, db)
     create_payload = PricingCalculationCreateRequest(
         country=payload.country,
@@ -253,6 +233,7 @@ def create_pricing_cost_reverse_run(
         weight_kg=payload.weight_kg,
         fob_product_cost_rmb=float(resolved_fob_cost_rmb),
         first_leg_cost_rmb=payload.first_leg_cost_rmb,
+        first_leg_unit_price_rmb=payload.first_leg_unit_price_rmb,
         project_id=payload.project_id,
         sku=payload.sku,
         use_historical_shipping_cost=payload.use_historical_shipping_cost,
@@ -277,7 +258,6 @@ def create_pricing_fbm_run(
     *,
     operator: str | None = None,
 ) -> PricingCalculationRun:
-    ensure_tables(db)
     computed = _compute_fbm_pricing(payload, db)
     row = PricingCalculationRun(
         product_name=payload.product_name.strip(),
@@ -353,7 +333,6 @@ def create_pricing_eu_run(
     operator: str | None = None,
 ) -> PricingCalculationRun:
     """欧洲（德国/英国）店铺 SKU 核算，使用手动费用和 VAT 计算"""
-    ensure_tables(db)
     computed = _compute_eu_pricing(payload, db)
     row = PricingCalculationRun(
         product_name=payload.product_name.strip(),
@@ -364,6 +343,9 @@ def create_pricing_eu_run(
         weight_kg=computed["inputs"]["weight_kg"],
         fob_product_cost_rmb=computed["inputs"]["fob_product_cost_rmb"],
         first_leg_cost_rmb=computed["inputs"]["first_leg_cost_rmb"],
+        first_leg_unit_price_rmb_per_kg=_money(payload.first_leg_unit_price_rmb)
+        if payload.first_leg_unit_price_rmb is not None
+        else None,
         ddp_cost_rmb=computed["profit_decimal"]["ddp_cost_rmb"],
         ddp_cost_usd=computed["profit_decimal"]["ddp_cost_usd"],
         sale_price_usd=computed["inputs"]["sale_price_usd"],
@@ -429,7 +411,6 @@ def list_pricing_runs(
     operator: str | None = None,
     is_admin: bool = False,
 ) -> tuple[list[PricingCalculationRun], int]:
-    ensure_tables(db)
     safe_page = max(page, 1)
     safe_page_size = min(max(page_size, 1), 100)
     stmt = select(PricingCalculationRun)
@@ -480,7 +461,6 @@ def can_access_pricing_run(
 def delete_pricing_run(
     db: Session, run_id: int, *, operator: str | None = None, is_admin: bool = False
 ) -> bool:
-    ensure_tables(db)
     row = db.get(PricingCalculationRun, run_id)
     if row is None:
         return False
@@ -514,6 +494,9 @@ def serialize_pricing_run(row: PricingCalculationRun) -> dict[str, object]:
         "weight_kg": float(row.weight_kg),
         "fob_product_cost_rmb": float(row.fob_product_cost_rmb),
         "first_leg_cost_rmb": float(row.first_leg_cost_rmb),
+        "first_leg_unit_price_rmb_per_kg": float(row.first_leg_unit_price_rmb_per_kg)
+        if row.first_leg_unit_price_rmb_per_kg is not None
+        else None,
         "sale_price_usd": float(row.sale_price_usd),
         "commission_rate": float(row.commission_rate),
         "advertising_rate": float(row.advertising_rate),

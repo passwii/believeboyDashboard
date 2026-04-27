@@ -20,7 +20,7 @@ class StoreSkuPricingSnapshot(Base):
     __tablename__ = 'store_sku_pricing_snapshots'
 
     id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, 'sqlite'),
+        BigInteger(),
         primary_key=True,
         autoincrement=True,
     )

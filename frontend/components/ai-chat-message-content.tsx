@@ -105,7 +105,7 @@ function CodeBlock({ language, code }: CodeBlockProps) {
           <iframe
             srcDoc={code}
             sandbox="allow-scripts"
-            className="w-full min-h-[200px] border border-border/60 rounded-lg bg-white"
+            className="w-full min-h-[200px] border border-border/60 rounded-lg bg-white dark:bg-[hsl(var(--surface-base))]"
             title="HTML Preview"
           />
         </div>

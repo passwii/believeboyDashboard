@@ -87,12 +87,12 @@ class AnalysisSourceFile(Base):
     )
 
     id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, 'sqlite'),
+        BigInteger(),
         primary_key=True,
         autoincrement=True,
     )
     project_id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, 'sqlite'),
+        BigInteger(),
         ForeignKey('projects.id', ondelete='CASCADE'),
         nullable=False,
     )
@@ -164,12 +164,12 @@ class AnalysisBusinessRow(Base):
     )
 
     id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, 'sqlite'),
+        BigInteger(),
         primary_key=True,
         autoincrement=True,
     )
     source_file_id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, 'sqlite'),
+        BigInteger(),
         ForeignKey('analysis_source_files.id', ondelete='CASCADE'),
         nullable=False,
     )
@@ -201,12 +201,12 @@ class AnalysisPaymentRow(Base):
     )
 
     id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, 'sqlite'),
+        BigInteger(),
         primary_key=True,
         autoincrement=True,
     )
     source_file_id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, 'sqlite'),
+        BigInteger(),
         ForeignKey('analysis_source_files.id', ondelete='CASCADE'),
         nullable=False,
     )
@@ -246,12 +246,12 @@ class AnalysisAdProductRow(Base):
     )
 
     id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, 'sqlite'),
+        BigInteger(),
         primary_key=True,
         autoincrement=True,
     )
     source_file_id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, 'sqlite'),
+        BigInteger(),
         ForeignKey('analysis_source_files.id', ondelete='CASCADE'),
         nullable=False,
     )
@@ -284,12 +284,12 @@ class InventorySnapshotRow(Base):
     )
 
     id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, 'sqlite'),
+        BigInteger(),
         primary_key=True,
         autoincrement=True,
     )
     source_file_id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, 'sqlite'),
+        BigInteger(),
         ForeignKey('analysis_source_files.id', ondelete='CASCADE'),
         nullable=False,
     )
@@ -322,12 +322,12 @@ class AnalysisReturnRow(Base):
     )
 
     id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, 'sqlite'),
+        BigInteger(),
         primary_key=True,
         autoincrement=True,
     )
     source_file_id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, 'sqlite'),
+        BigInteger(),
         ForeignKey('analysis_source_files.id', ondelete='CASCADE'),
         nullable=False,
     )
@@ -364,12 +364,12 @@ class AnalysisSalesOrderRow(Base):
     )
 
     id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, 'sqlite'),
+        BigInteger(),
         primary_key=True,
         autoincrement=True,
     )
     source_file_id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, 'sqlite'),
+        BigInteger(),
         ForeignKey('analysis_source_files.id', ondelete='CASCADE'),
         nullable=False,
     )
@@ -410,12 +410,12 @@ class AnalysisPT1Calculation(Base):
     )
 
     id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, 'sqlite'),
+        BigInteger(),
         primary_key=True,
         autoincrement=True,
     )
     project_id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, 'sqlite'),
+        BigInteger(),
         ForeignKey('projects.id', ondelete='CASCADE'),
         nullable=False,
     )
@@ -456,12 +456,12 @@ class AnalysisPTSKUDetail(Base):
     )
 
     id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, 'sqlite'),
+        BigInteger(),
         primary_key=True,
         autoincrement=True,
     )
     pt1_calculation_id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, 'sqlite'),
+        BigInteger(),
         ForeignKey('analysis_pt1_calculation.id', ondelete='CASCADE'),
         nullable=False,
     )

@@ -126,10 +126,12 @@ def _detect_country_from_sales_channel(df: pd.DataFrame) -> str | None:
     if not col_candidates:
         return None
     val = str(df[col_candidates[0]].dropna().iloc[0]).strip().lower()
-    if "amazon.de" in val or "amazon.de" in val:
+    if "amazon.de" in val:
         return "DE"
-    if "amazon.com" in val or "amazon.co.uk" in val or "amazon.co.uk" in val:
+    if "amazon.com" in val:
         return "US"
+    if "amazon.co.uk" in val:
+        return "UK"  # 🔶 Reserved for UK站点
     return None
 
 
@@ -144,24 +146,46 @@ def _detect_country_from_currency(df: pd.DataFrame) -> str | None:
     if val in {"EUR", "EURO"}:
         return "DE"
     if val in {"GBP", "UK"}:
-        return "UK"
+        return "UK"  # 🔶 Reserved
+    return None
+
+
+def _detect_country_from_marketplace(df: pd.DataFrame) -> str | None:
+    """Detect country from marketplace column. DE→DE, UK/GB→UK."""
+    col_candidates = [c for c in df.columns if "marketplace" in c.lower()]
+    if not col_candidates:
+        return None
+    val = str(df[col_candidates[0]].dropna().iloc[0]).strip().upper()
+    if val in {"DE", "GERMANY"}:
+        return "DE"
+    if val in {"UK", "GB", "UNITED KINGDOM"}:
+        return "UK"  # 🔶 Reserved
+    return None
+
+
+def _detect_country_from_sales_amount_symbol(df: pd.DataFrame) -> str | None:
+    """Detect country from currency symbol in sales amount columns (业务报告). € → DE, £ → UK."""
+    sales_col_candidates = [
+        c for c in df.columns
+        if "销售额" in c or "sales" in c.lower()
+    ]
+    for col in sales_col_candidates:
+        sample = (
+            str(df[col].dropna().iloc[0])
+            if not df[col].dropna().empty
+            else ""
+        )
+        if "€" in sample:
+            return "DE"
+        if "£" in sample:
+            return "UK"  # 🔶 Reserved
     return None
 
 
 def _normalize_country(value: object) -> str:
-    text = str(value or "").strip().upper()
-    if text in {"US", "USA", "美国", "美国站"}:
-        return "US"
-    if text in {"DE", "GERMANY", "德国", "德国站"}:
-        return "DE"
-    if text in {"UK", "GB", "UNITED KINGDOM", "英国", "英国站"}:
-        return "UK"
-    if not text:
-        return "US"
-    raise HTTPException(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        detail="country must be one of: US, DE, UK",
-    )
+    """Wrapper that accepts object (e.g. pandas scalars) and delegates to the shared utility."""
+    from app.utils.country import _normalize_country as _normalize
+    return _normalize(str(value) if value is not None else None)
 
 
 def _date_to_string(value: object) -> str | None:
@@ -289,9 +313,11 @@ def _recognize_inventory_report(
     )
     warnings_list: list[str] = []
     detected_country = _detect_country_from_currency(df)
+    if not detected_country:
+        detected_country = _detect_country_from_marketplace(df)
     if detected_country and detected_country != country:
         warnings_list.append(
-            f"文件内 currency 为 {detected_country}，当前按所选站点 {country} 处理"
+            f"文件内 currency/marketplace 为 {detected_country}，当前按所选站点 {country} 处理"
         )
     return RecognitionPayload(
         report_type="inventory_report",
@@ -353,6 +379,14 @@ def _recognize_business_report(
     warnings_list: list[str] = []
     if detected_date:
         warnings_list.append(f"从文件名识别日期：{detected_date}")
+
+    # Detect country from sales amount currency symbol (€ for DE, £ for UK)
+    detected_country = _detect_country_from_sales_amount_symbol(df)
+    if detected_country and detected_country != country:
+        warnings_list.append(
+            f"文件内销售额符号检测为 {detected_country}，当前按所选站点 {country} 处理"
+        )
+
     return RecognitionPayload(
         report_type="business_report",
         matched_columns=[asin_column],
@@ -362,6 +396,7 @@ def _recognize_business_report(
         project_match=project_match,
         row_count_preview=len(df.index),
         warnings=warnings_list,
+        country=detected_country or country,
     )
 
 

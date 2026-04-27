@@ -1,30 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from app.utils.country import COUNTRY_ALIASES, SUPPORTED_COUNTRIES
 from pathlib import Path
 from typing import Any
 import csv
 import io
 
 import pandas as pd
-
-SUPPORTED_COUNTRIES = {'US', 'DE', 'UK'}
-
-COUNTRY_ALIASES = {
-    'US': 'US',
-    'USA': 'US',
-    '美国': 'US',
-    '美国站': 'US',
-    'DE': 'DE',
-    'GERMANY': 'DE',
-    '德国': 'DE',
-    '德国站': 'DE',
-    'UK': 'UK',
-    'GB': 'UK',
-    'UNITED KINGDOM': 'UK',
-    '英国': 'UK',
-    '英国站': 'UK',
-}
 
 PAYMENT_LOCALE_BY_COUNTRY = {
     'US': 'en',
@@ -113,13 +96,11 @@ PAYMENT_TYPE_ALIASES = {
 
 
 def normalize_country(value: str | None, *, default: str = 'US') -> str:
-    normalized = (value or '').strip().upper()
-    if not normalized:
+    """Public wrapper: accepts an optional default, delegates to shared utility."""
+    from app.utils.country import _normalize_country as _nc
+    if value is None or (isinstance(value, str) and not value.strip()):
         return default
-    mapped = COUNTRY_ALIASES.get(normalized, normalized)
-    if mapped not in SUPPORTED_COUNTRIES:
-        raise ValueError('country must be one of: US, DE, UK')
-    return mapped
+    return _nc(value)
 
 
 def _normalize_payment_token(value: str) -> str:

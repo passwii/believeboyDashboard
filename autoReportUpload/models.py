@@ -46,7 +46,7 @@ class Project(Base):
     )
 
     id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, "sqlite"),
+        BigInteger(),
         primary_key=True,
         autoincrement=True,
     )
@@ -89,7 +89,7 @@ class ProductCost(Base):
     )
 
     id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, "sqlite"),
+        BigInteger(),
         primary_key=True,
         autoincrement=True,
     )
@@ -176,12 +176,12 @@ class AnalysisSourceFile(Base):
     )
 
     id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, "sqlite"),
+        BigInteger(),
         primary_key=True,
         autoincrement=True,
     )
     project_id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, "sqlite"),
+        BigInteger(),
         ForeignKey("projects.id", ondelete="CASCADE"),
         nullable=False,
     )
@@ -230,12 +230,12 @@ class AnalysisBusinessRow(Base):
     )
 
     id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, "sqlite"),
+        BigInteger(),
         primary_key=True,
         autoincrement=True,
     )
     source_file_id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, "sqlite"),
+        BigInteger(),
         ForeignKey("analysis_source_files.id", ondelete="CASCADE"),
         nullable=False,
     )
@@ -264,12 +264,12 @@ class AnalysisPaymentRow(Base):
     )
 
     id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, "sqlite"),
+        BigInteger(),
         primary_key=True,
         autoincrement=True,
     )
     source_file_id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, "sqlite"),
+        BigInteger(),
         ForeignKey("analysis_source_files.id", ondelete="CASCADE"),
         nullable=False,
     )
@@ -312,12 +312,12 @@ class AnalysisAdProductRow(Base):
     )
 
     id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, "sqlite"),
+        BigInteger(),
         primary_key=True,
         autoincrement=True,
     )
     source_file_id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, "sqlite"),
+        BigInteger(),
         ForeignKey("analysis_source_files.id", ondelete="CASCADE"),
         nullable=False,
     )
@@ -358,12 +358,12 @@ class InventorySnapshotRow(Base):
     )
 
     id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, "sqlite"),
+        BigInteger(),
         primary_key=True,
         autoincrement=True,
     )
     source_file_id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, "sqlite"),
+        BigInteger(),
         ForeignKey("analysis_source_files.id", ondelete="CASCADE"),
         nullable=False,
     )
@@ -397,12 +397,12 @@ class ReportUploadLog(Base):
     )
 
     id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, "sqlite"),
+        BigInteger(),
         primary_key=True,
         autoincrement=True,
     )
     project_id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, "sqlite"),
+        BigInteger(),
         ForeignKey("projects.id", ondelete="CASCADE"),
         nullable=False,
     )
@@ -412,7 +412,7 @@ class ReportUploadLog(Base):
     has_real_data: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     row_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     source_file_id: Mapped[int | None] = mapped_column(
-        BigInteger().with_variant(Integer, "sqlite"),
+        BigInteger(),
         ForeignKey("analysis_source_files.id", ondelete="SET NULL"),
         nullable=True,
     )
@@ -429,12 +429,12 @@ class ReturnCustomerComment(Base):
     )
 
     id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, "sqlite"),
+        BigInteger(),
         primary_key=True,
         autoincrement=True,
     )
     return_record_id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, "sqlite"),
+        BigInteger(),
         ForeignKey("return_analysis_records.id", ondelete="CASCADE"),
         nullable=False,
     )
@@ -457,12 +457,12 @@ class AnalysisReturnRow(Base):
     )
 
     id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, "sqlite"),
+        BigInteger(),
         primary_key=True,
         autoincrement=True,
     )
     source_file_id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, "sqlite"),
+        BigInteger(),
         ForeignKey("analysis_source_files.id", ondelete="CASCADE"),
         nullable=False,
     )
@@ -507,12 +507,12 @@ class AnalysisSalesOrderRow(Base):
     )
 
     id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, "sqlite"),
+        BigInteger(),
         primary_key=True,
         autoincrement=True,
     )
     source_file_id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, "sqlite"),
+        BigInteger(),
         ForeignKey("analysis_source_files.id", ondelete="CASCADE"),
         nullable=False,
     )

@@ -25,12 +25,12 @@ class ReportUploadStatus(Base):
     )
 
     id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, 'sqlite'),
+        BigInteger(),
         primary_key=True,
         autoincrement=True,
     )
     project_id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, 'sqlite'),
+        BigInteger(),
         ForeignKey('projects.id', ondelete='CASCADE'),
         nullable=False,
     )

@@ -9,23 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import AnalysisSourceFile, InventorySnapshotRow, ProductCost, Project
-
-COUNTRY_ALIASES = {
-    "US": "US",
-    "USA": "US",
-    "美国": "US",
-    "美国站": "US",
-    "DE": "DE",
-    "GERMANY": "DE",
-    "德国": "DE",
-    "德国站": "DE",
-    "UK": "UK",
-    "GB": "UK",
-    "UNITED KINGDOM": "UK",
-    "英国": "UK",
-    "英国站": "UK",
-}
-ALLOWED_COUNTRIES = {"US", "DE", "UK"}
+from app.utils.country import _normalize_country
 
 
 @dataclass
@@ -47,19 +31,6 @@ class _BaseSkuRow:
     asin: str | None
     country: str
 
-
-def _normalize_country(value: str | None) -> str:
-    normalized = (value or "").strip().upper()
-    if not normalized:
-        return "US"
-    mapped = COUNTRY_ALIASES.get(normalized, normalized)
-    if mapped not in ALLOWED_COUNTRIES:
-        allowed = ", ".join(sorted(ALLOWED_COUNTRIES))
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"country must be one of: {allowed}",
-        )
-    return mapped
 
 
 def _normalize_text(value: str | None) -> str | None:

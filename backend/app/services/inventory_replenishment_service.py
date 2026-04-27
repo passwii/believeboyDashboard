@@ -20,22 +20,7 @@ from app.models import (
     ShipmentScheduleItem,
 )
 
-COUNTRY_ALIASES = {
-    "US": "US",
-    "USA": "US",
-    "美国": "US",
-    "美国站": "US",
-    "DE": "DE",
-    "GERMANY": "DE",
-    "德国": "DE",
-    "德国站": "DE",
-    "UK": "UK",
-    "GB": "UK",
-    "UNITED KINGDOM": "UK",
-    "英国": "UK",
-    "英国站": "UK",
-}
-ALLOWED_COUNTRIES = {"US", "DE", "UK"}
+from app.utils.country import _normalize_country
 
 DEFAULT_PRODUCTION_LEAD_DAYS = 20
 DEFAULT_SHIPPING_DAYS = 25
@@ -73,19 +58,6 @@ def _normalize_text(value: str | None, *, max_length: int | None = None) -> str 
 def _normalize_identity(value: str | None) -> str:
     return (value or "").strip().lower()
 
-
-def _normalize_country(value: str | None) -> str:
-    normalized = (value or "").strip().upper()
-    if not normalized:
-        return "US"
-    mapped = COUNTRY_ALIASES.get(normalized, normalized)
-    if mapped not in ALLOWED_COUNTRIES:
-        allowed = ", ".join(sorted(ALLOWED_COUNTRIES))
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"country must be one of: {allowed}",
-        )
-    return mapped
 
 
 def _decimal_to_float(value: Decimal | None, digits: int = 4) -> float | None:

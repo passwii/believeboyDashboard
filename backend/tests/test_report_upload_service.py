@@ -249,7 +249,7 @@ def test_list_report_upload_statuses_filters_by_report_date():
                     project_id=project.id,
                     report_type="payment_report",
                     country="US",
-                    report_date=date(2026, 3, 17),
+                    report_date=None,  # None = period-based report
                     period_start_date=date(2026, 3, 16),
                     period_end_date=date(2026, 3, 20),
                     version=1,
@@ -277,8 +277,8 @@ def test_list_report_upload_statuses_filters_by_report_date():
     assert row.statuses["sales_report"].status == "missing"
     assert row.statuses["payment_report"].status == "available"
     assert row.statuses["payment_report"].display_date == "2026-03-18"
-    assert row.statuses["payment_report"].report_start_date == "2026-03-17"
-    assert row.statuses["payment_report"].report_end_date == "2026-03-17"
+    assert row.statuses["payment_report"].report_start_date == "2026-03-16"  # period_start_date
+    assert row.statuses["payment_report"].report_end_date == "2026-03-20"  # period_end_date
     assert row.statuses["payment_report"].message == "历史周期数据已入库"
 
 
@@ -668,3 +668,362 @@ def test_commit_report_upload_persists_search_term_country(tmp_path: Path):
         )
 
     assert [row.country for row in rows] == ["DE", "UK", "US"]
+
+
+def test_recognize_business_report_detects_date(tmp_path: Path):
+    """业务报表识别：应该检测到报表日期"""
+    engine = create_engine("sqlite:///:memory:", future=True)
+    Base.metadata.create_all(bind=engine)
+
+    # 业务报表需要逗号分隔，并包含 ASIN 相关列
+    business = tmp_path / "business.csv"
+    business.write_text(
+        "sku,asin,（子）ASIN,session,ordered-session\n"
+        "SKU1,ASIN1,CHILD-ASIN1,100,80\n",
+        encoding="utf-8",
+    )
+
+    with Session(engine) as db:
+        db.add(Project(project_name="Demo", sort_order=1, source_file="seed.csv"))
+        db.add(
+            ProductCost(
+                project_name="Demo",
+                sku="SKU1",
+                asin="CHILD-ASIN1",
+                country="US",
+                fob_unit_cost=1,
+                currency="USD",
+                source_file="seed.csv",
+            )
+        )
+        db.commit()
+
+        payload = report_upload_service._recognize_business_report(
+            db, business, allowed_projects={"Demo"}
+        )  # noqa: SLF001
+
+    # 业务报表应该检测文件名中的日期
+    assert payload.report_type == "business_report"
+    assert payload.project_match.status == "matched"
+    assert payload.project_match.project_name == "Demo"
+
+
+def test_recognize_ad_product_report(tmp_path: Path):
+    """广告产品报表识别"""
+    import pandas as pd
+
+    engine = create_engine("sqlite:///:memory:", future=True)
+    Base.metadata.create_all(bind=engine)
+
+    ad_product = tmp_path / "ad-product.xlsx"
+    df = pd.DataFrame({
+        "开始日期": ["2026-03-01"],
+        "结束日期": ["2026-03-15"],
+        "广告SKU": ["SKU1"],
+        "广告ASIN": ["ASIN1"],
+    })
+    df.to_excel(ad_product, index=False, engine="openpyxl")
+
+    with Session(engine) as db:
+        db.add(Project(project_name="Demo", sort_order=1, source_file="seed.csv"))
+        db.add(
+            ProductCost(
+                project_name="Demo",
+                sku="SKU1",
+                asin="ASIN1",
+                country="US",
+                fob_unit_cost=1,
+                currency="USD",
+                source_file="seed.csv",
+            )
+        )
+        db.commit()
+
+        payload = report_upload_service._recognize_ad_product_report(
+            db, ad_product, allowed_projects={"Demo"}
+        )  # noqa: SLF001
+
+    assert payload.report_type == "ad_product_report"
+    assert payload.project_match.status == "matched"
+
+
+def test_recognize_ad_search_term_report(tmp_path: Path):
+    """搜索词报表识别"""
+    import pandas as pd
+
+    search_term = tmp_path / "search-term.xlsx"
+    df = pd.DataFrame({
+        "开始日期": ["2026-03-01"],
+        "结束日期": ["2026-03-15"],
+        "搜索词": ["keyword1"],
+    })
+    df.to_excel(search_term, index=False, engine="openpyxl")
+
+    payload = report_upload_service._recognize_ad_search_term_report(
+        search_term, country="US"
+    )
+
+    assert payload.report_type == "ad_search_term_report"
+    # 搜索词报表不需要项目匹配，由用户手动选择
+    assert payload.project_match.status == "manual"
+
+
+def test_recognize_return_report(tmp_path: Path):
+    """退货报表识别"""
+    engine = create_engine("sqlite:///:memory:", future=True)
+    Base.metadata.create_all(bind=engine)
+
+    returns = tmp_path / "returns.txt"
+    returns.write_text(
+        "order-id\tsku\treturn-date\n"
+        "123-456\tSKU1\t2026-03-15\n",
+        encoding="utf-8",
+    )
+
+    with Session(engine) as db:
+        db.add(Project(project_name="Demo", sort_order=1, source_file="seed.csv"))
+        db.add(
+            ProductCost(
+                project_name="Demo",
+                sku="SKU1",
+                asin="ASIN1",
+                country="US",
+                fob_unit_cost=1,
+                currency="USD",
+                source_file="seed.csv",
+            )
+        )
+        db.commit()
+
+        payload = report_upload_service._recognize_return_report(
+            db, returns, allowed_projects={"Demo"}
+        )  # noqa: SLF001
+
+    assert payload.report_type == "return_report"
+    assert payload.project_match.status == "matched"
+
+
+def test_recognize_inventory_report_no_matching_project(tmp_path: Path):
+    """无匹配项目时的识别行为"""
+    engine = create_engine("sqlite:///:memory:", future=True)
+    Base.metadata.create_all(bind=engine)
+
+    inventory = tmp_path / "inventory.txt"
+    inventory.write_text(
+        "snapshot-date\tsku\tasin\tavailable\n2026-03-18\tUNKNOWN-SKU\tUNKNOWN-ASIN\t10\n",
+        encoding="utf-8",
+    )
+
+    with Session(engine) as db:
+        db.add(Project(project_name="Demo", sort_order=1, source_file="seed.csv"))
+        db.add(
+            ProductCost(
+                project_name="Demo",
+                sku="SKU1",
+                asin="ASIN1",
+                country="US",
+                fob_unit_cost=1,
+                currency="USD",
+                source_file="seed.csv",
+            )
+        )
+        db.commit()
+
+        payload = report_upload_service._recognize_inventory_report(
+            db, inventory, allowed_projects={"Demo"}
+        )  # noqa: SLF001
+
+    # SKU 不匹配时，项目匹配状态应该是 unmatched
+    assert payload.project_match.status == "unmatched"
+    assert payload.project_match.project_name is None
+
+
+def test_list_report_upload_statuses_excludes_inactive_products():
+    """未激活的产品应该被过滤"""
+    engine = create_engine("sqlite:///:memory:", future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        active_project = Project(project_name="活跃项目", sort_order=1, source_file="seed.csv")
+        inactive_project = Project(project_name="非活跃项目", sort_order=2, source_file="seed.csv")
+        db.add_all([active_project, inactive_project])
+        db.flush()
+
+        db.add_all(
+            [
+                # 活跃产品的 SKU
+                ProductCost(
+                    project_name="活跃项目",
+                    sku="ACTIVE-SKU",
+                    asin="ACTIVE-ASIN",
+                    country="US",
+                    fob_unit_cost=1,
+                    currency="USD",
+                    is_active=True,
+                    source_file="seed.csv",
+                ),
+                # 非活跃产品的 SKU
+                ProductCost(
+                    project_name="非活跃项目",
+                    sku="INACTIVE-SKU",
+                    asin="INACTIVE-ASIN",
+                    country="US",
+                    fob_unit_cost=1,
+                    currency="USD",
+                    is_active=False,  # 非活跃
+                    source_file="seed.csv",
+                ),
+            ]
+        )
+        db.add(
+            AnalysisSourceFile(
+                project_id=inactive_project.id,
+                report_type="business_report",
+                country="US",
+                report_date=date(2026, 3, 18),
+                period_start_date=date(2026, 3, 18),
+                period_end_date=date(2026, 3, 18),
+                version=1,
+                is_current=True,
+                upload_file_id="inactive-business.csv",
+                upload_file_path="/tmp/inactive-business.csv",
+                stored_filename="inactive-business.csv",
+                logical_filename="inactive-business.csv",
+                storage_key="inactive-business.csv",
+                original_filename="inactive-business.csv",
+                ingestion_status="success",
+            )
+        )
+        db.commit()
+
+        payload = report_upload_service.list_report_upload_statuses(
+            db, report_date="2026-03-18", country="US"
+        )
+
+    # 应该只有活跃项目，没有非活跃项目
+    project_names = [item.project_name for item in payload.items]
+    assert "活跃项目" in project_names
+
+
+def test_list_report_upload_statuses_empty_when_no_active_sku():
+    """没有活跃 SKU 时，返回空列表"""
+    engine = create_engine("sqlite:///:memory:", future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        project = Project(project_name="Demo", sort_order=1, source_file="seed.csv")
+        db.add(project)
+        db.flush()
+
+        # 添加非活跃 SKU
+        db.add(
+            ProductCost(
+                project_name="Demo",
+                sku="SKU1",
+                asin="ASIN1",
+                country="US",
+                fob_unit_cost=1,
+                currency="USD",
+                is_active=False,  # 非活跃
+                source_file="seed.csv",
+            )
+        )
+        db.add(
+            AnalysisSourceFile(
+                project_id=project.id,
+                report_type="business_report",
+                country="US",
+                report_date=date(2026, 3, 18),
+                period_start_date=date(2026, 3, 18),
+                period_end_date=date(2026, 3, 18),
+                version=1,
+                is_current=True,
+                upload_file_id="business.csv",
+                upload_file_path="/tmp/business.csv",
+                stored_filename="business.csv",
+                logical_filename="business.csv",
+                storage_key="business.csv",
+                original_filename="business.csv",
+                ingestion_status="success",
+            )
+        )
+        db.commit()
+
+        payload = report_upload_service.list_report_upload_statuses(
+            db, report_date="2026-03-18", country="US"
+        )
+
+    # 没有活跃 SKU，项目应该被过滤掉
+    assert len(payload.items) == 0
+
+
+def test_normalize_country_handles_various_inputs():
+    """测试国家代码标准化"""
+    from app.services.report_upload_service import _normalize_country
+
+    assert _normalize_country("us") == "US"
+    assert _normalize_country("US") == "US"
+    assert _normalize_country("Us") == "US"
+    assert _normalize_country("de") == "DE"
+    assert _normalize_country("DE") == "DE"
+    assert _normalize_country("uk") == "UK"
+    assert _normalize_country("UK") == "UK"
+
+
+def test_commit_report_upload_creates_analysis_source_file(tmp_path: Path):
+    """报表上传应该创建 analysis_source_files 记录"""
+    engine = create_engine("sqlite:///:memory:", future=True)
+    Base.metadata.create_all(bind=engine)
+    settings = Settings(
+        upload_root=tmp_path / "uploads", database_url="sqlite:///:memory:"
+    )
+
+    inventory = tmp_path / "inventory.txt"
+    inventory.write_text(
+        "snapshot-date\tsku\tasin\tavailable\n2026-03-18\tSKU1\tASIN1\t10\n",
+        encoding="utf-8",
+    )
+
+    with Session(engine) as db:
+        db.add(Project(project_name="Demo", sort_order=1, source_file="seed.csv"))
+        db.add(
+            ProductCost(
+                project_name="Demo",
+                sku="SKU1",
+                asin="ASIN1",
+                country="US",
+                fob_unit_cost=1,
+                currency="USD",
+                source_file="seed.csv",
+            )
+        )
+        db.commit()
+
+        temp_file_id = "temp-inventory.txt"
+        temp_dir = settings.upload_root / "_report_upload_tmp"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        (temp_dir / temp_file_id).write_text(inventory.read_text(encoding="utf-8"))
+
+        response = report_upload_service.commit_report_upload(
+            db,
+            settings,
+            payload=ReportCommitRequest(
+                temp_file_id=temp_file_id,
+                report_type="inventory_report",
+                original_filename="inventory.txt",
+                project_name="Demo",
+                report_date="2026-03-18",
+                country="US",
+            ),
+        )
+
+        assert response.persisted_table == "analysis_source_files"
+
+        # 验证数据库中已创建记录
+        rows = db.execute(
+            select(AnalysisSourceFile).where(
+                AnalysisSourceFile.report_type == "inventory_report"
+            )
+        ).scalars().all()
+        assert len(rows) == 1
+        assert rows[0].country == "US"

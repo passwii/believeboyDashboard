@@ -362,7 +362,7 @@ export default function ExchangeRatePage() {
     <div className="min-w-0 space-y-6 text-foreground">
       <DataCard className="overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
         <DataCardHeader
-          title="汇率信息管理"
+          title="汇率管理"
           action={
             isAdmin ? (
               <Button onClick={handleAdd}>

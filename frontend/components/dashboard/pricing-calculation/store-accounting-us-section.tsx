@@ -22,21 +22,7 @@ import {
   requestSaveStoreAccounting,
   type StoreAccountingPayload,
 } from '@/lib/pricing-calculation-api'
-
-type ExcelCell = import('exceljs').Cell
-
-function applyBorder(cell: ExcelCell, color = 'FFE2E8F0') {
-  cell.border = {
-    top: { style: 'thin', color: { argb: color } },
-    left: { style: 'thin', color: { argb: color } },
-    bottom: { style: 'thin', color: { argb: color } },
-    right: { style: 'thin', color: { argb: color } },
-  }
-}
-
-function applyHeaderBorder(cell: ExcelCell) {
-  applyBorder(cell, 'FFCBD5E1')
-}
+import { applyBorder, applyHeaderBorder } from '@/lib/excel-styles'
 
 const API_BASE = '/api/backend'
 

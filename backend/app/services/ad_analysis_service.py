@@ -21,6 +21,7 @@ from app.models import (
     AdUploadTargetRow,
 )
 import app.services.project_service as project_service
+from app.utils.country import _normalize_country
 
 DECIMAL_ZERO = Decimal('0')
 
@@ -28,20 +29,6 @@ DECIMAL_ZERO = Decimal('0')
 def _normalize_dimension(value: str | None) -> str | None:
     normalized = (value or '').strip().lower()
     return normalized or None
-
-
-def _normalize_country(value: str | None) -> str:
-    normalized = (value or '').strip().upper()
-    if normalized in {'', 'US', 'USA', '美国', '美国站'}:
-        return 'US'
-    if normalized in {'DE', 'GERMANY', '德国', '德国站'}:
-        return 'DE'
-    if normalized in {'UK', 'GB', 'UNITED KINGDOM', '英国', '英国站'}:
-        return 'UK'
-    raise HTTPException(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        detail='country must be one of: US, DE, UK',
-    )
 
 
 def _round_money(value: Decimal) -> float:

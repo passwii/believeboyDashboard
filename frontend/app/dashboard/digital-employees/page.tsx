@@ -49,7 +49,6 @@ export default function DigitalEmployeesPage() {
           </div>
           <div>
             <p className="text-sm font-medium text-muted-foreground">Operations · Digital Employees</p>
-            <h1 className="text-2xl font-semibold tracking-tight">数字员工</h1>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -85,7 +84,7 @@ export default function DigitalEmployeesPage() {
 
       {isLoading ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
+          {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="rounded-2xl border p-4 space-y-3">
               <div className="flex items-center gap-3">
                 <Skeleton className="h-14 w-14 rounded-2xl" />

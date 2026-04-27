@@ -18,29 +18,7 @@ from app.services import analysis_report_runtime_service, upload_service
 router = APIRouter(dependencies=[Depends(protected)])
 
 
-def _normalize_country(value: str | None) -> str:
-    normalized = (value or '').strip().upper()
-    if not normalized:
-        return 'US'
-    aliases = {
-        'US': 'US',
-        'USA': 'US',
-        '美国': 'US',
-        '美国站': 'US',
-        'DE': 'DE',
-        'GERMANY': 'DE',
-        '德国': 'DE',
-        '德国站': 'DE',
-        'UK': 'UK',
-        'GB': 'UK',
-        'UNITED KINGDOM': 'UK',
-        '英国': 'UK',
-        '英国站': 'UK',
-    }
-    mapped = aliases.get(normalized, normalized)
-    if mapped not in {'US', 'DE', 'UK'}:
-        raise HTTPException(status_code=400, detail='country must be one of: US, DE, UK')
-    return mapped
+from app.utils.country import _normalize_country_http as _normalize_country
 
 
 @router.post('/product-analysis-reports', response_model=ProductAnalysisReportResponse)

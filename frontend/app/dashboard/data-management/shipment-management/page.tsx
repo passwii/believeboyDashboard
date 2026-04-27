@@ -33,24 +33,10 @@ import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { cn, formatLocalTimestampForFilename } from '@/lib/utils'
 import { DENSE_CELL, DENSE_HEAD, DataTableCardStatBar } from '@/components/ui/data-card'
+import { applyBorder, applyHeaderBorder, applyRowBorder } from '@/lib/excel-styles'
 
 const API_BASE = '/api/backend'
 const HISTORY_SHIPMENT_STATUSES = ['completed', 'in_transit'] as const
-
-type ExcelCell = import('exceljs').Cell
-
-function applyBorder(cell: ExcelCell, color = 'FFE2E8F0') {
-  cell.border = {
-    top: { style: 'thin', color: { argb: color } },
-    left: { style: 'thin', color: { argb: color } },
-    bottom: { style: 'thin', color: { argb: color } },
-    right: { style: 'thin', color: { argb: color } },
-  }
-}
-
-function applyHeaderBorder(cell: ExcelCell) {
-  applyBorder(cell, 'FFCBD5E1')
-}
 
 type ProjectOption = {
   id: number
@@ -1752,10 +1738,10 @@ export default function ShipmentManagementPage() {
       totalRow.getCell(2).value = '当前页合计'
       totalRow.getCell(11).value = summary.totalSku
       totalRow.getCell(12).value = summary.totalQuantity
-      totalRow.eachCell((cell) => {
+      applyRowBorder(totalRow, 1, 15)
+      totalRow.eachCell({ includeEmpty: true }, (cell) => {
         cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
-        applyHeaderBorder(cell)
       })
       totalRow.getCell(11).numFmt = '#,##0'
       totalRow.getCell(12).numFmt = '#,##0'
@@ -1910,10 +1896,10 @@ export default function ShipmentManagementPage() {
       totalRow.getCell(7).value = totalWeight
       totalRow.getCell(8).value = totalVolume
       totalRow.getCell(11).value = totalLogisticsCost
-      totalRow.eachCell((cell) => {
+      applyRowBorder(totalRow, 1, 11)
+      totalRow.eachCell({ includeEmpty: true }, (cell) => {
         cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
-        applyHeaderBorder(cell)
       })
       totalRow.getCell(6).numFmt = '#,##0'
       totalRow.getCell(7).numFmt = '#,##0.000'
@@ -2051,10 +2037,10 @@ export default function ShipmentManagementPage() {
       totalRow.getCell(5).value = totalQuantity
       totalRow.getCell(6).value = totalChargeableWeight
       totalRow.getCell(7).value = totalLogisticsCost
-      totalRow.eachCell((cell) => {
+      applyRowBorder(totalRow, 1, 7)
+      totalRow.eachCell({ includeEmpty: true }, (cell) => {
         cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
-        applyHeaderBorder(cell)
       })
       totalRow.getCell(4).numFmt = '#,##0'
       totalRow.getCell(5).numFmt = '#,##0'
@@ -2201,10 +2187,10 @@ export default function ShipmentManagementPage() {
       totalRow.getCell(19).value = fbaBoxSummary.totalQuantity
       totalRow.getCell(20).value = fbaBoxSummary.totalVolumeM3
       totalRow.getCell(21).value = fbaBoxSummary.totalWeightKg
-      totalRow.eachCell((cell) => {
+      applyRowBorder(totalRow, 1, 21)
+      totalRow.eachCell({ includeEmpty: true }, (cell) => {
         cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
-        applyHeaderBorder(cell)
       })
       totalRow.getCell(20).numFmt = '#,##0.0000'
       totalRow.getCell(21).numFmt = '#,##0.000'

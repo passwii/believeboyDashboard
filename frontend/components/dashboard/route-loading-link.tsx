@@ -1,9 +1,10 @@
 'use client'
 
+import { type MouseEvent, useCallback, useEffect, useRef } from 'react'
 import Link, { type LinkProps } from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { type MouseEvent, useCallback, useEffect, useRef } from 'react'
 import { useGlobalLoading } from '@/components/global-loading-provider'
+import { useSidebar } from '@/components/ui/sidebar'
 
 const NAVIGATION_LOADING_WATCHDOG_MS = 30000
 const IDLE_PREFETCH_DELAY_MS = 120
@@ -39,6 +40,7 @@ export function RouteLoadingLink({
   const pathname = usePathname()
   const router = useRouter()
   const { startGlobalLoading, endGlobalLoading } = useGlobalLoading()
+  const { setOpenMobile, isMobile } = useSidebar()
   const pendingRef = useRef(false)
   const watchdogTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prefetchedRef = useRef(false)
@@ -136,6 +138,9 @@ export function RouteLoadingLink({
         if (hrefString === pathname || hrefString.startsWith(`${pathname}#`)) return
 
         beginNavigationLoading()
+        if (isMobile) {
+          setOpenMobile(false)
+        }
       }}
       {...props}
     />

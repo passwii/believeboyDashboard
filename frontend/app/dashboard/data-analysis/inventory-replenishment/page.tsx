@@ -31,21 +31,7 @@ import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useNotifications } from '@/components/notifications'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
-
-type ExcelCell = import('exceljs').Cell
-
-function applyBorder(cell: ExcelCell, color = 'FFE2E8F0') {
-  cell.border = {
-    top: { style: 'thin', color: { argb: color } },
-    left: { style: 'thin', color: { argb: color } },
-    bottom: { style: 'thin', color: { argb: color } },
-    right: { style: 'thin', color: { argb: color } },
-  }
-}
-
-function applyHeaderBorder(cell: ExcelCell) {
-  applyBorder(cell, 'FFCBD5E1')
-}
+import { applyBorder, applyHeaderBorder, applyRowBorder } from '@/lib/excel-styles'
 
 const API_BASE = '/api/backend'
 
@@ -658,11 +644,11 @@ export default function InventoryReplenishmentPage() {
       totalRow.getCell(13).value = tableTotals.weighted_dms
       totalRow.getCell(22).value = tableTotals.estimated_replenishment_quantity
       totalRow.getCell(23).value = `SKU: ${summary.sku_count}`
-      totalRow.eachCell((cell) => {
+      applyRowBorder(totalRow, 1, 23)
+      totalRow.eachCell({ includeEmpty: true }, (cell) => {
         cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
         cell.alignment = { vertical: 'middle', wrapText: true }
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
-        applyHeaderBorder(cell)
       })
       totalRow.getCell(5).numFmt = '#,##0'
       totalRow.getCell(6).numFmt = '#,##0'

@@ -15,21 +15,7 @@ import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useNotifications } from '@/components/notifications'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
-
-type ExcelCell = import('exceljs').Cell
-
-function applyBorder(cell: ExcelCell, color = 'FFE2E8F0') {
-  cell.border = {
-    top: { style: 'thin', color: { argb: color } },
-    left: { style: 'thin', color: { argb: color } },
-    bottom: { style: 'thin', color: { argb: color } },
-    right: { style: 'thin', color: { argb: color } },
-  }
-}
-
-function applyHeaderBorder(cell: ExcelCell) {
-  applyBorder(cell, 'FFCBD5E1')
-}
+import { applyBorder, applyHeaderBorder, applyRowBorder } from '@/lib/excel-styles'
 
 const API_BASE = '/api/backend/api/v1'
 
@@ -403,10 +389,10 @@ export default function InventoryAnalysisPage() {
         '--',
         '--',
       ]
-      totalRow.eachCell((cell, colNumber) => {
+      applyRowBorder(totalRow, 1, 11)
+      totalRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
         cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
-        applyHeaderBorder(cell)
         cell.alignment = {
           vertical: 'middle',
           horizontal: colNumber >= 3 && colNumber <= 8 ? 'right' : 'left',

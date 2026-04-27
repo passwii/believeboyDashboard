@@ -98,8 +98,8 @@ export const FullScreenSignup = () => {
                 type="email"
                 id="email"
                 placeholder="hi@hextastudio.in"
-                className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-black focus:outline-none focus:ring-1 focus:ring-orange-500 ${
-                  emailError ? "border-red-500" : "border-gray-300"
+                className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-black focus:outline-none focus:ring-1 focus:ring-orange-500 dark:bg-[hsl(var(--muted))] dark:border-[hsl(var(--border))] dark:text-[hsl(var(--foreground))] dark:placeholder:text-[hsl(var(--muted-foreground))] ${
+                  emailError ? "border-red-500 dark:border-red-500" : "border-gray-300"
                 }`}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -120,8 +120,8 @@ export const FullScreenSignup = () => {
               <input
                 type="password"
                 id="password"
-                className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-black focus:outline-none focus:ring-1 focus:ring-orange-500 ${
-                  passwordError ? "border-red-500" : "border-gray-300"
+                className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-black focus:outline-none focus:ring-1 focus:ring-orange-500 dark:bg-[hsl(var(--muted))] dark:border-[hsl(var(--border))] dark:text-[hsl(var(--foreground))] dark:placeholder:text-[hsl(var(--muted-foreground))] ${
+                  passwordError ? "border-red-500 dark:border-red-500" : "border-gray-300"
                 }`}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -146,7 +146,7 @@ export const FullScreenSignup = () => {
               <p className="text-center text-xs text-emerald-600">Submitted successfully.</p>
             ) : null}
 
-            <div className="text-center text-sm text-gray-600">
+            <div className="text-center text-sm text-gray-600 dark:text-[hsl(var(--muted-foreground))]">
               Already have account?{" "}
               <a href="/login" className="font-medium text-secondary-foreground underline">
                 Login

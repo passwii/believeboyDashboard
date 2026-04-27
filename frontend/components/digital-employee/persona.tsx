@@ -55,10 +55,10 @@ export const PERSONA_MAP: Record<string, PersonaConfig> = {
     bgGradient: 'from-slate-500/10 to-zinc-500/5',
   },
   CUSTOM: {
-    emoji: '⚙️',
-    tagline: '自定义员工',
-    mood: '🔩',
-    color: 'text-gray-500',
+    emoji: '🔍',
+    tagline: '代码审查专家',
+    mood: '🔍',
+    color: 'text-gray-600',
     bgGradient: 'from-gray-500/10 to-neutral-500/5',
   },
 }

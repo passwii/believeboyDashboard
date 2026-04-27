@@ -419,7 +419,7 @@ const loadOperatorOptions = useCallback(async () => {
 
 
   return (
-    <div className="w-full h-[calc(100vh-8.5rem)] overflow-hidden">
+    <div className="w-full md:h-[calc(100vh-8.5rem)] md:overflow-hidden">
       <DataTableCard className="h-full flex flex-col overflow-hidden border-border/80 shadow-[0_20px_40px_-22px_rgba(15,23,42,0.22)] dark:border-border/80 dark:shadow-[0_24px_50px_-30px_rgba(0,0,0,0.45)]">
         <DataTableCardHeader className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex min-w-0 flex-col gap-1">
