@@ -33,6 +33,21 @@ update_extensions.sql
 /frontend/*.tsbuildinfo
 /frontend/next-env.d.ts
 
+# Backend scripts
+/backend/scripts/__pycache__/
+
+# Auto report upload
+autoReportUpload/__pycache__/
+
+# Frontend build artifacts
+/frontend/build.log
+/frontend/build_out.txt
+/frontend/build_output.txt
+/frontend/next_build.log
+
+# Claude Code (local IDE config)
+/frontend/.claude/
+
 # Frontend Playwright tests
 /frontend/tests/snapshots/
 /frontend/tests/.auth/
