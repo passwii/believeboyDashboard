@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
@@ -67,6 +68,34 @@ TZ_OFFSET_BY_ABBR = {
     'PST': -8,
     'PDT': -7,
 }
+
+_SQLITE_TABLES_READY = False
+_SQLITE_TABLES_LOCK = threading.Lock()
+
+
+def ensure_tables(db: Session) -> None:
+    global _SQLITE_TABLES_READY
+    bind = db.get_bind()
+    if bind.dialect.name != 'sqlite':
+        return
+    if _SQLITE_TABLES_READY:
+        return
+
+    with _SQLITE_TABLES_LOCK:
+        if _SQLITE_TABLES_READY:
+            return
+        for table in (
+            AnalysisSourceFile.__table__,
+            AnalysisBusinessRow.__table__,
+            AnalysisPaymentRow.__table__,
+            AnalysisAdProductRow.__table__,
+            InventorySnapshotRow.__table__,
+            AnalysisSalesOrderRow.__table__,
+            AnalysisPT1Calculation.__table__,
+            AnalysisPTSKUDetail.__table__,
+        ):
+            table.create(bind=bind, checkfirst=True)
+        _SQLITE_TABLES_READY = True
 
 
 @dataclass
