@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 
 from config import CHECK_INTERVAL_MINUTES, IGNORED_DIRS, IS_LOCAL, IS_WINDOWS, PROCESSED_SUBDIR, PROJECTS, SUPPORTED_EXTENSIONS, WATCH_ROOT
-from db import get_db_session
+from db import Session, check_db_health, get_db_session, get_db_session_with_retry, reconnect_engine
 from processor import ProcessResult, process_file
 try:
     from client import report_scan_start, report_scan_progress, report_scan_complete, report_scan_error
@@ -105,7 +105,15 @@ def run_cycle(logger: RunLogger, dry_run: bool = False) -> dict:
         stats["projects"] += 1
         logger.info(f"\n=== [{project_name}] 发现 {len(files)} 个文件 ===")
 
-        db = get_db_session()
+        db, needs_reconnect = get_db_session_with_retry()
+        if db is None:
+            # DB 完全不可用，跳过此轮
+            logger.error(f"[DB] 数据库连接失败，跳过 [{project_name}] 的文件处理")
+            stats["failed"] += len(files)
+            if needs_reconnect:
+                reconnect_engine()
+            continue
+
         try:
             for i, file_path in enumerate(sorted(files)):
                 stats["files_seen"] += 1
@@ -119,6 +127,9 @@ def run_cycle(logger: RunLogger, dry_run: bool = False) -> dict:
                     stats["success"] += 1
                 else:
                     stats["failed"] += 1
+        except Exception as exc:
+            logger.error(f"[{project_name}] 处理循环异常: {exc}")
+            stats["failed"] += 1
         finally:
             db.close()
 
@@ -141,6 +152,35 @@ def _start_watchdog_logger(logger: RunLogger, dry_run: bool):
             self.logger = logger
             self.dry_run = dry_run
             self._pending: dict[str, float] = {}  # debounce: 忽略 2 秒内重复事件
+            self._db_session: Session | None = None
+            self._last_db_check: float = 0
+            self._db_check_interval: float = 60  # 每 60 秒检查一次 DB 健康状态
+
+        def _get_db_session(self) -> Session | None:
+            """获取 DB session，带健康检查和重连机制"""
+            now = time.time()
+            if now - self._last_db_check > self._db_check_interval:
+                self._last_db_check = now
+                if not check_db_health():
+                    reconnect_engine()
+                    logger.warning("[DB] 健康检查失败，已重建连接池")
+
+            db, needs_reconnect = get_db_session_with_retry()
+            if db is None and needs_reconnect:
+                reconnect_engine()
+                logger.warning("[DB] 重新获取 session 失败，已重建连接池")
+                db, _ = get_db_session_with_retry()
+
+            return db
+
+        def _close_session(self) -> None:
+            """安全关闭 session"""
+            if self._db_session is not None:
+                try:
+                    self._db_session.close()
+                except Exception:
+                    pass
+                self._db_session = None
 
         def on_created(self, event):
             if event.is_directory:
@@ -166,10 +206,17 @@ def _start_watchdog_logger(logger: RunLogger, dry_run: bool):
                 return
 
             logger.info(f"  [watchdog] 检测到新文件: {file_path.name}")
-            db = get_db_session()
+
+            db = self._get_db_session()
+            if db is None:
+                logger.error(f"  [watchdog] 无法获取数据库连接，跳过文件: {file_path.name}")
+                return
+
             try:
                 result = process_file(file_path, project_name, db, dry_run=self.dry_run)
                 logger.result(file_path, project_name, result)
+            except Exception as exc:
+                logger.error(f"  [watchdog] 处理文件异常: {file_path.name}  {exc}")
             finally:
                 db.close()
 
@@ -223,7 +270,16 @@ def main_loop(dry_run: bool = False, mode: str = "watchdog") -> None:
 
     if mode == "watchdog":
         logger.info("监控模式: watchdog（文件事件触发）")
+        # ── 启动前先做一次全盘扫描 ──────────────────────────────────────────
+        logger.info("\n>>> [启动前] 全盘扫描所有项目目录")
+        stats = run_cycle(logger, dry_run=dry_run)
+        logger.info(
+            f"全盘扫描完成: {stats['files_seen']} 文件, "
+            f"{stats['success']} 成功, {stats['skipped']} 跳过, {stats['failed']} 失败"
+        )
+        # ── 然后启动 watchdog 持续监控新文件 ─────────────────────────────────
         observer = _start_watchdog_logger(logger, dry_run)
+        logger.info("watchdog 监控已启动，持续监听新文件...")
         try:
             while True:
                 time.sleep(5)
