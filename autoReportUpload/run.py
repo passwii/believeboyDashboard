@@ -3,7 +3,7 @@
 autoReportUpload — entry point.
 
 Usage:
-    python run.py                  # Normal mode (默认 watchdog 事件监控，文件落盘立即触发)
+    python run.py                  # Normal mode (启动时全盘扫描，watchdog 持续监控新文件)
     python run.py --env local      # Force local mode (localhost DB/API, no file moves)
     python run.py --dry-run        # Dry-run: recognize files only, no DB writes, no file moves
     python run.py --once           # Run once (no periodic loop), useful for testing
