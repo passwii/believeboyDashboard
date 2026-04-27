@@ -54,6 +54,7 @@ PROJECTS = [
     "博智1店",
     "宝勒1店",
     "博智2店",
+    "犀牛",
 ]
 
 # How often (in minutes) the monitor loop checks for new files
