@@ -148,8 +148,7 @@ def _read_payment_report(path: Path, country: str = 'US') -> pd.DataFrame:
     return payment_report_locale.read_payment_report_dataframe(path, country=country)
 
 
-def _normalize_country(value: str | None) -> str:
-    return payment_report_locale.normalize_country(value)
+from app.utils.country import _normalize_country
 
 
 def _load_project_costs_df(project_name: str, country: str, year_month: str | None = None) -> pd.DataFrame:

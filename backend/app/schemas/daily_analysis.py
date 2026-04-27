@@ -17,10 +17,12 @@ class DailyAnalysisConsoleResponse(BaseModel):
     sales_source_days: int
     ad_source_days: int
     inventory_source_days: int
+    business_source_days: int
     missing_dates: list[str]
     latest_sales_date: str | None
     latest_ad_date: str | None
     latest_inventory_date: str | None
+    latest_business_date: str | None
 
 
 class DailyAnalysisSummaryRow(BaseModel):
@@ -33,6 +35,11 @@ class DailyAnalysisSummaryRow(BaseModel):
     ad_spend: float
     ad_orders: int
     available_qty: int
+    page_views: int = 0
+    units_ordered: int = 0
+    sessions: int = 0
+    ordered_sales_amount: float = 0.0
+    conversion_rate: float = 0.0
 
 
 class DailyAnalysisDetailRow(BaseModel):
@@ -47,6 +54,11 @@ class DailyAnalysisDetailRow(BaseModel):
     ad_spend: float
     ad_orders: int
     available_qty: int
+    page_views: int = 0
+    units_ordered: int = 0
+    sessions: int = 0
+    ordered_sales_amount: float = 0.0
+    conversion_rate: float = 0.0
 
 
 class DailyAnalysisResponse(BaseModel):

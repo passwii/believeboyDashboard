@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 
 import httpx
 from fastapi import HTTPException, status
-from sqlalchemy import inspect, select, sql
+from sqlalchemy import select, sql
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
@@ -45,20 +45,6 @@ WEB_SEARCH_TOOL_SCHEMA = {
 
 def normalize_optional_text(value: Any) -> str:
     return value.strip() if isinstance(value, str) else ""
-
-
-def ensure_tables(db: Session) -> None:
-    # Keep local sqlite startup simple even if migration not run yet.
-    AIConversation.__table__.create(bind=db.get_bind(), checkfirst=True)
-    AIMessage.__table__.create(bind=db.get_bind(), checkfirst=True)
-    bind = db.get_bind()
-    inspector = inspect(bind)
-    columns = {column["name"] for column in inspector.get_columns("ai_messages")}
-    if "search_sources" not in columns:
-        with bind.begin() as connection:
-            connection.exec_driver_sql(
-                "ALTER TABLE ai_messages ADD COLUMN search_sources TEXT"
-            )
 
 
 def list_conversations(db: Session) -> list[AIConversation]:

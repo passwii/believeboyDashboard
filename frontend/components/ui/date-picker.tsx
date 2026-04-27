@@ -7,12 +7,15 @@ import type { DateRange } from "react-day-picker"
 import { useRef, useEffect, useState } from "react"
 import {
   subDays,
+  subWeeks,
   startOfMonth,
   endOfMonth,
   startOfQuarter,
   endOfQuarter,
   startOfYear,
   endOfYear,
+  startOfWeek,
+  endOfWeek,
 } from "date-fns"
 
 import { Button } from "@/components/ui/button"
@@ -122,9 +125,15 @@ export function parseDateRangeInputValue(from?: string | null, to?: string | nul
 
 // Build Chinese presets using the specified timezone (or browser local if undefined)
 function buildPresets(today: Date) {
+  const lastWeekStart = startOfWeek(subWeeks(today, 1), { weekStartsOn: 1 })
+  const lastWeekEnd = endOfWeek(subWeeks(today, 1), { weekStartsOn: 1 })
+  const lastMonthStart = startOfMonth(subDays(startOfMonth(today), 1))
+  const lastMonthEnd = endOfMonth(subDays(startOfMonth(today), 1))
   return {
     今天: { from: today, to: today },
     昨天: { from: subDays(today, 1), to: subDays(today, 1) },
+    上周: { from: lastWeekStart, to: lastWeekEnd },
+    上个月: { from: lastMonthStart, to: lastMonthEnd },
     近7天: { from: subDays(today, 6), to: today },
     近14天: { from: subDays(today, 13), to: today },
     近30天: { from: subDays(today, 29), to: today },
@@ -132,10 +141,6 @@ function buildPresets(today: Date) {
     本月至今: { from: startOfMonth(today), to: today },
     本季度至今: { from: startOfQuarter(today), to: today },
     本年度至今: { from: startOfYear(today), to: today },
-    上个月: {
-      from: startOfMonth(subDays(startOfMonth(today), 1)),
-      to: endOfMonth(subDays(startOfMonth(today), 1)),
-    },
     上个季度: {
       from: startOfQuarter(subDays(startOfQuarter(today), 1)),
       to: endOfQuarter(subDays(startOfQuarter(today), 1)),

@@ -68,10 +68,10 @@ export default function ChangePasswordPage() {
           <Badge variant="outline" className="w-fit border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300">
             账号安全
           </Badge>
-          <CardTitle className="flex items-center gap-2">
+          <p className="flex items-center gap-2 text-lg font-semibold">
             <KeyRound className="h-5 w-5" />
             修改密码
-          </CardTitle>
+          </p>
           <CardDescription>请输入当前密码，并设置一个新的登录密码。</CardDescription>
         </CardHeader>
         <CardContent>

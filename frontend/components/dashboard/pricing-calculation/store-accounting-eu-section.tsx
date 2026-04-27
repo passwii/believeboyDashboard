@@ -8,6 +8,7 @@ import { StoreAccountingEuTable } from '@/components/dashboard/pricing-calculati
 import { formatLocalTimestampForFilename } from '@/lib/utils'
 import { logClientOperation } from '@/lib/operation-audit'
 import { useNotifications } from '@/components/notifications'
+import { applyBorder, applyHeaderBorder } from '@/lib/excel-styles'
 import type {
   PricingCalculationRunItem,
   ProductCostItem,
@@ -15,21 +16,6 @@ import type {
   ProjectManageOption,
   StoreAccountingItem,
 } from '@/lib/pricing-calculation-types'
-
-type ExcelCell = import('exceljs').Cell
-
-function applyBorder(cell: ExcelCell, color = 'FFE2E8F0') {
-  cell.border = {
-    top: { style: 'thin', color: { argb: color } },
-    left: { style: 'thin', color: { argb: color } },
-    bottom: { style: 'thin', color: { argb: color } },
-    right: { style: 'thin', color: { argb: color } },
-  }
-}
-
-function applyHeaderBorder(cell: ExcelCell) {
-  applyBorder(cell, 'FFCBD5E1')
-}
 
 const API_BASE = '/api/backend'
 

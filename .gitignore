@@ -33,6 +33,11 @@ update_extensions.sql
 /frontend/*.tsbuildinfo
 /frontend/next-env.d.ts
 
+# Frontend Playwright tests
+/frontend/tests/snapshots/
+/frontend/tests/.auth/
+/frontend/playwright-report/
+
 # Backend (reserved)
 /backend/node_modules/
 /backend/dist/

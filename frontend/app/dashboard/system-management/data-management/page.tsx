@@ -269,7 +269,6 @@ export default function SystemDataManagementPage() {
               系统管理
             </Badge>
           }
-          title="数据库状态"
           description="实时查看数据库状态、表状态、数据状态与最近系统状态。"
           action={
             <>

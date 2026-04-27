@@ -19,8 +19,8 @@ from app.schemas.project_goal import (
     ProjectGoalProgressResponse,
     ProjectGoalUpdate,
 )
+from app.utils.country import _normalize_country
 
-ALLOWED_COUNTRIES = {'US', 'DE', 'UK'}
 ALLOWED_METRIC_TYPES = {'sales_amount'}
 COUNTRY_TO_CURRENCY = {'US': 'USD', 'DE': 'EUR', 'UK': 'GBP'}
 COUNTRY_TO_TIMEZONE = {
@@ -43,17 +43,6 @@ def _is_unique_period_conflict(exc: IntegrityError) -> bool:
 def _is_missing_id_default_failure(exc: IntegrityError) -> bool:
     message = str(getattr(exc, 'orig', exc))
     return 'null value in column "id"' in message and 'project_goals' in message
-
-
-def _normalize_country(value: str | None) -> str:
-    normalized = (value or 'US').strip().upper()
-    if normalized not in ALLOWED_COUNTRIES:
-        allowed = ', '.join(sorted(ALLOWED_COUNTRIES))
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f'country must be one of: {allowed}',
-        )
-    return normalized
 
 
 def _get_currency(country: str) -> str:

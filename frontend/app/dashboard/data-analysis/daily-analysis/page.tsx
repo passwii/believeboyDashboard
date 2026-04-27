@@ -18,6 +18,13 @@ import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { Bar, CartesianGrid, ComposedChart, Line, XAxis, YAxis } from 'recharts'
 
+import {
+  CountrySelect,
+  FilterField,
+  ProjectSelect,
+  QuickButtons,
+  RefreshButton,
+} from '@/components/dashboard/console'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -49,14 +56,6 @@ import {
 } from '@/components/ui/command'
 import { EmptyTableState } from '@/components/ui/empty-state'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Skeleton } from '@/components/ui/skeleton'
-import {
   DirectionalTabTransition,
   SlidingTabsTrigger,
   TabsMotionGroup,
@@ -75,21 +74,15 @@ import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useNotifications } from '@/components/notifications'
 import { cn } from '@/lib/utils'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
-
-type ExcelCell = import('exceljs').Cell
-
-function applyBorder(cell: ExcelCell, color = 'FFE2E8F0') {
-  cell.border = {
-    top: { style: 'thin', color: { argb: color } },
-    left: { style: 'thin', color: { argb: color } },
-    bottom: { style: 'thin', color: { argb: color } },
-    right: { style: 'thin', color: { argb: color } },
-  }
-}
-
-function applyHeaderBorder(cell: ExcelCell) {
-  applyBorder(cell, 'FFCBD5E1')
-}
+import { applyBorder, applyHeaderBorder } from '@/lib/excel-styles'
+import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 type CountryOption = 'US' | 'DE' | 'UK'
 type ViewTab = 'summary' | 'details'
@@ -116,6 +109,8 @@ type DailyAnalysisConsole = {
   latest_sales_date: string | null
   latest_ad_date: string | null
   latest_inventory_date: string | null
+  business_source_days: number
+  latest_business_date: string | null
 }
 
 type DailyAnalysisRow = {
@@ -128,6 +123,11 @@ type DailyAnalysisRow = {
   ad_spend: number
   ad_orders: number
   available_qty: number
+  page_views: number
+  units_ordered: number
+  sessions: number
+  ordered_sales_amount: number
+  conversion_rate: number
 }
 
 type DailyAnalysisDetailRow = DailyAnalysisRow & {
@@ -185,6 +185,10 @@ type ChartMetricKey = keyof Pick<
   | 'cpc'
   | 'ad_spend'
   | 'ad_orders'
+  | 'page_views'
+  | 'units_ordered'
+  | 'sessions'
+  | 'conversion_rate'
 >
 
 const API_BASE = '/api/backend'
@@ -202,6 +206,10 @@ const CHART_METRICS: Array<{ key: ChartMetricKey; label: string }> = [
   { key: 'cpc', label: 'CPC' },
   { key: 'ad_spend', label: '广告花费' },
   { key: 'ad_orders', label: '广告订单' },
+  { key: 'page_views', label: '页面浏览量' },
+  { key: 'units_ordered', label: '销量' },
+  { key: 'sessions', label: '访问量' },
+  { key: 'conversion_rate', label: '转化率' },
 ]
 
 const SINGLE_METRIC_CHART_CONFIG = {
@@ -212,6 +220,10 @@ const SINGLE_METRIC_CHART_CONFIG = {
   cpc: { label: 'CPC', color: 'hsl(var(--chart-5))' },
   ad_spend: { label: '广告花费', color: 'hsl(var(--chart-4))' },
   ad_orders: { label: '广告订单', color: 'hsl(var(--chart-2))' },
+  page_views: { label: '页面浏览量', color: 'hsl(var(--chart-6))' },
+  units_ordered: { label: '销量', color: 'hsl(var(--chart-7))' },
+  sessions: { label: '访问量', color: 'hsl(var(--chart-1))' },
+  conversion_rate: { label: '转化率', color: 'hsl(var(--chart-3))' },
 } satisfies ChartConfig
 
 const EMPTY_SUMMARY_ROWS: DailyAnalysisRow[] = []
@@ -350,6 +362,9 @@ function formatMetricValue(metric: ChartMetricKey, value: number) {
   if (metric === 'sales_amount' || metric === 'cpc' || metric === 'ad_spend') {
     return formatMoney(value)
   }
+  if (metric === 'conversion_rate') {
+    return `${(value * 100).toFixed(2)}%`
+  }
   return value.toLocaleString('zh-CN')
 }
 
@@ -360,6 +375,9 @@ function formatMetricCardValue(metric: ChartMetricKey, value: number) {
   }
   if (metric === 'cpc') {
     return `$${formatMoney(value)}`
+  }
+  if (metric === 'conversion_rate') {
+    return `${(value * 100).toFixed(2)}%`
   }
   return value.toLocaleString('zh-CN')
 }
@@ -373,6 +391,9 @@ function formatAxisValue(metric: ChartMetricKey, value: number) {
       return `$${(value / 1000).toFixed(1)}k`
     }
     return `$${value.toFixed(0)}`
+  }
+  if (metric === 'conversion_rate') {
+    return `${(value * 100).toFixed(1)}%`
   }
   if (Math.abs(value) >= 10000) {
     return `${(value / 10000).toFixed(1)}w`
@@ -388,7 +409,8 @@ function isBarMetric(metric: ChartMetricKey) {
   return (
     metric === 'order_qty' ||
     metric === 'ad_orders' ||
-    metric === 'sales_amount'
+    metric === 'sales_amount' ||
+    metric === 'units_ordered'
   )
 }
 
@@ -399,6 +421,12 @@ function aggregateMetric(rows: DailyAnalysisRow[], metric: ChartMetricKey) {
     if (totalClicks <= 0) return 0
     const totalAdSpend = rows.reduce((sum, row) => sum + row.ad_spend, 0)
     return totalAdSpend / totalClicks
+  }
+  if (metric === 'conversion_rate') {
+    const totalPageViews = rows.reduce((sum, row) => sum + row.page_views, 0)
+    const totalUnitsOrdered = rows.reduce((sum, row) => sum + row.units_ordered, 0)
+    if (totalPageViews <= 0) return 0
+    return totalUnitsOrdered / totalPageViews
   }
   return rows.reduce((sum, row) => sum + row[metric], 0)
 }
@@ -439,6 +467,10 @@ async function exportDailyAnalysisToExcel(
     { header: '广告花费', key: 'ad_spend', width: 14 },
     { header: '广告订单', key: 'ad_orders', width: 14 },
     { header: '可售库存', key: 'available_qty', width: 14 },
+    { header: '页面浏览量', key: 'page_views', width: 14 },
+    { header: '销量', key: 'units_ordered', width: 12 },
+    { header: '访问量', key: 'sessions', width: 12 },
+    { header: '转化率', key: 'conversion_rate', width: 12 },
   ]
 
   summarySheet.columns = summaryCols
@@ -516,6 +548,11 @@ async function exportDailyAnalysisToExcel(
     excelRow.getCell(7).numFmt = '#,##0.00'
     excelRow.getCell(8).value = row.ad_orders
     excelRow.getCell(9).value = row.available_qty
+    excelRow.getCell(10).value = row.page_views
+    excelRow.getCell(11).value = row.units_ordered
+    excelRow.getCell(12).value = row.sessions
+    excelRow.getCell(13).value = row.conversion_rate
+    excelRow.getCell(13).numFmt = '0.00%'
 
     excelRow.eachCell((cell, colNumber) => {
       cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF0F172A' } }
@@ -544,6 +581,10 @@ async function exportDailyAnalysisToExcel(
     { header: '广告花费', key: 'ad_spend', width: 14 },
     { header: '广告订单', key: 'ad_orders', width: 14 },
     { header: '可售库存', key: 'available_qty', width: 14 },
+    { header: '页面浏览量', key: 'page_views', width: 14 },
+    { header: '销量', key: 'units_ordered', width: 12 },
+    { header: '访问量', key: 'sessions', width: 12 },
+    { header: '转化率', key: 'conversion_rate', width: 12 },
   ]
 
   detailSheet.columns = detailCols
@@ -623,6 +664,11 @@ async function exportDailyAnalysisToExcel(
     excelRow.getCell(9).numFmt = '#,##0.00'
     excelRow.getCell(10).value = row.ad_orders
     excelRow.getCell(11).value = row.available_qty
+    excelRow.getCell(12).value = row.page_views
+    excelRow.getCell(13).value = row.units_ordered
+    excelRow.getCell(14).value = row.sessions
+    excelRow.getCell(15).value = row.conversion_rate
+    excelRow.getCell(15).numFmt = '0.00%'
 
     excelRow.eachCell((cell, colNumber) => {
       cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF0F172A' } }
@@ -900,6 +946,8 @@ export default function DailyAnalysisPage() {
   const [skuOptions, setSkuOptions] = useState<ProjectSkuOption[]>([])
   const [skuLoading, setSkuLoading] = useState(false)
   const [selectedSku, setSelectedSku] = useState('')
+  const [metricCardPage, setMetricCardPage] = useState(0)
+  const METRICS_PER_PAGE = 6
   const latestLoadRequestRef = useRef(0)
 
   useEffect(() => {
@@ -1014,10 +1062,12 @@ export default function DailyAnalysisPage() {
               sales_source_days: 0,
               ad_source_days: 0,
               inventory_source_days: 0,
+              business_source_days: 0,
               missing_dates: [],
               latest_sales_date: null,
               latest_ad_date: null,
               latest_inventory_date: null,
+              latest_business_date: null,
             },
             summary_rows: payload.summary_rows,
             detail_rows: payload.detail_rows,
@@ -1376,6 +1426,11 @@ export default function DailyAnalysisPage() {
         ad_spend: row?.ad_spend ?? 0,
         ad_orders: row?.ad_orders ?? 0,
         available_qty: row?.available_qty ?? 0,
+        page_views: row?.page_views ?? 0,
+        units_ordered: row?.units_ordered ?? 0,
+        sessions: row?.sessions ?? 0,
+        ordered_sales_amount: row?.ordered_sales_amount ?? 0,
+        conversion_rate: row?.conversion_rate ?? 0,
         compareMetricValue: compareRow ? compareRow[activeChartMetric] : null,
       }
     })
@@ -1445,16 +1500,13 @@ export default function DailyAnalysisPage() {
         <div className='space-y-0'>
           {/* 筛选区 */}
           <div className='dashboard-toolbar flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-4 md:px-6 md:py-5'>
-            <div className='flex flex-col gap-1.5'>
-              <div className='text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground'>
-                项目
-              </div>
+            <FilterField label="项目">
               <Select value={projectId} onValueChange={setProjectId}>
-                <SelectTrigger className='h-9 w-[160px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none [&>span]:truncate dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]'>
-                  <SelectValue placeholder='选择项目' />
+                <SelectTrigger className="h-9 w-[160px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none [&>span]:truncate dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
+                  <SelectValue placeholder="选择项目" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem key='all' value='all'>
+                  <SelectItem key="all" value="all">
                     全部项目
                   </SelectItem>
                   {projects.map((item) => (
@@ -1464,33 +1516,17 @@ export default function DailyAnalysisPage() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </FilterField>
 
-            <div className='flex flex-col gap-1.5'>
-              <div className='text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground'>
-                国家站点
-              </div>
-              <Select
-                value={country}
-                onValueChange={(value) => setCountry(value as CountryOption)}
-              >
-                <SelectTrigger className='h-9 w-[140px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none [&>span]:truncate dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]'>
-                  <SelectValue placeholder='国家站点' />
-                </SelectTrigger>
-                <SelectContent>
-                  {COUNTRY_OPTIONS.map((item) => (
-                    <SelectItem key={item.value} value={item.value}>
-                      {item.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <FilterField label="国家站点">
+            <CountrySelect
+              value={country}
+              onChange={(value) => setCountry(value as CountryOption)}
+              triggerClassName="h-9 w-[140px]"
+            />
+          </FilterField>
 
-            <div className='flex flex-col gap-1.5'>
-              <div className='text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground'>
-                SKU
-              </div>
+            <FilterField label="SKU">
               <SearchableSkuField
                 value={selectedSku}
                 options={skuOptions}
@@ -1500,7 +1536,7 @@ export default function DailyAnalysisPage() {
                   setActiveTab('summary')
                 }}
               />
-            </div>
+            </FilterField>
 
             <div className='flex flex-col gap-1.5'>
               <div className='text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground'>
@@ -1547,41 +1583,23 @@ export default function DailyAnalysisPage() {
               </div>
             </div>
 
-            <div className='ml-auto flex items-center gap-2'>
-              <Button
-                type='button'
-                variant='secondary'
-                className='h-9 px-3'
-                onClick={() =>
-                  void handleQuickRange(getYesterdayRange(country))
-                }
-              >
-                昨天
-              </Button>
-              <Button
-                type='button'
-                variant='secondary'
-                className='h-9 px-3'
-                onClick={() =>
-                  void handleQuickRange(lastSevenDaysRange(country))
-                }
-              >
-                近7天
-              </Button>
-              <Button
-                type='button'
+            <QuickButtons
+                onSelect={(btn) => {
+                  if (btn.label === '昨天') {
+                    void handleQuickRange(getYesterdayRange(country))
+                  } else if (btn.label === '近7天') {
+                    void handleQuickRange(lastSevenDaysRange(country))
+                  }
+                }}
+              />
+              <RefreshButton
                 onClick={() => void loadData()}
-                disabled={loading || projectsLoading}
-                className='h-9 px-4'
-              >
-                {loading ? (
-                  <Loader2 className='h-4 w-4 animate-spin' />
-                ) : (
-                  <RefreshCcw className='h-4 w-4' />
-                )}
-              刷新视图
-            </Button>
-          </div>
+                loading={loading || projectsLoading}
+                label="刷新视图"
+                variant="default"
+                size="default"
+                className="h-9 px-4"
+              />
         </div>
 
         {goalProgress && goalProgress.target_amount > 0 && (
@@ -1655,114 +1673,164 @@ export default function DailyAnalysisPage() {
           )}
           {summaryRows.length ? (
             <>
-              <DataTableCardMetrics className='grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7'>
-                  {metricCards.map((metric) => {
-                    const isActive = metric.key === activeChartMetric
-                    const showIncrease =
-                      metric.percentChange === null
-                        ? true
-                        : metric.percentChange >= 0
-                    const usePositiveColor =
-                      metric.percentChange === null
-                        ? true
-                        : metric.isPositiveDirection
+              <div className='flex items-center gap-2'>
+                <button
+                  type='button'
+                  onClick={() => setMetricCardPage((p) => Math.max(0, p - 1))}
+                  disabled={metricCardPage === 0}
+                  className='flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-background text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-30'
+                >
+                  <ChevronLeft className='h-4 w-4' />
+                </button>
+                <DataTableCardMetrics className='grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 flex-1'>
+                  {metricCards
+                    .slice(
+                      metricCardPage * METRICS_PER_PAGE,
+                      (metricCardPage + 1) * METRICS_PER_PAGE,
+                    )
+                    .map((metric) => {
+                      const isActive = metric.key === activeChartMetric
+                      const showIncrease =
+                        metric.percentChange === null
+                          ? true
+                          : metric.percentChange >= 0
+                      const usePositiveColor =
+                        metric.percentChange === null
+                          ? true
+                          : metric.isPositiveDirection
 
-                    return (
-                      <button
-                        key={metric.key}
-                        type='button'
-                        onClick={() => setActiveChartMetric(metric.key)}
-                        className={cn(
-                          'rounded-lg border px-3 py-3 text-left transition-all duration-200',
-                          isActive
-                            ? 'border-primary/45 bg-primary text-primary-foreground shadow-[0_16px_34px_-24px_hsl(var(--primary)/0.72)]'
-                            : 'border-border/70 bg-[hsl(var(--surface-soft))]/86 text-foreground hover:-translate-y-0.5 hover:border-border hover:bg-background',
-                        )}
-                      >
-                        <div className='flex items-start justify-between gap-2'>
-                          <div
-                            className={cn(
-                              'text-xs font-semibold tracking-tight',
-                              isActive
-                                ? 'text-primary-foreground/88'
-                                : 'text-muted-foreground',
-                            )}
-                          >
-                            {metric.label}
-                          </div>
-                          {metric.showComparisonBadge ? (
-                            <div
-                              className={cn(
-                                'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold backdrop-blur-sm',
-                                isActive
-                                  ? usePositiveColor
-                                    ? 'border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(220,252,231,0.92))] text-[hsl(var(--success))] shadow-[0_10px_24px_-14px_rgba(255,255,255,0.9)]'
-                                    : 'border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(254,226,226,0.92))] text-[hsl(var(--destructive))] shadow-[0_10px_24px_-14px_rgba(255,255,255,0.9)]'
-                                  : usePositiveColor
-                                    ? 'border-[hsl(var(--success))/0.28] bg-[hsl(var(--success))/0.12] text-[hsl(var(--success))]'
-                                    : 'border-destructive/25 bg-destructive/12 text-destructive',
-                              )}
-                            >
-                              {showIncrease ? (
-                                <ArrowUp className='h-3.5 w-3.5' />
-                              ) : (
-                                <ArrowDown className='h-3.5 w-3.5' />
-                              )}
-                              {metric.percentChange === null
-                                ? '--'
-                                : `${Math.abs(metric.percentChange).toFixed(1)}%`}
-                            </div>
-                          ) : (
-                            <div className='h-[28px] w-[60px]' />
+                      return (
+                        <button
+                          key={metric.key}
+                          type='button'
+                          onClick={() => setActiveChartMetric(metric.key)}
+                          className={cn(
+                            'rounded-lg border px-3 py-3 text-left transition-all duration-200',
+                            isActive
+                              ? 'border-primary/45 bg-primary text-primary-foreground shadow-[0_16px_34px_-24px_hsl(var(--primary)/0.72)]'
+                              : 'border-border/70 bg-[hsl(var(--surface-soft))]/86 text-foreground hover:-translate-y-0.5 hover:border-border hover:bg-background',
                           )}
-                        </div>
-
-                        <div className='mt-3 space-y-0.5'>
-                          <div
-                            className={cn(
-                              'text-[1.25rem] font-semibold tracking-tight',
-                              isActive
-                                ? 'text-primary-foreground'
-                                : 'text-foreground',
-                            )}
-                          >
-                            {formatMetricCardValue(
-                              metric.key,
-                              metric.currentValue,
-                            )}
-                          </div>
-                          {metric.hasComparison ? (
+                        >
+                          <div className='flex items-start justify-between gap-2'>
                             <div
                               className={cn(
-                                'text-xs',
+                                'text-xs font-semibold tracking-tight',
                                 isActive
-                                  ? 'text-primary-foreground/72'
+                                  ? 'text-primary-foreground/88'
                                   : 'text-muted-foreground',
                               )}
                             >
-                              对比{' '}
+                              {metric.label}
+                            </div>
+                            {metric.showComparisonBadge ? (
+                              <div
+                                className={cn(
+                                  'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold backdrop-blur-sm',
+                                  isActive
+                                    ? usePositiveColor
+                                      ? 'border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(220,252,231,0.92))] text-[hsl(var(--success))] shadow-[0_10px_24px_-14px_rgba(255,255,255,0.9)]'
+                                      : 'border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(254,226,226,0.92))] text-[hsl(var(--destructive))] shadow-[0_10px_24px_-14px_rgba(255,255,255,0.9)]'
+                                    : usePositiveColor
+                                      ? 'border-[hsl(var(--success))/0.28] bg-[hsl(var(--success))/0.12] text-[hsl(var(--success))]'
+                                      : 'border-destructive/25 bg-destructive/12 text-destructive',
+                                )}
+                              >
+                                {showIncrease ? (
+                                  <ArrowUp className='h-3.5 w-3.5' />
+                                ) : (
+                                  <ArrowDown className='h-3.5 w-3.5' />
+                                )}
+                                {metric.percentChange === null
+                                  ? '--'
+                                  : `${Math.abs(metric.percentChange).toFixed(1)}%`}
+                              </div>
+                            ) : (
+                              <div className='h-[28px] w-[60px]' />
+                            )}
+                          </div>
+
+                          <div className='mt-3 space-y-0.5'>
+                            <div
+                              className={cn(
+                                'text-[1.25rem] font-semibold tracking-tight',
+                                isActive
+                                  ? 'text-primary-foreground'
+                                  : 'text-foreground',
+                              )}
+                            >
                               {formatMetricCardValue(
                                 metric.key,
-                                metric.previousValue,
+                                metric.currentValue,
                               )}
                             </div>
-                          ) : (
-                            <div
-                              className={cn(
-                                'text-xs',
-                                isActive
-                                  ? 'text-primary-foreground/72'
-                                  : 'text-muted-foreground',
-                              )}
-                            >
-                              {selectedSku ? 'SKU 明细' : '暂无对比'}
-                            </div>
-                          )}
-                        </div>
-                      </button>
+                            {metric.hasComparison ? (
+                              <div
+                                className={cn(
+                                  'text-xs',
+                                  isActive
+                                    ? 'text-primary-foreground/72'
+                                    : 'text-muted-foreground',
+                                )}
+                              >
+                                对比{' '}
+                                {formatMetricCardValue(
+                                  metric.key,
+                                  metric.previousValue,
+                                )}
+                              </div>
+                            ) : (
+                              <div
+                                className={cn(
+                                  'text-xs',
+                                  isActive
+                                    ? 'text-primary-foreground/72'
+                                    : 'text-muted-foreground',
+                                )}
+                              >
+                                {selectedSku ? 'SKU 明细' : '暂无对比'}
+                              </div>
+                            )}
+                          </div>
+                        </button>
+                      )
+                    })}
+                </DataTableCardMetrics>
+                <button
+                  type='button'
+                  onClick={() =>
+                    setMetricCardPage((p) =>
+                      Math.min(
+                        Math.ceil(metricCards.length / METRICS_PER_PAGE) - 1,
+                        p + 1,
+                      ),
                     )
-              })}
-              </DataTableCardMetrics>
+                  }
+                  disabled={
+                    metricCardPage >=
+                    Math.ceil(metricCards.length / METRICS_PER_PAGE) - 1
+                  }
+                  className='flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-background text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-30'
+                >
+                  <ChevronRight className='h-4 w-4' />
+                </button>
+              </div>
+              <div className='flex justify-center gap-1.5'>
+                {Array.from({
+                  length: Math.ceil(metricCards.length / METRICS_PER_PAGE),
+                }).map((_, i) => (
+                  <button
+                    key={i}
+                    type='button'
+                    onClick={() => setMetricCardPage(i)}
+                    className={cn(
+                      'h-1.5 rounded-full transition-all',
+                      i === metricCardPage
+                        ? 'w-4 bg-primary'
+                        : 'w-1.5 bg-muted-foreground/30 hover:bg-muted-foreground/50',
+                    )}
+                  />
+                ))}
+              </div>
 
               <div className='rounded-lg bg-[hsl(var(--surface-soft))]/82 p-4 md:p-5'>
                 <div className='mb-4 flex flex-wrap items-center gap-4 text-xs text-muted-foreground'>
@@ -2033,6 +2101,10 @@ export default function DailyAnalysisPage() {
                         <TableHead>广告花费</TableHead>
                         <TableHead>广告订单</TableHead>
                         <TableHead>可售库存</TableHead>
+                        <TableHead>页面浏览量</TableHead>
+                        <TableHead>销量</TableHead>
+                        <TableHead>访问量</TableHead>
+                        <TableHead>转化率</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -2042,7 +2114,7 @@ export default function DailyAnalysisPage() {
                             key={`summary-skeleton-${index}`}
                             className='border-0'
                           >
-                            {Array.from({ length: 9 }).map((__, cellIndex) => (
+                            {Array.from({ length: 13 }).map((__, cellIndex) => (
                               <TableCell key={cellIndex}>
                                 <Skeleton className='h-4 w-full max-w-[90px]' />
                               </TableCell>
@@ -2081,11 +2153,23 @@ export default function DailyAnalysisPage() {
                             <TableCell>
                               {row.available_qty.toLocaleString('zh-CN')}
                             </TableCell>
+                            <TableCell>
+                              {row.page_views.toLocaleString('zh-CN')}
+                            </TableCell>
+                            <TableCell>
+                              {row.units_ordered.toLocaleString('zh-CN')}
+                            </TableCell>
+                            <TableCell>
+                              {row.sessions.toLocaleString('zh-CN')}
+                            </TableCell>
+                            <TableCell>
+                              {(row.conversion_rate * 100).toFixed(2)}%
+                            </TableCell>
                           </TableRow>
                         ))
                       ) : (
                         <EmptyTableState
-                          colSpan={9}
+                          colSpan={13}
                           message='当前筛选范围内还没有可展示的销售数据汇总。'
                         />
                       )}
@@ -2111,13 +2195,17 @@ export default function DailyAnalysisPage() {
                         <TableHead>广告花费</TableHead>
                         <TableHead>广告订单</TableHead>
                         <TableHead>可售库存</TableHead>
+                        <TableHead>页面浏览量</TableHead>
+                        <TableHead>销量</TableHead>
+                        <TableHead>访问量</TableHead>
+                        <TableHead>转化率</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {loading ? (
                         Array.from({ length: 8 }).map((_, index) => (
                           <TableRow key={`detail-skeleton-${index}`}>
-                            {Array.from({ length: 11 }).map((__, cellIndex) => (
+                            {Array.from({ length: 15 }).map((__, cellIndex) => (
                               <TableCell key={cellIndex}>
                                 <Skeleton className='h-4 w-full max-w-[90px]' />
                               </TableCell>
@@ -2177,12 +2265,24 @@ export default function DailyAnalysisPage() {
                               <TableCell>
                                 {row.available_qty.toLocaleString('zh-CN')}
                               </TableCell>
+                              <TableCell>
+                                {row.page_views.toLocaleString('zh-CN')}
+                              </TableCell>
+                              <TableCell>
+                                {row.units_ordered.toLocaleString('zh-CN')}
+                              </TableCell>
+                              <TableCell>
+                                {row.sessions.toLocaleString('zh-CN')}
+                              </TableCell>
+                              <TableCell>
+                                {(row.conversion_rate * 100).toFixed(2)}%
+                              </TableCell>
                             </TableRow>
                           ),
                         )
                       ) : (
                         <EmptyTableState
-                          colSpan={11}
+                          colSpan={15}
                           message='当前筛选范围内还没有可展示的 SKU 销售数据明细。'
                         />
                       )}

@@ -6,7 +6,6 @@ from decimal import Decimal, InvalidOperation
 import hashlib
 from pathlib import Path
 import re
-from threading import Lock
 from typing import Any
 import warnings
 from zoneinfo import ZoneInfo
@@ -41,8 +40,6 @@ OPENPYXL_MISSING_DEFAULT_STYLE_WARNING = r"Workbook contains no default style, a
 INVENTORY_PROJECT_MATCH_MIN_ROWS = 5
 INVENTORY_PROJECT_MATCH_MIN_RATIO = 0.6
 
-_SQLITE_TABLES_READY = False
-_SQLITE_TABLES_LOCK = Lock()
 PT_TIMEZONE = ZoneInfo('America/Los_Angeles')
 COUNTRY_TIMEZONE = {
     'US': PT_TIMEZONE,
@@ -79,30 +76,6 @@ class SourcePersistOutcome:
     success: bool
     error_message: str | None
 
-
-def ensure_tables(db: Session) -> None:
-    global _SQLITE_TABLES_READY
-    bind = db.get_bind()
-    if bind.dialect.name != 'sqlite':
-        return
-    if _SQLITE_TABLES_READY:
-        return
-
-    with _SQLITE_TABLES_LOCK:
-        if _SQLITE_TABLES_READY:
-            return
-        for table in (
-            AnalysisSourceFile.__table__,
-            AnalysisBusinessRow.__table__,
-            AnalysisPaymentRow.__table__,
-            AnalysisAdProductRow.__table__,
-            InventorySnapshotRow.__table__,
-            AnalysisSalesOrderRow.__table__,
-            AnalysisPT1Calculation.__table__,
-            AnalysisPTSKUDetail.__table__,
-        ):
-            table.create(bind=bind, checkfirst=True)
-        _SQLITE_TABLES_READY = True
 
 def persist_product_analysis_pt1_calculation(
     db: Session,

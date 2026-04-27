@@ -17,7 +17,7 @@ function DataCard({ className, ...props }: React.HTMLAttributes<HTMLDivElement>)
 }
 
 interface DataCardHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
-  title: string
+  title?: string
   titleClassName?: string
   description?: string
   badge?: React.ReactNode
@@ -35,7 +35,7 @@ function DataCardHeader({ title, titleClassName, description, badge, action, cla
     >
       <div className="flex min-w-0 flex-col gap-1">
         {badge}
-        <h2 className={cn("text-base font-semibold text-foreground leading-none", titleClassName)}>{title}</h2>
+        {title && <h2 className={cn("text-base font-semibold text-foreground leading-none", titleClassName)}>{title}</h2>}
         {description && <p className="text-sm text-muted-foreground">{description}</p>}
       </div>
       {action && <div className="ml-4 flex shrink-0 flex-wrap gap-2">{action}</div>}

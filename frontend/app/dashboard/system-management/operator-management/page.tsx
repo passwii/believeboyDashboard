@@ -604,7 +604,7 @@ export default function OperatorManagementPage() {
   }
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-6.5rem)] w-full max-w-[1560px] flex-col gap-4 overflow-y-auto md:h-[calc(100dvh-8rem)] lg:h-[calc(100dvh-9rem)]">
+    <div className="mx-auto flex w-full max-w-[1560px] flex-col gap-4 md:h-[calc(100dvh-8rem)] md:overflow-y-auto lg:h-[calc(100dvh-9rem)]">
       <div className="flex flex-col gap-4">
         <DataCard>
           <DataCardHeader
@@ -613,7 +613,6 @@ export default function OperatorManagementPage() {
                 系统管理
               </Badge>
             }
-            title="运营管理"
             description="统一维护项目岗位、周度绩效和运营佣金分配。岗位按月份生效，佣金与绩效都围绕当前月份核算。"
             action={
               <div className="flex flex-wrap items-end gap-3">

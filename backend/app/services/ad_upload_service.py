@@ -45,21 +45,7 @@ OPENPYXL_MISSING_DEFAULT_STYLE_WARNING = (
     'Workbook contains no default style, apply openpyxl\'s default'
 )
 
-COUNTRY_ALIASES = {
-    'US': 'US',
-    'USA': 'US',
-    '美国': 'US',
-    '美国站': 'US',
-    'DE': 'DE',
-    'GERMANY': 'DE',
-    '德国': 'DE',
-    '德国站': 'DE',
-    'UK': 'UK',
-    'GB': 'UK',
-    'UNITED KINGDOM': 'UK',
-    '英国': 'UK',
-    '英国站': 'UK',
-}
+from app.utils.country import _normalize_country
 ALLOWED_EXTENSIONS = {'.csv', '.xlsx'}
 DECIMAL_ZERO = Decimal('0')
 
@@ -188,16 +174,9 @@ def _read_dataframe(path: Path) -> pd.DataFrame:
 
 
 def _normalize_country(value: object) -> str:
-    normalized = str(value or '').strip().upper()
-    if not normalized:
-        return 'US'
-    mapped = COUNTRY_ALIASES.get(normalized, normalized)
-    if mapped not in {'US', 'DE', 'UK'}:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail='country must be one of: US, DE, UK',
-        )
-    return mapped
+    """Accept object args (e.g. pandas scalars) and delegate to shared utility."""
+    from app.utils.country import _normalize_country as _nc
+    return _nc(str(value) if value is not None else None)
 
 
 def _normalize_identifier(value: object) -> str:

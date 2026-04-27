@@ -76,21 +76,7 @@ import {
 import { logClientOperation } from '@/lib/operation-audit'
 import { cn, formatLocalTimestampForFilename } from '@/lib/utils'
 import { useNotifications } from '@/components/notifications'
-
-type ExcelCell = import('exceljs').Cell
-
-function applyBorder(cell: ExcelCell, color = 'FFE2E8F0') {
-  cell.border = {
-    top: { style: 'thin', color: { argb: color } },
-    left: { style: 'thin', color: { argb: color } },
-    bottom: { style: 'thin', color: { argb: color } },
-    right: { style: 'thin', color: { argb: color } },
-  }
-}
-
-function applyHeaderBorder(cell: ExcelCell) {
-  applyBorder(cell, 'FFCBD5E1')
-}
+import { applyBorder, applyHeaderBorder } from '@/lib/excel-styles'
 
 const API_BASE = '/api/backend'
 const MAX_VISIBLE_RUNS = 12
@@ -193,6 +179,7 @@ type PricingCalculationRunItem = {
   weight_kg: number
   fob_product_cost_rmb: number
   first_leg_cost_rmb: number
+  first_leg_unit_price_rmb_per_kg?: number | null
   sale_price_usd: number
   full_container_quantity?: number
   full_container_price_rmb?: number
@@ -2063,6 +2050,7 @@ export default function PricingCalculationPage() {
         weight_kg: Number(form.weight_kg),
         fob_product_cost_rmb: Number(form.fob_product_cost_rmb),
         first_leg_cost_rmb: fbmFirstLegCost,
+        first_leg_unit_price_rmb: toNumber(form.first_leg_unit_price_rmb) || undefined,
         sale_price_usd: Number(form.sale_price_usd),
         target_profit_rate: Number(form.target_profit_rate) / 100,
         commission_rate: Number(form.commission_rate) / 100,
@@ -2124,18 +2112,11 @@ export default function PricingCalculationPage() {
     setCalculationMode(targetMode)
     setSelectedCountry(run.country)
 
-    // Derive first_leg_unit_price_rmb from stored cost and chargeable weight (convert lb → kg)
-    const chargeableWeightKg =
-      run.weights?.chargeable_weight_lb != null && run.weights.chargeable_weight_lb > 0
-        ? run.weights.chargeable_weight_lb / 2.20462
-        : Math.max(run.weight_kg, 0)
-    const firstLegUnitPriceRmb =
-      chargeableWeightKg > 0 ? run.first_leg_cost_rmb / chargeableWeightKg : 0
-
+    // Use stored first_leg_unit_price_rmb directly (saved as user input, not derived)
     // For fbm-calc, derive unit price from full_container data if available
-    let fbmUnitPrice = 0
-    if (run.full_container_quantity && run.full_container_quantity > 0) {
-      fbmUnitPrice =
+    let firstLegUnitPriceRmb = run.first_leg_unit_price_rmb_per_kg ?? 0
+    if (targetMode === 'fbm-calc' && run.full_container_quantity && run.full_container_quantity > 0) {
+      firstLegUnitPriceRmb =
         (run.full_container_price_rmb ?? 0) / run.full_container_quantity
     }
 
@@ -2148,11 +2129,7 @@ export default function PricingCalculationPage() {
       fob_product_cost_rmb:
         run.fob_product_cost_rmb > 0 ? String(run.fob_product_cost_rmb) : '',
       first_leg_unit_price_rmb:
-        targetMode === 'fbm-calc' && fbmUnitPrice > 0
-          ? String(fbmUnitPrice.toFixed(2))
-          : firstLegUnitPriceRmb > 0
-            ? String(firstLegUnitPriceRmb.toFixed(4))
-            : '',
+        firstLegUnitPriceRmb > 0 ? String(firstLegUnitPriceRmb.toFixed(4)) : '',
       sale_price_usd: run.sale_price_usd > 0 ? String(run.sale_price_usd) : '',
       target_profit_rate: '25',
       commission_rate: run.commission_rate > 0 ? String(run.commission_rate * 100) : '',
@@ -3253,6 +3230,7 @@ async function requestPricingCalculation(payload: {
   weight_kg: number
   fob_product_cost_rmb: number
   first_leg_cost_rmb: number
+  first_leg_unit_price_rmb?: number
   project_id?: number
   sku?: string
   use_historical_shipping_cost?: boolean
@@ -3291,6 +3269,9 @@ async function requestPricingCalculation(payload: {
       weight_kg: payload.weight_kg,
       fob_product_cost_rmb: payload.fob_product_cost_rmb,
       first_leg_cost_rmb: payload.first_leg_cost_rmb,
+      ...(payload.first_leg_unit_price_rmb
+        ? { first_leg_unit_price_rmb: payload.first_leg_unit_price_rmb }
+        : {}),
       ...(payload.project_id ? { project_id: payload.project_id } : {}),
       ...(payload.sku ? { sku: payload.sku } : {}),
       ...(payload.use_historical_shipping_cost

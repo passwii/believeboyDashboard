@@ -183,15 +183,8 @@ def _resolve_database_source(database_url: str) -> tuple[str, str | None]:
     except Exception:
         return "unknown", None
 
-    engine = url.get_backend_name()
     source: str | None = None
-    if engine == "sqlite":
-        raw_database = url.database or ""
-        if raw_database and raw_database != ":memory:":
-            source = str(Path(raw_database).resolve())
-        else:
-            source = raw_database or ":memory:"
-    elif url.host:
+    if url.host:
         if url.database:
             source = f"{url.host}/{url.database}"
         else:

@@ -39,6 +39,18 @@ EMPLOYEES = [
         "description": "监控手动/自动生成的 AI 洞察报告生成状态和进度",
         "emoji": "💬",
     },
+    {
+        "name": "CodeReview Agent",
+        "employee_type": EmployeeType.CUSTOM,
+        "description": "本地运行代码审查，结果实时同步到生产端 Dashboard",
+        "emoji": "🔍",
+    },
+    {
+        "name": "测试研发员工",
+        "employee_type": EmployeeType.CUSTOM,
+        "description": "自动化回归测试 — 验证权限控制、定价计算、报表上传、UI 稳定性、AI 功能",
+        "emoji": "🧪",
+    },
 ]
 
 

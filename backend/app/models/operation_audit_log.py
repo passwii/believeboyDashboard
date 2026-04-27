@@ -18,7 +18,7 @@ class OperationAuditLog(Base):
     )
 
     id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, 'sqlite'),
+        BigInteger(),
         primary_key=True,
         autoincrement=True,
     )

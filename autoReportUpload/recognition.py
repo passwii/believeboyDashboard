@@ -142,8 +142,10 @@ def _detect_country_from_sales_channel(df: pd.DataFrame) -> str | None:
     val = str(df[col_candidates[0]].dropna().iloc[0]).strip().lower()
     if "amazon.de" in val:
         return "DE"
-    if "amazon.com" in val or "amazon.co.uk" in val:
+    if "amazon.com" in val:
         return "US"
+    if "amazon.co.uk" in val:
+        return "UK"  # 🔶 Reserved for UK站点
     return None
 
 
@@ -157,7 +159,39 @@ def _detect_country_from_currency(df: pd.DataFrame) -> str | None:
     if first_val in {"EUR", "EURO"}:
         return "DE"
     if first_val in {"GBP"}:
-        return "UK"
+        return "UK"  # 🔶 Reserved
+    return None
+
+
+def _detect_country_from_marketplace(df: pd.DataFrame) -> str | None:
+    """Detect country from marketplace column. DE→DE, UK/GB→UK."""
+    col_candidates = [c for c in df.columns if "marketplace" in c.lower()]
+    if not col_candidates:
+        return None
+    val = str(df[col_candidates[0]].dropna().iloc[0]).strip().upper()
+    if val in {"DE", "GERMANY"}:
+        return "DE"
+    if val in {"UK", "GB", "UNITED KINGDOM"}:
+        return "UK"  # 🔶 Reserved
+    return None
+
+
+def _detect_country_from_sales_amount_symbol(df: pd.DataFrame) -> str | None:
+    """Detect country from currency symbol in sales amount columns (业务报告). € → DE, £ → UK."""
+    sales_col_candidates = [
+        c for c in df.columns
+        if "销售额" in c or "sales" in c.lower()
+    ]
+    for col in sales_col_candidates:
+        sample = (
+            str(df[col].dropna().iloc[0])
+            if not df[col].dropna().empty
+            else ""
+        )
+        if "€" in sample:
+            return "DE"
+        if "£" in sample:
+            return "UK"  # 🔶 Reserved
     return None
 
 
@@ -240,8 +274,10 @@ def _recognize_inventory_report(db: Session, path: Path, country: str = "US") ->
     )
     warnings_list: list[str] = []
     detected_country = _detect_country_from_currency(df)
+    if not detected_country:
+        detected_country = _detect_country_from_marketplace(df)
     if detected_country and detected_country != country:
-        warnings_list.append(f"文件内 currency 为 {detected_country}，当前按 {country} 处理")
+        warnings_list.append(f"文件内 currency/marketplace 为 {detected_country}，当前按 {country} 处理")
 
     return RecognitionResult(
         report_type="inventory_report",
@@ -278,6 +314,11 @@ def _recognize_business_report(
     if detected_date:
         warnings_list.append(f"从文件名识别日期：{detected_date}")
 
+    # Detect country from sales amount currency symbol (€ for DE, £ for UK)
+    detected_country = _detect_country_from_sales_amount_symbol(df)
+    if detected_country and detected_country != country:
+        warnings_list.append(f"文件内销售额符号检测为 {detected_country}，当前按 {country} 处理")
+
     return RecognitionResult(
         report_type="business_report",
         matched_columns=[asin_col],
@@ -287,6 +328,7 @@ def _recognize_business_report(
         project_match=project_match,
         row_count_preview=len(df.index),
         warnings=warnings_list,
+        country=detected_country or country,
     )
 
 

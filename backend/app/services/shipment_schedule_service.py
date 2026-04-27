@@ -18,6 +18,7 @@ from app.schemas.shipment_schedule import (
     ShipmentScheduleItemInput,
     ShipmentScheduleUpdate,
 )
+from app.utils.country import _normalize_country
 
 ALLOWED_SHIPMENT_STATUS = {
     "draft",
@@ -29,7 +30,6 @@ DECIMAL_ZERO = Decimal("0")
 MONEY_QUANT = Decimal("0.01")
 WEIGHT_QUANT = Decimal("0.001")
 VOLUME_QUANT = Decimal("0.0001")
-ALLOWED_COUNTRIES = {"US", "UK", "DE"}
 
 
 def _decode_csv_text(content: bytes) -> str:
@@ -52,17 +52,6 @@ def _normalize_text(value: str | None, *, max_length: int | None = None) -> str 
         return None
     if max_length is not None:
         return normalized[:max_length]
-    return normalized
-
-
-def _normalize_country(value: str | None) -> str:
-    normalized = (value or "").strip().upper()
-    if normalized not in ALLOWED_COUNTRIES:
-        allowed = ", ".join(sorted(ALLOWED_COUNTRIES))
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"country 必须是: {allowed}",
-        )
     return normalized
 
 

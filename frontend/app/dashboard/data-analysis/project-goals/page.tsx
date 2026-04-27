@@ -346,7 +346,7 @@ export default function ProjectGoalsPage() {
                 <p className='dashboard-kicker'>Project Goals Console</p>
               </div>
               <div>
-                <CardTitle className='text-2xl md:text-[2rem]'>项目目标控制台</CardTitle>
+                <CardTitle className='text-2xl md:text-[2rem]'>控制台</CardTitle>
                 <CardDescription className='mt-2 max-w-2xl text-sm leading-6'>
                   追踪项目在选定国家站点的月度与年度销售目标完成进度，支持快速设置与调整目标。
                 </CardDescription>

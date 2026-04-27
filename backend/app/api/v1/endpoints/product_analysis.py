@@ -27,121 +27,7 @@ from app.services.redis_service import (
     set_weekly_analysis_cache,
     invalidate_weekly_analysis_cache,
 )
-
-router = APIRouter(dependencies=[Depends(protected)])
-
-WEEKLY_SUMMARY_COLUMNS = [
-    "日期",
-    "SKU",
-    "ASIN",
-    "总销量",
-    "总销售额",
-    "页面浏览量",
-    "总访客",
-    "总转化",
-    "广告展示量",
-    "广告点击量",
-    "广告点击率",
-    "广告订单量",
-    "广告单占比",
-    "广告转化率",
-    "广告花费",
-    "广告销售额",
-    "CPC",
-    "ACOS",
-    "SP占比",
-    "自然流量",
-    "自然流量占比",
-    "自然单",
-    "自然单转化",
-    "产品FOB",
-    "成本占比",
-    "销售头程",
-    "头程占比",
-    "FBA配送费",
-    "配送费占比",
-    "平台佣金",
-    "佣金占比",
-    "总成本",
-    "总成本占比",
-    "利润",
-    "利润率",
-    "实际销售额",
-    "实际销售量",
-    "实际退款额",
-    "实际退款量",
-    "平均售价",
-    "退款率",
-]
-
-WEEKLY_SUMMARY_SUM_COLUMNS = {
-    "总销量",
-    "总销售额",
-    "页面浏览量",
-    "总访客",
-    "广告展示量",
-    "广告点击量",
-    "广告订单量",
-    "广告花费",
-    "广告销售额",
-    "自然流量",
-    "自然单",
-    "产品FOB",
-    "实际销售额",
-    "实际销售量",
-    "实际退款额",
-    "实际退款量",
-    "销售头程",
-    "FBA配送费",
-    "平台佣金",
-    "总成本",
-    "利润",
-}
-
-WEEKLY_SUMMARY_INT_COLUMNS = {
-    "总销量",
-    "页面浏览量",
-    "总访客",
-    "广告展示量",
-    "广告点击量",
-    "广告订单量",
-    "自然流量",
-    "自然单",
-    "实际销售量",
-    "实际退款量",
-}
-
-WEEKLY_SUMMARY_MONEY_COLUMNS = {
-    "总销售额",
-    "广告花费",
-    "广告销售额",
-    "CPC",
-    "产品FOB",
-    "销售头程",
-    "FBA配送费",
-    "平台佣金",
-    "总成本",
-    "利润",
-    "实际销售额",
-    "实际退款额",
-    "平均售价",
-}
-
-COUNTRY_ALIASES = {
-    "US": "US",
-    "USA": "US",
-    "美国": "US",
-    "美国站": "US",
-    "DE": "DE",
-    "GERMANY": "DE",
-    "德国": "DE",
-    "德国站": "DE",
-    "UK": "UK",
-    "GB": "UK",
-    "UNITED KINGDOM": "UK",
-    "英国": "UK",
-    "英国站": "UK",
-}
+from app.utils.country import _normalize_country_http as _normalize_country
 
 
 def _to_float(value: Any) -> float:
@@ -164,26 +50,44 @@ def _safe_div(numerator: float, denominator: float) -> float:
     return numerator / denominator
 
 
-def _normalize_country(value: str | None) -> str:
-    normalized = (value or "").strip().upper()
-    if not normalized:
-        return "US"
-    mapped = COUNTRY_ALIASES.get(normalized, normalized)
-    if mapped not in {"US", "DE", "UK"}:
-        raise HTTPException(
-            status_code=422, detail="country must be one of: US, DE, UK"
-        )
-    return mapped
+router = APIRouter(dependencies=[Depends(protected)])
 
+WEEKLY_SUMMARY_COLUMNS = [
+    "日期", "SKU", "ASIN", "总销量", "总销售额", "页面浏览量", "总访客",
+    "总转化", "广告展示量", "广告点击量", "广告点击率", "广告订单量", "广告单占比",
+    "广告转化率", "广告花费", "广告销售额", "CPC", "ACOS", "SP占比",
+    "自然流量", "自然流量占比", "自然单", "自然单转化", "产品FOB", "成本占比",
+    "销售头程", "头程占比", "FBA配送费", "配送费占比", "平台佣金", "佣金占比",
+    "总成本", "总成本占比", "利润", "利润率", "实际销售额", "实际销售量",
+    "实际退款额", "实际退款量", "平均售价", "退款率",
+]
 
-def _build_report_label(start: date, end: date) -> str:
-    return f"{start.strftime('%Y%m%d')}-{end.strftime('%m%d')}"
+WEEKLY_SUMMARY_SUM_COLUMNS = {
+    "总销量", "总销售额", "页面浏览量", "总访客", "广告展示量", "广告点击量",
+    "广告订单量", "广告花费", "广告销售额", "自然流量", "自然单", "产品FOB",
+    "实际销售额", "实际销售量", "实际退款额", "实际退款量", "销售头程",
+    "FBA配送费", "平台佣金", "总成本", "利润",
+}
+
+WEEKLY_SUMMARY_INT_COLUMNS = {
+    "总销量", "页面浏览量", "总访客", "广告展示量", "广告点击量", "广告订单量",
+    "自然流量", "自然单", "实际销售量", "实际退款量",
+}
+
+WEEKLY_SUMMARY_MONEY_COLUMNS = {
+    "总销售额", "广告花费", "广告销售额", "CPC", "产品FOB", "销售头程",
+    "FBA配送费", "平台佣金", "总成本", "利润", "实际销售额", "实际退款额", "平均售价",
+}
 
 
 def _is_summary_complete(summary_row: Any) -> bool:
     if not isinstance(summary_row, dict):
         return False
     return all(column in summary_row for column in WEEKLY_SUMMARY_COLUMNS)
+
+
+def _build_report_label(start: date, end: date) -> str:
+    return f"{start.strftime('%Y%m%d')}-{end.strftime('%m%d')}"
 
 
 def _build_summary_from_detail_rows(

@@ -301,7 +301,6 @@ export default function AccountManagementPage() {
               系统管理
             </Badge>
           }
-          title="账号管理"
           description="管理员可维护用户角色属性（管理员/运营/招商/工厂）及账号启停状态。"
           action={
             <div className="flex items-center gap-2">

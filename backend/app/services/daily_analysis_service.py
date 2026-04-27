@@ -12,29 +12,12 @@ from app.models import (
     AnalysisAdProductRow,
     AnalysisSalesOrderRow,
     AnalysisSourceFile,
+    AnalysisBusinessRow,
     InventorySnapshotRow,
     Project,
 )
 from app.services import redis_service
-
-COUNTRY_ALIASES = {
-    "US": "US",
-    "USA": "US",
-    "美国": "US",
-    "美国站": "US",
-    "DE": "DE",
-    "GERMANY": "DE",
-    "德国": "DE",
-    "德国站": "DE",
-    "UK": "UK",
-    "GB": "UK",
-    "UNITED KINGDOM": "UK",
-    "英国": "UK",
-    "英国站": "UK",
-}
-ALLOWED_COUNTRIES = {"US", "DE", "UK"}
-
-
+from app.utils.country import _normalize_country
 @dataclass
 class _MetricBucket:
     asin: str | None = None
@@ -45,20 +28,12 @@ class _MetricBucket:
     ad_spend: Decimal = Decimal("0")
     ad_orders: int = 0
     available_qty: int = 0
+    # Business report metrics
+    page_views: int = 0
+    units_ordered: int = 0
+    sessions: int = 0
+    business_sales_amount: Decimal = Decimal("0")
 
-
-def _normalize_country(value: str | None) -> str:
-    normalized = (value or "").strip().upper()
-    if not normalized:
-        return "US"
-    mapped = COUNTRY_ALIASES.get(normalized, normalized)
-    if mapped not in ALLOWED_COUNTRIES:
-        allowed = ", ".join(sorted(ALLOWED_COUNTRIES))
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"country must be one of: {allowed}",
-        )
-    return mapped
 
 
 def _parse_date(value: str | None, field_name: str) -> date:
@@ -169,6 +144,22 @@ def build_daily_analysis(
         start_date=normalized_start,
         end_date=normalized_end,
     )
+    asin_to_sku_map = _build_asin_to_sku_map(
+        db,
+        project_id=project_id,
+        country=normalized_country,
+        start_date=normalized_start,
+        end_date=normalized_end,
+    )
+    business_dates, latest_business_date = _load_business_metrics(
+        db,
+        detail_buckets=detail_buckets,
+        project_id=project_id,
+        country=normalized_country,
+        start_date=normalized_start,
+        end_date=normalized_end,
+        asin_to_sku_map=asin_to_sku_map,
+    )
     latest_available_dates = _load_latest_available_dates(
         db,
         project_id=project_id,
@@ -183,6 +174,8 @@ def build_daily_analysis(
         if sku is not None and bucket_sku != sku:
             continue
 
+        page_views = int(bucket.page_views)
+        units_ordered = int(bucket.units_ordered)
         detail_row = {
             "date": day_text,
             "sku": bucket_sku,
@@ -195,6 +188,11 @@ def build_daily_analysis(
             "ad_spend": _round_money(bucket.ad_spend),
             "ad_orders": int(bucket.ad_orders),
             "available_qty": int(bucket.available_qty),
+            "page_views": page_views,
+            "units_ordered": units_ordered,
+            "sessions": int(bucket.sessions),
+            "ordered_sales_amount": _round_money(bucket.business_sales_amount),
+            "conversion_rate": _safe_ratio(Decimal(units_ordered), page_views) if page_views > 0 else 0.0,
         }
         detail_rows.append(detail_row)
 
@@ -209,6 +207,10 @@ def build_daily_analysis(
                 "ad_spend": Decimal("0"),
                 "ad_orders": 0,
                 "available_qty": 0,
+                "page_views": 0,
+                "units_ordered": 0,
+                "sessions": 0,
+                "ordered_sales_amount": Decimal("0"),
             },
         )
         summary["order_qty"] = int(summary["order_qty"]) + int(bucket.order_qty)
@@ -220,6 +222,10 @@ def build_daily_analysis(
         summary["available_qty"] = int(summary["available_qty"]) + int(
             bucket.available_qty
         )
+        summary["page_views"] = int(summary["page_views"]) + int(bucket.page_views)
+        summary["units_ordered"] = int(summary["units_ordered"]) + int(bucket.units_ordered)
+        summary["sessions"] = int(summary["sessions"]) + int(bucket.sessions)
+        summary["ordered_sales_amount"] = Decimal(summary["ordered_sales_amount"]) + bucket.business_sales_amount
 
     summary_rows = [
         {
@@ -232,6 +238,11 @@ def build_daily_analysis(
             "ad_spend": _round_money(Decimal(item["ad_spend"])),
             "ad_orders": int(item["ad_orders"]),
             "available_qty": int(item["available_qty"]),
+            "page_views": int(item["page_views"]),
+            "units_ordered": int(item["units_ordered"]),
+            "sessions": int(item["sessions"]),
+            "ordered_sales_amount": _round_money(Decimal(item["ordered_sales_amount"])),
+            "conversion_rate": _safe_ratio(Decimal(item["units_ordered"]), int(item["page_views"])) if int(item["page_views"]) > 0 else 0.0,
         }
         for item in sorted(summary_map.values(), key=lambda row: str(row["date"]))
     ]
@@ -245,6 +256,7 @@ def build_daily_analysis(
         if day_text not in sales_dates
         or day_text not in ad_dates
         or day_text not in inventory_dates
+        or day_text not in business_dates
     ]
 
     result = {
@@ -260,6 +272,7 @@ def build_daily_analysis(
             "sales_source_days": len(sales_dates),
             "ad_source_days": len(ad_dates),
             "inventory_source_days": len(inventory_dates),
+            "business_source_days": len(business_dates),
             "missing_dates": missing_dates,
             "latest_sales_date": latest_available_dates["latest_sales_date"]
             or latest_sales_date,
@@ -267,6 +280,8 @@ def build_daily_analysis(
             or latest_ad_date,
             "latest_inventory_date": latest_available_dates["latest_inventory_date"]
             or latest_inventory_date,
+            "latest_business_date": latest_available_dates["latest_business_date"]
+            or latest_business_date,
         },
         "summary_rows": summary_rows,
         "detail_rows": detail_rows,
@@ -274,6 +289,7 @@ def build_daily_analysis(
             "sales_report": sorted(sales_dates),
             "ad_product_report": sorted(ad_dates),
             "inventory_report": sorted(inventory_dates),
+            "business_report": sorted(business_dates),
         },
     }
 
@@ -300,6 +316,8 @@ def _aggregate_buckets(
         if sku_filter is not None and bucket_sku != sku_filter:
             continue
 
+        page_views = int(bucket.page_views)
+        units_ordered = int(bucket.units_ordered)
         detail_row = {
             "date": day_text,
             "sku": bucket_sku,
@@ -312,6 +330,11 @@ def _aggregate_buckets(
             "ad_spend": _round_money(bucket.ad_spend),
             "ad_orders": int(bucket.ad_orders),
             "available_qty": int(bucket.available_qty),
+            "page_views": page_views,
+            "units_ordered": units_ordered,
+            "sessions": int(bucket.sessions),
+            "ordered_sales_amount": _round_money(bucket.business_sales_amount),
+            "conversion_rate": _safe_ratio(Decimal(units_ordered), page_views) if page_views > 0 else 0.0,
         }
         detail_rows.append(detail_row)
 
@@ -326,6 +349,10 @@ def _aggregate_buckets(
                 "ad_spend": Decimal("0"),
                 "ad_orders": 0,
                 "available_qty": 0,
+                "page_views": 0,
+                "units_ordered": 0,
+                "sessions": 0,
+                "ordered_sales_amount": Decimal("0"),
             },
         )
         summary["order_qty"] = int(summary["order_qty"]) + int(bucket.order_qty)
@@ -337,6 +364,10 @@ def _aggregate_buckets(
         summary["available_qty"] = int(summary["available_qty"]) + int(
             bucket.available_qty
         )
+        summary["page_views"] = int(summary["page_views"]) + int(bucket.page_views)
+        summary["units_ordered"] = int(summary["units_ordered"]) + int(bucket.units_ordered)
+        summary["sessions"] = int(summary["sessions"]) + int(bucket.sessions)
+        summary["ordered_sales_amount"] = Decimal(summary["ordered_sales_amount"]) + bucket.business_sales_amount
 
     summary_rows = [
         {
@@ -349,6 +380,11 @@ def _aggregate_buckets(
             "ad_spend": _round_money(Decimal(item["ad_spend"])),
             "ad_orders": int(item["ad_orders"]),
             "available_qty": int(item["available_qty"]),
+            "page_views": int(item["page_views"]),
+            "units_ordered": int(item["units_ordered"]),
+            "sessions": int(item["sessions"]),
+            "ordered_sales_amount": _round_money(Decimal(item["ordered_sales_amount"])),
+            "conversion_rate": _safe_ratio(Decimal(item["units_ordered"]), int(item["page_views"])) if int(item["page_views"]) > 0 else 0.0,
         }
         for item in sorted(summary_map.values(), key=lambda row: str(row["date"]))
     ]
@@ -405,6 +441,22 @@ def build_daily_analysis_all_projects(
             start_date=normalized_start,
             end_date=normalized_end,
         )
+        asin_to_sku_map = _build_asin_to_sku_map(
+            db,
+            project_id=project_id,
+            country=normalized_country,
+            start_date=normalized_start,
+            end_date=normalized_end,
+        )
+        _load_business_metrics(
+            db,
+            detail_buckets=detail_buckets,
+            project_id=project_id,
+            country=normalized_country,
+            start_date=normalized_start,
+            end_date=normalized_end,
+            asin_to_sku_map=asin_to_sku_map,
+        )
 
         project_detail, project_summary = _aggregate_buckets(
             detail_buckets, sku_filter=sku
@@ -425,6 +477,10 @@ def build_daily_analysis_all_projects(
             global_bucket.ad_spend += bucket.ad_spend
             global_bucket.ad_orders += bucket.ad_orders
             global_bucket.available_qty += bucket.available_qty
+            global_bucket.page_views += bucket.page_views
+            global_bucket.units_ordered += bucket.units_ordered
+            global_bucket.sessions += bucket.sessions
+            global_bucket.business_sales_amount += bucket.business_sales_amount
 
     global_detail, global_summary = _aggregate_buckets(global_buckets, sku_filter=sku)
 
@@ -432,6 +488,7 @@ def build_daily_analysis_all_projects(
         "sales_report": [],
         "ad_product_report": [],
         "inventory_report": [],
+        "business_report": [],
     }
     requested_dates = [
         item.isoformat() for item in _daterange(normalized_start, normalized_end)
@@ -625,6 +682,122 @@ def _load_inventory_metrics(
     return dates, latest_date.isoformat()
 
 
+def _build_asin_to_sku_map(
+    db: Session,
+    project_id: int,
+    country: str,
+    start_date: date,
+    end_date: date,
+) -> dict[str, str]:
+    """
+    Build a mapping from asin -> sku using ad_rows.
+    Ad rows have both sku and asin, so they provide the mapping we need.
+    """
+    stmt = (
+        select(
+            AnalysisAdProductRow.asin,
+            AnalysisAdProductRow.sku,
+        )
+        .join(
+            AnalysisSourceFile,
+            AnalysisSourceFile.id == AnalysisAdProductRow.source_file_id,
+        )
+        .where(
+            AnalysisSourceFile.project_id == project_id,
+            AnalysisSourceFile.report_type == "ad_product_report",
+            AnalysisSourceFile.country == country,
+            AnalysisSourceFile.is_current.is_(True),
+            AnalysisSourceFile.report_date.is_not(None),
+            AnalysisSourceFile.report_date >= start_date,
+            AnalysisSourceFile.report_date <= end_date,
+            AnalysisAdProductRow.scope_status == "included_product",
+            AnalysisAdProductRow.asin.is_not(None),
+            AnalysisAdProductRow.sku.is_not(None),
+        )
+        .distinct()
+    )
+    rows = db.execute(stmt).all()
+    asin_to_sku: dict[str, str] = {}
+    for asin, sku in rows:
+        if asin and sku:
+            normalized_asin = asin.strip()
+            normalized_sku = sku.strip()
+            if normalized_asin and normalized_sku and normalized_asin not in asin_to_sku:
+                asin_to_sku[normalized_asin] = normalized_sku
+    return asin_to_sku
+
+
+def _load_business_metrics(
+    db: Session,
+    *,
+    detail_buckets: dict[tuple[str, str], _MetricBucket],
+    project_id: int,
+    country: str,
+    start_date: date,
+    end_date: date,
+    asin_to_sku_map: dict[str, str],
+) -> tuple[set[str], str | None]:
+    """
+    Load business report metrics (page_views, units_ordered, sessions, ordered_sales_amount).
+    Business rows have ASIN but not SKU, so we use asin_to_sku_map to match.
+    """
+    stmt = (
+        select(
+            AnalysisSourceFile.period_start_date,
+            AnalysisSourceFile.period_end_date,
+            AnalysisBusinessRow.asin,
+            AnalysisBusinessRow.page_views,
+            AnalysisBusinessRow.units_ordered,
+            AnalysisBusinessRow.sessions,
+            AnalysisBusinessRow.ordered_sales_amount,
+        )
+        .join(
+            AnalysisBusinessRow,
+            AnalysisBusinessRow.source_file_id == AnalysisSourceFile.id,
+        )
+        .where(
+            AnalysisSourceFile.project_id == project_id,
+            AnalysisSourceFile.report_type == "business_report",
+            AnalysisSourceFile.country == country,
+            AnalysisSourceFile.is_current.is_(True),
+            AnalysisSourceFile.period_start_date.is_not(None),
+            AnalysisSourceFile.period_start_date == AnalysisSourceFile.period_end_date,
+            AnalysisSourceFile.period_start_date >= start_date,
+            AnalysisSourceFile.period_start_date <= end_date,
+        )
+    )
+    rows = db.execute(stmt).all()
+    dates: set[str] = set()
+    latest: date | None = None
+
+    for period_start, period_end, asin, page_views, units_ordered, sessions, sales_amount in rows:
+        if asin is None:
+            continue
+        normalized_asin = asin.strip()
+        if not normalized_asin:
+            continue
+
+        effective_date = period_start
+        if effective_date is None:
+            continue
+
+        dates.add(effective_date.isoformat())
+        latest = effective_date if latest is None or effective_date > latest else latest
+
+        sku = asin_to_sku_map.get(normalized_asin)
+        if sku is None:
+            sku = f"ASIN:{normalized_asin}"
+
+        bucket = _get_or_create_bucket(detail_buckets, effective_date, sku)
+        bucket.asin = normalized_asin
+        bucket.page_views += int(page_views or 0)
+        bucket.units_ordered += int(units_ordered or 0)
+        bucket.sessions += int(sessions or 0)
+        bucket.business_sales_amount += Decimal(sales_amount or 0)
+
+    return dates, latest.isoformat() if latest is not None else None
+
+
 def _load_latest_available_dates(
     db: Session,
     *,
@@ -634,13 +807,14 @@ def _load_latest_available_dates(
     stmt = select(
         AnalysisSourceFile.report_type,
         AnalysisSourceFile.report_date,
+        AnalysisSourceFile.period_start_date,
         AnalysisSourceFile.snapshot_at,
     ).where(
         AnalysisSourceFile.project_id == project_id,
         AnalysisSourceFile.country == country,
         AnalysisSourceFile.is_current.is_(True),
         AnalysisSourceFile.report_type.in_(
-            ("sales_report", "ad_product_report", "inventory_report")
+            ("sales_report", "ad_product_report", "inventory_report", "business_report")
         ),
     )
     rows = db.execute(stmt).all()
@@ -648,8 +822,9 @@ def _load_latest_available_dates(
     latest_sales_date: date | None = None
     latest_ad_date: date | None = None
     latest_inventory_date: date | None = None
+    latest_business_date: date | None = None
 
-    for report_type, report_date, snapshot_at in rows:
+    for report_type, report_date, period_start_date, snapshot_at in rows:
         if report_type == "sales_report":
             business_date = report_date
             if business_date is None:
@@ -680,6 +855,16 @@ def _load_latest_available_dates(
                 or business_date > latest_inventory_date
                 else latest_inventory_date
             )
+        elif report_type == "business_report":
+            business_date = period_start_date
+            if business_date is None:
+                continue
+            latest_business_date = (
+                business_date
+                if latest_business_date is None
+                or business_date > latest_business_date
+                else latest_business_date
+            )
 
     return {
         "latest_sales_date": latest_sales_date.isoformat()
@@ -690,5 +875,8 @@ def _load_latest_available_dates(
         else None,
         "latest_inventory_date": latest_inventory_date.isoformat()
         if latest_inventory_date is not None
+        else None,
+        "latest_business_date": latest_business_date.isoformat()
+        if latest_business_date is not None
         else None,
     }

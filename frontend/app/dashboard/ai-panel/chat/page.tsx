@@ -1446,7 +1446,7 @@ export default function AIChatPage() {
                     type="button"
                     variant="secondary"
                     size="icon"
-                    className="pointer-events-auto h-11 w-11 rounded-full shadow-[0_12px_32px_rgba(15,23,42,0.14)]"
+                    className="pointer-events-auto h-11 w-11 rounded-full shadow-[0_12px_32px_rgba(15,23,42,0.14)] dark:shadow-[0_12px_32px_rgba(0,0,0,0.5)]"
                     onClick={() => scrollToBottom('smooth')}
                     title="回到底部并恢复跟随"
                   >

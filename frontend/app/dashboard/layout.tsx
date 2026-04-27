@@ -222,7 +222,7 @@ export default function DashboardLayout({
               className={
                 isAiChatPage
                   ? 'dashboard-page-shell h-[calc(100vh-4.5rem)] min-h-0 px-0 py-0'
-                  : 'dashboard-page-shell min-h-[calc(100vh-8.5rem)] px-0 py-1'
+                  : 'dashboard-page-shell min-h-0 md:min-h-[calc(100vh-8.5rem)] px-0 py-1'
               }
             >
               {isNavigationLoading ? <DashboardPageLoading /> : children}

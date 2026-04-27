@@ -19,22 +19,7 @@ RMB_CURRENCY = "CNY"
 DEFAULT_BLF_BASIC_INFO_PATH = (
     Path(__file__).resolve().parents[3] / "Docs" / "ModelFiles" / "BLF_Basic_Info.csv"
 )
-COUNTRY_ALIASES = {
-    "US": "US",
-    "USA": "US",
-    "美国": "US",
-    "美国站": "US",
-    "DE": "DE",
-    "GERMANY": "DE",
-    "德国": "DE",
-    "德国站": "DE",
-    "UK": "UK",
-    "GB": "UK",
-    "UNITED KINGDOM": "UK",
-    "英国": "UK",
-    "英国站": "UK",
-}
-ALLOWED_COUNTRIES = {"US", "DE", "UK"}
+from app.utils.country import _normalize_country
 
 
 def list_projects(db: Session) -> list[dict[str, str]]:
@@ -245,19 +230,6 @@ def _normalize_int(value: int | str | None, field_name: str) -> int:
         )
     return parsed
 
-
-def _normalize_country(value: str | None) -> str:
-    normalized = (value or "").strip().upper()
-    if not normalized:
-        return "US"
-    mapped = COUNTRY_ALIASES.get(normalized, normalized)
-    if mapped not in ALLOWED_COUNTRIES:
-        allowed = ", ".join(sorted(ALLOWED_COUNTRIES))
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"country must be one of: {allowed}",
-        )
-    return mapped
 
 
 def _next_sort_order_for_project(db: Session, project_name: str) -> int:
@@ -546,12 +518,6 @@ def upsert_product_cost(
             else None,
             next_sort_order_cache=next_sort_order_cache,
         )
-        if db.bind and db.bind.dialect.name == "sqlite":
-            # Compatibility fallback for legacy sqlite schema without auto-increment id.
-            next_id = db.execute(
-                select(func.coalesce(func.max(ProductCost.id), 0) + 1)
-            ).scalar_one()
-            normalized["id"] = int(next_id)
         for key in (
             "fob_unit_cost",
             "first_leg_cost_rmb",

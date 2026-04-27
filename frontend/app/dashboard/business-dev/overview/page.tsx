@@ -9,7 +9,6 @@ export default function BusinessDevOverviewPage() {
           <Store className='h-5 w-5' />
         </div>
         <div>
-          <h1 className='text-2xl font-semibold tracking-tight'>招商面板</h1>
           <p className='text-sm text-muted-foreground'>功能开发中，稍后将开放使用</p>
         </div>
       </div>

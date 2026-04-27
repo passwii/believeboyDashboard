@@ -38,13 +38,13 @@ class CommissionRatioOverride(Base):
     )
 
     id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, 'sqlite'),
+        BigInteger(),
         primary_key=True,
         autoincrement=True,
     )
     report_month: Mapped[str] = mapped_column(String(7), nullable=False)
     project_id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer, 'sqlite'),
+        BigInteger(),
         ForeignKey('projects.id', ondelete='CASCADE'),
         nullable=False,
         index=True,

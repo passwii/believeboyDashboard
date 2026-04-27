@@ -13,14 +13,14 @@ type StoreItem = {
 }
 
 const tonePresets = [
-  'bg-[#e0e7ff]',
-  'bg-[#d1fae5]',
-  'bg-[#fef3c7]',
-  'bg-[#fee2e2]',
-  'bg-[#ede9fe]',
-  'bg-[#fce7f3]',
-  'bg-[#cffafe]',
-  'bg-[#ecfccb]',
+  'bg-[#e0e7ff] dark:bg-[#1e1b4b]/60',
+  'bg-[#d1fae5] dark:bg-[#064e3b]/60',
+  'bg-[#fef3c7] dark:bg-[#78350f]/60',
+  'bg-[#fee2e2] dark:bg-[#881337]/60',
+  'bg-[#ede9fe] dark:bg-[#4c1d95]/60',
+  'bg-[#fce7f3] dark:bg-[#831843]/60',
+  'bg-[#cffafe] dark:bg-[#164e63]/60',
+  'bg-[#ecfccb] dark:bg-[#365314]/60',
 ]
 
 function getToneByIndex(index: number): string {
@@ -28,14 +28,14 @@ function getToneByIndex(index: number): string {
 }
 
 const labelTones = [
-  'text-[#3b82f6] bg-[#eff6ff] border-[#dbeafe]',
-  'text-[#10b981] bg-[#f0fdf4] border-[#d1fae5]',
-  'text-[#f59e0b] bg-[#fffbeb] border-[#fef3c7]',
-  'text-[#ef4444] bg-[#fff1f2] border-[#fee2e2]',
-  'text-[#8b5cf6] bg-[#f5f3ff] border-[#ede9fe]',
-  'text-[#ec4899] bg-[#fdf2f8] border-[#fce7f3]',
-  'text-[#0891b2] bg-[#ecfeff] border-[#cffafe]',
-  'text-[#65a30d] bg-[#f7fee7] border-[#ecfccb]',
+  'text-[#3b82f6] bg-[#eff6ff] border-[#dbeafe] dark:text-[#93c5fd] dark:bg-[#1e3a5f] dark:border-[#1e3a5f]',
+  'text-[#10b981] bg-[#f0fdf4] border-[#d1fae5] dark:text-[#6ee7b7] dark:bg-[#064e3b] dark:border-[#064e3b]',
+  'text-[#f59e0b] bg-[#fffbeb] border-[#fef3c7] dark:text-[#fcd34d] dark:bg-[#78350f] dark:border-[#78350f]',
+  'text-[#ef4444] bg-[#fff1f2] border-[#fee2e2] dark:text-[#fca5a5] dark:bg-[#881337] dark:border-[#881337]',
+  'text-[#8b5cf6] bg-[#f5f3ff] border-[#ede9fe] dark:text-[#c4b5fd] dark:bg-[#4c1d95] dark:border-[#4c1d95]',
+  'text-[#ec4899] bg-[#fdf2f8] border-[#fce7f3] dark:text-[#f9a8d4] dark:bg-[#831843] dark:border-[#831843]',
+  'text-[#0891b2] bg-[#ecfeff] border-[#cffafe] dark:text-[#67e8f9] dark:bg-[#164e63] dark:border-[#164e63]',
+  'text-[#65a30d] bg-[#f7fee7] border-[#ecfccb] dark:text-[#bef264] dark:bg-[#365314] dark:border-[#365314]',
 ]
 
 function getLabelToneByIndex(index: number): string {
