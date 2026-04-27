@@ -189,7 +189,7 @@ def _resolve_database_source(database_url: str) -> tuple[str, str | None]:
             source = f"{url.host}/{url.database}"
         else:
             source = url.host
-    return engine, source
+    return url.host or "unknown", source
 
 
 def _to_iso(value: datetime | str | None) -> str | None:

@@ -1137,7 +1137,8 @@ def _load_project_product_mapping(
 ) -> tuple[set[str], set[str]]:
     rows = db.execute(
         select(ProductCost.sku, ProductCost.asin).where(
-            ProductCost.project_name == project_name,
+            ProductCost.project_id == Project.id,
+            Project.project_name == project_name,
             ProductCost.is_active.is_(True),
             ProductCost.country == country,
         )

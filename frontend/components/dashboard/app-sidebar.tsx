@@ -137,28 +137,6 @@ const primaryGroups: NavGroup[] = [
     ],
   },
   {
-    label: '工具集',
-    icon: <Wrench className='h-6 w-6' />,
-    accent: 'bg-[linear-gradient(180deg,#0d6a53,#159271)] text-[#c7fff0]',
-    activeAccent: 'bg-[linear-gradient(180deg,#118166,#1cab86)] text-white',
-    iconAccent: '#888888',
-    activeIconAccent: 'rgba(255,255,255,0.95)',
-    items: [
-      { title: '调研分析', url: '/dashboard/tools/research-analysis' },
-    ],
-  },
-  {
-    label: '数字员工',
-    icon: <Users className='h-6 w-6' />,
-    accent: 'bg-[linear-gradient(180deg,#1a5276,#2980b9)] text-[#d6eaf8]',
-    activeAccent: 'bg-[linear-gradient(180deg,#1f6dad,#2980b9)] text-white',
-    iconAccent: '#888888',
-    activeIconAccent: 'rgba(255,255,255,0.95)',
-    items: [
-      { title: '数字员工', url: '/dashboard/digital-employees' },
-    ],
-  },
-  {
     label: '数据管理',
     icon: <Database className='h-6 w-6' />,
     accent: 'bg-[linear-gradient(180deg,#8c3b5e,#bb5682)] text-[#ffe1ee]',
@@ -175,6 +153,17 @@ const primaryGroups: NavGroup[] = [
       { title: 'SKU 信息', url: '/dashboard/data-management/sku-cost' },
       { title: '汇率信息', url: '/dashboard/data-management/exchange-rate' },
       { title: '报表自动化', url: '/dashboard/data-management/auto-upload' },
+    ],
+  },
+  {
+    label: '工具集',
+    icon: <Wrench className='h-6 w-6' />,
+    accent: 'bg-[linear-gradient(180deg,#0d6a53,#159271)] text-[#c7fff0]',
+    activeAccent: 'bg-[linear-gradient(180deg,#118166,#1cab86)] text-white',
+    iconAccent: '#888888',
+    activeIconAccent: 'rgba(255,255,255,0.95)',
+    items: [
+      { title: '调研分析', url: '/dashboard/tools/research-analysis' },
     ],
   },
 ]
@@ -199,6 +188,16 @@ const businessDevGroup: NavGroup = {
     { title: '供应商管理（占位）', url: '/dashboard/business-dev/suppliers' },
     { title: '招商报表（占位）', url: '/dashboard/business-dev/reports' },
   ],
+}
+
+const digitalEmployeesGroup: NavGroup = {
+  label: '数字员工',
+  icon: <Users className='h-6 w-6' />,
+  accent: 'bg-[linear-gradient(180deg,#1a5276,#2980b9)] text-[#d6eaf8]',
+  activeAccent: 'bg-[linear-gradient(180deg,#1f6dad,#2980b9)] text-white',
+  iconAccent: '#888888',
+  activeIconAccent: 'rgba(255,255,255,0.95)',
+  items: [{ title: '数字员工', url: '/dashboard/digital-employees' }],
 }
 
 const adminGroup: NavGroup = {
@@ -359,6 +358,10 @@ export function AppSidebar({
             {primaryGroups.map((group) => (
               <SidebarGroupBlock key={group.label} group={group} />
             ))}
+
+            {displayUser.roleType === 'admin' ? (
+              <SidebarGroupBlock group={digitalEmployeesGroup} />
+            ) : null}
 
             {displayUser.roleType === 'admin' ? (
               <SidebarGroupBlock group={adminGroup} />

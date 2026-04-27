@@ -221,7 +221,8 @@ def _build_project_match(
     normalized_lower = [v.lower() for v in normalized_values]
     rows = (
         db.execute(
-            select(ProductCost.project_name)
+            select(Project.project_name)
+            .join(ProductCost, ProductCost.project_id == Project.id)
             .where(func.lower(col).in_(normalized_lower))
             .where(ProductCost.is_active.is_(True))
             .where(ProductCost.country == country)
