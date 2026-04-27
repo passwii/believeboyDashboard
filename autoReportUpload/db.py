@@ -15,7 +15,13 @@ load_dotenv(_env_path)
 # Import config so that ENV is evaluated and defaults are set before we read DB url
 from config import DATABASE_URL  # noqa: E402
 
-engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_size=5)
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    pool_size=5,
+    pool_recycle=1800,  # 30 min — refresh connections before PostgreSQL kills them
+    pool_timeout=10,   # fail fast if no connection available
+)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 
