@@ -78,14 +78,15 @@ class ProductCost(Base):
     __tablename__ = "product_costs"
     __table_args__ = (
         UniqueConstraint(
-            "project_name",
+            "project_id",
             "sku",
             "asin",
             "country",
-            name="product_costs_project_sku_asin_country_key",
+            name="product_costs_project_id_sku_asin_country_key",
         ),
-        Index("idx_product_costs_project_sort", "project_name", "sort_order", "id"),
-        Index("idx_product_costs_project_sku_active", "project_name", "sku", "is_active"),
+        Index("idx_product_costs_project_id", "project_id"),
+        Index("idx_product_costs_project_sort", "project_id", "sort_order", "id"),
+        Index("idx_product_costs_project_sku_active", "project_id", "sku", "is_active"),
     )
 
     id: Mapped[int] = mapped_column(
@@ -93,6 +94,12 @@ class ProductCost(Base):
         primary_key=True,
         autoincrement=True,
     )
+    project_id: Mapped[int] = mapped_column(
+        BigInteger(),
+        ForeignKey("projects.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    # project_name is kept as a read-only denormalized field for backward compatibility.
     project_name: Mapped[str] = mapped_column(String, nullable=False, index=True)
     sku: Mapped[str] = mapped_column(String, nullable=False, index=True)
     asin: Mapped[str] = mapped_column(String, nullable=False, index=True)

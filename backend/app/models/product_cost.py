@@ -3,6 +3,7 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     DateTime,
+    ForeignKey,
     Index,
     Integer,
     Numeric,
@@ -10,7 +11,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
 
@@ -19,15 +20,16 @@ class ProductCost(Base):
     __tablename__ = "product_costs"
     __table_args__ = (
         UniqueConstraint(
-            "project_name",
+            "project_id",
             "sku",
             "asin",
             "country",
-            name="product_costs_project_sku_asin_country_key",
+            name="product_costs_project_id_sku_asin_country_key",
         ),
-        Index("idx_product_costs_project_sort", "project_name", "sort_order", "id"),
+        Index("idx_product_costs_project_id", "project_id"),
+        Index("idx_product_costs_project_sort", "project_id", "sort_order", "id"),
         Index(
-            "idx_product_costs_project_sku_active", "project_name", "sku", "is_active"
+            "idx_product_costs_project_sku_active", "project_id", "sku", "is_active"
         ),
     )
 
@@ -36,6 +38,15 @@ class ProductCost(Base):
         primary_key=True,
         autoincrement=True,
     )
+    project_id: Mapped[int] = mapped_column(
+        BigInteger(),
+        ForeignKey("projects.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    project: Mapped["Project"] = relationship(back_populates="product_costs")
+    # project_name is kept as a read-only denormalized field for historical queries.
+    # Write operations must use project_id; this column is populated via triggers
+    # or application-level sync (see product_cost_service).
     project_name: Mapped[str] = mapped_column(String, nullable=False, index=True)
     sku: Mapped[str] = mapped_column(String, nullable=False, index=True)
     asin: Mapped[str] = mapped_column(String, nullable=False, index=True)

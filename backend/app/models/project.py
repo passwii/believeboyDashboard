@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import BigInteger, Boolean, DateTime, Integer, Numeric, String, Text, UniqueConstraint, CheckConstraint, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
 
@@ -41,3 +43,5 @@ class Project(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
+
+    product_costs: Mapped[list["ProductCost"]] = relationship(back_populates="project")

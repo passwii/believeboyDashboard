@@ -7,9 +7,9 @@ from pathlib import Path
 
 from fastapi import HTTPException, status
 from sqlalchemy import Select, and_, func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
-from app.models import ProductCost
+from app.models import ProductCost, Project
 from app.schemas.product_cost import ProductCostCreate, ProductCostUpdate
 
 DECIMAL_ZERO = Decimal("0")
@@ -22,14 +22,42 @@ DEFAULT_BLF_BASIC_INFO_PATH = (
 from app.utils.country import _normalize_country
 
 
-def list_projects(db: Session) -> list[dict[str, str]]:
-    stmt = (
-        select(ProductCost.project_name)
-        .distinct()
-        .order_by(ProductCost.project_name.asc())
+# ── project_name → project_id cache (per request, prevents repeated DB hits) ──
+_project_id_cache: dict[str, int] = {}
+
+
+def _resolve_project_id(db: Session, project_name: str) -> int:
+    if project_name in _project_id_cache:
+        return _project_id_cache[project_name]
+    row = (
+        db.execute(select(Project.id).where(Project.project_name == project_name.strip()))
+        .scalars()
+        .first()
     )
-    names = [row[0] for row in db.execute(stmt).all()]
-    return [{"name": name} for name in names]
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"项目不存在: {project_name}",
+        )
+    _project_id_cache[project_name] = row
+    return row
+
+
+def _clear_project_id_cache() -> None:
+    _project_id_cache.clear()
+
+
+def list_projects(db: Session) -> list[dict[str, str]]:
+    rows = (
+        db.execute(
+            select(Project.project_name)
+            .where(Project.is_active.is_(True))
+            .order_by(Project.sort_order.asc(), Project.project_name.asc())
+        )
+        .scalars()
+        .all()
+    )
+    return [{"name": name} for name in rows]
 
 
 def match_projects_by_identifiers(
@@ -54,7 +82,8 @@ def match_projects_by_identifiers(
         raise ValueError(f"Unsupported match_by: {match_by}")
 
     stmt = (
-        select(ProductCost.project_name, column)
+        select(Project.project_name, column)
+        .join(ProductCost, ProductCost.project_id == Project.id)
         .where(func.upper(column).in_(normalized_values))
         .where(ProductCost.country == normalized_country)
         .where(ProductCost.is_active.is_(True))
@@ -83,7 +112,9 @@ def list_product_costs(
     stmt: Select = select(ProductCost)
 
     if project_name:
-        stmt = stmt.where(ProductCost.project_name.ilike(f"%{project_name}%"))
+        stmt = stmt.join(Project).where(
+            Project.project_name.ilike(f"%{project_name}%")
+        )
     if sku:
         stmt = stmt.where(ProductCost.sku.ilike(f"%{sku}%"))
     if asin:
@@ -125,7 +156,9 @@ def list_product_costs_all(
     stmt: Select = select(ProductCost)
 
     if project_name:
-        stmt = stmt.where(ProductCost.project_name.ilike(f"%{project_name}%"))
+        stmt = stmt.join(Project).where(
+            Project.project_name.ilike(f"%{project_name}%")
+        )
     if sku:
         stmt = stmt.where(ProductCost.sku.ilike(f"%{sku}%"))
     if asin:
@@ -232,10 +265,10 @@ def _normalize_int(value: int | str | None, field_name: str) -> int:
 
 
 
-def _next_sort_order_for_project(db: Session, project_name: str) -> int:
+def _next_sort_order_for_project(db: Session, project_id: int) -> int:
     value = db.execute(
         select(func.coalesce(func.max(ProductCost.sort_order), 0)).where(
-            ProductCost.project_name == project_name
+            ProductCost.project_id == project_id
         )
     ).scalar_one()
     return int(value or 0) + 1
@@ -244,35 +277,37 @@ def _next_sort_order_for_project(db: Session, project_name: str) -> int:
 def _resolve_insert_sort_order(
     db: Session,
     *,
-    project_name: str,
+    project_id: int,
     requested_sort_order: int | None,
     next_sort_order_cache: dict[str, int] | None,
 ) -> int:
     if requested_sort_order is not None:
         return requested_sort_order
 
-    if next_sort_order_cache is not None and project_name in next_sort_order_cache:
-        resolved = next_sort_order_cache[project_name]
-        next_sort_order_cache[project_name] = resolved + 1
+    cache_key = str(project_id)
+    if next_sort_order_cache is not None and cache_key in next_sort_order_cache:
+        resolved = next_sort_order_cache[cache_key]
+        next_sort_order_cache[cache_key] = resolved + 1
         return resolved
 
-    next_order = _next_sort_order_for_project(db, project_name)
+    next_order = _next_sort_order_for_project(db, project_id)
     if next_sort_order_cache is not None:
-        next_sort_order_cache[project_name] = next_order + 1
+        next_sort_order_cache[cache_key] = next_order + 1
     return next_order
 
 
 def _resequence_project_sort_orders(
     db: Session,
     *,
-    project_name: str,
+    project_id: int,
+    project_name: str | None = None,
     prioritized_row: ProductCost | None = None,
     requested_sort_order: int | None = None,
 ) -> None:
     rows = (
         db.execute(
             select(ProductCost)
-            .where(ProductCost.project_name == project_name)
+            .where(ProductCost.project_id == project_id)
             .order_by(ProductCost.sort_order.asc(), ProductCost.id.asc())
         )
         .scalars()
@@ -421,13 +456,14 @@ def _find_existing_for_import(
     allow_multiple_matches: bool = False,
 ) -> ProductCost | None:
     project_name = str(normalized["project_name"])
+    project_id = _resolve_project_id(db, project_name)
     sku = str(normalized["sku"])
     country = str(normalized["country"])
 
     matches = (
         db.execute(
             select(ProductCost).where(
-                ProductCost.project_name == project_name,
+                ProductCost.project_id == project_id,
                 ProductCost.sku == sku,
                 ProductCost.country == country,
             )
@@ -460,10 +496,13 @@ def upsert_product_cost(
     next_sort_order_cache: dict[str, int] | None = None,
 ) -> tuple[ProductCost, str]:
     normalized = _normalize_item(item, source_file)
+    project_name = str(normalized["project_name"])
+    project_id = _resolve_project_id(db, project_name)
+
     existing = (
         db.execute(
             select(ProductCost).where(
-                ProductCost.project_name == normalized["project_name"],
+                ProductCost.project_id == project_id,
                 ProductCost.sku == normalized["sku"],
                 ProductCost.asin == normalized["asin"],
                 ProductCost.country == normalized["country"],
@@ -512,7 +551,7 @@ def upsert_product_cost(
     else:
         normalized["sort_order"] = _resolve_insert_sort_order(
             db,
-            project_name=str(normalized["project_name"]),
+            project_id=project_id,
             requested_sort_order=normalized["sort_order"]
             if isinstance(normalized["sort_order"], int)
             else None,
@@ -535,13 +574,15 @@ def upsert_product_cost(
                 normalized[key] = 0
         if normalized["is_active"] is None:
             normalized["is_active"] = True
+        normalized["project_id"] = project_id
         row = ProductCost(**normalized)
         db.add(row)
         db.flush()
         if isinstance(normalized["sort_order"], int):
             _resequence_project_sort_orders(
                 db,
-                project_name=str(normalized["project_name"]),
+                project_id=project_id,
+                project_name=project_name,
                 prioritized_row=row,
                 requested_sort_order=int(normalized["sort_order"]),
             )
@@ -644,7 +685,7 @@ def update_product_cost_by_id(
     duplicate = (
         db.execute(
             select(ProductCost).where(
-                ProductCost.project_name == row.project_name,
+                ProductCost.project_id == row.project_id,
                 ProductCost.sku == sku,
                 ProductCost.asin == asin,
                 ProductCost.country == country,
@@ -657,7 +698,7 @@ def update_product_cost_by_id(
     if duplicate:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="更新后与现有记录重复（project_name + sku + asin + country）",
+            detail="更新后与现有记录重复（project_id + sku + asin + country）",
         )
 
     row.sku = sku
@@ -824,13 +865,13 @@ def import_product_costs(
             skipped += 1
             continue
 
-        # In update mode, the import key is project_name + SKU + country.
+        # In update mode, the import key is project_id + SKU + country.
         # All other provided columns should overwrite the existing row, including blanks.
         if "asin" in item.model_fields_set and str(normalized["asin"]) != existing.asin:
             duplicate = (
                 db.execute(
                     select(ProductCost).where(
-                        ProductCost.project_name == existing.project_name,
+                        ProductCost.project_id == existing.project_id,
                         ProductCost.sku == existing.sku,
                         ProductCost.country == existing.country,
                         ProductCost.asin == str(normalized["asin"]),
@@ -923,7 +964,7 @@ def move_product_cost_sort_order(
             db.execute(
                 select(ProductCost)
                 .where(
-                    ProductCost.project_name == row.project_name,
+                    ProductCost.project_id == row.project_id,
                     ProductCost.id != row.id,
                     or_(
                         ProductCost.sort_order < row.sort_order,
@@ -944,7 +985,7 @@ def move_product_cost_sort_order(
             db.execute(
                 select(ProductCost)
                 .where(
-                    ProductCost.project_name == row.project_name,
+                    ProductCost.project_id == row.project_id,
                     ProductCost.id != row.id,
                     or_(
                         ProductCost.sort_order > row.sort_order,
