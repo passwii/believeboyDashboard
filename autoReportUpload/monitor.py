@@ -29,21 +29,24 @@ class RunLogger:
         self.log_path = self.logs_dir / f"run_{self.run_ts}.log"
 
         self.logger = logging.getLogger(f"autorun.{self.run_ts}")
-        self.logger.setLevel(logging.INFO)
+        self.logger.setLevel(logging.DEBUG)
         self.logger.handlers.clear()
 
         # File handler
         fh = logging.FileHandler(self.log_path, encoding="utf-8")
-        fh.setLevel(logging.INFO)
+        fh.setLevel(logging.DEBUG)
         # Console handler
         ch = logging.StreamHandler()
-        ch.setLevel(logging.INFO)
+        ch.setLevel(logging.DEBUG)
 
         fmt = logging.Formatter("%(asctime)s  %(levelname)-8s  %(message)s", datefmt="%H:%M:%S")
         fh.setFormatter(fmt)
         ch.setFormatter(fmt)
         self.logger.addHandler(fh)
         self.logger.addHandler(ch)
+
+    def debug(self, msg: str) -> None:
+        self.logger.debug(msg)
 
     def info(self, msg: str) -> None:
         self.logger.info(msg)
@@ -119,7 +122,12 @@ def run_cycle(logger: RunLogger, dry_run: bool = False) -> dict:
                 stats["files_seen"] += 1
                 if HAS_CLIENT:
                     report_scan_progress(task_id, f"处理: {file_path.name}", stats["files_seen"], i + 1)
+
+                t0 = time.time()
+                logger.debug(f"  [处理开始] {file_path.name}")
                 result = process_file(file_path, project_name, db, dry_run=dry_run)
+                elapsed = time.time() - t0
+                logger.debug(f"  [处理完成] {file_path.name}  耗时 {elapsed:.1f}s")
                 logger.result(file_path, project_name, result)
                 if result.skipped:
                     stats["skipped"] += 1
