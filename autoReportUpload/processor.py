@@ -114,8 +114,13 @@ def process_file(
     Recognize a file, persist it to DB, and move it to the processed/ subfolder.
     Returns a ProcessResult describing what happened.
     """
+    import time
+    t0 = time.time()
+
     # 1. Recognize
     result = recognize_file(db, file_path, original_filename=file_path.name)
+    t1 = time.time()
+
     if result is None:
         return ProcessResult(skipped=True, reason="未匹配任何报表类型")
 
@@ -159,6 +164,7 @@ def process_file(
             reason="入库异常",
             error=str(exc),
         )
+    t2 = time.time()
 
     if not outcome.get("success"):
         error_msg = str(outcome.get("error", ""))
@@ -187,6 +193,7 @@ def process_file(
     if not IS_LOCAL:
         _move_to_processed(file_path)
 
+    total_time = time.time() - t0
     return ProcessResult(
         success=True,
         report_type=result.report_type,
@@ -196,6 +203,7 @@ def process_file(
             f"{outcome.get('report_start_date', '')}"
             f"{'–' if outcome.get('report_start_date') and outcome.get('report_end_date') else ''}"
             f"{outcome.get('report_end_date', '')}"
+            f"  [识别{t1-t0:.1f}s+入库{t2-t1:.1f}s+移动{time.time()-t2:.1f}s=总{total_time:.1f}s]"
         ),
     )
 
@@ -210,12 +218,17 @@ def _persist_one_file(
     result,
 ) -> dict[str, Any]:
     """Persist a recognized file to the database."""
+    import time
+    t0 = time.time()
+
     project = _get_project_by_name(db, project_name)
     report_type = result.report_type
     country = result.country or "US"
     now = datetime.now()
 
+    t1 = time.time()
     known_skus, known_asins = _load_project_product_mapping(db, project_name, country)
+    t2 = time.time()
 
     period_start: date | None = None
     period_end: date | None = None
@@ -303,6 +316,9 @@ def _persist_single_source(
     known_asins: set[str],
     now: datetime,
 ) -> dict[str, Any]:
+    import time
+    t0 = time.time()
+
     version = _next_version(
         db, project.id, report_type, country, period_start, period_end
     )
@@ -339,31 +355,35 @@ def _persist_single_source(
     db.add(source)
     db.flush()
 
-    try:
-        total, included = _parse_and_insert_rows(
-            db, file_path, source.id, report_type, known_skus, known_asins
-        )
-        source.row_count_total = total
-        source.row_count_included = included
-        source.ingestion_status = "success"
+    t1 = time.time()
+    total, included = _parse_and_insert_rows(
+        db, file_path, source.id, report_type, known_skus, known_asins
+    )
+    t2 = time.time()
+    source.row_count_total = total
+    source.row_count_included = included
+    source.ingestion_status = "success"
 
-        _replace_current_pointer(db, source)
-        source.is_current = True
-        source.superseded_at = None
-        db.flush()
+    _replace_current_pointer(db, source)
+    source.is_current = True
+    source.superseded_at = None
+    db.flush()
 
-        # Write upload log（使用本地时间）
-        upload_date = _resolve_upload_date(now)
-        _write_upload_log(db, project.id, report_type, country, upload_date, total > 0, total, source.id, file_path.name)
+    # Write upload log（使用本地时间）
+    upload_date = _resolve_upload_date(now)
+    _write_upload_log(db, project.id, report_type, country, upload_date, total > 0, total, source.id, file_path.name)
 
-        db.commit()
+    db.commit()
+    t3 = time.time()
 
-        return {"success": True, "source_id": source.id, "row_count": total}
-    except Exception as exc:  # noqa: BLE001
-        source.ingestion_status = "failed"
-        source.ingestion_error = str(exc)[:4000]
-        db.commit()
-        return {"success": False, "error": str(exc)}
+    return {
+        "success": True,
+        "source_id": source.id,
+        "row_count": total,
+        "report_start_date": period_start.isoformat() if period_start else None,
+        "report_end_date": period_end.isoformat() if period_end else None,
+        "_timing": f"setup={t1-t0:.1f}s parse={t2-t1:.1f}s commit={t3-t2:.1f}s total={t3-t0:.1f}s",
+    }
 
 
 # ─── Return report ────────────────────────────────────────────────────────────
@@ -730,11 +750,13 @@ def _persist_sales_report(
     )
     db.commit()
     dates = sorted(grouped)
+    timing = outcome.get("_timing", "")
     return {
         "success": True,
         "source_id": latest_id,
         "row_count": total,
         "message": f"销售报表已按购买日期拆分为 {len(dates)} 个日期入库",
+        "_timing": timing,
     }
 
 
