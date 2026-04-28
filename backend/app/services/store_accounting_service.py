@@ -72,6 +72,7 @@ def _to_item(row: StoreAccounting) -> StoreAccountingItem:
             'delivery_fee_usd': float(getattr(row, 'delivery_fee_usd', Decimal('0')) or Decimal('0')),
             'inbound_config_fee_manual_usd': float(getattr(row, 'inbound_config_fee_manual_usd', Decimal('0')) or Decimal('0')),
             'storage_fee_manual_usd': float(getattr(row, 'storage_fee_manual_usd', Decimal('0')) or Decimal('0')),
+            'platform_fee_usd': float(getattr(row, 'platform_fee_usd', Decimal('0')) or Decimal('0')),
         },
         profit={
             'ddp_cost_rmb': float(row.ddp_cost_rmb),
@@ -174,6 +175,7 @@ def _create(
         delivery_fee_usd=Decimal(str(payload.delivery_fee_usd)),
         inbound_config_fee_manual_usd=Decimal(str(payload.inbound_config_fee_manual_usd)),
         storage_fee_manual_usd=Decimal(str(payload.storage_fee_manual_usd)),
+        platform_fee_usd=Decimal(str(payload.platform_fee_usd)),
         payout_usd=Decimal(str(payload.payout_usd)),
         profit_usd=Decimal(str(payload.profit_usd)),
         profit_rate=Decimal(str(payload.profit_rate)),
@@ -237,6 +239,7 @@ def _update(
     existing.delivery_fee_usd = Decimal(str(payload.delivery_fee_usd))
     existing.inbound_config_fee_manual_usd = Decimal(str(payload.inbound_config_fee_manual_usd))
     existing.storage_fee_manual_usd = Decimal(str(payload.storage_fee_manual_usd))
+    existing.platform_fee_usd = Decimal(str(payload.platform_fee_usd))
     existing.payout_usd = Decimal(str(payload.payout_usd))
     existing.profit_usd = Decimal(str(payload.profit_usd))
     existing.profit_rate = Decimal(str(payload.profit_rate))

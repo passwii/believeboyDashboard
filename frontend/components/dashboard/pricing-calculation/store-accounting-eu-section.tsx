@@ -5,10 +5,6 @@ import { Package, Search } from 'lucide-react'
 
 import { Skeleton } from '@/components/ui/skeleton'
 import { StoreAccountingEuTable } from '@/components/dashboard/pricing-calculation/store-accounting-eu-table'
-import { formatLocalTimestampForFilename } from '@/lib/utils'
-import { logClientOperation } from '@/lib/operation-audit'
-import { useNotifications } from '@/components/notifications'
-import { applyBorder, applyHeaderBorder } from '@/lib/excel-styles'
 import type {
   PricingCalculationRunItem,
   ProductCostItem,
@@ -149,6 +145,8 @@ interface StoreAccountingEuSectionProps {
   skuKeyword: string
   onProjectChange: (name: string) => void
   onSkuKeywordChange: (keyword: string) => void
+  onDataReady?: (data: { items: ProductCostItem[]; rows: Record<number, StoreSkuRowState> }) => void
+  onHasCalculatedRowsChange?: (hasRows: boolean) => void
 }
 
 export function StoreAccountingEuSection({
@@ -159,15 +157,15 @@ export function StoreAccountingEuSection({
   selectedProjectId,
   skuKeyword,
   onSkuKeywordChange,
+  onDataReady,
+  onHasCalculatedRowsChange,
 }: StoreAccountingEuSectionProps) {
-  const { notify } = useNotifications()
   const [storeSkus, setStoreSkus] = useState<ProductCostItem[]>([])
   const [storeSkusLoading, setStoreSkusLoading] = useState(false)
   const [storeSkusError, setStoreSkusError] = useState<string | null>(null)
   const [snapshotError, setSnapshotError] = useState<string | null>(null)
   const [storeRows, setStoreRows] = useState<Record<number, StoreSkuRowState>>({})
   const [systemExchangeRate, setSystemExchangeRate] = useState<string>('')
-  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     setStoreRows({})
@@ -333,6 +331,16 @@ export function StoreAccountingEuSection({
     )
   }, [skuKeyword, storeSkus])
 
+  // 通知父组件数据变化
+  useEffect(() => {
+    onDataReady?.({ items: filteredSkus, rows: storeRows })
+  }, [filteredSkus, storeRows, onDataReady])
+
+  useEffect(() => {
+    const hasRows = Object.values(storeRows).some((r) => r.result != null)
+    onHasCalculatedRowsChange?.(hasRows)
+  }, [storeRows, onHasCalculatedRowsChange])
+
   function updateDraft(rowId: number, key: keyof StoreSkuDraft, value: string) {
     setStoreRows((current) => {
       const row = current[rowId]
@@ -427,6 +435,7 @@ export function StoreAccountingEuSection({
             inbound_config_fee_usd: createdRun.fees.inbound_config_fee_usd,
             storage_fee_usd: createdRun.fees.storage_fee_usd,
             total_fee_usd: createdRun.fees.total_fee_usd,
+            platform_fee_usd: createdRun.fees.platform_fee_usd ?? 0,
             payout_usd: createdRun.profit.payout_usd,
             profit_usd: createdRun.profit.profit_usd,
             profit_rate: createdRun.profit.profit_rate,
@@ -451,164 +460,6 @@ export function StoreAccountingEuSection({
           error: calcErr instanceof Error ? calcErr.message : '店铺核算失败',
         },
       }))
-    }
-  }
-
-  async function handleExport() {
-    const itemsWithResults = filteredSkus.filter((i) => storeRows[i.id]?.result != null)
-    if (itemsWithResults.length === 0) {
-      notify({ type: 'error', title: '没有可导出的数据' })
-      return
-    }
-    setExporting(true)
-    try {
-      const ExcelJS = await import('exceljs')
-      const workbook = new ExcelJS.Workbook()
-      const worksheet = workbook.addWorksheet('欧洲店铺SKU核算')
-      worksheet.views = [{ showGridLines: false }]
-      const countryLabel = EU_COUNTRY_OPTIONS.find((o) => o.value === selectedCountry)?.label ?? selectedCountry
-      const ddpCurrency = selectedCountry === 'DE' ? 'EUR' : selectedCountry === 'UK' ? 'GBP' : 'USD'
-      const saleCurrency = ddpCurrency
-
-      worksheet.mergeCells(1, 1, 1, 25)
-      const titleCell = worksheet.getCell(1, 1)
-      titleCell.value = `欧洲店铺SKU核算表 - ${selectedProjectName} - ${countryLabel}`
-      titleCell.font = { name: 'Microsoft YaHei', size: 14, bold: true }
-      titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
-
-      // Group header row — mirrors US section group header style
-      // Groups: 店铺产品(1), 货品数据(7), DDP成本(4), 费用支出(7), 利润核算(4) = cols 1-22
-      // But table has 24 cols, so: 店铺产品(1), 货品数据(7), DDP成本(4), 费用支出(7), 利润核算(4) = 23, plus 操作(2)
-      // From spec: cols 1, 2-8, 9-12, 13-19, 20-23 (店铺产品, 货品数据, DDP成本, 费用支出, 利润核算)
-      // Total data cols: 1+7+4+7+4 = 23; we have 24 headers so we span 操作(2) separately
-      const groupHeaderRow = worksheet.addRow([''])
-      groupHeaderRow.values = ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '']
-
-      const groupDefs: Array<{ label: string; color: string; colStart: number; colEnd: number }> = [
-        { label: '店铺产品',  color: 'FF312E81', colStart: 1,  colEnd: 1  },
-        { label: '货品数据',  color: 'FF0C4A6E', colStart: 2,  colEnd: 8  },
-        { label: 'DDP成本',  color: 'FF78350F', colStart: 9,  colEnd: 12 },
-        { label: '费用支出',  color: 'FF881337', colStart: 13, colEnd: 20 },
-        { label: '利润核算',  color: 'FF064E3B', colStart: 21, colEnd: 24 },
-      ]
-
-      for (const g of groupDefs) {
-        worksheet.mergeCells(groupHeaderRow.number, g.colStart, groupHeaderRow.number, g.colEnd)
-        const cell = worksheet.getCell(groupHeaderRow.number, g.colStart)
-        cell.value = g.label
-        cell.font = { name: 'Microsoft YaHei', size: 11, bold: true, color: { argb: 'FFFFFFFF' } }
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: g.color } }
-        cell.alignment = { horizontal: 'center', vertical: 'middle' }
-        applyHeaderBorder(cell)
-      }
-
-      const headers = [
-        'SKU', '项目', 'FOB(RMB)', '长', '宽', '高', '重量(kg)', '计费重',
-        '头程(RMB)', 'DDP(RMB)', `DDP(${ddpCurrency})`, '汇率',
-        `售价(${saleCurrency})`, '广告费率%', '广告费', '退货损耗',
-        '派送费', '配置费', '仓储费', '费用合计',
-        '回款', '增值税', '利润(扣税后)', '利润率(扣税)',
-      ]
-      const headerRow = worksheet.addRow(headers)
-      headerRow.font = { name: 'Microsoft YaHei', bold: true }
-      headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFCBD5E1' } }
-      headerRow.eachCell((cell) => { applyHeaderBorder(cell) })
-
-      itemsWithResults.forEach((item, rowIdx) => {
-        const result = storeRows[item.id]!.result!
-        const profitVal = result.profit.profit_after_vat_usd ?? result.profit.profit_usd
-        const row = worksheet.addRow([
-          item.sku, item.project_name, item.fob_unit_cost,
-          toNumber(item.package_length_cm), toNumber(item.package_width_cm),
-          toNumber(item.package_height_cm), item.weight_kg,
-          Math.max(item.weight_kg, (toNumber(item.package_length_cm) * toNumber(item.package_width_cm) * toNumber(item.package_height_cm)) / 6000),
-          toNumber(storeRows[item.id]!.draft.first_leg_cost_rmb),
-          result.profit.ddp_cost_rmb, result.profit.ddp_cost_usd, result.usd_to_rmb_rate,
-          result.sale_price_usd,
-          toNumber(storeRows[item.id]!.draft.advertising_rate),
-          result.fees.advertising_fee_usd, result.fees.return_loss_usd,
-          toNumber(storeRows[item.id]!.draft.delivery_fee_usd),
-          toNumber(storeRows[item.id]!.draft.inbound_config_fee_usd),
-          toNumber(storeRows[item.id]!.draft.storage_fee_usd),
-          result.fees.total_fee_usd,
-          result.profit.payout_usd,
-          result.profit.vat_usd ?? 0,
-          profitVal,
-          result.profit.profit_after_vat_rate ?? result.profit.profit_rate,
-        ])
-        row.font = { name: 'Microsoft YaHei' }
-        // Alternating row colors
-        const bgColor = rowIdx % 2 === 0 ? 'FFFFFFFF' : 'FFF8FAFC'
-        for (let c = 1; c <= 25; c++) {
-          const cell = worksheet.getCell(row.number, c)
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgColor } }
-          cell.alignment = { horizontal: 'center', vertical: 'middle' }
-          applyBorder(cell)
-        }
-        // Color-code profit amount column (col 22): green if >=0, red if <0
-        const profitCell = worksheet.getCell(row.number, 22)
-        if (profitVal != null && !Number.isNaN(profitVal)) {
-          if (profitVal >= 0) {
-            profitCell.font = { name: 'Microsoft YaHei', color: { argb: 'FF059669' } }
-          } else {
-            profitCell.font = { name: 'Microsoft YaHei', color: { argb: 'FFE11D48' } }
-          }
-        }
-        // Format profit rate column (col 23) as percentage
-        const profitRateCell = worksheet.getCell(row.number, 23)
-        const profitRateVal = result.profit.profit_after_vat_rate ?? result.profit.profit_rate
-        if (profitRateVal != null && !Number.isNaN(profitRateVal)) {
-          profitRateCell.numFmt = '0.00%'
-          if (profitRateVal >= 0) {
-            profitRateCell.font = { name: 'Microsoft YaHei', color: { argb: 'FF059669' } }
-          } else {
-            profitRateCell.font = { name: 'Microsoft YaHei', color: { argb: 'FFE11D48' } }
-          }
-        }
-      })
-
-      // Auto-fit column widths via openpyxl column_dimensions
-      const colWidths: number[] = Array.from({ length: 25 }, () => 0)
-      const measureText = (text: string, size = 9): number => {
-        const chars = String(text ?? '').length
-        return Math.max(chars * size * 0.6 + size * 0.2, size)
-      }
-      worksheet.eachRow({ includeEmpty: true }, (excelRow) => {
-        excelRow.eachCell({ includeEmpty: true }, (cell) => {
-          const colNum = cell.address.replace(/[A-Z]+/, '').split('').reduce((acc, c) => {
-            return acc + (c.charCodeAt(0) - 48) * Math.pow(10, cell.address.indexOf(c))
-          }, 0)
-          const colLetter = cell.address.replace(/\d+$/, '')
-          const n = colLetter.charCodeAt(0) - 64
-          if (n >= 1 && n <= 25) {
-            const w = measureText(String(cell.value ?? ''))
-            if (w > colWidths[n - 1]) colWidths[n - 1] = w
-          }
-        })
-      })
-      for (let i = 0; i < 25; i++) {
-        worksheet.getColumn(i + 1).width = Math.max(colWidths[i] * 0.12, 4)
-      }
-
-      const buffer = await workbook.xlsx.writeBuffer()
-      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `欧洲店铺SKU核算-${selectedProjectName}-${formatLocalTimestampForFilename()}.xlsx`
-      link.click()
-      window.URL.revokeObjectURL(url)
-
-      await logClientOperation({
-        action: 'pricing_calculation.eu_store_table.export',
-        targetType: 'store_sku_pricing_snapshot',
-        targetId: selectedProjectId ?? undefined,
-        after: { project_id: selectedProjectId, project_name: selectedProjectName, country: selectedCountry, row_count: itemsWithResults.length },
-      })
-    } catch (err) {
-      notify({ type: 'error', title: '导出失败', message: err instanceof Error ? err.message : '导出失败' })
-    } finally {
-      setExporting(false)
     }
   }
 

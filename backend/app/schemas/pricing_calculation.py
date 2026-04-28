@@ -148,6 +148,7 @@ class PricingCalculationFees(BaseModel):
     inbound_config_fee_usd: float
     storage_fee_usd: float
     total_fee_usd: float
+    platform_fee_usd: float = 0.0
 
 
 class PricingCalculationProfit(BaseModel):

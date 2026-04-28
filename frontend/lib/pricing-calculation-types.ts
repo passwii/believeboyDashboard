@@ -60,6 +60,7 @@ export type PricingCalculationRunItem = {
     inbound_config_fee_usd: number
     storage_fee_usd: number
     total_fee_usd: number
+    platform_fee_usd?: number
   }
   profit: {
     ddp_cost_rmb: number
@@ -133,6 +134,7 @@ export type StoreAccountingItem = {
     delivery_fee_usd?: number
     inbound_config_fee_manual_usd?: number
     storage_fee_manual_usd?: number
+    platform_fee_usd?: number
   }
   profit: {
     ddp_cost_rmb: number
