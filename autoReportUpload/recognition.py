@@ -1,201 +1,87 @@
 """
 Report type recognition for the auto-report-upload service.
-Adapted from backend/app/services/report_upload_service.py
+
+Uses the shared recognition module from backend/app/shared/recognition/.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime
+import sys
 from pathlib import Path
 from typing import Any
-import warnings
-import re
-import pandas as pd
-from sqlalchemy import func, select
+
+# Add backend to Python path so we can import the shared recognition module
+_BACKEND_PATH = Path(__file__).resolve().parent.parent / "backend"
+if str(_BACKEND_PATH) not in sys.path:
+    sys.path.insert(0, str(_BACKEND_PATH))
+
 from sqlalchemy.orm import Session
 
+from app.shared.recognition import (
+    recognize_file as _shared_recognize_file,
+    RecognitionResult as SharedRecognitionResult,
+    _normalize_columns,
+    _read_csv_with_encoding_fallback,
+    _read_excel,
+    _read_payment_report,
+)
 from models import ProductCost
 
+# Re-export AD_PRODUCT_REPORT for compatibility
 AD_PRODUCT_REPORT = "ad_product_report"
 
-OPENPYXL_MISSING_DEFAULT_STYLE_WARNING = (
-    r"Workbook contains no default style, apply openpyxl's default"
-)
 
-COUNTRY_ALIASES = {
-    "US": "US",
-    "USA": "US",
-    "DE": "DE",
-    "GERMANY": "DE",
-    "UK": "UK",
-    "GB": "UK",
-    "UNITED KINGDOM": "UK",
-}
+# ─── Custom result with project_match (RPA-specific) ───────────────────────────
 
 
-@dataclass
 class RecognitionResult:
-    """Result of recognizing a single file."""
+    """Extended recognition result with project matching (RPA-specific)."""
 
-    report_type: str
-    matched_columns: list[str]
-    reason: str
-    date_input_mode: str
-    detected_date: str | None = None
-    detected_start_date: str | None = None
-    detected_end_date: str | None = None
-    row_count_preview: int | None = None
-    warnings: list[str] = field(default_factory=list)
-    country: str = "US"
-    project_match: dict | None = None
+    def __init__(
+        self,
+        report_type: str,
+        matched_columns: list[str],
+        reason: str,
+        date_input_mode: str,
+        detected_date: str | None = None,
+        detected_start_date: str | None = None,
+        detected_end_date: str | None = None,
+        row_count_preview: int | None = None,
+        warnings: list[str] | None = None,
+        country: str = "US",
+        project_match: dict | None = None,
+    ):
+        self.report_type = report_type
+        self.matched_columns = matched_columns
+        self.reason = reason
+        self.date_input_mode = date_input_mode
+        self.detected_date = detected_date
+        self.detected_start_date = detected_start_date
+        self.detected_end_date = detected_end_date
+        self.row_count_preview = row_count_preview
+        self.warnings = warnings or []
+        self.country = country
+        self.project_match = project_match
 
-
-# ─── Helpers ───────────────────────────────────────────────────────────────────
-
-
-def _read_csv_with_encoding_fallback(path: Path, sep: str = "\t") -> pd.DataFrame:
-    for encoding in ("utf-8-sig", "cp1252", "gbk"):
-        try:
-            return pd.read_csv(path, sep=sep, encoding=encoding)
-        except UnicodeDecodeError:
-            continue
-    return pd.read_csv(path, sep=sep, encoding="latin-1")
-
-
-def _read_text_with_encoding_fallback(path: Path) -> str:
-    raw_bytes = path.read_bytes()
-    for encoding in ("utf-8-sig", "utf-8", "cp1252"):
-        try:
-            return raw_bytes.decode(encoding)
-        except UnicodeDecodeError:
-            continue
-    return raw_bytes.decode("latin-1", errors="replace")
-
-
-def _read_excel(path: Path) -> pd.DataFrame:
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore",
-            message=OPENPYXL_MISSING_DEFAULT_STYLE_WARNING,
-            category=UserWarning,
+    @classmethod
+    def from_shared_result(cls, result: SharedRecognitionResult) -> "RecognitionResult":
+        """Create from shared RecognitionResult (without project_match)."""
+        return cls(
+            report_type=result.report_type,
+            matched_columns=result.matched_columns,
+            reason=result.reason,
+            date_input_mode=result.date_input_mode,
+            detected_date=result.detected_date,
+            detected_start_date=result.detected_start_date,
+            detected_end_date=result.detected_end_date,
+            row_count_preview=result.row_count_preview,
+            warnings=result.warnings,
+            country=result.country,
+            project_match=None,
         )
-        return pd.read_excel(path, engine="openpyxl")
 
 
-def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
-    df.columns = [str(col).strip() for col in df.columns]
-    return df
-
-
-def _normalize_identifier(value: object) -> str:
-    if value is None:
-        return ""
-    text = str(value).strip()
-    if not text or text.lower() == "nan":
-        return ""
-    return text.upper()
-
-
-def _date_to_string(value: object) -> str | None:
-    if value is None or value == "":
-        return None
-    try:
-        parsed = pd.to_datetime(value, errors="coerce")
-    except Exception:
-        return None
-    if parsed is None or pd.isna(parsed):
-        return None
-    return parsed.strftime("%Y-%m-%d")
-
-
-def _date_to_string_by_country(value: object, country: str) -> str | None:
-    return _date_to_string(value)
-
-
-def _normalize_country(value: str) -> str:
-    normalized = value.strip().upper()
-    if not normalized:
-        return "US"
-    mapped = COUNTRY_ALIASES.get(normalized, normalized)
-    if mapped not in {"US", "DE", "UK"}:
-        return "US"
-    return mapped
-
-
-def _extract_date_from_filename(filename: str) -> str | None:
-    m = re.search(r"(\d{4})(\d{2})(\d{2})", filename)
-    if not m:
-        return None
-    year, month, day = m.group(1), m.group(2), m.group(3)
-    try:
-        datetime(int(year), int(month), int(day))
-        return f"{year}-{month}-{day}"
-    except ValueError:
-        return None
-
-
-def _detect_country_from_sales_channel(df: pd.DataFrame) -> str | None:
-    col_candidates = [c for c in df.columns if "sales" in c.lower() and "channel" in c.lower()]
-    if not col_candidates:
-        return None
-    val = str(df[col_candidates[0]].dropna().iloc[0]).strip().lower()
-    if "amazon.de" in val:
-        return "DE"
-    if "amazon.com" in val:
-        return "US"
-    if "amazon.co.uk" in val:
-        return "UK"  # 🔶 Reserved for UK站点
-    return None
-
-
-def _detect_country_from_currency(df: pd.DataFrame) -> str | None:
-    col_candidates = [c for c in df.columns if "currency" in c.lower() or "币种" in c]
-    if not col_candidates:
-        return None
-    first_val = str(df[col_candidates[0]].dropna().iloc[0]).strip().upper()
-    if first_val in {"USD"}:
-        return "US"
-    if first_val in {"EUR", "EURO"}:
-        return "DE"
-    if first_val in {"GBP"}:
-        return "UK"  # 🔶 Reserved
-    return None
-
-
-def _detect_country_from_marketplace(df: pd.DataFrame) -> str | None:
-    """Detect country from marketplace column. DE→DE, UK/GB→UK."""
-    col_candidates = [c for c in df.columns if "marketplace" in c.lower()]
-    if not col_candidates:
-        return None
-    val = str(df[col_candidates[0]].dropna().iloc[0]).strip().upper()
-    if val in {"DE", "GERMANY"}:
-        return "DE"
-    if val in {"UK", "GB", "UNITED KINGDOM"}:
-        return "UK"  # 🔶 Reserved
-    return None
-
-
-def _detect_country_from_sales_amount_symbol(df: pd.DataFrame) -> str | None:
-    """Detect country from currency symbol in sales amount columns (业务报告). € → DE, £ → UK."""
-    sales_col_candidates = [
-        c for c in df.columns
-        if "销售额" in c or "sales" in c.lower()
-    ]
-    for col in sales_col_candidates:
-        sample = (
-            str(df[col].dropna().iloc[0])
-            if not df[col].dropna().empty
-            else ""
-        )
-        if "€" in sample:
-            return "DE"
-        if "£" in sample:
-            return "UK"  # 🔶 Reserved
-    return None
-
-
-# ─── Project matching ─────────────────────────────────────────────────────────
+# ─── Project matching (RPA-specific, different from backend) ──────────────────
 
 
 def _build_project_match(
@@ -205,7 +91,17 @@ def _build_project_match(
     match_by: str,
     country: str = "US",
 ) -> dict[str, Any]:
-    """Match files to projects by SKU or ASIN."""
+    """Match files to projects by SKU or ASIN (RPA-specific implementation)."""
+    from sqlalchemy import func, select
+
+    def _normalize_identifier(value: object) -> str:
+        if value is None:
+            return ""
+        text = str(value).strip()
+        if not text or text.lower() == "nan":
+            return ""
+        return text.upper()
+
     normalized_values = sorted(
         {_normalize_identifier(v) for v in values if _normalize_identifier(v)}
     )
@@ -217,12 +113,10 @@ def _build_project_match(
         }
 
     col = ProductCost.sku if match_by == "sku" else ProductCost.asin
-    # Use LOWER() for case-insensitive matching (DB stores mixed-case SKU/ASIN)
     normalized_lower = [v.lower() for v in normalized_values]
     rows = (
         db.execute(
-            select(Project.project_name)
-            .join(ProductCost, ProductCost.project_id == Project.id)
+            select(ProductCost.project_name)
             .where(func.lower(col).in_(normalized_lower))
             .where(ProductCost.is_active.is_(True))
             .where(ProductCost.country == country)
@@ -254,273 +148,58 @@ def _build_project_match(
     }
 
 
-# ─── Per-type recognizers ─────────────────────────────────────────────────────
+def _add_project_match(result: RecognitionResult, db: Session, path: Path, country: str) -> RecognitionResult:
+    """Add project matching to a recognition result."""
+    try:
+        import pandas as pd
 
+        if result.report_type in {"inventory_report", "sales_report", "return_report"}:
+            df = _normalize_columns(_read_csv_with_encoding_fallback(path))
+            match_by = "sku"
+            values = df[match_by].dropna().astype(str).tolist()
+        elif result.report_type == "business_report":
+            df = _normalize_columns(_read_csv_with_encoding_fallback(path, sep=","))
+            match_by = "asin"
+            asin_col = next(
+                (c for c in ["（子）ASIN", "(子)ASIN", "子ASIN", "ASIN"] if c in df.columns),
+                None,
+            )
+            if asin_col:
+                values = df[asin_col].dropna().astype(str).tolist()
+            else:
+                values = []
+        elif result.report_type == "payment_report":
+            df = _normalize_columns(_read_payment_report(path))
+            match_by = "sku"
+            values = df["sku"].dropna().astype(str).tolist()
+        elif result.report_type == AD_PRODUCT_REPORT:
+            df = _normalize_columns(_read_excel(path))
+            match_by = "sku"
+            values = df["广告SKU"].dropna().astype(str).tolist()
+        elif result.report_type == "ad_search_term_report":
+            result.project_match = {"status": "manual", "message": "该报表项目需手动选择"}
+            return result
+        else:
+            values = []
 
-def _recognize_inventory_report(db: Session, path: Path, country: str = "US") -> RecognitionResult:
-    df = _normalize_columns(_read_csv_with_encoding_fallback(path))
-    required = ["snapshot-date", "sku", "asin"]
-    if any(c not in df.columns for c in required):
-        raise ValueError(f"Inventory report missing required columns: {required}")
+        if values:
+            result.project_match = _build_project_match(
+                db,
+                values=values,
+                match_by=match_by,
+                country=country,
+            )
+        else:
+            result.project_match = {
+                "status": "unmatched",
+                "matched_by": match_by,
+                "message": "文件中未找到可用于匹配项目的标识",
+            }
 
-    detected_date = _date_to_string_by_country(
-        df["snapshot-date"].dropna().iloc[0] if not df["snapshot-date"].dropna().empty else None,
-        country,
-    )
-    project_match = _build_project_match(
-        db,
-        values=df["sku"].dropna().astype(str).tolist(),
-        match_by="sku",
-        country=country,
-    )
-    warnings_list: list[str] = []
-    detected_country = _detect_country_from_currency(df)
-    if not detected_country:
-        detected_country = _detect_country_from_marketplace(df)
-    if detected_country and detected_country != country:
-        warnings_list.append(f"文件内 currency/marketplace 为 {detected_country}，当前按 {country} 处理")
+    except Exception as exc:
+        result.project_match = {"status": "manual", "message": f"项目匹配失败: {exc}"}
 
-    return RecognitionResult(
-        report_type="inventory_report",
-        matched_columns=required,
-        reason="命中 snapshot-date / sku / asin",
-        date_input_mode="single_detected" if detected_date else "single_manual",
-        detected_date=detected_date,
-        project_match=project_match,
-        row_count_preview=len(df.index),
-        warnings=warnings_list,
-        country=detected_country or country,
-    )
-
-
-def _recognize_business_report(
-    db: Session, path: Path, country: str = "US", original_filename: str = ""
-) -> RecognitionResult:
-    df = _normalize_columns(_read_csv_with_encoding_fallback(path, sep=","))
-    asin_col = next(
-        (c for c in ["（子）ASIN", "(子)ASIN", "子ASIN", "ASIN"] if c in df.columns),
-        None,
-    )
-    if not asin_col:
-        raise ValueError("Business report missing child ASIN column")
-
-    project_match = _build_project_match(
-        db,
-        values=df[asin_col].dropna().astype(str).tolist(),
-        match_by="asin",
-        country=country,
-    )
-    detected_date = _extract_date_from_filename(original_filename)
-    warnings_list: list[str] = []
-    if detected_date:
-        warnings_list.append(f"从文件名识别日期：{detected_date}")
-
-    # Detect country from sales amount currency symbol (€ for DE, £ for UK)
-    detected_country = _detect_country_from_sales_amount_symbol(df)
-    if detected_country and detected_country != country:
-        warnings_list.append(f"文件内销售额符号检测为 {detected_country}，当前按 {country} 处理")
-
-    return RecognitionResult(
-        report_type="business_report",
-        matched_columns=[asin_col],
-        reason="命中（子）ASIN字段",
-        date_input_mode="single_detected" if detected_date else "single_manual",
-        detected_date=detected_date,
-        project_match=project_match,
-        row_count_preview=len(df.index),
-        warnings=warnings_list,
-        country=detected_country or country,
-    )
-
-
-def _read_payment_report(path: Path) -> pd.DataFrame:
-    """Read Amazon payment report CSV with variable header offset."""
-    raw = path.read_bytes()
-    for enc in ("utf-8-sig", "utf-8"):
-        try:
-            text = raw.decode(enc)
-            break
-        except UnicodeDecodeError:
-            continue
-    else:
-        text = raw.decode("latin-1", errors="replace")
-
-    lines = text.splitlines()
-    header_idx = 0
-    for i, line in enumerate(lines[:20]):
-        if "transaction-type" in line.lower() or "sku" in line.lower():
-            header_idx = i
-            break
-
-    import io
-    csv_reader = pd.read_csv(io.StringIO("\n".join(lines[header_idx:])))
-    csv_reader.columns = [str(c).strip() for c in csv_reader.columns]
-    return csv_reader
-
-
-def _recognize_payment_report(db: Session, path: Path, country: str = "US") -> RecognitionResult:
-    df = _read_payment_report(path)
-    if "sku" not in df.columns:
-        raise ValueError("Payment report missing sku column")
-
-    project_match = _build_project_match(
-        db,
-        values=df["sku"].dropna().astype(str).tolist(),
-        match_by="sku",
-        country=country,
-    )
-    return RecognitionResult(
-        report_type="payment_report",
-        matched_columns=["sku"],
-        reason="命中付款报告表头与 sku 字段",
-        date_input_mode="range_manual",
-        project_match=project_match,
-        row_count_preview=len(df.index),
-    )
-
-
-def _recognize_sales_report(db: Session, path: Path, country: str = "US") -> RecognitionResult:
-    df = _normalize_columns(_read_csv_with_encoding_fallback(path))
-    required = ["purchase-date", "sku", "asin"]
-    if any(c not in df.columns for c in required):
-        raise ValueError(f"Sales report missing required columns: {required}")
-
-    purchase_dates = pd.to_datetime(df["purchase-date"], errors="coerce").dropna()
-    detected_start_date: str | None = None
-    detected_end_date: str | None = None
-    if not purchase_dates.empty:
-        local_dates = purchase_dates.dt.strftime("%Y-%m-%d")
-        detected_start_date = str(local_dates.min())
-        detected_end_date = str(local_dates.max())
-
-    is_periodic = bool(detected_start_date and detected_end_date and detected_start_date != detected_end_date)
-    project_match = _build_project_match(
-        db,
-        values=df["sku"].dropna().astype(str).tolist(),
-        match_by="sku",
-        country=country,
-    )
-    warnings_list: list[str] = []
-    detected_country = _detect_country_from_sales_channel(df)
-    if detected_country and detected_country != country:
-        warnings_list.append(f"文件内 sales-channel 为 {detected_country}，当前按 {country} 处理")
-
-    return RecognitionResult(
-        report_type="sales_report",
-        matched_columns=required,
-        reason="命中 purchase-date / sku / asin",
-        date_input_mode="multi_auto" if is_periodic else "single_detected",
-        detected_date=detected_end_date,
-        detected_start_date=detected_start_date,
-        detected_end_date=detected_end_date,
-        project_match=project_match,
-        row_count_preview=len(df.index),
-        warnings=warnings_list,
-        country=detected_country or country,
-    )
-
-
-def _recognize_ad_product_report(db: Session, path: Path, country: str = "US") -> RecognitionResult:
-    df = _normalize_columns(_read_excel(path))
-    required = ["开始日期", "结束日期", "广告SKU", "广告ASIN"]
-    if any(c not in df.columns for c in required):
-        raise ValueError(f"Ad report missing required columns: {required}")
-
-    project_match = _build_project_match(
-        db,
-        values=df["广告SKU"].dropna().astype(str).tolist(),
-        match_by="sku",
-        country=country,
-    )
-    detected_end_date = _date_to_string_by_country(
-        df["结束日期"].dropna().iloc[0] if not df["结束日期"].dropna().empty else None,
-        country,
-    )
-    detected_start_date = _date_to_string_by_country(
-        df["开始日期"].dropna().iloc[0] if not df["开始日期"].dropna().empty else None,
-        country,
-    )
-    warnings_list: list[str] = []
-    if "国家/地区" in df.columns and not df["国家/地区"].dropna().empty:
-        file_country = _normalize_country(str(df["国家/地区"].dropna().iloc[0]))
-        if file_country != country:
-            warnings_list.append(f"文件内国家/地区为 {file_country}，当前按 {country} 处理")
-
-    return RecognitionResult(
-        report_type=AD_PRODUCT_REPORT,
-        matched_columns=required,
-        reason="命中开始日期 / 结束日期 / 广告SKU / 广告ASIN",
-        date_input_mode="single_detected",
-        detected_date=detected_end_date,
-        detected_start_date=detected_start_date,
-        detected_end_date=detected_end_date,
-        project_match=project_match,
-        row_count_preview=len(df.index),
-        warnings=warnings_list,
-        country=country,
-    )
-
-
-def _recognize_ad_search_term_report(path: Path, country: str = "US") -> RecognitionResult:
-    df = _normalize_columns(_read_excel(path))
-    required = ["开始日期", "结束日期"]
-    if any(c not in df.columns for c in required):
-        raise ValueError("Ad search term report missing required columns")
-
-    return RecognitionResult(
-        report_type="ad_search_term_report",
-        matched_columns=required,
-        reason="命中开始日期 / 结束日期，识别为商品推广搜索词报表",
-        date_input_mode="single_detected",
-        detected_date=_date_to_string(
-            df["结束日期"].dropna().iloc[0] if not df["结束日期"].dropna().empty else None
-        ),
-        detected_start_date=_date_to_string(
-            df["开始日期"].dropna().iloc[0] if not df["开始日期"].dropna().empty else None
-        ),
-        detected_end_date=_date_to_string(
-            df["结束日期"].dropna().iloc[0] if not df["结束日期"].dropna().empty else None
-        ),
-        project_match={"status": "manual", "message": "该报表项目需手动选择"},
-        row_count_preview=len(df.index),
-        country=country,
-    )
-
-
-def _recognize_return_report(db: Session, path: Path, country: str = "US") -> RecognitionResult:
-    df = _normalize_columns(_read_csv_with_encoding_fallback(path))
-    required = ["return-date", "sku"]
-    if any(c not in df.columns for c in required):
-        raise ValueError(f"Return report missing required columns: {required}")
-
-    return_dates = pd.to_datetime(df["return-date"], errors="coerce").dropna()
-    detected_start_date: str | None = None
-    detected_end_date: str | None = None
-    if not return_dates.empty:
-        local_dates = return_dates.dt.strftime("%Y-%m-%d")
-        detected_start_date = str(local_dates.min())
-        detected_end_date = str(local_dates.max())
-
-    project_match = _build_project_match(
-        db,
-        values=df["sku"].dropna().astype(str).tolist(),
-        match_by="sku",
-        country=country,
-    )
-    return RecognitionResult(
-        report_type="return_report",
-        matched_columns=required,
-        reason="命中 return-date / sku 字段",
-        date_input_mode="multi_auto"
-        if detected_start_date and detected_end_date and detected_start_date != detected_end_date
-        else "single_detected",
-        detected_date=detected_end_date,
-        detected_start_date=detected_start_date,
-        detected_end_date=detected_end_date,
-        project_match=project_match,
-        row_count_preview=len(df.index),
-        country=country,
-    )
+    return result
 
 
 # ─── Main entry point ─────────────────────────────────────────────────────────
@@ -533,46 +212,20 @@ def recognize_file(
     original_filename: str = "",
 ) -> RecognitionResult | None:
     """
-    Recognize a file's report type.
+    Recognize a file's report type using the shared recognition module.
+
     Returns None if the file doesn't match any known report type (skip the file).
     """
-    normalized_country = _normalize_country(country)
-    extension = path.suffix.lower()
+    # Use shared recognition module
+    shared_result = _shared_recognize_file(path, country=country, original_filename=original_filename)
 
-    try:
-        if extension == ".txt":
-            header = (
-                _read_text_with_encoding_fallback(path)
-                .splitlines()[0]
-                .strip()
-                .lower()
-            )
-            if "snapshot-date" in header and "\tsku\t" in header:
-                return _recognize_inventory_report(db, path, normalized_country)
-            if "purchase-date" in header and "\tsku\t" in header:
-                return _recognize_sales_report(db, path, normalized_country)
-            if "return-date" in header and "\tsku\t" in header:
-                return _recognize_return_report(db, path, normalized_country)
-            return None
-
-        if extension == ".csv":
-            first_lines = _read_text_with_encoding_fallback(path).splitlines()[:8]
-            joined = "\n".join(first_lines)
-            if "Includes Amazon Marketplace" in joined:
-                return _recognize_payment_report(db, path, normalized_country)
-            return _recognize_business_report(db, path, normalized_country, original_filename)
-
-        if extension == ".xlsx":
-            df = _normalize_columns(_read_excel(path))
-            columns = set(df.columns)
-            if {"广告SKU", "广告ASIN"}.issubset(columns):
-                return _recognize_ad_product_report(db, path, normalized_country)
-            if {"开始日期", "结束日期", "投放", "客户搜索词"}.issubset(columns):
-                return _recognize_ad_search_term_report(path, normalized_country)
-            return None
-
+    if shared_result is None:
         return None
 
-    except Exception:
-        # Don't raise — return None so the file is skipped
-        return None
+    # Convert to RPA-specific result
+    result = RecognitionResult.from_shared_result(shared_result)
+
+    # Add project matching (RPA-specific)
+    result = _add_project_match(result, db, path, country)
+
+    return result

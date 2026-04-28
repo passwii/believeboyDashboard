@@ -11,13 +11,20 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 if TYPE_CHECKING:
-    pass
+    from zoneinfo import ZoneInfo
 
 OPENPYXL_MISSING_DEFAULT_STYLE_WARNING = (
     r"Workbook contains no default style, apply openpyxl's default"
 )
 
 AD_PRODUCT_REPORT = "ad_product_report"
+
+# Country timezone mapping for date conversion
+COUNTRY_TIMEZONE: dict[str, str] = {
+    "US": "America/Los_Angeles",
+    "DE": "Europe/Berlin",
+    "UK": "Europe/London",
+}
 
 # ─── File readers ──────────────────────────────────────────────────────────────
 
@@ -107,6 +114,26 @@ def _date_to_string(value: object) -> str | None:
     if parsed is None or pd.isna(parsed):
         return None
     return parsed.strftime("%Y-%m-%d")
+
+
+def _date_to_string_by_country(value: object, country: str) -> str | None:
+    """Convert date to string, applying timezone conversion for the given country."""
+    if value is None or value == "":
+        return None
+    try:
+        parsed = pd.to_datetime(value, errors="coerce")
+    except Exception:
+        return None
+    if parsed is None or pd.isna(parsed):
+        return None
+
+    if parsed.tzinfo is None:
+        return parsed.strftime("%Y-%m-%d")
+
+    # Apply timezone conversion
+    from zoneinfo import ZoneInfo
+    timezone = ZoneInfo(COUNTRY_TIMEZONE.get(country, "America/Los_Angeles"))
+    return parsed.tz_convert(timezone).strftime("%Y-%m-%d")
 
 
 def _extract_date_from_filename(filename: str) -> str | None:

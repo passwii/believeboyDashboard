@@ -5,6 +5,7 @@ from pathlib import Path
 
 from app.shared.recognition.models import RecognitionResult
 from app.shared.recognition.patterns import (
+    _date_to_string_by_country,
     _detect_country_from_currency,
     _detect_country_from_marketplace,
     _detect_country_from_sales_amount_symbol,
@@ -30,13 +31,9 @@ def recognize_inventory_report(path: Path, country: str = "US") -> RecognitionRe
 
     detected_date = None
     if not df["snapshot-date"].dropna().empty:
-        try:
-            from pandas import to_datetime
-            parsed = to_datetime(df["snapshot-date"].dropna().iloc[0], errors="coerce")
-            if parsed is not None and not parsed.isna():
-                detected_date = parsed.strftime("%Y-%m-%d")
-        except Exception:
-            pass
+        detected_date = _date_to_string_by_country(
+            df["snapshot-date"].dropna().iloc[0], country
+        )
 
     warnings_list: list[str] = []
     detected_country = _detect_country_from_currency(df)
@@ -65,12 +62,15 @@ def recognize_sales_report(path: Path, country: str = "US") -> RecognitionResult
     if missing:
         raise ValueError(f"Sales report missing required columns: {missing}")
 
-    from pandas import to_datetime, UTC
+    from pandas import to_datetime
     purchase_dates = to_datetime(df["purchase-date"], utc=True, errors="coerce").dropna()
     detected_start_date: str | None = None
     detected_end_date: str | None = None
     if not purchase_dates.empty:
-        local_dates = purchase_dates.dt.strftime("%Y-%m-%d")
+        from zoneinfo import ZoneInfo
+        from app.shared.recognition.patterns import COUNTRY_TIMEZONE
+        tz = ZoneInfo(COUNTRY_TIMEZONE.get(country, "America/Los_Angeles"))
+        local_dates = purchase_dates.dt.tz_convert(tz).dt.strftime("%Y-%m-%d")
         detected_start_date = str(local_dates.min())
         detected_end_date = str(local_dates.max())
 
@@ -158,18 +158,13 @@ def recognize_ad_product_report(path: Path, country: str = "US") -> RecognitionR
     if missing:
         raise ValueError(f"Ad report missing required columns: {missing}")
 
-    from pandas import to_datetime
     detected_end_date = None
     if not df["结束日期"].dropna().empty:
-        parsed = to_datetime(df["结束日期"].dropna().iloc[0], errors="coerce")
-        if parsed is not None and not parsed.isna():
-            detected_end_date = parsed.strftime("%Y-%m-%d")
+        detected_end_date = _date_to_string_by_country(df["结束日期"].dropna().iloc[0], country)
 
     detected_start_date = None
     if not df["开始日期"].dropna().empty:
-        parsed = to_datetime(df["开始日期"].dropna().iloc[0], errors="coerce")
-        if parsed is not None and not parsed.isna():
-            detected_start_date = parsed.strftime("%Y-%m-%d")
+        detected_start_date = _date_to_string_by_country(df["开始日期"].dropna().iloc[0], country)
 
     warnings_list: list[str] = []
     detected_country: str | None = None
@@ -240,12 +235,15 @@ def recognize_return_report(path: Path, country: str = "US") -> RecognitionResul
     if missing:
         raise ValueError(f"Return report missing required columns: {missing}")
 
-    from pandas import to_datetime, UTC
+    from pandas import to_datetime
     return_dates = to_datetime(df["return-date"], utc=True, errors="coerce").dropna()
     detected_start_date: str | None = None
     detected_end_date: str | None = None
     if not return_dates.empty:
-        local_dates = return_dates.dt.strftime("%Y-%m-%d")
+        from zoneinfo import ZoneInfo
+        from app.shared.recognition.patterns import COUNTRY_TIMEZONE
+        tz = ZoneInfo(COUNTRY_TIMEZONE.get(country, "America/Los_Angeles"))
+        local_dates = return_dates.dt.tz_convert(tz).dt.strftime("%Y-%m-%d")
         detected_start_date = str(local_dates.min())
         detected_end_date = str(local_dates.max())
 
