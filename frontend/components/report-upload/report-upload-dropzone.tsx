@@ -8,7 +8,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import { REPORT_UPLOAD_COUNTRY_OPTIONS, type ReportUploadCountry, type UploadQueueItem } from '@/components/report-upload/types'
+import { REPORT_UPLOAD_COUNTRY_OPTIONS, getReportUploadCountryLabel, isDateRequired, type ReportUploadCountry, type UploadQueueItem } from '@/components/report-upload/types'
 
 function getReportTypeLabel(type: UploadQueueItem['reportType']): string {
   switch (type) {
@@ -44,6 +44,7 @@ type Props = {
   onRemove: (localId: string) => void
   onClear: () => void
   onUploadReady: () => void
+  onDateChange: (localId: string, date: string | null) => void
   readyCount: number
   uploadingAny: boolean
 }
@@ -61,6 +62,7 @@ export function ReportUploadDropzone({
   onRemove,
   onClear,
   onUploadReady,
+  onDateChange,
   readyCount,
   uploadingAny,
 }: Props) {
@@ -158,12 +160,25 @@ export function ReportUploadDropzone({
                       {item.recognitionStatus !== 'pending' ? (
                         <>
                           <p className="text-xs text-muted-foreground">
+                            国家：{item.detectedCountry ? getReportUploadCountryLabel(item.detectedCountry, true) : '未识别'}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
                             项目：{item.recognizedProject || '未识别'}
                           </p>
                           {item.detectedDate ? (
                             <p className="text-xs text-muted-foreground">
                               日期：{item.detectedDate}
                             </p>
+                          ) : isDateRequired(item.reportType) ? (
+                            <div className='flex items-center gap-1.5'>
+                              <span className="text-xs text-amber-600 dark:text-amber-400">日期：</span>
+                              <input
+                                type='date'
+                                className='h-5 rounded border border-border/60 bg-background px-1.5 py-0.5 text-[11px]'
+                                value={item.userReportDate ?? ''}
+                                onChange={(e) => onDateChange(item.localId, e.target.value || null)}
+                              />
+                            </div>
                           ) : null}
                         </>
                       ) : null}

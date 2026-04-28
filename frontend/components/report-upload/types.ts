@@ -69,9 +69,26 @@ export type UploadQueueItem = {
   recognitionStatus: 'pending' | RecognitionStatus
   recognizedProject: string | null
   detectedDate: string | null
+  detectedCountry: string | null
+  userReportDate: string | null
   fileCommitStatus: CommitStatus
   commitError: string | null
   error: string | null
+}
+
+// 需要日期的报表类型
+export const DATE_REQUIRED_REPORT_TYPES: ReportType[] = [
+  'business_report',
+  'inventory_report',
+  'ad_product_report',
+  'ad_search_term_report',
+  'payment_report',
+  'return_report',
+]
+
+export function isDateRequired(reportType: ReportType | 'unknown' | null): boolean {
+  if (!reportType || reportType === 'unknown') return false
+  return DATE_REQUIRED_REPORT_TYPES.includes(reportType as ReportType)
 }
 
 export type ReportCardConfig = {

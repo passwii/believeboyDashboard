@@ -36,9 +36,9 @@ def recognize_inventory_report(path: Path, country: str = "US") -> RecognitionRe
         )
 
     warnings_list: list[str] = []
-    detected_country = _detect_country_from_currency(df)
+    detected_country = _detect_country_from_marketplace(df)
     if not detected_country:
-        detected_country = _detect_country_from_marketplace(df)
+        detected_country = _detect_country_from_currency(df)
     if detected_country and detected_country != country:
         warnings_list.append(f"文件内检测到 {detected_country}，当前按所选站点 {country} 处理")
 
