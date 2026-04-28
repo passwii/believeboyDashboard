@@ -41,6 +41,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import {
   REPORT_UPLOAD_COUNTRY_OPTIONS,
+  getReportUploadCountryLabel,
+  isDateRequired,
   type ReportType,
   type UploadQueueItem,
   type RecognitionResponse,
@@ -449,6 +451,8 @@ function AutoUploadContent() {
       recognitionStatus: 'pending',
       recognizedProject: null,
       detectedDate: null,
+      detectedCountry: null,
+      userReportDate: null,
       fileCommitStatus: 'idle',
       commitError: null,
       error: null,
@@ -492,6 +496,7 @@ function AutoUploadContent() {
                     recognition.detected_date ??
                     recognition.detected_end_date ??
                     null,
+                  detectedCountry: recognition.country,
                   error:
                     recognition.status === 'recognized'
                       ? null
@@ -540,6 +545,38 @@ function AutoUploadContent() {
       const recognition = recognitionMap[item.localId]
       if (!recognition) continue
 
+      if (recognition.country && recognition.country !== country) {
+        setQueueItems((prev) =>
+          prev.map((it) =>
+            it.localId === item.localId
+              ? {
+                  ...it,
+                  fileCommitStatus: 'error',
+                  commitError: `文件站点（${recognition.country}）与所选站点（${country}）不一致，请上传到对应站点`,
+                }
+              : it,
+          ),
+        )
+        continue
+      }
+
+      // Check if date is required but missing
+      const resolvedDate = item.userReportDate ?? recognition.detected_date ?? recognition.detected_end_date ?? null
+      if (isDateRequired(item.reportType) && !resolvedDate) {
+        setQueueItems((prev) =>
+          prev.map((it) =>
+            it.localId === item.localId
+              ? {
+                  ...it,
+                  fileCommitStatus: 'error',
+                  commitError: '请填写报表日期',
+                }
+              : it,
+          ),
+        )
+        continue
+      }
+
       setQueueItems((prev) =>
         prev.map((it) =>
           it.localId === item.localId
@@ -553,8 +590,7 @@ function AutoUploadContent() {
           temp_file_id: item.tempFileId,
           original_filename: item.originalFileName,
           report_type: item.reportType,
-          report_date:
-            recognition.detected_date ?? recognition.detected_end_date ?? null,
+          report_date: resolvedDate,
           report_start_date: recognition.detected_start_date ?? null,
           report_end_date: recognition.detected_end_date ?? null,
           country,
@@ -752,12 +788,33 @@ function AutoUploadContent() {
                       {item.recognitionStatus !== 'pending' ? (
                         <>
                           <p className='text-xs text-muted-foreground'>
+                            国家：{item.detectedCountry ? getReportUploadCountryLabel(item.detectedCountry, true) : '未识别'}
+                          </p>
+                          <p className='text-xs text-muted-foreground'>
                             项目：{item.recognizedProject ?? '未识别'}
                           </p>
                           {item.detectedDate ? (
                             <p className='text-xs text-muted-foreground'>
                               日期：{item.detectedDate}
                             </p>
+                          ) : isDateRequired(item.reportType) ? (
+                            <div className='flex items-center gap-1.5'>
+                              <span className='text-xs text-amber-600 dark:text-amber-400'>日期：</span>
+                              <input
+                                type='date'
+                                className='h-6 rounded border border-border/60 bg-background px-1.5 py-0.5 text-xs'
+                                value={item.userReportDate ?? ''}
+                                onChange={(e) => {
+                                  setQueueItems((prev) =>
+                                    prev.map((it) =>
+                                      it.localId === item.localId
+                                        ? { ...it, userReportDate: e.target.value || null }
+                                        : it,
+                                    ),
+                                  )
+                                }}
+                              />
+                            </div>
                           ) : null}
                           {item.error ? (
                             <p className='text-xs text-rose-600 dark:text-rose-300'>

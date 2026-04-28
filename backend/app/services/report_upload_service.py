@@ -184,6 +184,7 @@ def recognize_saved_report_upload(
 
     # Convert to payload
     payload = _result_to_payload(result)
+    effective_country = _normalize_country(payload.country or normalized_country)
 
     # Add project matching (backend-specific logic)
     try:
@@ -231,7 +232,7 @@ def recognize_saved_report_upload(
                 matched_columns=payload.matched_columns,
                 reason=payload.reason,
                 status="recognized",
-                country=normalized_country,
+                country=effective_country,
                 date_input_mode=payload.date_input_mode,
                 detected_date=payload.detected_date,
                 detected_start_date=payload.detected_start_date,
@@ -248,7 +249,7 @@ def recognize_saved_report_upload(
                 db,
                 values=values,
                 match_by=match_by,
-                country=normalized_country,
+                country=effective_country,
                 allowed_projects=allowed_projects,
             )
         else:
@@ -271,7 +272,7 @@ def recognize_saved_report_upload(
         matched_columns=payload.matched_columns,
         reason=payload.reason,
         status="recognized",
-        country=normalized_country,
+        country=effective_country,
         date_input_mode=payload.date_input_mode,
         detected_date=payload.detected_date,
         detected_start_date=payload.detected_start_date,
@@ -333,7 +334,7 @@ def commit_report_upload(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="report_type does not match recognized report",
                 )
-            if report_type in {"sales_report", "inventory_report"} and auto_recognition.country != country:
+            if report_type in {"sales_report", "inventory_report", "business_report", AD_PRODUCT_REPORT, "payment_report", "return_report"} and auto_recognition.country != country:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=(
@@ -384,7 +385,7 @@ def commit_report_upload(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="report_type does not match recognized report",
                 )
-            if report_type in {"sales_report", "inventory_report"} and recognition.country != country:
+            if report_type in {"sales_report", "inventory_report", "business_report", AD_PRODUCT_REPORT, "payment_report", "return_report"} and recognition.country != country:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=(

@@ -565,6 +565,8 @@ export default function ReportUploadPage() {
       recognitionStatus: 'pending',
       recognizedProject: null,
       detectedDate: null,
+      detectedCountry: null,
+      userReportDate: null,
       fileCommitStatus: 'idle',
       commitError: null,
       error: null,
@@ -600,6 +602,8 @@ export default function ReportUploadPage() {
                   recognitionStatus: recognition.status,
                   recognizedProject: resolveRecognizedProjectLabel(recognition),
                   detectedDate: recognition.detected_date || recognition.detected_end_date || null,
+                  detectedCountry: recognition.country,
+                  userReportDate: null,
                   fileCommitStatus: 'idle',
                   commitError: null,
                   error:
@@ -957,6 +961,13 @@ export default function ReportUploadPage() {
                   onRemove={removeFile}
                   onClear={clearAll}
                   onUploadReady={() => void uploadAllReady()}
+                  onDateChange={(localId, date) => {
+                    setQueueItems((prev) =>
+                      prev.map((item) =>
+                        item.localId === localId ? { ...item, userReportDate: date } : item,
+                      ),
+                    )
+                  }}
                   readyCount={readyCount}
                   uploadingAny={uploadingAny}
                 />
