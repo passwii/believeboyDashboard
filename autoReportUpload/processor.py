@@ -750,13 +750,11 @@ def _persist_sales_report(
     )
     db.commit()
     dates = sorted(grouped)
-    timing = outcome.get("_timing", "")
     return {
         "success": True,
         "source_id": latest_id,
         "row_count": total,
         "message": f"销售报表已按购买日期拆分为 {len(dates)} 个日期入库",
-        "_timing": timing,
     }
 
 
