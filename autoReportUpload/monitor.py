@@ -55,14 +55,9 @@ class RunLogger:
         if result.skipped:
             self.logger.info(f"  SKIP  [{project}] {file_path.name}  {result.reason}")
         elif result.success:
-            self.logger.info(
-                f"  OK    [{project}] {file_path.name}  "
-                f"type={result.report_type}  rows={result.row_count}  id={result.source_id}"
-            )
+            self.logger.info(f"  OK    [{project}] {file_path.name}")
         else:
-            self.logger.error(
-                f"  FAIL  [{project}] {file_path.name}  {result.error}"
-            )
+            self.logger.error(f"  FAIL  [{project}] {file_path.name}  {result.error}")
 
     @property
     def log_file(self) -> Path:
@@ -123,11 +118,7 @@ def run_cycle(logger: RunLogger, dry_run: bool = False) -> dict:
                 if HAS_CLIENT:
                     report_scan_progress(task_id, f"处理: {file_path.name}", stats["files_seen"], i + 1)
 
-                t0 = time.time()
-                logger.debug(f"  [处理开始] {file_path.name}")
                 result = process_file(file_path, project_name, db, dry_run=dry_run)
-                elapsed = time.time() - t0
-                logger.debug(f"  [处理完成] {file_path.name}  耗时 {elapsed:.1f}s")
                 logger.result(file_path, project_name, result)
                 if result.skipped:
                     stats["skipped"] += 1
@@ -212,8 +203,6 @@ def _start_watchdog_logger(logger: RunLogger, dry_run: bool):
                     return
             except Exception:
                 return
-
-            logger.info(f"  [watchdog] 检测到新文件: {file_path.name}")
 
             db = self._get_db_session()
             if db is None:
