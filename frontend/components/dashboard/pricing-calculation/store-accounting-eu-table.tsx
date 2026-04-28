@@ -162,7 +162,7 @@ export function StoreAccountingEuTable({
           <TableHead colSpan={4} className={cn('border-r px-3 py-2.5 text-center font-semibold shadow-[1px_0_0_0_hsl(var(--border))]', getGroupStyle('DDP 成本', 'header'))}>
             DDP 成本
           </TableHead>
-          <TableHead colSpan={8} className={cn('border-r px-3 py-2.5 text-center font-semibold shadow-[1px_0_0_0_hsl(var(--border))]', getGroupStyle('费用支出', 'header'))}>
+          <TableHead colSpan={10} className={cn('border-r px-3 py-2.5 text-center font-semibold shadow-[1px_0_0_0_hsl(var(--border))]', getGroupStyle('费用支出', 'header'))}>
             费用支出
           </TableHead>
           <TableHead colSpan={4} className={cn('px-3 py-2.5 text-center font-semibold', getGroupStyle('利润核算', 'header'))}>
@@ -210,13 +210,19 @@ export function StoreAccountingEuTable({
             售价({selectedCountry === 'DE' ? 'EUR' : selectedCountry === 'UK' ? 'GBP' : 'USD'})
           </TableHead>
           <TableHead className={cn('min-w-[88px] whitespace-nowrap border-r px-3 py-2 shadow-[1px_0_0_0_hsl(var(--border))]', getGroupStyle('费用支出', 'sub'))}>
+            平台佣金
+          </TableHead>
+          <TableHead className={cn('min-w-[88px] whitespace-nowrap border-r px-3 py-2 shadow-[1px_0_0_0_hsl(var(--border))]', getGroupStyle('费用支出', 'sub'))}>
             广告费率%
           </TableHead>
           <TableHead className={cn('min-w-[88px] whitespace-nowrap border-r px-3 py-2 text-right shadow-[1px_0_0_0_hsl(var(--border))]', getGroupStyle('费用支出', 'sub'))}>
             广告费
           </TableHead>
           <TableHead className={cn('min-w-[96px] whitespace-nowrap border-r px-3 py-2 shadow-[1px_0_0_0_hsl(var(--border))]', getGroupStyle('费用支出', 'sub'))}>
-            退货损耗
+            退货率%
+          </TableHead>
+          <TableHead className={cn('min-w-[88px] whitespace-nowrap border-r px-3 py-2 text-right shadow-[1px_0_0_0_hsl(var(--border))]', getGroupStyle('费用支出', 'sub'))}>
+            退货损失
           </TableHead>
           <TableHead className={cn('min-w-[88px] whitespace-nowrap border-r px-3 py-2 text-right shadow-[1px_0_0_0_hsl(var(--border))]', getGroupStyle('费用支出', 'sub'))}>
             派送费
@@ -340,6 +346,9 @@ export function StoreAccountingEuTable({
               <TableCell className='whitespace-nowrap border-r px-2 py-2'>
                 <Input type='number' step='0.01' className={compactInputClassName} value={draft.sale_price_usd} onChange={(event) => onDraftChange(item.id, 'sale_price_usd', event.target.value)} />
               </TableCell>
+              <TableCell className='whitespace-nowrap border-r px-3 py-2 text-right tabular-nums'>
+                {result?.fees?.platform_fee_usd != null ? formatCurrency(result.fees.platform_fee_usd, selectedCountry) : <span className='text-muted-foreground'>—</span>}
+              </TableCell>
               <TableCell className='whitespace-nowrap border-r px-2 py-2'>
                 <Input type='number' step='0.01' className={compactInputClassName} value={draft.advertising_rate} onChange={(event) => onDraftChange(item.id, 'advertising_rate', event.target.value)} />
               </TableCell>
@@ -348,6 +357,9 @@ export function StoreAccountingEuTable({
               </TableCell>
               <TableCell className='whitespace-nowrap border-r px-2 py-2'>
                 <Input type='number' step='0.01' className={compactInputClassName} value={draft.return_loss_rate} onChange={(event) => onDraftChange(item.id, 'return_loss_rate', event.target.value)} />
+              </TableCell>
+              <TableCell className='whitespace-nowrap border-r px-3 py-2 text-right tabular-nums'>
+                {result ? formatCurrency(result.fees.return_loss_usd, selectedCountry) : <span className='text-muted-foreground'>—</span>}
               </TableCell>
               <TableCell className='whitespace-nowrap border-r px-2 py-2'>
                 <Input type='number' step='0.01' className={compactInputClassName} value={draft.delivery_fee_usd} onChange={(event) => onDraftChange(item.id, 'delivery_fee_usd', event.target.value)} placeholder='0' />

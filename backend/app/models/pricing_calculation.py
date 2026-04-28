@@ -78,6 +78,7 @@ class PricingCalculationRun(Base):
     profit_after_vat_usd: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     profit_after_vat_rate: Mapped[Decimal | None] = mapped_column(Numeric(8, 6), nullable=True)
     delivery_fee_usd: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    platform_fee_usd: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     full_container_quantity: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
     full_container_price_rmb: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
 

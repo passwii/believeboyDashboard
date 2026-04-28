@@ -389,6 +389,8 @@ def create_pricing_eu_run(
         vat_usd=computed["profit_decimal"].get("vat_usd", Decimal("0")),
         profit_after_vat_usd=computed["profit_decimal"].get("profit_after_vat_usd"),
         profit_after_vat_rate=computed["profit_decimal"].get("profit_after_vat_rate"),
+        delivery_fee_usd=computed["fees_decimal"].get("delivery_fee_usd"),
+        platform_fee_usd=computed["fees_decimal"].get("platform_fee_usd"),
         warnings_json=computed["warnings"],
         notes="\n".join(computed["warnings"]) if computed["warnings"] else None,
         created_by=(operator or "").strip() or None,
@@ -536,6 +538,7 @@ def serialize_pricing_run(row: PricingCalculationRun) -> dict[str, object]:
             "inbound_config_fee_usd": float(row.inbound_config_fee_usd),
             "storage_fee_usd": float(row.storage_fee_usd),
             "total_fee_usd": float(row.total_fee_usd),
+            "platform_fee_usd": float(getattr(row, "platform_fee_usd", Decimal("0")) or Decimal("0")),
         },
         "profit": {
             "ddp_cost_rmb": float(row.ddp_cost_rmb),
@@ -552,6 +555,7 @@ def serialize_pricing_run(row: PricingCalculationRun) -> dict[str, object]:
         "created_at": _to_iso(row.created_at),
         "updated_at": _to_iso(row.updated_at),
         "delivery_fee_usd": float(row.delivery_fee_usd) if row.delivery_fee_usd is not None else 0.0,
+        "platform_fee_usd": float(row.platform_fee_usd) if row.platform_fee_usd is not None else 0.0,
         "full_container_quantity": float(row.full_container_quantity) if row.full_container_quantity is not None else 0.0,
         "full_container_price_rmb": float(row.full_container_price_rmb) if row.full_container_price_rmb is not None else 0.0,
     }
@@ -1035,6 +1039,7 @@ def _compute_eu_pricing(
             "inbound_config_fee_usd": inbound_config_fee_manual,
             "storage_fee_usd": storage_fee_manual,
             "total_fee_usd": total_fee_usd,
+            "platform_fee_usd": referral_fee_usd,  # 前端"佣金"列显示 Referral Fee
         },
         "profit_decimal": {
             "ddp_cost_rmb": ddp_cost_rmb,

@@ -93,6 +93,7 @@ class StoreAccounting(Base):
     delivery_fee_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, server_default='0.00')
     inbound_config_fee_manual_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, server_default='0.00')
     storage_fee_manual_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, server_default='0.00')
+    platform_fee_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, server_default='0.00')
 
     # 利润详情
     payout_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)

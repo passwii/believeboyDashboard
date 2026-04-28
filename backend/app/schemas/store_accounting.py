@@ -41,6 +41,8 @@ class StoreAccountingFees(BaseModel):
     delivery_fee_usd: float = 0.0
     inbound_config_fee_manual_usd: float = 0.0
     storage_fee_manual_usd: float = 0.0
+    # EU 平台佣金（售价 * 15%）
+    platform_fee_usd: float = 0.0
 
 
 class StoreAccountingProfit(BaseModel):
@@ -189,6 +191,8 @@ class StoreAccountingCreateRequest(BaseModel):
     delivery_fee_usd: float = 0.0
     inbound_config_fee_manual_usd: float = 0.0
     storage_fee_manual_usd: float = 0.0
+    # EU 平台佣金（售价 * 15%）
+    platform_fee_usd: float = 0.0
 
     # 利润详情
     payout_usd: float

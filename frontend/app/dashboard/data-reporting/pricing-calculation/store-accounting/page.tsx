@@ -54,9 +54,14 @@ export default function StoreAccountingPage() {
   const [statsLoading, setStatsLoading] = useState(false)
   const [stats, setStats] = useState({ total: 0, calculated: 0, profitable: 0, passRate: 0 })
 
-  // Store data for export
+  // Store data for export (US)
   const [storeSkus, setStoreSkus] = useState<ProductCostItem[]>([])
   const [snapshotMap, setSnapshotMap] = useState<Map<string, StoreAccountingItem>>(new Map())
+
+  // Store data for export (EU)
+  const [euStoreSkus, setEuStoreSkus] = useState<ProductCostItem[]>([])
+  const [euStoreRows, setEuStoreRows] = useState<Record<number, { draft: Record<string, string>; result: import('@/lib/pricing-calculation-types').PricingCalculationRunItem | null }>>({})
+  const [hasEuCalculatedRows, setHasEuCalculatedRows] = useState(false)
 
   useEffect(() => {
     async function loadProjects() {
@@ -134,7 +139,8 @@ export default function StoreAccountingPage() {
     void loadStats()
   }, [selectedProjectName, selectedProjectId, selectedCountry])
 
-  const hasCalculatedRows = stats.calculated > 0
+  const isUS = selectedCountry === 'US'
+  const hasCalculatedRows = isUS ? stats.calculated > 0 : hasEuCalculatedRows
 
   // Column number helper (supports AA, AB, ...)
   function colToNum(colLetter: string): number {
@@ -147,7 +153,14 @@ export default function StoreAccountingPage() {
 
   // ── Export handler ────────────────────────────────────────────────────────────
   async function handleExport() {
-    const itemsWithResults = storeSkus.filter((i) => snapshotMap.has(i.sku))
+    // 获取有结果的数据项
+    let itemsWithResults: ProductCostItem[] = []
+    if (isUS) {
+      itemsWithResults = storeSkus.filter((i) => snapshotMap.has(i.sku))
+    } else {
+      itemsWithResults = euStoreSkus.filter((i) => euStoreRows[i.id]?.result != null)
+    }
+
     if (itemsWithResults.length === 0) {
       notify({ type: 'error', title: '没有可导出的数据' })
       return
@@ -174,9 +187,9 @@ export default function StoreAccountingPage() {
           ]
         : [
             { name: '店铺产品', start: 1,  end: 1,  dark: 'FF312E81', sub: 'FFE0E7FF' },
-            { name: '货品数据', start: 2,  end: 8,  dark: 'FF0C4A6E', sub: 'FFE0F2FE' },
-            { name: 'DDP成本',  start: 9,  end: 12, dark: 'FF78350F', sub: 'FFFEF3C7' },
-            { name: '费用支出', start: 13, end: 21, dark: 'FF881337', sub: 'FFFFE4E6' },
+            { name: '货品数据', start: 2,  end: 7,  dark: 'FF0C4A6E', sub: 'FFE0F2FE' },
+            { name: 'DDP成本',  start: 8,  end: 11, dark: 'FF78350F', sub: 'FFFEF3C7' },
+            { name: '费用支出', start: 12, end: 21, dark: 'FF881337', sub: 'FFFFE4E6' },
             { name: '利润核算', start: 22, end: 25, dark: 'FF064E3B', sub: 'FFD1FAE5' },
           ]
 
@@ -229,7 +242,7 @@ export default function StoreAccountingPage() {
       const euHeaders = [
         'SKU', 'FOB(RMB)', '长', '宽', '高', '重量(kg)', '计费重',
         '头程(RMB)', 'DDP(RMB)', `DDP(${ddpCurrency})`, '汇率',
-        `售价(${saleCurrency})`, '广告费率%', '广告费', '退货损耗',
+        `售价(${saleCurrency})`, '平台佣金', '广告费率%', '广告费', '退货率%', '退货损失',
         '派送费', '配置费', '仓储费', '费用合计',
         '回款', '增值税', '利润(扣税后)', '利润率(扣税)',
       ]
@@ -249,11 +262,14 @@ export default function StoreAccountingPage() {
       })
 
       const LEFT_COLS  = isUS ? new Set([1, 28])           : new Set([1])
-      const CENTER_COLS = isUS ? new Set([22, 23, 24, 25, 26, 27]) : new Set([22, 23, 24, 25])
+      const CENTER_COLS = isUS ? new Set([22, 23, 24, 25, 26, 27]) : new Set([22, 23, 24, 25, 26])
 
       // Build data rows
       const dataRows = itemsWithResults.map((item) => {
-        const s = snapshotMap.get(item.sku)!
+        const snapshot = isUS ? snapshotMap.get(item.sku) : euStoreRows[item.id]?.result
+        if (!snapshot) return null
+
+        const s = snapshot as StoreAccountingItem & import('@/lib/pricing-calculation-types').PricingCalculationRunItem
         const chargeableWeight = Math.max(
           item.weight_kg,
           (item.package_length_cm * item.package_width_cm * item.package_height_cm) / 6000,
@@ -305,8 +321,10 @@ export default function StoreAccountingPage() {
             s.profit.ddp_cost_usd,
             s.usd_to_rmb_rate,
             s.sale_price_usd,
+            s.fees.platform_fee_usd ?? 0,
             s.advertising_rate * 100,
             s.fees.advertising_fee_usd,
+            (s.return_loss_rate ?? 0) * 100,
             s.fees.return_loss_usd,
             s.fees.delivery_fee_usd ?? 0,
             s.fees.inbound_config_fee_usd,
@@ -322,6 +340,7 @@ export default function StoreAccountingPage() {
 
       // Write data rows with styling
       dataRows.forEach((rowData, idx) => {
+        if (!rowData) return
         const row = worksheet.addRow(rowData)
         row.height = 20
         const isOdd = idx % 2 === 0
@@ -339,9 +358,9 @@ export default function StoreAccountingPage() {
           cell.alignment = { horizontal: 'center', vertical: 'middle' }
 
           // Profit / profit rate columns: apply percentage format to rate, color to both
-          const isProfitRateCol = (isUS && colNum === 25) || (!isUS && colNum === 23)
+          const isProfitRateCol = (isUS && colNum === 25) || (!isUS && colNum === 24)
           const isProfitCol = (isUS && (colNum === 24 || colNum === 25)) ||
-                              (!isUS && (colNum === 22 || colNum === 23))
+                              (!isUS && (colNum === 23 || colNum === 24))
           if (isProfitRateCol) {
             cell.numFmt = '0.00%'
           } else if (Number.isFinite(num)) {
@@ -569,6 +588,11 @@ export default function StoreAccountingPage() {
                 skuKeyword={skuKeyword}
                 onProjectChange={setSelectedProjectName}
                 onSkuKeywordChange={setSkuKeyword}
+                onDataReady={({ items, rows }) => {
+                  setEuStoreSkus(items)
+                  setEuStoreRows(rows as typeof euStoreRows)
+                }}
+                onHasCalculatedRowsChange={setHasEuCalculatedRows}
               />
             )}
           </DataTableCardBody>
