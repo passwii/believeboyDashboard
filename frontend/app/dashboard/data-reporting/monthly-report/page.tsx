@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { DragEvent } from 'react'
-import { AlertCircle, ChevronLeft, ChevronRight, DatabaseZap, Download, FileSearch, Loader2, Sparkles, Upload } from 'lucide-react'
+import { AlertCircle, DatabaseZap, Download, FileSearch, Loader2, Sparkles, Upload } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 import type { RecognizedFileType } from '@/lib/file-recognition'
@@ -15,7 +15,13 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import { cn } from '@/lib/utils'
-import { DEFAULT_REPORT_UPLOAD_COUNTRY, REPORT_UPLOAD_COUNTRY_OPTIONS, type ReportUploadCountry } from '@/components/report-upload/types'
+import { DEFAULT_REPORT_UPLOAD_COUNTRY, type ReportUploadCountry } from '@/components/report-upload/types'
+import {
+  CountrySelect,
+  FilterField,
+  MonthNavigation,
+  RefreshButton,
+} from '@/components/dashboard/console'
 
 type UploadType = 'payment_report' | 'monthly_summary_pdf'
 type AssignedType = UploadType | 'skip'
@@ -689,7 +695,7 @@ export default function MonthlyReportPage() {
        setJobProgress({ stage: 'completed', progress: 100, message: '处理完成：报表已生成，可下载' })
        setSubmitState({
          status: 'error',
-         message: `报表已生成，但下载失败：${downloadError instanceof Error ? downloadError.message : '未知错误'}。可点击“重试下载”。`,
+         message: `报表已生成，但下载失败：${downloadError instanceof Error ? downloadError.message : '未知错误'}。可点击"重试下载"。`,
           filename: fallbackName,
         })
         void pollPersistenceStatus()
@@ -735,8 +741,7 @@ export default function MonthlyReportPage() {
               {projectsLoading ? (
                 <ReportFilterSkeleton />
               ) : (
-                <div className="space-y-2">
-                  <label htmlFor="project_name" className="text-sm font-medium">项目名称</label>
+                <FilterField label="项目名称" labelStyle="sm">
                   <Select
                     value={projectName}
                     onValueChange={setProjectName}
@@ -759,61 +764,30 @@ export default function MonthlyReportPage() {
                     </SelectContent>
                   </Select>
                   {!projectsLoading && !projectLoadError && projects.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">暂无项目，请先到“项目信息”页面新增。</p>
+                    <p className="text-xs text-muted-foreground">暂无项目，请先到项目信息页面新增。</p>
                   ) : null}
                   {projectLoadError ? <p className="text-xs text-destructive">{projectLoadError}</p> : null}
-                </div>
+                </FilterField>
               )}
 
-              <div className="space-y-2">
-                <label htmlFor="country" className="text-sm font-medium">国家站点</label>
-                <Select value={country} onValueChange={(value) => setCountry(value as CountryOption)}>
-                  <SelectTrigger
-                    id="country"
-                    className="h-10 transition-all duration-200 data-[state=open]:ring-2 data-[state=open]:ring-blue-500/30"
-                  >
-                    <SelectValue placeholder="请选择国家站点" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {REPORT_UPLOAD_COUNTRY_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <FilterField label="国家站点" labelStyle="sm">
+                <CountrySelect
+                  value={country}
+                  onChange={(value) => setCountry(value as CountryOption)}
+                  triggerClassName="h-10 transition-all duration-200 data-[state=open]:ring-2 data-[state=open]:ring-blue-500/30"
+                />
+              </FilterField>
 
-              <div className="space-y-2">
-                <label htmlFor="report_month" className="text-sm font-medium">账期月份</label>
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => handleShiftReportMonth(-1)}
-                    aria-label="切换到上一个月"
-                    title="上一个月"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <MonthPicker
-                    value={parseMonthInputValue(reportMonth)}
-                    onChange={(date) => setReportMonth(formatMonthInputValue(date))}
-                    className="min-w-[180px]"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => handleShiftReportMonth(1)}
-                    aria-label="切换到下一个月"
-                    title="下一个月"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
+              <FilterField label="账期月份" labelStyle="sm">
+                <MonthNavigation
+                  value={parseMonthInputValue(reportMonth)}
+                  onChange={(date) => setReportMonth(formatMonthInputValue(date))}
+                  onPrev={() => handleShiftReportMonth(-1)}
+                  onNext={() => handleShiftReportMonth(1)}
+                  showCurrentMonth={false}
+                  monthLabel=""
+                />
+              </FilterField>
             </div>
 
             <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">

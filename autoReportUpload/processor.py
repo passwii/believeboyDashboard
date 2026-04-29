@@ -5,7 +5,6 @@ Adapted from backend/app/services/product_analysis_source_service.py
 
 from __future__ import annotations
 
-import hashlib
 import re
 import shutil
 import uuid
@@ -25,13 +24,12 @@ COUNTRY_TIMEZONE = {
     "AU": __import__("zoneinfo", fromlist=["ZoneInfo"]).ZoneInfo("Australia/Sydney"),
     "IN": __import__("zoneinfo", fromlist=["ZoneInfo"]).ZoneInfo("Asia/Kolkata"),
 }
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 import warnings
 
 import pandas as pd
-from slugify import slugify
 from sqlalchemy import func, insert, select, update as sa_update
 from sqlalchemy.orm import Session
 
@@ -53,6 +51,20 @@ from recognition import (
     recognize_file,
     _read_payment_report as _read_payment_report_impl,
     _read_csv_with_encoding_fallback as _recog_csv,
+)
+
+# Shared utilities from backend/app/shared/utils.py
+from app.shared.utils import (
+    normalize_text as _normalize_text,
+    normalize_identity as _normalize_identity,
+    to_int as _to_int,
+    to_decimal as _to_decimal,
+    to_decimal_with_currency as _to_decimal_with_currency,
+    to_raw_row as _to_raw_row,
+    sha256_file as _sha256_file,
+    project_slug as _project_slug,
+    build_logical_filename as _build_logical_filename,
+    parse_yyyy_mm_dd as _parse_yyyy_mm_dd,
 )
 
 def _resolve_upload_date(now: datetime) -> date:
@@ -1147,10 +1159,6 @@ def _load_project_product_mapping(
     return skus, asins
 
 
-def _parse_yyyy_mm_dd(value: str) -> date:
-    return datetime.strptime(value.strip(), "%Y-%m-%d").date()
-
-
 def _next_version(
     db: Session,
     project_id: int,
@@ -1193,75 +1201,7 @@ def _replace_current_pointer(db: Session, source: AnalysisSourceFile) -> None:
     )
 
 
-# ─── Utility helpers ──────────────────────────────────────────────────────────
-
-
-def _normalize_text(value: object) -> str | None:
-    if value is None:
-        return None
-    text = str(value).strip()
-    if not text or text.lower() == "nan":
-        return None
-    return text
-
-
-def _normalize_identity(value: object) -> str:
-    t = _normalize_text(value)
-    return t.upper() if t else ""
-
-
-def _to_int(value: object) -> int:
-    if value is None or (isinstance(value, float) and pd.isna(value)):
-        return 0
-    try:
-        return int(float(str(value).strip() or "0"))
-    except (TypeError, ValueError):
-        return 0
-
-
-def _to_decimal(value: object) -> Decimal:
-    if value is None or (isinstance(value, float) and pd.isna(value)):
-        return Decimal("0")
-    try:
-        text = str(value).strip().replace(",", "")
-        return Decimal(text) if text else Decimal("0")
-    except (InvalidOperation, ValueError):
-        return Decimal("0")
-
-
-def _to_decimal_with_currency(value: object) -> Decimal:
-    if value is None or (isinstance(value, float) and pd.isna(value)):
-        return Decimal("0")
-    text = re.sub(r"[^0-9.\-]", "", str(value))
-    if not text:
-        return Decimal("0")
-    try:
-        return Decimal(text)
-    except InvalidOperation:
-        return Decimal("0")
-
-
-def _to_raw_row(row: dict) -> dict:
-    payload = {}
-    for k, v in row.items():
-        text_key = str(k)
-        if v is None:
-            payload[text_key] = None
-            continue
-        if isinstance(v, float) and pd.isna(v):
-            payload[text_key] = None
-            continue
-        if hasattr(v, "isoformat"):
-            try:
-                payload[text_key] = v.isoformat()
-                continue
-            except TypeError:
-                pass
-        if isinstance(v, (int, float, bool, str)):
-            payload[text_key] = v
-        else:
-            payload[text_key] = str(v)
-    return payload
+# ─── Processor-specific helpers (not shared) ────────────────────────────────
 
 
 def _parse_transaction_at(row: pd.Series) -> datetime | None:
@@ -1283,10 +1223,7 @@ def _generate_file_id(original_filename: str) -> str:
     return f"{uuid.uuid4().hex}_{safe_name}"
 
 
-def _project_slug(project_name: str) -> str:
-    cleaned = re.sub(r"[\\/:*?\"<>|\x00-\x1f]+", "-", (project_name or "").strip())
-    slug = slugify(cleaned) if slugify else cleaned.lower().replace(" ", "-")
-    return slug[:80] or "project"
+_shared_build_logical_filename = _build_logical_filename
 
 
 def _build_logical_filename(
@@ -1298,16 +1235,15 @@ def _build_logical_filename(
     version: int,
     extension: str,
 ) -> str:
-    ext = extension if extension.startswith(".") else f".{extension}" if extension else ""
-    ts = snapshot_at.strftime("%Y%m%dT%H%M%SZ")
-    if report_type == "inventory_report":
-        return f"{project_slug}__inventory_report__snapshot-{ts}__v{version}{ext}"
-    if period_start is None or period_end is None:
-        raise ValueError(f"Missing period for {report_type}")
-    return (
-        f"{project_slug}__{report_type}__"
-        f"{period_start.strftime('%Y%m%d')}_{period_end.strftime('%Y%m%d')}__"
-        f"v{version}__{ts}{ext}"
+    """Adapter: positional args → keyword-only args of shared build_logical_filename."""
+    return _shared_build_logical_filename(
+        project_slug=project_slug,
+        report_type=report_type,
+        period_start_date=period_start,
+        period_end_date=period_end,
+        snapshot_at=snapshot_at,
+        version=version,
+        extension=extension,
     )
 
 
@@ -1330,9 +1266,4 @@ def _build_storage_key(
     )
 
 
-def _sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as f:
-        while chunk := f.read(1024 * 1024):
-            digest.update(chunk)
-    return digest.hexdigest()
+# _sha256_file is imported from shared (via alias at top of file)

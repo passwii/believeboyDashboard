@@ -304,7 +304,7 @@ export default function SystemDataManagementPage() {
           </div>
         </DataTableCardHeader>
         <DataTableCardBody className="overflow-auto" style={{ maxHeight: '600px' }}>
-          <Table noWrapperRounded className="[&_td]:!py-2.5">
+          <Table className="[&_td]:!py-2.5">
             <TableHeader className="sticky top-0 z-10">
               <TableRow>
                 <TableHead>表名</TableHead>

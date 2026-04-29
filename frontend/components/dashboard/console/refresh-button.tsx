@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 interface RefreshButtonProps {
   onClick: () => void | Promise<void>
   loading?: boolean
+  disabled?: boolean
   label?: string
   variant?: 'outline' | 'ghost' | 'default' | 'secondary' | 'destructive' | 'link'
   size?: 'default' | 'sm' | 'lg' | 'icon'
@@ -16,6 +17,7 @@ interface RefreshButtonProps {
 export function RefreshButton({
   onClick,
   loading = false,
+  disabled = false,
   label,
   variant = 'outline',
   size = 'icon',
@@ -27,7 +29,7 @@ export function RefreshButton({
       variant={variant}
       size={size}
       onClick={() => void onClick()}
-      disabled={loading}
+      disabled={loading || disabled}
       className={cn('shrink-0', className)}
       title={label || '刷新'}
     >

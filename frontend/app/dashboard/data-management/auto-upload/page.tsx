@@ -143,6 +143,7 @@ function RpaStatusGrid() {
 
   const [statusRows, setStatusRows] = useState<ProjectRow[]>([])
   const [statusLoading, setStatusLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [statusError, setStatusError] = useState<string | null>(null)
 
   const [country, setCountry] = useState('US')
@@ -169,7 +170,12 @@ function RpaStatusGrid() {
   }, [session])
 
   const loadStatus = async () => {
-    setStatusLoading(true)
+    // 首次加载时显示骨架屏，刷新时保留已有数据
+    if (statusRows.length === 0) {
+      setStatusLoading(true)
+    } else {
+      setIsRefreshing(true)
+    }
     setStatusError(null)
     try {
       const query = new URLSearchParams({ report_date: statusDate, country })
@@ -187,6 +193,7 @@ function RpaStatusGrid() {
       setStatusError(normalizeErrorMessage(error, '报表状态加载失败'))
     } finally {
       setStatusLoading(false)
+      setIsRefreshing(false)
     }
   }
 
@@ -321,17 +328,22 @@ function RpaStatusGrid() {
                 size='icon'
                 className='h-9 w-9 shrink-0 sm:h-10 sm:w-10'
                 onClick={() => void loadStatus()}
-                disabled={statusLoading}
+                disabled={statusLoading || isRefreshing}
                 title='刷新状态'
               >
-                <Loader2 className={cn('h-4 w-4', statusLoading && 'animate-spin')} />
+                <Loader2 className={cn('h-4 w-4', (statusLoading || isRefreshing) && 'animate-spin')} />
               </Button>
             </div>
           </div>
         </div>
       </CardHeader>
 
-      <div className='flex min-h-0 flex-1 flex-col p-0'>
+      <div className='flex min-h-0 flex-1 flex-col p-0 relative'>
+        {isRefreshing && (
+          <div className='absolute inset-x-0 top-0 z-10 h-0.5 overflow-hidden bg-blue-100 dark:bg-blue-900/30'>
+            <div className='h-full w-1/3 bg-blue-500 animate-shimmer' />
+          </div>
+        )}
         {statusError ? (
           <p className='py-4 pl-6 text-sm text-rose-600'>{statusError}</p>
         ) : null}
@@ -342,7 +354,7 @@ function RpaStatusGrid() {
             <Skeleton className='flex-1 w-full rounded-none min-h-0' />
           </div>
         ) : (
-          <div className='flex min-h-0 flex-1 flex-col overflow-auto'>
+          <div className={cn('flex min-h-0 flex-1 flex-col overflow-auto transition-opacity duration-200', isRefreshing && 'opacity-50 pointer-events-none')}>
             <div
               className='grid min-w-max shrink-0'
               style={{ gridTemplateColumns: `160px repeat(${REPORT_TYPES.length}, 96px)` }}

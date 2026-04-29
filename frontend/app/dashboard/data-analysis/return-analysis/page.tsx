@@ -22,6 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { DirectionalTabTransition, SlidingTabsTrigger, TabsMotionGroup } from '@/components/ui/tab-motion'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { TableSkeletonRows } from '@/components/ui/table-skeleton'
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useNotifications } from '@/components/notifications'
@@ -723,7 +724,7 @@ export default function ReturnAnalysisPage() {
             <DirectionalTabTransition value={activeTab} order={VIEW_TAB_ORDER}>
               <TabsContent forceMount value={activeTab} className="m-0">
                 {activeTab === 'rankings' && (
-                  <Table noWrapperRounded containerClassName="bg-[hsl(var(--surface-panel))]/94">
+                  <Table containerClassName="bg-[hsl(var(--surface-panel))]/94">
                     <TableHeader>
                       <TableRow>
                         <TableHead>SKU</TableHead>
@@ -736,16 +737,11 @@ export default function ReturnAnalysisPage() {
                     </TableHeader>
                     <TableBody>
                       {loading ? (
-                        Array.from({ length: 5 }).map((_, i) => (
-                          <TableRow key={i}>
-                            <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                            <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                            <TableCell><Skeleton className="h-4 w-12 ml-auto" /></TableCell>
-                            <TableCell><Skeleton className="h-4 w-12 ml-auto" /></TableCell>
-                            <TableCell><Skeleton className="h-4 w-12 ml-auto" /></TableCell>
-                            <TableCell><Skeleton className="h-4 w-12 ml-auto" /></TableCell>
-                          </TableRow>
-                        ))
+                        <TableSkeletonRows
+                          columns={6}
+                          rows={5}
+                          widths={['w-24', 'w-16', 'w-12 ml-auto', 'w-12 ml-auto', 'w-12 ml-auto', 'w-12 ml-auto']}
+                        />
                       ) : data?.ranking_rows.length ? (
                         data.ranking_rows.map((row) => (
                           <TableRow key={row.sku}>
@@ -773,7 +769,7 @@ export default function ReturnAnalysisPage() {
                     <h3 className="text-lg font-semibold">退货原因分析</h3>
                     <div className="grid gap-4 lg:grid-cols-2">
                       {/* Table */}
-                      <Table noWrapperRounded containerClassName="bg-[hsl(var(--surface-panel))]/94">
+                      <Table containerClassName="bg-[hsl(var(--surface-panel))]/94">
                         <TableHeader>
                           <TableRow>
                             <TableHead>退货原因</TableHead>
@@ -783,13 +779,11 @@ export default function ReturnAnalysisPage() {
                         </TableHeader>
                         <TableBody>
                           {loading ? (
-                            Array.from({ length: 5 }).map((_, i) => (
-                              <TableRow key={i}>
-                                <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                                <TableCell><Skeleton className="h-4 w-12 ml-auto" /></TableCell>
-                                <TableCell><Skeleton className="h-4 w-12 ml-auto" /></TableCell>
-                              </TableRow>
-                            ))
+                            <TableSkeletonRows
+                              columns={3}
+                              rows={5}
+                              widths={['w-24', 'w-12 ml-auto', 'w-12 ml-auto']}
+                            />
                           ) : data?.reason_rows.length ? (
                             data.reason_rows.map((row) => (
                               <TableRow key={row.reason}>
@@ -925,7 +919,7 @@ export default function ReturnAnalysisPage() {
                   <div className="space-y-4">
                     <h3 className="text-lg font-semibold">商品状态分布</h3>
                     <div className="grid gap-4 lg:grid-cols-2">
-                      <Table noWrapperRounded containerClassName="bg-[hsl(var(--surface-panel))]/94">
+                      <Table containerClassName="bg-[hsl(var(--surface-panel))]/94">
                         <TableHeader>
                           <TableRow>
                             <TableHead>商品状态</TableHead>
@@ -935,13 +929,11 @@ export default function ReturnAnalysisPage() {
                         </TableHeader>
                         <TableBody>
                           {loading ? (
-                            Array.from({ length: 3 }).map((_, i) => (
-                              <TableRow key={i}>
-                                <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                                <TableCell><Skeleton className="h-4 w-12 ml-auto" /></TableCell>
-                                <TableCell><Skeleton className="h-4 w-12 ml-auto" /></TableCell>
-                              </TableRow>
-                            ))
+                            <TableSkeletonRows
+                              columns={3}
+                              rows={3}
+                              widths={['w-20', 'w-12 ml-auto', 'w-12 ml-auto']}
+                            />
                           ) : data?.disposition_rows.length ? (
                             data.disposition_rows.map((row) => (
                               <TableRow key={row.detailed_disposition}>
@@ -975,7 +967,7 @@ export default function ReturnAnalysisPage() {
                   <div className="space-y-4">
                     <h3 className="text-lg font-semibold">库存状态分布</h3>
                     <div className="grid gap-4 lg:grid-cols-2">
-                      <Table noWrapperRounded containerClassName="bg-[hsl(var(--surface-panel))]/94">
+                      <Table containerClassName="bg-[hsl(var(--surface-panel))]/94">
                         <TableHeader>
                           <TableRow>
                             <TableHead>库存状态</TableHead>
@@ -985,13 +977,11 @@ export default function ReturnAnalysisPage() {
                         </TableHeader>
                         <TableBody>
                           {loading ? (
-                            Array.from({ length: 3 }).map((_, i) => (
-                              <TableRow key={i}>
-                                <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                                <TableCell><Skeleton className="h-4 w-12 ml-auto" /></TableCell>
-                                <TableCell><Skeleton className="h-4 w-12 ml-auto" /></TableCell>
-                              </TableRow>
-                            ))
+                            <TableSkeletonRows
+                              columns={3}
+                              rows={3}
+                              widths={['w-24', 'w-12 ml-auto', 'w-12 ml-auto']}
+                            />
                           ) : data?.status_rows.length ? (
                             data.status_rows.map((row) => (
                               <TableRow key={row.status}>
@@ -1024,7 +1014,7 @@ export default function ReturnAnalysisPage() {
                 {activeTab === 'feedback' && (
                   <div className="space-y-4">
                     <h3 className="text-lg font-semibold">顾客反馈</h3>
-                    <Table noWrapperRounded containerClassName="bg-[hsl(var(--surface-panel))]/94">
+                    <Table containerClassName="bg-[hsl(var(--surface-panel))]/94">
                       <TableHeader>
                         <TableRow>
                           <TableHead>日期</TableHead>
@@ -1035,14 +1025,11 @@ export default function ReturnAnalysisPage() {
                       </TableHeader>
                       <TableBody>
                         {loading ? (
-                          Array.from({ length: 5 }).map((_, i) => (
-                            <TableRow key={i}>
-                              <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                              <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                              <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                              <TableCell><Skeleton className="h-4 w-48" /></TableCell>
-                            </TableRow>
-                          ))
+                          <TableSkeletonRows
+                            columns={4}
+                            rows={5}
+                            widths={['w-20', 'w-24', 'w-16', 'w-48']}
+                          />
                         ) : data?.feedback_rows.length ? (
                           data.feedback_rows.slice(0, 50).map((row, index) => (
                             <TableRow key={`${row.order_id}-${index}`}>
@@ -1132,7 +1119,7 @@ export default function ReturnAnalysisPage() {
                         {data.fulfillment_center_rows && data.fulfillment_center_rows.length > 0 && (
                           <div className="rounded-lg border border-border/60 bg-[hsl(var(--surface-soft))] p-4">
                             <h4 className="text-sm font-semibold mb-3">🏭 仓库退货分布</h4>
-                            <Table noWrapperRounded containerClassName="bg-[hsl(var(--surface-panel))]/94">
+                            <Table containerClassName="bg-[hsl(var(--surface-panel))]/94">
                               <TableHeader>
                                 <TableRow>
                                   <TableHead>仓库</TableHead>

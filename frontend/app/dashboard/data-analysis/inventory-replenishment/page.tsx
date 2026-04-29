@@ -32,6 +32,12 @@ import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useNotifications } from '@/components/notifications'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
 import { applyBorder, applyHeaderBorder, applyRowBorder } from '@/lib/excel-styles'
+import { COUNTRY_OPTIONS } from '@/lib/console-constants'
+import {
+  CountrySelect,
+  FilterField,
+  RefreshButton,
+} from '@/components/dashboard/console'
 
 const API_BASE = '/api/backend'
 
@@ -77,12 +83,6 @@ type AnalysisRow = {
   risk_status: string
   risk_anchor_date: string | null
 }
-
-const COUNTRY_OPTIONS = [
-  { value: 'US', label: '美国站' },
-  { value: 'DE', label: '德国站' },
-  { value: 'UK', label: '英国站' },
-] as const
 
 function rowKey(row: Pick<AnalysisRow, 'sku' | 'country'>): string {
   return `${row.sku}::${row.country}`
@@ -725,46 +725,43 @@ export default function InventoryReplenishmentPage() {
           <div className="grid grid-cols-2 gap-3">
             <div className="grid grid-cols-2 gap-2">
               <div className="w-full min-w-0">
-                {projectsLoading ? (
-                  <Skeleton className="h-9 w-full rounded-lg" />
-                ) : (
-                  <Select value={projectId} onValueChange={setProjectId}>
-                    <SelectTrigger className="h-9 rounded-md border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground">
-                      <SelectValue placeholder="选择项目" />
-                    </SelectTrigger>
-                    <SelectContent align="start" side="bottom" sideOffset={8} collisionPadding={16}>
-                      {projects.map((project) => (
-                        <SelectItem key={project.id} value={String(project.id)}>
-                          {project.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
+                <FilterField label="项目">
+                  {projectsLoading ? (
+                    <Skeleton className="h-9 w-full rounded-lg" />
+                  ) : (
+                    <Select value={projectId} onValueChange={setProjectId}>
+                      <SelectTrigger className="h-9 rounded-md border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground">
+                        <SelectValue placeholder="选择项目" />
+                      </SelectTrigger>
+                      <SelectContent align="start" side="bottom" sideOffset={8} collisionPadding={16}>
+                        {projects.map((project) => (
+                          <SelectItem key={project.id} value={String(project.id)}>
+                            {project.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </FilterField>
               </div>
               <div className="w-full min-w-0">
-                <Input
-                  value={keyword}
-                  onChange={(event) => setKeyword(event.target.value)}
-                  placeholder="搜索 SKU / ASIN"
-                  className="h-9 rounded-md border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
+                <FilterField label="搜索">
+                  <Input
+                    value={keyword}
+                    onChange={(event) => setKeyword(event.target.value)}
+                    placeholder="搜索 SKU / ASIN"
+                    className="h-9 rounded-md border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
+                  />
+                </FilterField>
+              </div>
+              <FilterField label="国家站点">
+                <CountrySelect
+                  value={country}
+                  onChange={setCountry}
+                  triggerClassName="h-9 rounded-md border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
                 />
-              </div>
-              <div className="w-full min-w-0">
-                <Select value={country} onValueChange={setCountry}>
-                  <SelectTrigger className="h-9 rounded-md border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground">
-                    <SelectValue placeholder="国家站点" />
-                  </SelectTrigger>
-                  <SelectContent align="start" side="bottom" sideOffset={8} collisionPadding={16}>
-                    {COUNTRY_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="w-full min-w-0">
+              </FilterField>
+              <FilterField label="风险状态">
                 <Select value={riskFilter} onValueChange={setRiskFilter}>
                   <SelectTrigger className="h-9 rounded-md border-border/70 bg-[hsl(var(--surface-panel))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground">
                     <SelectValue placeholder="风险状态" />
@@ -780,7 +777,7 @@ export default function InventoryReplenishmentPage() {
                     <SelectItem value="待补数据">待补数据</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
+              </FilterField>
             </div>
             <div>
               {loading && rows.length === 0 ? (
@@ -1105,7 +1102,7 @@ export default function InventoryReplenishmentPage() {
             <div className="grid gap-2">
               <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))]/90 px-3 py-2.5 leading-6 dark:border-border/80 dark:bg-[hsl(var(--surface-overlay))]/90">
                 <span className="mr-2 inline-flex rounded-md bg-[hsl(var(--surface-soft))] px-2 py-0.5 text-xs font-medium text-foreground/80 dark:bg-[hsl(var(--surface-strong))]">风险状态</span>
-                按 <code>含在途截止 - today</code> 判定；若销量数据缺失，则状态为“待补数据”。
+                按 <code>含在途截止 - today</code> 判定；若销量数据缺失，则状态为待补数据。
               </div>
               <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))]/90 px-3 py-2.5 leading-6 dark:border-border/80 dark:bg-[hsl(var(--surface-overlay))]/90">
                 <span className="mr-2 inline-flex rounded-md bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-950/60 dark:text-violet-300">预计数量</span>

@@ -25,6 +25,7 @@ import { EmptyTableState } from '@/components/ui/empty-state'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
+import { TableSkeletonRows } from '@/components/ui/table-skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { useNotifications } from '@/components/notifications'
@@ -321,28 +322,6 @@ function ShipmentMetricSkeleton() {
       <Skeleton className="h-3 w-12" />
       <Skeleton className="mt-3 h-7 w-20" />
     </div>
-  )
-}
-
-function ShipmentTableSkeleton({
-  columns,
-  rows = 5,
-}: {
-  columns: number
-  rows?: number
-}) {
-  return (
-    <>
-      {Array.from({ length: rows }).map((_, rowIndex) => (
-        <TableRow key={`shipment-loading-${rowIndex}`}>
-          {Array.from({ length: columns }).map((__, cellIndex) => (
-            <TableCell key={cellIndex}>
-              <Skeleton className="h-4 w-20" />
-            </TableCell>
-          ))}
-        </TableRow>
-      ))}
-    </>
   )
 }
 
@@ -2578,30 +2557,30 @@ export default function ShipmentManagementPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {loading && items.length === 0 ? <ShipmentTableSkeleton columns={12} /> : null}
+                        {loading && items.length === 0 ? <TableSkeletonRows columns={12} /> : null}
                         {items.map((item) => {
                           const status = statusMeta(item.shipment_status)
                           const country = countryMeta(item.country)
                           return (
                               <TableRow key={item.id} className={item.id === selectedId ? 'bg-primary/8 dark:bg-primary/10' : ''}>
-                              <TableCell className={`border-r border-border/60 text-sm font-medium ${DENSE_CELL}`}>{item.project_name}</TableCell>
-                              <TableCell className={`border-r border-border/60 text-sm ${DENSE_CELL}`}>
+                              <TableCell className={`w-[90px] border-r border-border/60 text-sm font-medium ${DENSE_CELL}`}>{item.project_name}</TableCell>
+                              <TableCell className={`w-[72px] border-r border-border/60 text-sm ${DENSE_CELL}`}>
                                 <Badge className={`${country.className} h-5 px-2 text-[11px]`}>
                                   {country.label}
                                 </Badge>
                               </TableCell>
-                              <TableCell className={`border-r border-border/60 text-sm ${DENSE_CELL}`}>{formatDate(item.created_date)}</TableCell>
-                              <TableCell className={`border-r border-border/60 text-sm font-medium ${DENSE_CELL}`}>{item.shipment_no}</TableCell>
-                              <TableCell className={`border-r border-border/60 ${DENSE_CELL}`}>
+                              <TableCell className={`w-[90px] border-r border-border/60 text-sm ${DENSE_CELL}`}>{formatDate(item.created_date)}</TableCell>
+                              <TableCell className={`w-[120px] border-r border-border/60 text-sm font-medium ${DENSE_CELL}`}>{item.shipment_no}</TableCell>
+                              <TableCell className={`w-[70px] border-r border-border/60 ${DENSE_CELL}`}>
                                 <Badge className={`${status.className} text-[11px] py-0 h-5`}>{status.label}</Badge>
                               </TableCell>
-                              <TableCell className={`border-r border-border/60 text-sm ${DENSE_CELL}`}>{item.forwarder_name || '-'}</TableCell>
-                              <TableCell className={`border-r border-border/60 text-sm ${DENSE_CELL}`}>{item.warehouse_code || '-'}</TableCell>
-                              <TableCell className={`border-r border-border/60 text-sm ${DENSE_CELL}`}>{formatDate(item.etd_date)}</TableCell>
-                              <TableCell className={`border-r border-border/60 text-sm ${DENSE_CELL}`}>{formatDate(item.eta_date)}</TableCell>
-                              <TableCell className={`border-r border-border/60 text-right text-sm ${DENSE_CELL}`}>{item.sku_count}</TableCell>
-                              <TableCell className={`border-r border-border/60 text-right text-sm ${DENSE_CELL}`}>{item.total_quantity.toLocaleString()}</TableCell>
-                              <TableCell className={DENSE_CELL}>
+                              <TableCell className={`w-[80px] border-r border-border/60 text-sm ${DENSE_CELL}`}>{item.forwarder_name || '-'}</TableCell>
+                              <TableCell className={`w-[70px] border-r border-border/60 text-sm ${DENSE_CELL}`}>{item.warehouse_code || '-'}</TableCell>
+                              <TableCell className={`w-[90px] border-r border-border/60 text-sm ${DENSE_CELL}`}>{formatDate(item.etd_date)}</TableCell>
+                              <TableCell className={`w-[90px] border-r border-border/60 text-sm ${DENSE_CELL}`}>{formatDate(item.eta_date)}</TableCell>
+                              <TableCell className={`w-[50px] border-r border-border/60 text-right text-sm ${DENSE_CELL}`}>{item.sku_count}</TableCell>
+                              <TableCell className={`w-[60px] border-r border-border/60 text-right text-sm ${DENSE_CELL}`}>{item.total_quantity.toLocaleString()}</TableCell>
+                              <TableCell className={`w-[60px] ${DENSE_CELL}`}>
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -2683,44 +2662,44 @@ export default function ShipmentManagementPage() {
                     <Table containerClassName={TABLE_SCROLL_CONTAINER_CLASS} className="w-full min-w-[1320px]">
                       <TableHeader>
                         <TableRow className="bg-[hsl(var(--surface-subtle))]">
-                          <TableHead className={`whitespace-nowrap ${DENSE_HEAD}`}>项目</TableHead>
-                          <TableHead className={`whitespace-nowrap ${DENSE_HEAD}`}>发货时间</TableHead>
-                          <TableHead className={`whitespace-nowrap ${DENSE_HEAD}`}>货件编号</TableHead>
-                          <TableHead className={`whitespace-nowrap ${DENSE_HEAD}`}>状态</TableHead>
-                          <TableHead className={`whitespace-nowrap ${DENSE_HEAD}`}>货代</TableHead>
-                          <TableHead className={`whitespace-nowrap text-right ${DENSE_HEAD}`}>总发货数量</TableHead>
-                          <TableHead className={`whitespace-nowrap text-right ${DENSE_HEAD}`}>总重量(kg)</TableHead>
-                          <TableHead className={`whitespace-nowrap text-right ${DENSE_HEAD}`}>总体积(m³)</TableHead>
-                          <TableHead className={`whitespace-nowrap text-right ${DENSE_HEAD}`}>物流单价</TableHead>
-                          <TableHead className={`whitespace-nowrap text-right ${DENSE_HEAD}`}>单品物流单价</TableHead>
-                          <TableHead className={`whitespace-nowrap text-right ${DENSE_HEAD}`}>物流总价</TableHead>
+                          <TableHead className={`w-[100px] whitespace-nowrap ${DENSE_HEAD}`}>项目</TableHead>
+                          <TableHead className={`w-[90px] whitespace-nowrap ${DENSE_HEAD}`}>发货时间</TableHead>
+                          <TableHead className={`w-[120px] whitespace-nowrap ${DENSE_HEAD}`}>货件编号</TableHead>
+                          <TableHead className={`w-[70px] whitespace-nowrap ${DENSE_HEAD}`}>状态</TableHead>
+                          <TableHead className={`w-[80px] whitespace-nowrap ${DENSE_HEAD}`}>货代</TableHead>
+                          <TableHead className={`w-[90px] whitespace-nowrap text-right ${DENSE_HEAD}`}>总发货数量</TableHead>
+                          <TableHead className={`w-[90px] whitespace-nowrap text-right ${DENSE_HEAD}`}>总重量(kg)</TableHead>
+                          <TableHead className={`w-[90px] whitespace-nowrap text-right ${DENSE_HEAD}`}>总体积(m³)</TableHead>
+                          <TableHead className={`w-[90px] whitespace-nowrap text-right ${DENSE_HEAD}`}>物流单价</TableHead>
+                          <TableHead className={`w-[100px] whitespace-nowrap text-right ${DENSE_HEAD}`}>单品物流单价</TableHead>
+                          <TableHead className={`w-[100px] whitespace-nowrap text-right ${DENSE_HEAD}`}>物流总价</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {loading && items.length === 0 ? <ShipmentTableSkeleton columns={11} /> : null}
+                        {loading && items.length === 0 ? <TableSkeletonRows columns={11} /> : null}
                         {items.map((item) => {
                           const status = statusMeta(item.shipment_status)
                           return (
                             <TableRow key={`cost-${item.id}`} className={item.id === selectedId ? 'bg-primary/8 dark:bg-primary/10' : ''}>
-                              <TableCell className={`font-medium ${DENSE_CELL}`}>{item.project_name}</TableCell>
-                              <TableCell className={DENSE_CELL}>{formatDate(item.created_date || item.etd_date)}</TableCell>
-                              <TableCell className={`font-medium ${DENSE_CELL}`}>{item.shipment_no}</TableCell>
-                              <TableCell className={DENSE_CELL}>
+                              <TableCell className={`w-[100px] font-medium ${DENSE_CELL}`}>{item.project_name}</TableCell>
+                              <TableCell className={`w-[90px] ${DENSE_CELL}`}>{formatDate(item.created_date || item.etd_date)}</TableCell>
+                              <TableCell className={`w-[120px] font-medium ${DENSE_CELL}`}>{item.shipment_no}</TableCell>
+                              <TableCell className={`w-[70px] ${DENSE_CELL}`}>
                                 <Badge className={`${status.className} text-[11px] py-0 h-5`}>{status.label}</Badge>
                               </TableCell>
-                              <TableCell className={DENSE_CELL}>{item.forwarder_name || '-'}</TableCell>
-                              <TableCell className={`text-right ${DENSE_CELL}`}>{item.total_quantity.toLocaleString()}</TableCell>
-                              <TableCell className={`text-right ${DENSE_CELL}`}>{formatDecimal(item.total_chargeable_weight_kg)}</TableCell>
-                              <TableCell className={`text-right ${DENSE_CELL}`}>{formatDecimal(item.total_volume_m3, 4)}</TableCell>
-                              <TableCell className={`text-right ${DENSE_CELL}`}>
+                              <TableCell className={`w-[80px] ${DENSE_CELL}`}>{item.forwarder_name || '-'}</TableCell>
+                              <TableCell className={`w-[90px] text-right ${DENSE_CELL}`}>{item.total_quantity.toLocaleString()}</TableCell>
+                              <TableCell className={`w-[90px] text-right ${DENSE_CELL}`}>{formatDecimal(item.total_chargeable_weight_kg)}</TableCell>
+                              <TableCell className={`w-[90px] text-right ${DENSE_CELL}`}>{formatDecimal(item.total_volume_m3, 4)}</TableCell>
+                              <TableCell className={`w-[90px] text-right ${DENSE_CELL}`}>
                                 {item.logistics_unit_price > 0 ? formatDecimal(item.logistics_unit_price, 2) : '-'}
                               </TableCell>
-                              <TableCell className={`text-right ${DENSE_CELL}`}>
+                              <TableCell className={`w-[100px] text-right ${DENSE_CELL}`}>
                                 {item.total_quantity > 0 && item.logistics_total_price > 0
                                   ? formatDecimal(item.logistics_total_price / item.total_quantity, 4)
                                   : '-'}
                               </TableCell>
-                              <TableCell className={`text-right ${DENSE_CELL}`}>
+                              <TableCell className={`w-[100px] text-right ${DENSE_CELL}`}>
                                 {item.logistics_total_price > 0 ? formatDecimal(item.logistics_total_price, 2) : '-'}
                               </TableCell>
                             </TableRow>
@@ -2785,34 +2764,34 @@ export default function ShipmentManagementPage() {
                     <Table containerClassName={TABLE_SCROLL_CONTAINER_CLASS} className="w-full min-w-[1120px]">
                       <TableHeader>
                         <TableRow className="bg-[hsl(var(--surface-subtle))]">
-                          <TableHead className={`whitespace-nowrap ${DENSE_HEAD}`}>项目</TableHead>
-                          <TableHead className={`whitespace-nowrap ${DENSE_HEAD}`}>国家</TableHead>
-                          <TableHead className={`whitespace-nowrap ${DENSE_HEAD}`}>SKU</TableHead>
-                          <TableHead className={`whitespace-nowrap text-right ${DENSE_HEAD}`}>参与批次数</TableHead>
-                          <TableHead className={`whitespace-nowrap text-right ${DENSE_HEAD}`}>总数量</TableHead>
-                          <TableHead className={`whitespace-nowrap text-right ${DENSE_HEAD}`}>总计费重(kg)</TableHead>
-                          <TableHead className={`whitespace-nowrap text-right ${DENSE_HEAD}`}>总发货费用</TableHead>
-                          <TableHead className={`whitespace-nowrap text-right ${DENSE_HEAD}`}>平均发运单价</TableHead>
+                          <TableHead className={`w-[100px] whitespace-nowrap ${DENSE_HEAD}`}>项目</TableHead>
+                          <TableHead className={`w-[70px] whitespace-nowrap ${DENSE_HEAD}`}>国家</TableHead>
+                          <TableHead className={`w-[120px] whitespace-nowrap ${DENSE_HEAD}`}>SKU</TableHead>
+                          <TableHead className={`w-[80px] whitespace-nowrap text-right ${DENSE_HEAD}`}>参与批次数</TableHead>
+                          <TableHead className={`w-[80px] whitespace-nowrap text-right ${DENSE_HEAD}`}>总数量</TableHead>
+                          <TableHead className={`w-[90px] whitespace-nowrap text-right ${DENSE_HEAD}`}>总计费重(kg)</TableHead>
+                          <TableHead className={`w-[90px] whitespace-nowrap text-right ${DENSE_HEAD}`}>总发货费用</TableHead>
+                          <TableHead className={`w-[100px] whitespace-nowrap text-right ${DENSE_HEAD}`}>平均发运单价</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {skuSummaryLoading && skuSummaryItems.length === 0 ? <ShipmentTableSkeleton columns={8} /> : null}
+                        {skuSummaryLoading && skuSummaryItems.length === 0 ? <TableSkeletonRows columns={8} /> : null}
                         {skuSummaryItems.map((item) => {
                           const country = countryMeta(item.country)
                           return (
                           <TableRow key={`${item.project_id}-${item.country}-${item.sku}`}>
-                            <TableCell className={`font-medium ${DENSE_CELL}`}>{item.project_name}</TableCell>
-                            <TableCell className={DENSE_CELL}>
+                            <TableCell className={`w-[100px] font-medium ${DENSE_CELL}`}>{item.project_name}</TableCell>
+                            <TableCell className={`w-[70px] ${DENSE_CELL}`}>
                               <Badge className={`${country.className} h-5 px-2 text-[11px]`}>
                                 {country.label}
                               </Badge>
                             </TableCell>
-                            <TableCell className={`font-medium ${DENSE_CELL}`}>{item.sku}</TableCell>
-                            <TableCell className={`text-right ${DENSE_CELL}`}>{item.shipment_count}</TableCell>
-                            <TableCell className={`text-right ${DENSE_CELL}`}>{item.total_quantity.toLocaleString()}</TableCell>
-                            <TableCell className={`text-right ${DENSE_CELL}`}>{formatDecimal(item.total_chargeable_weight_kg)}</TableCell>
-                            <TableCell className={`text-right ${DENSE_CELL}`}>¥ {formatDecimal(item.total_logistics_cost, 2)}</TableCell>
-                            <TableCell className={`text-right ${DENSE_CELL}`}>¥ {formatDecimal(item.average_logistics_unit_price, 4)}</TableCell>
+                            <TableCell className={`w-[120px] font-medium ${DENSE_CELL}`}>{item.sku}</TableCell>
+                            <TableCell className={`w-[80px] text-right ${DENSE_CELL}`}>{item.shipment_count}</TableCell>
+                            <TableCell className={`w-[80px] text-right ${DENSE_CELL}`}>{item.total_quantity.toLocaleString()}</TableCell>
+                            <TableCell className={`w-[90px] text-right ${DENSE_CELL}`}>{formatDecimal(item.total_chargeable_weight_kg)}</TableCell>
+                            <TableCell className={`w-[90px] text-right ${DENSE_CELL}`}>¥ {formatDecimal(item.total_logistics_cost, 2)}</TableCell>
+                            <TableCell className={`w-[100px] text-right ${DENSE_CELL}`}>¥ {formatDecimal(item.average_logistics_unit_price, 4)}</TableCell>
                           </TableRow>
                         )})}
                       </TableBody>
@@ -2922,7 +2901,7 @@ export default function ShipmentManagementPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {fbaBoxLoading && fbaBoxItems.length === 0 ? <ShipmentTableSkeleton columns={11} /> : null}
+                          {fbaBoxLoading && fbaBoxItems.length === 0 ? <TableSkeletonRows columns={11} /> : null}
                           {fbaBoxItems.map((item, index) => {
                             const group = fbaBoxWarehouseGroups.find(
                               (g) => g.shipmentNo === item.shipment_no && index >= g.startIndex && index <= g.endIndex
@@ -2939,24 +2918,24 @@ export default function ShipmentManagementPage() {
 
                             return (
                               <TableRow key={`fba-box-${item.shipment_no}-${item.sku}-${index}`}>
-                                <TableCell className={`font-medium ${DENSE_CELL}`}>{item.shipment_no}</TableCell>
+                                <TableCell className={`w-[140px] font-medium ${DENSE_CELL}`}>{item.shipment_no}</TableCell>
                                 {showWarehouse ? (
                                   <TableCell
-                                    className={`font-medium font-semibold text-primary bg-primary/5 ${DENSE_CELL}`}
+                                    className={`w-[80px] font-medium font-semibold text-primary bg-primary/5 ${DENSE_CELL}`}
                                     rowSpan={rowSpan}
                                   >
                                     {item.warehouse_code || '-'}
                                   </TableCell>
                                 ) : null}
-                                <TableCell className={`font-medium ${DENSE_CELL}`}>{item.sku}</TableCell>
-                                <TableCell className={DENSE_CELL}>{packageInfo}</TableCell>
-                                <TableCell className={DENSE_CELL}>{cartonInfo}</TableCell>
-                                <TableCell className={`text-right ${DENSE_CELL}`}>{item.units_per_carton > 0 ? `${item.units_per_carton} / 箱` : '-'}</TableCell>
-                                <TableCell className={`text-right ${DENSE_CELL}`}>{item.carton_count > 0 ? item.carton_count : '-'}</TableCell>
-                                <TableCell className={`text-right font-mono text-xs ${DENSE_CELL}`}>{fbaBoxLabelRanges[index] ?? '-'}</TableCell>
-                                <TableCell className={`text-right ${DENSE_CELL}`}>{item.quantity > 0 ? item.quantity : '-'}</TableCell>
-                                <TableCell className={`text-right ${DENSE_CELL}`}>{formatDecimal(item.total_volume_m3, 4)}</TableCell>
-                                <TableCell className={`text-right ${DENSE_CELL}`}>{item.total_weight_kg > 0 ? formatDecimal(item.total_weight_kg) : '0'}</TableCell>
+                                <TableCell className={`w-[140px] font-medium ${DENSE_CELL}`}>{item.sku}</TableCell>
+                                <TableCell className={`w-[180px] ${DENSE_CELL}`}>{packageInfo}</TableCell>
+                                <TableCell className={`w-[180px] ${DENSE_CELL}`}>{cartonInfo}</TableCell>
+                                <TableCell className={`w-[80px] text-right ${DENSE_CELL}`}>{item.units_per_carton > 0 ? `${item.units_per_carton} / 箱` : '-'}</TableCell>
+                                <TableCell className={`w-[60px] text-right ${DENSE_CELL}`}>{item.carton_count > 0 ? item.carton_count : '-'}</TableCell>
+                                <TableCell className={`w-[100px] text-right font-mono text-xs ${DENSE_CELL}`}>{fbaBoxLabelRanges[index] ?? '-'}</TableCell>
+                                <TableCell className={`w-[80px] text-right ${DENSE_CELL}`}>{item.quantity > 0 ? item.quantity : '-'}</TableCell>
+                                <TableCell className={`w-[80px] text-right ${DENSE_CELL}`}>{formatDecimal(item.total_volume_m3, 4)}</TableCell>
+                                <TableCell className={`w-[80px] text-right ${DENSE_CELL}`}>{item.total_weight_kg > 0 ? formatDecimal(item.total_weight_kg) : '0'}</TableCell>
                               </TableRow>
                             )
                           })}

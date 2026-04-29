@@ -16,6 +16,11 @@ import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useNotifications } from '@/components/notifications'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
 import { applyBorder, applyHeaderBorder, applyRowBorder } from '@/lib/excel-styles'
+import { COUNTRY_OPTIONS } from '@/lib/console-constants'
+import {
+  CountrySelect,
+  FilterField,
+} from '@/components/dashboard/console'
 
 const API_BASE = '/api/backend/api/v1'
 
@@ -70,12 +75,6 @@ type SnapshotOption = {
   report_date: string
   is_current: boolean
 }
-
-const COUNTRY_OPTIONS = [
-  { value: 'US', label: '美国站 (US)' },
-  { value: 'DE', label: '德国站 (DE)' },
-  { value: 'UK', label: '英国站 (UK)' },
-] as const
 
 function formatInt(value: number | null | undefined): string {
   if (value === null || value === undefined) return '--'
@@ -442,8 +441,7 @@ export default function InventoryAnalysisPage() {
         />
         <DataCardContent className="grid gap-4 lg:grid-cols-2">
           <div className="dashboard-toolbar grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <div className="text-xs font-medium text-muted-foreground">项目</div>
+            <FilterField label="项目">
               {projectsLoading ? (
                 <Skeleton className="h-9 w-full" />
               ) : (
@@ -460,24 +458,15 @@ export default function InventoryAnalysisPage() {
                   </SelectContent>
                 </Select>
               )}
-            </div>
-            <div className="space-y-1.5">
-              <div className="text-xs font-medium text-muted-foreground">国家站点</div>
-              <Select value={country} onValueChange={setCountry}>
-                <SelectTrigger className="border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
-                  <SelectValue placeholder="请选择国家站点" />
-                </SelectTrigger>
-                <SelectContent>
-                  {COUNTRY_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <div className="text-xs font-medium text-muted-foreground">业务日期</div>
+            </FilterField>
+            <FilterField label="国家站点">
+              <CountrySelect
+                value={country}
+                onChange={setCountry}
+                triggerClassName="border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
+              />
+            </FilterField>
+            <FilterField label="业务日期">
               <Select value={selectedSnapshotDate} onValueChange={setSelectedSnapshotDate}>
                 <SelectTrigger className="border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
                   <SelectValue placeholder="选择业务日期" />
@@ -492,7 +481,7 @@ export default function InventoryAnalysisPage() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </FilterField>
             <div className="flex items-center gap-3 rounded-md border border-border/70 bg-[linear-gradient(135deg,hsl(var(--primary)/0.08),hsl(var(--surface-subtle))/0.96)] p-3 dark:border-border/85 dark:bg-[linear-gradient(135deg,hsl(var(--surface-overlay)),hsl(var(--surface-strong))]">
               <div className="flex items-center gap-2 text-sm font-medium text-blue-700 dark:text-blue-300">
                 <Clock4 className="h-4 w-4" />
@@ -533,7 +522,7 @@ export default function InventoryAnalysisPage() {
           </Button>
         </DataTableCardHeader>
         <DataTableCardBody className="overflow-auto" style={{ maxHeight: '600px' }}>
-          <Table noWrapperRounded>
+          <Table>
             <TableHeader>
               <TableRow>
                 <TableHead className={DENSE_HEAD}>SKU</TableHead>

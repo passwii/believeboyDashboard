@@ -1,8 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Loader2, PlusCircle, RefreshCw, Save } from 'lucide-react'
+import { Loader2, PlusCircle, Save } from 'lucide-react'
 import { useSession } from 'next-auth/react'
+
+import { RefreshButton } from '@/components/dashboard/console'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -624,14 +626,10 @@ export default function OperatorManagementPage() {
                     className="w-[190px]"
                   />
                 </div>
-                <Button
-                  variant="outline"
+                <RefreshButton
                   onClick={() => void refreshAll()}
-                  disabled={roleLoading || performanceLoading || commissionLoading}
-                >
-                  {roleLoading || performanceLoading || commissionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                  刷新
-                </Button>
+                  loading={roleLoading || performanceLoading || commissionLoading}
+                />
               </div>
             }
           />
@@ -676,7 +674,7 @@ export default function OperatorManagementPage() {
                 </div>
               </DataTableCardHeader>
               <DataTableCardBody className="flex-1 min-h-0 overflow-auto">
-                <Table noWrapperRounded>
+                <Table>
                   <TableHeader className="bg-slate-100/80 dark:bg-slate-900/45">
                     <TableRow>
                       <TableHead>人员</TableHead>
@@ -805,7 +803,7 @@ export default function OperatorManagementPage() {
                 </div>
               </DataTableCardHeader>
               <DataTableCardBody className="flex-1 min-h-0 overflow-auto">
-                <Table noWrapperRounded>
+                <Table>
                   <TableHeader className="bg-slate-100/80 dark:bg-slate-900/45">
                     <TableRow>
                       <TableHead>人员</TableHead>
@@ -953,7 +951,7 @@ export default function OperatorManagementPage() {
                 </Button>
               </DataTableCardHeader>
               <DataTableCardBody className="flex-1 min-h-0 overflow-auto">
-                <Table noWrapperRounded>
+                <Table>
                   <TableHeader className="bg-slate-100/80 dark:bg-slate-900/45">
                     <TableRow>
                       <TableHead>人员</TableHead>

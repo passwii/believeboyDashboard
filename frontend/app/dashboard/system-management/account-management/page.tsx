@@ -314,7 +314,7 @@ export default function AccountManagementPage() {
         />
         <DataCardContent className="!p-0 space-y-0">
           <div className="border-t border-border/70 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
-            <Table noWrapperRounded>
+            <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>名称</TableHead>

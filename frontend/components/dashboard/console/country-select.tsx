@@ -1,13 +1,8 @@
 'use client'
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { COUNTRY_OPTIONS } from '@/lib/console-constants'
 import { cn } from '@/lib/utils'
-
-export const COUNTRY_OPTIONS = [
-  { value: 'US', label: '美国站 (US)' },
-  { value: 'DE', label: '德国站 (DE)' },
-  { value: 'UK', label: '英国站 (UK)' },
-] as const
 
 interface CountrySelectProps {
   value: string

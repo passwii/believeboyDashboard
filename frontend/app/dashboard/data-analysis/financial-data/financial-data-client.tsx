@@ -45,6 +45,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { BarSkeleton } from '@/components/ui/table-skeleton'
 import { StatCard } from '@/components/ui/stat-card'
 import {
   Table,
@@ -59,7 +60,12 @@ import { getClientCache, setClientCache } from '@/lib/client-cache'
 import { resolveProjectCommissionUsd } from '@/lib/commission'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
-import { DEFAULT_REPORT_UPLOAD_COUNTRY, REPORT_UPLOAD_COUNTRY_OPTIONS, type ReportUploadCountry } from '@/components/report-upload/types'
+import { DEFAULT_REPORT_UPLOAD_COUNTRY, type ReportUploadCountry } from '@/components/report-upload/types'
+import {
+  CountrySelect,
+  FilterField,
+  RefreshButton,
+} from '@/components/dashboard/console'
 
 export type ProjectOption = {
   id: number | null
@@ -1923,21 +1929,20 @@ export default function FinancialDataClient({
           titleClassName='text-2xl tracking-tight'
           badge={<p className='dashboard-kicker'>Analysis Console</p>}
         />
-        <DataCardContent className='flex flex-wrap items-end gap-3'>
+        <DataCardContent className="flex flex-wrap items-end gap-3">
           {projectsLoading ? (
-            <div className='min-w-[180px]'>
+            <div className="min-w-[180px]">
               <FinancialFilterSkeleton />
             </div>
           ) : (
-            <div className='min-w-[180px] space-y-1.5'>
-              <label className='text-xs text-muted-foreground'>店铺</label>
+            <FilterField label="店铺">
               <Select
                 value={projectId}
                 onValueChange={setProjectId}
                 disabled={projects.length === 0}
               >
-                <SelectTrigger className='h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]'>
-                  <SelectValue placeholder='请选择店铺' />
+                <SelectTrigger className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
+                  <SelectValue placeholder="请选择店铺" />
                 </SelectTrigger>
                 <SelectContent>
                   {projects.map((project) => (
@@ -1947,58 +1952,36 @@ export default function FinancialDataClient({
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </FilterField>
           )}
-          <div className='min-w-[140px] space-y-1.5'>
-            <label className='text-xs text-muted-foreground'>国家站点</label>
-            <Select value={country} onValueChange={(value) => setCountry(value as ReportUploadCountry)}>
-              <SelectTrigger className='h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]'>
-                <SelectValue placeholder='请选择国家站点' />
-              </SelectTrigger>
-              <SelectContent>
-                {REPORT_UPLOAD_COUNTRY_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className='space-y-1.5'>
-            <label
-              htmlFor='financial_start_month'
-              className='text-xs text-muted-foreground'
-            >
-              开始月份
-            </label>
+          <FilterField label="国家站点">
+            <CountrySelect
+              value={country}
+              onChange={(value) => setCountry(value as ReportUploadCountry)}
+              triggerClassName="h-9"
+            />
+          </FilterField>
+          <FilterField label="开始月份">
             <MonthPicker
               value={parseMonthInputValue(startMonth)}
               onChange={(date) => setStartMonth(formatMonthInputValue(date))}
-              className='h-9 w-[170px]'
+              className="h-9 w-[170px]"
             />
-          </div>
-          <div className='space-y-1.5'>
-            <label
-              htmlFor='financial_end_month'
-              className='text-xs text-muted-foreground'
-            >
-              结束月份
-            </label>
+          </FilterField>
+          <FilterField label="结束月份">
             <MonthPicker
               value={parseMonthInputValue(endMonth)}
               onChange={(date) => setEndMonth(formatMonthInputValue(date))}
-              className='h-9 w-[170px]'
+              className="h-9 w-[170px]"
             />
-          </div>
-          <Button
-            type='button'
-            variant='outline'
-            className='h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]'
+          </FilterField>
+          <RefreshButton
             onClick={() => void loadFinancialSeries({ force: true })}
-            disabled={loading || !projectId}
-          >
-            {loading ? '刷新中...' : '刷新数据'}
-          </Button>
+            loading={loading}
+            label="刷新数据"
+            variant="outline"
+            className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
+          />
         </DataCardContent>
       </DataCard>
 
@@ -2367,14 +2350,9 @@ export default function FinancialDataClient({
             </div>
           ) : null}
           {showSkeleton ? (
-            <div className='space-y-3'>
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Skeleton key={i} className='h-10 w-full' />
-              ))}
-            </div>
+            <BarSkeleton rows={5} />
           ) : data && data.rows.length > 0 ? (
             <Table
-              noWrapperRounded
               containerClassName='w-full max-w-full overflow-x-auto'
               className={`w-max ${isAdmin ? 'min-w-[2500px]' : 'min-w-[2100px]'} table-fixed text-xs`}
             >
@@ -2916,7 +2894,6 @@ export default function FinancialDataClient({
                 </div>
               ) : accountingMonth && accountingRows.length > 0 ? (
                 <Table
-                  noWrapperRounded
                   containerClassName='w-full max-w-full overflow-x-auto'
                   className='w-max min-w-[1400px] table-fixed text-xs'
                 >

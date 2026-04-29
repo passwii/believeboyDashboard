@@ -6,9 +6,8 @@ import {
   Calculator,
   ChartColumnBig,
   Check,
-  ChevronRight,
+  Edit3,
   Package,
-  Settings,
   TrendingUp,
 } from 'lucide-react'
 
@@ -176,26 +175,20 @@ function PinSettingsContent({
   )
 }
 
-export function SidebarPinSettings({
+export function PinSettingsPopover({
   pinnedUrls,
   onToggle,
+  trigger,
 }: {
   pinnedUrls: string[]
   onToggle: (url: string) => void
+  trigger: React.ReactNode
 }) {
   const [open, setOpen] = React.useState(false)
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type='button'
-          className='flex h-11 w-11 min-w-touch items-center justify-center rounded-[0.65rem] border border-[hsl(var(--sidebar-foreground)/0.08)] bg-[hsl(var(--sidebar-foreground)/0.03)] text-sidebar-foreground/50 shadow-none transition-all duration-200 hover:bg-[hsl(var(--sidebar-foreground)/0.08)] hover:text-sidebar-foreground group-data-[collapsible=icon]:hidden'
-          title='设置快捷入口'
-        >
-          <Settings className='h-4 w-4' />
-        </button>
-      </PopoverTrigger>
+      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent
         side='right'
         align='start'
@@ -209,14 +202,53 @@ export function SidebarPinSettings({
   )
 }
 
-export function SidebarPinnedItem({ url, title }: { url: string; title: string }) {
+export function SidebarPinnedItem({
+  url,
+  title,
+  pinnedUrls,
+  onToggle,
+}: {
+  url: string
+  title: string
+  pinnedUrls: string[]
+  onToggle: (url: string) => void
+}) {
+  const [editOpen, setEditOpen] = React.useState(false)
+
   return (
-    <RouteLoadingLink
-      href={url}
-      className='flex h-11 w-11 min-w-touch items-center justify-center rounded-[0.65rem] border border-[hsl(var(--sidebar-foreground)/0.08)] bg-[hsl(var(--sidebar-foreground)/0.03)] text-sidebar-foreground/72 shadow-none transition-all duration-200 hover:bg-[hsl(var(--sidebar-foreground)/0.08)] hover:text-sidebar-foreground group-data-[collapsible=icon]:hidden'
-      title={title}
-    >
-      {ALL_ITEMS.find((item) => item.url === url)?.icon ?? <ChevronRight className='h-4 w-4' />}
-    </RouteLoadingLink>
+    <Popover open={editOpen} onOpenChange={setEditOpen}>
+      <PopoverTrigger asChild>
+        <div className='group relative'>
+          <RouteLoadingLink
+            href={url}
+            className='flex h-11 w-11 min-w-touch items-center justify-center rounded-[0.65rem] border border-[hsl(var(--sidebar-foreground)/0.08)] bg-[hsl(var(--sidebar-foreground)/0.03)] text-sidebar-foreground/72 shadow-none transition-all duration-200 hover:bg-[hsl(var(--sidebar-foreground)/0.08)] hover:text-sidebar-foreground group-data-[collapsible=icon]:hidden'
+            title={title}
+          >
+            {ALL_ITEMS.find((item) => item.url === url)?.icon}
+          </RouteLoadingLink>
+          <button
+            type='button'
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              setEditOpen(true)
+            }}
+            className='absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded border border-[hsl(var(--sidebar-foreground)/0.12)] bg-[hsl(var(--surface-overlay))] text-sidebar-foreground/50 shadow-sm opacity-0 transition-opacity duration-150 hover:text-sidebar-foreground group-hover:opacity-100 group-data-[collapsible=icon]:hidden'
+            title='编辑快捷入口'
+          >
+            <Edit3 className='h-3 w-3' />
+          </button>
+        </div>
+      </PopoverTrigger>
+      <PopoverContent
+        side='right'
+        align='start'
+        sideOffset={8}
+        className='w-64 p-3'
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
+        <PinSettingsContent pinnedUrls={pinnedUrls} onToggle={onToggle} />
+      </PopoverContent>
+    </Popover>
   )
 }

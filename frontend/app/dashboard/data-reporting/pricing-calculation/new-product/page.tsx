@@ -51,6 +51,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { BarSkeleton, PricingTableSkeleton } from '@/components/ui/table-skeleton'
 import {
   Table,
   TableBody,
@@ -114,7 +115,7 @@ const LazyComparisonTable = dynamic(
       (mod) => mod.ComparisonTable,
     ),
   {
-    loading: () => <PricingTableSkeleton rows={10} />,
+    loading: () => <BarSkeleton rows={10} height='h-11' />,
   },
 )
 
@@ -148,16 +149,6 @@ function PricingRunCardSkeleton() {
       </div>
       <Skeleton className='mt-3 h-6 w-24' />
       <Skeleton className='mt-2 h-3 w-16' />
-    </div>
-  )
-}
-
-function PricingTableSkeleton({ rows = 6 }: { rows?: number }) {
-  return (
-    <div className='space-y-3'>
-      {Array.from({ length: rows }).map((_, index) => (
-        <Skeleton key={index} className='h-11 w-full' />
-      ))}
     </div>
   )
 }

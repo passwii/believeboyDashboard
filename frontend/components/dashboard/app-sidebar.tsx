@@ -22,8 +22,8 @@ import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
 import { NavUser } from '@/components/dashboard/nav-user'
 import {
   SidebarPinnedItem,
-  SidebarPinSettings,
   useSidebarPinnedItems,
+  PinSettingsPopover,
 } from '@/components/dashboard/sidebar-pin-settings'
 import {
   Sidebar,
@@ -346,9 +346,8 @@ export function AppSidebar({
           <div className='px-3 py-2'>
             <div className='flex items-center gap-1.5'>
               {pinnedUrls.map((url) => (
-                <SidebarPinnedItem key={url} url={url} title='' />
+                <SidebarPinnedItem key={url} url={url} title='' pinnedUrls={pinnedUrls} onToggle={toggle} />
               ))}
-              <SidebarPinSettings pinnedUrls={pinnedUrls} onToggle={toggle} />
             </div>
           </div>
 
