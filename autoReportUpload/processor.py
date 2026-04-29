@@ -1055,6 +1055,7 @@ def _parse_sales_rows(
             "asin": _normalize_text(row.get("asin")),
             "quantity": _to_int(row.get("quantity")),
             "item_price": _to_decimal(row.get("item-price")),
+            "shipping_price": _to_decimal(row.get("shipping-price")),
             "currency": _normalize_text(row.get("currency")),
             "is_counted_sales": is_counted,
             "status_rule_version": 1,
