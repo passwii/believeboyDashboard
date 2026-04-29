@@ -383,6 +383,7 @@ class AnalysisSalesOrderRow(Base):
     asin: Mapped[str | None] = mapped_column(String(64), nullable=True)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False, server_default='0')
     item_price: Mapped[Decimal] = _money_column()
+    shipping_price: Mapped[Decimal] = _money_column()
     currency: Mapped[str | None] = mapped_column(String(8), nullable=True)
     is_counted_sales: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default='false')
     status_rule_version: Mapped[int] = mapped_column(Integer, nullable=False, server_default='1')
