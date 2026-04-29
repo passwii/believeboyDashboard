@@ -518,6 +518,7 @@ def _load_sales_metrics(
             AnalysisSalesOrderRow.asin,
             AnalysisSalesOrderRow.quantity,
             AnalysisSalesOrderRow.item_price,
+            AnalysisSalesOrderRow.shipping_price,
         )
         .join(
             AnalysisSalesOrderRow,
@@ -537,7 +538,7 @@ def _load_sales_metrics(
     rows = db.execute(stmt).all()
     dates: set[str] = set()
     latest: date | None = None
-    for report_date, sku, asin, quantity, item_price in rows:
+    for report_date, sku, asin, quantity, item_price, shipping_price in rows:
         if report_date is None:
             continue
         normalized_sku = (sku or "").strip()
@@ -548,7 +549,7 @@ def _load_sales_metrics(
         bucket = _get_or_create_bucket(detail_buckets, report_date, normalized_sku)
         _set_asin_if_blank(bucket, asin)
         bucket.order_qty += int(quantity or 0)
-        bucket.sales_amount += Decimal(item_price or 0)
+        bucket.sales_amount += Decimal(item_price or 0) + Decimal(shipping_price or 0)
     return dates, latest.isoformat() if latest is not None else None
 
 
