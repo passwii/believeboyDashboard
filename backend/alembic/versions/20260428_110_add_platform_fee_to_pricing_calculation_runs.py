@@ -1,7 +1,7 @@
 """add_platform_fee_to_pricing_calculation_runs
 
-Revision ID: 20260428_097
-Revises: 1285db6d3ce4
+Revision ID: 20260428_110
+Revises: 20260428_109
 Create Date: 2026-04-28
 
 """
@@ -9,8 +9,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision = '20260428_097'
-down_revision = '1285db6d3ce4'
+revision = '20260428_110'
+down_revision = '20260428_109'
 branch_labels = None
 depends_on = None
 
