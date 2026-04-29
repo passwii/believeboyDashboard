@@ -3,8 +3,7 @@ from __future__ import annotations
 import threading
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta, timezone
-from decimal import Decimal, InvalidOperation
-import hashlib
+from decimal import Decimal
 from pathlib import Path
 import re
 from typing import Any
@@ -12,7 +11,6 @@ import warnings
 from zoneinfo import ZoneInfo
 
 import pandas as pd
-from slugify import slugify
 from sqlalchemy import Select, func, insert, or_, select, update as sa_update
 from sqlalchemy.orm import Session
 
@@ -30,6 +28,22 @@ from app.models import (
     InventorySnapshotRow,
     ProductCost,
     Project,
+)
+
+# Shared utilities — single source of truth (backend/app/shared/utils.py)
+from app.shared.utils import (
+    normalize_text as _normalize_text,
+    normalize_identity as _normalize_identity,
+    to_int as _to_int,
+    to_decimal as _to_decimal,
+    to_decimal_with_currency as _to_decimal_with_currency,
+    sum_decimals as _sum_decimals,
+    sha256_file as _sha256_file,
+    project_slug as _project_slug,
+    build_logical_filename as _build_logical_filename,
+    build_storage_key as _build_storage_key,
+    to_raw_row as _to_raw_row,
+    parse_yyyy_mm_dd as _parse_yyyy_mm_dd,
 )
 
 PERIODIC_REPORT_TYPES = {'business_report', 'payment_report', AD_PRODUCT_REPORT, 'sales_report'}
@@ -1508,9 +1522,12 @@ def run_product_calculation_from_history(
 
 
 def _build_business_df_from_source(db: Session, *, source_id: int) -> pd.DataFrame:
+    _BUSINESS_COLUMNS = ['ASIN', '页面浏览量', '总销量', '总访客', '总销售额']
     rows = db.execute(
         select(AnalysisBusinessRow).where(AnalysisBusinessRow.source_file_id == source_id).order_by(AnalysisBusinessRow.source_row_no.asc())
     ).scalars().all()
+    if not rows:
+        return pd.DataFrame(columns=_BUSINESS_COLUMNS)
     return pd.DataFrame(
         [
             {
@@ -1549,9 +1566,12 @@ def _build_ad_df_from_source(db: Session, *, source_id: int) -> pd.DataFrame:
 
 
 def _build_payment_df_from_source(db: Session, *, source_id: int) -> pd.DataFrame:
+    _PAYMENT_COLUMNS = ['type', 'sku', 'quantity', 'product sales', 'shipping credits', 'promotional rebates', 'other', 'selling fees', 'fba fees']
     rows = db.execute(
         select(AnalysisPaymentRow).where(AnalysisPaymentRow.source_file_id == source_id).order_by(AnalysisPaymentRow.source_row_no.asc())
     ).scalars().all()
+    if not rows:
+        return pd.DataFrame(columns=_PAYMENT_COLUMNS)
     return pd.DataFrame(
         [
             {
@@ -1960,12 +1980,7 @@ def _get_project_by_name(db: Session, project_name: str) -> Project:
     return project
 
 
-def _parse_yyyy_mm_dd(value: str, field_name: str) -> date:
-    text = (value or '').strip()
-    try:
-        return datetime.strptime(text, '%Y-%m-%d').date()
-    except ValueError as exc:
-        raise ValueError(f'{field_name} must be YYYY-MM-DD') from exc
+# _parse_yyyy_mm_dd is imported from shared (via alias at top of file)
 
 
 def _classify_scope(
@@ -1998,65 +2013,8 @@ def _build_aging_status(
     return 'fresh'
 
 
-def _project_slug(project_name: str) -> str:
-    cleaned = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', '-', (project_name or '').strip())
-    slug = slugify(cleaned)
-    if not slug:
-        slug = re.sub(r'\s+', '-', cleaned).strip(' .-').lower()
-    return slug[:80] or 'project'
-
-
-def _build_logical_filename(
-    *,
-    project_slug: str,
-    report_type: str,
-    period_start_date: date | None,
-    period_end_date: date | None,
-    snapshot_at: datetime,
-    version: int,
-    extension: str,
-) -> str:
-    safe_ext = extension if extension.startswith('.') else f'.{extension}' if extension else ''
-    timestamp = snapshot_at.strftime('%Y%m%dT%H%M%SZ')
-    if report_type == 'inventory_report':
-        return f'{project_slug}__inventory_report__snapshot-{timestamp}__v{version}{safe_ext}'
-    if period_start_date is None or period_end_date is None:
-        raise ValueError(f'Missing period for {report_type}')
-    return (
-        f'{project_slug}__{report_type}__'
-        f'{period_start_date.strftime("%Y%m%d")}_{period_end_date.strftime("%Y%m%d")}__'
-        f'v{version}__{timestamp}{safe_ext}'
-    )
-
-
-def _build_storage_key(
-    *,
-    project_slug: str,
-    report_type: str,
-    period_start_date: date | None,
-    period_end_date: date | None,
-    snapshot_at: datetime,
-    version: int,
-    upload_file_id: str,
-) -> str:
-    if report_type == 'inventory_report':
-        period_or_snapshot = f'snapshot-{snapshot_at.strftime("%Y%m%dT%H%M%SZ")}'
-    else:
-        if period_start_date is None or period_end_date is None:
-            raise ValueError(f'Missing period for {report_type}')
-        period_or_snapshot = f'{period_start_date.strftime("%Y%m%d")}_{period_end_date.strftime("%Y%m%d")}'
-    return f'analysis/{project_slug}/{report_type}/{period_or_snapshot}/v{version}/{upload_file_id}'
-
-
-def _sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open('rb') as handle:
-        while True:
-            chunk = handle.read(1024 * 1024)
-            if not chunk:
-                break
-            digest.update(chunk)
-    return digest.hexdigest()
+# _project_slug, _build_logical_filename, _build_storage_key, _sha256_file
+# are imported from shared (via aliases at top of file)
 
 
 def _restore_original_filename(file_id: str) -> str | None:
@@ -2082,66 +2040,9 @@ def _match_columns(columns: list[str], aliases: dict[str, list[str]], label: str
     return mapped
 
 
-def _to_int(value: Any) -> int:
-    if value is None or (isinstance(value, float) and pd.isna(value)):
-        return 0
-    try:
-        return int(float(str(value).strip() or '0'))
-    except (TypeError, ValueError):
-        return 0
-
-
-def _to_decimal(value: Any) -> Decimal:
-    if value is None:
-        return Decimal('0')
-    if isinstance(value, float) and pd.isna(value):
-        return Decimal('0')
-    try:
-        text = str(value).strip().replace(',', '')
-        if not text:
-            return Decimal('0')
-        return Decimal(text)
-    except (InvalidOperation, ValueError):
-        return Decimal('0')
-
-
-def _to_decimal_with_currency(value: Any) -> Decimal:
-    if value is None:
-        return Decimal('0')
-    if isinstance(value, float) and pd.isna(value):
-        return Decimal('0')
-    text = re.sub(r'[^0-9.\-]', '', str(value))
-    if not text:
-        return Decimal('0')
-    try:
-        return Decimal(text)
-    except InvalidOperation:
-        return Decimal('0')
-
-
-def _sum_decimals(*values: Any) -> Decimal:
-    total = Decimal('0')
-    for value in values:
-        total += _to_decimal(value)
-    return total
-
-
-def _normalize_text(value: Any) -> str | None:
-    if value is None:
-        return None
-    text = str(value).strip()
-    if not text:
-        return None
-    if text.lower() == 'nan':
-        return None
-    return text
-
-
-def _normalize_identity(value: Any) -> str:
-    text = _normalize_text(value)
-    if text is None:
-        return ''
-    return text.upper()
+# _normalize_text, _normalize_identity, _to_int, _to_decimal,
+# _to_decimal_with_currency, _sum_decimals are imported from shared
+# (via aliases at top of file)
 
 
 def _parse_transaction_at(row: Any) -> datetime | None:
@@ -2176,27 +2077,7 @@ def _parse_utc_timestamp(value: Any) -> pd.Timestamp:
     return pd.to_datetime(text, utc=True, errors='coerce')
 
 
-def _to_raw_row(row: dict[str, Any]) -> dict[str, Any]:
-    payload: dict[str, Any] = {}
-    for key, value in row.items():
-        text_key = str(key)
-        if value is None:
-            payload[text_key] = None
-            continue
-        if isinstance(value, float) and pd.isna(value):
-            payload[text_key] = None
-            continue
-        if hasattr(value, 'isoformat'):
-            try:
-                payload[text_key] = value.isoformat()
-                continue
-            except TypeError:
-                pass
-        if isinstance(value, (int, float, bool, str)):
-            payload[text_key] = value
-        else:
-            payload[text_key] = str(value)
-    return payload
+# _to_raw_row is imported from shared (via alias at top of file)
 
 
 def _get_row_model(report_type: str):

@@ -2,16 +2,22 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
+// TableProps 中的 noWrapperRounded 已废弃：默认无圆角（与 DataCard 配合使用时自然对齐）
+// 如需恢复圆角，请显式传入 wrapperRounded={true}
+// 为了向后兼容，保留 noWrapperRounded 参数但忽略其效果（等同于 noWrapperRounded={true}）
 interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
   containerClassName?: string
+  /** @deprecated 默认已无圆角，无需设置。如需恢复圆角请使用 wrapperRounded */
   noWrapperRounded?: boolean
+  /** 显式恢复外层圆角（默认 false，即无圆角） */
+  wrapperRounded?: boolean
 }
 
 const Table = React.forwardRef<
   HTMLTableElement,
   TableProps
->(({ className, containerClassName, noWrapperRounded, ...props }, ref) => (
-  <div className={cn("relative w-full overflow-x-auto overflow-y-visible", noWrapperRounded ? "" : "rounded-lg", containerClassName)}>
+>(({ className, containerClassName, noWrapperRounded, wrapperRounded, ...props }, ref) => (
+  <div className={cn("relative w-full overflow-x-auto overflow-y-visible", wrapperRounded ? "rounded-lg" : "", containerClassName)}>
     <table
       ref={ref}
       className={cn("w-full border-separate border-spacing-0 caption-bottom text-sm", className)}

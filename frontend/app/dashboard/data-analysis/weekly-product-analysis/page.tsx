@@ -34,6 +34,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { BarSkeleton } from '@/components/ui/table-skeleton'
 import { StatCard } from '@/components/ui/stat-card'
 import {
   Table,
@@ -2234,14 +2235,9 @@ export default function WeeklyProductAnalysisPage() {
           ) : null}
           {activeTab === 'summary' ? (
             showSummarySkeleton ? (
-              <div className='space-y-3'>
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <Skeleton key={i} className='h-10 w-full' />
-                ))}
-              </div>
+              <BarSkeleton rows={5} />
             ) : summaryRows.length > 0 ? (
               <Table
-                noWrapperRounded
                 containerClassName='w-full max-w-full overflow-x-auto'
                 className='w-max min-w-[4200px] table-fixed text-xs'
               >
@@ -2354,18 +2350,13 @@ export default function WeeklyProductAnalysisPage() {
               </div>
             )
           ) : showDetailsSkeleton ? (
-            <div className='space-y-3'>
-              {Array.from({ length: 8 }).map((_, i) => (
-                <Skeleton key={i} className='h-10 w-full' />
-              ))}
-            </div>
+            <BarSkeleton rows={8} />
           ) : detailsError ? (
             <div className='rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive'>
               {detailsError}
             </div>
           ) : detailRows.length > 0 ? (
             <Table
-              noWrapperRounded
               containerClassName='w-full max-w-full overflow-x-auto'
               className='w-max min-w-[3600px] table-fixed text-xs'
             >

@@ -1,9 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ChevronLeft, ChevronRight, Loader2, RefreshCw } from 'lucide-react'
+import { Loader2, RefreshCw } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
+import { MonthNavigation, RefreshButton, YearNavigation } from '@/components/dashboard/console'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { MonthPicker, formatMonthInputValue, parseMonthInputValue } from '@/components/ui/date-picker'
@@ -94,16 +95,6 @@ function lastMonthString(): string {
   const now = new Date()
   now.setMonth(now.getMonth() - 1)
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-}
-
-function shiftMonth(value: string, offset: number): string {
-  const matched = value.match(/^(\d{4})-(\d{2})$/)
-  if (!matched) return value
-
-  const year = Number(matched[1])
-  const monthIndex = Number(matched[2]) - 1
-  const date = new Date(year, monthIndex + offset, 1)
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
 }
 
 function getYearMonths(year: string): string[] {
@@ -543,69 +534,24 @@ export default function CommissionOverviewPage() {
         <CardHeader className="hidden" />
         <CardContent className="space-y-3 p-6 md:p-7">
           <div className="flex flex-wrap items-end justify-between gap-4">
-            <div className="flex flex-wrap items-end gap-4">
+            <div className="flex flex-wrap items-end gap-3">
               {activeTab === 'detail' ? (
-                <div className="flex flex-wrap items-end gap-4">
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() => setMonth((prev) => shiftMonth(prev, -1))}
-                      aria-label="上一个月份"
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <MonthPicker
-                      value={parseMonthInputValue(month)}
-                      onChange={(date) => setMonth(formatMonthInputValue(date))}
-                      className="w-[190px]"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() => setMonth((prev) => shiftMonth(prev, 1))}
-                      aria-label="下一个月份"
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
+                <MonthNavigation
+                  value={parseMonthInputValue(month)}
+                  onChange={(date) => setMonth(formatMonthInputValue(date))}
+                />
               ) : (
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setSummaryYear((prev) => String(Number(prev) - 1))}
-                    aria-label="上一年"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <div className="flex h-10 w-[100px] items-center justify-center rounded-md border border-input bg-background text-sm font-medium dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
-                    {summaryYear}年
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setSummaryYear((prev) => String(Number(prev) + 1))}
-                    aria-label="下一年"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
+                <YearNavigation
+                  value={Number(summaryYear)}
+                  onChange={(year) => setSummaryYear(String(year))}
+                />
               )}
 
-              <Button
-                variant="outline"
+              <RefreshButton
                 onClick={handleRefresh}
-                disabled={loading || summaryLoading || recomputing}
-              >
-                {loading || summaryLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                刷新
-              </Button>
+                loading={activeTab === 'detail' ? loading : summaryLoading}
+                disabled={recomputing}
+              />
               {activeTab === 'detail' ? (
                 <Button
                   onClick={() => void handleRecompute()}

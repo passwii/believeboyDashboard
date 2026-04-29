@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { DragEvent } from 'react'
 import {
   AlertCircle,
-  CalendarDays,
   DatabaseZap,
   Download,
   FileSearch,
@@ -24,6 +23,11 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import { cn } from '@/lib/utils'
+import {
+  CountrySelect,
+  DateNavigationField,
+  FilterField,
+} from '@/components/dashboard/console'
 
 type UploadType = 'sales_report' | 'ad_report' | 'inventory_report'
 type AssignedType = UploadType | 'skip'
@@ -99,12 +103,6 @@ const TYPE_LABEL: Record<UploadType, string> = {
   ad_report: '广告报表',
   inventory_report: '库存报告',
 }
-
-const COUNTRY_OPTIONS: Array<{ value: CountryOption; label: string }> = [
-  { value: 'US', label: '美国站' },
-  { value: 'DE', label: '德国站' },
-  { value: 'UK', label: '英国站' },
-]
 
 const PROGRESS_STEP_LABELS = ['处理中', '汇总指标', '写入日报工作簿', '完成']
 
@@ -648,7 +646,7 @@ export default function DailyReportPage() {
         setJobProgress({ stage: 'completed', progress: 100, message: '处理完成：报表已生成，可下载' })
         setSubmitState({
           status: 'error',
-          message: `报表已生成，但下载失败：${downloadError instanceof Error ? downloadError.message : '未知错误'}。可点击“下载报表”重试。`,
+          message: `报表已生成，但下载失败：${downloadError instanceof Error ? downloadError.message : '未知错误'}。可点击"下载报表"重试。`,
           filename: fallbackName,
         })
         void pollPersistenceStatus()
@@ -694,8 +692,7 @@ export default function DailyReportPage() {
               {projectsLoading ? (
                 <ReportFilterSkeleton />
               ) : (
-                <div className="space-y-2 xl:col-span-1">
-                  <label htmlFor="project_name" className="text-sm font-medium text-foreground">项目名称</label>
+                <FilterField label="项目名称" labelStyle="sm" className="xl:col-span-1">
                   <Select
                     value={projectName}
                     onValueChange={setProjectName}
@@ -718,41 +715,28 @@ export default function DailyReportPage() {
                     </SelectContent>
                   </Select>
                   {!projectsLoading && !projectLoadError && projects.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">暂无项目，请先到“项目信息”页面新增。</p>
+                    <p className="text-xs text-muted-foreground">暂无项目，请先到项目信息页面新增。</p>
                   ) : null}
                   {projectLoadError ? <p className="text-xs text-destructive">{projectLoadError}</p> : null}
-                </div>
+                </FilterField>
               )}
 
-              <div className="space-y-2">
-                <label htmlFor="report_date" className="text-sm font-medium text-foreground">报表日期</label>
-                <div className="flex gap-2">
-                  <SingleDatePicker
-                    value={parseDateInputValue(reportDate)}
-                    onChange={(date) => setReportDate(formatDateInputValue(date))}
-                  />
-                  <Button type="button" variant="outline" onClick={() => setReportDate(yesterdayDateString())}>
-                    <CalendarDays className="mr-1 h-4 w-4" />
-                    昨天
-                  </Button>
-                </div>
-              </div>
+              <FilterField label="报表日期" labelStyle="sm">
+                <DateNavigationField
+                  value={parseDateInputValue(reportDate)}
+                  onChange={(date) => setReportDate(formatDateInputValue(date))}
+                  showNav={false}
+                  triggerClassName="h-10"
+                />
+              </FilterField>
 
-              <div className="space-y-2">
-                <label htmlFor="country" className="text-sm font-medium text-foreground">国家站点</label>
-                <Select value={country} onValueChange={(value) => setCountry(value as CountryOption)}>
-                  <SelectTrigger id="country" className="h-10">
-                    <SelectValue placeholder="请选择国家站点" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {COUNTRY_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <FilterField label="国家站点" labelStyle="sm">
+                <CountrySelect
+                  value={country}
+                  onChange={(value) => setCountry(value as CountryOption)}
+                  triggerClassName="h-10"
+                />
+              </FilterField>
             </div>
 
             <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">

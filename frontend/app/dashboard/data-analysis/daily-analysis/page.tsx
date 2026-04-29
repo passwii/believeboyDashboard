@@ -76,6 +76,7 @@ import { cn } from '@/lib/utils'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
 import { applyBorder, applyHeaderBorder } from '@/lib/excel-styles'
 import { Skeleton } from '@/components/ui/skeleton'
+import { TableSkeletonRows } from '@/components/ui/table-skeleton'
 import {
   Select,
   SelectContent,
@@ -2087,7 +2088,6 @@ export default function DailyAnalysisPage() {
               <TabsContent forceMount value={activeTab} className='m-0'>
                 {activeTab === 'summary' ? (
                   <Table
-                    noWrapperRounded
                     containerClassName='bg-[hsl(var(--surface-panel))]/94 dark:bg-[hsl(var(--surface-panel))]/96'
                   >
                     <TableHeader className='bg-[hsl(var(--surface-soft))]/72 dark:bg-[hsl(var(--surface-strong))]'>
@@ -2109,18 +2109,12 @@ export default function DailyAnalysisPage() {
                     </TableHeader>
                     <TableBody>
                       {loading ? (
-                        Array.from({ length: 6 }).map((_, index) => (
-                          <TableRow
-                            key={`summary-skeleton-${index}`}
-                            className='border-0'
-                          >
-                            {Array.from({ length: 13 }).map((__, cellIndex) => (
-                              <TableCell key={cellIndex}>
-                                <Skeleton className='h-4 w-full max-w-[90px]' />
-                              </TableCell>
-                            ))}
-                          </TableRow>
-                        ))
+                        <TableSkeletonRows
+                          columns={13}
+                          rows={6}
+                          widths={Array(13).fill('w-full max-w-[90px]')}
+                          rowClassName='border-0'
+                        />
                       ) : summaryTableRows.length ? (
                         summaryTableRows.map((row, index) => (
                           <TableRow
@@ -2177,7 +2171,6 @@ export default function DailyAnalysisPage() {
                   </Table>
                 ) : (
                   <Table
-                    noWrapperRounded
                     containerClassName='bg-[hsl(var(--surface-panel))]/96 dark:bg-[hsl(var(--surface-panel))]/98'
                   >
                     <TableHeader className='bg-[hsl(var(--surface-soft))]/82 dark:bg-[hsl(var(--surface-strong))]'>
@@ -2203,15 +2196,11 @@ export default function DailyAnalysisPage() {
                     </TableHeader>
                     <TableBody>
                       {loading ? (
-                        Array.from({ length: 8 }).map((_, index) => (
-                          <TableRow key={`detail-skeleton-${index}`}>
-                            {Array.from({ length: 15 }).map((__, cellIndex) => (
-                              <TableCell key={cellIndex}>
-                                <Skeleton className='h-4 w-full max-w-[90px]' />
-                              </TableCell>
-                            ))}
-                          </TableRow>
-                        ))
+                        <TableSkeletonRows
+                          columns={15}
+                          rows={8}
+                          widths={Array(15).fill('w-full max-w-[90px]')}
+                        />
                       ) : detailDisplayRows.length ? (
                         detailDisplayRows.map(
                           ({

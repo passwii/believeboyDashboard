@@ -7,8 +7,10 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 interface MonthNavigationProps {
-  value: Date
+  value: Date | undefined
   onChange: (date: Date) => void
+  onPrev?: () => void
+  onNext?: () => void
   formatLabel?: (date: Date) => string
   showCurrentMonth?: boolean
   className?: string
@@ -18,6 +20,8 @@ interface MonthNavigationProps {
 export function MonthNavigation({
   value,
   onChange,
+  onPrev,
+  onNext,
   formatLabel = (d) => `${d.getFullYear()}年${d.getMonth() + 1}月`,
   showCurrentMonth = true,
   className,
@@ -25,21 +29,24 @@ export function MonthNavigation({
 }: MonthNavigationProps) {
   const [navigating, setNavigating] = useState(false)
 
-  const handlePrev = () => {
+  const handlePrev = onPrev || (() => {
     setNavigating(true)
+    if (!value) return
     const prev = new Date(value.getFullYear(), value.getMonth() - 1, 1)
     onChange(prev)
     setTimeout(() => setNavigating(false), 200)
-  }
+  })
 
-  const handleNext = () => {
+  const handleNext = onNext || (() => {
     setNavigating(true)
+    if (!value) return
     const next = new Date(value.getFullYear(), value.getMonth() + 1, 1)
     onChange(next)
     setTimeout(() => setNavigating(false), 200)
-  }
+  })
 
   const isCurrentMonth = () => {
+    if (!value) return false
     const now = new Date()
     return value.getFullYear() === now.getFullYear() && value.getMonth() === now.getMonth()
   }
@@ -51,18 +58,20 @@ export function MonthNavigation({
         variant="ghost"
         size="icon"
         onClick={handlePrev}
-        disabled={navigating}
+        disabled={navigating || !value}
         className="h-9 w-9 shrink-0"
       >
         <ChevronLeft className="h-4 w-4" />
       </Button>
 
       <div className="flex min-w-[120px] items-center justify-center gap-2">
-        <span className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-          {monthLabel}
-        </span>
+        {monthLabel && (
+          <span className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            {monthLabel}
+          </span>
+        )}
         <span className="min-w-[80px] text-center text-sm font-medium tabular-nums">
-          {formatLabel(value)}
+          {value ? formatLabel(value) : '--'}
         </span>
       </div>
 
@@ -71,13 +80,13 @@ export function MonthNavigation({
         variant="ghost"
         size="icon"
         onClick={handleNext}
-        disabled={navigating}
+        disabled={navigating || !value}
         className="h-9 w-9 shrink-0"
       >
         <ChevronRight className="h-4 w-4" />
       </Button>
 
-      {showCurrentMonth && !isCurrentMonth() ? (
+      {showCurrentMonth && value && !isCurrentMonth() ? (
         <Button
           type="button"
           variant="ghost"

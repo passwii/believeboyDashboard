@@ -662,6 +662,15 @@
   }
 }
 
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.animate-shimmer {
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
 @keyframes shake {
   0%, 100% { transform: translateX(0); }
   10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
@@ -765,7 +774,8 @@
   .animate-cursor-blink,
   .animate-send-pulse,
   .animate-copy-success,
-  .animate-regenerate-spin {
+  .animate-regenerate-spin,
+  .animate-shimmer {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;

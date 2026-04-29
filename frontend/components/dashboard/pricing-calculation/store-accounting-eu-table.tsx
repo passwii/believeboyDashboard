@@ -148,7 +148,6 @@ export function StoreAccountingEuTable({
   return (
     <Table
       className='w-max min-w-full text-xs'
-      noWrapperRounded={true}
       containerClassName='max-h-[72vh] overflow-auto'
     >
       <TableHeader>
