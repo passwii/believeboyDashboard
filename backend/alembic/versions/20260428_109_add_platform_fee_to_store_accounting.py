@@ -1,7 +1,7 @@
 """add_platform_fee_to_store_accounting
 
-Revision ID: 20260428_096
-Revises: 20260415_095
+Revision ID: 20260428_109
+Revises: 20260428_108
 Create Date: 2026-04-28
 
 """
@@ -9,8 +9,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision = '20260428_096'
-down_revision = '20260415_095'
+revision = '20260428_109'
+down_revision = '20260428_108'
 branch_labels = None
 depends_on = None
 
