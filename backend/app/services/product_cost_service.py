@@ -722,7 +722,7 @@ def update_product_cost_by_id(
         row.sort_order = sort_order
         _resequence_project_sort_orders(
             db,
-            project_name=row.project_name,
+            project_id=row.project_id,
             prioritized_row=row,
             requested_sort_order=sort_order,
         )
