@@ -40,7 +40,8 @@ from app.services.digital_employee_reporter import (
 )
 
 # 数字员工 ID（AI洞察报告员工 = id=4，通过环境变量可配置）
-_EMPLOYEE_ID = int(os.environ.get("AI_INSIGHT_EMPLOYEE_ID", "4"))
+# TODO: 生产环境 employee_id FK 问题临时 bypass，直接设为 None 跳过所有数字员工上报
+_EMPLOYEE_ID: int | None = None  # int(os.environ.get("AI_INSIGHT_EMPLOYEE_ID", "4"))
 
 router = APIRouter(prefix="/ai-insights", tags=["ai-insights"], dependencies=[Depends(protected)])
 
@@ -131,13 +132,15 @@ def _run_insight_generation(
     # 注册数字员工任务
     task_id = f"ai-insight-{insight_id}"
     try:
-        ai_insight_start(gen_db, _EMPLOYEE_ID, insight_id, payload.get("project_name", ""))
+        if _EMPLOYEE_ID is not None:
+            ai_insight_start(gen_db, _EMPLOYEE_ID, insight_id, payload.get("project_name", ""))
     except Exception:
         pass  # 不阻塞核心流程
 
     def _report_progress(step: str, progress: int) -> None:
         try:
-            ai_insight_progress(gen_db, _EMPLOYEE_ID, task_id, step, progress)
+            if _EMPLOYEE_ID is not None:
+                ai_insight_progress(gen_db, _EMPLOYEE_ID, task_id, step, progress)
         except Exception:
             pass
 
@@ -255,7 +258,8 @@ def _run_insight_generation(
             "error_message": None,
         })
         try:
-            ai_insight_complete(gen_db, _EMPLOYEE_ID, task_id, success=True)
+            if _EMPLOYEE_ID is not None:
+                ai_insight_complete(gen_db, _EMPLOYEE_ID, task_id, success=True)
         except Exception:
             pass
 
@@ -271,7 +275,8 @@ def _run_insight_generation(
             pass
         _enqueue_if_exists(insight_id, {"type": "error", "error": str(exc), "insight_id": insight_id, "status": "failed", "error_message": str(exc)})
         try:
-            ai_insight_complete(gen_db, _EMPLOYEE_ID, task_id, success=False, error=str(exc))
+            if _EMPLOYEE_ID is not None:
+                ai_insight_complete(gen_db, _EMPLOYEE_ID, task_id, success=False, error=str(exc))
         except Exception:
             pass
 
