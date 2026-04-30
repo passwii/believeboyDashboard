@@ -23,7 +23,9 @@ import { NavUser } from '@/components/dashboard/nav-user'
 import {
   SidebarPinnedItem,
   useSidebarPinnedItems,
+  useLongPress,
   PinSettingsPopover,
+  useVisiblePinnedUrls,
 } from '@/components/dashboard/sidebar-pin-settings'
 import {
   Sidebar,
@@ -322,6 +324,8 @@ export function AppSidebar({
   }
 
   const { pinnedUrls, toggle } = useSidebarPinnedItems()
+  const { editVisible, handlers } = useLongPress(500)
+  const visiblePinnedUrls = useVisiblePinnedUrls(pinnedUrls, displayUser.roleType)
 
   return (
     <Sidebar collapsible='offcanvas' {...props}>
@@ -343,10 +347,10 @@ export function AppSidebar({
           </SidebarHeader>
 
           {/* Quick Access Bar */}
-          <div className='px-3 py-2'>
+          <div className='px-3 py-2' {...handlers}>
             <div className='flex items-center gap-1.5'>
-              {pinnedUrls.map((url) => (
-                <SidebarPinnedItem key={url} url={url} title='' pinnedUrls={pinnedUrls} onToggle={toggle} />
+              {visiblePinnedUrls.map((url) => (
+                <SidebarPinnedItem key={url} url={url} title='' pinnedUrls={pinnedUrls} onToggle={toggle} roleType={displayUser.roleType} editVisible={editVisible} />
               ))}
             </div>
           </div>

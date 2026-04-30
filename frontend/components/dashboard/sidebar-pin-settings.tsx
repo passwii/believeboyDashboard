@@ -2,13 +2,25 @@
 
 import * as React from 'react'
 import {
+  BarChart3,
   Bot,
   Calculator,
   ChartColumnBig,
   Check,
+  ClipboardList,
+  DollarSign,
   Edit3,
+  FileText,
+  LayoutDashboard,
   Package,
+  Repeat2,
+  RotateCcw,
+  Search,
+  ShoppingCart,
+  Store,
   TrendingUp,
+  Truck,
+  Warehouse,
 } from 'lucide-react'
 
 import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
@@ -18,28 +30,81 @@ import { cn } from '@/lib/utils'
 const STORAGE_KEY = 'believeboy-sidebar-pinned-v1'
 const MAX_PINNED = 3
 
+export function useLongPress(duration = 500) {
+  const [active, setActive] = React.useState(false)
+  const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const activeRef = React.useRef(false)
+
+  const start = React.useCallback(() => {
+    timerRef.current = setTimeout(() => {
+      activeRef.current = true
+      setActive(true)
+    }, duration)
+  }, [duration])
+
+  const stop = React.useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
+    if (activeRef.current) {
+      // Keep visible for a while after release so user can interact
+      setTimeout(() => {
+        activeRef.current = false
+        setActive(false)
+      }, 3000)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
+  }, [])
+
+  return {
+    editVisible: active,
+    handlers: {
+      onPointerDown: start,
+      onPointerUp: stop,
+      onPointerLeave: stop,
+    },
+  }
+}
+
+type RoleType = 'admin' | 'businessdev' | string
+
 type PinnedItem = {
   title: string
   url: string
   icon: React.ReactNode
+  roles?: RoleType[] // undefined = visible to all
 }
 
 const ALL_ITEMS: PinnedItem[] = [
+  // 运营导航
   {
-    title: '发货管理',
-    url: '/dashboard/data-management/shipment-management',
-    icon: <Package className='h-4 w-4' />,
+    title: '站点导航',
+    url: '/dashboard/operations/site-navigation',
+    icon: <LayoutDashboard className='h-4 w-4' />,
   },
   {
-    title: '销售数据',
-    url: '/dashboard/data-analysis/daily-analysis',
-    icon: <TrendingUp className='h-4 w-4' />,
+    title: '店铺导航',
+    url: '/dashboard/operations/store-navigation',
+    icon: <Store className='h-4 w-4' />,
   },
+  // AI 面板
   {
     title: 'AI 聊天',
     url: '/dashboard/ai-panel/chat',
     icon: <Bot className='h-4 w-4' />,
   },
+  {
+    title: 'AI 洞察',
+    url: '/dashboard/ai-insights',
+    icon: <Bot className='h-4 w-4' />,
+  },
+  // 运营核算
   {
     title: '销售日报',
     url: '/dashboard/data-reporting/daily-report',
@@ -51,14 +116,99 @@ const ALL_ITEMS: PinnedItem[] = [
     icon: <Calculator className='h-4 w-4' />,
   },
   {
+    title: '产品分析',
+    url: '/dashboard/data-reporting/product-analysis',
+    icon: <BarChart3 className='h-4 w-4' />,
+  },
+  {
+    title: '新品核算',
+    url: '/dashboard/data-reporting/pricing-calculation/new-product',
+    icon: <Calculator className='h-4 w-4' />,
+  },
+  {
+    title: '店铺测算',
+    url: '/dashboard/data-reporting/pricing-calculation/shop-calculation',
+    icon: <ShoppingCart className='h-4 w-4' />,
+  },
+  // 数据分析
+  {
+    title: '销售数据',
+    url: '/dashboard/data-analysis/daily-analysis',
+    icon: <TrendingUp className='h-4 w-4' />,
+  },
+  {
+    title: '广告分析',
+    url: '/dashboard/data-analysis/ad-analysis/overview',
+    icon: <BarChart3 className='h-4 w-4' />,
+  },
+  {
+    title: '月度财务分析',
+    url: '/dashboard/data-analysis/financial-data',
+    icon: <DollarSign className='h-4 w-4' />,
+  },
+  {
+    title: '按周产品分析',
+    url: '/dashboard/data-analysis/weekly-product-analysis',
+    icon: <BarChart3 className='h-4 w-4' />,
+  },
+  {
+    title: '库存分析',
+    url: '/dashboard/data-analysis/inventory-analysis',
+    icon: <Warehouse className='h-4 w-4' />,
+  },
+  {
+    title: '补货分析',
+    url: '/dashboard/data-analysis/inventory-replenishment',
+    icon: <Repeat2 className='h-4 w-4' />,
+  },
+  {
+    title: '退货分析',
+    url: '/dashboard/data-analysis/return-analysis',
+    icon: <RotateCcw className='h-4 w-4' />,
+  },
+  {
     title: '项目目标',
     url: '/dashboard/data-analysis/project-goals',
     icon: <TrendingUp className='h-4 w-4' />,
   },
+  // 数据管理
+  {
+    title: '广告管理',
+    url: '/dashboard/data-management/ad-upload',
+    icon: <ClipboardList className='h-4 w-4' />,
+  },
+  {
+    title: '发货管理',
+    url: '/dashboard/data-management/shipment-management',
+    icon: <Package className='h-4 w-4' />,
+  },
+  {
+    title: 'SKU 信息',
+    url: '/dashboard/data-management/sku-cost',
+    icon: <FileText className='h-4 w-4' />,
+  },
+  {
+    title: '汇率信息',
+    url: '/dashboard/data-management/exchange-rate',
+    icon: <DollarSign className='h-4 w-4' />,
+  },
+  {
+    title: '报表自动化',
+    url: '/dashboard/data-management/auto-upload',
+    icon: <Truck className='h-4 w-4' />,
+  },
+  // 工具集
+  {
+    title: '调研分析',
+    url: '/dashboard/tools/research-analysis',
+    icon: <Search className='h-4 w-4' />,
+  },
+  // 数字员工 (admin only)
   {
     title: '数字员工',
     url: '/dashboard/digital-employees',
     icon: <Bot className='h-4 w-4' />,
+    roles: ['admin'],
   },
 ]
 
@@ -105,14 +255,34 @@ export function useSidebarPinnedItems() {
   return { pinnedUrls, toggle, maxPinned: MAX_PINNED }
 }
 
+function getVisibleItems(roleType?: RoleType): PinnedItem[] {
+  return ALL_ITEMS.filter(
+    (item) => !item.roles || item.roles.includes(roleType as RoleType)
+  )
+}
+
+export function useVisiblePinnedUrls(urls: string[], roleType?: RoleType): string[] {
+  return React.useMemo(() => {
+    const visible = getVisibleItems(roleType)
+    const visibleUrls = new Set(visible.map((i) => i.url))
+    return urls.filter((u) => visibleUrls.has(u))
+  }, [urls, roleType])
+}
+
 function PinSettingsContent({
   pinnedUrls,
   onToggle,
+  roleType,
 }: {
   pinnedUrls: string[]
   onToggle: (url: string) => void
+  roleType?: RoleType
 }) {
-  const atMax = pinnedUrls.length >= MAX_PINNED
+  const visibleItems = getVisibleItems(roleType)
+  const visiblePinnedCount = pinnedUrls.filter((u) =>
+    visibleItems.some((i) => i.url === u)
+  ).length
+  const atMax = visiblePinnedCount >= MAX_PINNED
 
   return (
     <div className='flex flex-col gap-1'>
@@ -128,11 +298,11 @@ function PinSettingsContent({
               : 'bg-muted text-muted-foreground'
           )}
         >
-          {pinnedUrls.length}/{MAX_PINNED}
+          {visiblePinnedCount}/{MAX_PINNED}
         </span>
       </div>
       <div className='flex flex-col gap-0.5'>
-        {ALL_ITEMS.map((item) => {
+        {visibleItems.map((item) => {
           const isPinned = pinnedUrls.includes(item.url)
           const disabled = !isPinned && atMax
           return (
@@ -178,10 +348,12 @@ function PinSettingsContent({
 export function PinSettingsPopover({
   pinnedUrls,
   onToggle,
+  roleType,
   trigger,
 }: {
   pinnedUrls: string[]
   onToggle: (url: string) => void
+  roleType?: RoleType
   trigger: React.ReactNode
 }) {
   const [open, setOpen] = React.useState(false)
@@ -196,7 +368,7 @@ export function PinSettingsPopover({
         className='w-64 p-3'
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
-        <PinSettingsContent pinnedUrls={pinnedUrls} onToggle={onToggle} />
+        <PinSettingsContent pinnedUrls={pinnedUrls} onToggle={onToggle} roleType={roleType} />
       </PopoverContent>
     </Popover>
   )
@@ -207,11 +379,15 @@ export function SidebarPinnedItem({
   title,
   pinnedUrls,
   onToggle,
+  roleType,
+  editVisible,
 }: {
   url: string
   title: string
   pinnedUrls: string[]
   onToggle: (url: string) => void
+  roleType?: RoleType
+  editVisible: boolean
 }) {
   const [editOpen, setEditOpen] = React.useState(false)
 
@@ -233,7 +409,10 @@ export function SidebarPinnedItem({
               e.stopPropagation()
               setEditOpen(true)
             }}
-            className='absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded border border-[hsl(var(--sidebar-foreground)/0.12)] bg-[hsl(var(--surface-overlay))] text-sidebar-foreground/50 shadow-sm opacity-0 transition-opacity duration-150 hover:text-sidebar-foreground group-hover:opacity-100 group-data-[collapsible=icon]:hidden'
+            className={cn(
+              'absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded border border-[hsl(var(--sidebar-foreground)/0.12)] bg-[hsl(var(--surface-overlay))] text-sidebar-foreground/50 shadow-sm transition-opacity duration-200 hover:text-sidebar-foreground group-data-[collapsible=icon]:hidden',
+              editVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            )}
             title='编辑快捷入口'
           >
             <Edit3 className='h-3 w-3' />
@@ -247,7 +426,7 @@ export function SidebarPinnedItem({
         className='w-64 p-3'
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
-        <PinSettingsContent pinnedUrls={pinnedUrls} onToggle={onToggle} />
+        <PinSettingsContent pinnedUrls={pinnedUrls} onToggle={onToggle} roleType={roleType} />
       </PopoverContent>
     </Popover>
   )
