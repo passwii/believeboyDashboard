@@ -369,7 +369,8 @@ def _persist_single_source(
 
     t1 = time.time()
     total, included = _parse_and_insert_rows(
-        db, file_path, source.id, report_type, known_skus, known_asins
+        db, file_path, source.id, report_type, known_skus, known_asins,
+        project_name=project.project_name, country=country,
     )
     t2 = time.time()
     source.row_count_total = total
@@ -805,6 +806,8 @@ def _parse_and_insert_rows(
     report_type: str,
     known_skus: set[str],
     known_asins: set[str],
+    project_name: str = "",
+    country: str = "",
 ) -> tuple[int, int]:
     if report_type == "business_report":
         rows, total, included = _parse_business_rows(path, source_id)
@@ -827,7 +830,7 @@ def _parse_and_insert_rows(
 
     if report_type == "inventory_report":
         rows, total, included = _parse_inventory_rows(path, source_id)
-        _validate_inventory(rows, known_skus, known_asins)
+        _validate_inventory(rows, project_name=project_name, country=country, known_skus=known_skus, known_asins=known_asins)
         if rows:
             db.execute(insert(InventorySnapshotRow), rows)
         return total, included
