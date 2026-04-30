@@ -10,7 +10,7 @@ import { getDashboardPageTitle } from '@/lib/dashboard-route-meta'
 import { cn } from '@/lib/utils'
 
 const MAX_VISIBLE_USERS = 5
-const HEARTBEAT_INTERVAL_MS = 25_000
+const HEARTBEAT_INTERVAL_MS = 30_000 // 30s
 
 type PresenceUser = {
   user_id: string

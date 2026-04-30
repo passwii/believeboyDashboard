@@ -1,24 +1,25 @@
-import type { NextAuthOptions } from 'next-auth'
-import CredentialsProvider from 'next-auth/providers/credentials'
+import NextAuth from 'next-auth'
+import Credentials from 'next-auth/providers/credentials'
 
 import { backendFetchJson } from '@/lib/server/backend-api'
 
-export const authOptions: NextAuthOptions = {
+type UserCredentials = Partial<Record<'email' | 'password', unknown>>
+
+export const { handlers, signIn, signOut, auth } = NextAuth({
   session: {
     strategy: 'jwt',
     maxAge: 8 * 60 * 60, // 8小时 — 活跃续期由 Redis 滑动窗口控制
   },
   pages: { signIn: '/login' },
   providers: [
-    CredentialsProvider({
-      name: 'credentials',
+    Credentials({
       credentials: {
         email: { label: '邮箱', type: 'email' },
         password: { label: '密码', type: 'password' },
       },
-      async authorize(credentials) {
-        const email = credentials?.email?.trim().toLowerCase() ?? ''
-        const password = credentials?.password ?? ''
+      async authorize(credentials: UserCredentials) {
+        const email = (credentials?.email as string | undefined)?.trim().toLowerCase() ?? ''
+        const password = (credentials?.password as string | undefined) ?? ''
 
         if (!email || !password) {
           return null
@@ -77,4 +78,4 @@ export const authOptions: NextAuthOptions = {
       return session
     },
   },
-}
+})

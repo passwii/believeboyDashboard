@@ -5,12 +5,13 @@ import { normalizeErrorMessage } from '@/lib/error-utils'
 import { getBackendApiKey, getBackendBaseUrl } from '@/lib/server/backend-api'
 
 type RouteContext = {
-  params: {
+  params: Promise<{
     conversationId: string
-  }
+  }>
 }
 
 export async function PATCH(request: Request, { params }: RouteContext) {
+  const { conversationId } = await params
   const session = await requireUserSession()
   if (!session) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
@@ -23,7 +24,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     }
 
     const body = await request.json()
-    const upstream = await fetch(`${getBackendBaseUrl()}/api/v1/ai/conversations/${params.conversationId}`, {
+    const upstream = await fetch(`${getBackendBaseUrl()}/api/v1/ai/conversations/${conversationId}`, {
       method: 'PATCH',
       headers: {
         'X-API-Key': apiKey,
@@ -43,6 +44,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 }
 
 export async function DELETE(_request: Request, { params }: RouteContext) {
+  const { conversationId } = await params
   const session = await requireUserSession()
   if (!session) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
@@ -54,7 +56,7 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
       throw new Error('缺少后端 API Key 配置')
     }
 
-    const upstream = await fetch(`${getBackendBaseUrl()}/api/v1/ai/conversations/${params.conversationId}`, {
+    const upstream = await fetch(`${getBackendBaseUrl()}/api/v1/ai/conversations/${conversationId}`, {
       method: 'DELETE',
       headers: { 'X-API-Key': apiKey },
       cache: 'no-store',
@@ -70,6 +72,7 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
 }
 
 export async function POST(_request: Request, { params }: RouteContext) {
+  const { conversationId } = await params
   const session = await requireUserSession()
   if (!session) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
@@ -81,7 +84,7 @@ export async function POST(_request: Request, { params }: RouteContext) {
       throw new Error('缺少后端 API Key 配置')
     }
 
-    const upstream = await fetch(`${getBackendBaseUrl()}/api/v1/ai/conversations/${params.conversationId}/regenerate-title`, {
+    const upstream = await fetch(`${getBackendBaseUrl()}/api/v1/ai/conversations/${conversationId}/regenerate-title`, {
       method: 'POST',
       headers: { 'X-API-Key': apiKey },
       cache: 'no-store',

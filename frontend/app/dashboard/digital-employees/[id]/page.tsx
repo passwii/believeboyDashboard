@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
-import { ArrowLeft, Pause, Play, RefreshCw } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { use } from 'react'
+import { ArrowLeft, Pause, Play } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,7 +12,6 @@ import { fetchDigitalEmployee, fetchEmployeeTasks, suspendEmployee, resumeEmploy
 import { EmployeeAvatar } from '@/components/digital-employee/employee-avatar'
 import { StatusBadge } from '@/components/digital-employee/status-badge'
 import { HeartbeatDot } from '@/components/digital-employee/heartbeat-dot'
-import { useEffect } from 'react'
 
 const TYPE_EMOJI: Record<string, string> = {
   AUTO_REPORT_UPLOAD: '📤',
@@ -31,9 +31,10 @@ const TASK_STATUS_STYLES: Record<string, string> = {
   CANCELLED: 'bg-amber-500/10 text-amber-600',
 }
 
-export default function EmployeeDetailPage({ params }: { params: { id: string } }) {
+export default function EmployeeDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
   const router = useRouter()
-  const employeeId = parseInt(params.id, 10)
+  const employeeId = parseInt(id, 10)
 
   const [employee, setEmployee] = useState<import('@/types/digital-employee').DigitalEmployee | null>(null)
   const [tasks, setTasks] = useState<import('@/types/digital-employee').DigitalEmployeeTask[]>([])

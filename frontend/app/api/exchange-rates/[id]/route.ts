@@ -97,14 +97,18 @@ async function toErrorResponse(response: Response, fallbackMessage: string) {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const id = Number((await params).id)
+  if (!Number.isInteger(id)) {
+    return NextResponse.json({ error: 'Invalid ID' }, { status: 400 })
+  }
+
   const session = await requireUserSession()
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const id = Number(params.id)
   if (!Number.isInteger(id)) {
     return NextResponse.json({ error: 'Invalid ID' }, { status: 400 })
   }
@@ -131,16 +135,16 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const id = Number((await params).id)
+  if (!Number.isInteger(id)) {
+    return NextResponse.json({ error: 'Invalid ID' }, { status: 400 })
+  }
+
   const session = await requireAdminSession()
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const id = Number(params.id)
-  if (!Number.isInteger(id)) {
-    return NextResponse.json({ error: 'Invalid ID' }, { status: 400 })
   }
 
   try {
@@ -167,16 +171,16 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const id = Number((await params).id)
+  if (!Number.isInteger(id)) {
+    return NextResponse.json({ error: 'Invalid ID' }, { status: 400 })
+  }
+
   const session = await requireAdminSession()
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const id = Number(params.id)
-  if (!Number.isInteger(id)) {
-    return NextResponse.json({ error: 'Invalid ID' }, { status: 400 })
   }
 
   try {

@@ -12,13 +12,14 @@ import {
   toProxyResponse,
 } from '@/lib/server/backend-proxy'
 
-async function proxy(request: NextRequest, { params }: { params: { path: string[] } }) {
+async function proxy(request: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
+  const { path } = await params
   const session = await requireUserSession()
   if (!session) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
   }
 
-  const joinedPath = Array.isArray(params.path) ? params.path.join('/') : ''
+  const joinedPath = Array.isArray(path) ? path.join('/') : ''
   if (!joinedPath) {
     return NextResponse.json({ message: 'Invalid backend path' }, { status: 400 })
   }
