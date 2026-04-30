@@ -287,7 +287,7 @@ function GenerationProgress({ currentSubStatus }: { currentSubStatus: string | n
                 {step.key === 'data_aggregating' && (
                   <div className="mt-2 pl-2 border-l-2 border-primary/20 space-y-1.5">
                     {DATA_STEPS.map((ds, di) => {
-                      const isDCompleted = activeSubStepIndex > di
+                      const isDCompleted = activeSubStepIndex > di || topLevelIndex > 0
                       const isDActive = currentSubStatus === ds.key
                       return (
                         <div key={ds.key} className={cn(

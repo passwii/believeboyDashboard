@@ -1,6 +1,6 @@
 """
 File processor: recognize → persist to DB → move file.
-Adapted from backend/app/services/product_analysis_source_service.py
+Uses shared parsing and persistence modules from backend/app/shared/.
 """
 
 from __future__ import annotations
@@ -9,28 +9,11 @@ import re
 import shutil
 import uuid
 from datetime import UTC, date, datetime
-
-PT_TIMEZONE = __import__("zoneinfo", fromlist=["ZoneInfo"]).ZoneInfo("America/Los_Angeles")
-COUNTRY_TIMEZONE = {
-    "US": PT_TIMEZONE,
-    "CA": PT_TIMEZONE,
-    "MX": PT_TIMEZONE,
-    "UK": __import__("zoneinfo", fromlist=["ZoneInfo"]).ZoneInfo("Europe/London"),
-    "DE": __import__("zoneinfo", fromlist=["ZoneInfo"]).ZoneInfo("Europe/Berlin"),
-    "FR": __import__("zoneinfo", fromlist=["ZoneInfo"]).ZoneInfo("Europe/Paris"),
-    "IT": __import__("zoneinfo", fromlist=["ZoneInfo"]).ZoneInfo("Europe/Rome"),
-    "ES": __import__("zoneinfo", fromlist=["ZoneInfo"]).ZoneInfo("Europe/Madrid"),
-    "JP": __import__("zoneinfo", fromlist=["ZoneInfo"]).ZoneInfo("Asia/Tokyo"),
-    "AU": __import__("zoneinfo", fromlist=["ZoneInfo"]).ZoneInfo("Australia/Sydney"),
-    "IN": __import__("zoneinfo", fromlist=["ZoneInfo"]).ZoneInfo("Asia/Kolkata"),
-}
-from decimal import Decimal
 from pathlib import Path
 from typing import Any
-import warnings
 
 import pandas as pd
-from sqlalchemy import func, insert, select, update as sa_update
+from sqlalchemy import insert, select, update as sa_update
 from sqlalchemy.orm import Session
 
 from config import IS_LOCAL, PROCESSED_SUBDIR
@@ -67,17 +50,58 @@ from app.shared.utils import (
     parse_yyyy_mm_dd as _parse_yyyy_mm_dd,
 )
 
+# Shared parsers — single source of truth (backend/app/shared/parsers.py)
+from app.shared.parsers import (
+    COUNTRY_TIMEZONE,
+    PT_TIMEZONE,
+    SCOPE_INCLUDED,
+    SCOPE_EXCLUDED_UNMAPPED,
+    read_excel_no_warning as _read_excel_no_warning,
+    parse_business_rows as _parse_business_rows,
+    parse_payment_rows as _parse_payment_rows,
+    parse_ad_rows as _parse_ad_rows,
+    parse_inventory_rows as _parse_inventory_rows,
+    parse_sales_rows as _parse_sales_rows,
+    validate_inventory_rows_against_project_mapping as _validate_inventory,
+    parse_transaction_at as _parse_transaction_at,
+)
+
+# Shared persist helpers — single source of truth (backend/app/shared/persist_helpers.py)
+from app.shared.persist_helpers import (
+    PERIODIC_REPORT_TYPES,
+    next_version as _next_version,
+    replace_current_pointer as _replace_current_pointer,
+)
+
+
 def _resolve_upload_date(now: datetime) -> date:
     """返回当前本地日期作为 upload_log 日期。"""
     return now.date()
 
-OPENPYXL_MISSING_DEFAULT_STYLE_WARNING = (
-    r"Workbook contains no default style, apply openpyxl's default"
-)
 
-SCOPE_INCLUDED = "included_product"
-SCOPE_EXCLUDED_UNMAPPED = "excluded_unmapped"
-PERIODIC_REPORT_TYPES = {"business_report", "payment_report", AD_PRODUCT_REPORT, "sales_report", "inventory_report", "return_report"}
+def _write_upload_log(
+    db: Session,
+    project_id: int,
+    report_type: str,
+    country: str,
+    upload_date: date,
+    has_real_data: bool,
+    row_count: int,
+    source_file_id: int | None,
+    original_filename: str,
+) -> None:
+    """Write a single upload log entry."""
+    log = ReportUploadLog(
+        project_id=project_id,
+        report_type=report_type,
+        country=country,
+        upload_date=upload_date,
+        has_real_data=has_real_data,
+        row_count=row_count,
+        source_file_id=source_file_id,
+        original_filename=original_filename,
+    )
+    db.add(log)
 
 
 # ─── Result dataclass ─────────────────────────────────────────────────────────
@@ -286,31 +310,6 @@ def _persist_one_file(
     )
 
 
-def _write_upload_log(
-    db: Session,
-    project_id: int,
-    report_type: str,
-    country: str,
-    upload_date: date,
-    has_real_data: bool,
-    row_count: int,
-    source_file_id: int | None,
-    original_filename: str,
-) -> None:
-    """Write a single upload log entry."""
-    log = ReportUploadLog(
-        project_id=project_id,
-        report_type=report_type,
-        country=country,
-        upload_date=upload_date,
-        has_real_data=has_real_data,
-        row_count=row_count,
-        source_file_id=source_file_id,
-        original_filename=original_filename,
-    )
-    db.add(log)
-
-
 def _persist_single_source(
     db: Session,
     file_path: Path,
@@ -332,7 +331,8 @@ def _persist_single_source(
     t0 = time.time()
 
     version = _next_version(
-        db, project.id, report_type, country, period_start, period_end
+        db, project_id=project.id, report_type=report_type, country=country,
+        period_start_date=period_start, period_end_date=period_end,
     )
     logical_filename = _build_logical_filename(
         project_slug, report_type, period_start, period_end, now, version, extension
@@ -383,7 +383,17 @@ def _persist_single_source(
 
     # Write upload log（使用本地时间）
     upload_date = _resolve_upload_date(now)
-    _write_upload_log(db, project.id, report_type, country, upload_date, total > 0, total, source.id, file_path.name)
+    _write_upload_log(
+        db,
+        project_id=project.id,
+        report_type=report_type,
+        country=country,
+        upload_date=upload_date,
+        has_real_data=total > 0,
+        row_count=total,
+        source_file_id=source.id,
+        original_filename=file_path.name,
+    )
 
     db.commit()
     t3 = time.time()
@@ -414,7 +424,10 @@ def _persist_return_report(
     file_id = _generate_file_id(file_path.name)
     extension = file_path.suffix.lower()
     project_slug = _project_slug(project.project_name)
-    version = _next_version(db, project.id, "return_report", country, upload_date, upload_date)
+    version = _next_version(
+        db, project_id=project.id, report_type="return_report", country=country,
+        period_start_date=upload_date, period_end_date=upload_date,
+    )
     logical_filename = _build_logical_filename(
         project_slug, "return_report", upload_date, upload_date, now, version, extension
     )
@@ -543,7 +556,17 @@ def _persist_return_report(
 
     # Write upload log（使用本地时间）
     log_date = _resolve_upload_date(now)
-    _write_upload_log(db, project.id, "return_report", country, log_date, len(rows) > 0, len(rows), source.id, file_path.name)
+    _write_upload_log(
+        db,
+        project_id=project.id,
+        report_type="return_report",
+        country=country,
+        upload_date=log_date,
+        has_real_data=len(rows) > 0,
+        row_count=len(rows),
+        source_file_id=source.id,
+        original_filename=file_path.name,
+    )
 
     db.commit()
 
@@ -600,7 +623,8 @@ def _persist_sales_report_marker(
     """
     target_date = now.date()
     version = _next_version(
-        db, project.id, "sales_report", country, target_date, target_date
+        db, project_id=project.id, report_type="sales_report", country=country,
+        period_start_date=target_date, period_end_date=target_date,
     )
     logical_filename = _build_logical_filename(
         project_slug, "sales_report", target_date, target_date, now, version, extension
@@ -638,14 +662,14 @@ def _persist_sales_report_marker(
     upload_date = _resolve_upload_date(now)
     _write_upload_log(
         db,
-        project.id,
-        "sales_report",
-        country,
-        upload_date,
-        False,
-        0,
-        source.id,
-        file_path.name,
+        project_id=project.id,
+        report_type="sales_report",
+        country=country,
+        upload_date=upload_date,
+        has_real_data=False,
+        row_count=0,
+        source_file_id=source.id,
+        original_filename=file_path.name,
     )
     db.commit()
     return {
@@ -690,7 +714,8 @@ def _persist_sales_report(
 
     for report_date in sorted(grouped):
         version = _next_version(
-            db, project.id, "sales_report", country, report_date, report_date
+            db, project_id=project.id, report_type="sales_report", country=country,
+            period_start_date=report_date, period_end_date=report_date,
         )
         logical_filename = _build_logical_filename(
             project_slug, "sales_report", report_date, report_date, now, version, extension
@@ -751,14 +776,14 @@ def _persist_sales_report(
     upload_date = _resolve_upload_date(now)
     _write_upload_log(
         db,
-        project.id,
-        "sales_report",
-        country,
-        upload_date,
-        total > 0,
-        total,
-        latest_id,
-        file_path.name,
+        project_id=project.id,
+        report_type="sales_report",
+        country=country,
+        upload_date=upload_date,
+        has_real_data=total > 0,
+        row_count=total,
+        source_file_id=latest_id,
+        original_filename=file_path.name,
     )
     db.commit()
     dates = sorted(grouped)
@@ -782,14 +807,14 @@ def _parse_and_insert_rows(
     known_asins: set[str],
 ) -> tuple[int, int]:
     if report_type == "business_report":
-        rows = _parse_business_rows(path, source_id)
+        rows, total, included = _parse_business_rows(path, source_id)
         if rows:
             db.execute(insert(AnalysisBusinessRow), rows)
-        return len(rows), len(rows)
+        return total, included
 
     if report_type == "payment_report":
         df = _read_payment_report_impl(path)
-        rows, total, included = _parse_payment_rows_df(df, source_id, known_skus, known_asins)
+        rows, total, included = _parse_payment_rows(df, source_id, known_skus, known_asins)
         if rows:
             db.execute(insert(AnalysisPaymentRow), rows)
         return total, included
@@ -801,280 +826,16 @@ def _parse_and_insert_rows(
         return total, included
 
     if report_type == "inventory_report":
-        rows = _parse_inventory_rows(path, source_id)
+        rows, total, included = _parse_inventory_rows(path, source_id)
         _validate_inventory(rows, known_skus, known_asins)
         if rows:
             db.execute(insert(InventorySnapshotRow), rows)
-        return len(rows), len(rows)
+        return total, included
 
     return 0, 0
 
 
-
-def _read_excel_no_warning(path: Path) -> pd.DataFrame:
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore",
-            message=OPENPYXL_MISSING_DEFAULT_STYLE_WARNING,
-            category=UserWarning,
-        )
-        return pd.read_excel(path, engine="openpyxl")
-
-
-def _parse_business_rows(path: Path, source_file_id: int) -> list[dict]:
-    df = pd.read_csv(path, encoding="utf-8-sig")
-    df.columns = [str(c).strip() for c in df.columns]
-
-    asin_col = next(
-        (c for c in ["（子）ASIN", "(子)ASIN", "子ASIN", "ASIN"] if c in df.columns), None
-    )
-    page_col = next(
-        (c for c in ["页面浏览量 - 总计", "页面浏览量-总计", "Page Views - Total"] if c in df.columns),
-        None,
-    )
-    units_col = next(
-        (c for c in ["已订购商品数量", "Ordered Product Sales Units", "Units Ordered"] if c in df.columns),
-        None,
-    )
-    sess_col = next(
-        (c for c in ["会话数 - 总计", "会话数-总计", "Sessions - Total"] if c in df.columns),
-        None,
-    )
-    sales_col = next(
-        (c for c in ["已订购商品销售额", "Ordered Product Sales", "Ordered Product Sales Amount"]
-         if c in df.columns),
-        None,
-    )
-
-    if not asin_col:
-        raise ValueError("Business report missing ASIN column")
-
-    payloads = []
-    for idx, row in df.iterrows():
-        amount = _to_decimal_with_currency(row.get(sales_col))
-        payloads.append({
-            "source_file_id": source_file_id,
-            "source_row_no": idx + 1,
-            "asin": _normalize_text(row.get(asin_col)),
-            "page_views": _to_int(row.get(page_col)),
-            "units_ordered": _to_int(row.get(units_col)),
-            "sessions": _to_int(row.get(sess_col)),
-            "ordered_sales_amount": amount,
-            "raw_row": _to_raw_row(row.to_dict()),
-        })
-    return payloads
-
-
-def _parse_payment_rows_df(
-    df: pd.DataFrame,
-    source_file_id: int,
-    known_skus: set[str],
-    known_asins: set[str],
-) -> tuple[list[dict], int, int]:
-    numeric_cols = [
-        "quantity", "product sales", "shipping credits",
-        "promotional rebates", "other", "selling fees", "fba fees",
-    ]
-    for col in numeric_cols:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
-
-    asin_col = "asin" if "asin" in df.columns else ("ASIN" if "ASIN" in df.columns else None)
-    payloads = []
-    included = 0
-
-    for idx, row in df.iterrows():
-        sku = _normalize_text(row.get("sku")) or ""
-        asin_val = _normalize_text(row.get(asin_col)) if asin_col else None
-        norm_sku = _normalize_identity(sku)
-        norm_asin = _normalize_identity(asin_val) if asin_val else ""
-        scope = SCOPE_INCLUDED if (norm_sku in known_skus or norm_asin in known_asins) else SCOPE_EXCLUDED_UNMAPPED
-        if scope == SCOPE_INCLUDED:
-            included += 1
-
-        total = (
-            _to_decimal(row.get("total"))
-            if "total" in df.columns
-            else sum(_to_decimal(row.get(c)) for c in numeric_cols if c in df.columns)
-        )
-
-        payloads.append({
-            "source_file_id": source_file_id,
-            "source_row_no": idx + 1,
-            "transaction_at": _parse_transaction_at(row),
-            "transaction_type": _normalize_text(row.get("type")) or "UNKNOWN",
-            "order_id": _normalize_text(
-                row.get("order id") if "order id" in df.columns else None
-            ),
-            "sku": sku or None,
-            "asin": asin_val,
-            "quantity": _to_int(row.get("quantity")),
-            "product_sales": _to_decimal(row.get("product sales")),
-            "shipping_credits": _to_decimal(row.get("shipping credits")),
-            "promotional_rebates": _to_decimal(row.get("promotional rebates")),
-            "other_amount": _to_decimal(row.get("other")),
-            "selling_fees": _to_decimal(row.get("selling fees")),
-            "fba_fees": _to_decimal(row.get("fba fees")),
-            "total_amount": total,
-            "scope_status": scope,
-            "scope_reason": None if scope == SCOPE_INCLUDED else "sku/asin not in product_costs",
-            "raw_row": _to_raw_row(row.to_dict()),
-        })
-
-    return payloads, len(payloads), included
-
-
-def _parse_ad_rows(
-    path: Path,
-    source_file_id: int,
-    known_skus: set[str],
-    known_asins: set[str],
-) -> tuple[list[dict], int, int]:
-    df = _read_excel_no_warning(path)
-    df.columns = [str(c).strip() for c in df.columns]
-
-    required = ["广告SKU", "展示量", "点击量", "花费", "7天总销售额", "7天总销售量(#)"]
-    if any(c not in df.columns for c in required):
-        raise ValueError(f"Ad report missing required columns: {required}")
-
-    asin_col = "广告ASIN" if "广告ASIN" in df.columns else ("ASIN" if "ASIN" in df.columns else None)
-    payloads = []
-    included = 0
-
-    for idx, row in df.iterrows():
-        sku = _normalize_text(row.get("广告SKU")) or ""
-        asin_val = _normalize_text(row.get(asin_col)) if asin_col else None
-        norm_sku = _normalize_identity(sku)
-        norm_asin = _normalize_identity(asin_val) if asin_val else ""
-        scope = SCOPE_INCLUDED if (norm_sku in known_skus or norm_asin in known_asins) else SCOPE_EXCLUDED_UNMAPPED
-        if scope == SCOPE_INCLUDED:
-            included += 1
-
-        payloads.append({
-            "source_file_id": source_file_id,
-            "source_row_no": idx + 1,
-            "sku": sku or None,
-            "asin": asin_val,
-            "impressions": _to_int(row.get("展示量")),
-            "clicks": _to_int(row.get("点击量")),
-            "spend": _to_decimal(row.get("花费")),
-            "sales_7d": _to_decimal(row.get("7天总销售额")),
-            "orders_7d": _to_int(row.get("7天总销售量(#)")),
-            "scope_status": scope,
-            "scope_reason": None if scope == SCOPE_INCLUDED else "sku/asin not in product_costs",
-            "raw_row": _to_raw_row(row.to_dict()),
-        })
-
-    return payloads, len(payloads), included
-
-
-def _parse_inventory_rows(path: Path, source_file_id: int) -> list[dict]:
-    df = pd.read_csv(path, sep="\t", encoding="utf-8-sig")
-    df.columns = [str(c).strip() for c in df.columns]
-
-    keep = [
-        "sku", "asin", "available",
-        "inv-age-0-to-90-days", "inv-age-91-to-180-days",
-        "inv-age-181-to-270-days", "inv-age-271-to-365-days",
-        "inv-age-365-plus-days", "recommended-action",
-    ]
-    if not any(c in df.columns for c in keep):
-        raise ValueError("Inventory report missing required columns")
-
-    payloads = []
-    for idx, row in df.iterrows():
-        a90 = _to_int(row.get("inv-age-0-to-90-days"))
-        a91 = _to_int(row.get("inv-age-91-to-180-days"))
-        a181 = _to_int(row.get("inv-age-181-to-270-days"))
-        a271 = _to_int(row.get("inv-age-271-to-365-days"))
-        a365 = _to_int(row.get("inv-age-365-plus-days"))
-        avail = _to_int(row.get("available"))
-
-        stock_status = "out_of_stock" if avail <= 0 else "in_stock"
-        aging_status = "over_aged" if a365 > 0 else ("aging" if a91 + a181 + a271 > 0 else "fresh")
-
-        payloads.append({
-            "source_file_id": source_file_id,
-            "source_row_no": idx + 1,
-            "sku": _normalize_text(row.get("sku")),
-            "asin": _normalize_text(row.get("asin")),
-            "available_qty": avail,
-            "age_0_90_qty": a90,
-            "age_91_180_qty": a91,
-            "age_181_270_qty": a181,
-            "age_271_365_qty": a271,
-            "age_365_plus_qty": a365,
-            "recommended_action": _normalize_text(row.get("recommended-action")),
-            "stock_status": stock_status,
-            "aging_status": aging_status,
-            "raw_row": _to_raw_row(row.to_dict()),
-        })
-    return payloads
-
-
-def _parse_sales_rows(
-    path: Path,
-    source_file_id: int,
-    *,
-    country: str = "US",
-) -> tuple[list[dict], int, int]:
-    df = pd.read_csv(path, sep="\t", encoding="utf-8-sig")
-    df.columns = [str(c).strip() for c in df.columns]
-
-    required = [
-        "amazon-order-id", "purchase-date", "order-status",
-        "sku", "asin", "quantity", "item-price",
-    ]
-    if any(c not in df.columns for c in required):
-        raise ValueError(f"Sales report missing required columns: {required}")
-
-    local_tz = COUNTRY_TIMEZONE.get(country, PT_TIMEZONE)
-    as_of = datetime.now(UTC).astimezone(local_tz).date()
-    payloads = []
-    included = 0
-
-    for idx, row in df.iterrows():
-        order_id = _normalize_text(row.get("amazon-order-id"))
-        parsed_utc = pd.to_datetime(row.get("purchase-date"), errors="coerce", utc=True)
-        if not order_id or pd.isna(parsed_utc):
-            continue
-
-        utc_aware = parsed_utc.to_pydatetime()
-        local_aware = utc_aware.astimezone(local_tz)
-        purchase_at_pt = local_aware.replace(tzinfo=None)
-        purchase_date_pt = local_aware.date()
-        status_text = (_normalize_text(row.get("order-status")) or "").strip().lower()
-
-        if status_text in {"cancelled", "canceled"}:
-            is_counted = False
-        elif (as_of - purchase_date_pt).days <= 2:
-            is_counted = status_text in {"pending", "unshipped", "shipped"}
-        else:
-            is_counted = status_text == "shipped"
-
-        if is_counted:
-            included += 1
-
-        payloads.append({
-            "source_file_id": source_file_id,
-            "source_row_no": idx + 1,
-            "amazon_order_id": order_id,
-            "purchase_at_utc": utc_aware,
-            "purchase_at_pt": purchase_at_pt,
-            "purchase_date_pt": purchase_date_pt,
-            "order_status": status_text.title(),
-            "sku": _normalize_text(row.get("sku")),
-            "asin": _normalize_text(row.get("asin")),
-            "quantity": _to_int(row.get("quantity")),
-            "item_price": _to_decimal(row.get("item-price")),
-            "shipping_price": _to_decimal(row.get("shipping-price")),
-            "currency": _normalize_text(row.get("currency")),
-            "is_counted_sales": is_counted,
-            "status_rule_version": 1,
-            "raw_row": _to_raw_row(row.to_dict()),
-        })
-
-    return payloads, len(payloads), included
+# ─── Sales report dates helper ────────────────────────────────────────────────
 
 
 def _extract_sales_report_dates(path: Path, country: str) -> list[date]:
@@ -1085,33 +846,6 @@ def _extract_sales_report_dates(path: Path, country: str) -> list[date]:
     if dates.empty:
         return []
     return list(dates.dt.date.unique())
-
-
-def _validate_inventory(
-    rows: list[dict],
-    known_skus: set[str],
-    known_asins: set[str],
-) -> None:
-    if not known_skus and not known_asins:
-        return
-    identifiable = matched = 0
-    for row in rows:
-        sku = _normalize_identity(row.get("sku") or "")
-        asin = _normalize_identity(row.get("asin") or "")
-        if not sku and not asin:
-            continue
-        identifiable += 1
-        if sku in known_skus or asin in known_asins:
-            matched += 1
-
-    if identifiable == 0:
-        raise ValueError("Inventory report: no identifiable SKU/ASIN rows found")
-    ratio = matched / identifiable if identifiable else 0
-    if matched == 0 or (identifiable >= 5 and ratio < 0.6):
-        raise ValueError(
-            f"Inventory validation failed: {matched}/{identifiable} rows matched "
-            f"({ratio:.0%}); expected ≥60%. Confirm this file belongs to the project."
-        )
 
 
 # ─── File system helpers ──────────────────────────────────────────────────────
@@ -1159,63 +893,7 @@ def _load_project_product_mapping(
     return skus, asins
 
 
-def _next_version(
-    db: Session,
-    project_id: int,
-    report_type: str,
-    country: str,
-    period_start: date | None,
-    period_end: date | None,
-) -> int:
-    stmt = select(func.max(AnalysisSourceFile.version)).where(
-        AnalysisSourceFile.project_id == project_id,
-        AnalysisSourceFile.report_type == report_type,
-        AnalysisSourceFile.country == country,
-    )
-    if period_start is not None and period_end is not None:
-        stmt = stmt.where(
-            AnalysisSourceFile.period_start_date == period_start,
-            AnalysisSourceFile.period_end_date == period_end,
-        )
-    val = db.execute(stmt).scalar_one_or_none()
-    return int(val or 0) + 1
-
-
-def _replace_current_pointer(db: Session, source: AnalysisSourceFile) -> None:
-    conditions = [
-        AnalysisSourceFile.project_id == source.project_id,
-        AnalysisSourceFile.report_type == source.report_type,
-        AnalysisSourceFile.country == source.country,
-        AnalysisSourceFile.id != source.id,
-        AnalysisSourceFile.is_current.is_(True),
-    ]
-    if source.report_type in PERIODIC_REPORT_TYPES:
-        conditions.extend([
-            AnalysisSourceFile.period_start_date == source.period_start_date,
-            AnalysisSourceFile.period_end_date == source.period_end_date,
-        ])
-    db.execute(
-        sa_update(AnalysisSourceFile)
-        .where(*conditions)
-        .values(is_current=False, superseded_at=datetime.now())
-    )
-
-
 # ─── Processor-specific helpers (not shared) ────────────────────────────────
-
-
-def _parse_transaction_at(row: pd.Series) -> datetime | None:
-    for key in ("date/time", "transaction date", "transaction_date", "date"):
-        if key not in row:
-            continue
-        val = row.get(key)
-        if val is None:
-            continue
-        parsed = pd.to_datetime(val, errors="coerce")
-        if pd.isna(parsed):
-            continue
-        return parsed.to_pydatetime()
-    return None
 
 
 def _generate_file_id(original_filename: str) -> str:
@@ -1264,6 +942,3 @@ def _build_storage_key(
         f"{period_start.strftime('%Y%m%d')}_{period_end.strftime('%Y%m%d')}/"
         f"v{version}/{file_id}"
     )
-
-
-# _sha256_file is imported from shared (via alias at top of file)

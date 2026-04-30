@@ -65,6 +65,11 @@ export function buildBackendProxyHeaders(session: Session | null, requestHeaders
     headers.set('X-Operator', encodeURIComponent(operatorName))
   }
 
+  const sessionId = session?.user?.sessionId?.trim()
+  if (sessionId) {
+    headers.set('X-Session-Id', sessionId)
+  }
+
   return headers
 }
 

@@ -2,7 +2,7 @@ export const DASHBOARD_PAGE_TITLES: Array<{ match: string; title: string }> = [
   { match: '/data-reporting/daily-report', title: '销售日报' },
   { match: '/data-reporting/monthly-report', title: '财务月报' },
   { match: '/data-reporting/product-analysis', title: '产品分析' },
-  { match: '/data-reporting/pricing-calculation/store-accounting', title: '店铺核算' },
+  { match: '/data-reporting/pricing-calculation/shop-calculation', title: '店铺测算' },
   { match: '/data-reporting/pricing-calculation', title: '定价核算' },
   { match: '/data-analysis/financial-data', title: '月度财务分析' },
   { match: '/data-analysis/daily-analysis', title: '销售数据' },

@@ -11,7 +11,7 @@ AccountingType = Literal['profit_calc', 'eu_accounting']
 Country = Literal['US', 'DE', 'UK']
 
 
-class StoreAccountingDimensions(BaseModel):
+class ShopCalculationDimensions(BaseModel):
     longest_side_in: float
     middle_side_in: float
     shortest_side_in: float
@@ -20,7 +20,7 @@ class StoreAccountingDimensions(BaseModel):
     volume_cubic_ft: float
 
 
-class StoreAccountingWeight(BaseModel):
+class ShopCalculationWeight(BaseModel):
     product_weight_lb: float
     product_weight_oz: float
     dimensional_weight_lb: float
@@ -29,7 +29,7 @@ class StoreAccountingWeight(BaseModel):
     chargeable_weight_rule: str
 
 
-class StoreAccountingFees(BaseModel):
+class ShopCalculationFees(BaseModel):
     referral_fee_usd: float
     advertising_fee_usd: float
     return_loss_usd: float
@@ -45,7 +45,7 @@ class StoreAccountingFees(BaseModel):
     platform_fee_usd: float = 0.0
 
 
-class StoreAccountingProfit(BaseModel):
+class ShopCalculationProfit(BaseModel):
     ddp_cost_rmb: float
     ddp_cost_usd: float
     payout_usd: float
@@ -57,8 +57,8 @@ class StoreAccountingProfit(BaseModel):
     profit_after_vat_rate: float | None = None
 
 
-class StoreAccountingItem(BaseModel):
-    """店铺核算详情"""
+class ShopCalculationItem(BaseModel):
+    """店铺测算详情"""
     id: int
     project_id: int
     project_name: str
@@ -102,13 +102,13 @@ class StoreAccountingItem(BaseModel):
     storage_fee_rule_label: str
 
     # 尺寸详情
-    dimensions: StoreAccountingDimensions
+    dimensions: ShopCalculationDimensions
     # 重量详情
-    weights: StoreAccountingWeight
+    weights: ShopCalculationWeight
     # 费用详情
-    fees: StoreAccountingFees
+    fees: ShopCalculationFees
     # 利润详情
-    profit: StoreAccountingProfit
+    profit: ShopCalculationProfit
 
     # 警告信息
     warnings: list[str] = Field(default_factory=list)
@@ -120,8 +120,8 @@ class StoreAccountingItem(BaseModel):
     updated_at: datetime
 
 
-class StoreAccountingCreateRequest(BaseModel):
-    """创建/更新店铺核算的请求"""
+class ShopCalculationCreateRequest(BaseModel):
+    """创建/更新店铺测算的请求"""
     project_id: int
     project_name: str
     sku: str
@@ -209,9 +209,9 @@ class StoreAccountingCreateRequest(BaseModel):
     notes: str | None = None
 
 
-class StoreAccountingListResponse(BaseModel):
-    """店铺核算列表响应"""
-    items: list[StoreAccountingItem]
+class ShopCalculationListResponse(BaseModel):
+    """店铺测算列表响应"""
+    items: list[ShopCalculationItem]
     total: int
     page: int
     page_size: int

@@ -100,10 +100,10 @@ const primaryGroups: NavGroup[] = [
         ],
       },
       {
-        title: '店铺核算',
-        url: '/dashboard/data-reporting/pricing-calculation/store-accounting',
+        title: '店铺测算',
+        url: '/dashboard/data-reporting/pricing-calculation/shop-calculation',
         matchPrefixes: [
-          '/dashboard/data-reporting/pricing-calculation/store-accounting',
+          '/dashboard/data-reporting/pricing-calculation/shop-calculation',
         ],
       },
     ],

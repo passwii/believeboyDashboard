@@ -54,7 +54,7 @@ const navItems: SearchItem[] = [
   { title: '财务月报', url: '/dashboard/data-reporting/monthly-report', icon: <FileBarChart className='h-4 w-4' />, category: '运营核算' },
   { title: '产品分析', url: '/dashboard/data-reporting/product-analysis', icon: <Calculator className='h-4 w-4' />, category: '运营核算' },
   { title: '新品核算', url: '/dashboard/data-reporting/pricing-calculation/new-product', icon: <Coins className='h-4 w-4' />, category: '运营核算' },
-  { title: '店铺核算', url: '/dashboard/data-reporting/pricing-calculation/store-accounting', icon: <Store className='h-4 w-4' />, category: '运营核算' },
+  { title: '店铺测算', url: '/dashboard/data-reporting/pricing-calculation/shop-calculation', icon: <Store className='h-4 w-4' />, category: '运营核算' },
   // 数据分析
   { title: '销售数据', url: '/dashboard/data-analysis/daily-analysis', icon: <TrendingUp className='h-4 w-4' />, category: '数据分析' },
   { title: '广告分析', url: '/dashboard/data-analysis/ad-analysis/overview', icon: <BarChart3 className='h-4 w-4' />, category: '数据分析' },

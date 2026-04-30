@@ -7,14 +7,14 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db.session import Base
 
 
-class StoreAccounting(Base):
-    """店铺核算表（US + EU 统一存储）
+class ShopCalculation(Base):
+    """店铺测算表（US + EU 统一存储）
 
-    用于存储店铺维度的利润核算结果，支持 US 正算和 EU 核算。
+    用于存储店铺维度的利润测算结果，支持 US 正算和 EU 测算。
     每个 (project_id, sku, country) 组合只有一条最新记录（upsert 策略）。
     """
 
-    __tablename__ = 'store_accounting'
+    __tablename__ = 'shop_calculation'
 
     id: Mapped[int] = mapped_column(
         BigInteger(),
@@ -27,7 +27,7 @@ class StoreAccounting(Base):
     sku: Mapped[str] = mapped_column(String(128), nullable=False)
     asin: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
-    # 国家站点 + 核算类型
+    # 国家站点 + 测算类型
     country: Mapped[str] = mapped_column(String(10), nullable=False, server_default='US', index=True)
     accounting_type: Mapped[str] = mapped_column(String(32), nullable=False, server_default='profit_calc')
 

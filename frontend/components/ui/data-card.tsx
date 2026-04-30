@@ -53,7 +53,7 @@ function DataCardContent({ className, ...props }: React.HTMLAttributes<HTMLDivEl
 // ========================
 
 function DataTableCard({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("dashboard-surface", className)} {...props} />
+  return <div className={cn("dashboard-surface relative", className)} {...props} />
 }
 
 // 标题行容器（border-b 分隔）— 支持 title/description/action 或任意子元素

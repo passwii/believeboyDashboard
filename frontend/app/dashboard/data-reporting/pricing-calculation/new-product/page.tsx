@@ -119,11 +119,11 @@ const LazyComparisonTable = dynamic(
   },
 )
 
-const LazyStoreAccountingTable = dynamic(
+const LazyShopCalculationTable = dynamic(
   () =>
     import(
-      '@/components/dashboard/pricing-calculation/store-accounting-table'
-    ).then((mod) => mod.StoreAccountingTable),
+      '@/components/dashboard/pricing-calculation/shop-calculation-table'
+    ).then((mod) => mod.ShopCalculationTable),
   {
     loading: () => <PricingTableSkeleton rows={8} />,
   },
@@ -401,7 +401,7 @@ type CalculationMode =
   | 'profit-reverse'
   | 'cost-reverse'
   | 'fbm-calc'
-type BusinessTab = 'new-product' | 'store-accounting'
+type BusinessTab = 'new-product' | 'shop-calculation'
 
 type StoreSkuDraft = {
   package_length_cm: string
@@ -2365,7 +2365,7 @@ export default function PricingCalculationPage() {
           ...current[item.id],
           loading: false,
           error:
-            submitError instanceof Error ? submitError.message : '店铺核算失败',
+            submitError instanceof Error ? submitError.message : '店铺测算失败',
         },
       }))
     }

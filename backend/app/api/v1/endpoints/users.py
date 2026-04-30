@@ -12,6 +12,7 @@ from app.services.audit_log_service import (
     append_operation_audit_log,
     append_operation_view_log,
 )
+from app.services.redis_service import delete_user_sessions
 
 router = APIRouter(
     prefix="/system-management/users", tags=["users"], dependencies=[Depends(protected)]
@@ -333,6 +334,14 @@ def update_user(
         request=request,
     )
     db.commit()
+
+    # Revoke all sessions if account disabled or password changed
+    if is_active is False or password is not None:
+        try:
+            delete_user_sessions(user_id)
+        except Exception:
+            pass
+
     return UpdateUserResponse(item=item)
 
 
@@ -390,3 +399,37 @@ def delete_user(
         pass  # non-critical
     db.commit()
     return None
+
+
+@router.post("/{user_id}/revoke-sessions")
+def revoke_user_sessions(
+    user_id: str,
+    request: Request,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+) -> dict:
+    """Admin endpoint: revoke all sessions for a specific user."""
+    # Verify user exists
+    row = db.execute(
+        text("select id::text as id from public.user_accounts where id::text = :user_id"),
+        {"user_id": user_id},
+    ).mappings().first()
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
+
+    try:
+        deleted = delete_user_sessions(user_id)
+    except Exception:
+        deleted = 0
+
+    append_operation_audit_log(
+        db,
+        action="users.revoke_sessions",
+        target_type="user_account",
+        target_id=user_id,
+        operator=operator,
+        after={"revoked": deleted},
+        request=request,
+    )
+    db.commit()
+    return {"ok": True, "revoked": deleted}

@@ -39,6 +39,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
+import { useSmoothRefresh } from '@/hooks/use-smooth-refresh'
+import { RefreshProgressBar } from '@/components/ui/refresh-progress-bar'
 import {
   REPORT_UPLOAD_COUNTRY_OPTIONS,
   getReportUploadCountryLabel,
@@ -143,8 +145,8 @@ function RpaStatusGrid() {
 
   const [statusRows, setStatusRows] = useState<ProjectRow[]>([])
   const [statusLoading, setStatusLoading] = useState(true)
-  const [isRefreshing, setIsRefreshing] = useState(false)
   const [statusError, setStatusError] = useState<string | null>(null)
+  const { showSkeleton, isRefreshing } = useSmoothRefresh({ loading: statusLoading, hasData: statusRows.length > 0 })
 
   const [country, setCountry] = useState('US')
   const [statusDate, setStatusDate] = useState(() => toLocalDateInputValue())
@@ -170,12 +172,7 @@ function RpaStatusGrid() {
   }, [session])
 
   const loadStatus = async () => {
-    // 首次加载时显示骨架屏，刷新时保留已有数据
-    if (statusRows.length === 0) {
-      setStatusLoading(true)
-    } else {
-      setIsRefreshing(true)
-    }
+    setStatusLoading(true)
     setStatusError(null)
     try {
       const query = new URLSearchParams({ report_date: statusDate, country })
@@ -193,7 +190,6 @@ function RpaStatusGrid() {
       setStatusError(normalizeErrorMessage(error, '报表状态加载失败'))
     } finally {
       setStatusLoading(false)
-      setIsRefreshing(false)
     }
   }
 
@@ -328,10 +324,10 @@ function RpaStatusGrid() {
                 size='icon'
                 className='h-9 w-9 shrink-0 sm:h-10 sm:w-10'
                 onClick={() => void loadStatus()}
-                disabled={statusLoading || isRefreshing}
+                disabled={statusLoading}
                 title='刷新状态'
               >
-                <Loader2 className={cn('h-4 w-4', (statusLoading || isRefreshing) && 'animate-spin')} />
+                <Loader2 className={cn('h-4 w-4', statusLoading && 'animate-spin')} />
               </Button>
             </div>
           </div>
@@ -339,22 +335,17 @@ function RpaStatusGrid() {
       </CardHeader>
 
       <div className='flex min-h-0 flex-1 flex-col p-0 relative'>
-        {isRefreshing && (
-          <div className='absolute inset-x-0 top-0 z-10 h-0.5 overflow-hidden bg-blue-100 dark:bg-blue-900/30'>
-            <div className='h-full w-1/3 bg-blue-500 animate-shimmer' />
-          </div>
-        )}
         {statusError ? (
           <p className='py-4 pl-6 text-sm text-rose-600'>{statusError}</p>
         ) : null}
 
-        {statusLoading ? (
+        {showSkeleton ? (
           <div className='flex min-h-0 flex-1 flex-col space-y-3'>
             <Skeleton className='h-10 w-full rounded-none shrink-0' />
             <Skeleton className='flex-1 w-full rounded-none min-h-0' />
           </div>
         ) : (
-          <div className={cn('flex min-h-0 flex-1 flex-col overflow-auto transition-opacity duration-200', isRefreshing && 'opacity-50 pointer-events-none')}>
+          <RefreshProgressBar refreshing={isRefreshing} className='flex min-h-0 flex-1 flex-col overflow-auto'>
             <div
               className='grid min-w-max shrink-0'
               style={{ gridTemplateColumns: `160px repeat(${REPORT_TYPES.length}, 96px)` }}
@@ -420,7 +411,7 @@ function RpaStatusGrid() {
                 ))}
               </div>
             )}
-          </div>
+          </RefreshProgressBar>
         )}
       </div>
     </Card>

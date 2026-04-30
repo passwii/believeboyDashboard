@@ -572,3 +572,44 @@ def clear_all_caches() -> int:
             total_deleted += cache_delete_pattern(pattern)
 
     return total_deleted
+
+
+# ─────────────────────────────────────────
+# Session management
+# ─────────────────────────────────────────
+
+SESSION_KEY_PREFIX = "session:"
+SESSION_TTL_SECONDS = 8 * 3600  # 8 hours
+
+
+def _session_key(user_id: str, session_id: str) -> str:
+    return f"{SESSION_KEY_PREFIX}{user_id}:{session_id}"
+
+
+def write_session(user_id: str, session_id: str) -> None:
+    """Store a session in Redis. Called on login."""
+    client = get_redis_client()
+    client.setex(_session_key(user_id, session_id), SESSION_TTL_SECONDS, "1")
+
+
+def validate_session(user_id: str, session_id: str) -> bool:
+    """Check if a session exists and extend its TTL (sliding window)."""
+    client = get_redis_client()
+    key = _session_key(user_id, session_id)
+    if not client.exists(key):
+        return False
+    client.expire(key, SESSION_TTL_SECONDS)
+    return True
+
+
+def delete_user_sessions(user_id: str) -> int:
+    """Delete ALL sessions for a user. Used when disabling account or changing password."""
+    pattern = f"{SESSION_KEY_PREFIX}{user_id}:*"
+    return cache_delete_pattern(pattern)
+
+
+def revoke_session(user_id: str, session_id: str) -> bool:
+    """Revoke a specific session."""
+    client = get_redis_client()
+    key = _session_key(user_id, session_id)
+    return bool(client.delete(key))

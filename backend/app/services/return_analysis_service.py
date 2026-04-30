@@ -174,7 +174,7 @@ def persist_return_report(
                     ReturnAnalysisRecord.project_id == project_id,
                     ReturnAnalysisRecord.country == country,
                     ReturnAnalysisRecord.return_date == marker_date,
-                    ReturnAnalysisRecord.is_upload_marker == True,
+                    ReturnAnalysisRecord.order_id == "__MARKER__",
                 )
             ).fetchone()
             if existing:
@@ -203,9 +203,20 @@ def persist_return_report(
                 license_plate_number=None,
                 original_return_datetime="1970-01-01T00:00:00+00:00",
                 is_current=True,
-                is_upload_marker=True,
             )
             db.add(marker)
+            db.commit()
+            from app.models.report_upload_log import ReportUploadLog
+            db.add(ReportUploadLog(
+                project_id=project_id,
+                report_type="return_report",
+                country=country,
+                upload_date=date.today(),
+                has_real_data=False,
+                row_count=0,
+                source_file_id=None,
+                original_filename=original_filename,
+            ))
             db.commit()
             return {
                 "success": True,
@@ -262,6 +273,20 @@ def persist_return_report(
 
             inserted_ids.append(record.id)
 
+        db.commit()
+
+        # 写入上传日志
+        from app.models.report_upload_log import ReportUploadLog
+        db.add(ReportUploadLog(
+            project_id=project_id,
+            report_type="return_report",
+            country=country,
+            upload_date=date.today(),
+            has_real_data=len(inserted_ids) > 0,
+            row_count=len(inserted_ids),
+            source_file_id=None,
+            original_filename=original_filename,
+        ))
         db.commit()
 
         # 计算日期范围

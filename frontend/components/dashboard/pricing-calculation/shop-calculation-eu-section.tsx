@@ -4,13 +4,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { Package, Search } from 'lucide-react'
 
 import { Skeleton } from '@/components/ui/skeleton'
-import { StoreAccountingEuTable } from '@/components/dashboard/pricing-calculation/store-accounting-eu-table'
+import { ShopCalculationEuTable } from '@/components/dashboard/pricing-calculation/shop-calculation-eu-table'
 import type {
   PricingCalculationRunItem,
   ProductCostItem,
   ProductCostsResponse,
   ProjectManageOption,
-  StoreAccountingItem,
+  ShopCalculationItem,
 } from '@/lib/pricing-calculation-types'
 
 const API_BASE = '/api/backend'
@@ -80,7 +80,7 @@ async function requestEUPricingCalculation(payload: {
 }
 
 async function requestSaveSnapshot(payload: Record<string, unknown>): Promise<unknown> {
-  const response = await fetch(`${API_BASE}/api/v1/store-accounting`, {
+  const response = await fetch(`${API_BASE}/api/v1/shop-calculation`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -92,9 +92,9 @@ async function requestSaveSnapshot(payload: Record<string, unknown>): Promise<un
   return response.json()
 }
 
-/** Convert a StoreAccountingItem (from DB) to a PricingCalculationRunItem */
+/** Convert a ShopCalculationItem (from DB) to a PricingCalculationRunItem */
 function snapshotToResult(
-  snapshot: StoreAccountingItem,
+  snapshot: ShopCalculationItem,
   projectName: string,
 ): PricingCalculationRunItem {
   return {
@@ -136,7 +136,7 @@ function snapshotToResult(
   }
 }
 
-interface StoreAccountingEuSectionProps {
+interface ShopCalculationEuSectionProps {
   selectedCountry: string
   projects: ProjectManageOption[]
   projectsLoading: boolean
@@ -149,7 +149,7 @@ interface StoreAccountingEuSectionProps {
   onHasCalculatedRowsChange?: (hasRows: boolean) => void
 }
 
-export function StoreAccountingEuSection({
+export function ShopCalculationEuSection({
   selectedCountry,
   projects,
   projectsLoading,
@@ -159,7 +159,7 @@ export function StoreAccountingEuSection({
   onSkuKeywordChange,
   onDataReady,
   onHasCalculatedRowsChange,
-}: StoreAccountingEuSectionProps) {
+}: ShopCalculationEuSectionProps) {
   const [storeSkus, setStoreSkus] = useState<ProductCostItem[]>([])
   const [storeSkusLoading, setStoreSkusLoading] = useState(false)
   const [storeSkusError, setStoreSkusError] = useState<string | null>(null)
@@ -197,7 +197,7 @@ export function StoreAccountingEuSection({
           fetch(`/api/exchange-rates?currency=${selectedCountry === 'DE' ? 'EUR' : selectedCountry === 'UK' ? 'GBP' : 'USD'}&page=1&pageSize=1`, { cache: 'no-store' }),
           // Load existing EU snapshots
           fetch(
-            `${API_BASE}/api/v1/store-accounting?project_id=${selectedProjectId}&country=${selectedCountry}&page=1&page_size=200`,
+            `${API_BASE}/api/v1/shop-calculation?project_id=${selectedProjectId}&country=${selectedCountry}&page=1&page_size=200`,
             { cache: 'no-store' },
           ),
         ])
@@ -216,15 +216,15 @@ export function StoreAccountingEuSection({
         setStoreSkus(euSkus)
 
         // Parse existing snapshots
-        let snapshotPayload: { items?: StoreAccountingItem[]; total?: number } = { items: [] }
+        let snapshotPayload: { items?: ShopCalculationItem[]; total?: number } = { items: [] }
         if (snapshotSearch.ok) {
-          snapshotPayload = await snapshotSearch.json() as { items?: StoreAccountingItem[]; total?: number }
+          snapshotPayload = await snapshotSearch.json() as { items?: ShopCalculationItem[]; total?: number }
         } else {
           const body = await snapshotSearch.text().catch(() => '')
-          console.error('[eu-store-accounting] 快照加载失败:', snapshotSearch.status, body)
+          console.error('[eu-shop-calculation] 快照加载失败:', snapshotSearch.status, body)
           setSnapshotError(`店铺历史加载失败（HTTP ${snapshotSearch.status}），价格信息可能无法显示`)
         }
-        const snapshotMap = new Map<string, StoreAccountingItem>()
+        const snapshotMap = new Map<string, ShopCalculationItem>()
         for (const s of snapshotPayload.items ?? []) {
           snapshotMap.set(s.sku, s)
         }
@@ -518,7 +518,7 @@ export function StoreAccountingEuSection({
               )}
             </div>
           ) : (
-            <StoreAccountingEuTable
+            <ShopCalculationEuTable
               items={filteredSkus}
               rowStates={storeRows}
               onDraftChange={updateDraft}

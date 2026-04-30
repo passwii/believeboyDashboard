@@ -46,42 +46,41 @@ from app.shared.utils import (
     parse_yyyy_mm_dd as _parse_yyyy_mm_dd,
 )
 
-PERIODIC_REPORT_TYPES = {'business_report', 'payment_report', AD_PRODUCT_REPORT, 'sales_report'}
-ALL_REPORT_TYPES = PERIODIC_REPORT_TYPES | {'inventory_report'}
-SCOPE_INCLUDED = 'included_product'
-SCOPE_EXCLUDED_STORE = 'excluded_store_level'
-SCOPE_EXCLUDED_UNMAPPED = 'excluded_unmapped'
-OPENPYXL_MISSING_DEFAULT_STYLE_WARNING = r"Workbook contains no default style, apply openpyxl's default"
-INVENTORY_PROJECT_MATCH_MIN_ROWS = 5
-INVENTORY_PROJECT_MATCH_MIN_RATIO = 0.6
+# Shared parsers — single source of truth (backend/app/shared/parsers.py)
+from app.shared.parsers import (
+    SCOPE_INCLUDED,
+    SCOPE_EXCLUDED_STORE,
+    SCOPE_EXCLUDED_UNMAPPED,
+    COUNTRY_TIMEZONE as _COUNTRY_TIMEZONE,
+    COUNTRY_ALIASES as _COUNTRY_ALIASES,
+    INVENTORY_PROJECT_MATCH_MIN_ROWS,
+    INVENTORY_PROJECT_MATCH_MIN_RATIO,
+    PT_TIMEZONE,
+    normalize_country as _normalize_country,
+    match_columns as _match_columns,
+    classify_scope as _classify_scope,
+    build_aging_status as _build_aging_status,
+    is_counted_sales_status as _is_counted_sales_status,
+    parse_transaction_at as _parse_transaction_at,
+    read_excel_no_warning as _read_excel_no_warning,
+    parse_business_rows as _parse_business_rows,
+    parse_payment_rows as _parse_payment_rows,
+    parse_ad_rows as _parse_ad_rows,
+    parse_inventory_rows as _parse_inventory_rows,
+    parse_sales_rows as _parse_sales_rows,
+    validate_inventory_rows_against_project_mapping as _validate_inventory_rows_against_project_mapping,
+)
+from app.shared.recognition import _read_payment_report
 
-PT_TIMEZONE = ZoneInfo('America/Los_Angeles')
-COUNTRY_TIMEZONE = {
-    'US': PT_TIMEZONE,
-    'DE': ZoneInfo('Europe/Berlin'),
-    'UK': ZoneInfo('Europe/London'),
-}
-COUNTRY_ALIASES = {
-    'US': 'US',
-    'USA': 'US',
-    '美国': 'US',
-    '美国站': 'US',
-    'DE': 'DE',
-    'GERMANY': 'DE',
-    '德国': 'DE',
-    '德国站': 'DE',
-    'UK': 'UK',
-    'GB': 'UK',
-    'UNITED KINGDOM': 'UK',
-    '英国': 'UK',
-    '英国站': 'UK',
-}
-TZ_OFFSET_BY_ABBR = {
-    'UTC': 0,
-    'GMT': 0,
-    'PST': -8,
-    'PDT': -7,
-}
+# Shared persist helpers — single source of truth (backend/app/shared/persist_helpers.py)
+from app.shared.persist_helpers import (
+    PERIODIC_REPORT_TYPES,
+    next_version as _next_version,
+    replace_current_pointer as _replace_current_pointer,
+    write_report_upload_log as _write_report_upload_log,
+)
+
+ALL_REPORT_TYPES = PERIODIC_REPORT_TYPES | {'inventory_report'}
 
 _SQLITE_TABLES_READY = False
 _SQLITE_TABLES_LOCK = threading.Lock()
@@ -758,9 +757,16 @@ def persist_sales_report_by_purchase_date(
             row_count_total=0,
             row_count_included=0,
             created_by=(created_by or '').strip()[:255] or None,
-            is_upload_marker=True,
         )
         db.add(source)
+        db.commit()
+        _write_report_upload_log(
+            db, project.id, normalized_country, 'sales_report',
+            source_file_id=source.id,
+            has_real_data=False,
+            row_count=0,
+            original_filename=upload_file_id,
+        )
         db.commit()
         return {
             'success': True,
@@ -860,6 +866,14 @@ def persist_sales_report_by_purchase_date(
         latest_source_id = source.id
         latest_report_date = report_date
 
+    db.commit()
+    _write_report_upload_log(
+        db, project.id, normalized_country, 'sales_report',
+        source_file_id=latest_source_id,
+        has_real_data=total > 0,
+        row_count=total,
+        original_filename=upload_file_id,
+    )
     db.commit()
     report_dates = sorted(grouped_rows)
     return {
@@ -1117,7 +1131,8 @@ def _persist_one_source_file(
             if rows:
                 db.execute(insert(AnalysisBusinessRow), rows)
         elif report_type == 'payment_report':
-            rows, total, included = _parse_payment_rows(path, source.id, known_skus, known_asins)
+            df = _read_payment_report(path)
+            rows, total, included = _parse_payment_rows(df, source.id, known_skus, known_asins)
             if rows:
                 db.execute(insert(AnalysisPaymentRow), rows)
         elif report_type == AD_PRODUCT_REPORT:
@@ -1162,50 +1177,6 @@ def _persist_one_source_file(
         source.superseded_at = None
         db.flush()
         return SourcePersistOutcome(report_type=report_type, source_id=source.id, success=False, error_message=str(exc))
-def _replace_current_pointer(db: Session, source: AnalysisSourceFile) -> None:
-    conditions = [
-        AnalysisSourceFile.project_id == source.project_id,
-        AnalysisSourceFile.report_type == source.report_type,
-        AnalysisSourceFile.country == source.country,
-        AnalysisSourceFile.id != source.id,
-        AnalysisSourceFile.is_current.is_(True),
-    ]
-    if source.report_type in PERIODIC_REPORT_TYPES:
-        conditions.extend(
-            [
-                AnalysisSourceFile.period_start_date == source.period_start_date,
-                AnalysisSourceFile.period_end_date == source.period_end_date,
-            ]
-        )
-    db.execute(
-        sa_update(AnalysisSourceFile)
-        .where(*conditions)
-        .values(
-            is_current=False,
-            superseded_at=datetime.now(UTC),
-        )
-    )
-def _next_version(
-    db: Session,
-    *,
-    project_id: int,
-    report_type: str,
-    country: str,
-    period_start_date: date | None,
-    period_end_date: date | None,
-) -> int:
-    stmt = select(func.max(AnalysisSourceFile.version)).where(
-        AnalysisSourceFile.project_id == project_id,
-        AnalysisSourceFile.report_type == report_type,
-        AnalysisSourceFile.country == country,
-    )
-    if report_type in PERIODIC_REPORT_TYPES:
-        stmt = stmt.where(
-            AnalysisSourceFile.period_start_date == period_start_date,
-            AnalysisSourceFile.period_end_date == period_end_date,
-        )
-    value = db.execute(stmt).scalar_one_or_none()
-    return int(value or 0) + 1
 def _next_pt1_version(
     db: Session,
     *,
@@ -1629,334 +1600,6 @@ def _build_pt_sku_detail_rows(details: Any) -> list[dict[str, Any]]:
     return payloads
 
 
-def _parse_business_rows(path: Path, source_file_id: int) -> tuple[list[dict[str, Any]], int, int]:
-    df = pd.read_csv(path, encoding='utf-8-sig')
-    df.columns = [str(col).strip() for col in df.columns]
-
-    aliases = {
-        'asin': ['（子）ASIN', '(子)ASIN', '子ASIN', 'ASIN'],
-        'page_views': ['页面浏览量 - 总计', '页面浏览量-总计', 'Page Views - Total'],
-        'units_ordered': ['已订购商品数量', 'Ordered Product Sales Units', 'Units Ordered'],
-        'sessions': ['会话数 - 总计', '会话数-总计', 'Sessions - Total'],
-        'ordered_sales_amount': ['已订购商品销售额', 'Ordered Product Sales', 'Ordered Product Sales Amount'],
-    }
-    mapped = _match_columns(df.columns, aliases, 'Business report')
-
-    payloads: list[dict[str, Any]] = []
-    for index, row in df.iterrows():
-        amount = _to_decimal_with_currency(row.get(mapped['ordered_sales_amount']))
-        payloads.append(
-            {
-                'source_file_id': source_file_id,
-                'source_row_no': int(index) + 1,
-                'asin': _normalize_text(row.get(mapped['asin'])),
-                'page_views': _to_int(row.get(mapped['page_views'])),
-                'units_ordered': _to_int(row.get(mapped['units_ordered'])),
-                'sessions': _to_int(row.get(mapped['sessions'])),
-                'ordered_sales_amount': amount,
-                'raw_row': _to_raw_row(row.to_dict()),
-            }
-        )
-    total = len(payloads)
-    return payloads, total, total
-
-
-def _read_excel_without_style_warning(path: Path) -> pd.DataFrame:
-    with warnings.catch_warnings():
-        warnings.filterwarnings('ignore', message=OPENPYXL_MISSING_DEFAULT_STYLE_WARNING, category=UserWarning)
-        return pd.read_excel(path, engine='openpyxl')
-
-
-def _parse_payment_rows(
-    path: Path,
-    source_file_id: int,
-    known_skus: set[str],
-    known_asins: set[str],
-) -> tuple[list[dict[str, Any]], int, int]:
-    df = product_analysis_script._read_payment_report(path)
-
-    numeric_cols = [
-        'quantity',
-        'product sales',
-        'shipping credits',
-        'promotional rebates',
-        'other',
-        'selling fees',
-        'fba fees',
-    ]
-    if 'total' in df.columns:
-        numeric_cols.append('total')
-    for col in numeric_cols:
-        df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-
-    asin_col = 'asin' if 'asin' in df.columns else ('ASIN' if 'ASIN' in df.columns else None)
-    payloads: list[dict[str, Any]] = []
-    included = 0
-
-    for index, row in df.iterrows():
-        sku = _normalize_text(row.get('sku'))
-        asin = _normalize_text(row.get(asin_col)) if asin_col else None
-        scope_status, scope_reason = _classify_scope(sku=sku, asin=asin, known_skus=known_skus, known_asins=known_asins)
-        if scope_status == SCOPE_INCLUDED:
-            included += 1
-
-        total_amount = _to_decimal(row.get('total')) if 'total' in df.columns else _sum_decimals(
-            row.get('product sales'),
-            row.get('shipping credits'),
-            row.get('promotional rebates'),
-            row.get('other'),
-            row.get('selling fees'),
-            row.get('fba fees'),
-        )
-        payloads.append(
-            {
-                'source_file_id': source_file_id,
-                'source_row_no': int(index) + 1,
-                'transaction_at': _parse_transaction_at(row),
-                'transaction_type': _normalize_text(row.get('type')) or 'UNKNOWN',
-                'order_id': _normalize_text(row.get('order id') if 'order id' in df.columns else None),
-                'sku': sku,
-                'asin': asin,
-                'quantity': _to_int(row.get('quantity')),
-                'product_sales': _to_decimal(row.get('product sales')),
-                'shipping_credits': _to_decimal(row.get('shipping credits')),
-                'promotional_rebates': _to_decimal(row.get('promotional rebates')),
-                'other_amount': _to_decimal(row.get('other')),
-                'selling_fees': _to_decimal(row.get('selling fees')),
-                'fba_fees': _to_decimal(row.get('fba fees')),
-                'total_amount': total_amount,
-                'scope_status': scope_status,
-                'scope_reason': scope_reason,
-                'raw_row': _to_raw_row(row.to_dict()),
-            }
-        )
-
-    return payloads, len(payloads), included
-
-
-def _parse_ad_rows(
-    path: Path,
-    source_file_id: int,
-    known_skus: set[str],
-    known_asins: set[str],
-) -> tuple[list[dict[str, Any]], int, int]:
-    df = _read_excel_without_style_warning(path)
-    df.columns = [str(col).strip() for col in df.columns]
-
-    required = ['广告SKU', '展示量', '点击量', '花费', '7天总销售额', '7天总销售量(#)']
-    missing = [col for col in required if col not in df.columns]
-    if missing:
-        raise ValueError(f'Ad report missing required columns: {missing}')
-
-    payloads: list[dict[str, Any]] = []
-    included = 0
-    asin_col = '广告ASIN' if '广告ASIN' in df.columns else ('ASIN' if 'ASIN' in df.columns else None)
-
-    for index, row in df.iterrows():
-        sku = _normalize_text(row.get('广告SKU'))
-        asin = _normalize_text(row.get(asin_col)) if asin_col else None
-        scope_status, scope_reason = _classify_scope(sku=sku, asin=asin, known_skus=known_skus, known_asins=known_asins)
-        if scope_status == SCOPE_INCLUDED:
-            included += 1
-        payloads.append(
-            {
-                'source_file_id': source_file_id,
-                'source_row_no': int(index) + 1,
-                'sku': sku,
-                'asin': asin,
-                'impressions': _to_int(row.get('展示量')),
-                'clicks': _to_int(row.get('点击量')),
-                'spend': _to_decimal(row.get('花费')),
-                'sales_7d': _to_decimal(row.get('7天总销售额')),
-                'orders_7d': _to_int(row.get('7天总销售量(#)')),
-                'scope_status': scope_status,
-                'scope_reason': scope_reason,
-                'raw_row': _to_raw_row(row.to_dict()),
-            }
-        )
-    return payloads, len(payloads), included
-
-
-def _parse_inventory_rows(path: Path, source_file_id: int) -> tuple[list[dict[str, Any]], int, int]:
-    df = pd.read_csv(path, sep='\t', encoding='utf-8-sig')
-    df.columns = [str(col).strip() for col in df.columns]
-    keep = [
-        'sku',
-        'asin',
-        'available',
-        'inv-age-0-to-90-days',
-        'inv-age-91-to-180-days',
-        'inv-age-181-to-270-days',
-        'inv-age-271-to-365-days',
-        'inv-age-365-plus-days',
-        'recommended-action',
-    ]
-    existing = [col for col in keep if col in df.columns]
-    if not existing:
-        raise ValueError('Inventory report missing required columns')
-
-    payloads: list[dict[str, Any]] = []
-    for index, row in df.iterrows():
-        available_qty = _to_int(row.get('available'))
-        age_0_90 = _to_int(row.get('inv-age-0-to-90-days'))
-        age_91_180 = _to_int(row.get('inv-age-91-to-180-days'))
-        age_181_270 = _to_int(row.get('inv-age-181-to-270-days'))
-        age_271_365 = _to_int(row.get('inv-age-271-to-365-days'))
-        age_365_plus = _to_int(row.get('inv-age-365-plus-days'))
-        stock_status = 'out_of_stock' if available_qty <= 0 else 'in_stock'
-        aging_status = _build_aging_status(
-            age_91_180=age_91_180,
-            age_181_270=age_181_270,
-            age_271_365=age_271_365,
-            age_365_plus=age_365_plus,
-        )
-        payloads.append(
-            {
-                'source_file_id': source_file_id,
-                'source_row_no': int(index) + 1,
-                'sku': _normalize_text(row.get('sku')),
-                'asin': _normalize_text(row.get('asin')),
-                'available_qty': available_qty,
-                'age_0_90_qty': age_0_90,
-                'age_91_180_qty': age_91_180,
-                'age_181_270_qty': age_181_270,
-                'age_271_365_qty': age_271_365,
-                'age_365_plus_qty': age_365_plus,
-                'recommended_action': _normalize_text(row.get('recommended-action')),
-                'stock_status': stock_status,
-                'aging_status': aging_status,
-                'raw_row': _to_raw_row(row.to_dict()),
-            }
-        )
-    total = len(payloads)
-    return payloads, total, total
-
-
-def _validate_inventory_rows_against_project_mapping(
-    rows: list[dict[str, Any]],
-    *,
-    project_name: str,
-    country: str,
-    known_skus: set[str],
-    known_asins: set[str],
-) -> None:
-    if not known_skus and not known_asins:
-        return
-
-    identifiable_rows = 0
-    matched_rows = 0
-    sample_unmatched: list[str] = []
-
-    for row in rows:
-        sku = _normalize_identity(row.get('sku'))
-        asin = _normalize_identity(row.get('asin'))
-        if not sku and not asin:
-            continue
-        identifiable_rows += 1
-        if sku in known_skus or asin in known_asins:
-            matched_rows += 1
-            continue
-        if len(sample_unmatched) < 5:
-            sample_unmatched.append(str(row.get('sku') or row.get('asin') or 'UNKNOWN'))
-
-    if identifiable_rows == 0:
-        raise ValueError(
-            f'Inventory report validation failed: no identifiable SKU/ASIN rows found for project {project_name} ({country})'
-        )
-
-    match_ratio = matched_rows / identifiable_rows
-    if matched_rows == 0 or (
-        identifiable_rows >= INVENTORY_PROJECT_MATCH_MIN_ROWS
-        and match_ratio < INVENTORY_PROJECT_MATCH_MIN_RATIO
-    ):
-        sample_text = ', '.join(sample_unmatched) if sample_unmatched else 'N/A'
-        raise ValueError(
-            'Inventory report validation failed: '
-            f'{matched_rows}/{identifiable_rows} rows matched active SKU info for project {project_name} ({country}), '
-            f'match rate {match_ratio:.0%}. '
-            f'Please confirm the inventory file belongs to the selected project. '
-            f'Unmatched sample: {sample_text}'
-        )
-
-
-def _parse_sales_rows(
-    path: Path,
-    source_file_id: int,
-    count_as_of_date_pt: date | None,
-    *,
-    country: str = 'US',
-) -> tuple[list[dict[str, Any]], int, int]:
-    df = pd.read_csv(path, sep='\t', encoding='utf-8-sig')
-    df.columns = [str(col).strip() for col in df.columns]
-    required = ['amazon-order-id', 'purchase-date', 'order-status', 'sku', 'asin', 'quantity', 'item-price']
-    missing = [col for col in required if col not in df.columns]
-    if missing:
-        raise ValueError(f'Sales report missing required columns: {missing}')
-
-    normalized_country = _normalize_country(country)
-    local_tz = COUNTRY_TIMEZONE.get(normalized_country, PT_TIMEZONE)
-    effective_as_of = count_as_of_date_pt or datetime.now(UTC).astimezone(local_tz).date()
-    payloads: list[dict[str, Any]] = []
-    included = 0
-
-    for index, row in df.iterrows():
-        order_id = _normalize_text(row.get('amazon-order-id'))
-        parsed_utc = pd.to_datetime(row.get('purchase-date'), utc=True, errors='coerce')
-        if order_id is None or pd.isna(parsed_utc):
-            continue
-
-        purchase_at_utc = parsed_utc.to_pydatetime()
-        purchase_at_local_aware = purchase_at_utc.astimezone(local_tz)
-        purchase_at_pt = purchase_at_local_aware.replace(tzinfo=None)
-        purchase_date_pt = purchase_at_local_aware.date()
-        status_text = (_normalize_text(row.get('order-status')) or '').strip()
-        is_counted = _is_counted_sales_status(status_text, purchase_date_pt, effective_as_of)
-        if is_counted:
-            included += 1
-
-        payloads.append(
-            {
-                'source_file_id': source_file_id,
-                'source_row_no': int(index) + 1,
-                'amazon_order_id': order_id,
-                'purchase_at_utc': purchase_at_utc,
-                'purchase_at_pt': purchase_at_pt,
-                'purchase_date_pt': purchase_date_pt,
-                'order_status': status_text or 'UNKNOWN',
-                'sku': _normalize_text(row.get('sku')),
-                'asin': _normalize_text(row.get('asin')),
-                'quantity': _to_int(row.get('quantity')),
-                'item_price': _to_decimal(row.get('item-price')),
-                'shipping_price': _to_decimal(row.get('shipping-price')),
-                'currency': _normalize_text(row.get('currency')),
-                'is_counted_sales': is_counted,
-                'status_rule_version': 1,
-                'raw_row': _to_raw_row(row.to_dict()),
-            }
-        )
-    return payloads, len(payloads), included
-
-
-def _is_counted_sales_status(status: str, purchase_date_pt: date, as_of_date_pt: date) -> bool:
-    normalized = status.strip().lower()
-    if normalized in {'cancelled', 'canceled'}:
-        return False
-    age_days = (as_of_date_pt - purchase_date_pt).days
-    if age_days <= 2:
-        return normalized in {'pending', 'unshipped', 'shipped'}
-    return normalized == 'shipped'
-
-
-def _normalize_country(value: str | None) -> str:
-    normalized = (value or '').strip().upper()
-    if not normalized:
-        return 'US'
-    mapped = COUNTRY_ALIASES.get(normalized, normalized)
-    if mapped not in {'US', 'DE', 'UK'}:
-        raise ValueError('country must be one of: US, DE, UK')
-    return mapped
-
-
 def _load_project_product_mapping(db: Session, project_name: str, country: str = 'US') -> tuple[set[str], set[str]]:
     rows = db.execute(
         select(ProductCost.sku, ProductCost.asin).where(
@@ -1981,100 +1624,6 @@ def _get_project_by_name(db: Session, project_name: str) -> Project:
 
 
 # _parse_yyyy_mm_dd is imported from shared (via alias at top of file)
-
-
-def _classify_scope(
-    *,
-    sku: str | None,
-    asin: str | None,
-    known_skus: set[str],
-    known_asins: set[str],
-) -> tuple[str, str | None]:
-    norm_sku = _normalize_identity(sku)
-    norm_asin = _normalize_identity(asin)
-    if not norm_sku and not norm_asin:
-        return SCOPE_EXCLUDED_STORE, 'missing sku/asin'
-    if norm_sku in known_skus or norm_asin in known_asins:
-        return SCOPE_INCLUDED, None
-    return SCOPE_EXCLUDED_UNMAPPED, 'sku/asin not found in product_costs'
-
-
-def _build_aging_status(
-    *,
-    age_91_180: int,
-    age_181_270: int,
-    age_271_365: int,
-    age_365_plus: int,
-) -> str:
-    if age_365_plus > 0:
-        return 'over_aged'
-    if age_91_180 + age_181_270 + age_271_365 > 0:
-        return 'aging'
-    return 'fresh'
-
-
-# _project_slug, _build_logical_filename, _build_storage_key, _sha256_file
-# are imported from shared (via aliases at top of file)
-
-
-def _restore_original_filename(file_id: str) -> str | None:
-    value = (file_id or '').strip()
-    if not value:
-        return None
-    parts = value.split('_', 1)
-    if len(parts) == 2 and len(parts[0]) == 32:
-        return parts[1]
-    return value
-
-
-def _match_columns(columns: list[str], aliases: dict[str, list[str]], label: str) -> dict[str, str]:
-    mapped: dict[str, str] = {}
-    for target, candidates in aliases.items():
-        for candidate in candidates:
-            if candidate in columns:
-                mapped[target] = candidate
-                break
-    missing = [key for key in aliases if key not in mapped]
-    if missing:
-        raise ValueError(f'{label} missing required columns: {missing}')
-    return mapped
-
-
-# _normalize_text, _normalize_identity, _to_int, _to_decimal,
-# _to_decimal_with_currency, _sum_decimals are imported from shared
-# (via aliases at top of file)
-
-
-def _parse_transaction_at(row: Any) -> datetime | None:
-    for key in ('date/time', 'transaction date', 'transaction_date', 'date'):
-        if key not in row:
-            continue
-        value = row.get(key)
-        if value is None:
-            continue
-        parsed = _parse_utc_timestamp(value)
-        if pd.isna(parsed):
-            continue
-        return parsed.to_pydatetime()
-    return None
-
-
-def _parse_utc_timestamp(value: Any) -> pd.Timestamp:
-    text = _normalize_text(value)
-    if text is None:
-        return pd.NaT
-
-    parts = text.rsplit(' ', 1)
-    if len(parts) == 2 and parts[1] in TZ_OFFSET_BY_ABBR:
-        try:
-            naive = datetime.strptime(parts[0], '%b %d, %Y %I:%M:%S %p')
-        except ValueError:
-            pass
-        else:
-            tz = timezone(timedelta(hours=TZ_OFFSET_BY_ABBR[parts[1]]))
-            return pd.Timestamp(naive.replace(tzinfo=tz).astimezone(UTC))
-
-    return pd.to_datetime(text, utc=True, errors='coerce')
 
 
 # _to_raw_row is imported from shared (via alias at top of file)

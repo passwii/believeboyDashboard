@@ -6,16 +6,16 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import StoreAccounting
-from app.schemas.store_accounting import (
-    StoreAccountingCreateRequest,
-    StoreAccountingItem,
+from app.models.shop_calculation import ShopCalculation
+from app.schemas.shop_calculation import (
+    ShopCalculationCreateRequest,
+    ShopCalculationItem,
 )
 
 
-def _to_item(row: StoreAccounting) -> StoreAccountingItem:
+def _to_item(row: ShopCalculation) -> ShopCalculationItem:
     """将数据库模型转换为 API 响应"""
-    return StoreAccountingItem(
+    return ShopCalculationItem(
         id=row.id,
         project_id=row.project_id,
         project_name=row.project_name,
@@ -94,16 +94,16 @@ def _to_item(row: StoreAccounting) -> StoreAccountingItem:
 
 def upsert(
     db: Session,
-    payload: StoreAccountingCreateRequest,
+    payload: ShopCalculationCreateRequest,
     *,
     operator: str | None = None,
-) -> StoreAccountingItem:
-    """创建或更新店铺核算（upsert），按 (project_id, sku, country) 唯一键"""
+) -> ShopCalculationItem:
+    """创建或更新店铺测算（upsert），按 (project_id, sku, country) 唯一键"""
     existing = db.execute(
-        select(StoreAccounting).where(
-            StoreAccounting.project_id == payload.project_id,
-            StoreAccounting.sku == payload.sku,
-            StoreAccounting.country == payload.country,
+        select(ShopCalculation).where(
+            ShopCalculation.project_id == payload.project_id,
+            ShopCalculation.sku == payload.sku,
+            ShopCalculation.country == payload.country,
         )
     ).scalar_one_or_none()
 
@@ -121,10 +121,10 @@ def upsert(
 
 
 def _create(
-    payload: StoreAccountingCreateRequest,
+    payload: ShopCalculationCreateRequest,
     operator: str | None,
-) -> StoreAccounting:
-    return StoreAccounting(
+) -> ShopCalculation:
+    return ShopCalculation(
         project_id=payload.project_id,
         project_name=payload.project_name,
         sku=payload.sku,
@@ -189,8 +189,8 @@ def _create(
 
 
 def _update(
-    existing: StoreAccounting,
-    payload: StoreAccountingCreateRequest,
+    existing: ShopCalculation,
+    payload: ShopCalculationCreateRequest,
     operator: str | None,
 ) -> None:
     existing.asin = payload.asin
@@ -259,23 +259,23 @@ def list_by_project(
     country: str | None = None,
     page: int = 1,
     page_size: int = 200,
-) -> tuple[list[StoreAccountingItem], int]:
-    """查询店铺核算列表"""
+) -> tuple[list[ShopCalculationItem], int]:
+    """查询店铺测算列表"""
     safe_page = max(page, 1)
     safe_page_size = min(max(page_size, 1), 500)
 
-    stmt = select(StoreAccounting)
+    stmt = select(ShopCalculation)
 
     if project_id is not None:
-        stmt = stmt.where(StoreAccounting.project_id == project_id)
+        stmt = stmt.where(ShopCalculation.project_id == project_id)
     if country is not None:
-        stmt = stmt.where(StoreAccounting.country == country)
+        stmt = stmt.where(ShopCalculation.country == country)
 
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = int(db.execute(count_stmt).scalar_one() or 0)
 
     rows = db.execute(
-        stmt.order_by(StoreAccounting.updated_at.desc(), StoreAccounting.id.desc())
+        stmt.order_by(ShopCalculation.updated_at.desc(), ShopCalculation.id.desc())
         .offset((safe_page - 1) * safe_page_size)
         .limit(safe_page_size)
     ).scalars().all()
