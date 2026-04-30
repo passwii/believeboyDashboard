@@ -32,7 +32,8 @@ function toFrontendUser(item: UserItem) {
   }
 }
 
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const session = await requireAdminSession()
   if (!session) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
@@ -56,13 +57,13 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     return NextResponse.json({ message: '密码长度至少 8 位' }, { status: 400 })
   }
 
-  if (params.id === session.user.id && body.isActive === false) {
+  if (id === session.user.id && body.isActive === false) {
     return NextResponse.json({ message: '不能停用当前登录账号' }, { status: 400 })
   }
 
   try {
     const data = await backendFetchJson<{ item: UserItem }>(
-      `/api/v1/system-management/users/${params.id}`,
+      `/api/v1/system-management/users/${id}`,
       {
         method: 'PATCH',
         headers: {
@@ -88,7 +89,8 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   }
 }
 
-export async function DELETE(_: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const session = await requireAdminSession()
   if (!session) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
@@ -100,7 +102,7 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
   }
 
   const baseUrl = getBackendBaseUrl()
-  const response = await fetch(`${baseUrl}/api/v1/system-management/users/${params.id}`, {
+  const response = await fetch(`${baseUrl}/api/v1/system-management/users/${id}`, {
     method: 'DELETE',
     headers: {
       'X-API-Key': apiKey,

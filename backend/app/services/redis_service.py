@@ -180,7 +180,7 @@ def close_redis_client() -> None:
 
 
 PRESENCE_KEY_PREFIX = "presence:user:"
-PRESENCE_TTL_SECONDS = 120
+PRESENCE_TTL_SECONDS = 90  # 90s: matches frontend 30s heartbeat interval
 
 
 def _get_presence_key(user_id: str) -> str:

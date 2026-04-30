@@ -13,14 +13,15 @@ import {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
+  const { path } = await params
   const session = await requireUserSession()
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const joinedPath = Array.isArray(params.path) ? params.path.join('/') : ''
+  const joinedPath = Array.isArray(path) ? path.join('/') : ''
   if (!joinedPath) {
     return NextResponse.json({ error: 'Invalid image path' }, { status: 400 })
   }

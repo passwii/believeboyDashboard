@@ -86,20 +86,24 @@ async def request_logging_middleware(request: Request, call_next):
         status_code = response.status_code if response is not None else 500
 
         if request.method != 'OPTIONS':
-            operator = unquote(request.headers.get('X-Operator', '')).strip()
-            log_parts = [
-                f'[{status_code}]',
-                request.method,
-                request.url.path,
-                f'{duration_ms}ms',
-            ]
-            if operator:
-                log_parts.append(f'operator={operator}')
-            if error_message:
-                log_parts.append(f'error={error_message}')
+            # Skip logging for high-frequency, low-value endpoints
+            if request.url.path.endswith('/presence/heartbeat'):
+                pass  # Noisy, low-value - skip logging
             else:
-                log_parts.append(f'request_id={request_id[:8]}')
-            request_logger.info(' '.join(log_parts))
+                operator = unquote(request.headers.get('X-Operator', '')).strip()
+                log_parts = [
+                    f'[{status_code}]',
+                    request.method,
+                    request.url.path,
+                    f'{duration_ms}ms',
+                ]
+                if operator:
+                    log_parts.append(f'operator={operator}')
+                if error_message:
+                    log_parts.append(f'error={error_message}')
+                else:
+                    log_parts.append(f'request_id={request_id[:8]}')
+                request_logger.info(' '.join(log_parts))
 
         if response is not None:
             response.headers['X-Request-Id'] = request_id
