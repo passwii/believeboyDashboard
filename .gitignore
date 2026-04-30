@@ -31,6 +31,8 @@ update_extensions.sql
 /frontend/coverage/
 /frontend/.vercel/
 /frontend/.env*.local
+!/frontend/.env.local
+/frontend/.env.local.example
 /frontend/*.tsbuildinfo
 /frontend/next-env.d.ts
 

@@ -552,7 +552,6 @@ function ChartCodeBlock({ chartType, code, collectChartSvgs }: { chartType: stri
     }))
 
     const chartId = `line-${code.slice(0, 20)}`
-    const svgUrl = chartSvgRegistry.get(chartId)
 
     // During PNG export: render a self-contained static SVG so toPng captures it reliably.
     if (collectChartSvgs) {
@@ -608,17 +607,10 @@ function ChartCodeBlock({ chartType, code, collectChartSvgs }: { chartType: stri
           <div className="px-4 pb-3 pt-4">
             {/* Recharts needs one frame to register its SVG; use the pre-generated static SVG as the img src */}
             <div className="h-[260px] w-full">
-              {svgUrl ? (
-                // Already generated this cycle — show it immediately
-                // eslint-disable-next-line @next/next/no-img-element -- SVG data URLs can't use next/image
-                <img src={svgUrl} alt="趋势图表" className="h-full w-full object-contain" />
-              ) : (
-                // First render of this cycle — show placeholder, will be replaced on next frame
-                <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-                  <Sparkles className="h-5 w-5 animate-pulse" />
-                </div>
-              )}
-            </div>
+            {/* Use url directly like PieChart does — avoids timing issues with chartSvgRegistry */}
+            {/* eslint-disable-next-line @next/next/no-img-element -- SVG data URLs can't use next/image */}
+            <img src={url} alt="趋势图表" className="h-full w-full object-contain" />
+          </div>
           </div>
         </div>
       )
@@ -1205,15 +1197,14 @@ export default function AIInsightsPage() {
   const [isLoadingModelConfig, setIsLoadingModelConfig] = useState(false)
   const [selectedModel, setSelectedModel] = useState('')
   const streamingRef = useRef<HTMLDivElement>(null)
-  // Debounce batching: accumulate raw content in a ref, flush to state periodically
-  const streamingAccumRef = useRef('')
-  const [displayedContent, setDisplayedContent] = useState('')
 
-  // Inline streaming view state (replaces Dialog for new generations)
-  const [inlineViewingInsight, setInlineViewingInsight] = useState<InsightItem | null>(null)
-  const [isInlineEditing, setIsInlineEditing] = useState(false)
-  const [inlineEditingContent, setInlineEditingContent] = useState('')
-  const [isInlineSaving, setIsInlineSaving] = useState(false)
+  // Use a ref to accumulate streaming content (avoids React batching issues)
+  const streamingContentRef = useRef('')
+
+  // DEBUG: Log when streamingContent changes
+  useEffect(() => {
+    console.log('[DEBUG streamingContent] Updated, length:', streamingContent.length)
+  }, [streamingContent])
 
   // SSE state for the "view live generation" mode
   const viewEventSourceRef = useRef<EventSource | null>(null)
@@ -1430,7 +1421,6 @@ export default function AIInsightsPage() {
     if (!confirm('确定要重试生成这条洞察吗？当前内容将被替换。')) return
     setViewLiveRefreshing(true)
     setViewLiveContent('')
-    streamingAccumRef.current = ''
     setViewLiveSubStatus(null)
     setViewLiveError(null)
     // Mark as loading so the dialog shows a clean state while SSE connects
@@ -1549,46 +1539,6 @@ export default function AIInsightsPage() {
     setCollectChartSvgs(true) // triggers chart components to render <img> tags
   }, [])
 
-  // Inline edit handlers for the completed inline insight
-  const handleStartInlineEdit = useCallback(() => {
-    if (!inlineViewingInsight) return
-    setInlineEditingContent(inlineViewingInsight.content || '')
-    setIsInlineEditing(true)
-  }, [inlineViewingInsight])
-
-  const handleCancelInlineEdit = useCallback(() => {
-    setInlineEditingContent('')
-    setIsInlineEditing(false)
-  }, [])
-
-  const handleSaveInlineEdit = useCallback(async () => {
-    if (!inlineViewingInsight) return
-    const nextContent = inlineEditingContent.trim()
-    if (!nextContent) {
-      alert('报告内容不能为空')
-      return
-    }
-    setIsInlineSaving(true)
-    try {
-      const res = await fetch(`/api/backend/v1/ai-insights/${inlineViewingInsight.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: nextContent }),
-      })
-      if (!res.ok) throw new Error(await parseResponseError(res, '保存失败'))
-      const updated: InsightItem = await res.json()
-      setInlineViewingInsight(updated)
-      setInlineEditingContent(updated.content || '')
-      setIsInlineEditing(false)
-      void loadInsights()
-    } catch (e) {
-      console.error('Failed to save inline insight', e)
-      alert(`保存失败: ${e instanceof Error ? e.message : String(e)}`)
-    } finally {
-      setIsInlineSaving(false)
-    }
-  }, [inlineEditingContent, inlineViewingInsight, loadInsights])
-
   const _closeSse = useCallback(() => {
     if (eventSourceRef.current) {
       eventSourceRef.current.close()
@@ -1642,8 +1592,11 @@ export default function AIInsightsPage() {
             )
           )
         } else if (event.type === 'chunk') {
-          streamingAccumRef.current += event.delta || ''
-          // Scroll to bottom when content grows
+          const delta = event.delta || ''
+          if (!delta) return
+          // Directly set state - this works because we're inside EventSource callback
+          streamingContentRef.current += delta
+          setStreamingContent(streamingContentRef.current)
           setTimeout(() => {
             streamingRef.current?.scrollIntoView({ behavior: 'smooth' })
           }, 50)
@@ -1654,29 +1607,14 @@ export default function AIInsightsPage() {
             setInsights((prev) => prev.filter((i) => i.id !== sid))
           } else {
             setInsightDialogOpen(false)
-            // Set inline viewing insight for the completed result
-            setInlineViewingInsight({
-              id: sid!,
-              project_id: selectedProjectId as number,
-              project_name: selectedProjectName,
-              country: selectedCountry,
-              title: event.title || '洞察报告',
-              insight_type: insightType,
-              date_range_start: formatYMD(dateRange!.from!),
-              date_range_end: formatYMD(dateRange!.to!),
-              status: 'completed',
-              sub_status: null,
-              created_by: session?.user?.name || '',
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-              content: event.content ?? streamingAccumRef.current,
-            })
           }
-          // Flush accumulated content to state
-          const finalContent = event.content ?? streamingAccumRef.current
-          setStreamingContent(finalContent)
-          setDisplayedContent(finalContent)
+          // content 只从 done 事件获取，不再从 status 中途获取
+          if (event.content) {
+            setStreamingContent(event.content)
+            streamingContentRef.current = event.content
+          }
           setCurrentSubStatus(null)
+          streamingContentRef.current = '' // Reset ref after done
           _closeSse()
           void loadInsights()
         } else if (event.type === 'error') {
@@ -1707,47 +1645,7 @@ export default function AIInsightsPage() {
       es.onerror = null
       _attachedEses.current.delete(es)
     }
-  }, [_closeSse, eventSourceRef.current])
-
-  // Flush accumulated streaming content to React state every 200ms or when 100+ chars accumulated
-  useEffect(() => {
-    let rafId: number | null = null
-    let timerId: ReturnType<typeof setInterval> | null = null
-
-    const flush = () => {
-      const acc = streamingAccumRef.current
-      if (acc) {
-        setDisplayedContent(acc)
-        // Also keep streamingContent in sync for the done event handler
-        setStreamingContent(acc)
-      }
-    }
-
-    const scheduleFlush = () => {
-      if (rafId !== null) cancelAnimationFrame(rafId)
-      rafId = requestAnimationFrame(() => {
-        const acc = streamingAccumRef.current
-        if (acc.length > displayedContent.length + 100) {
-          flush()
-        }
-      })
-    }
-
-    // Time-based flush every 200ms
-    timerId = setInterval(() => {
-      if (streamingAccumRef.current.length > displayedContent.length) {
-        flush()
-      }
-    }, 200)
-
-    // Char-based flush: run on each chunk (via the effect dependency)
-    scheduleFlush()
-
-    return () => {
-      if (rafId !== null) cancelAnimationFrame(rafId)
-      if (timerId !== null) clearInterval(timerId)
-    }
-  }, [displayedContent, streamingContent])
+  }, [_closeSse])
 
   // Polling fallback: refresh processing insights every 10s in case SSE missed the done event
   useEffect(() => {
@@ -1777,12 +1675,9 @@ export default function AIInsightsPage() {
 
     setIsGenerating(true)
     setStreamingContent('')
-    setDisplayedContent('')
-    streamingAccumRef.current = ''
+    streamingContentRef.current = '' // Reset ref
     setCurrentSubStatus('data_aggregating')  // Immediately show step 1 as active
-    setInsightDialogOpen(false)  // Don't use dialog for new generations
-    setInlineViewingInsight(null)
-    setIsInlineEditing(false)
+    setInsightDialogOpen(true)
     currentInsightId.current = null
 
     try {
@@ -2147,109 +2042,128 @@ export default function AIInsightsPage() {
         </CardContent>
       </Card>
 
-      {/* Inline streaming generation view */}
-      {(currentSubStatus !== null || inlineViewingInsight !== null) && (
-        <Card className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
-          <CardHeader className="pb-4">
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                {currentSubStatus !== null ? (
-                  <>
-                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                    {selectedProjectName} - AI 洞察报告生成中
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-5 w-5 text-primary" />
-                    {inlineViewingInsight?.title ?? 'AI 洞察报告'}
-                  </>
-                )}
-              </CardTitle>
-              {/* Action buttons for completed inline insight */}
-              {currentSubStatus === null && inlineViewingInsight?.status === 'completed' && !isInlineEditing && (
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={handleStartInlineEdit}>
-                    <Pencil className="mr-1.5 h-4 w-4" />
-                    编辑
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => void handleExportPng()} disabled={isExporting}>
-                    {isExporting ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Image className="mr-1.5 h-4 w-4" />}
-                    导出图片
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => {
-                    setInlineViewingInsight(null)
-                    setIsInlineEditing(false)
-                  }}>
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent>
-            {isInlineEditing && inlineViewingInsight ? (
-              /* Inline edit mode: two-column preview + editor */
-              <div className="grid grid-cols-2 gap-4" style={{ height: '65vh' }}>
-                <div className="flex flex-col overflow-y-auto rounded-2xl border border-border/70 bg-background/60">
-                  <div className="sticky top-0 z-10 border-b border-border/40 bg-background/90 px-4 py-2.5 backdrop-blur-sm">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">预览</p>
-                  </div>
-                  <div className="flex-1 overflow-y-auto px-4 py-4">
-                    <MarkdownContent content={inlineEditingContent} collectChartSvgs={collectChartSvgs} />
-                  </div>
-                </div>
-                <div className="flex flex-col gap-3 min-h-0">
-                  <div className="shrink-0 flex items-center justify-between rounded-xl border border-border/70 bg-[hsl(var(--surface-soft))] px-4 py-3 text-sm text-muted-foreground">
-                    <span>
-                      直接编辑 Markdown 内容，支持表格、<code className="text-foreground">lineChart</code> /
-                      <code className="text-foreground">pieChart</code> 代码块实时预览。
-                    </span>
-                    <div className="flex items-center gap-2 ml-4 shrink-0">
-                      <Button variant="outline" size="sm" onClick={handleCancelInlineEdit} disabled={isInlineSaving}>
-                        <X className="mr-1.5 h-4 w-4" />
-                        取消
-                      </Button>
-                      <Button size="sm" onClick={() => void handleSaveInlineEdit()} disabled={isInlineSaving}>
-                        {isInlineSaving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
-                        保存
-                      </Button>
+      {/* Live generation progress dialog */}
+      {/* Use suppressHydrationWarning to handle SSR/CSR mismatch from Radix UI Dialog */}
+      <Dialog open={insightDialogOpen} onOpenChange={(open) => {
+        // SSE stays alive even when dialog closes — it continues updating the list
+        if (!open) setCurrentSubStatus(null)
+        setInsightDialogOpen(open)
+      }}>
+        <DialogContent
+          suppressHydrationWarning
+          className={cn(
+            'max-h-[80vh] overflow-y-auto',
+            // Expand width when streaming preview is active
+            currentSubStatus === 'ai_generating' && streamingContent.length > 0 ? 'max-w-5xl' : 'max-w-2xl'
+          )}
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Bot className="h-5 w-5" />
+              {selectedProjectName} - AI 洞察报告
+            </DialogTitle>
+          </DialogHeader>
+          <div className="mt-4">
+            {/* Phase 1: Data aggregation - only show stepper */}
+            {currentSubStatus === 'data_aggregating' && (
+              <GenerationProgress currentSubStatus={currentSubStatus} />
+            )}
+
+            {/* Phase 2: AI generating - split view with live preview */}
+            {currentSubStatus === 'ai_generating' && (
+              <div className="flex gap-6">
+                {/* Left: Progress stepper */}
+                <div className="w-64 shrink-0">
+                  <GenerationProgress currentSubStatus={currentSubStatus} />
+                  {/* Streaming indicator */}
+                  <div className="mt-4 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                      <span className="text-xs text-primary font-medium">实时接收中...</span>
+                    </div>
+                    <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>已接收</span>
+                      <span className="font-mono font-medium text-primary">{streamingContent.length}</span>
+                      <span>字符</span>
                     </div>
                   </div>
-                  <textarea
-                    value={inlineEditingContent}
-                    onChange={(e) => setInlineEditingContent(e.target.value)}
-                    spellCheck={false}
-                    className="flex-1 w-full rounded-2xl border border-border/70 bg-[hsl(var(--surface-panel))] px-4 py-4 font-mono text-sm leading-6 text-foreground shadow-sm outline-none transition focus:border-primary resize-none"
-                    placeholder="在此编辑 Markdown 内容..."
-                  />
+                </div>
+
+                {/* Right: Live Markdown preview - show plain text during streaming for performance */}
+                <div
+                  ref={streamingRef}
+                  className="flex-1 min-w-0 rounded-xl border border-border/70 bg-background/60 overflow-y-auto max-h-[60vh]"
+                >
+                  {streamingContent ? (
+                    <div className="p-4 font-mono text-sm leading-relaxed text-foreground whitespace-pre-wrap">
+                      {streamingContent}
+                      {/* Blinking cursor for streaming effect */}
+                      <span className="inline-block w-2 h-4 ml-1 bg-primary animate-pulse align-middle" />
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">
+                      AI 正在分析数据，即将开始生成洞察...
+                    </div>
+                  )}
                 </div>
               </div>
-            ) : currentSubStatus?.startsWith('data_aggregating') ? (
-              /* Phase 1: data aggregation — full-width stepper */
-              <GenerationProgress currentSubStatus={currentSubStatus} />
-            ) : (currentSubStatus === 'ai_generating' || currentSubStatus === 'title_generating') && displayedContent ? (
-              /* Phase 2-3: AI generating — left stepper + right live markdown */
-              <div className="flex gap-6">
-                <div className="w-[260px] shrink-0">
-                  <GenerationProgress currentSubStatus={currentSubStatus} />
+            )}
+
+            {/* Phase 3: Title generating - show completed content with actions */}
+            {(currentSubStatus === 'title_generating' || currentSubStatus === null) && streamingContent && (
+              <div className="space-y-4">
+                {/* Header with status */}
+                <div className="flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
+                  <Check className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <span className="text-sm text-emerald-700 font-medium">
+                    {currentSubStatus === 'title_generating' ? '洞察内容已生成，正在生成标题...' : '生成完成'}
+                  </span>
                 </div>
-                <div ref={streamingRef} className="min-w-0 flex-1 max-h-[65vh] overflow-y-auto">
-                  <MarkdownContent content={displayedContent} collectChartSvgs={collectChartSvgs} />
+
+                {/* Completed content */}
+                <div ref={streamingRef}>
+                  <MarkdownContent content={streamingContent} collectChartSvgs={collectChartSvgs} />
                 </div>
+
+                {/* Done state - show action buttons */}
+                {currentSubStatus === null && (
+                  <div className="flex items-center justify-end gap-2 pt-4 border-t">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setInsightDialogOpen(false)
+                        // Open view dialog to edit
+                        const sid = currentInsightId.current
+                        if (sid) void handleViewInsight(sid)
+                      }}
+                    >
+                      <Eye className="mr-1.5 h-4 w-4" />
+                      查看并编辑
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setInsightDialogOpen(false)
+                        // Refresh list to show the new insight
+                        void loadInsights()
+                      }}
+                    >
+                      <Check className="mr-1.5 h-4 w-4" />
+                      完成
+                    </Button>
+                  </div>
+                )}
               </div>
-            ) : (currentSubStatus === 'ai_generating' || currentSubStatus === 'title_generating') ? (
-              /* AI started but no content yet — stepper only */
+            )}
+
+            {/* Fallback: queued or unknown state */}
+            {!currentSubStatus && streamingContent === '' && (
               <GenerationProgress currentSubStatus={currentSubStatus} />
-            ) : currentSubStatus !== null ? (
-              /* Other sub-statuses (shouldn't normally happen, but safe fallback) */
-              <GenerationProgress currentSubStatus={currentSubStatus} />
-            ) : inlineViewingInsight?.content ? (
-              /* Phase 4: completed — full content inline */
-              <MarkdownContent content={inlineViewingInsight.content} collectChartSvgs={collectChartSvgs} />
-            ) : null}
-          </CardContent>
-        </Card>
-      )}
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* View historical insight dialog */}
       <Dialog
@@ -2266,10 +2180,13 @@ export default function AIInsightsPage() {
           }
         }}
       >
-        <DialogContent className={cn(
-          'max-h-[80vh] overflow-y-auto overflow-x-auto',
-          isEditingDetail ? 'max-w-[1350px]' : 'max-w-[675px]'
-        )}>
+        <DialogContent
+          suppressHydrationWarning
+          className={cn(
+            'max-h-[80vh] overflow-y-auto overflow-x-auto',
+            isEditingDetail ? 'max-w-[1350px]' : 'max-w-[675px]'
+          )}
+        >
           <DialogHeader>
             <div className="flex items-start justify-between gap-4">
               <div>
