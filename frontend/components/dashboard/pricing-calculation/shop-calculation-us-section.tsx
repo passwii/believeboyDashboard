@@ -6,7 +6,7 @@ import {
   Search,
 } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
-import { StoreAccountingTable } from '@/components/dashboard/pricing-calculation/store-accounting-table'
+import { ShopCalculationTable } from '@/components/dashboard/pricing-calculation/shop-calculation-table'
 import { logClientOperation } from '@/lib/operation-audit'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
 import { useNotifications } from '@/components/notifications'
@@ -15,12 +15,12 @@ import type {
   ProductCostItem,
   ProductCostsResponse,
   ProjectManageOption,
-  StoreAccountingItem,
+  ShopCalculationItem,
 } from '@/lib/pricing-calculation-types'
 import {
   requestPricingCalculation,
-  requestSaveStoreAccounting,
-  type StoreAccountingPayload,
+  requestSaveShopCalculation,
+  type ShopCalculationPayload,
 } from '@/lib/pricing-calculation-api'
 import { applyBorder, applyHeaderBorder } from '@/lib/excel-styles'
 
@@ -53,11 +53,11 @@ function toNumber(value: string) {
 }
 
 /**
- * Convert a StoreAccountingItem (from DB) to a PricingCalculationRunItem
+ * Convert a ShopCalculationItem (from DB) to a PricingCalculationRunItem
  * so it can be used as `result` in the table row state.
  */
 function snapshotToResult(
-  snapshot: StoreAccountingItem,
+  snapshot: ShopCalculationItem,
   projectName: string,
 ): PricingCalculationRunItem {
   return {
@@ -103,7 +103,7 @@ function buildSnapshotPayload(
   item: ProductCostItem,
   result: PricingCalculationRunItem,
   projectId: number,
-): StoreAccountingPayload {
+): ShopCalculationPayload {
   return {
     project_id: projectId,
     project_name: item.project_name,
@@ -159,7 +159,7 @@ function buildSnapshotPayload(
   }
 }
 
-interface StoreAccountingUsSectionProps {
+interface ShopCalculationUsSectionProps {
   selectedCountry: string
   selectedProjectName: string
   selectedProjectId: number | null
@@ -168,13 +168,13 @@ interface StoreAccountingUsSectionProps {
   onSkuKeywordChange: (keyword: string) => void
 }
 
-export function StoreAccountingUsSection({
+export function ShopCalculationUsSection({
   selectedCountry,
   selectedProjectName,
   selectedProjectId,
   skuKeyword,
   onSkuKeywordChange,
-}: StoreAccountingUsSectionProps) {
+}: ShopCalculationUsSectionProps) {
   const { notify } = useNotifications()
   const [storeSkus, setStoreSkus] = useState<ProductCostItem[]>([])
   const [storeSkusLoading, setStoreSkusLoading] = useState(false)
@@ -216,7 +216,7 @@ export function StoreAccountingUsSection({
           }),
           // Load existing snapshots for this project + country
           fetch(
-            `${API_BASE}/api/v1/store-accounting?project_id=${selectedProjectId}&country=${encodeURIComponent(selectedCountry)}&page=1&page_size=200`,
+            `${API_BASE}/api/v1/shop-calculation?project_id=${selectedProjectId}&country=${encodeURIComponent(selectedCountry)}&page=1&page_size=200`,
             { cache: 'no-store' as RequestCache },
           ),
         ])
@@ -239,17 +239,17 @@ export function StoreAccountingUsSection({
         setStoreSkus(countrySkus)
 
         // Parse existing snapshots from DB
-        let snapshotPayload: { items?: StoreAccountingItem[]; total?: number } = { items: [] }
+        let snapshotPayload: { items?: ShopCalculationItem[]; total?: number } = { items: [] }
         if (snapshotSearch.ok) {
-          snapshotPayload = await snapshotSearch.json() as { items?: StoreAccountingItem[]; total?: number }
+          snapshotPayload = await snapshotSearch.json() as { items?: ShopCalculationItem[]; total?: number }
         } else {
           // Log 422/500 snapshot errors so we know if API validation fails
           const body = await snapshotSearch.text().catch(() => '')
-          console.error('[store-accounting] 快照加载失败:', snapshotSearch.status, body)
+          console.error('[shop-calculation] 快照加载失败:', snapshotSearch.status, body)
           // Surface the error to the user so they know data may be missing
           setSnapshotError(`店铺历史加载失败（HTTP ${snapshotSearch.status}），价格信息可能无法显示`)
         }
-        const snapshotMap = new Map<string, StoreAccountingItem>()
+        const snapshotMap = new Map<string, ShopCalculationItem>()
         for (const s of snapshotPayload.items ?? []) {
           snapshotMap.set(s.sku, s)
         }
@@ -425,7 +425,7 @@ export function StoreAccountingUsSection({
       if (selectedProjectId) {
         try {
           const snapshotPayload = buildSnapshotPayload(item, createdRun, selectedProjectId)
-          await requestSaveStoreAccounting(snapshotPayload)
+          await requestSaveShopCalculation(snapshotPayload)
         } catch (snapshotErr) {
           console.warn('保存快照失败:', snapshotErr)
         }
@@ -503,7 +503,7 @@ export function StoreAccountingUsSection({
       headerRow.height = 20
       headerRow.font = { name: 'Microsoft YaHei', size: 9, bold: true }
       headerRow.alignment = { horizontal: 'center', vertical: 'middle' }
-      // Assign sub-background per group (matches StoreAccountingTable)
+      // Assign sub-background per group (matches ShopCalculationTable)
       headerRow.eachCell({ includeEmpty: true }, (cell) => {
         const colLetter = cell.address.replace(/\d+$/, '')
         const colNum = colLetter.charCodeAt(0) - 64
@@ -708,7 +708,7 @@ export function StoreAccountingUsSection({
             )}
           </div>
         ) : (
-          <StoreAccountingTable
+          <ShopCalculationTable
             items={filteredSkus}
             rowStates={storeRows}
             onDraftChange={updateDraft}

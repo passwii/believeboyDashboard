@@ -20,9 +20,11 @@ import {
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { DataTableCard, DataTableCardBody, DataTableCardStatBar } from '@/components/ui/data-card'
+import { RefreshProgressBar } from '@/components/ui/refresh-progress-bar'
 import { cn } from '@/lib/utils'
-import { StoreAccountingUsSection } from '@/components/dashboard/pricing-calculation/store-accounting-us-section'
-import { StoreAccountingEuSection } from '@/components/dashboard/pricing-calculation/store-accounting-eu-section'
+import { useSmoothRefresh } from '@/hooks/use-smooth-refresh'
+import { ShopCalculationUsSection } from '@/components/dashboard/pricing-calculation/shop-calculation-us-section'
+import { ShopCalculationEuSection } from '@/components/dashboard/pricing-calculation/shop-calculation-eu-section'
 import type { ProjectManageOption, ProductCostItem, StoreAccountingItem } from '@/lib/pricing-calculation-types'
 import { logClientOperation } from '@/lib/operation-audit'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
@@ -38,7 +40,7 @@ const COUNTRY_OPTIONS: { value: StoreCountry; label: string; region: 'US' | 'EU'
 
 const API_BASE = '/api/backend'
 
-export default function StoreAccountingPage() {
+export default function ShopCalculationPage() {
   const { notify } = useNotifications()
   const [selectedCountry, setSelectedCountry] = useState<StoreCountry>('US')
 
@@ -99,7 +101,7 @@ export default function StoreAccountingPage() {
             { cache: 'no-store' },
           ),
           fetch(
-            `${API_BASE}/api/v1/store-accounting?project_id=${selectedProjectId}&country=${selectedCountry}&page=1&page_size=200`,
+            `${API_BASE}/api/v1/shop-calculation?project_id=${selectedProjectId}&country=${selectedCountry}&page=1&page_size=200`,
             { cache: 'no-store' },
           ),
         ])
@@ -141,6 +143,12 @@ export default function StoreAccountingPage() {
 
   const isUS = selectedCountry === 'US'
   const hasCalculatedRows = isUS ? stats.calculated > 0 : hasEuCalculatedRows
+
+  // Smooth refresh: keep previous stats visible while reloading
+  const { showSkeleton, isRefreshing } = useSmoothRefresh({
+    loading: statsLoading,
+    hasData: stats.total > 0,
+  })
 
   // Column number helper (supports AA, AB, ...)
   function colToNum(colLetter: string): number {
@@ -193,7 +201,7 @@ export default function StoreAccountingPage() {
             { name: '利润核算', start: 22, end: 25, dark: 'FF064E3B', sub: 'FFD1FAE5' },
           ]
 
-      const worksheet = workbook.addWorksheet(`${countryLabel}店铺SKU核算`)
+      const worksheet = workbook.addWorksheet(`${countryLabel}店铺SKU测算`)
       worksheet.views = [{ showGridLines: false }]
 
       // Default border style used throughout
@@ -207,7 +215,7 @@ export default function StoreAccountingPage() {
       // Row 1: title
       worksheet.mergeCells(1, 1, 1, colCount)
       const titleCell = worksheet.getCell(1, 1)
-      titleCell.value = `${countryLabel}店铺SKU核算表 - ${selectedProjectName}`
+      titleCell.value = `${countryLabel}店铺SKU测算表 - ${selectedProjectName}`
       titleCell.font = { name: 'Microsoft YaHei', size: 14, bold: true }
       titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
       worksheet.getRow(1).height = 24
@@ -404,13 +412,13 @@ export default function StoreAccountingPage() {
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = `${countryLabel}店铺SKU核算-${selectedProjectName}-${formatLocalTimestampForFilename()}.xlsx`
+      link.download = `${countryLabel}店铺SKU测算-${selectedProjectName}-${formatLocalTimestampForFilename()}.xlsx`
       link.click()
       window.URL.revokeObjectURL(url)
 
       await logClientOperation({
-        action: 'pricing_calculation.store_table.export',
-        targetType: 'store_sku_pricing_snapshot',
+        action: 'pricing_calculation.shop_calculation.export',
+        targetType: 'shop_calculation',
         targetId: selectedProjectId ?? undefined,
         after: { project_id: selectedProjectId, project_name: selectedProjectName, country: selectedCountry, row_count: itemsWithResults.length },
       })
@@ -543,34 +551,44 @@ export default function StoreAccountingPage() {
             items={[
               {
                 label: 'SKU',
-                value: statsLoading ? <Skeleton className='h-6 w-8' /> : <span className='text-sm font-semibold tabular-nums text-foreground'>{stats.total}</span>,
+                value: showSkeleton ? <Skeleton className='h-6 w-8' /> : (
+                  <RefreshProgressBar refreshing={isRefreshing}>
+                    <span className='text-sm font-semibold tabular-nums text-foreground'>{stats.total}</span>
+                  </RefreshProgressBar>
+                ),
               },
               {
                 label: '已测算',
-                value: statsLoading ? <Skeleton className='h-6 w-8' /> : (
-                  <span className={cn('text-sm font-semibold tabular-nums', stats.calculated > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-foreground')}>{stats.calculated}</span>
+                value: showSkeleton ? <Skeleton className='h-6 w-8' /> : (
+                  <RefreshProgressBar refreshing={isRefreshing}>
+                    <span className={cn('text-sm font-semibold tabular-nums', stats.calculated > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-foreground')}>{stats.calculated}</span>
+                  </RefreshProgressBar>
                 ),
               },
               {
                 label: '盈利',
-                value: statsLoading ? <Skeleton className='h-6 w-8' /> : (
-                  <span className={cn('text-sm font-semibold tabular-nums', stats.profitable > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-foreground')}>{stats.profitable}</span>
+                value: showSkeleton ? <Skeleton className='h-6 w-8' /> : (
+                  <RefreshProgressBar refreshing={isRefreshing}>
+                    <span className={cn('text-sm font-semibold tabular-nums', stats.profitable > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-foreground')}>{stats.profitable}</span>
+                  </RefreshProgressBar>
                 ),
               },
               {
                 label: '盈利占比',
-                value: statsLoading ? <Skeleton className='h-6 w-8' /> : (
-                  <span className={cn(
-                    'text-sm font-semibold tabular-nums',
-                    !hasCalculatedRows ? 'text-foreground' : stats.passRate >= 50 ? 'text-emerald-600 dark:text-emerald-400' : stats.passRate >= 25 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'
-                  )}>{hasCalculatedRows ? `${stats.passRate.toFixed(1)}%` : '—'}</span>
+                value: showSkeleton ? <Skeleton className='h-6 w-8' /> : (
+                  <RefreshProgressBar refreshing={isRefreshing}>
+                    <span className={cn(
+                      'text-sm font-semibold tabular-nums',
+                      !hasCalculatedRows ? 'text-foreground' : stats.passRate >= 50 ? 'text-emerald-600 dark:text-emerald-400' : stats.passRate >= 25 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'
+                    )}>{hasCalculatedRows ? `${stats.passRate.toFixed(1)}%` : '—'}</span>
+                  </RefreshProgressBar>
                 ),
               },
             ]}
           />
           <DataTableCardBody>
             {selectedCountry === 'US' ? (
-              <StoreAccountingUsSection
+              <ShopCalculationUsSection
                 selectedCountry={selectedCountry}
                 selectedProjectName={selectedProjectName}
                 selectedProjectId={selectedProjectId}
@@ -579,7 +597,7 @@ export default function StoreAccountingPage() {
                 onSkuKeywordChange={setSkuKeyword}
               />
             ) : (
-              <StoreAccountingEuSection
+              <ShopCalculationEuSection
                 selectedCountry={selectedCountry}
                 projects={projects}
                 projectsLoading={projectsLoading}

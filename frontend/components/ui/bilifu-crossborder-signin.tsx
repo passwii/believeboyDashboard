@@ -449,6 +449,7 @@ const Index = () => {
         backgroundSize: "cover",
         backgroundPosition: "center",
       }}
+      data-theme="light"
     >
       <SignInCard />
     </div>

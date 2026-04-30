@@ -63,6 +63,132 @@ function toDateInputValue(date: Date) {
   return `${y}-${m}-${d}`
 }
 
+const WEEKDAY_LABELS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
+
+const REPORT_ROWS = [
+  { key: 'business_report', label: '业务报告', getMissing: (a: DataAvailability) => a.business_report_missing },
+  { key: 'ad_report', label: '广告报告', getMissing: (a: DataAvailability) => a.ad_report_missing },
+  { key: 'inventory', label: '库存报告', getMissing: (a: DataAvailability) => a.inventory_missing },
+] as const
+
+function parseDateStr(s: string) {
+  const [y, m, d] = s.split('-').map(Number)
+  return new Date(y!, m! - 1, d!)
+}
+
+function formatDayAbbr(dateStr: string) {
+  const d = parseDateStr(dateStr)
+  return `${d.getMonth() + 1}/${d.getDate()}`
+}
+
+function buildWeekDates(startDate: string, endDate: string): string[] {
+  const start = parseDateStr(startDate)
+  const end = parseDateStr(endDate)
+  const dates: string[] = []
+  const cur = new Date(start)
+  while (cur <= end) {
+    dates.push(toDateInputValue(cur))
+    cur.setDate(cur.getDate() + 1)
+  }
+  return dates
+}
+
+interface AvailabilityGridProps {
+  startDate: string
+  endDate: string
+  availability: DataAvailability
+}
+
+function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGridProps) {
+  const dates = useMemo(() => buildWeekDates(startDate, endDate), [startDate, endDate])
+  const missingSet = useMemo(() => ({
+    business_report: new Set(availability.business_report_missing),
+    ad_report: new Set(availability.ad_report_missing),
+    inventory: new Set(availability.inventory_missing),
+  }), [availability])
+
+  return (
+    <div className="overflow-x-auto">
+      <div
+        className="grid min-w-[480px]"
+        style={{ gridTemplateColumns: `120px repeat(${dates.length}, 1fr)` }}
+      >
+        {/* Header row */}
+        <div className="flex items-center border border-b-0 border-border/60 bg-[hsl(var(--surface-subtle))] px-2 py-2 text-xs font-semibold text-muted-foreground">
+          报表类型
+        </div>
+        {dates.map((d) => {
+          const weekdayIdx = (parseDateStr(d).getDay() + 6) % 7 // Mon=0
+          return (
+            <div
+              key={d}
+              className="flex flex-col items-center justify-center border border-b-0 border-border/60 bg-[hsl(var(--surface-subtle))] px-1 py-2 text-xs"
+            >
+              <span className="text-[10px] text-muted-foreground">{WEEKDAY_LABELS[weekdayIdx]}</span>
+              <span className="font-medium">{formatDayAbbr(d)}</span>
+            </div>
+          )
+        })}
+
+        {/* Data rows */}
+        {REPORT_ROWS.map((row) => {
+          const missing = missingSet[row.key]
+          return (
+            <React.Fragment key={row.key}>
+              <div className="flex items-center border border-t-0 border-border/60 bg-[hsl(var(--surface-panel))] px-2 py-2.5 text-sm font-medium">
+                {row.label}
+              </div>
+              {dates.map((d) => {
+                const isMissing = missing.has(d)
+                return (
+                  <div
+                    key={d}
+                    title={isMissing ? `${row.label} 缺少 ${d}` : `${row.label} ${d} 有数据`}
+                    className={cn(
+                      'flex items-center justify-center border border-t-0 border-border/60 py-2.5 transition-colors',
+                      isMissing ? 'bg-rose-500' : 'bg-emerald-500',
+                    )}
+                  >
+                    {isMissing ? (
+                      <XCircle className="h-4 w-4 text-white" />
+                    ) : (
+                      <CheckCircle2 className="h-4 w-4 text-white" />
+                    )}
+                  </div>
+                )
+              })}
+            </React.Fragment>
+          )
+        })}
+
+        {/* Payment report row — spans all columns since it's period-based */}
+        <div className="flex items-center border border-t-0 border-border/60 bg-[hsl(var(--surface-panel))] px-2 py-2.5 text-sm font-medium">
+          付款报告
+        </div>
+        <div
+          style={{ gridColumn: `span ${dates.length} / span ${dates.length}` }}
+          className={cn(
+            'flex items-center justify-center gap-1.5 border border-t-0 border-border/60 py-2.5 text-sm font-medium text-white',
+            availability.payment_periods_overlapping.length > 0 ? 'bg-emerald-500' : 'bg-rose-500',
+          )}
+          title={availability.payment_periods_overlapping.length > 0 ? `有 ${availability.payment_periods_overlapping.length} 个重叠周期` : '无付款报告覆盖'}
+        >
+          {availability.payment_periods_overlapping.length > 0 ? (
+            <CheckCircle2 className="h-4 w-4" />
+          ) : (
+            <XCircle className="h-4 w-4" />
+          )}
+          <span>
+            {availability.payment_periods_overlapping.length > 0
+              ? `全周期有数据覆盖（${availability.payment_periods_overlapping.length} 个重叠）`
+              : '无付款报告覆盖'}
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function getLastWeekRange() {
   const now = new Date()
   const day = now.getDay()
@@ -513,87 +639,27 @@ export default function ProductCalculationPanel({ session }: ProductCalculationP
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">数据可用性</CardTitle>
+            <CardDescription className="text-xs">
+              {startDate} — {endDate}
+            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {/* Business Report */}
-            <div className="flex items-start gap-3">
-              <span className="w-28 shrink-0 text-sm font-medium">业务报告</span>
-              {availability.business_report_missing.length === 0 ? (
-                <span className="flex items-center gap-1 text-sm text-emerald-600 dark:text-emerald-300">
-                  <CheckCircle2 className="h-4 w-4 shrink-0" />
-                  全周数据完整
-                </span>
-              ) : (
-                <span className="flex items-start gap-1 text-sm text-amber-600 dark:text-amber-300">
-                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-                  <span>
-                    缺少 {availability.business_report_missing.length} 天：{availability.business_report_missing.join(', ')}
-                  </span>
-                </span>
-              )}
-            </div>
-
-            {/* Ad Report */}
-            <div className="flex items-start gap-3">
-              <span className="w-28 shrink-0 text-sm font-medium">广告报告</span>
-              {availability.ad_report_missing.length === 0 ? (
-                <span className="flex items-center gap-1 text-sm text-emerald-600 dark:text-emerald-300">
-                  <CheckCircle2 className="h-4 w-4 shrink-0" />
-                  全周数据完整
-                </span>
-              ) : (
-                <span className="flex items-start gap-1 text-sm text-amber-600 dark:text-amber-300">
-                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-                  <span>
-                    缺少 {availability.ad_report_missing.length} 天：{availability.ad_report_missing.join(', ')}
-                  </span>
-                </span>
-              )}
-            </div>
-
-            {/* Inventory Report */}
-            <div className="flex items-start gap-3">
-              <span className="w-28 shrink-0 text-sm font-medium">库存报告</span>
-              {availability.inventory_missing.length === 0 ? (
-                <span className="flex items-center gap-1 text-sm text-emerald-600 dark:text-emerald-300">
-                  <CheckCircle2 className="h-4 w-4 shrink-0" />
-                  全周数据完整
-                </span>
-              ) : (
-                <span className="flex items-start gap-1 text-sm text-amber-600 dark:text-amber-300">
-                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-                  <span>
-                    缺少 {availability.inventory_missing.length} 天：{availability.inventory_missing.join(', ')}
-                  </span>
-                </span>
-              )}
-            </div>
-
-            {/* Payment Report */}
-            <div className="flex items-start gap-3">
-              <span className="w-28 shrink-0 text-sm font-medium">付款报告</span>
-              {availability.payment_periods_overlapping.length > 0 ? (
-                <span className="flex items-center gap-1 text-sm text-emerald-600 dark:text-emerald-300">
-                  <CheckCircle2 className="h-4 w-4 shrink-0" />
-                  有 {availability.payment_periods_overlapping.length} 个重叠周期
-                </span>
-              ) : (
-                <span className="flex items-center gap-1 text-sm text-rose-600 dark:text-rose-300">
-                  <XCircle className="h-4 w-4 shrink-0" />
-                  无付款报告覆盖
-                </span>
-              )}
-            </div>
+          <CardContent className="space-y-3">
+            {/* Grid table */}
+            <AvailabilityGrid
+              startDate={startDate}
+              endDate={endDate}
+              availability={availability}
+            />
 
             {/* Minimum Data Summary */}
-            <div className="mt-2 border-t border-[hsl(var(--border))] pt-2">
+            <div className="flex items-center gap-2 border-t border-[hsl(var(--border))] pt-2.5">
               {availability.has_minimum_data ? (
-                <div className="flex items-center gap-2 text-sm font-medium text-emerald-700 dark:text-emerald-300">
+                <div className="flex items-center gap-1.5 text-sm font-medium text-emerald-600 dark:text-emerald-300">
                   <CheckCircle2 className="h-4 w-4" />
                   可执行核算
                 </div>
               ) : (
-                <div className="flex items-center gap-2 text-sm font-medium text-rose-600 dark:text-rose-300">
+                <div className="flex items-center gap-1.5 text-sm font-medium text-rose-600 dark:text-rose-300">
                   <XCircle className="h-4 w-4" />
                   数据不足，无法执行核算（缺少核心报表数据）
                 </div>

@@ -129,7 +129,7 @@ export {
 
 // ========================
 // 公共 Sticky 样式常量
-// 用于 DataTableCard、inventory-replenishment、store-accounting 等页面
+// 用于 DataTableCard、inventory-replenishment、shop-calculation 等页面
 // 原则：实体不透明背景（无 opacity），z-index 分层，shadow 模拟边框
 // ========================
 

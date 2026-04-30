@@ -4,35 +4,35 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response,
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, get_request_operator, protected
-from app.schemas.store_accounting import (
-    StoreAccountingCreateRequest,
-    StoreAccountingItem,
-    StoreAccountingListResponse,
+from app.schemas.shop_calculation import (
+    ShopCalculationCreateRequest,
+    ShopCalculationItem,
+    ShopCalculationListResponse,
 )
 from app.services.audit_log_service import append_operation_audit_log
-from app.models import StoreAccounting
-from app.services import store_accounting_service
+from app.models.shop_calculation import ShopCalculation
+from app.services import shop_calculation_service
 
 router = APIRouter(dependencies=[Depends(protected)])
 
 
-@router.get('/store-accounting', response_model=StoreAccountingListResponse)
-def list_store_accounting(
+@router.get('/shop-calculation', response_model=ShopCalculationListResponse)
+def list_shop_calculation(
     project_id: int | None = Query(default=None, ge=1),
     country: str | None = Query(default=None, description="按国家筛选（如 US, DE, UK）"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=200, ge=1, le=500),
     db: Session = Depends(get_db_session),
-) -> StoreAccountingListResponse:
-    """获取店铺核算列表"""
-    rows, total = store_accounting_service.list_by_project(
+) -> ShopCalculationListResponse:
+    """获取店铺测算列表"""
+    rows, total = shop_calculation_service.list_by_project(
         db,
         project_id=project_id,
         country=country,
         page=page,
         page_size=page_size,
     )
-    return StoreAccountingListResponse(
+    return ShopCalculationListResponse(
         items=rows,
         total=total,
         page=page,
@@ -40,19 +40,19 @@ def list_store_accounting(
     )
 
 
-@router.post('/store-accounting', response_model=StoreAccountingItem, status_code=status.HTTP_201_CREATED)
-def create_or_update_store_accounting(
-    payload: StoreAccountingCreateRequest,
+@router.post('/shop-calculation', response_model=ShopCalculationItem, status_code=status.HTTP_201_CREATED)
+def create_or_update_shop_calculation(
+    payload: ShopCalculationCreateRequest,
     request: Request,
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
-) -> StoreAccountingItem:
-    """创建或更新店铺核算（upsert）"""
-    item = store_accounting_service.upsert(db, payload, operator=operator)
+) -> ShopCalculationItem:
+    """创建或更新店铺测算（upsert）"""
+    item = shop_calculation_service.upsert(db, payload, operator=operator)
     append_operation_audit_log(
         db,
-        action='pricing_calculation.store_accounting.upsert',
-        target_type='store_accounting',
+        action='pricing_calculation.shop_calculation.upsert',
+        target_type='shop_calculation',
         target_id=item.id,
         operator=operator,
         after={
@@ -69,13 +69,13 @@ def create_or_update_store_accounting(
     return item
 
 
-@router.delete('/store-accounting/{item_id}', status_code=status.HTTP_204_NO_CONTENT)
-def delete_store_accounting(
+@router.delete('/shop-calculation/{item_id}', status_code=status.HTTP_204_NO_CONTENT)
+def delete_shop_calculation(
     item_id: int,
     db: Session = Depends(get_db_session),
 ) -> Response:
-    """删除店铺核算"""
-    row = db.get(StoreAccounting, item_id)
+    """删除店铺测算"""
+    row = db.get(ShopCalculation, item_id)
     if row is None:
         raise HTTPException(status_code=404, detail='记录不存在')
     db.delete(row)

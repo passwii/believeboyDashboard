@@ -27,9 +27,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { RefreshProgressBar } from '@/components/ui/refresh-progress-bar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { useGlobalLoading } from '@/components/global-loading-provider'
+import { useSmoothRefresh } from '@/hooks/use-smooth-refresh'
 import {
   clearProjectClientCaches,
   fetchManagedProjectsCached,
@@ -246,6 +248,7 @@ export default function StoreInfoPage() {
   const [editIsActive, setEditIsActive] = useState(true)
   const isAddCashReceivedCommission = addCommissionMode === 'cash_received'
   const isEditCashReceivedCommission = editCommissionMode === 'cash_received'
+  const { showSkeleton, isRefreshing } = useSmoothRefresh({ loading, hasData: items.length > 0 })
 
 const loadOperatorOptions = useCallback(async () => {
     try {
@@ -572,12 +575,8 @@ const loadOperatorOptions = useCallback(async () => {
         </DataTableCardHeader>
         <DataTableCardBody className="flex-1 min-h-0">
           <div className="h-full overflow-auto relative">
-            {loading && items.length > 0 ? (
-              <div className="pointer-events-none absolute right-4 top-4 z-30 rounded-full border border-border/70 bg-background/95 px-3 py-1 text-xs text-muted-foreground shadow-sm dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
-                项目列表更新中...
-              </div>
-            ) : null}
-            <table className="w-full border-separate border-spacing-0 caption-bottom text-sm">
+            <RefreshProgressBar refreshing={isRefreshing}>
+              <table className="w-full border-separate border-spacing-0 caption-bottom text-sm">
               <thead className="[&_tr]:border-b-0">
                 <tr className="border-b border-border/70 shadow-sm">
                   <th className="sticky top-0 z-20 h-12 w-[80px] border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">ID</th>
@@ -594,7 +593,7 @@ const loadOperatorOptions = useCallback(async () => {
                 </tr>
               </thead>
               <tbody className="[&_tr:last-child]:border-0">
-              {loading ? (
+              {showSkeleton ? (
                 Array.from({ length: 6 }).map((_, index) => (
                   <tr key={`skeleton-${index}`} className="border-b transition-colors hover:bg-muted/50 dark:hover:bg-[hsl(var(--surface-strong)/0.35)]">
                     <td colSpan={11} className="p-4 align-middle">
@@ -605,79 +604,80 @@ const loadOperatorOptions = useCallback(async () => {
               ) : items.length === 0 ? (
                 <EmptyState colSpan={11} message="暂无项目数据，请先新增一个项目。" />
               ) : (
-                items.map((item) => (
-                  <tr key={item.id} className="border-b transition-colors hover:bg-muted/50 dark:hover:bg-[hsl(var(--surface-strong)/0.35)]">
-                    <td className="border-b border-r border-border/60 p-4 align-middle text-muted-foreground">{item.id}</td>
-                    <td className="border-b border-r border-border/60 p-4 align-middle font-medium text-foreground">{item.name}</td>
-                    <td className="border-b border-r border-border/60 p-4 align-middle">{item.brand_name || '-'}</td>
-                    <td className="border-b border-r border-border/60 p-4 align-middle whitespace-pre-wrap break-words">{item.project_operator || '-'}</td>
-                    <td className="border-b border-r border-border/60 p-4 align-middle whitespace-pre-wrap break-words">{item.assistant_operator || '-'}</td>
-                    <td className="border-b border-r border-border/60 p-4 align-middle">{item.commission_basis ? COMMISSION_BASIS_LABEL[item.commission_basis] ?? item.commission_basis : '-'}</td>
-                    <td className="border-b border-r border-border/60 p-4 align-middle">{item.commission_basis === 'cash_received' ? '阶梯(7/10/13/15%)' : (toCommissionPoints(item.commission_rate) ?? '-')}</td>
-                    <td className="border-b border-r border-border/60 p-4 align-middle max-w-[120px] truncate" title={item.store_address || ''}>
-                      {item.store_address ? `${item.store_address.slice(0, 15)}...` : '-'}
-                    </td>
-                    <td className="border-b border-r border-border/60 p-4 align-middle">
-                      <Badge
-                        variant={item.is_active ? 'default' : 'secondary'}
-                        className={cn(
-                          'text-xs font-medium',
-                          item.is_active
-                            ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-400 border-green-200 dark:border-green-800'
-                            : 'bg-muted text-muted-foreground'
-                        )}
-                      >
-                        {item.is_active ? '启用' : '停用'}
-                      </Badge>
-                    </td>
-                    <td className="border-b border-r border-border/60 p-4 align-middle">
-                      <div className="flex items-center justify-center gap-1">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => void moveProject(item.id, 'up')}
-                          disabled={submitting || movingId === item.id}
-                          aria-label={`上移项目 ${item.name}`}
-                          title="上移"
-                          className="h-7 w-7"
+                  items.map((item) => (
+                    <tr key={item.id} className="border-b transition-colors hover:bg-muted/50 dark:hover:bg-[hsl(var(--surface-strong)/0.35)]">
+                      <td className="border-b border-r border-border/60 p-4 align-middle text-muted-foreground">{item.id}</td>
+                      <td className="border-b border-r border-border/60 p-4 align-middle font-medium text-foreground">{item.name}</td>
+                      <td className="border-b border-r border-border/60 p-4 align-middle">{item.brand_name || '-'}</td>
+                      <td className="border-b border-r border-border/60 p-4 align-middle whitespace-pre-wrap break-words">{item.project_operator || '-'}</td>
+                      <td className="border-b border-r border-border/60 p-4 align-middle whitespace-pre-wrap break-words">{item.assistant_operator || '-'}</td>
+                      <td className="border-b border-r border-border/60 p-4 align-middle">{item.commission_basis ? COMMISSION_BASIS_LABEL[item.commission_basis] ?? item.commission_basis : '-'}</td>
+                      <td className="border-b border-r border-border/60 p-4 align-middle">{item.commission_basis === 'cash_received' ? '阶梯(7/10/13/15%)' : (toCommissionPoints(item.commission_rate) ?? '-')}</td>
+                      <td className="border-b border-r border-border/60 p-4 align-middle max-w-[120px] truncate" title={item.store_address || ''}>
+                        {item.store_address ? `${item.store_address.slice(0, 15)}...` : '-'}
+                      </td>
+                      <td className="border-b border-r border-border/60 p-4 align-middle">
+                        <Badge
+                          variant={item.is_active ? 'default' : 'secondary'}
+                          className={cn(
+                            'text-xs font-medium',
+                            item.is_active
+                              ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-400 border-green-200 dark:border-green-800'
+                              : 'bg-muted text-muted-foreground'
+                          )}
                         >
-                          <ChevronUp className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => void moveProject(item.id, 'down')}
-                          disabled={submitting || movingId === item.id}
-                          aria-label={`下移项目 ${item.name}`}
-                          title="下移"
-                          className="h-7 w-7"
-                        >
-                          <ChevronDown className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </td>
-                    <td className="border-b border-border/60 p-4 align-middle text-right">
-                      <div className="flex justify-end">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          onClick={() => onOpenEdit(item)}
-                          disabled={submitting}
-                          aria-label={`编辑项目 ${item.name}`}
-                          title="编辑"
-                        >
-                          <PencilLine className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                          {item.is_active ? '启用' : '停用'}
+                        </Badge>
+                      </td>
+                      <td className="border-b border-r border-border/60 p-4 align-middle">
+                        <div className="flex items-center justify-center gap-1">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => void moveProject(item.id, 'up')}
+                            disabled={submitting || movingId === item.id}
+                            aria-label={`上移项目 ${item.name}`}
+                            title="上移"
+                            className="h-7 w-7"
+                          >
+                            <ChevronUp className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => void moveProject(item.id, 'down')}
+                            disabled={submitting || movingId === item.id}
+                            aria-label={`下移项目 ${item.name}`}
+                            title="下移"
+                            className="h-7 w-7"
+                          >
+                            <ChevronDown className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </td>
+                      <td className="border-b border-border/60 p-4 align-middle text-right">
+                        <div className="flex justify-end">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            onClick={() => onOpenEdit(item)}
+                            disabled={submitting}
+                            aria-label={`编辑项目 ${item.name}`}
+                            title="编辑"
+                          >
+                            <PencilLine className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
               )}
             </tbody>
           </table>
+            </RefreshProgressBar>
           </div>
         </DataTableCardBody>
       </DataTableCard>

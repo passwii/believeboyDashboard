@@ -2,7 +2,7 @@
 
 import type {
   PricingCalculationRunItem,
-  StoreAccountingItem,
+  ShopCalculationItem,
 } from './pricing-calculation-types'
 
 const API_BASE = '/api/backend'
@@ -74,7 +74,7 @@ export async function requestPricingCalculation(
   return response.json() as Promise<PricingCalculationRunItem>
 }
 
-export type StoreAccountingPayload = {
+export type ShopCalculationPayload = {
   project_id: number
   project_name: string
   sku: string
@@ -134,10 +134,13 @@ export type StoreAccountingPayload = {
   profit_after_vat_rate?: number | null
 }
 
-export async function requestSaveStoreAccounting(
-  payload: StoreAccountingPayload,
-): Promise<StoreAccountingItem> {
-  const response = await fetch(`${API_BASE}/api/v1/store-accounting`, {
+/** @deprecated Use ShopCalculationPayload instead */
+export type StoreAccountingPayload = ShopCalculationPayload
+
+export async function requestSaveShopCalculation(
+  payload: ShopCalculationPayload,
+): Promise<ShopCalculationItem> {
+  const response = await fetch(`${API_BASE}/api/v1/shop-calculation`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -206,8 +209,11 @@ export async function requestSaveStoreAccounting(
     }))) as { detail?: string; message?: string }
     throw new Error(errorPayload.detail || errorPayload.message || '保存快照失败')
   }
-  return response.json() as Promise<StoreAccountingItem>
+  return response.json() as Promise<ShopCalculationItem>
 }
+
+/** @deprecated Use requestSaveShopCalculation instead */
+export const requestSaveStoreAccounting = requestSaveShopCalculation
 
 export function formatCurrency(value: number) {
   return `$${value.toFixed(2)}`

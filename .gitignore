@@ -6,6 +6,7 @@
 .kilo/
 .kilocode/
 .kilo*
+BusinessDev/
 
 # Logs
 npm-debug.log*

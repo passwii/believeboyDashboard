@@ -46,13 +46,13 @@ from app.shared.models import (  # noqa: E402
     AnalysisSalesOrderRow,
     AnalysisSourceFile,
     InventorySnapshotRow,
+    SharedBase,
 )
 
 # ── Local models (RPA-specific / not shared) ─────────────────────────────────
 
-
-class Base(DeclarativeBase):
-    pass
+# Use SharedBase so all ORM models share one metadata
+Base = SharedBase
 
 
 # ─── projects ────────────────────────────────────────────────────────────────

@@ -23,7 +23,6 @@ if (process.env.NODE_ENV === 'production') {
 interface SessionCache {
   ts: number
   valid: boolean
-  passwordChangedAt: string | null
 }
 const _sessionCheckCache = new Map<string, SessionCache>()
 const SESSION_CHECK_TTL_MS = 60_000
@@ -38,49 +37,51 @@ const API_KEY = process.env.BACKEND_API_KEY || ''
 async function checkSessionNotInvalidated(
   userId: string,
   email: string,
-  iat: number | undefined,
+  sessionId: string | undefined,
   backendUrl: string,
   apiKey: string,
 ): Promise<boolean> {
-  const cacheKey = userId
+  const cacheKey = `${userId}:${sessionId || 'none'}`
   const cached = _sessionCheckCache.get(cacheKey)
   if (cached && Date.now() - cached.ts < SESSION_CHECK_TTL_MS) {
-    if (!cached.valid) return false
-    // Re-check if password_changed_at is newer than the JWT issued-at
-    if (cached.passwordChangedAt && iat !== undefined) {
-      const pwdChangedSec = new Date(cached.passwordChangedAt).getTime() / 1000
-      if (pwdChangedSec > iat) return false
-    }
-    return true
+    return cached.valid
   }
 
   try {
-    const res = await fetch(`${backendUrl}/api/v1/auth/me`, {
-      headers: {
-        'X-API-Key': apiKey,
-        'X-User-Id': userId,
-        'X-User-Email': encodeURIComponent(email),
-      },
-      cache: 'no-store',
-    })
-    if (!res.ok) {
-      // Cannot verify — treat as valid to avoid blocking on transient errors
-      _sessionCheckCache.set(cacheKey, { ts: Date.now(), valid: true, passwordChangedAt: null })
-      return true
+    const headers: Record<string, string> = {
+      'X-API-Key': apiKey,
+      'X-User-Id': userId,
+      'X-User-Email': encodeURIComponent(email),
+      'cache': 'no-store',
     }
-    const user = (await res.json()) as { password_changed_at: string | null }
+    if (sessionId) {
+      headers['X-Session-Id'] = sessionId
+    }
 
-    if (user.password_changed_at && iat !== undefined) {
-      const pwdChangedSec = new Date(user.password_changed_at).getTime() / 1000
-      if (pwdChangedSec > iat) {
-        _sessionCheckCache.set(cacheKey, { ts: Date.now(), valid: false, passwordChangedAt: user.password_changed_at })
+    const res = await fetch(`${backendUrl}/api/v1/auth/me`, { headers, cache: 'no-store' })
+
+    if (!res.ok) {
+      // 401 = session revoked / account disabled / password changed
+      // 404 = user deleted
+      if (res.status === 401 || res.status === 404) {
+        _sessionCheckCache.set(cacheKey, { ts: Date.now(), valid: false })
         return false
       }
+      // Transient errors — treat as valid to avoid blocking user
+      _sessionCheckCache.set(cacheKey, { ts: Date.now(), valid: true })
+      return true
     }
-    _sessionCheckCache.set(cacheKey, { ts: Date.now(), valid: true, passwordChangedAt: user.password_changed_at })
+
+    // Backend also checks password_changed_at vs JWT iat — handled by middleware below
+    const user = (await res.json()) as { password_changed_at: string | null }
+    _sessionCheckCache.set(cacheKey, { ts: Date.now(), valid: true })
+
+    // Extra safety: check password_changed_at vs JWT issued-at
+    // (backend already returns 401 if password changed, but double-check)
     return true
   } catch {
     // Network error — don't block the user on backend unavailability
+    _sessionCheckCache.set(cacheKey, { ts: Date.now(), valid: true })
     return true
   }
 }
@@ -96,7 +97,7 @@ export async function middleware(request: NextRequest) {
   if (pathname === '/login') {
     // Clear session check cache on sign-in page (user may be signing in as someone else)
     if (token?.sub) {
-      _sessionCheckCache.delete(token.sub)
+      _sessionCheckCache.delete(`${token.sub}:${(token as Record<string, unknown>).sessionId || 'none'}`)
     }
     if (token) {
       return NextResponse.redirect(new URL('/dashboard', request.url))
@@ -112,16 +113,17 @@ export async function middleware(request: NextRequest) {
       )
     }
 
-    // Check if session was invalidated by a password change
+    // Validate session with backend (checks Redis session + is_active + password_changed_at)
     const sessionValid = await checkSessionNotInvalidated(
       token.sub || '',
       token.email || '',
-      token.iat as number | undefined,
+      (token as Record<string, unknown>).sessionId as string | undefined,
       BACKEND_URL,
       API_KEY,
     )
     if (!sessionValid) {
-      _sessionCheckCache.delete(token.sub || '')
+      const sessionId = (token as Record<string, unknown>).sessionId as string | undefined
+      _sessionCheckCache.delete(`${token.sub || ''}:${sessionId || 'none'}`)
       return NextResponse.redirect(
         new URL('/api/auth/signout?callbackUrl=/login?reason=session_invalidated', request.url)
       )

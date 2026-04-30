@@ -13,6 +13,8 @@ import { DigitalEmployeeGrid } from '@/components/digital-employee/digital-emplo
 import { DigitalEmployeeStats } from '@/components/digital-employee/stats'
 import { ActivityFeed } from '@/components/digital-employee/activity-feed'
 import { cn } from '@/lib/utils'
+import { useSmoothRefresh } from '@/hooks/use-smooth-refresh'
+import { RefreshProgressBar } from '@/components/ui/refresh-progress-bar'
 
 const STATUS_FILTERS = [
   { label: '全部', value: null },
@@ -29,6 +31,11 @@ export default function DigitalEmployeesPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
   const [showActivityFeed, setShowActivityFeed] = useState(true)
+
+  const { showSkeleton, isRefreshing } = useSmoothRefresh({
+    loading: isLoading,
+    hasData: employees.length > 0,
+  })
 
   const filtered = employees.filter((emp) => {
     const matchSearch = !search || emp.name.includes(search) || (emp.description ?? '').includes(search)
@@ -82,7 +89,7 @@ export default function DigitalEmployeesPage() {
         </div>
       </div>
 
-      {isLoading ? (
+      {showSkeleton ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="rounded-2xl border p-4 space-y-3">
@@ -103,54 +110,58 @@ export default function DigitalEmployeesPage() {
           <p>加载失败：{error.message}</p>
         </div>
       ) : (
-        <>
-          {/* Stats bar */}
-          <DigitalEmployeeStats employees={filtered} />
+        <div className="relative">
+          <RefreshProgressBar refreshing={isRefreshing}>
+            {/* Stats bar */}
+            <DigitalEmployeeStats employees={filtered} />
 
-          {/* Filters */}
-          <div className="flex items-center gap-4">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="搜索数字员工..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-10"
-              />
+            {/* Filters */}
+            <div className="flex items-center gap-4 mt-4">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="搜索数字员工..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <div className="flex gap-1.5">
+                {STATUS_FILTERS.map((f) => {
+                  const count = f.value === null ? employees.length : employees.filter((e) => e.status === f.value).length
+                  return (
+                    <Badge
+                      key={f.label}
+                      variant={statusFilter === f.value ? 'default' : 'outline'}
+                      className={cn(
+                        'cursor-pointer transition-all',
+                        statusFilter === f.value && 'shadow-sm',
+                      )}
+                      onClick={() => setStatusFilter(statusFilter === f.value ? null : f.value)}
+                    >
+                      {f.label}
+                      <span className="ml-1 opacity-60">({count})</span>
+                    </Badge>
+                  )
+                })}
+              </div>
             </div>
-            <div className="flex gap-1.5">
-              {STATUS_FILTERS.map((f) => {
-                const count = f.value === null ? employees.length : employees.filter((e) => e.status === f.value).length
-                return (
-                  <Badge
-                    key={f.label}
-                    variant={statusFilter === f.value ? 'default' : 'outline'}
-                    className={cn(
-                      'cursor-pointer transition-all',
-                      statusFilter === f.value && 'shadow-sm',
-                    )}
-                    onClick={() => setStatusFilter(statusFilter === f.value ? null : f.value)}
-                  >
-                    {f.label}
-                    <span className="ml-1 opacity-60">({count})</span>
-                  </Badge>
-                )
-              })}
-            </div>
-          </div>
 
-          {filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed p-16 text-muted-foreground gap-3">
-              <span className="text-4xl">🤖</span>
-              <p className="text-sm">暂无数字员工</p>
-            </div>
-          ) : (
-            <DigitalEmployeeGrid
-              employees={filtered}
-              onCardClick={(id) => router.push(`/dashboard/digital-employees/${id}`)}
-            />
-          )}
-        </>
+            {filtered.length === 0 ? (
+              <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed p-16 text-muted-foreground gap-3 mt-4">
+                <span className="text-4xl">🤖</span>
+                <p className="text-sm">暂无数字员工</p>
+              </div>
+            ) : (
+              <div className="mt-4">
+                <DigitalEmployeeGrid
+                  employees={filtered}
+                  onCardClick={(id) => router.push(`/dashboard/digital-employees/${id}`)}
+                />
+              </div>
+            )}
+          </RefreshProgressBar>
+        </div>
       )}
 
       {/* Activity Feed */}

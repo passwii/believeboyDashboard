@@ -14,6 +14,7 @@ export function useDigitalEmployees({ pollInterval = 10000 }: UseDigitalEmployee
   const [error, setError] = useState<Error | null>(null)
 
   const load = useCallback(async () => {
+    setIsLoading(true)
     try {
       const data = await fetchDigitalEmployees()
       setEmployees(data.items)

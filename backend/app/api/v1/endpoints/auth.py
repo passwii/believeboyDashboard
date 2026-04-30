@@ -1,4 +1,5 @@
 from urllib.parse import unquote
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from fastapi.responses import JSONResponse
@@ -12,6 +13,7 @@ from app.core.passwords import verify_password
 from app.db.session import SessionLocal
 from app.schemas.system_management import UserRoleType
 from app.services.audit_log_service import append_operation_audit_log
+from app.services.redis_service import delete_user_sessions, validate_session, write_session
 from app.services.rate_limit_service import clear_key, increment_and_check
 
 router = APIRouter(prefix='/auth', tags=['auth'])
@@ -37,6 +39,7 @@ class LoginResponse(BaseModel):
     is_admin: bool
     is_active: bool
     role_type: UserRoleType = UserRoleType.operator
+    session_id: str = ""
 
 
 class MeResponse(BaseModel):
@@ -155,6 +158,13 @@ def login(request: Request, payload: LoginRequest) -> LoginResponse | JSONRespon
         # Clear failed-attempt counter on successful login
         clear_key("login_email_fail", payload.email.strip().lower())
 
+        # Create session in Redis
+        session_id = uuid4().hex
+        try:
+            write_session(str(row['id']), session_id)
+        except Exception:
+            pass  # Redis unavailable — degrade gracefully, session check will be skipped
+
         return LoginResponse(
             id=str(row['id']),
             name=str(row['name']),
@@ -163,6 +173,7 @@ def login(request: Request, payload: LoginRequest) -> LoginResponse | JSONRespon
             is_admin=bool(row['is_admin']),
             is_active=bool(row['is_active']),
             role_type=UserRoleType(row['role_type']) if row['role_type'] else (UserRoleType.admin if row['is_admin'] else UserRoleType.operator),
+            session_id=session_id,
         )
     finally:
         db.close()
@@ -172,6 +183,7 @@ def login(request: Request, payload: LoginRequest) -> LoginResponse | JSONRespon
 def get_current_user(
     x_user_id: str | None = Header(default=None, alias="X-User-Id"),
     x_user_email: str | None = Header(default=None, alias="X-User-Email"),
+    x_session_id: str | None = Header(default=None, alias="X-Session-Id"),
 ) -> MeResponse:
     if not x_user_id or not x_user_email:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
@@ -196,6 +208,25 @@ def get_current_user(
         ).mappings().first()
         if row is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+        # Account disabled → revoke all sessions and reject
+        if not bool(row["is_active"]):
+            try:
+                delete_user_sessions(x_user_id)
+            except Exception:
+                pass
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Account disabled")
+
+        # Validate session in Redis (sliding window)
+        if x_session_id:
+            try:
+                if not validate_session(x_user_id, x_session_id):
+                    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session revoked")
+            except HTTPException:
+                raise
+            except Exception:
+                pass  # Redis unavailable — degrade gracefully
+
         return MeResponse(
             id=str(row["id"]),
             email=str(row["email"]),
