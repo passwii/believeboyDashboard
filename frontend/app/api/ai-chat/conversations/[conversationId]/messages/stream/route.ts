@@ -5,12 +5,13 @@ import { buildSystemPrompt, validatePromptPresetIds } from '@/lib/server/ai-chat
 import { getBackendApiKey, getBackendBaseUrl } from '@/lib/server/backend-api'
 
 type RouteContext = {
-  params: {
+  params: Promise<{
     conversationId: string
-  }
+  }>
 }
 
 export async function POST(request: Request, { params }: RouteContext) {
+  const { conversationId } = await params
   const session = await requireUserSession()
   if (!session) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
@@ -38,7 +39,7 @@ export async function POST(request: Request, { params }: RouteContext) {
     return NextResponse.json({ message: '缺少后端 API Key 配置' }, { status: 500 })
   }
 
-  const upstream = await fetch(`${getBackendBaseUrl()}/api/v1/ai/conversations/${params.conversationId}/messages/stream`, {
+  const upstream = await fetch(`${getBackendBaseUrl()}/api/v1/ai/conversations/${conversationId}/messages/stream`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

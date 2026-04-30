@@ -552,7 +552,6 @@ function ChartCodeBlock({ chartType, code, collectChartSvgs }: { chartType: stri
     }))
 
     const chartId = `line-${code.slice(0, 20)}`
-    const svgUrl = chartSvgRegistry.get(chartId)
 
     // During PNG export: render a self-contained static SVG so toPng captures it reliably.
     if (collectChartSvgs) {
@@ -608,17 +607,10 @@ function ChartCodeBlock({ chartType, code, collectChartSvgs }: { chartType: stri
           <div className="px-4 pb-3 pt-4">
             {/* Recharts needs one frame to register its SVG; use the pre-generated static SVG as the img src */}
             <div className="h-[260px] w-full">
-              {svgUrl ? (
-                // Already generated this cycle — show it immediately
-                // eslint-disable-next-line @next/next/no-img-element -- SVG data URLs can't use next/image
-                <img src={svgUrl} alt="趋势图表" className="h-full w-full object-contain" />
-              ) : (
-                // First render of this cycle — show placeholder, will be replaced on next frame
-                <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-                  <Sparkles className="h-5 w-5 animate-pulse" />
-                </div>
-              )}
-            </div>
+            {/* Use url directly like PieChart does — avoids timing issues with chartSvgRegistry */}
+            {/* eslint-disable-next-line @next/next/no-img-element -- SVG data URLs can't use next/image */}
+            <img src={url} alt="趋势图表" className="h-full w-full object-contain" />
+          </div>
           </div>
         </div>
       )
@@ -1206,6 +1198,14 @@ export default function AIInsightsPage() {
   const [selectedModel, setSelectedModel] = useState('')
   const streamingRef = useRef<HTMLDivElement>(null)
 
+  // Use a ref to accumulate streaming content (avoids React batching issues)
+  const streamingContentRef = useRef('')
+
+  // DEBUG: Log when streamingContent changes
+  useEffect(() => {
+    console.log('[DEBUG streamingContent] Updated, length:', streamingContent.length)
+  }, [streamingContent])
+
   // SSE state for the "view live generation" mode
   const viewEventSourceRef = useRef<EventSource | null>(null)
   const [viewLiveContent, setViewLiveContent] = useState('')
@@ -1592,7 +1592,11 @@ export default function AIInsightsPage() {
             )
           )
         } else if (event.type === 'chunk') {
-          setStreamingContent((prev) => prev + (event.delta || ''))
+          const delta = event.delta || ''
+          if (!delta) return
+          // Directly set state - this works because we're inside EventSource callback
+          streamingContentRef.current += delta
+          setStreamingContent(streamingContentRef.current)
           setTimeout(() => {
             streamingRef.current?.scrollIntoView({ behavior: 'smooth' })
           }, 50)
@@ -1605,8 +1609,12 @@ export default function AIInsightsPage() {
             setInsightDialogOpen(false)
           }
           // content 只从 done 事件获取，不再从 status 中途获取
-          if (event.content) setStreamingContent(event.content)
+          if (event.content) {
+            setStreamingContent(event.content)
+            streamingContentRef.current = event.content
+          }
           setCurrentSubStatus(null)
+          streamingContentRef.current = '' // Reset ref after done
           _closeSse()
           void loadInsights()
         } else if (event.type === 'error') {
@@ -1637,7 +1645,7 @@ export default function AIInsightsPage() {
       es.onerror = null
       _attachedEses.current.delete(es)
     }
-  }, [_closeSse, eventSourceRef.current])
+  }, [_closeSse])
 
   // Polling fallback: refresh processing insights every 10s in case SSE missed the done event
   useEffect(() => {
@@ -1667,6 +1675,7 @@ export default function AIInsightsPage() {
 
     setIsGenerating(true)
     setStreamingContent('')
+    streamingContentRef.current = '' // Reset ref
     setCurrentSubStatus('data_aggregating')  // Immediately show step 1 as active
     setInsightDialogOpen(true)
     currentInsightId.current = null
@@ -2034,12 +2043,20 @@ export default function AIInsightsPage() {
       </Card>
 
       {/* Live generation progress dialog */}
+      {/* Use suppressHydrationWarning to handle SSR/CSR mismatch from Radix UI Dialog */}
       <Dialog open={insightDialogOpen} onOpenChange={(open) => {
         // SSE stays alive even when dialog closes — it continues updating the list
         if (!open) setCurrentSubStatus(null)
         setInsightDialogOpen(open)
       }}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent
+          suppressHydrationWarning
+          className={cn(
+            'max-h-[80vh] overflow-y-auto',
+            // Expand width when streaming preview is active
+            currentSubStatus === 'ai_generating' && streamingContent.length > 0 ? 'max-w-5xl' : 'max-w-2xl'
+          )}
+        >
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Bot className="h-5 w-5" />
@@ -2047,12 +2064,102 @@ export default function AIInsightsPage() {
             </DialogTitle>
           </DialogHeader>
           <div className="mt-4">
-            {streamingContent === '' ? (
+            {/* Phase 1: Data aggregation - only show stepper */}
+            {currentSubStatus === 'data_aggregating' && (
               <GenerationProgress currentSubStatus={currentSubStatus} />
-            ) : (
-              <div ref={streamingRef}>
-                <MarkdownContent content={streamingContent} collectChartSvgs={collectChartSvgs} />
+            )}
+
+            {/* Phase 2: AI generating - split view with live preview */}
+            {currentSubStatus === 'ai_generating' && (
+              <div className="flex gap-6">
+                {/* Left: Progress stepper */}
+                <div className="w-64 shrink-0">
+                  <GenerationProgress currentSubStatus={currentSubStatus} />
+                  {/* Streaming indicator */}
+                  <div className="mt-4 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                      <span className="text-xs text-primary font-medium">实时接收中...</span>
+                    </div>
+                    <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>已接收</span>
+                      <span className="font-mono font-medium text-primary">{streamingContent.length}</span>
+                      <span>字符</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right: Live Markdown preview - show plain text during streaming for performance */}
+                <div
+                  ref={streamingRef}
+                  className="flex-1 min-w-0 rounded-xl border border-border/70 bg-background/60 overflow-y-auto max-h-[60vh]"
+                >
+                  {streamingContent ? (
+                    <div className="p-4 font-mono text-sm leading-relaxed text-foreground whitespace-pre-wrap">
+                      {streamingContent}
+                      {/* Blinking cursor for streaming effect */}
+                      <span className="inline-block w-2 h-4 ml-1 bg-primary animate-pulse align-middle" />
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">
+                      AI 正在分析数据，即将开始生成洞察...
+                    </div>
+                  )}
+                </div>
               </div>
+            )}
+
+            {/* Phase 3: Title generating - show completed content with actions */}
+            {(currentSubStatus === 'title_generating' || currentSubStatus === null) && streamingContent && (
+              <div className="space-y-4">
+                {/* Header with status */}
+                <div className="flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
+                  <Check className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <span className="text-sm text-emerald-700 font-medium">
+                    {currentSubStatus === 'title_generating' ? '洞察内容已生成，正在生成标题...' : '生成完成'}
+                  </span>
+                </div>
+
+                {/* Completed content */}
+                <div ref={streamingRef}>
+                  <MarkdownContent content={streamingContent} collectChartSvgs={collectChartSvgs} />
+                </div>
+
+                {/* Done state - show action buttons */}
+                {currentSubStatus === null && (
+                  <div className="flex items-center justify-end gap-2 pt-4 border-t">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setInsightDialogOpen(false)
+                        // Open view dialog to edit
+                        const sid = currentInsightId.current
+                        if (sid) void handleViewInsight(sid)
+                      }}
+                    >
+                      <Eye className="mr-1.5 h-4 w-4" />
+                      查看并编辑
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setInsightDialogOpen(false)
+                        // Refresh list to show the new insight
+                        void loadInsights()
+                      }}
+                    >
+                      <Check className="mr-1.5 h-4 w-4" />
+                      完成
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Fallback: queued or unknown state */}
+            {!currentSubStatus && streamingContent === '' && (
+              <GenerationProgress currentSubStatus={currentSubStatus} />
             )}
           </div>
         </DialogContent>
@@ -2073,10 +2180,13 @@ export default function AIInsightsPage() {
           }
         }}
       >
-        <DialogContent className={cn(
-          'max-h-[80vh] overflow-y-auto overflow-x-auto',
-          isEditingDetail ? 'max-w-[1350px]' : 'max-w-[675px]'
-        )}>
+        <DialogContent
+          suppressHydrationWarning
+          className={cn(
+            'max-h-[80vh] overflow-y-auto overflow-x-auto',
+            isEditingDetail ? 'max-w-[1350px]' : 'max-w-[675px]'
+          )}
+        >
           <DialogHeader>
             <div className="flex items-start justify-between gap-4">
               <div>
