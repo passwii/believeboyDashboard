@@ -33,7 +33,10 @@ export function ChangeLogDialog() {
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent
+        aria-describedby="changelog-dialog-description"
+        className="max-w-2xl max-h-[85vh] overflow-y-auto"
+      >
         <DialogHeader className="space-y-3">
           <div className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-amber-500" />
@@ -44,7 +47,7 @@ export function ChangeLogDialog() {
           <DialogTitle className="text-xl">{entry.title}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-3 py-2">
+        <div id="changelog-dialog-description" className="space-y-3 py-2">
           <p className="text-sm font-medium text-foreground">本次更新</p>
           <div className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
             {entry.content}

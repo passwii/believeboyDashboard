@@ -634,7 +634,8 @@ export default function SystemOperationLogsPage() {
       </Card>
 
       <Dialog open={Boolean(activeRow)} onOpenChange={(open) => (open ? null : setActiveRow(null))}>
-        <DialogContent className="max-h-[85vh] max-w-4xl overflow-y-auto dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
+        <DialogContent aria-describedby="log-detail-dialog-description" className="max-h-[85vh] max-w-4xl overflow-y-auto dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
+          <span id="log-detail-dialog-description" className="sr-only">日志详情查看</span>
           <DialogHeader>
             <DialogTitle>日志详情</DialogTitle>
           </DialogHeader>

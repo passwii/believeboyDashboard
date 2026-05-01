@@ -2050,6 +2050,7 @@ export default function AIInsightsPage() {
         setInsightDialogOpen(open)
       }}>
         <DialogContent
+          aria-describedby="insight-generation-dialog-description"
           suppressHydrationWarning
           className={cn(
             'max-h-[80vh] overflow-y-auto',
@@ -2057,6 +2058,9 @@ export default function AIInsightsPage() {
             currentSubStatus === 'ai_generating' && streamingContent.length > 0 ? 'max-w-5xl' : 'max-w-2xl'
           )}
         >
+          <span id="insight-generation-dialog-description" className="sr-only">
+            AI洞察报告生成进度对话框
+          </span>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Bot className="h-5 w-5" />
@@ -2181,12 +2185,16 @@ export default function AIInsightsPage() {
         }}
       >
         <DialogContent
+          aria-describedby="insight-view-dialog-description"
           suppressHydrationWarning
           className={cn(
             'max-h-[80vh] overflow-y-auto overflow-x-auto',
             isEditingDetail ? 'max-w-[1350px]' : 'max-w-[675px]'
           )}
         >
+          <span id="insight-view-dialog-description" className="sr-only">
+            洞察详情查看对话框
+          </span>
           <DialogHeader>
             <div className="flex items-start justify-between gap-4">
               <div>
