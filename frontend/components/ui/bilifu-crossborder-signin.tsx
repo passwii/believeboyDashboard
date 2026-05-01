@@ -49,43 +49,54 @@ const Input = ({ className = "", ...props }: InputProps) => {
   );
 };
 
-type RoutePoint = {
+const RoutePoint = {
   x: number;
   y: number;
   delay: number;
 };
 
-const routes: { start: RoutePoint; end: RoutePoint; color: string }[] = [
-  {
-    start: { x: 100, y: 150, delay: 0 },
-    end: { x: 200, y: 80, delay: 2 },
-    color: "#2563eb",
-  },
-  {
-    start: { x: 200, y: 80, delay: 2 },
-    end: { x: 260, y: 120, delay: 4 },
-    color: "#2563eb",
-  },
-  {
-    start: { x: 50, y: 50, delay: 1 },
-    end: { x: 150, y: 180, delay: 3 },
-    color: "#2563eb",
-  },
-  {
-    start: { x: 280, y: 60, delay: 0.5 },
-    end: { x: 180, y: 180, delay: 2.5 },
-    color: "#2563eb",
-  },
-];
+type RouteMapStyle = 'light' | 'dark';
 
-const DotMap = () => {
+const getRoutes = (style: RouteMapStyle) => {
+  const colors = style === 'dark'
+    ? { primary: '#60a5fa', secondary: '#3b82f6', glow: 'rgba(96, 165, 250, 0.4)' }
+    : { primary: '#2563eb', secondary: '#3b82f6', glow: 'rgba(59, 130, 246, 0.4)' };
+
+  return [
+    {
+      start: { x: 100, y: 150, delay: 0 },
+      end: { x: 200, y: 80, delay: 2 },
+      color: colors.primary,
+    },
+    {
+      start: { x: 200, y: 80, delay: 2 },
+      end: { x: 260, y: 120, delay: 4 },
+      color: colors.primary,
+    },
+    {
+      start: { x: 50, y: 50, delay: 1 },
+      end: { x: 150, y: 180, delay: 3 },
+      color: colors.primary,
+    },
+    {
+      start: { x: 280, y: 60, delay: 0.5 },
+      end: { x: 180, y: 180, delay: 2.5 },
+      color: colors.primary,
+    },
+  ];
+};
+
+const DotMap = ({ theme = 'light' }: { theme?: 'light' | 'dark' }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
-  const generateDots = (width: number, height: number) => {
+  const isDark = theme === 'dark';
+
+  const generateDots = (width: number, height: number, dark: boolean) => {
     const dots = [];
     const gap = 12;
     const dotRadius = 1;
+    const baseColor = dark ? [96, 165, 250] : [37, 99, 235]; // blue-400 for dark, blue-600 for light
 
     for (let x = 0; x < width; x += gap) {
       for (let y = 0; y < height; y += gap) {
@@ -103,6 +114,7 @@ const DotMap = () => {
             y,
             radius: dotRadius,
             opacity: Math.random() * 0.5 + 0.2,
+            color: baseColor,
           });
         }
       }
@@ -135,7 +147,11 @@ const DotMap = () => {
     if (!ctx) return;
     const ctxRef = ctx; // Store in a local variable for closures
 
-    const dots = generateDots(dimensions.width, dimensions.height);
+    const dots = generateDots(dimensions.width, dimensions.height, isDark);
+    const routes = getRoutes(isDark ? 'dark' : 'light');
+    const colors = isDark
+      ? { dotColor: 'rgba(96, 165, 250,', routeColor: '#60a5fa', glowColor: 'rgba(96, 165, 250, 0.4)', movingDot: '#93c5fd' }
+      : { dotColor: 'rgba(37, 99, 235,', routeColor: '#2563eb', glowColor: 'rgba(59, 130, 246, 0.4)', movingDot: '#3b82f6' };
     let animationFrameId: number;
     let startTime = Date.now();
 
@@ -144,7 +160,7 @@ const DotMap = () => {
       dots.forEach((dot) => {
         ctxRef.beginPath();
         ctxRef.arc(dot.x, dot.y, dot.radius, 0, Math.PI * 2);
-        ctxRef.fillStyle = `rgba(37, 99, 235, ${dot.opacity})`;
+        ctxRef.fillStyle = `${colors.dotColor}${dot.opacity})`;
         ctxRef.fill();
       });
     }
@@ -174,12 +190,12 @@ const DotMap = () => {
 
         ctxRef.beginPath();
         ctxRef.arc(x, y, 3, 0, Math.PI * 2);
-        ctxRef.fillStyle = "#3b82f6";
+        ctxRef.fillStyle = colors.movingDot;
         ctxRef.fill();
 
         ctxRef.beginPath();
         ctxRef.arc(x, y, 6, 0, Math.PI * 2);
-        ctxRef.fillStyle = "rgba(59, 130, 246, 0.4)";
+        ctxRef.fillStyle = colors.glowColor;
         ctxRef.fill();
 
         if (progress === 1) {
@@ -204,7 +220,7 @@ const DotMap = () => {
 
     animate();
     return () => cancelAnimationFrame(animationFrameId);
-  }, [dimensions]);
+  }, [dimensions, isDark]);
 
   return (
     <div className="relative h-full w-full overflow-hidden">
@@ -213,7 +229,11 @@ const DotMap = () => {
   );
 };
 
-const SignInCard = () => {
+type SignInCardProps = {
+  theme?: 'light' | 'dark';
+};
+
+const SignInCard = ({ theme = 'light' }: SignInCardProps) => {
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -227,6 +247,11 @@ const SignInCard = () => {
   const searchParams = useSearchParams();
   const callbackUrl = useMemo(() => searchParams.get("callbackUrl") || "/dashboard", [searchParams]);
   const { startGlobalLoading, endGlobalLoading } = useGlobalLoading();
+
+  const isDark = theme === 'dark';
+  const leftPanelGradient = isDark
+    ? 'from-[hsl(220_25%_8%)] to-[hsl(233_30%_12%)]'
+    : 'from-blue-50 to-indigo-100';
 
   const finishNavigationLoading = useCallback(() => {
     if (!loadingPendingRef.current) return;
@@ -305,8 +330,8 @@ const SignInCard = () => {
         className="flex w-full max-w-[min(90vw,56rem)] overflow-hidden rounded-2xl bg-white dark:bg-[hsl(var(--card))] shadow-xl"
       >
         <div className="relative hidden h-[clamp(400px,70vh,600px)] w-1/2 overflow-hidden border-r border-gray-100 dark:border-[hsl(var(--border))] lg:block">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-[hsl(220_25%_12%)] dark:to-[hsl(233_30%_18%)]">
-            <DotMap />
+          <div className="absolute inset-0 bg-gradient-to-br ${leftPanelGradient}">
+            <DotMap theme={theme} />
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-8">
               <motion.div
                 initial={{ opacity: 0, y: -20 }}
@@ -440,18 +465,39 @@ const SignInCard = () => {
 };
 
 const Index = () => {
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+
+  useEffect(() => {
+    // Detect initial theme
+    const isDark = document.documentElement.classList.contains('dark');
+    setTheme(isDark ? 'dark' : 'light');
+
+    // Watch for theme changes
+    const observer = new MutationObserver(() => {
+      const isDarkNow = document.documentElement.classList.contains('dark');
+      setTheme(isDarkNow ? 'dark' : 'light');
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
+
+  const isDark = theme === 'dark';
+
+  // Left panel gradient classes
+  const leftPanelGradient = isDark
+    ? 'from-[hsl(220_25%_8%)] to-[hsl(233_30%_12%)]'
+    : 'from-blue-50 to-indigo-100';
+
+  // Outer background classes
+  const outerBg = isDark
+    ? 'from-[hsl(220_25%_8%)] to-[hsl(233_30%_12%)]'
+    : 'from-blue-50 to-indigo-100';
+
   return (
     <div
-      className="flex min-h-screen w-full items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-[hsl(226_38%_11%)] dark:to-[hsl(233_30%_18%)] p-4 sm:px-6 md:px-8"
-      style={{
-        backgroundImage:
-          "linear-gradient(to bottom right, rgba(239,246,255,0.95), rgba(224,231,255,0.95)), url('https://images.unsplash.com/photo-1488085061387-422e29b40080?auto=format&fit=crop&w=1800&q=80')",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-      }}
-      data-theme="light"
+      className={`flex min-h-screen w-full items-center justify-center bg-gradient-to-br ${outerBg} p-4 sm:px-6 md:px-8`}
     >
-      <SignInCard />
+      <SignInCard theme={theme} />
     </div>
   );
 };
