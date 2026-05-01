@@ -49,12 +49,6 @@ const Input = ({ className = "", ...props }: InputProps) => {
   );
 };
 
-const RoutePoint = {
-  x: number;
-  y: number;
-  delay: number;
-};
-
 type RouteMapStyle = 'light' | 'dark';
 
 const getRoutes = (style: RouteMapStyle) => {
