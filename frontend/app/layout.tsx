@@ -31,7 +31,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" data-scroll-behavior="smooth" suppressHydrationWarning>
       <body className={`${manrope.variable} ${spaceGrotesk.variable} min-h-screen antialiased`}>
         <SkipLink href="#main-content">Skip to main content</SkipLink>
         <SkipLink href="#main-navigation">Skip to navigation</SkipLink>
