@@ -1,6 +1,6 @@
 'use client'
 
-import { type ComponentPropsWithoutRef, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { startTransition, type ComponentPropsWithoutRef, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { DateRange } from 'react-day-picker'
 import ReactMarkdown from 'react-markdown'
@@ -24,7 +24,7 @@ import {
   Copy,
   Check,
   Eye,
-  Image,
+  Image as ImageIcon,
   Loader2,
   Pencil,
   Save,
@@ -158,6 +158,8 @@ const DATA_STEPS = [
   { key: 'data_aggregating_ad_campaigns', label: '广告活动' },
 ]
 
+const STREAMING_PREVIEW_SYNC_MS = 180
+
 function formatYMD(date: Date): string {
   // Preserve the exact calendar date chosen in the picker.
   // This page treats dates as raw local YYYY-MM-DD values, not instants in time.
@@ -181,16 +183,17 @@ function lastSevenDaysRange(country: string) {
 }
 
 function GenerationProgress({ currentSubStatus }: { currentSubStatus: string | null }) {
+  const effectiveSubStatus = currentSubStatus === 'queued' ? 'data_aggregating' : currentSubStatus
   // Top-level step (data_aggregating, ai_generating, title_generating)
-  const topLevelIndex = currentSubStatus
-    ? GENERATION_STEPS.findIndex((s) => s.key === currentSubStatus)
+  const topLevelIndex = effectiveSubStatus
+    ? GENERATION_STEPS.findIndex((s) => s.key === effectiveSubStatus)
     : -1
 
   // True when we're inside data aggregation sub-steps (e.g. data_aggregating_sales)
-  const isInSubSteps = currentSubStatus?.startsWith('data_aggregating') && currentSubStatus !== 'data_aggregating'
+  const isInSubSteps = effectiveSubStatus?.startsWith('data_aggregating') && effectiveSubStatus !== 'data_aggregating'
   // The active sub-step index
-  const activeSubStepIndex = currentSubStatus
-    ? DATA_STEPS.findIndex((s) => s.key === currentSubStatus)
+  const activeSubStepIndex = effectiveSubStatus
+    ? DATA_STEPS.findIndex((s) => s.key === effectiveSubStatus)
     : -1
 
   return (
@@ -288,7 +291,7 @@ function GenerationProgress({ currentSubStatus }: { currentSubStatus: string | n
                   <div className="mt-2 pl-2 border-l-2 border-primary/20 space-y-1.5">
                     {DATA_STEPS.map((ds, di) => {
                       const isDCompleted = activeSubStepIndex > di || topLevelIndex > 0
-                      const isDActive = currentSubStatus === ds.key
+                      const isDActive = effectiveSubStatus === ds.key
                       return (
                         <div key={ds.key} className={cn(
                           'flex items-center gap-2 transition-all duration-300',
@@ -350,6 +353,98 @@ function GenerationProgress({ currentSubStatus }: { currentSubStatus: string | n
       <p className="text-xs text-muted-foreground border-t pt-4">
         生成任务在后台运行，可以切换到其他页面，稍后再来查看结果。完成后可在下方查看完整的洞察报告。
       </p>
+    </div>
+  )
+}
+
+function LivePreviewPanel({
+  title,
+  eyebrow,
+  statusLabel,
+  statusTone = 'default',
+  content,
+  isStreaming = false,
+  isPlaceholder = false,
+  placeholderMessage,
+  collectChartSvgs,
+  panelRef,
+}: {
+  title: string
+  eyebrow: string
+  statusLabel: string
+  statusTone?: 'default' | 'active' | 'success'
+  content: string
+  isStreaming?: boolean
+  isPlaceholder?: boolean
+  placeholderMessage?: string
+  collectChartSvgs?: boolean
+  panelRef?: React.RefObject<HTMLDivElement>
+}) {
+  const toneClassName = statusTone === 'success'
+    ? 'border-emerald-500/20 bg-emerald-500/8 text-emerald-700'
+    : statusTone === 'active'
+      ? 'border-primary/20 bg-primary/8 text-primary'
+      : 'border-border/70 bg-background/70 text-muted-foreground'
+
+  return (
+    <div className="relative min-w-0 overflow-hidden rounded-[28px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))] shadow-[0_28px_90px_-56px_rgba(15,23,42,0.58)]">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.12),transparent_58%)]" />
+      <div className="relative border-b border-border/60 bg-[linear-gradient(135deg,hsl(var(--surface-overlay)/0.96),hsl(var(--surface-soft)/0.7))] px-5 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">{eyebrow}</p>
+            <p className="mt-1 text-sm font-semibold text-foreground">{title}</p>
+          </div>
+          <div className={cn('inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium', toneClassName)}>
+            {isStreaming && <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse motion-reduce:animate-none" />}
+            <span>{statusLabel}</span>
+          </div>
+        </div>
+      </div>
+
+      <div
+        ref={panelRef}
+        className={cn(
+          'relative max-h-[62vh] overflow-y-auto',
+          isPlaceholder ? 'px-5 py-5' : 'px-4 py-4 sm:px-5'
+        )}
+      >
+        {isPlaceholder ? (
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              {[0, 1, 2, 3].map((item) => (
+                <div
+                  key={item}
+                  className="overflow-hidden rounded-2xl border border-border/60 bg-background/60 px-4 py-3"
+                >
+                  <div className="h-2.5 w-24 rounded-full bg-muted/70 animate-pulse motion-reduce:animate-none" />
+                  <div className="mt-3 h-2 w-full rounded-full bg-muted/55 animate-pulse motion-reduce:animate-none" />
+                  <div className="mt-2 h-2 w-4/5 rounded-full bg-muted/45 animate-pulse motion-reduce:animate-none" />
+                </div>
+              ))}
+            </div>
+            <div className="rounded-2xl border border-dashed border-primary/20 bg-primary/5 px-4 py-4 text-sm leading-6 text-muted-foreground">
+              {placeholderMessage}
+            </div>
+          </div>
+        ) : content ? (
+          <div className="relative">
+            <MarkdownContent content={content} collectChartSvgs={collectChartSvgs} />
+            {isStreaming && (
+              <div className="pointer-events-none sticky bottom-0 flex justify-end px-3 pb-3">
+                <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-background/92 px-3 py-1 text-xs text-primary shadow-sm backdrop-blur-sm">
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse motion-reduce:animate-none" />
+                  Markdown 实时渲染中
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="flex min-h-[320px] items-center justify-center rounded-[24px] border border-dashed border-border/70 bg-background/40 px-6 text-center text-sm leading-6 text-muted-foreground">
+            {placeholderMessage}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -1187,10 +1282,10 @@ export default function AIInsightsPage() {
   const [isExporting, setIsExporting] = useState(false)
   // State machine: triggers charts to render <img> with SVG data URL → effect captures PNG
   const [collectChartSvgs, setCollectChartSvgs] = useState(false)
-  const pendingExportRef = useRef(false)
 
   // Live streaming content (shown in generation dialog)
   const [streamingContent, setStreamingContent] = useState('')
+  const [streamingPreviewContent, setStreamingPreviewContent] = useState('')
   const [currentSubStatus, setCurrentSubStatus] = useState<string | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [modelConfig, setModelConfig] = useState<AIModelConfig | null>(null)
@@ -1201,14 +1296,30 @@ export default function AIInsightsPage() {
   // Use a ref to accumulate streaming content (avoids React batching issues)
   const streamingContentRef = useRef('')
 
-  // DEBUG: Log when streamingContent changes
   useEffect(() => {
-    console.log('[DEBUG streamingContent] Updated, length:', streamingContent.length)
-  }, [streamingContent])
+    if (!streamingContent) {
+      setStreamingPreviewContent('')
+      return
+    }
+
+    if (currentSubStatus !== 'ai_generating') {
+      setStreamingPreviewContent(streamingContent)
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      startTransition(() => {
+        setStreamingPreviewContent(streamingContent)
+      })
+    }, STREAMING_PREVIEW_SYNC_MS)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [currentSubStatus, streamingContent])
 
   // SSE state for the "view live generation" mode
   const viewEventSourceRef = useRef<EventSource | null>(null)
   const [viewLiveContent, setViewLiveContent] = useState('')
+  const [viewLivePreviewContent, setViewLivePreviewContent] = useState('')
   const [viewLiveSubStatus, setViewLiveSubStatus] = useState<string | null>(null)
   const [viewLiveRefreshing, setViewLiveRefreshing] = useState(false)
   const [viewLiveError, setViewLiveError] = useState<string | null>(null)
@@ -1217,6 +1328,31 @@ export default function AIInsightsPage() {
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   // Track which EventSource instances this effect has already attached listeners to
   const _attachedEses = useRef<Set<EventSource>>(new Set())
+  const isGenerationDialogExpanded = insightDialogOpen && currentSubStatus !== null
+  const isViewLiveExpanded = Boolean(
+    viewDialogOpen
+    && (viewingInsight?.status === 'generating' || viewingInsight?.status === 'pending' || viewLiveRefreshing)
+  )
+
+  useEffect(() => {
+    if (!viewLiveContent) {
+      setViewLivePreviewContent('')
+      return
+    }
+
+    if (viewLiveSubStatus !== 'ai_generating') {
+      setViewLivePreviewContent(viewLiveContent)
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      startTransition(() => {
+        setViewLivePreviewContent(viewLiveContent)
+      })
+    }, STREAMING_PREVIEW_SYNC_MS)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [viewLiveContent, viewLiveSubStatus])
 
   useEffect(() => {
     async function loadProjects() {
@@ -1320,9 +1456,16 @@ export default function AIInsightsPage() {
         if (event.type === 'ping') return
 
         if (event.type === 'status') {
-          setViewLiveSubStatus(event.sub_status ?? null)
+          setViewLiveSubStatus((prev) => {
+            if (event.sub_status) return event.sub_status
+            if (event.status === 'pending') return 'queued'
+            return prev
+          })
           // Keep viewingInsight.sub_status in sync so dialog conditions stay satisfied
-          setViewingInsight((prev) => prev ? { ...prev, sub_status: event.sub_status ?? prev.sub_status } : prev)
+          setViewingInsight((prev) => prev ? {
+            ...prev,
+            sub_status: event.sub_status ?? (event.status === 'pending' ? 'queued' : prev.sub_status),
+          } : prev)
           if (event.status === 'failed') {
             setViewLiveRefreshing(false)
             _closeViewSse()
@@ -1342,7 +1485,11 @@ export default function AIInsightsPage() {
             streamingRef.current?.scrollIntoView({ behavior: 'smooth' })
           }, 50)
         } else if (event.type === 'done') {
-          setViewLiveContent((prev) => event.content ?? prev)
+          setViewLiveContent((prev) => {
+            const nextContent = event.content ?? prev
+            setViewLivePreviewContent(nextContent)
+            return nextContent
+          })
           setViewLiveSubStatus(null)
           setViewLiveRefreshing(false)
           _closeViewSse()
@@ -1379,7 +1526,7 @@ export default function AIInsightsPage() {
       setViewingInsight((prev) => prev ? { ...prev, status: 'failed', error_message: errMsg, content: '' } : prev)
       void loadInsights()
     }
-  }, [_closeViewSse, loadInsights, viewLiveContent])
+  }, [_closeViewSse, loadInsights])
 
   const handleViewInsight = useCallback(async (insightId: number) => {
     setIsLoadingDetail(true)
@@ -1388,6 +1535,7 @@ export default function AIInsightsPage() {
     setIsEditingDetail(false)
     setEditingContent('')
     setViewLiveContent('')
+    setViewLivePreviewContent('')
     setViewLiveSubStatus(null)
     setViewLiveError(null)
     try {
@@ -1421,6 +1569,7 @@ export default function AIInsightsPage() {
     if (!confirm('确定要重试生成这条洞察吗？当前内容将被替换。')) return
     setViewLiveRefreshing(true)
     setViewLiveContent('')
+    setViewLivePreviewContent('')
     setViewLiveSubStatus(null)
     setViewLiveError(null)
     // Mark as loading so the dialog shows a clean state while SSE connects
@@ -1557,8 +1706,9 @@ export default function AIInsightsPage() {
     if (!es) return
 
     // Guard: don't double-attach if this EventSource already has handlers
-    if (_attachedEses.current.has(es)) return
-    _attachedEses.current.add(es)
+    const attachedEses = _attachedEses.current
+    if (attachedEses.has(es)) return
+    attachedEses.add(es)
 
     const onMessage = (e: MessageEvent) => {
       if (!e.data || e.data.trim() === '') return
@@ -1569,8 +1719,9 @@ export default function AIInsightsPage() {
 
         if (event.type === 'status') {
           const sid = event.insight_id ?? currentInsightId.current
-          if (sid) insightSubStatusRef.current[sid] = event.sub_status ?? null
-          setCurrentSubStatus(event.sub_status ?? null)
+          const nextSubStatus = event.sub_status ?? (event.status === 'pending' ? 'queued' : null)
+          if (sid && nextSubStatus) insightSubStatusRef.current[sid] = nextSubStatus
+          setCurrentSubStatus((prev) => nextSubStatus ?? prev)
           if (event.status === 'failed') {
             alert(`生成失败: ${event.error_message || '生成任务失败'}`)
             _closeSse()
@@ -1585,7 +1736,7 @@ export default function AIInsightsPage() {
                 ? {
                     ...item,
                     status: event.status,
-                    sub_status: event.sub_status ?? item.sub_status,
+                    sub_status: nextSubStatus ?? item.sub_status,
                     title: event.title ? `${event.title}` : item.title,
                   }
                 : item
@@ -1605,12 +1756,11 @@ export default function AIInsightsPage() {
           if (event.status === 'failed') {
             alert(`生成失败: ${event.error_message || '生成任务失败'}`)
             setInsights((prev) => prev.filter((i) => i.id !== sid))
-          } else {
-            setInsightDialogOpen(false)
           }
           // content 只从 done 事件获取，不再从 status 中途获取
           if (event.content) {
             setStreamingContent(event.content)
+            setStreamingPreviewContent(event.content)
             streamingContentRef.current = event.content
           }
           setCurrentSubStatus(null)
@@ -1643,9 +1793,9 @@ export default function AIInsightsPage() {
     return () => {
       es.removeEventListener('message', onMessage)
       es.onerror = null
-      _attachedEses.current.delete(es)
+      attachedEses.delete(es)
     }
-  }, [_closeSse])
+  }, [_closeSse, loadInsights])
 
   // Polling fallback: refresh processing insights every 10s in case SSE missed the done event
   useEffect(() => {
@@ -1675,6 +1825,7 @@ export default function AIInsightsPage() {
 
     setIsGenerating(true)
     setStreamingContent('')
+    setStreamingPreviewContent('')
     streamingContentRef.current = '' // Reset ref
     setCurrentSubStatus('data_aggregating')  // Immediately show step 1 as active
     setInsightDialogOpen(true)
@@ -2045,16 +2196,13 @@ export default function AIInsightsPage() {
       {/* Live generation progress dialog */}
       {/* Use suppressHydrationWarning to handle SSR/CSR mismatch from Radix UI Dialog */}
       <Dialog open={insightDialogOpen} onOpenChange={(open) => {
-        // SSE stays alive even when dialog closes — it continues updating the list
-        if (!open) setCurrentSubStatus(null)
         setInsightDialogOpen(open)
       }}>
         <DialogContent
           suppressHydrationWarning
           className={cn(
             'max-h-[80vh] overflow-y-auto',
-            // Expand width when streaming preview is active
-            currentSubStatus === 'ai_generating' && streamingContent.length > 0 ? 'max-w-5xl' : 'max-w-2xl'
+            isGenerationDialogExpanded ? 'max-w-6xl' : 'max-w-2xl'
           )}
         >
           <DialogHeader>
@@ -2064,96 +2212,122 @@ export default function AIInsightsPage() {
             </DialogTitle>
           </DialogHeader>
           <div className="mt-4">
-            {/* Phase 1: Data aggregation - only show stepper */}
-            {currentSubStatus === 'data_aggregating' && (
-              <GenerationProgress currentSubStatus={currentSubStatus} />
-            )}
-
-            {/* Phase 2: AI generating - split view with live preview */}
-            {currentSubStatus === 'ai_generating' && (
-              <div className="flex gap-6">
-                {/* Left: Progress stepper */}
-                <div className="w-64 shrink-0">
+            {isGenerationDialogExpanded && (
+              <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+                <div className="space-y-4">
                   <GenerationProgress currentSubStatus={currentSubStatus} />
-                  {/* Streaming indicator */}
-                  <div className="mt-4 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                      <span className="text-xs text-primary font-medium">实时接收中...</span>
+                  <div className="overflow-hidden rounded-[24px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-soft)),hsl(var(--surface-panel)))] px-4 py-4 shadow-[0_20px_60px_-44px_rgba(15,23,42,0.55)]">
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                      <span className="h-2 w-2 rounded-full bg-primary animate-pulse motion-reduce:animate-none" />
+                      Live Session
                     </div>
-                    <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>已接收</span>
-                      <span className="font-mono font-medium text-primary">{streamingContent.length}</span>
-                      <span>字符</span>
+                    <div className="mt-4 space-y-3">
+                      <div className="rounded-2xl border border-border/60 bg-background/70 px-3 py-3">
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Raw Stream</p>
+                        <p className="mt-1 text-lg font-semibold tabular-nums text-foreground">{streamingContent.length}</p>
+                        <p className="text-xs text-muted-foreground">已接收字符数</p>
+                      </div>
+                      <div className="rounded-2xl border border-border/60 bg-background/70 px-3 py-3">
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Render State</p>
+                        <p className="mt-1 text-sm font-medium text-foreground">
+                          {currentSubStatus === 'data_aggregating'
+                            ? '等待 AI 输出首段 Markdown'
+                            : currentSubStatus === 'ai_generating'
+                              ? '按节流窗口实时渲染 Markdown'
+                              : '内容已收齐，等待标题收束'}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Right: Live Markdown preview - show plain text during streaming for performance */}
-                <div
-                  ref={streamingRef}
-                  className="flex-1 min-w-0 rounded-xl border border-border/70 bg-background/60 overflow-y-auto max-h-[60vh]"
-                >
-                  {streamingContent ? (
-                    <div className="p-4 font-mono text-sm leading-relaxed text-foreground whitespace-pre-wrap">
-                      {streamingContent}
-                      {/* Blinking cursor for streaming effect */}
-                      <span className="inline-block w-2 h-4 ml-1 bg-primary animate-pulse align-middle" />
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">
-                      AI 正在分析数据，即将开始生成洞察...
-                    </div>
+                <div className="min-w-0">
+                  {(currentSubStatus === 'queued' || currentSubStatus === 'data_aggregating') && (
+                    <LivePreviewPanel
+                      panelRef={streamingRef}
+                      eyebrow="Data Pipeline"
+                      title="洞察草稿预览区"
+                      statusLabel={currentSubStatus === 'queued' ? '任务已创建，等待后台启动' : '正在聚合业务数据'}
+                      statusTone="active"
+                      content=""
+                      isPlaceholder
+                      placeholderMessage={currentSubStatus === 'queued'
+                        ? '生成任务已经进入队列。后台线程启动后会自动进入数据聚合，并在收到第一段 AI 输出后切换到实时 Markdown 预览。'
+                        : '系统正在汇总销售、广告、库存和对比周期数据。数据聚合完成后，右侧将立即开始流式渲染 Markdown 洞察内容。'}
+                    />
+                  )}
+
+                  {currentSubStatus === 'ai_generating' && (
+                    <LivePreviewPanel
+                      panelRef={streamingRef}
+                      eyebrow="Live Markdown"
+                      title="洞察报告实时预览"
+                      statusLabel="SSE 流式生成中"
+                      statusTone="active"
+                      content={streamingPreviewContent}
+                      isStreaming
+                      collectChartSvgs={collectChartSvgs}
+                      placeholderMessage="AI 正在分析数据，即将开始输出第一段 Markdown 内容。"
+                    />
+                  )}
+
+                  {currentSubStatus === 'title_generating' && (
+                    <LivePreviewPanel
+                      panelRef={streamingRef}
+                      eyebrow="Finishing Pass"
+                      title="洞察内容已生成"
+                      statusLabel="正在生成标题"
+                      statusTone="success"
+                      content={streamingPreviewContent || streamingContent}
+                      collectChartSvgs={collectChartSvgs}
+                      placeholderMessage="洞察主体内容已经完成，系统正在生成标题。"
+                    />
                   )}
                 </div>
               </div>
             )}
 
-            {/* Phase 3: Title generating - show completed content with actions */}
-            {(currentSubStatus === 'title_generating' || currentSubStatus === null) && streamingContent && (
+            {/* Done state - collapse back to the single report card */}
+            {currentSubStatus === null && streamingContent && (
               <div className="space-y-4">
                 {/* Header with status */}
                 <div className="flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
                   <Check className="h-4 w-4 text-emerald-600 shrink-0" />
                   <span className="text-sm text-emerald-700 font-medium">
-                    {currentSubStatus === 'title_generating' ? '洞察内容已生成，正在生成标题...' : '生成完成'}
+                    生成完成
                   </span>
                 </div>
 
                 {/* Completed content */}
                 <div ref={streamingRef}>
-                  <MarkdownContent content={streamingContent} collectChartSvgs={collectChartSvgs} />
+                  <MarkdownContent content={streamingPreviewContent || streamingContent} collectChartSvgs={collectChartSvgs} />
                 </div>
 
                 {/* Done state - show action buttons */}
-                {currentSubStatus === null && (
-                  <div className="flex items-center justify-end gap-2 pt-4 border-t">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setInsightDialogOpen(false)
-                        // Open view dialog to edit
-                        const sid = currentInsightId.current
-                        if (sid) void handleViewInsight(sid)
-                      }}
-                    >
-                      <Eye className="mr-1.5 h-4 w-4" />
-                      查看并编辑
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        setInsightDialogOpen(false)
-                        // Refresh list to show the new insight
-                        void loadInsights()
-                      }}
-                    >
-                      <Check className="mr-1.5 h-4 w-4" />
-                      完成
-                    </Button>
-                  </div>
-                )}
+                <div className="flex items-center justify-end gap-2 pt-4 border-t">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setInsightDialogOpen(false)
+                      const sid = currentInsightId.current
+                      if (sid) void handleViewInsight(sid)
+                    }}
+                  >
+                    <Pencil className="mr-1.5 h-4 w-4" />
+                    查看并编辑
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setInsightDialogOpen(false)
+                      void loadInsights()
+                    }}
+                  >
+                    <Check className="mr-1.5 h-4 w-4" />
+                    完成
+                  </Button>
+                </div>
               </div>
             )}
 
@@ -2175,6 +2349,7 @@ export default function AIInsightsPage() {
             setIsEditingDetail(false)
             setEditingContent('')
             setViewLiveContent('')
+            setViewLivePreviewContent('')
             setViewLiveSubStatus(null)
             setViewLiveError(null)
           }
@@ -2184,7 +2359,7 @@ export default function AIInsightsPage() {
           suppressHydrationWarning
           className={cn(
             'max-h-[80vh] overflow-y-auto overflow-x-auto',
-            isEditingDetail ? 'max-w-[1350px]' : 'max-w-[675px]'
+            isEditingDetail ? 'max-w-[1350px]' : isViewLiveExpanded ? 'max-w-6xl' : 'max-w-[675px]'
           )}
         >
           <DialogHeader>
@@ -2239,7 +2414,7 @@ export default function AIInsightsPage() {
                     手动编辑
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => void handleExportPng()} disabled={isExporting}>
-                    {isExporting ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Image className="mr-1.5 h-4 w-4" />}
+                    {isExporting ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <ImageIcon className="mr-1.5 h-4 w-4" />}
                     导出图片
                   </Button>
                 </div>
@@ -2313,13 +2488,83 @@ export default function AIInsightsPage() {
               </div>
             ) : (viewingInsight?.status === 'generating' || viewingInsight?.sub_status === 'queued' || viewLiveRefreshing) ? (
               /* Live generation view — stepper + streaming content */
-              <div ref={streamingRef} className="space-y-6">
-                <GenerationProgress currentSubStatus={viewLiveSubStatus} />
-                {viewLiveContent && (
-                  <div className="border-t border-border/40 pt-6">
-                    <MarkdownContent content={viewLiveContent} collectChartSvgs={collectChartSvgs} />
+              <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+                <div className="space-y-4">
+                  <GenerationProgress currentSubStatus={viewLiveSubStatus} />
+                  <div className="overflow-hidden rounded-[24px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-soft)),hsl(var(--surface-panel)))] px-4 py-4 shadow-[0_20px_60px_-44px_rgba(15,23,42,0.55)]">
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                      <span className="h-2 w-2 rounded-full bg-primary animate-pulse motion-reduce:animate-none" />
+                      Live Session
+                    </div>
+                    <div className="mt-4 space-y-3">
+                      <div className="rounded-2xl border border-border/60 bg-background/70 px-3 py-3">
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Raw Stream</p>
+                        <p className="mt-1 text-lg font-semibold tabular-nums text-foreground">{viewLiveContent.length}</p>
+                        <p className="text-xs text-muted-foreground">已接收字符数</p>
+                      </div>
+                      {viewLiveError ? (
+                        <div className="rounded-2xl border border-red-500/20 bg-red-500/6 px-3 py-3 text-sm text-red-600">
+                          {viewLiveError}
+                        </div>
+                      ) : (
+                        <div className="rounded-2xl border border-border/60 bg-background/70 px-3 py-3">
+                          <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Render State</p>
+                          <p className="mt-1 text-sm font-medium text-foreground">
+                            {viewLiveSubStatus === 'data_aggregating'
+                              ? '等待 AI 输出首段 Markdown'
+                              : viewLiveSubStatus === 'ai_generating'
+                                ? '按节流窗口实时渲染 Markdown'
+                                : '内容已收齐，等待标题收束'}
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                )}
+                </div>
+
+                <div className="min-w-0">
+                  {(viewLiveSubStatus === 'queued' || viewLiveSubStatus === 'data_aggregating') && (
+                    <LivePreviewPanel
+                      panelRef={streamingRef}
+                      eyebrow="Data Pipeline"
+                      title="洞察草稿预览区"
+                      statusLabel={viewLiveSubStatus === 'queued' ? '任务已创建，等待后台启动' : '正在聚合业务数据'}
+                      statusTone="active"
+                      content=""
+                      isPlaceholder
+                      placeholderMessage={viewLiveSubStatus === 'queued'
+                        ? '生成任务已经进入队列。后台线程启动后会自动进入数据聚合，并在收到第一段 AI 输出后切换到实时 Markdown 预览。'
+                        : '系统正在汇总该报告所需的数据。聚合完成后，这里会立即开始渲染 Markdown 洞察正文。'}
+                    />
+                  )}
+
+                  {viewLiveSubStatus === 'ai_generating' && (
+                    <LivePreviewPanel
+                      panelRef={streamingRef}
+                      eyebrow="Live Markdown"
+                      title="洞察报告实时预览"
+                      statusLabel="SSE 流式生成中"
+                      statusTone="active"
+                      content={viewLivePreviewContent}
+                      isStreaming
+                      collectChartSvgs={collectChartSvgs}
+                      placeholderMessage="AI 正在分析数据，即将开始输出第一段 Markdown 内容。"
+                    />
+                  )}
+
+                  {(viewLiveSubStatus === 'title_generating' || (!viewLiveSubStatus && viewLiveContent)) && (
+                    <LivePreviewPanel
+                      panelRef={streamingRef}
+                      eyebrow="Finishing Pass"
+                      title="洞察内容已生成"
+                      statusLabel={viewLiveSubStatus === 'title_generating' ? '正在生成标题' : '等待最终落库'}
+                      statusTone="success"
+                      content={viewLivePreviewContent || viewLiveContent}
+                      collectChartSvgs={collectChartSvgs}
+                      placeholderMessage="洞察主体内容已经完成。"
+                    />
+                  )}
+                </div>
               </div>
             ) : viewingInsight?.content ? (
               <MarkdownContent content={viewingInsight.content} collectChartSvgs={collectChartSvgs} />
