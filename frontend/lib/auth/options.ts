@@ -73,7 +73,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         session.user.isAdmin = Boolean(token.isAdmin)
         session.user.operatorNameZh = typeof token.operatorNameZh === 'string' ? token.operatorNameZh : null
         session.user.roleType = (token.roleType as 'admin' | 'operator' | 'businessdev' | 'factory') ?? (token.isAdmin ? 'admin' : 'operator')
-        session.user.sessionId = token.sessionId
+        session.user.sessionId = typeof token.sessionId === 'string' ? token.sessionId : undefined
       }
       return session
     },
