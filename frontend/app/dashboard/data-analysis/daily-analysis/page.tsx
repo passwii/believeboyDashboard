@@ -831,7 +831,8 @@ function SearchableSkuField({
         </span>
         <ChevronsUpDown className='ml-1 h-4 w-4 shrink-0 opacity-50' />
       </Button>
-      <DialogContent className='overflow-hidden p-0 sm:max-w-xl'>
+      <DialogContent aria-describedby="sku-search-dialog-description" className='overflow-hidden p-0 sm:max-w-xl'>
+        <span id="sku-search-dialog-description" className="sr-only">搜索并选择 SKU</span>
         <Command className='max-h-[70vh]'>
           <CommandInput placeholder='搜索 SKU' />
           <CommandList>

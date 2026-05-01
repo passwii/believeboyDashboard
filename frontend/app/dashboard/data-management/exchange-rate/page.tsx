@@ -600,7 +600,10 @@ export default function ExchangeRatePage() {
 
       {/* 新增/编辑弹窗 */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-[500px] dark:border-border/90 dark:bg-[hsl(var(--surface-panel))]">
+        <DialogContent aria-describedby="exchange-rate-dialog-description" className="sm:max-w-[500px] dark:border-border/90 dark:bg-[hsl(var(--surface-panel))]">
+          <span id="exchange-rate-dialog-description" className="sr-only">
+            {editingRate ? "修改汇率信息" : "录入新的月度汇率信息，每个月每种货币仅可录入一条"}
+          </span>
           <DialogHeader>
             <DialogTitle>
               {editingRate ? "编辑汇率信息" : "新增汇率信息"}
@@ -809,7 +812,8 @@ export default function ExchangeRatePage() {
 
       {/* 删除确认弹窗 */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent aria-describedby="delete-exchange-rate-dialog-description" className="sm:max-w-[425px]">
+          <span id="delete-exchange-rate-dialog-description" className="sr-only">确认删除汇率记录</span>
           <DialogHeader>
             <DialogTitle>确认删除</DialogTitle>
             <DialogDescription>
@@ -843,7 +847,8 @@ export default function ExchangeRatePage() {
       </Dialog>
 
       <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
-        <DialogContent className="max-w-3xl dark:border-border/90 dark:bg-[hsl(var(--surface-panel))]">
+        <DialogContent aria-describedby="image-preview-dialog-description" className="max-w-3xl dark:border-border/90 dark:bg-[hsl(var(--surface-panel))]">
+          <span id="image-preview-dialog-description" className="sr-only">图片预览：{previewImage?.filename}</span>
           <DialogHeader>
             <DialogTitle>图片预览</DialogTitle>
             <DialogDescription>{previewImage?.filename}</DialogDescription>
