@@ -242,7 +242,13 @@ function savePinnedUrls(urls: string[]) {
 }
 
 export function useSidebarPinnedItems() {
-  const [pinnedUrls, setPinnedUrls] = React.useState<string[]>(() => loadPinnedUrls())
+  const [pinnedUrls, setPinnedUrls] = React.useState<string[]>(DEFAULT_PINNED_URLS)
+  const [mounted, setMounted] = React.useState(false)
+
+  React.useEffect(() => {
+    setPinnedUrls(loadPinnedUrls())
+    setMounted(true)
+  }, [])
 
   const toggle = React.useCallback((url: string) => {
     setPinnedUrls((prev) => {
@@ -252,7 +258,7 @@ export function useSidebarPinnedItems() {
     })
   }, [])
 
-  return { pinnedUrls, toggle, maxPinned: MAX_PINNED }
+  return { pinnedUrls, toggle, maxPinned: MAX_PINNED, mounted }
 }
 
 function getVisibleItems(roleType?: RoleType): PinnedItem[] {
