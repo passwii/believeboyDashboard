@@ -440,7 +440,8 @@ const loadOperatorOptions = useCallback(async () => {
                   单个新增
                 </Button>
               </DialogTrigger>
-              <DialogContent className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
+              <DialogContent aria-describedby="add-project-dialog-description" className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
+                <span id="add-project-dialog-description" className="sr-only">新增项目，一次仅新增一个项目名称</span>
                 <DialogHeader>
                   <DialogTitle>新增项目</DialogTitle>
                   <DialogDescription>一次仅新增一个项目名称，不支持批量导入。</DialogDescription>
@@ -683,7 +684,8 @@ const loadOperatorOptions = useCallback(async () => {
       </DataTableCard>
 
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
+        <DialogContent aria-describedby="edit-project-dialog-description" className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
+          <span id="edit-project-dialog-description" className="sr-only">编辑项目信息</span>
           <DialogHeader>
             <DialogTitle>编辑项目信息</DialogTitle>
             <DialogDescription>可修改项目名称、品牌名称、运营、助理运营、佣金方式、佣金点数与店铺地址，不调整排序。</DialogDescription>

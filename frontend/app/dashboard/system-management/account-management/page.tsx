@@ -409,7 +409,8 @@ export default function AccountManagementPage() {
       </DataCard>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
+        <DialogContent aria-describedby="create-account-dialog-description" className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
+          <span id="create-account-dialog-description" className="sr-only">创建新用户并指定角色属性和权限级别</span>
           <DialogHeader>
             <DialogTitle>新增账号</DialogTitle>
             <DialogDescription>创建新用户并指定角色属性和权限级别。</DialogDescription>
@@ -491,7 +492,8 @@ export default function AccountManagementPage() {
       </Dialog>
 
       <Dialog open={resetOpen} onOpenChange={setResetOpen}>
-        <DialogContent className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
+        <DialogContent aria-describedby="reset-password-dialog-description" className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
+          <span id="reset-password-dialog-description" className="sr-only">为账号设置新密码</span>
           <DialogHeader>
             <DialogTitle>重置密码</DialogTitle>
             <DialogDescription>
@@ -524,7 +526,8 @@ export default function AccountManagementPage() {
       </Dialog>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
+        <DialogContent aria-describedby="edit-account-dialog-description" className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
+          <span id="edit-account-dialog-description" className="sr-only">修改运营姓名和角色属性</span>
           <DialogHeader>
             <DialogTitle>编辑账号</DialogTitle>
             <DialogDescription>修改运营姓名和角色属性。</DialogDescription>
@@ -577,7 +580,8 @@ export default function AccountManagementPage() {
       </Dialog>
 
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <DialogContent className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
+        <DialogContent aria-describedby="delete-account-dialog-description" className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
+          <span id="delete-account-dialog-description" className="sr-only">确认删除账号操作</span>
           <DialogHeader>
             <DialogTitle>删除账号</DialogTitle>
             <DialogDescription>
