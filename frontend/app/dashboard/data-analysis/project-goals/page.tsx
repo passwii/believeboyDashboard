@@ -670,7 +670,8 @@ export default function ProjectGoalsPage() {
 
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent aria-describedby="goal-dialog-description">
+          <span id="goal-dialog-description" className="sr-only">新增或编辑目标对话框</span>
           <DialogHeader>
             <DialogTitle>
               {editingGoal ? '编辑目标' : `新增 ${formData.goal_type === 'monthly' ? '月度' : '年度'}目标`}

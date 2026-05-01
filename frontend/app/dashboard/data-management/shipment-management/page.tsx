@@ -467,7 +467,8 @@ function SearchableSkuField({
         </span>
         <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
       </Button>
-      <DialogContent className="overflow-hidden p-0 sm:max-w-xl">
+      <DialogContent aria-describedby="shipment-sku-search-dialog-description" className="overflow-hidden p-0 sm:max-w-xl">
+        <span id="shipment-sku-search-dialog-description" className="sr-only">搜索并选择 SKU</span>
         <Command className="max-h-[70vh]">
           <CommandInput placeholder="搜索 SKU" />
           <CommandList>
@@ -2952,7 +2953,10 @@ export default function ShipmentManagementPage() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-h-[90vh] overflow-auto border-border/70 bg-[hsl(var(--surface-panel))] dark:border-border/90 sm:max-w-5xl">
+        <DialogContent aria-describedby="shipment-dialog-description" className="max-h-[90vh] overflow-auto border-border/70 bg-[hsl(var(--surface-panel))] dark:border-border/90 sm:max-w-5xl">
+          <span id="shipment-dialog-description" className="sr-only">
+            {dialogMode === 'create' ? '新建船期批次' : '编辑船期批次'}
+          </span>
           <DialogHeader>
             <DialogTitle className="text-foreground">{dialogMode === 'create' ? '新建船期批次' : '编辑船期批次'}</DialogTitle>
             <DialogDescription className="text-muted-foreground">
@@ -3308,7 +3312,10 @@ export default function ShipmentManagementPage() {
       </Dialog>
 
       <Dialog open={skuDialogOpen} onOpenChange={setSkuDialogOpen}>
-        <DialogContent className="max-h-[90vh] overflow-auto border-border/70 bg-[hsl(var(--surface-panel))] dark:border-border/90 sm:max-w-2xl">
+        <DialogContent aria-describedby="sku-detail-dialog-description" className="max-h-[90vh] overflow-auto border-border/70 bg-[hsl(var(--surface-panel))] dark:border-border/90 sm:max-w-2xl">
+          <span id="sku-detail-dialog-description" className="sr-only">
+            SKU 明细：{skuDialogDetail ? `${skuDialogDetail.shipment_no} - ${skuDialogDetail.sku_count} 个 SKU，合计 ${skuDialogDetail.total_quantity.toLocaleString()} 件` : ''}
+          </span>
           <DialogHeader>
             <DialogTitle className="text-foreground">SKU 明细</DialogTitle>
             <DialogDescription className="text-muted-foreground">
@@ -3362,7 +3369,10 @@ export default function ShipmentManagementPage() {
       </Dialog>
 
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent aria-describedby="delete-shipment-dialog-description" className="sm:max-w-md">
+          <span id="delete-shipment-dialog-description" className="sr-only">
+            确认删除船期批次{detail ? `，确定删除船期批次 ${detail.shipment_no} 吗？该批次下的 SKU 明细也会一并删除，且无法恢复。` : '，此操作不可恢复。'}
+          </span>
           <DialogHeader>
             <DialogTitle>确认删除批次</DialogTitle>
             <DialogDescription>
