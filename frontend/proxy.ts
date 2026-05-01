@@ -87,10 +87,9 @@ async function checkSessionNotInvalidated(
 }
 
 import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
 import { auth } from '@/lib/auth/options'
 
-const authProxy = auth(async (request: NextRequest & { auth: Awaited<ReturnType<typeof auth>> }) => {
+export const proxy = auth(async (request) => {
   const { pathname, search } = request.nextUrl
   const session = request.auth
   const user = session?.user
@@ -136,10 +135,6 @@ const authProxy = auth(async (request: NextRequest & { auth: Awaited<ReturnType<
 
   return NextResponse.next()
 })
-
-export function proxy(request: NextRequest) {
-  return authProxy(request)
-}
 
 export const config = {
   matcher: ['/login', '/dashboard/:path*'],
