@@ -88,25 +88,26 @@ async function checkSessionNotInvalidated(
 
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { getToken } from 'next-auth/jwt'
+import { auth } from '@/lib/auth/options'
 
-export async function proxy(request: NextRequest) {
+const authProxy = auth(async (request: NextRequest & { auth: Awaited<ReturnType<typeof auth>> }) => {
   const { pathname, search } = request.nextUrl
-  const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET })
+  const session = request.auth
+  const user = session?.user
 
   if (pathname === '/login') {
     // Clear session check cache on sign-in page (user may be signing in as someone else)
-    if (token?.sub) {
-      _sessionCheckCache.delete(`${token.sub}:${(token as Record<string, unknown>).sessionId || 'none'}`)
+    if (user?.id) {
+      _sessionCheckCache.delete(`${user.id}:${user.sessionId || 'none'}`)
     }
-    if (token) {
+    if (user?.id) {
       return NextResponse.redirect(new URL('/dashboard', request.url))
     }
     return NextResponse.next()
   }
 
   if (pathname.startsWith('/dashboard')) {
-    if (!token) {
+    if (!user?.id) {
       const callbackUrl = `${pathname}${search}`
       return NextResponse.redirect(
         new URL(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`, request.url)
@@ -115,26 +116,29 @@ export async function proxy(request: NextRequest) {
 
     // Validate session with backend (checks Redis session + is_active + password_changed_at)
     const sessionValid = await checkSessionNotInvalidated(
-      token.sub || '',
-      token.email || '',
-      (token as Record<string, unknown>).sessionId as string | undefined,
+      user.id,
+      user.email || '',
+      user.sessionId,
       BACKEND_URL,
       API_KEY,
     )
     if (!sessionValid) {
-      const sessionId = (token as Record<string, unknown>).sessionId as string | undefined
-      _sessionCheckCache.delete(`${token.sub || ''}:${sessionId || 'none'}`)
+      _sessionCheckCache.delete(`${user.id}:${user.sessionId || 'none'}`)
       return NextResponse.redirect(
         new URL('/api/auth/signout?callbackUrl=/login?reason=session_invalidated', request.url)
       )
     }
 
-    if (pathname.startsWith('/dashboard/system-management') && !(token.isAdmin || token.roleType === 'admin')) {
+    if (pathname.startsWith('/dashboard/system-management') && !(user.isAdmin || user.roleType === 'admin')) {
       return NextResponse.redirect(new URL('/dashboard?forbidden=1', request.url))
     }
   }
 
   return NextResponse.next()
+})
+
+export function proxy(request: NextRequest) {
+  return authProxy(request)
 }
 
 export const config = {
