@@ -38,6 +38,7 @@ import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import { useSmoothRefresh } from '@/hooks/use-smooth-refresh'
 import { RefreshProgressBar } from '@/components/ui/refresh-progress-bar'
@@ -871,37 +872,20 @@ export default function AutoUploadPage() {
   return (
     <div className='flex min-h-[calc(100vh-8rem)] flex-col gap-4 overflow-auto pb-2 sm:gap-6 sm:overflow-hidden lg:min-h-[calc(100vh-8rem)]'>
       {/* Tab switcher */}
-      <div className='flex shrink-0 w-fit'>
-        <div className='flex items-center gap-1 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-1'>
-          <button
-            type='button'
-            onClick={() => setActiveTab('upload')}
-            className={cn(
-              'rounded-md px-4 py-2 text-sm font-medium transition-colors',
-              activeTab === 'upload'
-                ? 'bg-[hsl(var(--surface-panel))] text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground',
-            )}
-          >
-            文件上传
-          </button>
-          <button
-            type='button'
-            onClick={() => setActiveTab('status')}
-            className={cn(
-              'rounded-md px-4 py-2 text-sm font-medium transition-colors',
-              activeTab === 'status'
-                ? 'bg-[hsl(var(--surface-panel))] text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground',
-            )}
-          >
-            RPA 状态
-          </button>
-        </div>
-      </div>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'upload' | 'status')}>
+        <TabsList>
+          <TabsTrigger value='upload'>文件上传</TabsTrigger>
+          <TabsTrigger value='status'>RPA 状态</TabsTrigger>
+        </TabsList>
 
-      {/* Tab content */}
-      {activeTab === 'upload' ? <AutoUploadContent /> : <RpaStatusGrid />}
+        {/* Tab content */}
+        <TabsContent value='upload' className='mt-4'>
+          <AutoUploadContent />
+        </TabsContent>
+        <TabsContent value='status' className='mt-4'>
+          <RpaStatusGrid />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
