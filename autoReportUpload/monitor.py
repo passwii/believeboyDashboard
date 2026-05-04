@@ -55,7 +55,26 @@ class RunLogger:
         if result.skipped:
             self.logger.info(f"  SKIP  [{project}] {file_path.name}  {result.reason}")
         elif result.success:
-            self.logger.info(f"  OK    [{project}] {file_path.name}")
+            # PaymentReport: show multi-line format with project, country, and dates
+            if result.report_type == "payment_report":
+                # Format dates nicely
+                if result.detected_start_date and result.detected_end_date:
+                    if result.detected_start_date == result.detected_end_date:
+                        date_str = result.detected_start_date
+                    else:
+                        date_str = f"{result.detected_start_date} – {result.detected_end_date}"
+                elif result.detected_start_date:
+                    date_str = result.detected_start_date
+                elif result.detected_end_date:
+                    date_str = result.detected_end_date
+                else:
+                    date_str = "日期未识别"
+
+                country_str = f" | 国家: {result.country}" if result.country else ""
+                self.logger.info(f"  OK    [{project}] payment_report  {date_str}{country_str}")
+                self.logger.info(f"        文件: {file_path.name}")
+            else:
+                self.logger.info(f"  OK    [{project}] {file_path.name}")
         else:
             self.logger.error(f"  FAIL  [{project}] {file_path.name}  {result.error}")
 
