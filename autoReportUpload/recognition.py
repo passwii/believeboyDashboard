@@ -197,6 +197,26 @@ def _add_project_match(result: RecognitionResult, db: Session, path: Path, count
                 "message": "文件中未找到可用于匹配项目的标识",
             }
 
+        # 如果 payment_report 无法通过 SKU/ASIN 匹配，回退到目录名匹配
+        if result.project_match["status"] == "unmatched" and result.report_type == "payment_report":
+            from models import Project
+            from sqlalchemy import select
+            folder_name = path.parent.name
+            project = db.execute(
+                select(Project).where(Project.project_name == folder_name)
+            ).scalars().first()
+            if project:
+                result.project_match = {
+                    "status": "matched",
+                    "project_name": project.project_name,
+                    "matched_by": "folder_name",
+                    "message": f"根据目录名 [{folder_name}] 匹配项目（SKU 匹配失败）",
+                }
+            else:
+                result.project_match["message"] = (
+                    f"{result.project_match['message']}；目录名 [{folder_name}] 未在数据库中找到对应项目"
+                )
+
     except Exception as exc:
         result.project_match = {"status": "manual", "message": f"项目匹配失败: {exc}"}
 
