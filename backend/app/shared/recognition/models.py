@@ -21,3 +21,10 @@ class RecognitionResult:
     row_count_preview: int | None = None
     warnings: list[str] = field(default_factory=list)
     country: str = "US"
+
+
+# ─── DateInputMode constants ──────────────────────────────────────────────────
+# single_manual  : date must be entered manually (no detection)
+# single_auto    : single date auto-detected from file
+# range_manual   : date range must be entered manually (no detection)
+# range_auto     : date range auto-detected from file

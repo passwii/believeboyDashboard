@@ -35,6 +35,7 @@ from app.shared.recognition import (
     _normalize_country,
     _normalize_identifier,
     _date_to_string,
+    _read_payment_report as _shared_read_payment_report,
 )
 
 SUPPORTED_REPORT_TYPES = {
@@ -211,8 +212,8 @@ def recognize_saved_report_upload(
             else:
                 values = []
         elif result.report_type == "payment_report":
-            from app.tasks.scripts import product_analysis as product_analysis_script
-            df = _normalize_columns(product_analysis_script._read_payment_report(path))
+            df, _, _, _ = _shared_read_payment_report(path)
+            df = _normalize_columns(df)
             match_by = "sku"
             values = df["sku"].dropna().astype(str).tolist()
         elif result.report_type == AD_PRODUCT_REPORT:
