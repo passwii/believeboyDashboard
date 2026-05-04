@@ -816,7 +816,7 @@ def _parse_and_insert_rows(
         return total, included
 
     if report_type == "payment_report":
-        df = _read_payment_report_impl(path)
+        df, _, _, _ = _read_payment_report_impl(path)
         rows, total, included = _parse_payment_rows(df, source_id, known_skus, known_asins)
         if rows:
             db.execute(insert(AnalysisPaymentRow), rows)
