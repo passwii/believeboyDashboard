@@ -120,6 +120,9 @@ class ProcessResult:
         source_id: int | None = None,
         row_count: int = 0,
         error: str = "",
+        country: str = "",
+        detected_start_date: str | None = None,
+        detected_end_date: str | None = None,
     ):
         self.skipped = skipped
         self.success = success
@@ -128,6 +131,9 @@ class ProcessResult:
         self.source_id = source_id
         self.row_count = row_count
         self.error = error
+        self.country = country
+        self.detected_start_date = detected_start_date
+        self.detected_end_date = detected_end_date
 
     def __repr__(self) -> str:
         if self.skipped:
@@ -235,6 +241,9 @@ def process_file(
         report_type=result.report_type,
         source_id=outcome.get("source_id"),
         row_count=outcome.get("row_count", 0),
+        country=result.country,
+        detected_start_date=result.detected_start_date,
+        detected_end_date=result.detected_end_date,
         reason=(
             f"{outcome.get('report_start_date', '')}"
             f"{'–' if outcome.get('report_start_date') and outcome.get('report_end_date') else ''}"
