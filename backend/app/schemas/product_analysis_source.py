@@ -98,6 +98,8 @@ class ProductCalculationCheckResponse(BaseModel):
     ad_report_missing: list[str]
     inventory_missing: list[str]
     payment_periods_overlapping: list[PaymentPeriodOverlapItem]
+    payment_full_period_covered: bool
+    payment_daily_covered_dates: list[str]
     has_minimum_data: bool
 
 

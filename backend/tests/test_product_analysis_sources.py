@@ -174,3 +174,43 @@ def test_product_analysis_weekly_recompute_api(monkeypatch):
     payload = response.json()
     assert payload['recomputed'] == 1
     assert payload['periods'][0]['pt1_id'] == 9
+
+
+def test_product_analysis_calculation_run_api(monkeypatch):
+    monkeypatch.setattr(
+        'app.api.v1.endpoints.product_analysis.project_service.ensure_project_access',
+        lambda db, project_id, operator, is_admin: None,  # noqa: ARG005
+    )
+    monkeypatch.setattr(
+        'app.api.v1.endpoints.product_analysis.product_analysis_source_service.run_product_calculation_from_history',
+        lambda db, project_id, country, start_date, end_date, current_only: {  # noqa: ARG005
+            'project_id': project_id,
+            'project_name': 'Demo',
+            'country': country,
+            'total_periods': 1,
+            'periods': [
+                {
+                    'report_start_date': '2026-02-02',
+                    'report_end_date': '2026-02-03',
+                    'summary': {'实际销售额': 120.0},
+                    'details': [{'SKU': 'SKU1'}],
+                }
+            ],
+        },
+    )
+
+    response = client.post(
+        '/api/v1/product-analysis/calculation/run',
+        headers={'X-API-Key': get_settings().api_key, 'Content-Type': 'application/json'},
+        json={
+            'project_id': 11,
+            'country': 'US',
+            'start_date': '2026-02-02',
+            'end_date': '2026-02-03',
+            'current_only': True,
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload['total_periods'] == 1
+    assert payload['periods'][0]['summary']['实际销售额'] == 120.0

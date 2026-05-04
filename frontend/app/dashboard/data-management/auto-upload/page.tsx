@@ -472,8 +472,12 @@ function AutoUploadContent() {
       recognizedProject: null,
       userSelectedProject: null,
       detectedDate: null,
+      detectedStartDate: null,
+      detectedEndDate: null,
       detectedCountry: null,
       userReportDate: null,
+      userReportStartDate: null,
+      userReportEndDate: null,
       fileCommitStatus: 'idle',
       commitError: null,
       error: null,
@@ -499,7 +503,7 @@ function AutoUploadContent() {
         }
         const recognition: RecognitionResponse = await res.json()
 
-        setQueueItems((prev) =>
+         setQueueItems((prev) =>
           prev.map((it) =>
             it.localId === item.localId
               ? {
@@ -517,6 +521,8 @@ function AutoUploadContent() {
                     recognition.detected_date ??
                     recognition.detected_end_date ??
                     null,
+                  detectedStartDate: recognition.detected_start_date ?? null,
+                  detectedEndDate: recognition.detected_end_date ?? null,
                   detectedCountry: recognition.country,
                   error:
                     recognition.status === 'recognized'
@@ -604,21 +610,40 @@ function AutoUploadContent() {
         continue
       }
 
-      // Check if date is required but missing
+       // Check if date is required but missing
       const resolvedDate = item.userReportDate ?? recognition.detected_date ?? recognition.detected_end_date ?? null
-      if (isDateRequired(item.reportType) && !resolvedDate) {
-        setQueueItems((prev) =>
-          prev.map((it) =>
-            it.localId === item.localId
-              ? {
-                  ...it,
-                  fileCommitStatus: 'error',
-                  commitError: '请填写报表日期',
-                }
-              : it,
-          ),
-        )
-        continue
+      const resolvedStartDate = item.userReportStartDate ?? recognition.detected_start_date ?? null
+      const resolvedEndDate = item.userReportEndDate ?? recognition.detected_end_date ?? null
+      if (isDateRequired(item.reportType)) {
+        if (item.reportType === 'payment_report') {
+          if (!resolvedStartDate || !resolvedEndDate) {
+            setQueueItems((prev) =>
+              prev.map((it) =>
+                it.localId === item.localId
+                  ? {
+                      ...it,
+                      fileCommitStatus: 'error',
+                      commitError: '请填写完整的日期范围',
+                    }
+                  : it,
+              ),
+            )
+            continue
+          }
+        } else if (!resolvedDate) {
+          setQueueItems((prev) =>
+            prev.map((it) =>
+              it.localId === item.localId
+                ? {
+                    ...it,
+                    fileCommitStatus: 'error',
+                    commitError: '请填写报表日期',
+                  }
+                : it,
+            ),
+          )
+          continue
+        }
       }
 
       setQueueItems((prev) =>
@@ -629,14 +654,16 @@ function AutoUploadContent() {
         ),
       )
 
-      try {
+       try {
+        const resolvedStartDate = item.userReportStartDate ?? recognition.detected_start_date ?? null
+        const resolvedEndDate = item.userReportEndDate ?? recognition.detected_end_date ?? null
         const payload = {
           temp_file_id: item.tempFileId,
           original_filename: item.originalFileName,
           report_type: item.reportType,
           report_date: resolvedDate,
-          report_start_date: recognition.detected_start_date ?? null,
-          report_end_date: recognition.detected_end_date ?? null,
+          report_start_date: resolvedStartDate,
+          report_end_date: resolvedEndDate,
           country,
           project_name: finalProjectName,
         }
@@ -867,29 +894,169 @@ function AutoUploadContent() {
                               项目：{item.userSelectedProject ?? item.recognizedProject}
                             </p>
                           )}
-                          {item.detectedDate ? (
-                            <p className='text-xs text-muted-foreground'>
-                              日期：{item.detectedDate}
-                            </p>
-                          ) : isDateRequired(item.reportType) ? (
-                            <div className='flex items-center gap-1.5'>
-                              <span className='text-xs text-amber-600 dark:text-amber-400'>日期：</span>
-                              <input
-                                type='date'
-                                className='h-6 rounded border border-border/60 bg-background px-1.5 py-0.5 text-xs'
-                                value={item.userReportDate ?? ''}
-                                onChange={(e) => {
-                                  setQueueItems((prev) =>
-                                    prev.map((it) =>
-                                      it.localId === item.localId
-                                        ? { ...it, userReportDate: e.target.value || null }
-                                        : it,
-                                    ),
-                                  )
-                                }}
-                              />
-                            </div>
-                          ) : null}
+                           {item.detectedDate || item.detectedStartDate || item.detectedEndDate ? (
+                             <div className='flex flex-col gap-0.5'>
+                               <p className='text-xs text-muted-foreground'>
+                                 {item.reportType === 'payment_report' ? (
+                                   <>
+                                     日期范围：
+                                     <span className='font-mono'>
+                                       {item.userReportStartDate || item.detectedStartDate || '—'} →{' '}
+                                       {item.userReportEndDate || item.detectedEndDate || '—'}
+                                     </span>
+                                     <button
+                                       type='button'
+                                       onClick={() => {
+                                         const start = item.userReportStartDate || item.detectedStartDate || ''
+                                         const end = item.userReportEndDate || item.detectedEndDate || ''
+                                         setQueueItems((prev) =>
+                                           prev.map((it) =>
+                                             it.localId === item.localId
+                                               ? {
+                                                   ...it,
+                                                   userReportStartDate: it.userReportStartDate === null ? start : null,
+                                                   userReportEndDate: it.userReportEndDate === null ? end : null,
+                                                 }
+                                               : it,
+                                           ),
+                                         )
+                                       }}
+                                       className='ml-1 text-[10px] text-sky-600 hover:text-sky-700 dark:text-sky-400'
+                                     >
+                                       {item.userReportStartDate ? '取消' : '编辑'}
+                                     </button>
+                                   </>
+                                 ) : (
+                                   <>
+                                     日期：{item.userReportDate || item.detectedDate}
+                                     <button
+                                       type='button'
+                                       onClick={() => {
+                                         setQueueItems((prev) =>
+                                           prev.map((it) =>
+                                             it.localId === item.localId
+                                               ? { ...it, userReportDate: it.userReportDate === null ? item.detectedDate || '' : null }
+                                               : it,
+                                           ),
+                                         )
+                                       }}
+                                       className='ml-1 text-[10px] text-sky-600 hover:text-sky-700 dark:text-sky-400'
+                                     >
+                                       {item.userReportDate ? '取消' : '编辑'}
+                                     </button>
+                                   </>
+                                 )}
+                               </p>
+                               {item.reportType === 'payment_report' && item.userReportStartDate !== null ? (
+                                 <div className='flex items-center gap-1.5 pt-0.5'>
+                                   <span className='text-[10px] text-amber-600'>起：</span>
+                                   <input
+                                     type='date'
+                                     className='h-5 rounded border border-border/60 bg-background px-1.5 py-0 text-[10px]'
+                                     value={item.userReportStartDate || ''}
+                                     onChange={(e) => {
+                                       setQueueItems((prev) =>
+                                         prev.map((it) =>
+                                           it.localId === item.localId
+                                             ? { ...it, userReportStartDate: e.target.value || null }
+                                             : it,
+                                         ),
+                                       )
+                                     }}
+                                   />
+                                   <span className='text-[10px] text-amber-600'>止：</span>
+                                   <input
+                                     type='date'
+                                     className='h-5 rounded border border-border/60 bg-background px-1.5 py-0 text-[10px]'
+                                     value={item.userReportEndDate || ''}
+                                     onChange={(e) => {
+                                       setQueueItems((prev) =>
+                                         prev.map((it) =>
+                                           it.localId === item.localId
+                                             ? { ...it, userReportEndDate: e.target.value || null }
+                                             : it,
+                                         ),
+                                       )
+                                     }}
+                                   />
+                                 </div>
+                               ) : item.userReportDate !== null && item.reportType !== 'payment_report' ? (
+                                 <div className='flex items-center gap-1.5 pt-0.5'>
+                                   <span className='text-[10px] text-amber-600'>日期：</span>
+                                   <input
+                                     type='date'
+                                     className='h-5 rounded border border-border/60 bg-background px-1.5 py-0 text-[10px]'
+                                     value={item.userReportDate || ''}
+                                     onChange={(e) => {
+                                       setQueueItems((prev) =>
+                                         prev.map((it) =>
+                                           it.localId === item.localId
+                                             ? { ...it, userReportDate: e.target.value || null }
+                                             : it,
+                                         ),
+                                       )
+                                     }}
+                                   />
+                                 </div>
+                               ) : null}
+                             </div>
+                           ) : isDateRequired(item.reportType) ? (
+                             <div className='flex items-center gap-1.5'>
+                               <span className='text-xs text-amber-600 dark:text-amber-400'>
+                                 {item.reportType === 'payment_report' ? '日期范围' : '日期'}：
+                               </span>
+                               {item.reportType === 'payment_report' ? (
+                                 <div className='flex items-center gap-1.5'>
+                                   <input
+                                     type='date'
+                                     className='h-6 rounded border border-border/60 bg-background px-1.5 py-0.5 text-xs'
+                                     value={item.userReportStartDate || ''}
+                                     onChange={(e) => {
+                                       setQueueItems((prev) =>
+                                         prev.map((it) =>
+                                           it.localId === item.localId
+                                             ? { ...it, userReportStartDate: e.target.value || null }
+                                             : it,
+                                         ),
+                                       )
+                                     }}
+                                     placeholder='开始'
+                                   />
+                                   <span className='text-xs text-muted-foreground'>→</span>
+                                   <input
+                                     type='date'
+                                     className='h-6 rounded border border-border/60 bg-background px-1.5 py-0.5 text-xs'
+                                     value={item.userReportEndDate || ''}
+                                     onChange={(e) => {
+                                       setQueueItems((prev) =>
+                                         prev.map((it) =>
+                                           it.localId === item.localId
+                                             ? { ...it, userReportEndDate: e.target.value || null }
+                                             : it,
+                                         ),
+                                       )
+                                     }}
+                                     placeholder='结束'
+                                   />
+                                 </div>
+                               ) : (
+                                 <input
+                                   type='date'
+                                   className='h-6 rounded border border-border/60 bg-background px-1.5 py-0.5 text-xs'
+                                   value={item.userReportDate || ''}
+                                   onChange={(e) => {
+                                     setQueueItems((prev) =>
+                                       prev.map((it) =>
+                                         it.localId === item.localId
+                                           ? { ...it, userReportDate: e.target.value || null }
+                                           : it,
+                                       ),
+                                     )
+                                   }}
+                                 />
+                               )}
+                             </div>
+                           ) : null}
                           {item.error ? (
                             <p className='text-xs text-rose-600 dark:text-rose-300'>
                               {item.error}

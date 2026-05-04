@@ -31,6 +31,8 @@ type DataAvailability = {
   ad_report_missing: string[]
   inventory_missing: string[]
   payment_periods_overlapping: PaymentPeriodOverlap[]
+  payment_full_period_covered: boolean
+  payment_daily_covered_dates: string[]
   has_minimum_data: boolean
 }
 
@@ -106,6 +108,10 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
     ad_report: new Set(availability.ad_report_missing),
     inventory: new Set(availability.inventory_missing),
   }), [availability])
+  const paymentDailyCoveredSet = useMemo(
+    () => new Set(availability.payment_daily_covered_dates),
+    [availability.payment_daily_covered_dates],
+  )
 
   return (
     <div className="overflow-x-auto">
@@ -161,29 +167,38 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
           )
         })}
 
-        {/* Payment report row — spans all columns since it's period-based */}
+        {/* Payment report row */}
         <div className="flex items-center border border-t-0 border-border/60 bg-[hsl(var(--surface-panel))] px-2 py-2.5 text-sm font-medium">
           付款报告
         </div>
-        <div
-          style={{ gridColumn: `span ${dates.length} / span ${dates.length}` }}
-          className={cn(
-            'flex items-center justify-center gap-1.5 border border-t-0 border-border/60 py-2.5 text-sm font-medium text-white',
-            availability.payment_periods_overlapping.length > 0 ? 'bg-emerald-500' : 'bg-rose-500',
-          )}
-          title={availability.payment_periods_overlapping.length > 0 ? `有 ${availability.payment_periods_overlapping.length} 个重叠周期` : '无付款报告覆盖'}
-        >
-          {availability.payment_periods_overlapping.length > 0 ? (
+        {availability.payment_full_period_covered ? (
+          <div
+            style={{ gridColumn: `span ${dates.length} / span ${dates.length}` }}
+            className="flex items-center justify-center gap-1.5 border border-t-0 border-border/60 bg-emerald-500 py-2.5 text-sm font-medium text-white"
+            title={availability.payment_periods_overlapping.length > 0 ? `全周期数据覆盖（${availability.payment_periods_overlapping.length} 个重叠周期）` : '全周期数据覆盖'}
+          >
             <CheckCircle2 className="h-4 w-4" />
-          ) : (
-            <XCircle className="h-4 w-4" />
-          )}
-          <span>
-            {availability.payment_periods_overlapping.length > 0
-              ? `全周期有数据覆盖（${availability.payment_periods_overlapping.length} 个重叠）`
-              : '无付款报告覆盖'}
-          </span>
-        </div>
+            <span>全周期数据覆盖</span>
+          </div>
+        ) : dates.map((d) => {
+          const isCovered = paymentDailyCoveredSet.has(d)
+          return (
+            <div
+              key={d}
+              title={isCovered ? `付款报告 ${d} 有单日数据` : `付款报告 缺少 ${d}`}
+              className={cn(
+                'flex items-center justify-center border border-t-0 border-border/60 py-2.5 transition-colors',
+                isCovered ? 'bg-emerald-500' : 'bg-rose-500',
+              )}
+            >
+              {isCovered ? (
+                <CheckCircle2 className="h-4 w-4 text-white" />
+              ) : (
+                <XCircle className="h-4 w-4 text-white" />
+              )}
+            </div>
+          )
+        })}
       </div>
     </div>
   )

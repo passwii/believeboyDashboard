@@ -11,7 +11,7 @@ import warnings
 from zoneinfo import ZoneInfo
 
 import pandas as pd
-from sqlalchemy import Select, func, insert, or_, select, update as sa_update
+from sqlalchemy import Select, and_, func, insert, or_, select, update as sa_update
 from sqlalchemy.orm import Session
 
 from app.tasks.scripts import product_analysis as product_analysis_script
@@ -84,6 +84,22 @@ ALL_REPORT_TYPES = PERIODIC_REPORT_TYPES | {'inventory_report'}
 
 _SQLITE_TABLES_READY = False
 _SQLITE_TABLES_LOCK = threading.Lock()
+
+
+def _read_excel_without_style_warning(path: Path) -> pd.DataFrame:
+    return _read_excel_no_warning(path)
+
+
+def _restore_original_filename(upload_file_id: str | None) -> str | None:
+    value = (upload_file_id or '').strip()
+    if not value:
+        return None
+    match = re.match(r'^[0-9a-f]{32}_(.+)$', value, re.IGNORECASE)
+    if match:
+        restored = match.group(1).strip()
+        if restored:
+            return restored
+    return value
 
 
 def ensure_tables(db: Session) -> None:
@@ -291,7 +307,7 @@ def recompute_weekly_product_analysis_from_history(
         raise ValueError('project not found')
 
     normalized_country = _normalize_country(country)
-    period_sources = _list_recomputable_weekly_period_sources(
+    period_sources = _list_history_weekly_period_sources(
         db,
         project_id=project_id,
         country=normalized_country,
@@ -311,9 +327,18 @@ def recompute_weekly_product_analysis_from_history(
             country=normalized_country,
             year_month=report_year_month,
         )
-        df_business = _build_business_df_from_source(db, source_id=item['business_report_source_id'])
-        df_ad = _build_ad_df_from_source(db, source_id=item['ad_report_source_id'])
-        df_payment = _build_payment_df_from_source(db, source_id=item['payment_report_source_id'])
+        df_business = _build_business_df_from_sources(
+            db,
+            source_ids=item['business_report_source_ids'],
+        )
+        df_ad = _build_ad_df_from_sources(
+            db,
+            source_ids=item['ad_report_source_ids'],
+        )
+        df_payment = _build_payment_df_from_sources(
+            db,
+            source_ids=item['payment_report_source_ids'],
+        )
         report_date = product_analysis_script._format_report_date(
             report_start_date.isoformat(),
             report_end_date.isoformat(),
@@ -344,9 +369,9 @@ def recompute_weekly_product_analysis_from_history(
                 'report_start_date': report_start_date.isoformat(),
                 'report_end_date': report_end_date.isoformat(),
                 'row_count': int(pt1_row.row_count or 0),
-                'business_report_source_id': int(item['business_report_source_id']),
-                'ad_report_source_id': int(item['ad_report_source_id']),
-                'payment_report_source_id': int(item['payment_report_source_id']),
+                'business_report_source_id': int(item['business_report_source_ids'][0]),
+                'ad_report_source_id': int(item['ad_report_source_ids'][0]),
+                'payment_report_source_id': int(item['payment_report_source_ids'][0]),
             }
         )
 
@@ -765,7 +790,7 @@ def persist_sales_report_by_purchase_date(
             source_file_id=source.id,
             has_real_data=False,
             row_count=0,
-            original_filename=upload_file_id,
+            original_filename=_restore_original_filename(upload_file_id),
         )
         db.commit()
         return {
@@ -872,7 +897,7 @@ def persist_sales_report_by_purchase_date(
         source_file_id=latest_source_id,
         has_real_data=total > 0,
         row_count=total,
-        original_filename=upload_file_id,
+        original_filename=_restore_original_filename(upload_file_id),
     )
     db.commit()
     report_dates = sorted(grouped_rows)
@@ -1288,6 +1313,163 @@ def _list_recomputable_weekly_period_sources(
     return periods
 
 
+def _list_history_weekly_period_sources(
+    db: Session,
+    *,
+    project_id: int,
+    country: str,
+    start_date: date | None,
+    end_date: date | None,
+    current_only: bool,
+) -> list[dict[str, Any]]:
+    normalized_country = _normalize_country(country)
+    periods_by_key: dict[tuple[date, date], dict[str, Any]] = {}
+
+    for item in _list_recomputable_weekly_period_sources(
+        db,
+        project_id=project_id,
+        country=normalized_country,
+        start_date=start_date,
+        end_date=end_date,
+        current_only=current_only,
+    ):
+        key = (item['report_start_date'], item['report_end_date'])
+        periods_by_key[key] = {
+            'report_start_date': item['report_start_date'],
+            'report_end_date': item['report_end_date'],
+            'business_report_source_ids': [int(item['business_report_source_id'])],
+            'ad_report_source_ids': [int(item['ad_report_source_id'])],
+            'payment_report_source_ids': [int(item['payment_report_source_id'])],
+        }
+
+    daily_stmt = select(AnalysisSourceFile).where(
+        AnalysisSourceFile.project_id == project_id,
+        AnalysisSourceFile.report_type.in_(('business_report', AD_PRODUCT_REPORT)),
+        AnalysisSourceFile.country == normalized_country,
+        AnalysisSourceFile.report_date.is_not(None),
+    )
+    if current_only:
+        daily_stmt = daily_stmt.where(AnalysisSourceFile.is_current.is_(True))
+    if start_date is not None:
+        daily_stmt = daily_stmt.where(AnalysisSourceFile.report_date >= start_date)
+    if end_date is not None:
+        daily_stmt = daily_stmt.where(AnalysisSourceFile.report_date <= end_date)
+
+    daily_rows = db.execute(
+        daily_stmt.order_by(
+            AnalysisSourceFile.report_type.asc(),
+            AnalysisSourceFile.report_date.asc(),
+            AnalysisSourceFile.version.desc(),
+            AnalysisSourceFile.id.desc(),
+        )
+    ).scalars().all()
+
+    daily_sources: dict[str, dict[date, AnalysisSourceFile]] = {
+        'business_report': {},
+        AD_PRODUCT_REPORT: {},
+    }
+    for row in daily_rows:
+        if row.report_date is None:
+            continue
+        report_map = daily_sources.setdefault(row.report_type, {})
+        report_map.setdefault(row.report_date, row)
+
+    known_dates = sorted({
+        *daily_sources['business_report'].keys(),
+        *daily_sources[AD_PRODUCT_REPORT].keys(),
+    })
+    if not known_dates:
+        return []
+
+    effective_start = start_date or known_dates[0]
+    effective_end = end_date or known_dates[-1]
+    if effective_start > effective_end:
+        return []
+
+    payment_stmt = select(AnalysisSourceFile).where(
+        AnalysisSourceFile.project_id == project_id,
+        AnalysisSourceFile.report_type == 'payment_report',
+        AnalysisSourceFile.country == normalized_country,
+        or_(
+            and_(
+                AnalysisSourceFile.report_date.is_not(None),
+                AnalysisSourceFile.report_date >= effective_start,
+                AnalysisSourceFile.report_date <= effective_end,
+            ),
+            and_(
+                AnalysisSourceFile.report_date.is_(None),
+                AnalysisSourceFile.period_start_date <= effective_end,
+                AnalysisSourceFile.period_end_date >= effective_start,
+            ),
+        ),
+    )
+    if current_only:
+        payment_stmt = payment_stmt.where(AnalysisSourceFile.is_current.is_(True))
+
+    payment_rows = db.execute(
+        payment_stmt.order_by(
+            AnalysisSourceFile.report_date.asc().nulls_last(),
+            AnalysisSourceFile.period_start_date.asc().nulls_last(),
+            AnalysisSourceFile.version.desc(),
+            AnalysisSourceFile.id.desc(),
+        )
+    ).scalars().all()
+
+    payment_daily_by_date: dict[date, AnalysisSourceFile] = {}
+    payment_period_rows: list[AnalysisSourceFile] = []
+    for row in payment_rows:
+        if row.report_date is not None:
+            payment_daily_by_date.setdefault(row.report_date, row)
+            continue
+        payment_period_rows.append(row)
+
+    weeks: dict[tuple[int, int], list[date]] = {}
+    current = effective_start
+    while current <= effective_end:
+        week_key = (current.isocalendar()[0], current.isocalendar()[1])
+        weeks.setdefault(week_key, []).append(current)
+        current += timedelta(days=1)
+
+    for week_key in sorted(weeks):
+        week_dates = weeks[week_key]
+        business_rows = [daily_sources['business_report'].get(day) for day in week_dates]
+        ad_rows = [daily_sources[AD_PRODUCT_REPORT].get(day) for day in week_dates]
+        if any(row is None for row in business_rows) or any(row is None for row in ad_rows):
+            continue
+
+        payment_source_ids: list[int] = []
+        if all(day in payment_daily_by_date for day in week_dates):
+            payment_source_ids = [int(payment_daily_by_date[day].id) for day in week_dates]
+        else:
+            covering_payment = next(
+                (
+                    row for row in payment_period_rows
+                    if row.period_start_date is not None
+                    and row.period_end_date is not None
+                    and row.period_start_date <= week_dates[0]
+                    and row.period_end_date >= week_dates[-1]
+                ),
+                None,
+            )
+            if covering_payment is None:
+                continue
+            payment_source_ids = [int(covering_payment.id)]
+
+        key = (week_dates[0], week_dates[-1])
+        periods_by_key.setdefault(
+            key,
+            {
+                'report_start_date': week_dates[0],
+                'report_end_date': week_dates[-1],
+                'business_report_source_ids': [int(row.id) for row in business_rows if row is not None],
+                'ad_report_source_ids': [int(row.id) for row in ad_rows if row is not None],
+                'payment_report_source_ids': payment_source_ids,
+            },
+        )
+
+    return [periods_by_key[key] for key in sorted(periods_by_key)]
+
+
 def check_product_calculation_data_availability(
     db: Session,
     *,
@@ -1326,9 +1508,10 @@ def check_product_calculation_data_availability(
     ad_missing = sorted(all_dates - ad_dates)
     inventory_missing = sorted(all_dates - inventory_dates)
 
-    # Payment report: forward-compatible (report_date if set, else period model)
+    # Payment report: support both historical single-day rows and period rows.
     daily_payment_rows = db.execute(
         select(
+            AnalysisSourceFile.report_date,
             AnalysisSourceFile.period_start_date,
             AnalysisSourceFile.period_end_date,
             AnalysisSourceFile.id,
@@ -1341,30 +1524,42 @@ def check_product_calculation_data_availability(
         )
     ).all()
 
-    if daily_payment_rows:
-        payment_periods = [
-            {'period_start_date': r.period_start_date, 'period_end_date': r.period_end_date, 'source_id': int(r.id)}
-            for r in daily_payment_rows
-        ]
-    else:
-        payment_periods = db.execute(
-            select(
-                AnalysisSourceFile.period_start_date,
-                AnalysisSourceFile.period_end_date,
-                AnalysisSourceFile.id,
-            ).where(
-                AnalysisSourceFile.project_id == project_id,
-                AnalysisSourceFile.report_type == 'payment_report',
-                AnalysisSourceFile.country == normalized_country,
-                AnalysisSourceFile.report_date.is_(None),
-                AnalysisSourceFile.period_start_date <= end_date,
-                AnalysisSourceFile.period_end_date >= start_date,
-            )
-        ).all()
-        payment_periods = [
-            {'period_start_date': r.period_start_date, 'period_end_date': r.period_end_date, 'source_id': int(r.id)}
-            for r in payment_periods
-        ]
+    payment_daily_covered_dates = sorted({
+        r.report_date.isoformat()
+        for r in daily_payment_rows
+        if r.report_date is not None
+    })
+
+    payment_period_rows = db.execute(
+        select(
+            AnalysisSourceFile.period_start_date,
+            AnalysisSourceFile.period_end_date,
+            AnalysisSourceFile.id,
+        ).where(
+            AnalysisSourceFile.project_id == project_id,
+            AnalysisSourceFile.report_type == 'payment_report',
+            AnalysisSourceFile.country == normalized_country,
+            AnalysisSourceFile.report_date.is_(None),
+            AnalysisSourceFile.period_start_date <= end_date,
+            AnalysisSourceFile.period_end_date >= start_date,
+        )
+    ).all()
+    payment_periods = [
+        {'period_start_date': r.period_start_date, 'period_end_date': r.period_end_date, 'source_id': int(r.id)}
+        for r in payment_period_rows
+    ]
+
+    payment_period_covered_dates: set[date] = set()
+    for row in payment_period_rows:
+        if row.period_start_date is None or row.period_end_date is None:
+            continue
+        cur = max(row.period_start_date, start_date)
+        cur_end = min(row.period_end_date, end_date)
+        while cur <= cur_end:
+            payment_period_covered_dates.add(cur)
+            cur += timedelta(days=1)
+
+    payment_full_period_covered = all_dates <= payment_period_covered_dates
 
     # Check has_minimum_data: at least one ISO week has all three core report types
     def _iso_week_key(d: date) -> tuple[int, int]:
@@ -1378,7 +1573,7 @@ def check_product_calculation_data_availability(
     has_minimum_data = any(
         {'business_report', AD_PRODUCT_REPORT, 'payment_report'} <= week_types
         for week_types in weeks.values()
-    ) or len(payment_periods) > 0
+    ) or bool(payment_periods or payment_daily_covered_dates)
 
     return {
         'business_report_missing': [d.isoformat() for d in business_missing],
@@ -1392,6 +1587,8 @@ def check_product_calculation_data_availability(
             }
             for p in payment_periods
         ],
+        'payment_full_period_covered': payment_full_period_covered,
+        'payment_daily_covered_dates': payment_daily_covered_dates,
         'has_minimum_data': has_minimum_data,
     }
 
@@ -1410,9 +1607,7 @@ def run_product_calculation_from_history(
         raise ValueError('project not found')
 
     normalized_country = _normalize_country(country)
-
-    # Get all daily source periods
-    daily_sources = _list_recomputable_weekly_period_sources(
+    period_sources = _list_history_weekly_period_sources(
         db,
         project_id=project_id,
         country=normalized_country,
@@ -1420,37 +1615,10 @@ def run_product_calculation_from_history(
         end_date=end_date,
         current_only=current_only,
     )
-
-    # Group daily sources into ISO weeks
-    from collections import defaultdict
-    weeks: dict[tuple[int, int], dict[str, Any]] = defaultdict(dict)
-    for item in daily_sources:
-        week_key = (item['report_start_date'].isocalendar()[0], item['report_start_date'].isocalendar()[1])
-        if 'business_report' not in weeks[week_key] and 'business_report' in item:
-            weeks[week_key]['business_report_source_id'] = item['business_report_source_id']
-        if 'ad_report' not in weeks[week_key] and AD_PRODUCT_REPORT in item:
-            weeks[week_key]['ad_report_source_id'] = item['ad_report_source_id']
-        if 'payment_report' not in weeks[week_key] and 'payment_report' in item:
-            weeks[week_key]['payment_report_source_id'] = item['payment_report_source_id']
-        # Track week boundaries
-        sd = item['report_start_date']
-        ed = item['report_end_date']
-        if 'week_start' not in weeks[week_key] or sd < weeks[week_key]['week_start']:
-            weeks[week_key]['week_start'] = sd
-        if 'week_end' not in weeks[week_key] or ed > weeks[week_key]['week_end']:
-            weeks[week_key]['week_end'] = ed
-
-    # Process each week that has all three core reports
     periods: list[dict[str, Any]] = []
-    for week_key, week_data in sorted(weeks.items()):
-        if not (
-            'business_report_source_id' in week_data
-            and 'ad_report_source_id' in week_data
-            and 'payment_report_source_id' in week_data
-        ):
-            continue
-        week_start: date = week_data['week_start']
-        week_end: date = week_data['week_end']
+    for item in period_sources:
+        week_start = item['report_start_date']
+        week_end = item['report_end_date']
         year_month = week_end.strftime('%Y-%m')
 
         df_cost = _build_active_product_costs_df(
@@ -1459,9 +1627,18 @@ def run_product_calculation_from_history(
             country=normalized_country,
             year_month=year_month,
         )
-        df_business = _build_business_df_from_source(db, source_id=week_data['business_report_source_id'])
-        df_ad = _build_ad_df_from_source(db, source_id=week_data['ad_report_source_id'])
-        df_payment = _build_payment_df_from_source(db, source_id=week_data['payment_report_source_id'])
+        df_business = _build_business_df_from_sources(
+            db,
+            source_ids=item['business_report_source_ids'],
+        )
+        df_ad = _build_ad_df_from_sources(
+            db,
+            source_ids=item['ad_report_source_ids'],
+        )
+        df_payment = _build_payment_df_from_sources(
+            db,
+            source_ids=item['payment_report_source_ids'],
+        )
         report_date_str = product_analysis_script._format_report_date(
             week_start.isoformat(),
             week_end.isoformat(),
@@ -1476,7 +1653,18 @@ def run_product_calculation_from_history(
         )
         df_overview = product_analysis_script._append_summary_row(df_overview, report_date_str)
         pt1 = product_analysis_script._build_pt1_payload(df_overview)
+        pt1_row = persist_product_analysis_pt1_calculation(
+            db,
+            project_name=project.project_name,
+            report_start_date=week_start.isoformat(),
+            report_end_date=week_end.isoformat(),
+            pt1=pt1,
+            result_file_path=None,
+            calculation_version=1,
+        )
         periods.append({
+            'pt1_id': int(pt1_row.id),
+            'version': int(pt1_row.version),
             'report_start_date': week_start.isoformat(),
             'report_end_date': week_end.isoformat(),
             'summary': pt1['summary'],
@@ -1513,6 +1701,17 @@ def _build_business_df_from_source(db: Session, *, source_id: int) -> pd.DataFra
     )
 
 
+def _build_business_df_from_sources(db: Session, *, source_ids: list[int]) -> pd.DataFrame:
+    if not source_ids:
+        return pd.DataFrame(columns=['ASIN', '页面浏览量', '总销量', '总访客', '总销售额'])
+    frames = [_build_business_df_from_source(db, source_id=source_id) for source_id in source_ids]
+    non_empty = [frame for frame in frames if not frame.empty]
+    if not non_empty:
+        return pd.DataFrame(columns=['ASIN', '页面浏览量', '总销量', '总访客', '总销售额'])
+    combined = pd.concat(non_empty, ignore_index=True)
+    return combined.groupby('ASIN', as_index=False).sum(numeric_only=True)
+
+
 def _build_ad_df_from_source(db: Session, *, source_id: int) -> pd.DataFrame:
     rows = db.execute(
         select(AnalysisAdProductRow)
@@ -1534,6 +1733,17 @@ def _build_ad_df_from_source(db: Session, *, source_id: int) -> pd.DataFrame:
     ).groupby('SKU', as_index=False).sum() if rows else pd.DataFrame(
         columns=['SKU', '广告展示量', '广告点击量', '广告花费', '广告销售额', '广告订单量']
     )
+
+
+def _build_ad_df_from_sources(db: Session, *, source_ids: list[int]) -> pd.DataFrame:
+    if not source_ids:
+        return pd.DataFrame(columns=['SKU', '广告展示量', '广告点击量', '广告花费', '广告销售额', '广告订单量'])
+    frames = [_build_ad_df_from_source(db, source_id=source_id) for source_id in source_ids]
+    non_empty = [frame for frame in frames if not frame.empty]
+    if not non_empty:
+        return pd.DataFrame(columns=['SKU', '广告展示量', '广告点击量', '广告花费', '广告销售额', '广告订单量'])
+    combined = pd.concat(non_empty, ignore_index=True)
+    return combined.groupby('SKU', as_index=False).sum(numeric_only=True)
 
 
 def _build_payment_df_from_source(db: Session, *, source_id: int) -> pd.DataFrame:
@@ -1559,6 +1769,17 @@ def _build_payment_df_from_source(db: Session, *, source_id: int) -> pd.DataFram
             for row in rows
         ]
     )
+
+
+def _build_payment_df_from_sources(db: Session, *, source_ids: list[int]) -> pd.DataFrame:
+    _PAYMENT_COLUMNS = ['type', 'sku', 'quantity', 'product sales', 'shipping credits', 'promotional rebates', 'other', 'selling fees', 'fba fees']
+    if not source_ids:
+        return pd.DataFrame(columns=_PAYMENT_COLUMNS)
+    frames = [_build_payment_df_from_source(db, source_id=source_id) for source_id in source_ids]
+    non_empty = [frame for frame in frames if not frame.empty]
+    if not non_empty:
+        return pd.DataFrame(columns=_PAYMENT_COLUMNS)
+    return pd.concat(non_empty, ignore_index=True)
 
 
 def _build_pt_sku_detail_rows(details: Any) -> list[dict[str, Any]]:

@@ -558,7 +558,7 @@ export default function ReportUploadPage() {
   const recognizeFiles = async (files: File[]) => {
     if (!files.length) return
 
-    const pendingItems: UploadQueueItem[] = files.map((file) => ({
+     const pendingItems: UploadQueueItem[] = files.map((file) => ({
       localId: crypto.randomUUID(),
       originalFileName: file.name,
       reportType: null,
@@ -566,8 +566,12 @@ export default function ReportUploadPage() {
       recognizedProject: null,
       userSelectedProject: null,
       detectedDate: null,
+      detectedStartDate: null,
+      detectedEndDate: null,
       detectedCountry: null,
       userReportDate: null,
+      userReportStartDate: null,
+      userReportEndDate: null,
       fileCommitStatus: 'idle',
       commitError: null,
       error: null,
@@ -596,15 +600,19 @@ export default function ReportUploadPage() {
         setQueueItems((prev) =>
           prev.map((item) =>
             item.localId === queueItem.localId
-                ? {
+                 ? {
                   ...item,
                   tempFileId: recognition.temp_file_id,
                   reportType: recognition.report_type,
                   recognitionStatus: recognition.status,
                   recognizedProject: resolveRecognizedProjectLabel(recognition),
                   detectedDate: recognition.detected_date || recognition.detected_end_date || null,
+                  detectedStartDate: recognition.detected_start_date || null,
+                  detectedEndDate: recognition.detected_end_date || null,
                   detectedCountry: recognition.country,
                   userReportDate: null,
+                  userReportStartDate: null,
+                  userReportEndDate: null,
                   fileCommitStatus: 'idle',
                   commitError: null,
                   error:
