@@ -65,7 +65,7 @@ function needsDateAttention(state: ReportCardState) {
 
 function isMultiCommitWithDerivedDates(state: ReportCardState) {
   // Exclude modes where dates come from the file (not from per-file derivation)
-  const derivedModes = {'range_manual', 'range_auto'}
+  const derivedModes = new Set(['range_manual', 'range_auto'])
   return state.candidates.length > 1 && !derivedModes.has(state.recognition?.date_input_mode ?? '')
 }
 
