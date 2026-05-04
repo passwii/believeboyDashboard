@@ -335,7 +335,7 @@ function updateCardFromCandidates(
       : '')
   const nextDate =
     state.reportDate ||
-    (active?.date_input_mode === 'single_detected'
+    (active?.date_input_mode === 'single_auto'
       ? active.detected_date || active.detected_end_date || ''
       : '')
   const nextStartDate =
@@ -385,7 +385,7 @@ function canMultiCommit(type: ReportType, state: ReportCardState): boolean {
   // Check dates are valid for all candidates
   return state.candidates.every((c) => {
     if (c.date_input_mode === 'multi_auto') return true
-    if (c.date_input_mode === 'range_manual') {
+    if (c.date_input_mode === 'range_auto' || c.date_input_mode === 'range_manual') {
       return Boolean(state.reportStartDate && state.reportEndDate)
     }
     return Boolean(state.reportDate || c.detected_date || c.detected_end_date)
@@ -511,15 +511,15 @@ export default function ReportUploadPage() {
         // multi-commit: all candidates must have valid dates
         return isMulti && state.candidates.every((c) => {
           if (c.date_input_mode === 'multi_auto') return true
-          if (c.date_input_mode === 'range_manual') {
+          if (c.date_input_mode === 'range_auto' || c.date_input_mode === 'range_manual') {
             return Boolean(state.reportStartDate && state.reportEndDate)
           }
-          return Boolean(c.detected_date || c.detected_end_date)
+          return Boolean(state.reportDate || c.detected_date || c.detected_end_date)
         })
       }
 
       // single-commit
-      if (state.recognition.date_input_mode === 'range_manual') {
+      if (state.recognition.date_input_mode === 'range_auto' || state.recognition.date_input_mode === 'range_manual') {
         return Boolean(state.reportStartDate && state.reportEndDate)
       }
       if (state.recognition.date_input_mode === 'multi_auto') {
@@ -845,7 +845,7 @@ export default function ReportUploadPage() {
         state.recognition &&
           (state.candidates.length === 1 || isMulti) &&
           state.selectedProject &&
-          (state.recognition.date_input_mode === 'range_manual'
+          (state.recognition.date_input_mode === 'range_auto' || state.recognition.date_input_mode === 'range_manual'
             ? state.reportStartDate && state.reportEndDate
             : state.recognition.date_input_mode === 'multi_auto'
               ? true
@@ -1009,7 +1009,7 @@ export default function ReportUploadPage() {
                           recognition &&
                             (state.candidates.length === 1 || isMultiCommit) &&
                             state.selectedProject &&
-                            (recognition.date_input_mode === 'range_manual'
+                            (recognition.date_input_mode === 'range_auto' || recognition.date_input_mode === 'range_manual'
                               ? state.reportStartDate && state.reportEndDate
                               : recognition.date_input_mode === 'multi_auto'
                                 ? true

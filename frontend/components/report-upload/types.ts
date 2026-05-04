@@ -30,7 +30,7 @@ export function getReportUploadCountryLabel(country: string, short = false): str
 }
 
 export type RecognitionStatus = 'recognized' | 'unsupported' | 'error'
-export type DateInputMode = 'single_manual' | 'single_detected' | 'range_manual' | 'multi_auto'
+export type DateInputMode = 'single_manual' | 'single_auto' | 'range_manual' | 'range_auto' | 'multi_auto'
 export type ProjectMatchStatus = 'unmatched' | 'matched' | 'conflict' | 'manual'
 export type CommitStatus = 'idle' | 'saving' | 'success' | 'error'
 

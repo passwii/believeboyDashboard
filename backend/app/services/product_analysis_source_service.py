@@ -1131,7 +1131,7 @@ def _persist_one_source_file(
             if rows:
                 db.execute(insert(AnalysisBusinessRow), rows)
         elif report_type == 'payment_report':
-            df = _read_payment_report(path)
+            df, _, _, _ = _read_payment_report(path)
             rows, total, included = _parse_payment_rows(df, source.id, known_skus, known_asins)
             if rows:
                 db.execute(insert(AnalysisPaymentRow), rows)
