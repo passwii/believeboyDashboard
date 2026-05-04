@@ -1,29 +1,26 @@
 {
-  "worktrees": {
-    "wt-1775546522939-1": {
-      "branch": "marsh-tip",
-      "path": "/Users/damon/DamonProjects/believeboyDashboard/.kilo/worktrees/marsh-tip",
-      "parentBranch": "main",
-      "createdAt": "2026-04-07T07:22:02.939Z",
-      "remote": "origin"
-    }
-  },
+  "worktrees": {},
   "sessions": {
-    "ses_31fd02262ffe9qVy82i1UiPTrW": {
+    "ses_20e323cecffe3EjRFJULnoHjSv": {
       "worktreeId": null,
-      "createdAt": "2026-03-12T03:55:59.271Z"
+      "createdAt": "2026-05-04T07:04:47.155Z"
     },
-    "ses_2992df743ffeSHaAfKW3clg5Y6": {
-      "worktreeId": "wt-1775546522939-1",
-      "createdAt": "2026-04-07T07:22:14.088Z"
+    "ses_20e2670f4ffe7YTLE9th0TfGWQ": {
+      "worktreeId": null,
+      "createdAt": "2026-05-04T07:17:40.258Z"
+    },
+    "ses_20e05eca0ffeLPC9DRLi5Cgj9L": {
+      "worktreeId": null,
+      "createdAt": "2026-05-04T07:53:11.293Z"
     }
   },
   "tabOrder": {
     "local": [
-      "ses_2a42e5584ffeVV4mD0PdGxOJ1Y",
-      "ses_2a432ff21ffeQQTrQ4dXiKTDWg",
-      "ses_2a41da7e7ffeN9BEHMiIHTBoDr",
-      "ses_2a40a7939ffexEKAqdPFLVzd6s"
+      "pending:1",
+      "ses_20e3504a3ffeVLoqnvncCe0s0z",
+      "ses_20e323cecffe3EjRFJULnoHjSv",
+      "ses_20e2670f4ffe7YTLE9th0TfGWQ",
+      "ses_20e05eca0ffeLPC9DRLi5Cgj9L"
     ]
   }
 }

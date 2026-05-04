@@ -1295,13 +1295,10 @@ export default function WeeklyProductAnalysisPage() {
         clearClientCache(weeklyDetailsCacheKey(Number(selectedWeekId), country))
       }
       await loadWeeklyData({ force: true })
-      if (activeTab === 'details') {
-        await loadWeeklyDetails({ force: true })
-      }
       setRecomputeMessage(
-        `已按最新 SKU cost 重算 ${Number(payload.recomputed || 0)} 个历史周报`,
+        `已按数据库最新源数据重算并持久化 ${Number(payload.recomputed || 0)} 个周报`,
       )
-      notify({ type: 'success', title: '周度数据重算完成', message: `已重算 ${Number(payload.recomputed || 0)} 个历史周报` })
+      notify({ type: 'success', title: '周度数据重算完成', message: `已重算并持久化 ${Number(payload.recomputed || 0)} 个周报` })
     } catch (recomputeError) {
       setError(
         recomputeError instanceof Error
@@ -1320,8 +1317,6 @@ export default function WeeklyProductAnalysisPage() {
     endDate,
     selectedWeekId,
     loadWeeklyData,
-    activeTab,
-    loadWeeklyDetails,
   ])
 
   useEffect(() => {

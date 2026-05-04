@@ -27,12 +27,12 @@ from app.services import product_analysis_source_service
 def _seed_exchange_rates(db: Session) -> None:
     db.add_all(
         [
-            ExchangeRate(currency='USD', currency_name='美元', year_month='2026-02', rate=1),
-            ExchangeRate(currency='USD', currency_name='美元', year_month='2026-03', rate=1),
-            ExchangeRate(currency='EUR', currency_name='欧元', year_month='2026-02', rate=1),
-            ExchangeRate(currency='EUR', currency_name='欧元', year_month='2026-03', rate=1),
-            ExchangeRate(currency='GBP', currency_name='英镑', year_month='2026-02', rate=1),
-            ExchangeRate(currency='GBP', currency_name='英镑', year_month='2026-03', rate=1),
+            ExchangeRate(id=1, currency='USD', currency_name='美元', year_month='2026-02', rate=1),
+            ExchangeRate(id=2, currency='USD', currency_name='美元', year_month='2026-03', rate=1),
+            ExchangeRate(id=3, currency='EUR', currency_name='欧元', year_month='2026-02', rate=1),
+            ExchangeRate(id=4, currency='EUR', currency_name='欧元', year_month='2026-03', rate=1),
+            ExchangeRate(id=5, currency='GBP', currency_name='英镑', year_month='2026-02', rate=1),
+            ExchangeRate(id=6, currency='GBP', currency_name='英镑', year_month='2026-03', rate=1),
         ]
     )
 
@@ -1253,6 +1253,101 @@ def test_recompute_weekly_product_analysis_from_history_uses_latest_product_cost
         assert detail_rows[0].raw_row['产品FOB'] == 30.0
         assert detail_rows[0].raw_row['销售头程'] == 20.0
         assert detail_rows[0].raw_row['总成本'] == 93.0
+
+
+def test_run_product_calculation_from_history_persists_pt1_from_daily_sources(tmp_path: Path):
+    engine = create_engine('sqlite:///:memory:', future=True)
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        _seed_exchange_rates(db)
+        db.add(Project(project_name='Demo', sort_order=1, source_file='seed.csv'))
+        db.add(
+            ProductCost(
+                project_name='Demo',
+                sku='SKU1',
+                asin='ASIN1',
+                fob_unit_cost=1,
+                first_leg_cost_rmb=1,
+                currency='USD',
+                is_active=True,
+                country='US',
+            )
+        )
+        db.commit()
+
+        business = tmp_path / 'business.csv'
+        payment = tmp_path / 'payment.csv'
+        ad = tmp_path / 'ad.xlsx'
+        _write_business_csv(business)
+        _write_payment_csv(payment)
+        _write_ad_xlsx(ad)
+
+        for report_date in ('2026-02-02', '2026-02-03'):
+            product_analysis_source_service.persist_single_analysis_source(
+                db,
+                project_name='Demo',
+                report_type='business_report',
+                country='US',
+                upload_file_id=f'business-{report_date}.csv',
+                upload_file_path=str(business),
+                report_date=report_date,
+                report_start_date=report_date,
+                report_end_date=report_date,
+            )
+            product_analysis_source_service.persist_single_analysis_source(
+                db,
+                project_name='Demo',
+                report_type='ad_product_report',
+                country='US',
+                upload_file_id=f'ad-{report_date}.xlsx',
+                upload_file_path=str(ad),
+                report_date=report_date,
+                report_start_date=report_date,
+                report_end_date=report_date,
+            )
+
+        product_analysis_source_service.persist_single_analysis_source(
+            db,
+            project_name='Demo',
+            report_type='payment_report',
+            country='US',
+            upload_file_id='payment-week.csv',
+            upload_file_path=str(payment),
+            report_start_date='2026-02-02',
+            report_end_date='2026-02-08',
+        )
+
+        payload = product_analysis_source_service.run_product_calculation_from_history(
+            db,
+            project_id=1,
+            country='US',
+            start_date=date(2026, 2, 2),
+            end_date=date(2026, 2, 3),
+            current_only=True,
+        )
+        db.commit()
+
+        assert payload['total_periods'] == 1
+        assert payload['periods'][0]['report_start_date'] == '2026-02-02'
+        assert payload['periods'][0]['report_end_date'] == '2026-02-03'
+        assert payload['periods'][0]['summary']['实际销售额'] == 120.0
+
+        pt1_rows = db.execute(select(AnalysisPT1Calculation)).scalars().all()
+        assert len(pt1_rows) == 1
+        assert pt1_rows[0].is_current is True
+        assert pt1_rows[0].report_start_date == date(2026, 2, 2)
+        assert pt1_rows[0].report_end_date == date(2026, 2, 3)
+        assert pt1_rows[0].summary_row['总销售额'] == 240.0
+        assert pt1_rows[0].summary_row['实际销售额'] == 120.0
+
+        detail_rows = db.execute(
+            select(AnalysisPTSKUDetail).where(AnalysisPTSKUDetail.pt1_calculation_id == pt1_rows[0].id)
+        ).scalars().all()
+        assert len(detail_rows) == 1
+        assert detail_rows[0].raw_row['SKU'] == 'SKU1'
+        assert detail_rows[0].raw_row['总销售额'] == 240.0
+        assert detail_rows[0].raw_row['实际销售额'] == 120.0
 
 
 def test_parse_transaction_at_handles_pst_and_pdt():

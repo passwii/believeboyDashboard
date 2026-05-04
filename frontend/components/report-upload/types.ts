@@ -71,8 +71,12 @@ export type UploadQueueItem = {
   /** 用户手动选择的项目（用于覆盖自动匹配失败的情况） */
   userSelectedProject: string | null
   detectedDate: string | null
+  detectedStartDate: string | null
+  detectedEndDate: string | null
   detectedCountry: string | null
   userReportDate: string | null
+  userReportStartDate: string | null
+  userReportEndDate: string | null
   fileCommitStatus: CommitStatus
   commitError: string | null
   error: string | null

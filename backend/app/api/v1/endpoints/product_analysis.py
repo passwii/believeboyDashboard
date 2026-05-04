@@ -671,6 +671,7 @@ def check_product_calculation_data(
 @router.post("/product-analysis/calculation/run", response_model=ProductCalculationRunResponse)
 def run_product_calculation(
     body: ProductCalculationRunRequest,
+    request: Request,
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
@@ -682,14 +683,42 @@ def run_product_calculation(
         is_admin=bool(is_admin),
     )
     normalized_country = _normalize_country(body.country)
-    result = product_analysis_source_service.run_product_calculation_from_history(
-        db,
-        project_id=body.project_id,
-        country=normalized_country,
-        start_date=body.start_date,
-        end_date=body.end_date,
-        current_only=body.current_only,
-    )
+    try:
+        result = product_analysis_source_service.run_product_calculation_from_history(
+            db,
+            project_id=body.project_id,
+            country=normalized_country,
+            start_date=body.start_date,
+            end_date=body.end_date,
+            current_only=body.current_only,
+        )
+        append_operation_audit_log(
+            db,
+            action="product_analysis.calculation.run",
+            target_type="product_analysis_weekly",
+            target_id=body.project_id,
+            operator=operator,
+            after={
+                "project_id": body.project_id,
+                "country": normalized_country,
+                "start_date": body.start_date.isoformat(),
+                "end_date": body.end_date.isoformat(),
+                "current_only": body.current_only,
+                "persisted_periods": result["total_periods"],
+            },
+            request=request,
+        )
+        db.commit()
+        invalidate_weekly_analysis_cache()
+    except ValueError as exc:
+        db.rollback()
+        detail = str(exc)
+        if detail == "project not found":
+            raise HTTPException(status_code=404, detail=detail) from exc
+        raise HTTPException(status_code=400, detail=detail) from exc
+    except Exception:
+        db.rollback()
+        raise
     return result
 
 
