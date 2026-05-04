@@ -564,6 +564,7 @@ export default function ReportUploadPage() {
       reportType: null,
       recognitionStatus: 'pending',
       recognizedProject: null,
+      userSelectedProject: null,
       detectedDate: null,
       detectedCountry: null,
       userReportDate: null,
