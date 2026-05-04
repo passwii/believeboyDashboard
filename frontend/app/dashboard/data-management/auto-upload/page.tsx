@@ -436,6 +436,7 @@ function getUploadReportTypeLabel(type: UploadQueueItem['reportType']): string {
 }
 
 function AutoUploadContent() {
+  const { data: session } = useSession()
   const [dragActive, setDragActive] = useState(false)
   const [recognizing, setRecognizing] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -444,6 +445,21 @@ function AutoUploadContent() {
   const [country, setCountry] = useState<ReportUploadCountry>(
     REPORT_UPLOAD_COUNTRY_OPTIONS[0].value,
   )
+  // 项目列表（用于手动选择）
+  const [availableProjects, setAvailableProjects] = useState<string[]>([])
+
+  // 加载项目列表
+  useEffect(() => {
+    const loadProjects = async () => {
+      try {
+        const payload = await fetchManagedProjectsCached<Array<{ name: string }>>(session)
+        setAvailableProjects(payload.map((item) => item.name).filter(Boolean))
+      } catch {
+        // ignore
+      }
+    }
+    void loadProjects()
+  }, [session])
 
   const recognizeFiles = async (files: File[]) => {
     if (!files.length) return
@@ -454,6 +470,7 @@ function AutoUploadContent() {
       reportType: null,
       recognitionStatus: 'pending',
       recognizedProject: null,
+      userSelectedProject: null,
       detectedDate: null,
       detectedCountry: null,
       userReportDate: null,
@@ -520,6 +537,7 @@ function AutoUploadContent() {
                   reportType: 'unknown',
                   recognitionStatus: 'error',
                   recognizedProject: null,
+                  userSelectedProject: null,
                   fileCommitStatus: 'error',
                   error: msg,
                 }
@@ -564,6 +582,28 @@ function AutoUploadContent() {
         continue
       }
 
+      // 检查项目匹配状态
+      const autoMatchedProject = recognition.project_match.status === 'matched'
+        ? recognition.project_match.project_name ?? null
+        : null
+      const finalProjectName = item.userSelectedProject ?? autoMatchedProject
+
+      // 如果项目未匹配且用户未手动选择，报错
+      if (!finalProjectName) {
+        setQueueItems((prev) =>
+          prev.map((it) =>
+            it.localId === item.localId
+              ? {
+                  ...it,
+                  fileCommitStatus: 'error',
+                  commitError: '请先选择项目',
+                }
+              : it,
+          ),
+        )
+        continue
+      }
+
       // Check if date is required but missing
       const resolvedDate = item.userReportDate ?? recognition.detected_date ?? recognition.detected_end_date ?? null
       if (isDateRequired(item.reportType) && !resolvedDate) {
@@ -598,6 +638,7 @@ function AutoUploadContent() {
           report_start_date: recognition.detected_start_date ?? null,
           report_end_date: recognition.detected_end_date ?? null,
           country,
+          project_name: finalProjectName,
         }
         const res = await fetch(`${API_BASE}/api/v1/report-upload/commit`, {
           method: 'POST',
@@ -794,9 +835,38 @@ function AutoUploadContent() {
                           <p className='text-xs text-muted-foreground'>
                             国家：{item.detectedCountry ? getReportUploadCountryLabel(item.detectedCountry, true) : '未识别'}
                           </p>
-                          <p className='text-xs text-muted-foreground'>
-                            项目：{item.recognizedProject ?? '未识别'}
-                          </p>
+                          {item.recognizedProject === '未匹配' || item.recognizedProject === null ? (
+                            <div className='flex items-center gap-1.5'>
+                              <span className='text-xs text-amber-600 dark:text-amber-400'>项目：</span>
+                              <Select
+                                value={item.userSelectedProject ?? ''}
+                                onValueChange={(value) => {
+                                  setQueueItems((prev) =>
+                                    prev.map((it) =>
+                                      it.localId === item.localId
+                                        ? { ...it, userSelectedProject: value || null }
+                                        : it,
+                                    ),
+                                  )
+                                }}
+                              >
+                                <SelectTrigger className='h-6 w-[140px] rounded border-border/60 bg-background px-1.5 py-0.5 text-xs'>
+                                  <SelectValue placeholder='选择项目' />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {availableProjects.map((project) => (
+                                    <SelectItem key={project} value={project}>
+                                      {project}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          ) : (
+                            <p className='text-xs text-muted-foreground'>
+                              项目：{item.userSelectedProject ?? item.recognizedProject}
+                            </p>
+                          )}
                           {item.detectedDate ? (
                             <p className='text-xs text-muted-foreground'>
                               日期：{item.detectedDate}

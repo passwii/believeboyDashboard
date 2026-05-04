@@ -253,6 +253,24 @@ def recognize_saved_report_upload(
                 country=effective_country,
                 allowed_projects=allowed_projects,
             )
+            # 如果 payment_report 无法通过 SKU/ASIN 匹配，回退到从文件名提取目录名匹配
+            if (
+                payload.project_match.status == "unmatched"
+                and result.report_type == "payment_report"
+                and original_filename
+            ):
+                # 从文件名提取目录名（格式: [项目名]/文件名）
+                import re
+                match = re.match(r"^\[([^\]]+)\]", original_filename)
+                if match:
+                    folder_name = match.group(1)
+                    if folder_name in allowed_projects:
+                        payload.project_match = ReportProjectMatchSummary(
+                            status="matched",
+                            project_name=folder_name,
+                            matched_by="folder_name",
+                            message=f"根据文件名 [{folder_name}] 匹配项目（SKU 匹配失败）",
+                        )
         else:
             payload.project_match = ReportProjectMatchSummary(
                 status="unmatched",
