@@ -135,18 +135,30 @@ def recognize_business_report(path: Path, country: str = "US", original_filename
 
 def recognize_payment_report(path: Path, country: str = "US") -> RecognitionResult:
     """Recognize payment report (.csv with 'Includes Amazon Marketplace' header)."""
-    df = _read_payment_report(path)
+    df, detected_start_date, detected_end_date, detected_country = _read_payment_report(
+        path, extract_dates=True, country=country,
+    )
     df = _normalize_columns(df)
     if "sku" not in df.columns:
         raise ValueError("Payment report missing sku column")
+
+    warnings_list: list[str] = []
+    if detected_country and detected_country != country:
+        warnings_list.append(f"文件内检测到 {detected_country}，当前按所选站点 {country} 处理")
+
+    is_range = bool(detected_start_date and detected_end_date and detected_start_date != detected_end_date)
 
     return RecognitionResult(
         report_type="payment_report",
         matched_columns=["sku"],
         reason="命中付款报告表头与 sku 字段",
-        date_input_mode="range_manual",
+        date_input_mode="range_auto" if is_range else ("single_auto" if detected_start_date else "single_manual"),
+        detected_date=detected_end_date,
+        detected_start_date=detected_start_date,
+        detected_end_date=detected_end_date,
         row_count_preview=len(df.index),
-        country=country,
+        warnings=warnings_list,
+        country=detected_country or country,
     )
 
 

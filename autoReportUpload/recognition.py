@@ -169,7 +169,8 @@ def _add_project_match(result: RecognitionResult, db: Session, path: Path, count
             else:
                 values = []
         elif result.report_type == "payment_report":
-            df = _normalize_columns(_read_payment_report(path))
+            df, _, _, _ = _read_payment_report(path, extract_dates=True, country=country)
+            df = _normalize_columns(df)
             match_by = "sku"
             values = df["sku"].dropna().astype(str).tolist()
         elif result.report_type == AD_PRODUCT_REPORT:

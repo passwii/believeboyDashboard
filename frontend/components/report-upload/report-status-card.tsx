@@ -50,6 +50,13 @@ function needsDateAttention(state: ReportCardState) {
   if (state.recognition.date_input_mode === 'multi_auto') {
     return false
   }
+  // Auto modes don't need attention — dates are pre-filled from file
+  if (state.recognition.date_input_mode === 'range_auto') {
+    return !state.reportStartDate || !state.reportEndDate
+  }
+  if (state.recognition.date_input_mode === 'single_auto') {
+    return !state.reportDate
+  }
   if (state.recognition.date_input_mode === 'range_manual') {
     return !state.reportStartDate || !state.reportEndDate
   }
@@ -57,7 +64,9 @@ function needsDateAttention(state: ReportCardState) {
 }
 
 function isMultiCommitWithDerivedDates(state: ReportCardState) {
-  return state.candidates.length > 1 && state.recognition?.date_input_mode !== 'range_manual'
+  // Exclude modes where dates come from the file (not from per-file derivation)
+  const derivedModes = new Set(['range_manual', 'range_auto'])
+  return state.candidates.length > 1 && !derivedModes.has(state.recognition?.date_input_mode ?? '')
 }
 
 export function ReportStatusCard({
@@ -73,7 +82,7 @@ export function ReportStatusCard({
   const recognition = state.recognition
   const projectWarning = needsProjectAttention(state)
   const dateWarning = needsDateAttention(state)
-  const useRangePicker = recognition?.date_input_mode === 'range_manual' || (!recognition && config.type === 'payment_report')
+  const useRangePicker = recognition?.date_input_mode === 'range_manual' || recognition?.date_input_mode === 'range_auto' || (!recognition && config.type === 'payment_report')
 
   return (
     <Card className="flex h-full flex-col overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-sm dark:border-border/90">
@@ -181,6 +190,16 @@ export function ReportStatusCard({
                   {recognition.detected_start_date && recognition.detected_end_date
                     ? `${recognition.detected_start_date} ~ ${recognition.detected_end_date}`
                     : '将按 purchase-date 自动拆分多个日期'}
+                </div>
+              ) : recognition?.date_input_mode === 'range_auto' ? (
+                <div className="rounded-xl border border-border/60 bg-[hsl(var(--surface-soft))] px-3 py-2 text-sm text-foreground">
+                  {recognition.detected_start_date && recognition.detected_end_date
+                    ? `${recognition.detected_start_date} ~ ${recognition.detected_end_date}`
+                    : '已从文件中自动识别日期范围'}
+                </div>
+              ) : recognition?.date_input_mode === 'single_auto' ? (
+                <div className="rounded-xl border border-border/60 bg-[hsl(var(--surface-soft))] px-3 py-2 text-sm text-foreground">
+                  {recognition.detected_date || '已从文件中自动识别日期'}
                 </div>
               ) : (
                 <SingleDatePicker

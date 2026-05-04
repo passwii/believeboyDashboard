@@ -22,7 +22,7 @@ ReportUploadType = Literal[
     'return_report',
     'unknown',
 ]
-DateInputMode = Literal['single_manual', 'single_detected', 'range_manual', 'multi_auto']
+DateInputMode = Literal['single_manual', 'single_auto', 'single_detected', 'range_manual', 'range_auto', 'multi_auto']
 
 
 class ReportProjectMatchSummary(BaseModel):
