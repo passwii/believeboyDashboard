@@ -68,6 +68,8 @@ export type UploadQueueItem = {
   reportType: ReportType | 'unknown' | null
   recognitionStatus: 'pending' | RecognitionStatus
   recognizedProject: string | null
+  /** 用户手动选择的项目（用于覆盖自动匹配失败的情况） */
+  userSelectedProject: string | null
   detectedDate: string | null
   detectedCountry: string | null
   userReportDate: string | null
