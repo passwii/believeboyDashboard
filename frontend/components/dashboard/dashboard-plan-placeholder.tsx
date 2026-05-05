@@ -20,7 +20,6 @@ export function DashboardPlanPlaceholder() {
     <DataCard>
       <DataCardHeader
         title="计划事项"
-        badge={<p className="dashboard-kicker">Schedule</p>}
         action={
           <Badge variant="secondary" className="bg-secondary/10 text-secondary text-[10px]">
             即将推出

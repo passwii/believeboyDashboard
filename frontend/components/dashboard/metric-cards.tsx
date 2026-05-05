@@ -1,7 +1,6 @@
 import {
   ArrowDown,
   ArrowUp,
-  ArrowRight,
   DollarSign,
   Users,
   Activity,
@@ -38,11 +37,12 @@ function MetricCard({
     .join(' ')
 
   return (
-    <Card className="hover-lift animate-enter min-w-[13rem]">
-      <CardHeader className="relative z-10 flex flex-row items-start justify-between space-y-0 pb-4">
-        <div className="flex-1 min-w-0 space-y-1">
-          <div className="flex items-baseline justify-between gap-2">
-            <p className="dashboard-kicker">{title}</p>
+    <Card className="hover-lift animate-enter min-w-[11rem] max-w-[13rem]">
+      <CardHeader className="relative z-10 flex flex-row items-start justify-between gap-3 space-y-0 pb-3">
+        <div className="flex flex-col gap-2">
+          <p className="dashboard-kicker">{title}</p>
+          <CardTitle className="dashboard-display text-[clamp(1.6rem,1.8vw,2rem)]">{value}</CardTitle>
+          <div className="flex items-center gap-1">
             <span
               className={`inline-flex items-center text-xs font-medium ${
                 changeType === 'up'
@@ -55,15 +55,13 @@ function MetricCard({
               {changeType === 'up' && <ArrowUp className="mr-0.5 h-3 w-3" />}
               {changeType === 'down' && <ArrowDown className="mr-0.5 h-3 w-3" />}
               {change}
-              {changeType === 'neutral' && <ArrowRight className="ml-1 h-3 w-3" />}
             </span>
           </div>
-          <CardTitle className="dashboard-display text-[clamp(2rem,2.4vw,2.55rem)]">{value}</CardTitle>
         </div>
         <div className="rounded-lg bg-secondary/10 p-2.5 text-secondary">{icon}</div>
       </CardHeader>
-      <CardContent className="relative z-10">
-        <div className="h-12 w-full rounded-md bg-[hsl(var(--surface-subtle))] px-1 py-1">
+      <CardContent className="relative z-10 px-4 pb-4">
+        <div className="h-10 w-full rounded-md bg-[hsl(var(--surface-subtle))] px-1 py-1">
           <svg viewBox="0 0 100 30" className="h-full w-full overflow-visible">
             <defs>
               <linearGradient id={`spark-${gradientId}`} x1="0" y1="0" x2="0" y2="1">
@@ -99,7 +97,7 @@ export function MetricCards() {
       icon: <Users className="h-4 w-4" />,
     },
     {
-      title: 'Ad Cost Ratio',
+      title: '广告成本比',
       value: '21.4%',
       change: '-1.3%',
       changeType: 'down' as const,
@@ -107,7 +105,7 @@ export function MetricCards() {
       icon: <Activity className="h-4 w-4" />,
     },
     {
-      title: 'Growth Index',
+      title: '增长指数',
       value: '+14.6%',
       change: '+4.8%',
       changeType: 'up' as const,
@@ -117,7 +115,7 @@ export function MetricCards() {
   ]
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {metrics.map((metric) => (
         <MetricCard key={metric.title} {...metric} />
       ))}

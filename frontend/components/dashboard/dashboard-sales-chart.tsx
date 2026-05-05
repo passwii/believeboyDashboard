@@ -298,7 +298,6 @@ export function DashboardSalesChart({ session }: DashboardSalesChartProps) {
     <DataCard>
       <DataCardHeader
         title="销售概览"
-        badge={<p className="dashboard-kicker">Sales Overview</p>}
         action={
           <RefreshButton
             onClick={() => void loadData()}
@@ -314,67 +313,71 @@ export function DashboardSalesChart({ session }: DashboardSalesChartProps) {
         {/* Metric summary */}
         {data.length > 0 && (
           <div className="flex flex-wrap gap-3">
-            <div className="flex items-center gap-3 rounded-lg border border-border/70 bg-[hsl(var(--surface-soft))]/80 px-4 py-3">
+            <div className="flex items-center gap-3 rounded-lg border border-border/70 bg-[hsl(var(--surface-soft))]/80 px-3 py-3 min-w-[13rem]">
               <div className="rounded-md bg-primary/10 p-2 text-primary">
                 <DollarSign className="h-4 w-4" />
               </div>
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                  销售额
-                </p>
-                <p className="text-lg font-semibold tabular-nums tracking-tight text-foreground">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                    销售额
+                  </p>
+                  {salesChange !== null && (
+                    <Badge
+                      variant="secondary"
+                      className={cn(
+                        'gap-1 text-[10px]',
+                        salesChange >= 0
+                          ? 'bg-secondary/10 text-secondary'
+                          : 'bg-destructive/10 text-destructive',
+                      )}
+                    >
+                      {salesChange >= 0 ? (
+                        <ArrowUp className="h-2.5 w-2.5" />
+                      ) : (
+                        <ArrowDown className="h-2.5 w-2.5" />
+                      )}
+                      {Math.abs(salesChange).toFixed(1)}%
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-xl font-semibold tabular-nums tracking-tight text-foreground">
                   ${formatMoney(totalSales)}
                 </p>
               </div>
-              {salesChange !== null && (
-                <Badge
-                  variant="secondary"
-                  className={cn(
-                    'ml-1 gap-1 text-xs',
-                    salesChange >= 0
-                      ? 'bg-secondary/10 text-secondary'
-                      : 'bg-destructive/10 text-destructive',
-                  )}
-                >
-                  {salesChange >= 0 ? (
-                    <ArrowUp className="h-3 w-3" />
-                  ) : (
-                    <ArrowDown className="h-3 w-3" />
-                  )}
-                  {Math.abs(salesChange).toFixed(1)}%
-                </Badge>
-              )}
             </div>
-            <div className="flex items-center gap-3 rounded-lg border border-border/70 bg-[hsl(var(--surface-soft))]/80 px-4 py-3">
+            <div className="flex items-center gap-3 rounded-lg border border-border/70 bg-[hsl(var(--surface-soft))]/80 px-3 py-3 min-w-[13rem]">
               <div className="rounded-md bg-[hsl(var(--chart-2))]/10 p-2 text-[hsl(var(--chart-2))]">
                 <ShoppingBag className="h-4 w-4" />
               </div>
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                  订单量
-                </p>
-                <p className="text-lg font-semibold tabular-nums tracking-tight text-foreground">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                    订单量
+                  </p>
+                  {ordersChange !== null && (
+                    <Badge
+                      variant="secondary"
+                      className={cn(
+                        'gap-1 text-[10px]',
+                        ordersChange >= 0
+                          ? 'bg-secondary/10 text-secondary'
+                          : 'bg-destructive/10 text-destructive',
+                      )}
+                    >
+                      {ordersChange >= 0 ? (
+                        <ArrowUp className="h-2.5 w-2.5" />
+                      ) : (
+                        <ArrowDown className="h-2.5 w-2.5" />
+                      )}
+                      {Math.abs(ordersChange).toFixed(1)}%
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-xl font-semibold tabular-nums tracking-tight text-foreground">
                   {totalOrders.toLocaleString('zh-CN')}
                 </p>
               </div>
-              {ordersChange !== null && (
-                <Badge
-                  variant="secondary"
-                  className={cn(
-                    'ml-1 gap-1 text-xs',
-                    ordersChange >= 0
-                      ? 'bg-secondary/10 text-secondary'
-                      : 'bg-destructive/10 text-destructive',
-                  )}
-                >
-                  {ordersChange >= 0 ? (
-                    <ArrowUp className="h-3 w-3" />
-                  ) : (
-                    <ArrowDown className="h-3 w-3" />
-                  )}
-                  {Math.abs(ordersChange).toFixed(1)}%
-                </Badge>
-              )}
             </div>
           </div>
         )}
