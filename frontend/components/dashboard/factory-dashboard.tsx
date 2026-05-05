@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowRight, CalendarDays, Download, Factory, Package, Truck, CheckCircle2, Clock, TriangleAlert } from 'lucide-react'
+import { ArrowRight, ArrowUp, ArrowDown, CalendarDays, Download, Factory, Package, Truck, CheckCircle2, Clock, TriangleAlert } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
