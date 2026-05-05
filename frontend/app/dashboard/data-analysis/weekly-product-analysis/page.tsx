@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 import { Download, Eye, EyeOff, Loader2, ShoppingCart } from 'lucide-react'
 import { useSession } from 'next-auth/react'
@@ -69,6 +69,7 @@ type WeeklyDataRow = {
   id: number
   project_id: number
   project_name: string
+  country: string
   report_start_date: string
   report_end_date: string
   version: number
@@ -113,6 +114,20 @@ function WeeklyFilterSkeleton({ width = 'w-full' }: { width?: string }) {
 
 function WeeklyStatSkeleton() {
   return <Skeleton className='h-[132px] w-full rounded-lg' />
+}
+
+function LoadingScrim({
+  children,
+  className = 'p-4',
+}: {
+  children: ReactNode
+  className?: string
+}) {
+  return (
+    <div className='absolute inset-0 z-20 flex items-center justify-center bg-background/78 backdrop-blur-[2px]'>
+      <div className={className}>{children}</div>
+    </div>
+  )
 }
 
 const API_BASE = '/api/backend'
@@ -1031,6 +1046,7 @@ export default function WeeklyProductAnalysisPage() {
   })
 
   const latestRequestIdRef = useRef(0)
+  const latestDetailsRequestIdRef = useRef(0)
   const summaryWeekHeadRef = useRef<HTMLTableCellElement | null>(null)
   const [summaryWeekColumnWidth, setSummaryWeekColumnWidth] = useState(
     SUMMARY_WEEK_COLUMN_FALLBACK_WIDTH,
@@ -1135,6 +1151,7 @@ export default function WeeklyProductAnalysisPage() {
     async (options?: { force?: boolean }) => {
       const pt1Id = Number(selectedWeekId)
       if (!pt1Id) {
+        latestDetailsRequestIdRef.current += 1
         setDetailRows([])
         setDetailsError(null)
         setInventorySnapshotAt(null)
@@ -1156,6 +1173,9 @@ export default function WeeklyProductAnalysisPage() {
       } else {
         setDetailRows([])
       }
+
+      const requestId = latestDetailsRequestIdRef.current + 1
+      latestDetailsRequestIdRef.current = requestId
 
       setDetailsLoading(!hasCachedRows)
       setDetailsError(null)
@@ -1186,6 +1206,7 @@ export default function WeeklyProductAnalysisPage() {
           }
 
           const payload = (await response.json()) as PT1DetailsResponse
+          if (latestDetailsRequestIdRef.current !== requestId) return
           if (page === 1) {
             pt1StartDate = payload.report_start_date
             pt1EndDate = payload.report_end_date
@@ -1242,10 +1263,12 @@ export default function WeeklyProductAnalysisPage() {
           })
         }
 
+        if (latestDetailsRequestIdRef.current !== requestId) return
         setDetailRows(merged)
         setInventorySnapshotAt(hasInventoryForPeriod ? 'available' : null)
         setClientCache(cacheKey, merged, { persist: false })
       } catch (loadError) {
+        if (latestDetailsRequestIdRef.current !== requestId) return
         if (!hasCachedRows) {
           setDetailRows([])
           setDetailsError(
@@ -1253,7 +1276,9 @@ export default function WeeklyProductAnalysisPage() {
           )
         }
       } finally {
-        setDetailsLoading(false)
+        if (latestDetailsRequestIdRef.current === requestId) {
+          setDetailsLoading(false)
+        }
       }
     },
     [selectedWeekId, country, projectId],
@@ -1327,6 +1352,15 @@ export default function WeeklyProductAnalysisPage() {
     if (!projectId || projectsLoading) return
     void loadWeeklyData()
   }, [projectId, projectsLoading, loadWeeklyData])
+
+  useEffect(() => {
+    latestDetailsRequestIdRef.current += 1
+    setSelectedWeekId('')
+    setDetailRows([])
+    setDetailsError(null)
+    setInventorySnapshotAt(null)
+    setDetailsLoading(false)
+  }, [projectId, country, startDate, endDate])
 
   const trendRows = useMemo(() => {
     if (!data || data.length === 0) return []
@@ -1772,7 +1806,7 @@ export default function WeeklyProductAnalysisPage() {
         <DataCardHeader
           title='周度趋势'
           badge={<p className='dashboard-kicker'>Weekly Trend</p>}
-          
+
           action={
             <div className='flex flex-wrap items-center justify-center gap-2 sm:justify-end'>
               <button
@@ -1915,7 +1949,7 @@ export default function WeeklyProductAnalysisPage() {
             { label: '广告花费合计', value: formatCurrency(totals.ad_spend) },
           ]}
         />
-        <div className='px-2 pt-4 sm:px-6 sm:pt-6'>
+        <div className='relative px-2 pt-4 sm:px-6 sm:pt-6'>
           {loading && data.length > 0 ? (
             <div className='mb-4 inline-flex rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm'>
               趋势数据更新中...
@@ -2124,6 +2158,11 @@ export default function WeeklyProductAnalysisPage() {
               暂无趋势数据
             </div>
           )}
+          {loading && trendPoints.length > 0 ? (
+            <LoadingScrim className='w-full px-4'>
+              <Skeleton className='h-[320px] w-full rounded-xl' />
+            </LoadingScrim>
+          ) : null}
         </div>
       </DataCard>
 
@@ -2215,7 +2254,7 @@ export default function WeeklyProductAnalysisPage() {
             </div>
           </div>
         </DataTableCardHeader>
-        <DataTableCardBody>
+        <DataTableCardBody className='relative'>
           {activeTab === 'summary' && loading && summaryRows.length > 0 ? (
             <div className='mb-4 inline-flex rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm'>
               周汇总更新中...
@@ -2494,6 +2533,16 @@ export default function WeeklyProductAnalysisPage() {
               当前周次暂无 SKU明细 数据
             </div>
           )}
+          {activeTab === 'summary' && loading && summaryRows.length > 0 ? (
+            <LoadingScrim className='w-full px-6 py-8'>
+              <BarSkeleton rows={6} className='w-full' />
+            </LoadingScrim>
+          ) : null}
+          {activeTab === 'details' && detailsLoading && detailRows.length > 0 ? (
+            <LoadingScrim className='w-full px-6 py-8'>
+              <BarSkeleton rows={8} className='w-full' />
+            </LoadingScrim>
+          ) : null}
         </DataTableCardBody>
       </DataTableCard>
     </div>

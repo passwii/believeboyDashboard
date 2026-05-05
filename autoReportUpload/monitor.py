@@ -52,31 +52,47 @@ class RunLogger:
         self.logger.info(msg)
 
     def result(self, file_path: Path, project: str, result: ProcessResult) -> None:
+        # 状态标签
         if result.skipped:
-            self.logger.info(f"  SKIP  [{project}] {file_path.name}  {result.reason}")
+            status = "跳过"
         elif result.success:
-            # PaymentReport: show multi-line format with project, country, and dates
-            if result.report_type == "payment_report":
-                # Format dates nicely
-                if result.detected_start_date and result.detected_end_date:
-                    if result.detected_start_date == result.detected_end_date:
-                        date_str = result.detected_start_date
-                    else:
-                        date_str = f"{result.detected_start_date} – {result.detected_end_date}"
-                elif result.detected_start_date:
-                    date_str = result.detected_start_date
-                elif result.detected_end_date:
-                    date_str = result.detected_end_date
-                else:
-                    date_str = "日期未识别"
-
-                country_str = f" | 国家: {result.country}" if result.country else ""
-                self.logger.info(f"  OK    [{project}] payment_report  {date_str}{country_str}")
-                self.logger.info(f"        文件: {file_path.name}")
-            else:
-                self.logger.info(f"  OK    [{project}] {file_path.name}")
+            status = "OK"
         else:
-            self.logger.error(f"  FAIL  [{project}] {file_path.name}  {result.error}")
+            status = "FAIL"
+
+        # 国家
+        country = result.country or "-"
+
+        # 报表类型中文映射
+        report_type_cn = {
+            "sales_report": "销售报表",
+            "business_report": "业绩报表",
+            "payment_report": "付款报表",
+            "ad_product_report": "广告产品报表",
+            "ad_search_term_report": "广告搜索词报表",
+            "inventory_report": "库存快报",
+            "return_report": "退货报表",
+        }.get(result.report_type or "", result.report_type or "未知报表")
+
+        # 报告日期
+        if result.detected_start_date and result.detected_end_date:
+            if result.detected_start_date == result.detected_end_date:
+                report_date = result.detected_start_date
+            else:
+                report_date = f"{result.detected_start_date}–{result.detected_end_date}"
+        elif result.detected_start_date:
+            report_date = result.detected_start_date
+        elif result.detected_end_date:
+            report_date = result.detected_end_date
+        else:
+            report_date = "-"
+
+        if result.success:
+            self.logger.info(f"【{status}】-【{country}】-【{project}】-【{report_type_cn}】-【{report_date}】")
+        elif result.skipped:
+            self.logger.info(f"【{status}】-【{country}】-【{project}】-【{report_type_cn}】-【{report_date}】  {result.reason}")
+        else:
+            self.logger.error(f"【{status}】-【{country}】-【{project}】-【{report_type_cn}】-【{report_date}】  {result.error}")
 
     @property
     def log_file(self) -> Path:

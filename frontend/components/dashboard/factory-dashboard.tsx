@@ -101,10 +101,25 @@ function MetricCard({ title, value, unit, change, changeType, trend, icon }: Met
     .join(' ')
 
   return (
-    <Card className="hover-lift animate-enter">
+    <Card className="hover-lift animate-enter min-w-[13rem]">
       <CardHeader className="relative z-10 flex flex-row items-start justify-between space-y-0 pb-4">
-        <div className="space-y-1">
-          <p className="dashboard-kicker">{title}</p>
+        <div className="flex-1 min-w-0 space-y-1">
+          <div className="flex items-baseline justify-between gap-2">
+            <p className="dashboard-kicker">{title}</p>
+            <span
+              className={`inline-flex items-center text-xs font-medium ${
+                changeType === 'up'
+                  ? 'text-secondary'
+                  : changeType === 'down'
+                  ? 'text-destructive'
+                  : 'text-muted-foreground'
+              }`}
+            >
+              {changeType === 'up' && <ArrowUp className="mr-0.5 h-3 w-3" />}
+              {changeType === 'down' && <ArrowDown className="mr-0.5 h-3 w-3" />}
+              {change}
+            </span>
+          </div>
           <CardTitle className="dashboard-display text-[clamp(2rem,2.4vw,2.55rem)]">
             {value}
             {unit && <span className="ml-1 text-base font-medium text-muted-foreground">{unit}</span>}
@@ -113,25 +128,12 @@ function MetricCard({ title, value, unit, change, changeType, trend, icon }: Met
         <div className="rounded-lg bg-secondary/10 p-2.5 text-secondary">{icon}</div>
       </CardHeader>
       <CardContent className="relative z-10">
-        <div className="mb-4 h-12 w-full rounded-md bg-[hsl(var(--surface-subtle))] px-1 py-1">
+        <div className="h-12 w-full rounded-md bg-[hsl(var(--surface-subtle))] px-1 py-1">
           <svg viewBox="0 0 100 30" className="h-full w-full overflow-visible">
             <path d={`${path} L 100 30 L 0 30 Z`} fill="hsl(var(--secondary) / 0.12)" />
             <path d={path} fill="none" stroke="hsl(var(--secondary))" strokeWidth="2.25" strokeLinecap="round" />
           </svg>
         </div>
-        <p className="flex items-center justify-end gap-3 text-xs text-muted-foreground md:text-sm">
-          <span
-            className={
-              changeType === 'up'
-                ? 'text-secondary'
-                : changeType === 'down'
-                ? 'text-destructive'
-                : 'text-muted-foreground'
-            }
-          >
-            {change}
-          </span>
-        </p>
       </CardContent>
     </Card>
   )

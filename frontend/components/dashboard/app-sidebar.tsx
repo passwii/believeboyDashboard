@@ -13,6 +13,7 @@ import {
   Wrench,
   Users,
 } from 'lucide-react'
+import Link from 'next/link'
 import { signOut, useSession } from 'next-auth/react'
 import { usePathname } from 'next/navigation'
 
@@ -164,9 +165,7 @@ const primaryGroups: NavGroup[] = [
     activeAccent: 'bg-[linear-gradient(180deg,#118166,#1cab86)] text-white',
     iconAccent: '#888888',
     activeIconAccent: 'rgba(255,255,255,0.95)',
-    items: [
-      { title: '调研分析', url: '/dashboard/tools/research-analysis' },
-    ],
+    items: [{ title: '调研分析', url: '/dashboard/tools/research-analysis' }],
   },
 ]
 
@@ -325,7 +324,10 @@ export function AppSidebar({
 
   const { pinnedUrls, toggle } = useSidebarPinnedItems()
   const { editVisible, handlers } = useLongPress(500)
-  const visiblePinnedUrls = useVisiblePinnedUrls(pinnedUrls, displayUser.roleType)
+  const visiblePinnedUrls = useVisiblePinnedUrls(
+    pinnedUrls,
+    displayUser.roleType,
+  )
 
   return (
     <Sidebar collapsible='offcanvas' {...props}>
@@ -335,22 +337,33 @@ export function AppSidebar({
         </div>
       ) : (
         <div className='flex min-h-0 flex-1 flex-col'>
-          <SidebarHeader className='flex items-center px-3 py-3'>
-            <div className='grid w-full text-left leading-tight'>
-              <span className='truncate text-[0.82rem] font-semibold text-sidebar-foreground'>
+          <SidebarHeader className='px-3 py-4'>
+            <Link
+              href='/dashboard'
+              className='flex flex-col items-center justify-center gap-0.5 rounded-lg px-2 py-2 transition-colors hover:bg-[hsl(var(--sidebar-foreground)/0.04)]'
+            >
+              <span className='text-[1.7rem] font-bold tracking-tight text-sidebar-foreground'>
                 BelieveBoy
               </span>
-              <span className='truncate text-[0.72rem] text-sidebar-foreground/56'>
+              <span className='text-[0.82rem] text-sidebar-foreground/56'>
                 运营控制台
               </span>
-            </div>
+            </Link>
           </SidebarHeader>
 
           {/* Quick Access Bar */}
           <div className='px-3 py-2' {...handlers}>
             <div className='flex items-center gap-1.5'>
               {visiblePinnedUrls.map((url) => (
-                <SidebarPinnedItem key={url} url={url} title='' pinnedUrls={pinnedUrls} onToggle={toggle} roleType={displayUser.roleType} editVisible={editVisible} />
+                <SidebarPinnedItem
+                  key={url}
+                  url={url}
+                  title=''
+                  pinnedUrls={pinnedUrls}
+                  onToggle={toggle}
+                  roleType={displayUser.roleType}
+                  editVisible={editVisible}
+                />
               ))}
             </div>
           </div>
@@ -370,7 +383,8 @@ export function AppSidebar({
               <SidebarGroupBlock group={adminGroup} />
             ) : null}
 
-            {displayUser.roleType === 'businessdev' || displayUser.roleType === 'admin' ? (
+            {displayUser.roleType === 'businessdev' ||
+            displayUser.roleType === 'admin' ? (
               <SidebarGroupBlock group={businessDevGroup} />
             ) : null}
 

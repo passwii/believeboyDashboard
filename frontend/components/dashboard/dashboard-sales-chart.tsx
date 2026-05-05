@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useWindowSize } from 'usehooks-ts'
 import { DateRange } from 'react-day-picker'
 import { Bar, CartesianGrid, ComposedChart, Line, XAxis, YAxis } from 'recharts'
 import { ArrowDown, ArrowUp, DollarSign, ShoppingBag } from 'lucide-react'
@@ -155,6 +156,9 @@ export function DashboardSalesChart({ session }: DashboardSalesChartProps) {
     loading,
     hasData: data.length > 0,
   })
+
+  const { width: screenWidth } = useWindowSize()
+  const isMobile = screenWidth < 640
 
   // Load projects
   useEffect(() => {
@@ -381,7 +385,7 @@ export function DashboardSalesChart({ session }: DashboardSalesChartProps) {
             <Skeleton className="h-[320px] w-full rounded-lg" />
           </div>
         ) : data.length > 0 ? (
-          <div className="rounded-lg bg-[hsl(var(--surface-soft))]/82 p-4">
+          <div className="rounded-lg bg-[hsl(var(--surface-soft))]/82 p-2 sm:p-4">
             <div className="mb-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
               <div className="inline-flex items-center gap-2 rounded-full bg-background/72 px-3 py-1.5">
                 <span className="h-2.5 w-2.5 rounded-full bg-[hsl(var(--chart-1))]" />
@@ -401,11 +405,11 @@ export function DashboardSalesChart({ session }: DashboardSalesChartProps) {
 
             <ChartContainer
               config={CHART_CONFIG}
-              className="h-[320px] w-full"
+              className="h-[260px] sm:h-[320px] w-full"
             >
               <ComposedChart
                 data={chartRows}
-                margin={{ top: 20, right: 8, left: 8, bottom: 12 }}
+                margin={{ top: 10, right: 4, left: 0, bottom: 8 }}
               >
                 <CartesianGrid
                   vertical={false}
@@ -416,8 +420,8 @@ export function DashboardSalesChart({ session }: DashboardSalesChartProps) {
                   dataKey="date"
                   axisLine={false}
                   tickLine={false}
-                  tickMargin={12}
-                  tick={{ fontSize: 12, fill: '#71717a' }}
+                  tickMargin={8}
+                  tick={{ fontSize: 11, fill: '#71717a' }}
                   tickFormatter={(value) => {
                     const [, month, day] = String(value).split('-')
                     return `${month}/${day}`
@@ -427,18 +431,20 @@ export function DashboardSalesChart({ session }: DashboardSalesChartProps) {
                   yAxisId="sales"
                   axisLine={false}
                   tickLine={false}
-                  tickMargin={8}
-                  tick={{ fontSize: 11, fill: '#71717a' }}
+                  tickMargin={4}
+                  tick={{ fontSize: 10, fill: '#71717a' }}
                   tickFormatter={(v) => formatAxisMoney(Number(v))}
+                  width={36}
                 />
                 <YAxis
                   yAxisId="orders"
                   orientation="right"
                   axisLine={false}
                   tickLine={false}
-                  tickMargin={8}
-                  tick={{ fontSize: 11, fill: '#71717a' }}
+                  tickMargin={4}
+                  tick={{ fontSize: 10, fill: '#71717a' }}
                   tickFormatter={(v) => Number(v).toLocaleString('zh-CN')}
+                  width={32}
                 />
                 <ChartTooltip
                   cursor={{
@@ -475,7 +481,7 @@ export function DashboardSalesChart({ session }: DashboardSalesChartProps) {
                     name="上一周期销售额"
                     fill="rgba(148,163,184,0.22)"
                     radius={[6, 6, 0, 0]}
-                    barSize={14}
+                    barSize={isMobile ? 10 : 14}
                     isAnimationActive
                     animationDuration={300}
                   />
@@ -487,7 +493,7 @@ export function DashboardSalesChart({ session }: DashboardSalesChartProps) {
                   name="sales_amount"
                   fill="var(--color-sales_amount)"
                   radius={[6, 6, 0, 0]}
-                  barSize={14}
+                  barSize={isMobile ? 10 : 14}
                   isAnimationActive
                   animationDuration={360}
                   animationEasing="ease-out"

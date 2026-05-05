@@ -1497,11 +1497,10 @@ export default function DailyAnalysisPage() {
         <DataCardHeader
           title='控制台'
           titleClassName='text-2xl tracking-tight'
-          badge={<p className='dashboard-kicker'>Analysis Console</p>}
         />
         <div className='space-y-0'>
           {/* 筛选区 */}
-          <div className='dashboard-toolbar flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-4 md:px-6 md:py-5'>
+          <div className='dashboard-toolbar border-0 flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-4 md:px-6 md:py-5'>
             <FilterField label="项目">
               <Select value={projectId} onValueChange={setProjectId}>
                 <SelectTrigger className="h-9 w-[160px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none [&>span]:truncate dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
@@ -2040,7 +2039,6 @@ export default function DailyAnalysisPage() {
         <DataTableCard>
           <DataTableCardHeader className='flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between pb-4'>
             <div>
-              <p className='dashboard-kicker'>Operational Ledger</p>
               <div className='text-base font-semibold text-foreground'>
                 销售数据工作区
               </div>
