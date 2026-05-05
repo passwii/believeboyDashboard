@@ -345,6 +345,7 @@ def list_product_analysis_pt1(
             "id": row.id,
             "project_id": row.project_id,
             "project_name": row.project_name,
+            "country": row.country,
             "report_start_date": row.report_start_date,
             "report_end_date": row.report_end_date,
             "version": row.version,
@@ -372,7 +373,14 @@ def list_product_analysis_pt1_details(
     if pt1 is None:
         raise HTTPException(status_code=404, detail="PT1 calculation not found")
 
+    # Use PT1's country for details query, and normalize for ProductCost matching
+    pt1_country = pt1.country
     normalized_country = _normalize_country(country)
+    if normalized_country != pt1_country:
+        raise HTTPException(
+            status_code=404,
+            detail="PT1 calculation not found for the selected country",
+        )
     detail_sku = func.lower(func.coalesce(AnalysisPTSKUDetail.sku, ""))
     detail_asin = func.lower(func.coalesce(AnalysisPTSKUDetail.asin, ""))
     product_match = or_(
@@ -404,6 +412,7 @@ def list_product_analysis_pt1_details(
     rows = (
         db.query(AnalysisPTSKUDetail, sort_order_label)
         .where(AnalysisPTSKUDetail.pt1_calculation_id == pt1_id)
+        .where(AnalysisPTSKUDetail.country == pt1_country)
         .where(exists_expr)
         .order_by(
             func.coalesce(sort_order_label, 2147483647).asc(),
@@ -525,6 +534,7 @@ def list_product_analysis_weekly(
     stmt = (
         db.query(AnalysisPT1Calculation)
         .where(AnalysisPT1Calculation.project_id == project_id)
+        .where(AnalysisPT1Calculation.country == normalized_country)
         .order_by(
             AnalysisPT1Calculation.report_start_date.desc(),
             AnalysisPT1Calculation.id.desc(),
@@ -550,6 +560,7 @@ def list_product_analysis_weekly(
                 "id": row.id,
                 "project_id": row.project_id,
                 "project_name": row.project_name,
+                "country": row.country,
                 "report_start_date": row.report_start_date,
                 "report_end_date": row.report_end_date,
                 "version": row.version,

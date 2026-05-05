@@ -103,7 +103,7 @@ export default function DashboardLayout({
     <DashboardAISidebarProvider>
       <SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpen}>
         <AppSidebar variant="sidebar" aiChatMode={isAiChatRoute} />
-        <SidebarInset className="min-w-0 overflow-x-clip bg-[hsl(var(--surface-low))]">
+        <SidebarInset className="min-h-screen min-w-0 overflow-x-clip overflow-y-auto bg-[hsl(var(--surface-low))]">
           <header className="sticky top-0 z-20 border-b border-border/70 bg-[hsl(var(--surface-overlay)/0.82)] backdrop-blur-xl">
             <div className="flex min-h-[4.5rem] items-center gap-2 px-2 sm:gap-3 md:px-5 lg:px-6 xl:gap-4 xl:px-8">
               <SidebarTrigger className="h-9 w-9 shrink-0 rounded-xl border border-border/65 bg-[hsl(var(--surface-overlay)/0.65)] text-secondary shadow-none hover:bg-[hsl(var(--surface-subtle))] sm:h-10 sm:w-10" />
@@ -214,8 +214,8 @@ export default function DashboardLayout({
             id="main-content"
             className={
               isAiChatPage
-                ? 'dashboard-full-width relative min-w-0 flex-1 overflow-x-clip px-0 pb-0 pt-0'
-                : 'dashboard-full-width relative min-w-0 flex-1 overflow-x-clip px-1 pb-6 pt-4 md:px-2 md:pb-8 lg:px-3 xl:px-4'
+                ? 'dashboard-full-width relative min-w-0 flex-1 overflow-x-clip overflow-y-auto px-0 pb-0 pt-0'
+                : 'dashboard-full-width relative min-w-0 flex-1 overflow-x-clip overflow-y-auto px-1 pb-6 pt-4 md:px-2 md:pb-8 lg:px-3 xl:px-4'
             }
           >
             <div

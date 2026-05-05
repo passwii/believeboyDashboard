@@ -16,11 +16,13 @@ import {
   Repeat2,
   RotateCcw,
   Search,
+  Shell,
   ShoppingCart,
   Store,
   TrendingUp,
   Truck,
   Warehouse,
+  Zap,
 } from 'lucide-react'
 
 import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
@@ -195,7 +197,7 @@ const ALL_ITEMS: PinnedItem[] = [
   {
     title: '报表自动化',
     url: '/dashboard/data-management/auto-upload',
-    icon: <Truck className='h-4 w-4' />,
+    icon: <Zap className='h-4 w-4' />,
   },
   // 工具集
   {

@@ -2117,7 +2117,7 @@ export default function AIInsightsPage() {
                     className={cn('cursor-pointer', insight.status === 'generating' && 'opacity-70')}
                     onClick={() => void handleViewInsight(insight.id)}
                   >
-                    <TableCell className="font-medium whitespace-normal break-words">
+                    <TableCell className="font-medium whitespace-nowrap max-w-[300px] truncate">
                       {insight.status === 'generating' || insight.status === 'pending' ? (
                         <span className="flex items-center gap-2">
                           <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
@@ -2136,7 +2136,7 @@ export default function AIInsightsPage() {
                         {INSIGHT_TYPE_OPTIONS.find((t) => t.value === insight.insight_type)?.label || insight.insight_type}
                       </span>
                     </TableCell>
-                    <TableCell className="text-sm">
+                    <TableCell className="text-sm whitespace-nowrap">
                       {formatDate(insight.date_range_start)} ~ {formatDate(insight.date_range_end)}
                     </TableCell>
                     <TableCell>

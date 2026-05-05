@@ -2783,27 +2783,9 @@ export default function PricingCalculationPage() {
                       <CardContent className='space-y-3'>
                         <div className='flex items-end gap-3'>
                           <Field label='国家站点'>
-                            <Select
-                              value={selectedCountry}
-                              onValueChange={(value) => {
-                                setSelectedCountry(value)
-                                setForm((f) => ({ ...f, country: value }))
-                              }}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder='选择国家站点' />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {COUNTRY_OPTIONS.map((option) => (
-                                  <SelectItem
-                                    key={option.value}
-                                    value={option.value}
-                                  >
-                                    {option.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <div className='flex h-9 items-center text-sm'>
+                               美国站 (US)
+                            </div>
                           </Field>
                           <Field label='产品搜索'>
                             <div className='relative w-[220px]'>

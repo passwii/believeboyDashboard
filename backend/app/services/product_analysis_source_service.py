@@ -139,6 +139,7 @@ def persist_product_analysis_pt1_calculation(
     db: Session,
     *,
     project_name: str,
+    country: str = 'US',
     report_start_date: str,
     report_end_date: str,
     pt1: dict[str, Any],
@@ -147,6 +148,7 @@ def persist_product_analysis_pt1_calculation(
 ) -> AnalysisPT1Calculation:
     ensure_tables(db)
     project = _get_project_by_name(db, project_name)
+    normalized_country = _normalize_country(country)
     start_date = _parse_yyyy_mm_dd(report_start_date, 'report_start_date')
     end_date = _parse_yyyy_mm_dd(report_end_date, 'report_end_date')
     if start_date > end_date:
@@ -171,6 +173,7 @@ def persist_product_analysis_pt1_calculation(
     version = _next_pt1_version(
         db,
         project_id=project.id,
+        country=normalized_country,
         report_start_date=start_date,
         report_end_date=end_date,
     )
@@ -179,6 +182,7 @@ def persist_product_analysis_pt1_calculation(
         sa_update(AnalysisPT1Calculation)
         .where(
             AnalysisPT1Calculation.project_id == project.id,
+            AnalysisPT1Calculation.country == normalized_country,
             AnalysisPT1Calculation.report_start_date == start_date,
             AnalysisPT1Calculation.report_end_date == end_date,
             AnalysisPT1Calculation.is_current.is_(True),
@@ -195,6 +199,7 @@ def persist_product_analysis_pt1_calculation(
         report_start_date=start_date,
         report_end_date=end_date,
         version=version,
+        country=normalized_country,
         is_current=True,
         superseded_at=None,
         row_count=row_count,
@@ -208,6 +213,7 @@ def persist_product_analysis_pt1_calculation(
     if details_payload:
         for item in details_payload:
             item['pt1_calculation_id'] = row.id
+            item['country'] = normalized_country
         db.execute(insert(AnalysisPTSKUDetail), details_payload)
     return row
 
@@ -254,6 +260,8 @@ def list_weekly_product_analysis_from_details(
         .select_from(AnalysisPT1Calculation)
         .join(AnalysisPTSKUDetail, AnalysisPTSKUDetail.pt1_calculation_id == AnalysisPT1Calculation.id)
         .where(AnalysisPT1Calculation.project_id == project_id)
+        .where(AnalysisPT1Calculation.country == normalized_country)
+        .where(AnalysisPTSKUDetail.country == normalized_country)
         .where(or_(*scope_filters))
         .group_by(
             AnalysisPT1Calculation.id,
@@ -279,6 +287,7 @@ def list_weekly_product_analysis_from_details(
             'id': int(item.pt1_id),
             'project_id': int(item.project_id),
             'project_name': item.project_name,
+            'country': normalized_country,
             'report_start_date': item.report_start_date,
             'report_end_date': item.report_end_date,
             'version': int(item.version),
@@ -356,6 +365,7 @@ def recompute_weekly_product_analysis_from_history(
         pt1_row = persist_product_analysis_pt1_calculation(
             db,
             project_name=project.project_name,
+            country=normalized_country,
             report_start_date=report_start_date.isoformat(),
             report_end_date=report_end_date.isoformat(),
             pt1=pt1,
@@ -463,6 +473,7 @@ def recompute_pt1_for_period(
     pt1_row = persist_product_analysis_pt1_calculation(
         db,
         project_name=project.project_name,
+        country=normalized_country,
         report_start_date=period_start_date.isoformat(),
         report_end_date=period_end_date.isoformat(),
         pt1=pt1_payload,
@@ -1206,6 +1217,7 @@ def _next_pt1_version(
     db: Session,
     *,
     project_id: int,
+    country: str,
     report_start_date: date,
     report_end_date: date,
 ) -> int:
@@ -1213,6 +1225,7 @@ def _next_pt1_version(
         select(func.max(AnalysisPT1Calculation.version))
         .where(
             AnalysisPT1Calculation.project_id == project_id,
+            AnalysisPT1Calculation.country == country,
             AnalysisPT1Calculation.report_start_date == report_start_date,
             AnalysisPT1Calculation.report_end_date == report_end_date,
         )
@@ -1656,6 +1669,7 @@ def run_product_calculation_from_history(
         pt1_row = persist_product_analysis_pt1_calculation(
             db,
             project_name=project.project_name,
+            country=normalized_country,
             report_start_date=week_start.isoformat(),
             report_end_date=week_end.isoformat(),
             pt1=pt1,

@@ -398,6 +398,7 @@ class AnalysisPT1Calculation(Base):
     __table_args__ = (
         UniqueConstraint(
             'project_id',
+            'country',
             'report_start_date',
             'report_end_date',
             'version',
@@ -406,8 +407,9 @@ class AnalysisPT1Calculation(Base):
         CheckConstraint('version >= 1', name='ck_analysis_pt1_version_positive'),
         CheckConstraint('report_start_date <= report_end_date', name='ck_analysis_pt1_period_valid'),
         Index('idx_analysis_pt1_project_id', 'project_id'),
-        Index('idx_analysis_pt1_project_period', 'project_id', 'report_start_date', 'report_end_date'),
-        Index('idx_analysis_pt1_project_period_current', 'project_id', 'report_start_date', 'report_end_date', 'is_current'),
+        Index('idx_analysis_pt1_project_country_period', 'project_id', 'country', 'report_start_date', 'report_end_date'),
+        Index('idx_analysis_pt1_country', 'country'),
+        Index('idx_analysis_pt1_project_country_period_current', 'project_id', 'country', 'report_start_date', 'report_end_date', 'is_current'),
     )
 
     id: Mapped[int] = mapped_column(
@@ -420,6 +422,7 @@ class AnalysisPT1Calculation(Base):
         ForeignKey('projects.id', ondelete='CASCADE'),
         nullable=False,
     )
+    country: Mapped[str] = mapped_column(String(2), nullable=False, default='US', server_default='US')
     project_name: Mapped[str] = mapped_column(String(255), nullable=False)
     report_start_date: Mapped[date] = mapped_column(Date(), nullable=False)
     report_end_date: Mapped[date] = mapped_column(Date(), nullable=False)
@@ -450,8 +453,9 @@ class AnalysisPT1Calculation(Base):
 class AnalysisPTSKUDetail(Base):
     __tablename__ = 'analysis_pt_sku_details'
     __table_args__ = (
-        UniqueConstraint('pt1_calculation_id', 'source_row_no', name='analysis_pt_sku_details_row_key'),
+        UniqueConstraint('pt1_calculation_id', 'country', 'source_row_no', name='analysis_pt_sku_details_row_key'),
         Index('idx_analysis_pt_sku_details_pt1', 'pt1_calculation_id'),
+        Index('idx_analysis_pt_sku_details_pt1_country', 'pt1_calculation_id', 'country'),
         Index('idx_analysis_pt_sku_details_sku', 'pt1_calculation_id', 'sku'),
         Index('idx_analysis_pt_sku_details_asin', 'pt1_calculation_id', 'asin'),
     )
@@ -466,6 +470,7 @@ class AnalysisPTSKUDetail(Base):
         ForeignKey('analysis_pt1_calculation.id', ondelete='CASCADE'),
         nullable=False,
     )
+    country: Mapped[str] = mapped_column(String(2), nullable=False, default='US', server_default='US')
     source_row_no: Mapped[int] = mapped_column(Integer, nullable=False)
 
     report_date: Mapped[str | None] = mapped_column(String(32), nullable=True)
