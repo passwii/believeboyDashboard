@@ -423,13 +423,24 @@ function formatDateRange(start: string, end: string): string {
   return `${start} 至 ${end}`
 }
 
-function formatCurrency(value: number): string {
+const CURRENCY_SYMBOLS: Record<CountryOption, string> = {
+  US: '$',
+  DE: '€',
+  UK: '£',
+}
+
+function getCurrencySymbol(country: CountryOption): string {
+  return CURRENCY_SYMBOLS[country] || '$'
+}
+
+function formatCurrency(value: number, country: CountryOption = 'US'): string {
   const abs = Math.abs(value)
   const text = abs.toLocaleString('en-US', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })
-  return `${value < 0 ? '-' : ''}$${text}`
+  const symbol = getCurrencySymbol(country)
+  return `${value < 0 ? '-' : ''}${symbol}${text}`
 }
 
 function formatWeekLabel(startDate: string, endDate: string): string {
@@ -466,7 +477,11 @@ function hasValue(value: unknown): boolean {
   return true
 }
 
-function formatSummaryCell(column: string, value: unknown): string {
+function formatSummaryCell(
+  column: string,
+  value: unknown,
+  country: CountryOption = 'US',
+): string {
   if (!hasValue(value)) return '-'
 
   const numeric = toNumber(value)
@@ -484,7 +499,7 @@ function formatSummaryCell(column: string, value: unknown): string {
     return Math.round(numeric).toLocaleString('en-US')
   }
   if (SUMMARY_CURRENCY_COLUMNS.has(column)) {
-    return formatCurrency(numeric)
+    return formatCurrency(numeric, country)
   }
   return numeric.toLocaleString('en-US', { maximumFractionDigits: 4 })
 }
@@ -548,10 +563,14 @@ function buildDetailRow(
   return { ...rawRow }
 }
 
-function formatDetailCell(column: string, value: unknown): string {
+function formatDetailCell(
+  column: string,
+  value: unknown,
+  country: CountryOption = 'US',
+): string {
   if (!hasValue(value)) return '-'
   if (column === '日期' || column === 'SKU') return String(value)
-  return formatSummaryCell(column, value)
+  return formatSummaryCell(column, value, country)
 }
 
 function sumAnyNumericColumn(
@@ -1034,7 +1053,6 @@ export default function WeeklyProductAnalysisPage() {
   )
   const [inventorySnapshotAt, setInventorySnapshotAt] = useState<string | null>(null)
   const [recomputing, setRecomputing] = useState(false)
-  const [recomputeMessage, setRecomputeMessage] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
 
   const [visibleLines, setVisibleLines] = useState({
@@ -1291,7 +1309,6 @@ export default function WeeklyProductAnalysisPage() {
       return
     }
 
-    setRecomputeMessage(null)
     setRecomputing(true)
     try {
       const search = new URLSearchParams({
@@ -1320,9 +1337,6 @@ export default function WeeklyProductAnalysisPage() {
         clearClientCache(weeklyDetailsCacheKey(Number(selectedWeekId), country))
       }
       await loadWeeklyData({ force: true })
-      setRecomputeMessage(
-        `已按数据库最新源数据重算并持久化 ${Number(payload.recomputed || 0)} 个周报`,
-      )
       notify({ type: 'success', title: '周度数据重算完成', message: `已重算并持久化 ${Number(payload.recomputed || 0)} 个周报` })
     } catch (recomputeError) {
       setError(
@@ -1725,11 +1739,6 @@ export default function WeeklyProductAnalysisPage() {
   return (
     <div className='w-full space-y-6'>
       <DataCard>
-        <DataCardHeader
-          title='按周产品分析'
-          titleClassName='text-2xl tracking-tight'
-          badge={<p className='dashboard-kicker'>Analysis Console</p>}
-        />
         <DataCardContent className="flex flex-wrap items-end gap-3">
           {projectsLoading ? (
             <WeeklyFilterSkeleton width="min-w-[180px]" />
@@ -1793,19 +1802,11 @@ export default function WeeklyProductAnalysisPage() {
             </div>
           </div>
         ) : null}
-        {recomputeMessage ? (
-          <div className='border-t border-border/70 px-6 pb-4 pt-2'>
-            <div className='rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300'>
-              {recomputeMessage}
-            </div>
-          </div>
-        ) : null}
       </DataCard>
 
       <DataCard>
         <DataCardHeader
           title='周度趋势'
-          badge={<p className='dashboard-kicker'>Weekly Trend</p>}
 
           action={
             <div className='flex flex-wrap items-center justify-center gap-2 sm:justify-end'>
@@ -1942,11 +1943,11 @@ export default function WeeklyProductAnalysisPage() {
           items={[
             {
               label: '销售额合计',
-              value: formatCurrency(totals.sales_amount),
+              value: formatCurrency(totals.sales_amount, country),
               highlight: true,
             },
             { label: '销量合计', value: totals.units_sold.toLocaleString() },
-            { label: '广告花费合计', value: formatCurrency(totals.ad_spend) },
+            { label: '广告花费合计', value: formatCurrency(totals.ad_spend, country) },
           ]}
         />
         <div className='relative px-2 pt-4 sm:px-6 sm:pt-6'>
@@ -2086,7 +2087,7 @@ export default function WeeklyProductAnalysisPage() {
                             </span>
                             <span className='font-medium'>
                               {isCurrencyMetric
-                                ? formatCurrency(Number(value))
+                                ? formatCurrency(Number(value), country)
                                 : Number(value).toLocaleString()}
                             </span>
                           </div>
@@ -2169,15 +2170,11 @@ export default function WeeklyProductAnalysisPage() {
       <DataTableCard className='animate-enter'>
         <DataTableCardHeader className='flex flex-wrap items-center justify-between gap-3 px-6 py-4'>
           <div>
-            <p className='dashboard-kicker'>Operational Ledger</p>
             <div className='text-base font-semibold text-foreground'>
               每周分析明细
             </div>
             <p className='text-sm text-muted-foreground'>
             </p>
-            <div className='mt-2 rounded-md border border-amber-200/70 bg-amber-50/80 px-3 py-2 text-xs text-amber-900'>
-              备注：利润 = 实际销售额 - 总成本 - 广告花费 - 实际退款额
-            </div>
           </div>
           <div className='ml-auto flex flex-wrap items-center justify-end gap-2'>
             {activeTab === 'details' ? (
@@ -2346,7 +2343,7 @@ export default function WeeklyProductAnalysisPage() {
                             key={`${row.id}-${column}`}
                             className='border-r px-2 py-1.5 text-right tabular-nums'
                           >
-                            {formatSummaryCell(column, item.summary[column])}
+                            {formatSummaryCell(column, item.summary[column], country)}
                           </TableCell>
                         ))}
                       </TableRow>
@@ -2372,7 +2369,7 @@ export default function WeeklyProductAnalysisPage() {
                         key={`summary-total-${column}`}
                         className='border-r px-2 py-2 text-right tabular-nums'
                       >
-                        {formatSummaryCell(column, summaryTotals[column])}
+                        {formatSummaryCell(column, summaryTotals[column], country)}
                       </TableCell>
                     ))}
                   </TableRow>
@@ -2469,7 +2466,7 @@ export default function WeeklyProductAnalysisPage() {
                               : undefined
                         }
                       >
-                        {formatDetailCell(column, row[column])}
+                        {formatDetailCell(column, row[column], country)}
                       </TableCell>
                     ))}
                   </TableRow>
@@ -2510,7 +2507,7 @@ export default function WeeklyProductAnalysisPage() {
                           key={`detail-total-${column}`}
                           className='border-r px-2 py-2 text-right tabular-nums'
                         >
-                          {formatDetailCell(column, detailTotals[column])}
+                          {formatDetailCell(column, detailTotals[column], country)}
                         </TableCell>
                       )
                     const extraTotal = detailExtraTotals[column]
@@ -2521,7 +2518,7 @@ export default function WeeklyProductAnalysisPage() {
                       >
                         {extraTotal === null
                           ? '-'
-                          : formatDetailCell(column, extraTotal)}
+                          : formatDetailCell(column, extraTotal, country)}
                       </TableCell>
                     )
                   })}
