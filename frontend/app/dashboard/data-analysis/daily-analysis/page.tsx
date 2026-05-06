@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
+import { useEffect, useMemo, useState, useCallback, useRef, useId } from 'react'
 import { DateRange } from 'react-day-picker'
 import {
   ArrowDown,
@@ -16,7 +16,17 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
-import { Bar, CartesianGrid, ComposedChart, Line, XAxis, YAxis } from 'recharts'
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
 
 import {
   CountrySelect,
@@ -27,12 +37,6 @@ import {
 } from '@/components/dashboard/console'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig,
-} from '@/components/ui/chart'
 import {
   DataCard,
   DataCardHeader,
@@ -88,6 +92,12 @@ import {
 type CountryOption = 'US' | 'DE' | 'UK'
 type ViewTab = 'summary' | 'details'
 const VIEW_TAB_ORDER: ViewTab[] = ['summary', 'details']
+
+type MetricChartConfig = Record<string, { label: string; color: string }>
+type DailyChartRow = {
+  date: string
+  compareMetricValue: number | null
+} & Partial<Record<ChartMetricKey, number>>
 
 type ProjectOption = {
   id: number | null
@@ -225,10 +235,14 @@ const SINGLE_METRIC_CHART_CONFIG = {
   units_ordered: { label: '销量', color: 'hsl(var(--chart-7))' },
   sessions: { label: '访问量', color: 'hsl(var(--chart-1))' },
   conversion_rate: { label: '转化率', color: 'hsl(var(--chart-3))' },
-} satisfies ChartConfig
+} satisfies MetricChartConfig
 
 const EMPTY_SUMMARY_ROWS: DailyAnalysisRow[] = []
 const EMPTY_DETAIL_ROWS: DailyAnalysisDetailRow[] = []
+
+function getChartColor(key: ChartMetricKey): string {
+  return SINGLE_METRIC_CHART_CONFIG[key]?.color ?? 'hsl(var(--chart-1))'
+}
 
 function authHeaders(): Record<string, string> {
   return {}
@@ -909,6 +923,258 @@ function FilterSkeleton() {
     <div className='space-y-1.5'>
       <Skeleton className='h-3 w-16' />
       <Skeleton className='h-10 w-full' />
+    </div>
+  )
+}
+
+function DailyMetricChart({
+  rows,
+  metric,
+  isBar,
+  color,
+  showComparison,
+}: {
+  rows: DailyChartRow[]
+  metric: ChartMetricKey
+  isBar: boolean
+  color: string
+  showComparison: boolean
+}) {
+  const chartId = useId().replace(/:/g, '')
+  const currentGradientId = `${chartId}-${metric}-current`
+  const compareGradientId = `${chartId}-${metric}-compare`
+  const lineGlowId = `${chartId}-${metric}-glow`
+
+  const tooltipContent = ({
+    active,
+    payload,
+    label,
+  }: {
+    active?: boolean
+    payload?: Array<{
+      color?: string
+      dataKey?: string | number
+      name?: string | number
+      value?: unknown
+    }>
+    label?: string
+  }) => {
+    if (!active || !payload?.length) return null
+
+    return (
+      <div className='grid min-w-[10rem] gap-1.5 rounded-lg border border-border/50 bg-background px-3 py-2 text-xs shadow-xl dark:border-border/95 dark:bg-[hsl(var(--surface-panel))]'>
+        <div className='font-medium'>{label ?? ''}</div>
+        <div className='grid gap-1.5'>
+          {payload
+            .filter((item) => item.value !== null && item.value !== undefined)
+            .map((item, index) => {
+              const itemLabel =
+                (typeof item.name === 'string' || typeof item.name === 'number'
+                  ? String(item.name)
+                  : '') ||
+                (item.dataKey === 'compareMetricValue'
+                  ? '上一个周期'
+                  : SINGLE_METRIC_CHART_CONFIG[metric].label)
+              const value =
+                typeof item.value === 'number'
+                  ? formatMetricValue(metric, item.value)
+                  : String(item.value ?? '')
+
+              return (
+                <div
+                  key={`${item.dataKey ?? item.name ?? 'value'}-${index}`}
+                  className='flex items-center justify-between gap-4'
+                >
+                  <span
+                    className='font-medium'
+                    style={{ color: item.color || undefined }}
+                  >
+                    {itemLabel}
+                  </span>
+                  <span className='font-mono font-medium text-foreground'>
+                    {value}
+                  </span>
+                </div>
+              )
+            })}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className='h-[360px] w-full md:h-[420px]'>
+      <ResponsiveContainer width='100%' height='100%'>
+        {isBar ? (
+          <BarChart
+            data={rows}
+            margin={{ top: 28, right: 24, left: 8, bottom: 18 }}
+            barGap={10}
+          >
+            <defs>
+              <linearGradient id={currentGradientId} x1='0' y1='0' x2='0' y2='1'>
+                <stop offset='0%' stopColor={color} stopOpacity={0.98} />
+                <stop offset='100%' stopColor={color} stopOpacity={0.72} />
+              </linearGradient>
+              <linearGradient id={compareGradientId} x1='0' y1='0' x2='0' y2='1'>
+                <stop offset='0%' stopColor='rgba(148,163,184,0.42)' />
+                <stop offset='100%' stopColor='rgba(148,163,184,0.18)' />
+              </linearGradient>
+            </defs>
+            <CartesianGrid
+              vertical={false}
+              stroke='rgba(148,163,184,0.18)'
+              strokeDasharray='0'
+            />
+            <XAxis
+              dataKey='date'
+              axisLine={false}
+              tickLine={false}
+              tickMargin={18}
+              tick={{ fontSize: 12, fill: '#71717a' }}
+              tickFormatter={(value) => {
+                const [, month, day] = String(value).split('-')
+                return `${month}月${day}日`
+              }}
+            />
+            <YAxis
+              axisLine={false}
+              tickLine={false}
+              tickMargin={16}
+              tick={{ fontSize: 12, fill: '#71717a' }}
+              domain={[0, 'auto']}
+              tickFormatter={(value) =>
+                formatAxisValue(metric, Number(value))
+              }
+            />
+            <Tooltip
+              cursor={false}
+              content={tooltipContent}
+            />
+            {showComparison ? (
+              <Bar
+                dataKey='compareMetricValue'
+                name='上一个周期'
+                fill={`url(#${compareGradientId})`}
+                radius={[10, 10, 0, 0]}
+                barSize={16}
+                isAnimationActive
+                animationDuration={320}
+                animationEasing='ease-out'
+                activeBar={{
+                  fill: 'rgba(148,163,184,0.6)',
+                  fillOpacity: 1,
+                  stroke: 'rgba(148,163,184,0.8)',
+                  strokeWidth: 2,
+                }}
+              />
+            ) : null}
+            <Bar
+              dataKey={metric}
+              name={SINGLE_METRIC_CHART_CONFIG[metric].label}
+              fill={`url(#${currentGradientId})`}
+              radius={[10, 10, 0, 0]}
+              minPointSize={rows.some((row) => Number(row[metric] ?? 0) > 0) ? 2 : 0}
+              barSize={16}
+              isAnimationActive
+              animationDuration={360}
+              animationEasing='ease-out'
+              activeBar={{
+                fill: color,
+                fillOpacity: 1,
+                stroke: '#fff',
+                strokeWidth: 2.5,
+              }}
+            />
+          </BarChart>
+        ) : (
+          <LineChart
+            data={rows}
+            margin={{ top: 28, right: 24, left: 8, bottom: 18 }}
+          >
+            <defs>
+              <filter id={lineGlowId} x='-20%' y='-20%' width='140%' height='140%'>
+                <feGaussianBlur stdDeviation='3' result='blur' />
+                <feColorMatrix
+                  in='blur'
+                  type='matrix'
+                  values='1 0 0 0 0
+                          0 1 0 0 0
+                          0 0 1 0 0
+                          0 0 0 0.2 0'
+                  result='glow'
+                />
+                <feMerge>
+                  <feMergeNode in='glow' />
+                  <feMergeNode in='SourceGraphic' />
+                </feMerge>
+              </filter>
+            </defs>
+            <CartesianGrid
+              vertical={false}
+              stroke='rgba(148,163,184,0.18)'
+              strokeDasharray='0'
+            />
+            <XAxis
+              dataKey='date'
+              axisLine={false}
+              tickLine={false}
+              tickMargin={18}
+              tick={{ fontSize: 12, fill: '#71717a' }}
+              tickFormatter={(value) => {
+                const [, month, day] = String(value).split('-')
+                return `${month}月${day}日`
+              }}
+            />
+            <YAxis
+              axisLine={false}
+              tickLine={false}
+              tickMargin={16}
+              tick={{ fontSize: 12, fill: '#71717a' }}
+              domain={[0, 'auto']}
+              tickFormatter={(value) =>
+                formatAxisValue(metric, Number(value))
+              }
+            />
+            <Tooltip
+              cursor={false}
+              content={tooltipContent}
+            />
+            {showComparison ? (
+              <Line
+                type='monotone'
+                dataKey='compareMetricValue'
+                name='上一个周期'
+                stroke='rgba(148,163,184,0.9)'
+                strokeWidth={2.5}
+                strokeDasharray='6 6'
+                dot={false}
+                isAnimationActive
+                animationDuration={320}
+                animationEasing='ease-out'
+              />
+            ) : null}
+            <Line
+              type='monotone'
+              dataKey={metric}
+              name={SINGLE_METRIC_CHART_CONFIG[metric].label}
+              stroke={color}
+              strokeWidth={4}
+              style={{ filter: `url(#${lineGlowId})` }}
+              dot={false}
+              isAnimationActive
+              animationDuration={360}
+              animationEasing='ease-out'
+              activeDot={{
+                r: 6,
+                fill: color,
+                stroke: '#fff',
+                strokeWidth: 2,
+              }}
+            />
+          </LineChart>
+        )}
+      </ResponsiveContainer>
     </div>
   )
 }
@@ -1672,7 +1938,7 @@ export default function DailyAnalysisPage() {
               </Badge>
             </div>
           )}
-          {summaryRows.length ? (
+          {(summaryRows.length || (selectedSku && filteredDetailRows.length)) ? (
             <>
               <div className='flex items-center gap-2'>
                 <button
@@ -1863,157 +2129,13 @@ export default function DailyAnalysisPage() {
                   ) : null}
                 </div>
 
-                <ChartContainer
-                  config={SINGLE_METRIC_CHART_CONFIG}
-                  className='h-[360px] w-full md:h-[420px]'
-                >
-                  <ComposedChart
-                    key={activeChartMetric}
-                    data={chartRows}
-                    margin={{ top: 28, right: 24, left: 8, bottom: 18 }}
-                  >
-                    <defs>
-                      <linearGradient
-                        id={`salesDataLine-${activeChartMetric}`}
-                        x1='0'
-                        y1='0'
-                        x2='0'
-                        y2='1'
-                      >
-                        <stop
-                          offset='0%'
-                          stopColor={`var(--color-${activeChartMetric})`}
-                          stopOpacity={0.28}
-                        />
-                        <stop
-                          offset='100%'
-                          stopColor={`var(--color-${activeChartMetric})`}
-                          stopOpacity={0.04}
-                        />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid
-                      vertical={false}
-                      stroke='rgba(148,163,184,0.18)'
-                      strokeDasharray='0'
-                    />
-                    <XAxis
-                      dataKey='date'
-                      axisLine={false}
-                      tickLine={false}
-                      tickMargin={18}
-                      tick={{ fontSize: 12, fill: '#71717a' }}
-                      tickFormatter={(value) => {
-                        const [, month, day] = String(value).split('-')
-                        return `${month}月${day}日`
-                      }}
-                    />
-                    <YAxis
-                      axisLine={false}
-                      tickLine={false}
-                      tickMargin={16}
-                      tick={{ fontSize: 12, fill: '#71717a' }}
-                      tickFormatter={(value) =>
-                        formatAxisValue(activeChartMetric, Number(value))
-                      }
-                    />
-                    <ChartTooltip
-                      itemSorter={(item) =>
-                        item.dataKey === activeChartMetric ? -1 : 1
-                      }
-                      cursor={{
-                        stroke: 'rgba(15,23,42,0.18)',
-                        strokeDasharray: '4 4',
-                      }}
-                      content={
-                        <ChartTooltipContent
-                          indicator='line'
-                          labelFormatter={(_, payload) => {
-                            const date = payload?.[0]?.payload?.date
-                            return typeof date === 'string' ? date : ''
-                          }}
-                          formatter={(value, name, item) => (
-                            <div className='flex w-full items-center justify-between gap-4'>
-                              <span
-                                className='font-medium'
-                                style={{ color: item.color || undefined }}
-                              >
-                                {typeof name === 'string'
-                                  ? name
-                                  : activeChartMetricLabel}
-                              </span>
-                              <span className='font-mono font-medium text-foreground'>
-                                {typeof value === 'number'
-                                  ? formatMetricValue(activeChartMetric, value)
-                                  : String(value ?? '')}
-                              </span>
-                            </div>
-                          )}
-                        />
-                      }
-                    />
-                    {isBarMetric(activeChartMetric) ? (
-                      <>
-                        {hasComparisonData ? (
-                          <Bar
-                            dataKey='compareMetricValue'
-                            name='上一个周期'
-                            fill='rgba(148,163,184,0.28)'
-                            radius={[10, 10, 0, 0]}
-                            barSize={16}
-                            isAnimationActive
-                            animationDuration={320}
-                            animationEasing='ease-out'
-                          />
-                        ) : null}
-                        <Bar
-                          dataKey={activeChartMetric}
-                          name={activeChartMetricLabel}
-                          fill={`var(--color-${activeChartMetric})`}
-                          radius={[10, 10, 0, 0]}
-                          barSize={16}
-                          isAnimationActive
-                          animationDuration={360}
-                          animationEasing='ease-out'
-                        />
-                      </>
-                    ) : (
-                      <>
-                        {hasComparisonData ? (
-                          <Line
-                            type='monotone'
-                            dataKey='compareMetricValue'
-                            name='上一个周期'
-                            stroke='rgba(148,163,184,0.9)'
-                            strokeWidth={2.5}
-                            strokeDasharray='6 6'
-                            dot={false}
-                            isAnimationActive
-                            animationDuration={320}
-                            animationEasing='ease-out'
-                          />
-                        ) : null}
-                        <Line
-                          type='monotone'
-                          dataKey={activeChartMetric}
-                          name={activeChartMetricLabel}
-                          stroke={`var(--color-${activeChartMetric})`}
-                          strokeWidth={4}
-                          dot={false}
-                          isAnimationActive
-                          animationDuration={360}
-                          animationEasing='ease-out'
-                          activeDot={{
-                            r: 6,
-                            fill: `var(--color-${activeChartMetric})`,
-                            stroke: '#fff',
-                            strokeWidth: 2,
-                          }}
-                        />
-                      </>
-                    )}
-                  </ComposedChart>
-                </ChartContainer>
+                <DailyMetricChart
+                  rows={chartRows as DailyChartRow[]}
+                  metric={activeChartMetric}
+                  isBar={isBarMetric(activeChartMetric)}
+                  color={getChartColor(activeChartMetric)}
+                  showComparison={hasComparisonData}
+                />
               </div>
             </>
           ) : (

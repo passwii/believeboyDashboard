@@ -75,8 +75,8 @@ export function VisitorsChart() {
     <Card className="col-span-1 lg:col-span-4 hover-lift animate-enter">
       <CardHeader className="relative z-10 flex flex-col gap-4 space-y-0 pb-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="grid flex-1 gap-1 text-center sm:text-left">
-          <p className="dashboard-kicker">Sales Trajectory</p>
-          <CardTitle className="text-lg sm:text-[1.25rem]">Daily Sales vs Last Period</CardTitle>
+          <p className="dashboard-kicker">销售轨迹</p>
+          <CardTitle className="text-lg sm:text-[1.25rem]">本期销售对比上期</CardTitle>
           <CardDescription className="text-xs sm:text-sm md:text-[15px]">
             把当前周期与对照周期放进同一条叙事曲线里，快速识别增长和异常回撤。
           </CardDescription>

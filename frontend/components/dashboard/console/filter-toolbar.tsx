@@ -26,7 +26,7 @@ export function FilterToolbar({
   surfaceClassName,
   contentClassName,
   showHeader = true,
-  kickerLabel = 'Console',
+  kickerLabel = '控制台',
   badge,
 }: FilterToolbarProps) {
   if (showHeader === false) {

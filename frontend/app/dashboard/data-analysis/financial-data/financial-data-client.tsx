@@ -1927,7 +1927,7 @@ export default function FinancialDataClient({
         <DataCardHeader
           title='财务分析'
           titleClassName='text-2xl tracking-tight'
-          badge={<p className='dashboard-kicker'>Analysis Console</p>}
+          badge={<p className='dashboard-kicker'>分析控制台</p>}
         />
         <DataCardContent className="flex flex-wrap items-end gap-3">
           {projectsLoading ? (
@@ -2032,7 +2032,7 @@ export default function FinancialDataClient({
       <DataCard className='animate-enter'>
         <DataCardHeader
           title='月度趋势'
-          badge={<p className='dashboard-kicker'>Financial Trend</p>}
+          badge={<p className='dashboard-kicker'>财务趋势</p>}
           action={
             <div className='flex flex-wrap items-center justify-center gap-2 sm:justify-end'>
               <button
@@ -2226,7 +2226,7 @@ export default function FinancialDataClient({
       <DataTableCard className='animate-enter'>
         <DataTableCardHeader className='flex flex-wrap items-start justify-between gap-3 px-6 py-4'>
           <div>
-            <p className='dashboard-kicker'>Operational Ledger</p>
+            <p className='dashboard-kicker'>操作台账</p>
             <div className='text-base font-semibold text-foreground'>
               {activeTab === 'financial' ? '月度汇总' : '月度明细'}
             </div>

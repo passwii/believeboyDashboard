@@ -343,7 +343,7 @@ export default function ProjectGoalsPage() {
             <div className='space-y-3'>
               <div className='flex items-center gap-2'>
                 <Layers className='h-4 w-4 text-primary' />
-                <p className='dashboard-kicker'>Project Goals Console</p>
+                <p className='dashboard-kicker'>目标管理控制台</p>
               </div>
               <div>
                 <CardTitle className='text-2xl md:text-[2rem]'>控制台</CardTitle>

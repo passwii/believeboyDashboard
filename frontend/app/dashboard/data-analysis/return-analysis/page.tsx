@@ -566,7 +566,7 @@ export default function ReturnAnalysisPage() {
         <DataCardHeader
           title="控制台"
           titleClassName="text-2xl tracking-tight"
-          badge={<p className="dashboard-kicker">Return Analysis Console</p>}
+          badge={<p className="dashboard-kicker">退货分析控制台</p>}
         />
         <DataCardContent className="space-y-5">
           {/* 筛选区域 */}
