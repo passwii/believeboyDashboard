@@ -181,7 +181,7 @@ export function FactoryDashboard({ operatorName }: FactoryDashboardProps) {
           <div className="relative z-10 space-y-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="dashboard-kicker">Live Signal</p>
+                <p className="dashboard-kicker">实时信号</p>
                 <h3 className="mt-1 text-lg font-semibold tracking-tight">今日生产信号</h3>
               </div>
               <div className="rounded-md bg-secondary/10 p-2 text-secondary">
@@ -214,7 +214,7 @@ export function FactoryDashboard({ operatorName }: FactoryDashboardProps) {
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_22rem]">
         <Card className="animate-enter dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
           <CardHeader className="relative z-10 pb-4">
-            <p className="dashboard-kicker">Store Orders</p>
+            <p className="dashboard-kicker">店铺订单</p>
             <CardTitle>当前批次概览</CardTitle>
             <CardDescription>
               您店铺专属的批次生产与发货状态一览。
@@ -255,7 +255,7 @@ export function FactoryDashboard({ operatorName }: FactoryDashboardProps) {
         {/* Task queue */}
         <Card className="hover-lift animate-enter dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
           <CardHeader className="relative z-10 pb-4">
-            <p className="dashboard-kicker">Action Queue</p>
+            <p className="dashboard-kicker">待办队列</p>
             <CardTitle>待推进事项</CardTitle>
             <CardDescription>
               本周车间待处理任务列表，优先处理即将到期的批次。

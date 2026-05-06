@@ -176,7 +176,7 @@ export function AdAnalysisTopFilters() {
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
               <Filter className="h-4 w-4 text-primary" />
-              <p className="dashboard-kicker">Filter Zone</p>
+              <p className="dashboard-kicker">筛选区</p>
             </div>
             <div>
               <CardTitle className="text-xl">广告分析筛选区</CardTitle>

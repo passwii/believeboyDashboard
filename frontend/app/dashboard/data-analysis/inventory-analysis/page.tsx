@@ -437,7 +437,7 @@ export default function InventoryAnalysisPage() {
         <DataCardHeader
           title="库存分析"
           titleClassName="text-2xl tracking-tight"
-          badge={<p className="dashboard-kicker">Analysis Console</p>}
+          badge={<p className="dashboard-kicker">分析控制台</p>}
         />
         <DataCardContent className="grid gap-4 lg:grid-cols-2">
           <div className="dashboard-toolbar grid gap-3 sm:grid-cols-2">
@@ -506,7 +506,7 @@ export default function InventoryAnalysisPage() {
       <DataTableCard>
         <DataTableCardHeader className="flex min-w-0 flex-col gap-1 px-4 py-3 xl:flex-row xl:items-center xl:justify-between xl:gap-3">
           <div>
-            <p className="dashboard-kicker">Operational Ledger</p>
+            <p className='dashboard-kicker'>操作台账</p>
             <div className="text-base font-semibold text-foreground">库存明细表</div>
           </div>
           <Button

@@ -4,6 +4,7 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 import { Download, Eye, EyeOff, Loader2, ShoppingCart } from 'lucide-react'
 import { useSession } from 'next-auth/react'
+import { cn } from '@/lib/utils'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -129,6 +130,11 @@ function LoadingScrim({
     </div>
   )
 }
+
+// 骨架屏占位加载状态：用于切换项目/国家时的平滑过渡
+type SkeletonState = 'idle' | 'skeleton_visible' | 'skeleton_fading_out' | 'visible'
+
+const SKELETON_FADE_DURATION = 200 // 骨架屏淡出时间(ms)
 
 const API_BASE = '/api/backend'
 const WEEKLY_DATA_CACHE_TTL_MS = 3 * 60 * 1000
@@ -1063,6 +1069,10 @@ export default function WeeklyProductAnalysisPage() {
     organic_traffic: true,
   })
 
+  // 骨架屏状态：切换项目/国家时显示骨架屏
+  const [skeletonState, setSkeletonState] = useState<SkeletonState>('idle')
+  const skeletonTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const latestRequestIdRef = useRef(0)
   const latestDetailsRequestIdRef = useRef(0)
   const summaryWeekHeadRef = useRef<HTMLTableCellElement | null>(null)
@@ -1362,10 +1372,47 @@ export default function WeeklyProductAnalysisPage() {
     void loadProjects()
   }, [loadProjects])
 
+  // 骨架屏加载：切换项目/国家站点时显示骨架屏过渡
   useEffect(() => {
     if (!projectId || projectsLoading) return
-    void loadWeeklyData()
-  }, [projectId, projectsLoading, loadWeeklyData])
+
+    // 清理之前的定时器
+    if (skeletonTimerRef.current) {
+      clearTimeout(skeletonTimerRef.current)
+      skeletonTimerRef.current = null
+    }
+
+    // 如果已经有数据，先显示骨架屏
+    if (data.length > 0) {
+      setSkeletonState('skeleton_visible')
+
+      // 骨架屏显示后开始加载新数据
+      skeletonTimerRef.current = setTimeout(() => {
+        void loadWeeklyData().then(() => {
+          // 数据加载完成后，骨架屏淡出
+          setSkeletonState('skeleton_fading_out')
+          skeletonTimerRef.current = setTimeout(() => {
+            setSkeletonState('visible')
+          }, SKELETON_FADE_DURATION)
+        })
+      }, 50)
+    } else {
+      // 没有数据，直接显示骨架屏然后加载
+      setSkeletonState('skeleton_visible')
+      skeletonTimerRef.current = setTimeout(() => {
+        void loadWeeklyData().then(() => {
+          setSkeletonState('visible')
+        })
+      }, 50)
+    }
+  }, [projectId, projectsLoading, loadWeeklyData, data.length])
+
+  // 首次加载时设置为可见
+  useEffect(() => {
+    if (data.length > 0 && skeletonState === 'idle') {
+      setSkeletonState('visible')
+    }
+  }, [data.length, skeletonState])
 
   useEffect(() => {
     latestDetailsRequestIdRef.current += 1
@@ -1963,11 +2010,11 @@ export default function WeeklyProductAnalysisPage() {
               config={chartConfig}
               className='aspect-auto h-[320px] w-full'
             >
-              <AreaChart
-                accessibilityLayer
-                data={trendPoints}
-                margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
-              >
+            <AreaChart
+              accessibilityLayer
+              data={trendPoints}
+              margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+            >
                 <defs>
                   <linearGradient id='fillSales' x1='0' y1='0' x2='0' y2='1'>
                     <stop
@@ -2153,13 +2200,13 @@ export default function WeeklyProductAnalysisPage() {
                   />
                 ) : null}
               </AreaChart>
-            </ChartContainer>
-          ) : (
-            <div className='rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground'>
-              暂无趋势数据
-            </div>
-          )}
-          {loading && trendPoints.length > 0 ? (
+              </ChartContainer>
+            ) : (
+              <div className='rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground'>
+                暂无趋势数据
+              </div>
+            )}
+            {loading && trendPoints.length > 0 ? (
             <LoadingScrim className='w-full px-4'>
               <Skeleton className='h-[320px] w-full rounded-xl' />
             </LoadingScrim>
@@ -2167,7 +2214,16 @@ export default function WeeklyProductAnalysisPage() {
         </div>
       </DataCard>
 
-      <DataTableCard className='animate-enter'>
+      {/* 骨架屏过渡包装 */}
+      <div
+        className={cn(
+          'transition-all duration-200',
+          skeletonState === 'skeleton_visible' && 'opacity-0',
+          skeletonState === 'skeleton_fading_out' && 'opacity-100',
+          skeletonState === 'visible' && 'opacity-100'
+        )}
+      >
+        <DataTableCard className='animate-enter'>
         <DataTableCardHeader className='flex flex-wrap items-center justify-between gap-3 px-6 py-4'>
           <div>
             <div className='text-base font-semibold text-foreground'>
@@ -2541,7 +2597,26 @@ export default function WeeklyProductAnalysisPage() {
             </LoadingScrim>
           ) : null}
         </DataTableCardBody>
-      </DataTableCard>
+        </DataTableCard>
+      </div>
+
+      {/* 骨架屏占位：切换时显示 */}
+      {(skeletonState === 'skeleton_visible' || skeletonState === 'skeleton_fading_out') && (
+        <DataCard>
+          <DataCardContent className='space-y-4'>
+            {/* 统计指标骨架 */}
+            <div className='grid grid-cols-3 gap-4'>
+              <Skeleton className='h-8 w-full' />
+              <Skeleton className='h-8 w-full' />
+              <Skeleton className='h-8 w-full' />
+            </div>
+            {/* 图表骨架 */}
+            <Skeleton className='h-[320px] w-full' />
+            {/* 表格骨架 */}
+            <BarSkeleton rows={5} />
+          </DataCardContent>
+        </DataCard>
+      )}
     </div>
   )
 }

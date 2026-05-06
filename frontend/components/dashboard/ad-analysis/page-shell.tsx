@@ -31,7 +31,7 @@ export function AdAnalysisPageShell({ tab }: Props) {
           <div className="absolute inset-y-0 right-0 w-48 bg-[radial-gradient(circle_at_center,hsl(var(--primary)/0.14),transparent_72%)] dark:bg-[radial-gradient(circle_at_center,hsl(var(--primary)/0.18),transparent_72%)]" />
           <div className="relative space-y-4">
             <div className="space-y-2">
-              <p className="dashboard-kicker">Analysis Console</p>
+              <p className="dashboard-kicker">分析控制台</p>
               <div>
                 <CardTitle className="text-2xl md:text-[2.2rem]">{tab.label}分析</CardTitle>
                 <CardDescription className="mt-2 max-w-3xl text-sm leading-7">
@@ -41,7 +41,7 @@ export function AdAnalysisPageShell({ tab }: Props) {
             </div>
 
             <Badge variant="outline" className="w-fit border-border/70 bg-[hsl(var(--surface-subtle))] text-foreground dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]">
-              广告分析 / {tab.label}
+              广告分析 · {tab.label}
             </Badge>
 
             <div className="dashboard-toolbar flex flex-wrap gap-2">

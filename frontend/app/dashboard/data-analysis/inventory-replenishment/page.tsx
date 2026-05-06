@@ -707,7 +707,7 @@ export default function InventoryReplenishmentPage() {
       <DataCard>
         <DataCardHeader
           title="补货分析控制台"
-          badge={<p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Analysis Console</p>}
+          badge={<p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">分析控制台</p>}
           action={
             <Button
               type="button"
