@@ -1469,16 +1469,25 @@ def _list_history_weekly_period_sources(
             payment_source_ids = [int(covering_payment.id)]
 
         key = (week_dates[0], week_dates[-1])
-        periods_by_key.setdefault(
-            key,
-            {
-                'report_start_date': week_dates[0],
-                'report_end_date': week_dates[-1],
-                'business_report_source_ids': [int(row.id) for row in business_rows if row is not None],
-                'ad_report_source_ids': [int(row.id) for row in ad_rows if row is not None],
-                'payment_report_source_ids': payment_source_ids,
-            },
-        )
+        # Direct assignment: ISO week grouping takes precedence over any single-day
+        # periods stored in the database, ensuring proper weekly aggregation
+        periods_by_key[key] = {
+            'report_start_date': week_dates[0],
+            'report_end_date': week_dates[-1],
+            'business_report_source_ids': [int(row.id) for row in business_rows if row is not None],
+            'ad_report_source_ids': [int(row.id) for row in ad_rows if row is not None],
+            'payment_report_source_ids': payment_source_ids,
+        }
+
+    # Clean up orphaned single-day entries that leaked from Phase 1 (§1341–1356).
+    # When an ISO week is skipped because some days lack business/ad data,
+    # the single-day source-file periods pre-loaded into periods_by_key persist
+    # and would surface as standalone "weeks" with start_date == end_date.
+    periods_by_key = {
+        key: value
+        for key, value in periods_by_key.items()
+        if key[0] != key[1]
+    }
 
     return [periods_by_key[key] for key in sorted(periods_by_key)]
 

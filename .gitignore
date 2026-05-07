@@ -56,6 +56,9 @@ autoReportUpload/__pycache__/
 /frontend/tests/.auth/
 /frontend/playwright-report/
 
+# Playwright MCP
+.playwright-mcp/
+
 # Backend (reserved)
 /backend/node_modules/
 /backend/dist/

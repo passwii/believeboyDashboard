@@ -1,7 +1,7 @@
 'use client'
 
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
+import { Area, AreaChart, Bar, CartesianGrid, ComposedChart, Line, XAxis, YAxis } from 'recharts'
 import { Download, Eye, EyeOff, Loader2, ShoppingCart } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
@@ -348,11 +348,11 @@ const DETAIL_STICKY_LEFT = [0, DETAIL_STICKY_COLUMN_WIDTHS[0]] as const
 const chartConfig = {
   sales_amount: {
     label: '销售额',
-    color: 'hsl(var(--chart-2))',
+    color: 'hsl(var(--chart-1))',
   },
   units_sold: {
     label: '销量',
-    color: 'hsl(var(--primary))',
+    color: 'hsl(var(--chart-2))',
   },
   ad_spend: {
     label: '广告花费',
@@ -365,6 +365,14 @@ const chartConfig = {
   organic_traffic: {
     label: '自然流量',
     color: 'hsl(var(--chart-5))',
+  },
+  acos: {
+    label: 'ACOS',
+    color: 'hsl(var(--chart-3))',
+  },
+  ctr: {
+    label: '广告点击率',
+    color: 'hsl(var(--warning))',
   },
 } satisfies ChartConfig
 
@@ -1065,8 +1073,10 @@ export default function WeeklyProductAnalysisPage() {
     sales_amount: true,
     units_sold: true,
     ad_spend: true,
-    ad_clicks: true,
-    organic_traffic: true,
+    ad_clicks: false,
+    organic_traffic: false,
+    acos: false,
+    ctr: false,
   })
 
   // 骨架屏状态：切换项目/国家时显示骨架屏
@@ -1438,6 +1448,12 @@ export default function WeeklyProductAnalysisPage() {
     if (!trendRows || trendRows.length === 0) return []
     return trendRows.map((row) => {
       const summary = buildSummaryForRow(row)
+      const adImpressions = toNumber(summary['广告展示量']) || 1
+      const adClicks = toNumber(summary['广告点击量']) || 0
+      const adSpend = toNumber(summary['广告花费']) || 0
+      const adSales = toNumber(summary['广告销售额']) || 1
+      const pageViews = toNumber(summary['页面浏览量']) || 1
+      const totalSales = Number(row.total_sales || 0) || 1
       return {
         week_label: formatWeekLabel(row.report_start_date, row.report_end_date),
         start_date: row.report_start_date,
@@ -1445,8 +1461,10 @@ export default function WeeklyProductAnalysisPage() {
         sales_amount: Number(row.total_sales || 0),
         units_sold: Number(row.total_units || 0),
         ad_spend: Number(row.total_ad_spend || 0),
-        ad_clicks: toNumber(summary['广告点击量']),
+        ad_clicks: adClicks,
         organic_traffic: toNumber(summary['自然流量']),
+        acos: safeDiv(adSpend, adSales) * 100,
+        ctr: safeDiv(adClicks, adImpressions) * 100,
       }
     })
   }, [trendRows])
@@ -1982,6 +2000,56 @@ export default function WeeklyProductAnalysisPage() {
                 />
                 自然流量
               </button>
+              <button
+                type='button'
+                onClick={() =>
+                  setVisibleLines((prev) => ({
+                    ...prev,
+                    acos: !prev.acos,
+                  }))
+                }
+                className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${
+                  visibleLines.acos
+                    ? 'border-chart-3/30 bg-chart-3/10 text-chart-3 dark:text-chart-3'
+                    : 'border-muted bg-muted/30 text-muted-foreground line-through'
+                }`}
+              >
+                {visibleLines.acos ? (
+                  <Eye className='h-3 w-3' />
+                ) : (
+                  <EyeOff className='h-3 w-3' />
+                )}
+                <span
+                  className='h-2 w-2 rounded-full'
+                  style={{ backgroundColor: 'hsl(var(--chart-3))', border: '2px dashed hsl(var(--chart-3))', background: 'transparent' }}
+                />
+                ACOS
+              </button>
+              <button
+                type='button'
+                onClick={() =>
+                  setVisibleLines((prev) => ({
+                    ...prev,
+                    ctr: !prev.ctr,
+                  }))
+                }
+                className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${
+                  visibleLines.ctr
+                    ? 'border-warning/30 bg-warning/10 text-warning dark:text-warning'
+                    : 'border-muted bg-muted/30 text-muted-foreground line-through'
+                }`}
+              >
+                {visibleLines.ctr ? (
+                  <Eye className='h-3 w-3' />
+                ) : (
+                  <EyeOff className='h-3 w-3' />
+                )}
+                <span
+                  className='h-2 w-2 rounded-full'
+                  style={{ backgroundColor: 'hsl(var(--warning))', border: '2px dashed hsl(var(--warning))', background: 'transparent' }}
+                />
+                广告点击率
+              </button>
             </div>
           }
         />
@@ -2006,201 +2074,233 @@ export default function WeeklyProductAnalysisPage() {
           {showSummarySkeleton ? (
             <Skeleton className='h-[320px] w-full' />
           ) : trendPoints.length > 0 ? (
-            <ChartContainer
-              config={chartConfig}
-              className='aspect-auto h-[320px] w-full'
-            >
-            <AreaChart
-              accessibilityLayer
-              data={trendPoints}
-              margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
-            >
-                <defs>
-                  <linearGradient id='fillSales' x1='0' y1='0' x2='0' y2='1'>
-                    <stop
-                      offset='5%'
-                      stopColor='var(--color-sales_amount)'
-                      stopOpacity={0.7}
-                    />
-                    <stop
-                      offset='95%'
-                      stopColor='var(--color-sales_amount)'
-                      stopOpacity={0.05}
-                    />
-                  </linearGradient>
-                  <linearGradient id='fillUnits' x1='0' y1='0' x2='0' y2='1'>
-                    <stop
-                      offset='5%'
-                      stopColor='var(--color-units_sold)'
-                      stopOpacity={0.7}
-                    />
-                    <stop
-                      offset='95%'
-                      stopColor='var(--color-units_sold)'
-                      stopOpacity={0.05}
-                    />
-                  </linearGradient>
-                  <linearGradient id='fillAd' x1='0' y1='0' x2='0' y2='1'>
-                    <stop
-                      offset='5%'
-                      stopColor='var(--color-ad_spend)'
-                      stopOpacity={0.7}
-                    />
-                    <stop
-                      offset='95%'
-                      stopColor='var(--color-ad_spend)'
-                      stopOpacity={0.05}
-                    />
-                  </linearGradient>
-                  <linearGradient id='fillAdClicks' x1='0' y1='0' x2='0' y2='1'>
-                    <stop
-                      offset='5%'
-                      stopColor='var(--color-ad_clicks)'
-                      stopOpacity={0.5}
-                    />
-                    <stop
-                      offset='95%'
-                      stopColor='var(--color-ad_clicks)'
-                      stopOpacity={0.05}
-                    />
-                  </linearGradient>
-                  <linearGradient
-                    id='fillOrganicTraffic'
-                    x1='0'
-                    y1='0'
-                    x2='0'
-                    y2='1'
-                  >
-                    <stop
-                      offset='5%'
-                      stopColor='var(--color-organic_traffic)'
-                      stopOpacity={0.5}
-                    />
-                    <stop
-                      offset='95%'
-                      stopColor='var(--color-organic_traffic)'
-                      stopOpacity={0.05}
-                    />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid
-                  vertical={false}
-                  stroke='hsl(var(--border))'
-                  strokeOpacity={0.5}
-                />
-                <XAxis
-                  dataKey='week_label'
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={12}
-                  minTickGap={32}
-                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
-                />
-                <YAxis
-                  tickFormatter={(v) => Number(v).toLocaleString()}
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={12}
-                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
-                  width={70}
-                />
-                <ChartTooltip
-                  cursor={{
-                    stroke: 'hsl(var(--muted-foreground))',
-                    strokeWidth: 1,
-                    strokeDasharray: '4 4',
-                  }}
-                  content={
-                    <ChartTooltipContent
-                      labelFormatter={(value) => String(value)}
-                      formatter={(value, name) => {
-                        const nameMap: Record<string, string> = {
-                          sales_amount: '销售额',
-                          units_sold: '销量',
-                          ad_spend: '广告花费',
-                          ad_clicks: '广告点击量',
-                          organic_traffic: '自然流量',
-                        }
-                        const displayName =
-                          nameMap[String(name)] || String(name)
-                        const metricKey = String(name)
-                        const isCurrencyMetric =
-                          metricKey === 'sales_amount' ||
-                          metricKey === 'ad_spend'
-                        return (
-                          <div className='flex items-center justify-between gap-4'>
-                            <span className='text-muted-foreground'>
-                              {displayName}
-                            </span>
-                            <span className='font-medium'>
-                              {isCurrencyMetric
-                                ? formatCurrency(Number(value), country)
-                                : Number(value).toLocaleString()}
-                            </span>
-                          </div>
-                        )
-                      }}
-                      indicator='dot'
-                    />
-                  }
-                />
-                {visibleLines.sales_amount ? (
-                  <Area
-                    type='monotone'
-                    dataKey='sales_amount'
-                    stroke='var(--color-sales_amount)'
-                    fill='url(#fillSales)'
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 4, strokeWidth: 0 }}
+            <div className='rounded-lg bg-[hsl(var(--surface-soft))]/82 p-3 sm:p-4'>
+              <ChartContainer
+                config={chartConfig}
+                className='aspect-auto h-[320px] w-full'
+              >
+                <ComposedChart
+                  accessibilityLayer
+                  data={trendPoints}
+                  margin={{ top: 10, right: 50, left: 0, bottom: 0 }}
+                >
+                  <CartesianGrid
+                    vertical={false}
+                    stroke='rgba(148,163,184,0.18)'
+                    strokeDasharray='0'
                   />
-                ) : null}
-                {visibleLines.units_sold ? (
-                  <Area
-                    type='monotone'
-                    dataKey='units_sold'
-                    stroke='var(--color-units_sold)'
-                    fill='url(#fillUnits)'
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 4, strokeWidth: 0 }}
+                  <XAxis
+                    dataKey='week_label'
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={10}
+                    minTickGap={32}
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
                   />
-                ) : null}
-                {visibleLines.ad_spend ? (
-                  <Area
-                    type='monotone'
-                    dataKey='ad_spend'
-                    stroke='var(--color-ad_spend)'
-                    fill='url(#fillAd)'
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 4, strokeWidth: 0 }}
+                  {/* Primary Y-axis for absolute values */}
+                  <YAxis
+                    yAxisId='primary'
+                    tickFormatter={(v) => {
+                      const num = Number(v)
+                      if (Math.abs(num) >= 1000000) return `${(num / 1000000).toFixed(1)}M`
+                      if (Math.abs(num) >= 1000) return `${(num / 1000).toFixed(1)}k`
+                      return num.toLocaleString()
+                    }}
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={8}
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
+                    width={52}
                   />
-                ) : null}
-                {visibleLines.ad_clicks ? (
-                  <Area
-                    type='monotone'
-                    dataKey='ad_clicks'
-                    stroke='var(--color-ad_clicks)'
-                    fill='url(#fillAdClicks)'
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 4, strokeWidth: 0 }}
+                  {/* Secondary Y-axis for percentages */}
+                  <YAxis
+                    yAxisId='percent'
+                    orientation='right'
+                    domain={[0, 'auto']}
+                    tickFormatter={(v) => `${Number(v).toFixed(0)}%`}
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={4}
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
+                    width={40}
                   />
-                ) : null}
-                {visibleLines.organic_traffic ? (
-                  <Area
-                    type='monotone'
-                    dataKey='organic_traffic'
-                    stroke='var(--color-organic_traffic)'
-                    fill='url(#fillOrganicTraffic)'
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 4, strokeWidth: 0 }}
+                  <ChartTooltip
+                    cursor={{
+                      stroke: 'rgba(15,23,42,0.18)',
+                      strokeDasharray: '4 4',
+                    }}
+                    content={
+                      <ChartTooltipContent
+                        labelFormatter={(value) => String(value)}
+                        formatter={(value, name) => {
+                          const nameMap: Record<string, string> = {
+                            sales_amount: '销售额',
+                            units_sold: '销量',
+                            ad_spend: '广告花费',
+                            ad_clicks: '广告点击量',
+                            organic_traffic: '自然流量',
+                            acos: 'ACOS',
+                            ctr: '广告点击率',
+                          }
+                          const displayName = nameMap[String(name)] || String(name)
+                          const metricKey = String(name)
+                          const isCurrencyMetric =
+                            metricKey === 'sales_amount' || metricKey === 'ad_spend'
+                          const isPercentMetric =
+                            metricKey === 'acos' || metricKey === 'ctr'
+                          return (
+                            <div className='flex items-center justify-between gap-4'>
+                              <span className='text-muted-foreground'>
+                                {displayName}
+                              </span>
+                              <span className='font-medium'>
+                                {isCurrencyMetric
+                                  ? formatCurrency(Number(value), country)
+                                  : isPercentMetric
+                                    ? `${Number(value).toFixed(2)}%`
+                                    : Number(value).toLocaleString()}
+                              </span>
+                            </div>
+                          )
+                        }}
+                        indicator='dot'
+                      />
+                    }
                   />
-                ) : null}
-              </AreaChart>
+                  {/* Sales Amount Bar */}
+                  {visibleLines.sales_amount ? (
+                    <Bar
+                      yAxisId='primary'
+                      type='monotone'
+                      dataKey='sales_amount'
+                      fill='var(--color-sales_amount)'
+                      radius={[4, 4, 0, 0]}
+                      barSize={24}
+                      opacity={0.9}
+                    />
+                  ) : null}
+                  {/* Units Sold Bar */}
+                  {visibleLines.units_sold ? (
+                    <Bar
+                      yAxisId='primary'
+                      type='monotone'
+                      dataKey='units_sold'
+                      fill='var(--color-units_sold)'
+                      radius={[4, 4, 0, 0]}
+                      barSize={24}
+                      opacity={0.7}
+                    />
+                  ) : null}
+                  {/* Ad Spend Line */}
+                  {visibleLines.ad_spend ? (
+                    <Line
+                      yAxisId='primary'
+                      type='monotone'
+                      dataKey='ad_spend'
+                      stroke='var(--color-ad_spend)'
+                      strokeWidth={2.5}
+                      dot={{ r: 4, fill: 'var(--color-ad_spend)', strokeWidth: 0 }}
+                      activeDot={{ r: 6, strokeWidth: 0 }}
+                    />
+                  ) : null}
+                  {/* Ad Clicks Line */}
+                  {visibleLines.ad_clicks ? (
+                    <Line
+                      yAxisId='primary'
+                      type='monotone'
+                      dataKey='ad_clicks'
+                      stroke='var(--color-ad_clicks)'
+                      strokeWidth={2}
+                      dot={{ r: 3, fill: 'var(--color-ad_clicks)', strokeWidth: 0 }}
+                      activeDot={{ r: 5, strokeWidth: 0 }}
+                    />
+                  ) : null}
+                  {/* Organic Traffic Line */}
+                  {visibleLines.organic_traffic ? (
+                    <Line
+                      yAxisId='primary'
+                      type='monotone'
+                      dataKey='organic_traffic'
+                      stroke='var(--color-organic_traffic)'
+                      strokeWidth={2}
+                      dot={{ r: 3, fill: 'var(--color-organic_traffic)', strokeWidth: 0 }}
+                      activeDot={{ r: 5, strokeWidth: 0 }}
+                    />
+                  ) : null}
+                  {/* ACOS Line (percentage on secondary axis) */}
+                  {visibleLines.acos ? (
+                    <Line
+                      yAxisId='percent'
+                      type='monotone'
+                      dataKey='acos'
+                      stroke='var(--color-acos)'
+                      strokeWidth={2.5}
+                      dot={{ r: 4, fill: 'var(--color-acos)', strokeWidth: 0 }}
+                      activeDot={{ r: 6, strokeWidth: 0 }}
+                      strokeDasharray='5 5'
+                    />
+                  ) : null}
+                  {/* CTR Line (percentage on secondary axis) */}
+                  {visibleLines.ctr ? (
+                    <Line
+                      yAxisId='percent'
+                      type='monotone'
+                      dataKey='ctr'
+                      stroke='var(--color-ctr)'
+                      strokeWidth={2.5}
+                      dot={{ r: 4, fill: 'var(--color-ctr)', strokeWidth: 0 }}
+                      activeDot={{ r: 6, strokeWidth: 0 }}
+                      strokeDasharray='5 5'
+                    />
+                  ) : null}
+                </ComposedChart>
               </ChartContainer>
+              {/* Legend */}
+              <div className='mt-3 flex flex-wrap items-center justify-center gap-2'>
+                {visibleLines.sales_amount && (
+                  <div className='inline-flex items-center gap-1.5 rounded-full bg-background/72 px-2.5 py-1 text-xs'>
+                    <span className='h-3 w-3 rounded-sm bg-[hsl(var(--chart-1))]' />
+                    销售额
+                  </div>
+                )}
+                {visibleLines.units_sold && (
+                  <div className='inline-flex items-center gap-1.5 rounded-full bg-background/72 px-2.5 py-1 text-xs'>
+                    <span className='h-3 w-3 rounded-sm bg-[hsl(var(--chart-2))]' />
+                    销量
+                  </div>
+                )}
+                {visibleLines.ad_spend && (
+                  <div className='inline-flex items-center gap-1.5 rounded-full bg-background/72 px-2.5 py-1 text-xs'>
+                    <span className='h-3 w-3 rounded-full bg-[hsl(var(--destructive))]' />
+                    广告花费
+                  </div>
+                )}
+                {visibleLines.ad_clicks && (
+                  <div className='inline-flex items-center gap-1.5 rounded-full bg-background/72 px-2.5 py-1 text-xs'>
+                    <span className='h-3 w-3 rounded-full bg-[hsl(var(--chart-4))]' />
+                    广告点击量
+                  </div>
+                )}
+                {visibleLines.organic_traffic && (
+                  <div className='inline-flex items-center gap-1.5 rounded-full bg-background/72 px-2.5 py-1 text-xs'>
+                    <span className='h-3 w-3 rounded-full bg-[hsl(var(--chart-5))]' />
+                    自然流量
+                  </div>
+                )}
+                {visibleLines.acos && (
+                  <div className='inline-flex items-center gap-1.5 rounded-full bg-background/72 px-2.5 py-1 text-xs'>
+                    <span className='h-3 w-3 rounded-full bg-[hsl(var(--chart-3))]' style={{ border: '2px dashed hsl(var(--chart-3))', background: 'transparent' }} />
+                    ACOS
+                  </div>
+                )}
+                {visibleLines.ctr && (
+                  <div className='inline-flex items-center gap-1.5 rounded-full bg-background/72 px-2.5 py-1 text-xs'>
+                    <span className='h-3 w-3 rounded-full bg-[hsl(var(--warning))]' style={{ border: '2px dashed hsl(var(--warning))', background: 'transparent' }} />
+                    广告点击率
+                  </div>
+                )}
+              </div>
+            </div>
             ) : (
               <div className='rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground'>
                 暂无趋势数据
