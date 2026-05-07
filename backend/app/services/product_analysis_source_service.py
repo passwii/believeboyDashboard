@@ -1703,6 +1703,19 @@ def check_product_calculation_data_availability(
     }
 
 
+def _is_full_iso_week(start_date: date, end_date: date) -> bool:
+    """Check if the date range is a complete ISO week (Monday to Sunday)."""
+    if (end_date - start_date).days != 6:
+        return False
+    if start_date.weekday() != 0:
+        return False
+    if end_date.weekday() != 6:
+        return False
+    iso_start = start_date.isocalendar()
+    iso_end = end_date.isocalendar()
+    return iso_start[0] == iso_end[0] and iso_start[1] == iso_end[1]
+
+
 def run_product_calculation_from_history(
     db: Session,
     *,
@@ -1725,12 +1738,95 @@ def run_product_calculation_from_history(
         end_date=end_date,
         current_only=current_only,
     )
-    periods: list[dict[str, Any]] = []
-    for item in period_sources:
-        week_start = item['report_start_date']
-        week_end = item['report_end_date']
-        year_month = week_end.strftime('%Y-%m')
+    # Only persist to PT1 if the user-selected range is exactly one complete ISO week.
+    # Cross-week or partial-week selections: merge all sources, return ONE consolidated period.
+    should_persist = (
+        start_date is not None
+        and end_date is not None
+        and _is_full_iso_week(start_date, end_date)
+    )
 
+    if should_persist:
+        # Single ISO week: persist each period individually (existing behaviour)
+        periods: list[dict[str, Any]] = []
+        for item in period_sources:
+            week_start = item['report_start_date']
+            week_end = item['report_end_date']
+            year_month = week_end.strftime('%Y-%m')
+
+            df_cost = _build_active_product_costs_df(
+                db,
+                project_name=project.project_name,
+                country=normalized_country,
+                year_month=year_month,
+            )
+            df_business = _build_business_df_from_sources(
+                db,
+                source_ids=item['business_report_source_ids'],
+            )
+            df_ad = _build_ad_df_from_sources(
+                db,
+                source_ids=item['ad_report_source_ids'],
+            )
+            df_payment = _build_payment_df_from_sources(
+                db,
+                source_ids=item['payment_report_source_ids'],
+            )
+            report_date_str = product_analysis_script._format_report_date(
+                week_start.isoformat(),
+                week_end.isoformat(),
+            )
+            df_overview = product_analysis_script._build_overview(
+                project.project_name,
+                report_date_str,
+                df_cost,
+                df_business,
+                df_ad,
+                product_analysis_script._build_payment_aggregate(df_payment),
+            )
+            df_overview = product_analysis_script._append_summary_row(df_overview, report_date_str)
+            pt1 = product_analysis_script._build_pt1_payload(df_overview)
+            if item.get('completeness'):
+                pt1['summary']['_completeness'] = item['completeness']
+                pt1['summary']['_is_partial'] = item.get('is_partial', False)
+            pt1_row = persist_product_analysis_pt1_calculation(
+                db,
+                project_name=project.project_name,
+                country=normalized_country,
+                report_start_date=week_start.isoformat(),
+                report_end_date=week_end.isoformat(),
+                pt1=pt1,
+                result_file_path=None,
+                calculation_version=1,
+            )
+            periods.append({
+                'pt1_id': int(pt1_row.id),
+                'version': int(pt1_row.version),
+                'report_start_date': week_start.isoformat(),
+                'report_end_date': week_end.isoformat(),
+                'summary': pt1['summary'],
+                'details': pt1['details'],
+                'is_partial': item.get('is_partial', False),
+                'completeness': item.get('completeness', {}),
+                'persisted': True,
+            })
+    elif start_date is not None and end_date is not None and period_sources:
+        # Cross-week or partial-week: merge ALL sources into ONE consolidated period
+        all_business_ids: list[int] = []
+        all_ad_ids: list[int] = []
+        all_payment_ids: list[int] = []
+        is_partial = False
+        merged_completeness: dict[str, Any] = {}
+        for item in period_sources:
+            all_business_ids.extend(item['business_report_source_ids'])
+            all_ad_ids.extend(item['ad_report_source_ids'])
+            all_payment_ids.extend(item['payment_report_source_ids'])
+            if item.get('is_partial'):
+                is_partial = True
+            if not merged_completeness and item.get('completeness'):
+                merged_completeness = item['completeness']
+
+        year_month = end_date.strftime('%Y-%m')
         df_cost = _build_active_product_costs_df(
             db,
             project_name=project.project_name,
@@ -1739,19 +1835,19 @@ def run_product_calculation_from_history(
         )
         df_business = _build_business_df_from_sources(
             db,
-            source_ids=item['business_report_source_ids'],
+            source_ids=all_business_ids,
         )
         df_ad = _build_ad_df_from_sources(
             db,
-            source_ids=item['ad_report_source_ids'],
+            source_ids=all_ad_ids,
         )
         df_payment = _build_payment_df_from_sources(
             db,
-            source_ids=item['payment_report_source_ids'],
+            source_ids=all_payment_ids,
         )
         report_date_str = product_analysis_script._format_report_date(
-            week_start.isoformat(),
-            week_end.isoformat(),
+            start_date.isoformat(),
+            end_date.isoformat(),
         )
         df_overview = product_analysis_script._build_overview(
             project.project_name,
@@ -1763,30 +1859,22 @@ def run_product_calculation_from_history(
         )
         df_overview = product_analysis_script._append_summary_row(df_overview, report_date_str)
         pt1 = product_analysis_script._build_pt1_payload(df_overview)
-        if item.get('completeness'):
-            pt1['summary']['_completeness'] = item['completeness']
-            pt1['summary']['_is_partial'] = item.get('is_partial', False)
-        pt1_row = persist_product_analysis_pt1_calculation(
-            db,
-            project_name=project.project_name,
-            country=normalized_country,
-            report_start_date=week_start.isoformat(),
-            report_end_date=week_end.isoformat(),
-            pt1=pt1,
-            result_file_path=None,
-            calculation_version=1,
-        )
-        period_entry = {
-            'pt1_id': int(pt1_row.id),
-            'version': int(pt1_row.version),
-            'report_start_date': week_start.isoformat(),
-            'report_end_date': week_end.isoformat(),
+        if merged_completeness:
+            pt1['summary']['_completeness'] = merged_completeness
+            pt1['summary']['_is_partial'] = is_partial
+        periods = [{
+            'pt1_id': None,
+            'version': None,
+            'report_start_date': start_date.isoformat(),
+            'report_end_date': end_date.isoformat(),
             'summary': pt1['summary'],
             'details': pt1['details'],
-            'is_partial': item.get('is_partial', False),
-            'completeness': item.get('completeness', {}),
-        }
-        periods.append(period_entry)
+            'is_partial': is_partial,
+            'completeness': merged_completeness,
+            'persisted': False,
+        }]
+    else:
+        periods = []
 
     return {
         'project_id': int(project.id),

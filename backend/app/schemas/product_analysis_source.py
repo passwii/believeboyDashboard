@@ -140,6 +140,9 @@ class CalculationPeriodItem(BaseModel):
     details: list[dict[str, Any]]
     is_partial: bool = False
     completeness: PeriodCompleteness | None = None
+    persisted: bool = False
+    pt1_id: int | None = None
+    version: int | None = None
 
 
 class ProductCalculationRunResponse(BaseModel):
