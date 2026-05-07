@@ -78,6 +78,7 @@ autoReportUpload/__pycache__/
 
 # Backend storage
 /backend/storage/
+/storage/
 /backend/tmp_upload_check/
 
 # Backend tests
