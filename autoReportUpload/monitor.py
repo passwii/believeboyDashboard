@@ -51,6 +51,12 @@ class RunLogger:
     def info(self, msg: str) -> None:
         self.logger.info(msg)
 
+    def _fixed(self, text: str, width: int) -> str:
+        """Pad a string to fixed width, counting CJK chars as 2 cells."""
+        # Count visual width (CJK = 2, ASCII/digit/symbol = 1)
+        visual = sum(2 if ord(c) > 0x4E00 and ord(c) < 0x9FFF else 1 for c in text)
+        return text + " " * (width - visual)
+
     def result(self, file_path: Path, project: str, result: ProcessResult) -> None:
         # 状态标签
         if result.skipped:
@@ -88,11 +94,23 @@ class RunLogger:
             report_date = "-"
 
         if result.success:
-            self.logger.info(f"【{status}】-【{country}】-【{project}】-【{report_type_cn}】-【{report_date}】")
+            self.logger.info(
+                f"【{self._fixed(status, 4)}】-【{self._fixed(country, 4)}】-"
+                f"【{self._fixed(project, 16)}】-【{self._fixed(report_type_cn, 14)}】-"
+                f"【{report_date}】"
+            )
         elif result.skipped:
-            self.logger.info(f"【{status}】-【{country}】-【{project}】-【{report_type_cn}】-【{report_date}】  {result.reason}")
+            self.logger.info(
+                f"【{self._fixed(status, 4)}】-【{self._fixed(country, 4)}】-"
+                f"【{self._fixed(project, 16)}】-【{self._fixed(report_type_cn, 14)}】-"
+                f"【{self._fixed(report_date, 20)}】  {result.reason}"
+            )
         else:
-            self.logger.error(f"【{status}】-【{country}】-【{project}】-【{report_type_cn}】-【{report_date}】  {result.error}")
+            self.logger.error(
+                f"【{self._fixed(status, 4)}】-【{self._fixed(country, 4)}】-"
+                f"【{self._fixed(project, 16)}】-【{self._fixed(report_type_cn, 14)}】-"
+                f"【{self._fixed(report_date, 20)}】  {result.error}"
+            )
 
     @property
     def log_file(self) -> Path:
