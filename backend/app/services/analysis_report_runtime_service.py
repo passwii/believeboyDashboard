@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from itertools import count
 import logging
 from pathlib import Path
@@ -264,19 +264,39 @@ def _persist_product_analysis_sources(
             )
             return
         pt1_payload = result.get("pt1")
-        product_analysis_source_service.persist_product_analysis_pt1_calculation(
-            db,
-            project_name=project_name,
-            report_start_date=report_start_date,
-            report_end_date=report_end_date,
-            pt1=pt1_payload if isinstance(pt1_payload, dict) else {},
-            result_file_path=str(result.get("result_path") or "").strip() or None,
-            calculation_version=1,
-        )
-        db.commit()
-        set_persistence_state(
-            task_id, status="success", message="后台同步完成：数据库已更新"
-        )
+        if pt1_payload and isinstance(pt1_payload, dict) and report_start_date and report_end_date:
+            try:
+                _start = date.fromisoformat(report_start_date)
+                _end = date.fromisoformat(report_end_date)
+                if product_analysis_source_service._is_full_iso_week(_start, _end):
+                    product_analysis_source_service.persist_product_analysis_pt1_calculation(
+                        db,
+                        project_name=project_name,
+                        report_start_date=report_start_date,
+                        report_end_date=report_end_date,
+                        pt1=pt1_payload,
+                        result_file_path=str(result.get("result_path") or "").strip() or None,
+                        calculation_version=1,
+                    )
+                    db.commit()
+                    set_persistence_state(
+                        task_id, status="success", message="后台同步完成：数据库已更新"
+                    )
+                else:
+                    db.commit()
+                    set_persistence_state(
+                        task_id, status="success", message="后台同步完成：非整周数据，跳过PT1写入"
+                    )
+            except (ValueError, TypeError):
+                db.commit()
+                set_persistence_state(
+                    task_id, status="success", message="后台同步完成：日期解析失败，跳过PT1写入"
+                )
+        else:
+            db.commit()
+            set_persistence_state(
+                task_id, status="success", message="后台同步完成：数据库已更新"
+            )
     except Exception as exc:  # noqa: BLE001
         db.rollback()
         logger.exception("product analysis persistence failed: %s", exc)
