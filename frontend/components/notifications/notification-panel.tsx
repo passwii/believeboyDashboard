@@ -14,6 +14,7 @@ import { useNotifications } from './notifications-context'
 import {
   Sheet,
   SheetContent,
+  SheetTitle,
 } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -151,7 +152,7 @@ export function NotificationPanel({ open, onOpenChange }: NotificationPanelProps
         <div className="flex items-center justify-between px-4 py-4">
           <div className="flex items-center gap-2">
             <Bell className="h-4 w-4" />
-            <h2 className="text-base font-semibold">通知中心</h2>
+            <SheetTitle>通知中心</SheetTitle>
           </div>
           {hasNotifications && (
             <Button

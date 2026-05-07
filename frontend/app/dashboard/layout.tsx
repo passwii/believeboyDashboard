@@ -75,6 +75,14 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
+  return <DashboardLayoutInner>{children}</DashboardLayoutInner>
+}
+
+function DashboardLayoutInner({
+  children,
+}: {
+  children: React.ReactNode
+}) {
   const pathname = usePathname()
   const { isNavigationLoading, navigationTargetPath } = useGlobalLoading()
   const effectivePathname = isNavigationLoading && navigationTargetPath ? navigationTargetPath : pathname
@@ -83,11 +91,12 @@ export default function DashboardLayout({
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [iconsExpanded, setIconsExpanded] = useState(false)
   const pageTitle = useMemo(() => getDashboardPageTitle(effectivePathname), [effectivePathname])
+  const { pushPage } = useRecentPages()
+
   const breadcrumbLabel = useMemo(
     () => getDashboardBreadcrumbLabel(effectivePathname, pageTitle),
     [effectivePathname, pageTitle]
   )
-  const { pushPage } = useRecentPages()
 
   useEffect(() => {
     document.title = `${pageTitle} | BelieveBoy Dashboard`

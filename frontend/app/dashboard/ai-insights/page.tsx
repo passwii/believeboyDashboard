@@ -1200,7 +1200,12 @@ const MarkdownContent = ({ content, collectChartSvgs }: { content: string; colle
                   /[┌─┐│└┘├┤┬┴┼]/.test(code) ||
                   (code.startsWith('`') && code.endsWith('`') && code.length > 2)
 
-                if (looksLikeBlock && !match) {
+                // Chart languages always take priority over looksLikeBlock detection
+                if (language === 'linechart' || language === 'line' || language === 'piechart' || language === 'pie') {
+                  return <ChartCodeBlock chartType={language} code={code} collectChartSvgs={collectChartSvgs} />
+                }
+
+                if (looksLikeBlock) {
                   // Strip outer backticks if the whole content is backtick-wrapped
                   if (/^`[\s\S]*`$/.test(code)) {
                     code = code.slice(1, -1)
