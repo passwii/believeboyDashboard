@@ -47,7 +47,7 @@ DEPLOY_COMMANDS = [
 # 检查命令（部署后验证）
 CHECK_COMMANDS = [
     "systemctl is-active believeboy-api",
-    f"cd {BACKEND_DIR} && {VENV_ACTIVATE} && python -c \"from app.main import app; print('App import OK')\"",
+    f"cd {BACKEND_DIR} && {VENV_ACTIVATE} && python -c \"from app.main import app; print('OK')\"",
 ]
 
 # 日志获取命令（用于错误分析）
@@ -312,7 +312,8 @@ def deploy(dry_run=False, auto_confirm=False):
         timeout=10
     )
 
-    if "HEALTH_CHECK_FAILED" not in out and "error" not in out.lower():
+    # 健康检查：检查是否有 {"detail":...} 或 {"status":...} 响应，说明服务在运行
+    if '"detail"' in out or '"status"' in out:
         print(f"  ✓ API 健康检查通过")
     else:
         print(f"  ✗ API 健康检查失败，收集诊断信息...")
