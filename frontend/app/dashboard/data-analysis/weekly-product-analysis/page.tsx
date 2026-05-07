@@ -8,6 +8,12 @@ import { cn } from '@/lib/utils'
 
 import { Button } from '@/components/ui/button'
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
@@ -467,6 +473,16 @@ function formatWeekLabel(startDate: string, endDate: string): string {
   return `${startMonth}/${startDay} - ${endMonth}/${endDay}`
 }
 
+function getISOWeek(dateStr: string): string {
+  const date = new Date(dateStr)
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+  const dayNum = d.getUTCDay() || 7
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum)
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
+  const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
+  return `${d.getUTCFullYear()}-W${weekNo.toString().padStart(2, '0')}`
+}
+
 type PeriodCompleteness = {
   total_days: number
   available_business_days: number
@@ -790,7 +806,9 @@ function fillSummaryWorksheet(
   let rowIndex = 6
   summaryRows.forEach((item, index) => {
     const row = worksheet.getRow(rowIndex)
-    row.getCell(1).value = `第${index + 1}周`
+    const { isPartial } = extractCompleteness(item.row)
+    const weekLabel = getISOWeek(item.row.report_start_date)
+    row.getCell(1).value = isPartial ? `${weekLabel} *` : weekLabel
     row.getCell(2).value = formatDateRange(
       item.row.report_start_date,
       item.row.report_end_date,
@@ -806,11 +824,27 @@ function fillSummaryWorksheet(
       const numFmt = getExcelNumberFormat(column)
       if (typeof value === 'number' && numFmt) cell.numFmt = numFmt
       applyCellBorder(cell)
+      // 数据不全的行用浅黄色背景标注
+      if (isPartial) {
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFFFF3CD' },
+        }
+      }
     })
-    row.getCell(1).font = { name: 'Microsoft YaHei', bold: true }
+    row.getCell(1).font = {
+      name: 'Microsoft YaHei',
+      bold: true,
+      color: isPartial ? { argb: 'FFB45309' } : { argb: 'FF0F172A' },
+    }
     row.getCell(2).font = { name: 'Microsoft YaHei' }
     applyCellBorder(row.getCell(1))
     applyCellBorder(row.getCell(2))
+    if (isPartial) {
+      row.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3CD' } }
+      row.getCell(2).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3CD' } }
+    }
     rowIndex += 1
   })
 
@@ -848,6 +882,22 @@ function fillSummaryWorksheet(
     }
     applyCellBorder(cell, 'FFCBD5E1')
   })
+
+  // 添加说明行
+  const noteRow = worksheet.getRow(rowIndex)
+  worksheet.mergeCells(rowIndex, 1, rowIndex, lastColumn)
+  noteRow.getCell(1).value = '* 黄色背景标记：该周数据不完整，仅供参考'
+  noteRow.getCell(1).font = {
+    name: 'Microsoft YaHei',
+    size: 9,
+    italic: true,
+    color: { argb: 'FFB45309' },
+  }
+  noteRow.getCell(1).alignment = {
+    vertical: 'middle',
+    horizontal: 'left',
+  }
+  rowIndex += 1
 
   worksheet.columns = [
     { width: 12 },
@@ -1475,7 +1525,7 @@ export default function WeeklyProductAnalysisPage() {
       const pageViews = toNumber(summary['页面浏览量']) || 1
       const totalSales = Number(row.total_sales || 0) || 1
       return {
-        week_label: formatWeekLabel(row.report_start_date, row.report_end_date),
+        week_label: getISOWeek(row.report_start_date),
         start_date: row.report_start_date,
         end_date: row.report_end_date,
         sales_amount: Number(row.total_sales || 0),
@@ -1768,7 +1818,7 @@ export default function WeeklyProductAnalysisPage() {
         {
           projectName,
           country,
-          weekLabel: `第${summaryRows.findIndex((item) => item.row.id === targetWeek.row.id) + 1}周`,
+          weekLabel: getISOWeek(targetWeek.row.report_start_date),
           weekRange: formatDateRange(
             targetWeek.row.report_start_date,
             targetWeek.row.report_end_date,
@@ -2364,24 +2414,32 @@ export default function WeeklyProductAnalysisPage() {
                     <SelectValue placeholder='选择周次' />
                   </SelectTrigger>
                   <SelectContent>
-                    {summaryRows.map((item, index) => {
-                      const { isPartial, completeness } = extractCompleteness(item.row)
-                      return (
-                        <SelectItem key={item.row.id} value={String(item.row.id)}>
-                          第{index + 1}周 ·{' '}
-                          {formatDateRange(
-                            item.row.report_start_date,
-                            item.row.report_end_date,
-                          )}
-                          {isPartial && completeness && (
-                            <span className='ml-1.5 inline-flex items-center gap-0.5 rounded bg-amber-100 px-1 py-0.5 text-[10px] font-medium leading-none text-amber-700 dark:bg-amber-900/40 dark:text-amber-400'>
-                              <AlertTriangle className='h-3 w-3' />
-                              {completeness.available_business_days}/{completeness.total_days}天
-                            </span>
-                          )}
-                        </SelectItem>
-                      )
-                    })}
+                    <TooltipProvider delayDuration={0}>
+                      {summaryRows.map((item, index) => {
+                        const { isPartial } = extractCompleteness(item.row)
+                        return (
+                          <SelectItem key={item.row.id} value={String(item.row.id)}>
+                            {getISOWeek(item.row.report_start_date)} ·{' '}
+                            {formatDateRange(
+                              item.row.report_start_date,
+                              item.row.report_end_date,
+                            )}
+                            {isPartial && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className='ml-1.5 inline-block'>
+                                    <AlertTriangle className='h-3.5 w-3.5 text-amber-500' />
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent sideOffset={4}>
+                                  数据不完整，仅供参考
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+                          </SelectItem>
+                        )
+                      })}
+                    </TooltipProvider>
                   </SelectContent>
                 </Select>
                 <Button
@@ -2453,7 +2511,7 @@ export default function WeeklyProductAnalysisPage() {
             showSummarySkeleton ? (
               <BarSkeleton rows={5} />
             ) : summaryRows.length > 0 ? (
-              <Table
+<Table
                 containerClassName='w-full max-w-full overflow-x-auto'
                 className='w-max min-w-[4200px] table-fixed text-xs'
               >
@@ -2484,8 +2542,8 @@ export default function WeeklyProductAnalysisPage() {
                       </TableHead>
                     ))}
                   </TableRow>
-                  <TableRow className='bg-muted/20 hover:bg-muted/20'>
-                    {SUMMARY_COLUMN_GROUPS.map((group) =>
+                  <TableRow className='bg-muted/30'>
+                    {SUMMARY_COLUMN_GROUPS.flatMap((group) =>
                       group.columns.map((column) => (
                         <TableHead
                           key={column}
@@ -2497,55 +2555,60 @@ export default function WeeklyProductAnalysisPage() {
                     )}
                   </TableRow>
                 </TableHeader>
-<TableBody>
+                <TableBody>
+                  <TooltipProvider delayDuration={0}>
                     {summaryRows.map((item, index) => {
-                    const row = item.row
-                    const { isPartial, completeness } = extractCompleteness(row)
-                    const rowBg = row.is_current
-                      ? 'bg-background'
-                      : 'bg-muted/20'
-                    return (
-                      <TableRow
-                        key={row.id}
-                        className={!row.is_current ? 'bg-muted/15' : undefined}
-                      >
-                        <TableCell
-                          className={`sticky z-20 border-r border-border px-2 py-1.5 text-center font-medium whitespace-nowrap ${rowBg}`}
-                          style={{ left: 0 }}
+                      const row = item.row
+                      const { isPartial } = extractCompleteness(row)
+                      const rowBg = row.is_current
+                        ? 'bg-background'
+                        : 'bg-muted/20'
+                      return (
+                        <TableRow
+                          key={row.id}
+                          className={!row.is_current ? 'bg-muted/15' : undefined}
                         >
-                          <span className='inline-flex items-center gap-1'>
-                            第{index + 1}周
-                            {isPartial && completeness && (
-                              <span
-                                className='inline-flex items-center gap-0.5 rounded bg-amber-100 px-1 py-0.5 text-[10px] font-medium leading-none text-amber-700 dark:bg-amber-900/40 dark:text-amber-400'
-                                title={`数据不完整：业务报告 ${completeness.available_business_days}/${completeness.total_days} 天，广告报告 ${completeness.available_ad_days}/${completeness.total_days} 天${completeness.payment_missing ? '，缺少付款数据' : ''}`}
-                              >
-                                <AlertTriangle className='h-3 w-3' />
-                                {completeness.available_business_days}/{completeness.total_days}
-                              </span>
-                            )}
-                          </span>
-                        </TableCell>
-                        <TableCell
-                          className={`sticky z-20 border-r border-border px-2 py-1.5 text-center whitespace-nowrap ${rowBg}`}
-                          style={{ left: summaryWeekColumnWidth }}
-                        >
-                          {formatDateRange(
-                            row.report_start_date,
-                            row.report_end_date,
-                          )}
-                        </TableCell>
-                        {SUMMARY_COLUMNS.map((column) => (
                           <TableCell
-                            key={`${row.id}-${column}`}
-                            className='border-r px-2 py-1.5 text-right tabular-nums'
+                            className={`sticky z-20 border-r border-border px-2 py-1.5 text-center font-medium whitespace-nowrap ${rowBg}`}
+                            style={{ left: 0 }}
                           >
-                            {formatSummaryCell(column, item.summary[column], country)}
+                            <span className='inline-flex items-center gap-1'>
+                              {getISOWeek(row.report_start_date)}
+                              {isPartial && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className='inline-block'>
+                                      <AlertTriangle className='h-3.5 w-3.5 text-amber-500' />
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent sideOffset={4}>
+                                    数据不完整，仅供参考
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
+                            </span>
                           </TableCell>
-                        ))}
-                      </TableRow>
-                    )
-                  })}
+                          <TableCell
+                            className={`sticky z-20 border-r border-border px-2 py-1.5 text-center whitespace-nowrap ${rowBg}`}
+                            style={{ left: summaryWeekColumnWidth }}
+                          >
+                            {formatDateRange(
+                              row.report_start_date,
+                              row.report_end_date,
+                            )}
+                          </TableCell>
+                          {SUMMARY_COLUMNS.map((column) => (
+                            <TableCell
+                              key={`${row.id}-${column}`}
+                              className='border-r px-2 py-1.5 text-right tabular-nums'
+                            >
+                              {formatSummaryCell(column, item.summary[column], country)}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      )
+                    })}
+                  </TooltipProvider>
                 </TableBody>
                 <TableFooter>
                   <TableRow className='bg-muted font-semibold hover:bg-muted'>
@@ -2668,7 +2731,7 @@ export default function WeeklyProductAnalysisPage() {
                     ))}
                   </TableRow>
                 ))}
-              </TableBody>
+                </TableBody>
               <TableFooter>
                 <TableRow className='bg-muted font-semibold hover:bg-muted'>
                   {detailColumns.map((column) => {

@@ -32,7 +32,6 @@ import {
   CountrySelect,
   FilterField,
   ProjectSelect,
-  QuickButtons,
   RefreshButton,
 } from '@/components/dashboard/console'
 import { Badge } from '@/components/ui/badge'
@@ -339,24 +338,6 @@ function getPreviousPeriodRange(range?: DateRange): DateRange | undefined {
   }
 }
 
-function getYesterdayRange(country: string): DateRange {
-  const today = getTodayInTimezone(country)
-  const yesterday = addDays(today, -1)
-  return { from: yesterday, to: yesterday }
-}
-
-function getLastWeekRange(country: string): DateRange {
-  const today = getTodayInTimezone(country)
-  const dayOfWeek = today.getDay()
-  // Find Monday of current week (getDay(): Sunday=0, Monday=1, ..., Saturday=6)
-  const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
-  const currentWeekMonday = addDays(today, -daysSinceMonday)
-  // Previous week: start = currentWeekMonday - 7, end = currentWeekMonday - 1
-  return {
-    from: addDays(currentWeekMonday, -7),
-    to: addDays(currentWeekMonday, -1),
-  }
-}
 
 function getNextMonthRange(range?: DateRange): DateRange | undefined {
   const normalized = normalizeDateRange(range)
@@ -1850,22 +1831,12 @@ export default function DailyAnalysisPage() {
               </div>
             </div>
 
-            <QuickButtons
-                onSelect={(btn) => {
-                  if (btn.label === '昨天') {
-                    void handleQuickRange(getYesterdayRange(country))
-                  } else if (btn.label === '近7天') {
-                    void handleQuickRange(lastSevenDaysRange(country))
-                  }
-                }}
-              />
-              <RefreshButton
+                          <RefreshButton
                 onClick={() => void loadData()}
                 loading={loading || projectsLoading}
-                label="刷新视图"
-                variant="default"
-                size="default"
-                className="h-9 px-4"
+                label="刷新数据"
+                variant="outline"
+                className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
               />
         </div>
 
