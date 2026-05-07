@@ -47,7 +47,7 @@ DEPLOY_COMMANDS = [
 # 检查命令（部署后验证）
 CHECK_COMMANDS = [
     "systemctl is-active believeboy-api",
-    f"cd {BACKEND_DIR} && {VENV_ACTIVATE} && python -c 'from app.main import app; print(\"OK\")'",
+    f"cd {BACKEND_DIR} && {VENV_ACTIVATE} && python -c 'import app.main'",
 ]
 
 # 日志获取命令（用于错误分析）
@@ -110,7 +110,7 @@ def collect_failure_logs(stage_name, dry_run=False):
     # 获取 Python 错误追踪
     print("\n>>> 检查 Python 应用错误...")
     rc, out, err = run_ssh_command(
-        f"cd {BACKEND_DIR} && {VENV_ACTIVATE} && python -c 'from app.main import app' 2>&1",
+        f"cd {BACKEND_DIR} && {VENV_ACTIVATE} && python -c 'import app.main' 2>&1",
         dry_run=dry_run
     )
     logs["journal_logs"]["python_import"] = {
