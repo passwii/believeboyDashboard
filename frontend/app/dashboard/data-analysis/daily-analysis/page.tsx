@@ -1798,46 +1798,20 @@ export default function DailyAnalysisPage() {
                   timezone={COUNTRY_TIMEZONE_MAP[country]}
                   onApply={() => void loadData()}
                 />
-                <Button
-                  type='button'
-                  variant='secondary'
-                  className='h-9 w-9 p-0'
-                  onClick={() => {
-                    if (!dateRange?.from) return
-                    const newFrom = new Date(dateRange.from)
-                    newFrom.setMonth(newFrom.getMonth() - 1)
-                    const newTo = new Date(newFrom)
-                    newTo.setMonth(newTo.getMonth() + 1)
-                    newTo.setDate(newTo.getDate() - 1)
-                    void handleQuickRange({ from: newFrom, to: newTo })
-                  }}
-                  title='前一个月'
-                >
-                  <ChevronLeft className='h-4 w-4' />
-                </Button>
-                <Button
-                  type='button'
-                  variant='secondary'
-                  className='h-9 w-9 p-0'
-                  onClick={() => {
-                    const nextRange = getNextMonthRange(dateRange)
-                    if (!nextRange) return
-                    void handleQuickRange(nextRange)
-                  }}
-                  title='后一个月'
-                >
-                  <ChevronRight className='h-4 w-4' />
-                </Button>
+
               </div>
             </div>
 
-                          <RefreshButton
+            <FilterField label="操作">
+              <RefreshButton
                 onClick={() => void loadData()}
                 loading={loading || projectsLoading}
                 label="刷新数据"
+                size="default"
                 variant="outline"
                 className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
               />
+            </FilterField>
         </div>
 
         {goalProgress && goalProgress.target_amount > 0 && (

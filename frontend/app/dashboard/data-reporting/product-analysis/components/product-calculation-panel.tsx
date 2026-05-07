@@ -6,6 +6,11 @@ import { useSession } from 'next-auth/react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  DateRangePicker,
+  formatDateInputValue,
+  parseDateRangeInputValue,
+} from '@/components/ui/date-picker'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import { cn } from '@/lib/utils'
@@ -86,13 +91,6 @@ const COUNTRY_OPTIONS: Array<{ value: CountryOption; label: string }> = [
   { value: 'UK', label: '英国站 (UK)' },
 ]
 
-function toDateInputValue(date: Date) {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
-}
-
 const WEEKDAY_LABELS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
 
 const REPORT_ROWS = [
@@ -117,7 +115,7 @@ function buildWeekDates(startDate: string, endDate: string): string[] {
   const dates: string[] = []
   const cur = new Date(start)
   while (cur <= end) {
-    dates.push(toDateInputValue(cur))
+    dates.push(formatDateInputValue(cur) ?? '')
     cur.setDate(cur.getDate() + 1)
   }
   return dates
@@ -229,40 +227,6 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
         })}
       </div>
 
-      {/* Weekly availability summary */}
-      {availability.weekly_availability && availability.weekly_availability.length > 0 && (
-        <div className="mt-3 space-y-2">
-          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">ISO 周期核算可用性</div>
-          <div className="flex flex-wrap gap-2">
-            {availability.weekly_availability.map((week) => (
-              <div
-                key={`${week.iso_year}-${week.iso_week}`}
-                className={cn(
-                  'flex flex-col rounded-md border px-2.5 py-1.5 text-xs',
-                  week.can_calculate
-                    ? week.is_partial
-                      ? 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
-                      : 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
-                    : 'border-rose-300 bg-rose-50 text-rose-800 dark:border-rose-700 dark:bg-rose-950/40 dark:text-rose-300',
-                )}
-              >
-                <span className="font-medium">
-                  {week.week_start_date} ~ {week.week_end_date}
-                </span>
-                <span className="text-[10px]">
-                  {week.is_partial ? (
-                    <>业务 {week.business_report_available_days}/{week.total_days} 天 · 广告 {week.ad_report_available_days}/{week.total_days} 天{week.payment_covered ? '' : ' · 缺付款'}</>
-                  ) : week.can_calculate ? (
-                    '数据完整'
-                  ) : (
-                    '无可核算数据'
-                  )}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   )
 }
@@ -278,8 +242,8 @@ function getLastWeekRange() {
   const lastWeekSunday = new Date(lastWeekMonday)
   lastWeekSunday.setDate(lastWeekMonday.getDate() + 6)
   return {
-    start: toDateInputValue(lastWeekMonday),
-    end: toDateInputValue(lastWeekSunday),
+    start: formatDateInputValue(lastWeekMonday) ?? '',
+    end: formatDateInputValue(lastWeekSunday) ?? '',
   }
 }
 
@@ -606,41 +570,22 @@ export default function ProductCalculationPanel({ session }: ProductCalculationP
               </select>
             </div>
 
-            {/* Start Date */}
+            {/* Date Range */}
             <div className="space-y-1.5">
               <label className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                开始日期
+                日期范围
               </label>
-              <input
-                type="date"
-                className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                value={startDate}
-                onChange={(e) => {
-                  setStartDate(e.target.value)
+              <DateRangePicker
+                value={parseDateRangeInputValue(startDate, endDate)}
+                onChange={(range) => {
+                  setStartDate(formatDateInputValue(range?.from) ?? startDate)
+                  setEndDate(formatDateInputValue(range?.to) ?? endDate)
                   setCheckState('idle')
                   setAvailability(null)
                   setRunState('idle')
                   setPeriods([])
                 }}
-              />
-            </div>
-
-            {/* End Date */}
-            <div className="space-y-1.5">
-              <label className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                结束日期
-              </label>
-              <input
-                type="date"
-                className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                value={endDate}
-                onChange={(e) => {
-                  setEndDate(e.target.value)
-                  setCheckState('idle')
-                  setAvailability(null)
-                  setRunState('idle')
-                  setPeriods([])
-                }}
+                className="h-10"
               />
             </div>
           </div>
@@ -736,8 +681,8 @@ export default function ProductCalculationPanel({ session }: ProductCalculationP
                   <CheckCircle2 className="h-4 w-4" />
                   可执行核算
                   {availability.weekly_availability?.some((w) => w.is_partial) && (
-                    <span className="ml-1 inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
-                      <AlertTriangle className="h-3 w-3" />
+                    <span className="ml-1 inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-sm font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
+                      <AlertTriangle className="h-4 w-4" />
                       部分周数据不完整
                     </span>
                   )}

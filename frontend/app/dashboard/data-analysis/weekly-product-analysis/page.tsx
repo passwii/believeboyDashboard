@@ -138,9 +138,10 @@ function LoadingScrim({
 }
 
 // 骨架屏占位加载状态：用于切换项目/国家时的平滑过渡
-type SkeletonState = 'idle' | 'skeleton_visible' | 'skeleton_fading_out' | 'visible'
+type SkeletonState = 'idle' | 'loading' | 'visible'
 
-const SKELETON_FADE_DURATION = 200 // 骨架屏淡出时间(ms)
+const SKELETON_DELAY_MS = 80   // 骨架屏延迟显示，避免快速切换闪烁
+const FADE_DURATION_MS = 250 // 内容淡入 + 骨架屏淡出的交叉时间
 
 const API_BASE = '/api/backend'
 const WEEKLY_DATA_CACHE_TTL_MS = 3 * 60 * 1000
@@ -1462,30 +1463,16 @@ export default function WeeklyProductAnalysisPage() {
       skeletonTimerRef.current = null
     }
 
-    // 如果已经有数据，先显示骨架屏
-    if (data.length > 0) {
-      setSkeletonState('skeleton_visible')
+    // 延迟显示骨架屏（避免快速切换闪烁），同时开始加载数据
+    skeletonTimerRef.current = setTimeout(() => {
+      setSkeletonState('loading')
+    }, SKELETON_DELAY_MS)
 
-      // 骨架屏显示后开始加载新数据
-      skeletonTimerRef.current = setTimeout(() => {
-        void loadWeeklyData().then(() => {
-          // 数据加载完成后，骨架屏淡出
-          setSkeletonState('skeleton_fading_out')
-          skeletonTimerRef.current = setTimeout(() => {
-            setSkeletonState('visible')
-          }, SKELETON_FADE_DURATION)
-        })
-      }, 50)
-    } else {
-      // 没有数据，直接显示骨架屏然后加载
-      setSkeletonState('skeleton_visible')
-      skeletonTimerRef.current = setTimeout(() => {
-        void loadWeeklyData().then(() => {
-          setSkeletonState('visible')
-        })
-      }, 50)
-    }
-  }, [projectId, projectsLoading, loadWeeklyData, data.length])
+    void loadWeeklyData().then(() => {
+      // 加载完成后，开始 content 淡入，250ms 后骨架屏消失
+      setSkeletonState('visible')
+    })
+  }, [projectId, projectsLoading, loadWeeklyData])
 
   // 首次加载时设置为可见
   useEffect(() => {
@@ -2387,11 +2374,10 @@ export default function WeeklyProductAnalysisPage() {
       {/* 骨架屏过渡包装 */}
       <div
         className={cn(
-          'transition-all duration-200',
-          skeletonState === 'skeleton_visible' && 'opacity-0',
-          skeletonState === 'skeleton_fading_out' && 'opacity-100',
-          skeletonState === 'visible' && 'opacity-100'
+          'transition-all',
+          skeletonState === 'loading' ? 'opacity-0' : 'opacity-100'
         )}
+        style={{ transitionDuration: skeletonState === 'loading' ? '0ms' : `${FADE_DURATION_MS}ms` }}
       >
         <DataTableCard className='animate-enter'>
         <DataTableCardHeader className='flex flex-wrap items-center justify-between gap-3 px-6 py-4'>
@@ -2805,7 +2791,7 @@ export default function WeeklyProductAnalysisPage() {
       </div>
 
       {/* 骨架屏占位：切换时显示 */}
-      {(skeletonState === 'skeleton_visible' || skeletonState === 'skeleton_fading_out') && (
+      {skeletonState === 'loading' && (
         <DataCard>
           <DataCardContent className='space-y-4'>
             {/* 统计指标骨架 */}
