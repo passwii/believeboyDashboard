@@ -2,7 +2,7 @@
 
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Area, AreaChart, Bar, CartesianGrid, ComposedChart, Line, XAxis, YAxis } from 'recharts'
-import { Download, Eye, EyeOff, Loader2, ShoppingCart } from 'lucide-react'
+import { AlertTriangle, Download, Eye, EyeOff, Loader2, ShoppingCart } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
 
@@ -465,6 +465,26 @@ function formatWeekLabel(startDate: string, endDate: string): string {
   const endMonth = end.getMonth() + 1
   const endDay = end.getDate()
   return `${startMonth}/${startDay} - ${endMonth}/${endDay}`
+}
+
+type PeriodCompleteness = {
+  total_days: number
+  available_business_days: number
+  available_ad_days: number
+  business_missing_dates: string[]
+  ad_missing_dates: string[]
+  payment_covered: boolean
+  payment_type: string
+  payment_missing: boolean
+  payment_missing_dates?: string[]
+}
+
+function extractCompleteness(row: WeeklyDataRow): { isPartial: boolean; completeness: PeriodCompleteness | null } {
+  const raw = row.summary_row
+  if (!raw || typeof raw !== 'object') return { isPartial: false, completeness: null }
+  const isPartial = raw._is_partial === true
+  const comp = raw._completeness as PeriodCompleteness | undefined
+  return { isPartial, completeness: comp ?? null }
 }
 
 function toNumber(value: unknown): number {
@@ -2344,15 +2364,24 @@ export default function WeeklyProductAnalysisPage() {
                     <SelectValue placeholder='选择周次' />
                   </SelectTrigger>
                   <SelectContent>
-                    {summaryRows.map((item, index) => (
-                      <SelectItem key={item.row.id} value={String(item.row.id)}>
-                        第{index + 1}周 ·{' '}
-                        {formatDateRange(
-                          item.row.report_start_date,
-                          item.row.report_end_date,
-                        )}
-                      </SelectItem>
-                    ))}
+                    {summaryRows.map((item, index) => {
+                      const { isPartial, completeness } = extractCompleteness(item.row)
+                      return (
+                        <SelectItem key={item.row.id} value={String(item.row.id)}>
+                          第{index + 1}周 ·{' '}
+                          {formatDateRange(
+                            item.row.report_start_date,
+                            item.row.report_end_date,
+                          )}
+                          {isPartial && completeness && (
+                            <span className='ml-1.5 inline-flex items-center gap-0.5 rounded bg-amber-100 px-1 py-0.5 text-[10px] font-medium leading-none text-amber-700 dark:bg-amber-900/40 dark:text-amber-400'>
+                              <AlertTriangle className='h-3 w-3' />
+                              {completeness.available_business_days}/{completeness.total_days}天
+                            </span>
+                          )}
+                        </SelectItem>
+                      )
+                    })}
                   </SelectContent>
                 </Select>
                 <Button
@@ -2468,9 +2497,10 @@ export default function WeeklyProductAnalysisPage() {
                     )}
                   </TableRow>
                 </TableHeader>
-                <TableBody>
-                  {summaryRows.map((item, index) => {
+<TableBody>
+                    {summaryRows.map((item, index) => {
                     const row = item.row
+                    const { isPartial, completeness } = extractCompleteness(row)
                     const rowBg = row.is_current
                       ? 'bg-background'
                       : 'bg-muted/20'
@@ -2483,7 +2513,18 @@ export default function WeeklyProductAnalysisPage() {
                           className={`sticky z-20 border-r border-border px-2 py-1.5 text-center font-medium whitespace-nowrap ${rowBg}`}
                           style={{ left: 0 }}
                         >
-                          第{index + 1}周
+                          <span className='inline-flex items-center gap-1'>
+                            第{index + 1}周
+                            {isPartial && completeness && (
+                              <span
+                                className='inline-flex items-center gap-0.5 rounded bg-amber-100 px-1 py-0.5 text-[10px] font-medium leading-none text-amber-700 dark:bg-amber-900/40 dark:text-amber-400'
+                                title={`数据不完整：业务报告 ${completeness.available_business_days}/${completeness.total_days} 天，广告报告 ${completeness.available_ad_days}/${completeness.total_days} 天${completeness.payment_missing ? '，缺少付款数据' : ''}`}
+                              >
+                                <AlertTriangle className='h-3 w-3' />
+                                {completeness.available_business_days}/{completeness.total_days}
+                              </span>
+                            )}
+                          </span>
                         </TableCell>
                         <TableCell
                           className={`sticky z-20 border-r border-border px-2 py-1.5 text-center whitespace-nowrap ${rowBg}`}

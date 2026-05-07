@@ -1,0 +1,14 @@
+
+deploy-vps/ → Execute VPS deployment workflow
+  python deploy_vps.py [--dry-run] [--auto]
+
+  Steps executed on 145.79.143.98:
+    1. cd /root/believeboyDashboard/ && git pull
+    2. cd backend/ && source .venv/bin/activate && alembic upgrade head
+    3. systemctl stop believeboy-api
+    4. systemctl start believeboy-api
+    5. systemctl status believeboy-api
+
+setup-git-hook/ → Install git post-push hook for auto-deploy
+
+logs/ → Deployment logs (created on first run)
