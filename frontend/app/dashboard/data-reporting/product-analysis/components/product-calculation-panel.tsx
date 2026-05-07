@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useMemo, useState } from 'react'
-import { AlertCircle, ArrowDown, ArrowUp, CheckCircle2, Download, Loader2, XCircle } from 'lucide-react'
+import { AlertCircle, AlertTriangle, ArrowDown, ArrowUp, CheckCircle2, Download, Loader2, XCircle } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 import { Button } from '@/components/ui/button'
@@ -34,6 +34,22 @@ type DataAvailability = {
   payment_full_period_covered: boolean
   payment_daily_covered_dates: string[]
   has_minimum_data: boolean
+  weekly_availability: WeeklyAvailability[]
+}
+
+type WeeklyAvailability = {
+  iso_year: number
+  iso_week: number
+  week_start_date: string
+  week_end_date: string
+  total_days: number
+  business_report_available_days: number
+  ad_report_available_days: number
+  payment_covered: boolean
+  can_calculate: boolean
+  is_partial: boolean
+  business_missing_dates: string[]
+  ad_missing_dates: string[]
 }
 
 type CalculationPeriod = {
@@ -41,6 +57,18 @@ type CalculationPeriod = {
   report_end_date: string
   summary: Record<string, unknown>
   details: Record<string, unknown>[]
+  is_partial?: boolean
+  completeness?: {
+    total_days: number
+    available_business_days: number
+    available_ad_days: number
+    business_missing_dates: string[]
+    ad_missing_dates: string[]
+    payment_covered: boolean
+    payment_type: string
+    payment_missing: boolean
+    payment_missing_dates?: string[]
+  }
 }
 
 type CalculationRunResponse = {
@@ -200,6 +228,41 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
           )
         })}
       </div>
+
+      {/* Weekly availability summary */}
+      {availability.weekly_availability && availability.weekly_availability.length > 0 && (
+        <div className="mt-3 space-y-2">
+          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">ISO 周期核算可用性</div>
+          <div className="flex flex-wrap gap-2">
+            {availability.weekly_availability.map((week) => (
+              <div
+                key={`${week.iso_year}-${week.iso_week}`}
+                className={cn(
+                  'flex flex-col rounded-md border px-2.5 py-1.5 text-xs',
+                  week.can_calculate
+                    ? week.is_partial
+                      ? 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
+                      : 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+                    : 'border-rose-300 bg-rose-50 text-rose-800 dark:border-rose-700 dark:bg-rose-950/40 dark:text-rose-300',
+                )}
+              >
+                <span className="font-medium">
+                  {week.week_start_date} ~ {week.week_end_date}
+                </span>
+                <span className="text-[10px]">
+                  {week.is_partial ? (
+                    <>业务 {week.business_report_available_days}/{week.total_days} 天 · 广告 {week.ad_report_available_days}/{week.total_days} 天{week.payment_covered ? '' : ' · 缺付款'}</>
+                  ) : week.can_calculate ? (
+                    '数据完整'
+                  ) : (
+                    '无可核算数据'
+                  )}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -672,6 +735,12 @@ export default function ProductCalculationPanel({ session }: ProductCalculationP
                 <div className="flex items-center gap-1.5 text-sm font-medium text-emerald-600 dark:text-emerald-300">
                   <CheckCircle2 className="h-4 w-4" />
                   可执行核算
+                  {availability.weekly_availability?.some((w) => w.is_partial) && (
+                    <span className="ml-1 inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
+                      <AlertTriangle className="h-3 w-3" />
+                      部分周数据不完整
+                    </span>
+                  )}
                 </div>
               ) : (
                 <div className="flex items-center gap-1.5 text-sm font-medium text-rose-600 dark:text-rose-300">
@@ -750,6 +819,15 @@ export default function ProductCalculationPanel({ session }: ProductCalculationP
 
                         <span className="shrink-0 font-medium text-sm">
                           {period.report_start_date} ~ {period.report_end_date}
+                          {period.is_partial && period.completeness && (
+                            <span
+                              className="ml-1.5 inline-flex items-center gap-0.5 rounded bg-amber-100 px-1 py-0.5 text-[10px] font-medium leading-none text-amber-700 dark:bg-amber-900/40 dark:text-amber-400"
+                              title={`数据不完整：业务报告 ${period.completeness.available_business_days}/${period.completeness.total_days} 天，广告报告 ${period.completeness.available_ad_days}/${period.completeness.total_days} 天${period.completeness.payment_missing ? '，缺少付款数据' : ''}`}
+                            >
+                              <AlertTriangle className="h-3 w-3" />
+                              {period.completeness.available_business_days}/{period.completeness.total_days}天
+                            </span>
+                          )}
                         </span>
 
                         <span className="ml-auto flex items-center gap-4 text-xs text-muted-foreground">

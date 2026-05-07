@@ -1,46 +1,56 @@
 #!/usr/bin/env python3
 """
-Delete single-day PT1 records for specific projects (铨富 and 玥涵).
+Delete single-day PT1 records for 铨富 project.
 
 These single-day periods (2026-05-01 and 2026-05-02) are anomalous and should be
 removed because they break the weekly reporting structure.
+
+Uses production database from autoReportUpload config.
 
 Usage:
     python scripts/delete_single_day_pt1_records.py [--dry-run]
 """
 
-import argparse
 import sys
-from datetime import date
+import argparse
 
-sys.path.insert(0, ".")
+# Add backend to path for models (must be before app.models import)
+_backend_path = "/Users/damon/DamonProjects/believeboyDashboard/backend"
+if _backend_path not in sys.path:
+    sys.path.insert(0, _backend_path)
 
-from app.db.session import SessionLocal
-from app.models import AnalysisPT1Calculation, AnalysisPTSKUDetail, Project
-from sqlalchemy import select, and_
+# Import config directly
+import importlib.util
+_spec = importlib.util.spec_from_file_location(
+    "config",
+    "/Users/damon/DamonProjects/believeboyDashboard/autoReportUpload/config.py"
+)
+_config = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_config)
+PROD_DATABASE_URL = _config.PROD_DATABASE_URL
+
+from sqlalchemy import create_engine, select, and_
+from sqlalchemy.orm import sessionmaker
+
+from app.models import AnalysisPT1Calculation, AnalysisPTSKUDetail, Project  # noqa: F401
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Delete single-day PT1 records")
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Show what would be deleted without actually deleting",
-    )
-    args = parser.parse_args()
-
-    db = SessionLocal()
+def main(dry_run: bool = False):
+    # Create engine with production database URL
+    engine = create_engine(PROD_DATABASE_URL)
+    Session = sessionmaker(bind=engine)
+    db = Session()
 
     try:
-        # Find the target projects
+        # Find the target project (铨富 only)
         projects = db.execute(
             select(Project).where(
-                Project.project_name.like("%铨富%") | Project.project_name.like("%玥涵%")
+                Project.project_name.like("%铨富%")
             )
         ).scalars().all()
 
         if not projects:
-            print("No projects found matching 铨富 or 玥涵")
+            print("No projects found matching 铨富")
             return
 
         project_ids = [p.id for p in projects]
@@ -101,7 +111,7 @@ def main():
         total_details = sum(detail_counts.values())
         print(f"\nTotal records to delete: {len(all_to_delete)} PT1 records + {total_details} SKU detail records")
 
-        if args.dry_run:
+        if dry_run:
             print("\n[Dry run] Would delete the following:")
             for r in all_to_delete:
                 print(f"  DELETE AnalysisPT1Calculation WHERE id={r.id}")
@@ -136,4 +146,11 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Delete single-day PT1 records for 铨富")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be deleted without actually deleting",
+    )
+    args = parser.parse_args()
+    main(dry_run=args.dry_run)

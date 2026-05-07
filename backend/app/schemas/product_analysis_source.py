@@ -47,6 +47,18 @@ class CurrentInventorySnapshotResponse(BaseModel):
     rows: list[dict[str, Any]]
 
 
+class PeriodCompleteness(BaseModel):
+    total_days: int
+    available_business_days: int
+    available_ad_days: int
+    business_missing_dates: list[str] = []
+    ad_missing_dates: list[str] = []
+    payment_covered: bool
+    payment_type: str = 'none'
+    payment_missing: bool = True
+    payment_missing_dates: list[str] = []
+
+
 class ProductAnalysisWeeklyRecomputePeriodItem(BaseModel):
     pt1_id: int
     version: int
@@ -55,7 +67,9 @@ class ProductAnalysisWeeklyRecomputePeriodItem(BaseModel):
     row_count: int
     business_report_source_id: int
     ad_report_source_id: int
-    payment_report_source_id: int
+    payment_report_source_id: int | None = None
+    is_partial: bool = False
+    completeness: PeriodCompleteness | None = None
 
 
 class ProductAnalysisWeeklyRecomputeResponse(BaseModel):
@@ -93,6 +107,21 @@ class PaymentPeriodOverlapItem(BaseModel):
     source_id: int
 
 
+class WeeklyAvailabilityItem(BaseModel):
+    iso_year: int
+    iso_week: int
+    week_start_date: str
+    week_end_date: str
+    total_days: int
+    business_report_available_days: int
+    ad_report_available_days: int
+    payment_covered: bool
+    can_calculate: bool
+    is_partial: bool
+    business_missing_dates: list[str] = []
+    ad_missing_dates: list[str] = []
+
+
 class ProductCalculationCheckResponse(BaseModel):
     business_report_missing: list[str]
     ad_report_missing: list[str]
@@ -101,6 +130,7 @@ class ProductCalculationCheckResponse(BaseModel):
     payment_full_period_covered: bool
     payment_daily_covered_dates: list[str]
     has_minimum_data: bool
+    weekly_availability: list[WeeklyAvailabilityItem] = []
 
 
 class CalculationPeriodItem(BaseModel):
@@ -108,6 +138,8 @@ class CalculationPeriodItem(BaseModel):
     report_end_date: str
     summary: dict[str, Any]
     details: list[dict[str, Any]]
+    is_partial: bool = False
+    completeness: PeriodCompleteness | None = None
 
 
 class ProductCalculationRunResponse(BaseModel):

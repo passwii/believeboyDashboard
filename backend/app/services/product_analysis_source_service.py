@@ -362,6 +362,9 @@ def recompute_weekly_product_analysis_from_history(
         )
         df_overview = product_analysis_script._append_summary_row(df_overview, report_date)
         pt1 = product_analysis_script._build_pt1_payload(df_overview)
+        if item.get('completeness'):
+            pt1['summary']['_completeness'] = item['completeness']
+            pt1['summary']['_is_partial'] = item.get('is_partial', False)
         pt1_row = persist_product_analysis_pt1_calculation(
             db,
             project_name=project.project_name,
@@ -372,18 +375,19 @@ def recompute_weekly_product_analysis_from_history(
             result_file_path=None,
             calculation_version=1,
         )
-        periods.append(
-            {
-                'pt1_id': int(pt1_row.id),
-                'version': int(pt1_row.version),
-                'report_start_date': report_start_date.isoformat(),
-                'report_end_date': report_end_date.isoformat(),
-                'row_count': int(pt1_row.row_count or 0),
-                'business_report_source_id': int(item['business_report_source_ids'][0]),
-                'ad_report_source_id': int(item['ad_report_source_ids'][0]),
-                'payment_report_source_id': int(item['payment_report_source_ids'][0]),
-            }
-        )
+        period_entry: dict[str, Any] = {
+            'pt1_id': int(pt1_row.id),
+            'version': int(pt1_row.version),
+            'report_start_date': report_start_date.isoformat(),
+            'report_end_date': report_end_date.isoformat(),
+            'row_count': int(pt1_row.row_count or 0),
+            'business_report_source_id': int(item['business_report_source_ids'][0]),
+            'ad_report_source_id': int(item['ad_report_source_ids'][0]),
+            'payment_report_source_id': int(item['payment_report_source_ids'][0]) if item['payment_report_source_ids'] else None,
+            'is_partial': item.get('is_partial', False),
+            'completeness': item.get('completeness', {}),
+        }
+        periods.append(period_entry)
 
     return {
         'project_id': int(project.id),
@@ -1347,12 +1351,24 @@ def _list_history_weekly_period_sources(
         current_only=current_only,
     ):
         key = (item['report_start_date'], item['report_end_date'])
+        num_days = (item['report_end_date'] - item['report_start_date']).days + 1
         periods_by_key[key] = {
             'report_start_date': item['report_start_date'],
             'report_end_date': item['report_end_date'],
             'business_report_source_ids': [int(item['business_report_source_id'])],
             'ad_report_source_ids': [int(item['ad_report_source_id'])],
             'payment_report_source_ids': [int(item['payment_report_source_id'])],
+            'is_partial': False,
+            'completeness': {
+                'total_days': num_days,
+                'available_business_days': num_days,
+                'available_ad_days': num_days,
+                'business_missing_dates': [],
+                'ad_missing_dates': [],
+                'payment_covered': True,
+                'payment_type': 'period',
+                'payment_missing': False,
+            },
         }
 
     daily_stmt = select(AnalysisSourceFile).where(
@@ -1392,12 +1408,12 @@ def _list_history_weekly_period_sources(
         *daily_sources[AD_PRODUCT_REPORT].keys(),
     })
     if not known_dates:
-        return []
+        return list(periods_by_key[key] for key in sorted(periods_by_key) if key[0] != key[1]) if periods_by_key else []
 
     effective_start = start_date or known_dates[0]
     effective_end = end_date or known_dates[-1]
     if effective_start > effective_end:
-        return []
+        return list(periods_by_key[key] for key in sorted(periods_by_key) if key[0] != key[1]) if periods_by_key else []
 
     payment_stmt = select(AnalysisSourceFile).where(
         AnalysisSourceFile.project_id == project_id,
@@ -1447,12 +1463,23 @@ def _list_history_weekly_period_sources(
         week_dates = weeks[week_key]
         business_rows = [daily_sources['business_report'].get(day) for day in week_dates]
         ad_rows = [daily_sources[AD_PRODUCT_REPORT].get(day) for day in week_dates]
-        if any(row is None for row in business_rows) or any(row is None for row in ad_rows):
+
+        available_business = [row for row in business_rows if row is not None]
+        available_ad = [row for row in ad_rows if row is not None]
+        if not available_business and not available_ad:
             continue
 
+        business_missing_dates = [d.isoformat() for d, row in zip(week_dates, business_rows) if row is None]
+        ad_missing_dates = [d.isoformat() for d, row in zip(week_dates, ad_rows) if row is None]
+
         payment_source_ids: list[int] = []
+        payment_covered = False
+        payment_type = 'none'
+
         if all(day in payment_daily_by_date for day in week_dates):
             payment_source_ids = [int(payment_daily_by_date[day].id) for day in week_dates]
+            payment_covered = True
+            payment_type = 'daily'
         else:
             covering_payment = next(
                 (
@@ -1464,20 +1491,43 @@ def _list_history_weekly_period_sources(
                 ),
                 None,
             )
-            if covering_payment is None:
-                continue
-            payment_source_ids = [int(covering_payment.id)]
+            if covering_payment is not None:
+                payment_source_ids = [int(covering_payment.id)]
+                payment_covered = True
+                payment_type = 'period'
+            else:
+                payment_missing_dates_list = [d.isoformat() for d in week_dates if d not in payment_daily_by_date]
+                partial_payment_ids = [int(payment_daily_by_date[day].id) for day in week_dates if day in payment_daily_by_date]
+                if partial_payment_ids:
+                    payment_source_ids = partial_payment_ids
+                    payment_covered = False
+                    payment_type = 'partial'
+                else:
+                    payment_covered = False
+                    payment_type = 'none'
 
         key = (week_dates[0], week_dates[-1])
-        # Direct assignment: ISO week grouping takes precedence over any single-day
-        # periods stored in the database, ensuring proper weekly aggregation
-        periods_by_key[key] = {
+        entry: dict[str, Any] = {
             'report_start_date': week_dates[0],
             'report_end_date': week_dates[-1],
-            'business_report_source_ids': [int(row.id) for row in business_rows if row is not None],
-            'ad_report_source_ids': [int(row.id) for row in ad_rows if row is not None],
+            'business_report_source_ids': [int(row.id) for row in available_business],
+            'ad_report_source_ids': [int(row.id) for row in available_ad],
             'payment_report_source_ids': payment_source_ids,
+            'is_partial': bool(business_missing_dates or ad_missing_dates or not payment_covered),
+            'completeness': {
+                'total_days': len(week_dates),
+                'available_business_days': len(available_business),
+                'available_ad_days': len(available_ad),
+                'business_missing_dates': business_missing_dates,
+                'ad_missing_dates': ad_missing_dates,
+                'payment_covered': payment_covered,
+                'payment_type': payment_type,
+                'payment_missing': not payment_covered,
+                'payment_missing_dates': payment_missing_dates_list if payment_type in ('partial', 'none') else [],
+            },
         }
+
+        periods_by_key[key] = entry
 
     # Clean up orphaned single-day entries that leaked from Phase 1 (§1341–1356).
     # When an ISO week is skipped because some days lack business/ad data,
@@ -1583,19 +1633,56 @@ def check_product_calculation_data_availability(
 
     payment_full_period_covered = all_dates <= payment_period_covered_dates
 
-    # Check has_minimum_data: at least one ISO week has all three core report types
     def _iso_week_key(d: date) -> tuple[int, int]:
         return d.isocalendar()[0], d.isocalendar()[1]
 
-    weeks: dict[tuple[int, int], set[str]] = {}
-    for d in business_dates:
-        weeks.setdefault(_iso_week_key(d), set()).add('business_report')
-    for d in ad_dates:
-        weeks.setdefault(_iso_week_key(d), set()).add(AD_PRODUCT_REPORT)
-    has_minimum_data = any(
-        {'business_report', AD_PRODUCT_REPORT, 'payment_report'} <= week_types
-        for week_types in weeks.values()
-    ) or bool(payment_periods or payment_daily_covered_dates)
+    all_dates_sorted = sorted(all_dates)
+    iso_weeks: dict[tuple[int, int], list[date]] = {}
+    current = start_date
+    while current <= end_date:
+        wk = _iso_week_key(current)
+        iso_weeks.setdefault(wk, []).append(current)
+        current += timedelta(days=1)
+
+    payment_daily_by_date: dict[date, bool] = {}
+    for date_str in payment_daily_covered_dates:
+        parsed = date.fromisoformat(date_str)
+        payment_daily_by_date[parsed] = True
+
+    weekly_availability: list[dict[str, Any]] = []
+    for wk_key in sorted(iso_weeks):
+        wk_dates = iso_weeks[wk_key]
+        wk_start = wk_dates[0]
+        wk_end = wk_dates[-1]
+
+        wk_business_dates = {d for d in wk_dates if d in business_dates}
+        wk_ad_dates = {d for d in wk_dates if d in ad_dates}
+
+        wk_payment_daily_dates = {d for d in wk_dates if payment_daily_by_date.get(d)}
+        wk_payment_period_covered = any(
+            p['period_start_date'] <= wk_start and p['period_end_date'] >= wk_end
+            for p in payment_periods
+        )
+        wk_payment_covered = len(wk_payment_daily_dates) == len(wk_dates) or wk_payment_period_covered
+
+        wk_can_calculate = len(wk_business_dates) > 0 or len(wk_ad_dates) > 0
+
+        weekly_availability.append({
+            'iso_year': wk_key[0],
+            'iso_week': wk_key[1],
+            'week_start_date': wk_start.isoformat(),
+            'week_end_date': wk_end.isoformat(),
+            'total_days': len(wk_dates),
+            'business_report_available_days': len(wk_business_dates),
+            'ad_report_available_days': len(wk_ad_dates),
+            'payment_covered': wk_payment_covered,
+            'can_calculate': wk_can_calculate,
+            'is_partial': len(wk_business_dates) < len(wk_dates) or len(wk_ad_dates) < len(wk_dates) or not wk_payment_covered,
+            'business_missing_dates': [d.isoformat() for d in sorted(set(wk_dates) - wk_business_dates)],
+            'ad_missing_dates': [d.isoformat() for d in sorted(set(wk_dates) - wk_ad_dates)],
+        })
+
+    has_minimum_data = any(wk['can_calculate'] for wk in weekly_availability)
 
     return {
         'business_report_missing': [d.isoformat() for d in business_missing],
@@ -1612,6 +1699,7 @@ def check_product_calculation_data_availability(
         'payment_full_period_covered': payment_full_period_covered,
         'payment_daily_covered_dates': payment_daily_covered_dates,
         'has_minimum_data': has_minimum_data,
+        'weekly_availability': weekly_availability,
     }
 
 
@@ -1675,6 +1763,9 @@ def run_product_calculation_from_history(
         )
         df_overview = product_analysis_script._append_summary_row(df_overview, report_date_str)
         pt1 = product_analysis_script._build_pt1_payload(df_overview)
+        if item.get('completeness'):
+            pt1['summary']['_completeness'] = item['completeness']
+            pt1['summary']['_is_partial'] = item.get('is_partial', False)
         pt1_row = persist_product_analysis_pt1_calculation(
             db,
             project_name=project.project_name,
@@ -1685,14 +1776,17 @@ def run_product_calculation_from_history(
             result_file_path=None,
             calculation_version=1,
         )
-        periods.append({
+        period_entry = {
             'pt1_id': int(pt1_row.id),
             'version': int(pt1_row.version),
             'report_start_date': week_start.isoformat(),
             'report_end_date': week_end.isoformat(),
             'summary': pt1['summary'],
             'details': pt1['details'],
-        })
+            'is_partial': item.get('is_partial', False),
+            'completeness': item.get('completeness', {}),
+        }
+        periods.append(period_entry)
 
     return {
         'project_id': int(project.id),
