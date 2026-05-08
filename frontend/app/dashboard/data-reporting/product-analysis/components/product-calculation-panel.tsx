@@ -17,6 +17,13 @@ import { cn } from '@/lib/utils'
 
 type CountryOption = 'US' | 'DE' | 'UK'
 
+// Currency configuration by country
+const CURRENCY_CONFIG: Record<CountryOption, { symbol: string; excelFmt: string }> = {
+  US: { symbol: '$',  excelFmt: '$#,##0.00;[Red]-$#,##0.00' },
+  DE: { symbol: '€', excelFmt: '#,##0.00;[Red]-#,##0.00 €' },
+  UK: { symbol: '£', excelFmt: '£#,##0.00;[Red]-£#,##0.00' },
+}
+
 type ProjectOption = {
   id?: number
   name: string
@@ -268,14 +275,14 @@ function formatPercent(value: unknown): string {
 }
 
 const SUMMARY_DISPLAY_COLUMNS = [
-  { key: '总销售额', label: '总销售额' },
+  { key: '总销售额', label: '总销售额', fmt: 'currency' as const },
   { key: '总销量', label: '总销量' },
-  { key: '实际销售额', label: '实际销售额' },
-  { key: '利润', label: '利润' },
+  { key: '实际销售额', label: '实际销售额', fmt: 'currency' as const },
+  { key: '利润', label: '利润', fmt: 'currency' as const },
   { key: '利润率', label: '利润率', fmt: 'percent' as const },
-  { key: '广告花费', label: '广告花费' },
+  { key: '广告花费', label: '广告花费', fmt: 'currency' as const },
   { key: 'ACOS', label: 'ACOS', fmt: 'percent' as const },
-  { key: 'CPC', label: 'CPC' },
+  { key: 'CPC', label: 'CPC', fmt: 'currency' as const },
   { key: '页面浏览量', label: '页面浏览量' },
   { key: '总访客', label: '总访客' },
   { key: '总转化', label: '总转化', fmt: 'percent' as const },
@@ -285,11 +292,11 @@ const DETAIL_DISPLAY_COLUMNS = [
   { key: 'SKU', label: 'SKU' },
   { key: 'ASIN', label: 'ASIN' },
   { key: '总销量', label: '总销量' },
-  { key: '总销售额', label: '总销售额' },
-  { key: '广告花费', label: '广告花费' },
-  { key: '广告销售额', label: '广告销售额' },
+  { key: '总销售额', label: '总销售额', fmt: 'currency' as const },
+  { key: '广告花费', label: '广告花费', fmt: 'currency' as const },
+  { key: '广告销售额', label: '广告销售额', fmt: 'currency' as const },
   { key: 'ACOS', label: 'ACOS', fmt: 'percent' as const },
-  { key: '利润', label: '利润' },
+  { key: '利润', label: '利润', fmt: 'currency' as const },
   { key: '利润率', label: '利润率', fmt: 'percent' as const },
 ]
 
@@ -403,9 +410,9 @@ function toExportNumber(value: unknown): number {
   return Number.isFinite(num) ? num : 0
 }
 
-function getExportNumberFormat(column: string): string | null {
+function getExportNumberFormat(column: string, targetCountry: CountryOption = 'US'): string | null {
   if (EXPORT_PERCENT_COLUMNS.has(column)) return '0.00%'
-  if (EXPORT_CURRENCY_COLUMNS.has(column)) return '$#,##0.00;[Red]-$#,##0.00'
+  if (EXPORT_CURRENCY_COLUMNS.has(column)) return CURRENCY_CONFIG[targetCountry].excelFmt
   if (EXPORT_INTEGER_COLUMNS.has(column)) return '#,##0'
   return null
 }
@@ -664,7 +671,7 @@ export default function ProductCalculationPanel({ session }: ProductCalculationP
         const val = getExportCellValue(column, period.summary[column])
         cell.value = val
         cell.alignment = { vertical: 'middle', horizontal: typeof val === 'number' ? 'right' : 'left' }
-        const numFmt = getExportNumberFormat(column)
+        const numFmt = getExportNumberFormat(column, country)
         if (typeof val === 'number' && numFmt) cell.numFmt = numFmt
         applyCellBorder(cell)
         if (period.is_partial) {
@@ -691,7 +698,7 @@ export default function ProductCalculationPanel({ session }: ProductCalculationP
       const sum = periods.reduce((acc, p) => acc + toExportNumber(p.summary[column]), 0)
       cell.value = sum
       cell.alignment = { vertical: 'middle', horizontal: 'right' }
-      const numFmt = getExportNumberFormat(column)
+      const numFmt = getExportNumberFormat(column, country)
       if (numFmt) cell.numFmt = numFmt
       cell.font = { name: 'Microsoft YaHei', bold: true, color: column === '利润' || column === '利润率' ? { argb: 'FF047857' } : { argb: 'FF0F172A' } }
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
@@ -812,7 +819,7 @@ export default function ProductCalculationPanel({ session }: ProductCalculationP
             vertical: 'middle',
             horizontal: column === '日期' || column === 'SKU' || typeof val !== 'number' ? 'left' : 'right',
           }
-          const numFmt = getExportNumberFormat(column)
+          const numFmt = getExportNumberFormat(column, country)
           if (typeof val === 'number' && numFmt) cell.numFmt = numFmt
           applyCellBorder(cell)
         })
@@ -828,7 +835,7 @@ export default function ProductCalculationPanel({ session }: ProductCalculationP
         else {
           const val = getExportCellValue(column, period.summary[column])
           cell.value = val
-          const numFmt = getExportNumberFormat(column)
+          const numFmt = getExportNumberFormat(column, country)
           if (typeof val === 'number' && numFmt) cell.numFmt = numFmt
         }
         cell.font = { name: 'Microsoft YaHei', bold: true }
@@ -857,9 +864,13 @@ export default function ProductCalculationPanel({ session }: ProductCalculationP
     URL.revokeObjectURL(url)
   }
 
-  function renderCell(value: unknown, fmt?: 'percent') {
+  function renderCell(value: unknown, fmt?: 'percent' | 'currency') {
     if (value === null || value === undefined) return <span className="text-muted-foreground">-</span>
     if (fmt === 'percent') return <span>{formatPercent(value)}</span>
+    if (fmt === 'currency') {
+      const sym = CURRENCY_CONFIG[country].symbol
+      return <span>{sym}{formatNumber(value)}</span>
+    }
     return <span>{formatNumber(value)}</span>
   }
 

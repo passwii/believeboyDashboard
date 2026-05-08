@@ -152,7 +152,11 @@ type FinancialViewTab = 'financial' | 'accounting'
 const API_BASE = '/api/backend'
 const FINANCIAL_SERIES_CACHE_TTL_MS = 3 * 60 * 1000
 const EXCHANGE_RATE_CACHE_TTL_MS = 30 * 60 * 1000
-const EXCHANGE_RATE_CACHE_KEY = 'financial:exchange-rate:USD'
+const EXCHANGE_RATE_CACHE_KEY_PREFIX = 'financial:exchange-rate'
+
+function getExchangeRateCacheKey(currencyLabel: string): string {
+  return `${EXCHANGE_RATE_CACHE_KEY_PREFIX}:${currencyLabel}`
+}
 
 function financialSeriesCacheKey(
   projectId: number,
@@ -813,8 +817,9 @@ export default function FinancialDataClient({
       return
     }
 
+    const cacheKey = getExchangeRateCacheKey(currencyLabel)
     const cached = getClientCache<Record<string, number>>(
-      EXCHANGE_RATE_CACHE_KEY,
+      cacheKey,
       EXCHANGE_RATE_CACHE_TTL_MS,
     )
     const hasCompleteCachedMonths =
@@ -853,7 +858,7 @@ export default function FinancialDataClient({
       page += 1
     }
 
-    setClientCache(EXCHANGE_RATE_CACHE_KEY, fetchedMap)
+    setClientCache(getExchangeRateCacheKey(currencyLabel), fetchedMap)
     setExchangeRateByMonth(buildMonthRateMap(uniqueMonths, fetchedMap))
     setError(null)
   }, [currencyLabel])
@@ -1113,7 +1118,7 @@ export default function FinancialDataClient({
       )
     }
     if (Object.keys(initialExchangeRateByMonth).length > 0) {
-      setClientCache(EXCHANGE_RATE_CACHE_KEY, initialExchangeRateByMonth)
+      setClientCache(getExchangeRateCacheKey(currencyLabel), initialExchangeRateByMonth)
     }
   }, [
     initialData,
