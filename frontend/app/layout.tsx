@@ -21,7 +21,6 @@ const spaceGrotesk = Space_Grotesk({
 })
 
 export const metadata: Metadata = {
-  title: 'BelieveBoy Dashboard',
   description: 'A modern dashboard built with Next.js and shadcn/ui',
 }
 

@@ -281,6 +281,15 @@ def parse_payment_rows(
     payloads: list[dict[str, Any]] = []
     included = 0
 
+    transaction_status_col = next(
+        (c for c in df.columns if c.strip().lower() in ("transaction status", "transaktionsstatus")),
+        None,
+    )
+    transaction_release_date_col = next(
+        (c for c in df.columns if c.strip().lower() in ("transaction release date", "freigabedatum der transaktion")),
+        None,
+    )
+
     for index, row in df.iterrows():
         sku = _normalize_text(row.get("sku"))
         asin = _normalize_text(row.get(asin_col)) if asin_col else None
@@ -302,6 +311,14 @@ def parse_payment_rows(
                 row.get("fba fees"),
             )
         )
+
+        raw_release_date = row.get(transaction_release_date_col) if transaction_release_date_col else None
+        parsed_release_date: datetime | None = None
+        if raw_release_date is not None and not pd.isna(raw_release_date):
+            ts = _parse_utc_timestamp(raw_release_date)
+            if not pd.isna(ts):
+                parsed_release_date = ts.to_pydatetime()
+
         payloads.append(
             {
                 "source_file_id": source_file_id,
@@ -323,6 +340,8 @@ def parse_payment_rows(
                 "total_amount": total_amount,
                 "scope_status": scope_status,
                 "scope_reason": scope_reason,
+                "transaction_status": _normalize_text(row.get(transaction_status_col)) if transaction_status_col else None,
+                "transaction_release_date": parsed_release_date,
                 "raw_row": _to_raw_row(row.to_dict()),
             }
         )

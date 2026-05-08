@@ -84,18 +84,17 @@ function DashboardLayoutInner({
   children: React.ReactNode
 }) {
   const pathname = usePathname()
-  const { isNavigationLoading, navigationTargetPath } = useGlobalLoading()
-  const effectivePathname = isNavigationLoading && navigationTargetPath ? navigationTargetPath : pathname
+  const { isNavigationLoading } = useGlobalLoading()
   const isAiChatPage = pathname === '/dashboard/ai-panel/chat'
-  const isAiChatRoute = effectivePathname === '/dashboard/ai-panel/chat'
+  const isAiChatRoute = pathname === '/dashboard/ai-panel/chat'
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [iconsExpanded, setIconsExpanded] = useState(false)
-  const pageTitle = useMemo(() => getDashboardPageTitle(effectivePathname), [effectivePathname])
+  const pageTitle = useMemo(() => getDashboardPageTitle(pathname), [pathname])
   const { pushPage } = useRecentPages()
 
   const breadcrumbLabel = useMemo(
-    () => getDashboardBreadcrumbLabel(effectivePathname, pageTitle),
-    [effectivePathname, pageTitle]
+    () => getDashboardBreadcrumbLabel(pathname, pageTitle),
+    [pathname, pageTitle]
   )
 
   useEffect(() => {
@@ -103,10 +102,10 @@ function DashboardLayoutInner({
   }, [pageTitle])
 
   useEffect(() => {
-    if (effectivePathname && effectivePathname !== '/dashboard') {
-      pushPage(effectivePathname, pageTitle)
+    if (pathname && pathname !== '/dashboard') {
+      pushPage(pathname, pageTitle)
     }
-  }, [effectivePathname, pageTitle, pushPage])
+  }, [pathname, pageTitle, pushPage])
 
   return (
     <DashboardAISidebarProvider>
