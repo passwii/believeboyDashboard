@@ -30,6 +30,7 @@ from app.api.v1.endpoints.return_analysis import router as return_analysis_route
 from app.api.v1.endpoints.project_goals import router as project_goals_router
 from app.api.v1.endpoints.digital_employees import router as digital_employees_router
 from app.api.v1.endpoints.rpa_reports import router as rpa_reports_router
+from app.api.v1.endpoints.report_reconciliation import router as report_reconciliation_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router)
@@ -62,3 +63,4 @@ api_router.include_router(return_analysis_router)
 api_router.include_router(project_goals_router)
 api_router.include_router(rpa_reports_router)
 api_router.include_router(digital_employees_router)
+api_router.include_router(report_reconciliation_router)

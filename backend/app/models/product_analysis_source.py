@@ -226,6 +226,8 @@ class AnalysisPaymentRow(Base):
     total_amount: Mapped[Decimal] = _money_column()
     scope_status: Mapped[str] = mapped_column(String(32), nullable=False, server_default='excluded_unmapped')
     scope_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    transaction_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    transaction_release_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     raw_row: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
