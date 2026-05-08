@@ -1379,3 +1379,82 @@ def test_read_excel_without_style_warning_suppresses_known_openpyxl_warning(monk
 
     assert result.equals(expected)
     assert captured == []
+
+
+def test_is_single_full_week():
+    """验证单个完整周的判断逻辑.
+
+    Only a single complete ISO week (Monday to Sunday, same ISO week) should return True.
+    Multi-week ranges, partial weeks, and cross-ISO-week ranges should return False.
+    """
+    # ✅ Single complete ISO week -> True
+    # Monday 2025-03-31 to Sunday 2025-04-06
+    assert product_analysis_source_service._is_single_full_week(date(2025, 3, 31), date(2025, 4, 6)) is True
+    # Monday 2025-04-07 to Sunday 2025-04-13
+    assert product_analysis_source_service._is_single_full_week(date(2025, 4, 7), date(2025, 4, 13)) is True
+    # Week at year boundary
+    assert product_analysis_source_service._is_single_full_week(date(2025, 12, 29), date(2026, 1, 4)) is True
+
+    # ❌ Non-complete week (starts mid-week) -> False
+    # Tuesday to Monday (6 days but not Mon-Sun)
+    assert product_analysis_source_service._is_single_full_week(date(2025, 4, 1), date(2025, 4, 7)) is False
+    # Wednesday to Sunday
+    assert product_analysis_source_service._is_single_full_week(date(2025, 4, 2), date(2025, 4, 6)) is False
+    # Thursday to Wednesday
+    assert product_analysis_source_service._is_single_full_week(date(2025, 4, 3), date(2025, 4, 9)) is False
+
+    # ❌ Multi-week ranges -> False (even if each week is complete)
+    # 2 complete weeks
+    assert product_analysis_source_service._is_single_full_week(date(2025, 3, 31), date(2025, 4, 13)) is False
+    # 3 complete weeks
+    assert product_analysis_source_service._is_single_full_week(date(2025, 3, 31), date(2025, 4, 20)) is False
+    # Multi-week with partial days
+    assert product_analysis_source_service._is_single_full_week(date(2025, 4, 1), date(2025, 4, 20)) is False
+
+    # ❌ Wrong day span -> False
+    # Only 5 days
+    assert product_analysis_source_service._is_single_full_week(date(2025, 3, 31), date(2025, 4, 5)) is False
+    # 8 days (one extra)
+    assert product_analysis_source_service._is_single_full_week(date(2025, 3, 31), date(2025, 4, 7)) is False
+    # 13 days (2 weeks minus 1)
+    assert product_analysis_source_service._is_single_full_week(date(2025, 3, 31), date(2025, 4, 12)) is False
+
+    # ❌ Cross ISO week boundary -> False (even if 7 days)
+    # Dec 30 2025 (Tuesday) to Jan 5 2026 (Monday) - spans ISO weeks 1 and 53
+    assert product_analysis_source_service._is_single_full_week(date(2025, 12, 30), date(2026, 1, 5)) is False
+    # Jan 5 2026 (Monday) to Jan 11 2026 (Sunday) - correct
+    assert product_analysis_source_service._is_single_full_week(date(2026, 1, 5), date(2026, 1, 11)) is True
+
+
+def test_is_full_iso_week_vs_is_single_full_week():
+    """对比 _is_full_iso_week 和 _is_single_full_week 的区别.
+
+    _is_full_iso_week: returns True if range is exactly 7 days (Mon-Sun), same ISO week
+    _is_single_full_week: same as _is_full_iso_week (both reject multi-week ranges)
+
+    The key difference is intent: _is_full_iso_week is a general check,
+    _is_single_full_week makes the semantics explicit for persistence decisions.
+    """
+    # Single complete week: both should return True
+    assert product_analysis_source_service._is_full_iso_week(date(2025, 3, 31), date(2025, 4, 6)) is True
+    assert product_analysis_source_service._is_single_full_week(date(2025, 3, 31), date(2025, 4, 6)) is True
+
+    # 2 complete weeks (14 days): both should return False (not exactly 7 days)
+    assert product_analysis_source_service._is_full_iso_week(date(2025, 3, 31), date(2025, 4, 13)) is False
+    assert product_analysis_source_service._is_single_full_week(date(2025, 3, 31), date(2025, 4, 13)) is False
+
+    # 3 complete weeks (21 days): both should return False
+    assert product_analysis_source_service._is_full_iso_week(date(2025, 3, 31), date(2025, 4, 20)) is False
+    assert product_analysis_source_service._is_single_full_week(date(2025, 3, 31), date(2025, 4, 20)) is False
+
+    # Multi-week with partial days: both should return False
+    assert product_analysis_source_service._is_full_iso_week(date(2025, 4, 1), date(2025, 4, 20)) is False
+    assert product_analysis_source_service._is_single_full_week(date(2025, 4, 1), date(2025, 4, 20)) is False
+
+    # Partial week: both should return False
+    assert product_analysis_source_service._is_full_iso_week(date(2025, 4, 1), date(2025, 4, 6)) is False
+    assert product_analysis_source_service._is_single_full_week(date(2025, 4, 1), date(2025, 4, 6)) is False
+
+    # Note: _is_single_full_week exists to make intent explicit for persistence decisions.
+    # In practice, both functions behave identically because they both check for exactly 7 days.
+    # Use _is_single_full_week when the code context is about "should I persist to PT1".
