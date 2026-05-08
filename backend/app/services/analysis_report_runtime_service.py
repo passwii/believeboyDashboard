@@ -268,7 +268,7 @@ def _persist_product_analysis_sources(
             try:
                 _start = date.fromisoformat(report_start_date)
                 _end = date.fromisoformat(report_end_date)
-                if product_analysis_source_service._is_full_iso_week(_start, _end):
+                if product_analysis_source_service._is_single_full_week(_start, _end):
                     product_analysis_source_service.persist_product_analysis_pt1_calculation(
                         db,
                         project_name=project_name,
@@ -285,7 +285,7 @@ def _persist_product_analysis_sources(
                 else:
                     db.commit()
                     set_persistence_state(
-                        task_id, status="success", message="后台同步完成：非整周数据，跳过PT1写入"
+                        task_id, status="success", message="后台同步完成：多周/非整周数据，跳过PT1写入"
                     )
             except (ValueError, TypeError):
                 db.commit()

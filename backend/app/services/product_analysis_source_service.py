@@ -1716,6 +1716,25 @@ def _is_full_iso_week(start_date: date, end_date: date) -> bool:
     return iso_start[0] == iso_end[0] and iso_start[1] == iso_end[1]
 
 
+def _is_single_full_week(start_date: date, end_date: date) -> bool:
+    """
+    Returns True if and only if the range is exactly ONE complete ISO week (Mon-Sun).
+    Does NOT match multiple consecutive complete weeks.
+
+    Use this for deciding whether to persist to PT1 — only persist when the user
+    explicitly selects a single complete week.
+    """
+    if (end_date - start_date).days != 6:
+        return False
+    if start_date.weekday() != 0:  # Monday
+        return False
+    if end_date.weekday() != 6:    # Sunday
+        return False
+    iso_start = start_date.isocalendar()
+    iso_end = end_date.isocalendar()
+    return iso_start[0] == iso_end[0] and iso_start[1] == iso_end[1]
+
+
 def run_product_calculation_from_history(
     db: Session,
     *,
@@ -1739,11 +1758,11 @@ def run_product_calculation_from_history(
         current_only=current_only,
     )
     # Only persist to PT1 if the user-selected range is exactly one complete ISO week.
-    # Cross-week or partial-week selections: merge all sources, return ONE consolidated period.
+    # Multi-week or partial-week selections: merge all sources, return ONE consolidated period.
     should_persist = (
         start_date is not None
         and end_date is not None
-        and _is_full_iso_week(start_date, end_date)
+        and _is_single_full_week(start_date, end_date)
     )
 
     if should_persist:
