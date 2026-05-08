@@ -80,12 +80,6 @@ export function RouteLoadingLink({
   }, [finishNavigationLoading, pathname])
 
   useEffect(() => {
-    return () => {
-      finishNavigationLoading()
-    }
-  }, [finishNavigationLoading])
-
-  useEffect(() => {
     prefetchedRef.current = false
   }, [hrefString])
 

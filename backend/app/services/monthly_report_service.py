@@ -736,7 +736,9 @@ def export_financial_accounting_detail_workbook(
     out = BytesIO()
     wb.save(out)
     safe_project = _safe_project_name(report.project_name)
-    filename = f"{safe_project}-月度财务分析-{month}.xlsx"
+    ym = month.split('-')
+    month_cn = f"{ym[0]}年{int(ym[1])}月"
+    filename = f"{safe_project}-月度财务核算明细-{month_cn}.xlsx"
     return filename, out.getvalue()
 
 
