@@ -1068,7 +1068,7 @@ export default function FinancialDataClient({
         throw new Error(parseErrorBody(await response.text(), response.status))
       }
       const blob = await response.blob()
-      const projectName = projects.find((p) => String(p.id) === parsedProjectId)?.name ?? data?.project_name ?? ''
+      const projectName = projects.find((p) => p.id === parsedProjectId)?.name ?? data?.project_name ?? ''
       const safeProjectName = projectName.replace(/[\\/:*?"<>|]/g, '-')
       const monthStr = formatMonth(accountingMonth)
       const filename =
