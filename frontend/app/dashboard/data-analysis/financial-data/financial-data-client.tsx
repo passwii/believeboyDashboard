@@ -287,13 +287,20 @@ function calculateNetProfitRmb(row: FinancialSeriesRow, exchangeRate: number): n
   )
 }
 
-function formatCurrency(value: number): string {
+function formatCurrency(value: number, symbol = '$'): string {
   const abs = Math.abs(value)
   const text = abs.toLocaleString('en-US', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })
-  return `${value < 0 ? '-' : ''}$${text}`
+  return `${value < 0 ? '-' : ''}${symbol}${text}`
+}
+
+// 货币符号映射（基于实际支持的站点）
+const CURRENCY_SYMBOLS: Record<ReportUploadCountry, string> = {
+  US: '$',
+  DE: '€',
+  UK: '£',
 }
 
 function formatRmb(value: number): string {
@@ -729,6 +736,22 @@ export default function FinancialDataClient({
 
   const [projectId, setProjectId] = useState(initialProjectId)
   const [country, setCountry] = useState<ReportUploadCountry>(DEFAULT_REPORT_UPLOAD_COUNTRY)
+
+  // Currency label and symbol based on country
+  const currencySymbol = useMemo(() => {
+    return CURRENCY_SYMBOLS[country] || '$'
+  }, [country])
+
+  const currencyLabel = useMemo(() => {
+    switch (country) {
+      case 'DE':
+        return 'EUR'
+      case 'UK':
+        return 'GBP'
+      default:
+        return 'USD'
+    }
+  }, [country])
   const [startMonth, setStartMonth] = useState(initialStartMonth)
   const [endMonth, setEndMonth] = useState(initialEndMonth)
 
@@ -811,7 +834,7 @@ export default function FinancialDataClient({
 
     while (page <= totalPages) {
       const response = await fetch(
-        `/api/exchange-rates?currency=USD&page=${page}&pageSize=200`,
+        `/api/exchange-rates?currency=${currencyLabel}&page=${page}&pageSize=200`,
         {
           cache: 'no-store',
         },
@@ -833,7 +856,7 @@ export default function FinancialDataClient({
     setClientCache(EXCHANGE_RATE_CACHE_KEY, fetchedMap)
     setExchangeRateByMonth(buildMonthRateMap(uniqueMonths, fetchedMap))
     setError(null)
-  }, [])
+  }, [currencyLabel])
 
   const loadFinancialSeries = useCallback(
     async (options?: { force?: boolean }) => {
@@ -2008,21 +2031,21 @@ export default function FinancialDataClient({
             {
               label: '收入合计',
               value: data
-                ? formatCurrency(data.trend.income_total_sum)
-                : '$0.00',
+                ? formatCurrency(data.trend.income_total_sum, currencySymbol)
+                : `${currencySymbol}0.00`,
               highlight: true,
             },
             {
               label: '支出合计',
               value: data
-                ? formatCurrency(data.trend.expense_total_sum)
-                : '$0.00',
+                ? formatCurrency(data.trend.expense_total_sum, currencySymbol)
+                : `${currencySymbol}0.00`,
             },
             {
               label: '亚马逊返款',
               value: data
-                ? formatCurrency(data.trend.amazon_pay_back_sum)
-                : '$0.00',
+                ? formatCurrency(data.trend.amazon_pay_back_sum, currencySymbol)
+                : `${currencySymbol}0.00`,
             },
           ]}
         />
@@ -2182,7 +2205,7 @@ export default function FinancialDataClient({
                               {displayName}
                             </span>
                             <span className='font-medium'>
-                              {formatCurrency(Number(value))}
+                              {formatCurrency(Number(value), currencySymbol)}
                             </span>
                           </div>
                         )
@@ -2496,7 +2519,7 @@ export default function FinancialDataClient({
                     净利润RMB
                   </TableHead>
                   <TableHead rowSpan={2} className='px-2 py-2 text-center'>
-                    净利润USD
+                    净利润{currencyLabel}
                   </TableHead>
                   <TableHead rowSpan={2} className='px-2 py-2 text-center'>
                     净利率
@@ -2539,7 +2562,7 @@ export default function FinancialDataClient({
                 {data.rows.map((row) => {
                   const exchangeRate =
                     exchangeRateByMonth[row.report_month] ?? 0
-                  const creditCardUsd = row.credit_card_deduction_usd
+                  const creditCard = row.credit_card_deduction_usd
                   const evaluationFeeRmb = 0
                   const prepaymentOtherRmb = 0
                   const operationCommission = resolveProjectCommissionUsd({
@@ -2615,46 +2638,46 @@ export default function FinancialDataClient({
                         </div>
                       </TableCell>
                       <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                        {formatCurrency(row.income_sales)}
+                        {formatCurrency(row.income_sales, currencySymbol)}
                       </TableCell>
                       <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                        {formatCurrency(row.income_refund)}
+                        {formatCurrency(row.income_refund, currencySymbol)}
                       </TableCell>
                       <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                        {formatCurrency(row.income_adjustment)}
+                        {formatCurrency(row.income_adjustment, currencySymbol)}
                       </TableCell>
                       <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                        {formatCurrency(row.income_other)}
+                        {formatCurrency(row.income_other, currencySymbol)}
                       </TableCell>
                       <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                        {formatCurrency(row.expense_selling_fee)}
+                        {formatCurrency(row.expense_selling_fee, currencySymbol)}
                       </TableCell>
                       <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                        {formatCurrency(row.expense_fba_fee)}
+                        {formatCurrency(row.expense_fba_fee, currencySymbol)}
                       </TableCell>
                       <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                        {formatCurrency(row.expense_inventory_fee)}
+                        {formatCurrency(row.expense_inventory_fee, currencySymbol)}
                       </TableCell>
                       <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                        {formatCurrency(row.expense_service_fee)}
+                        {formatCurrency(row.expense_service_fee, currencySymbol)}
                       </TableCell>
                       <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                        {formatCurrency(row.expense_advertising)}
+                        {formatCurrency(row.expense_advertising, currencySymbol)}
                       </TableCell>
                       <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                        {formatCurrency(row.expense_other_fees)}
+                        {formatCurrency(row.expense_other_fees, currencySymbol)}
                       </TableCell>
                       <TableCell className='border-r px-2 py-1.5 text-right font-semibold tabular-nums'>
-                        {formatCurrency(row.income_total)}
+                        {formatCurrency(row.income_total, currencySymbol)}
                       </TableCell>
                       <TableCell className='border-r px-2 py-1.5 text-right font-semibold tabular-nums'>
-                        {formatCurrency(row.expense_total)}
+                        {formatCurrency(row.expense_total, currencySymbol)}
                       </TableCell>
                       <TableCell className='border-r px-2 py-1.5 text-right font-semibold tabular-nums'>
-                        {formatCurrency(row.amazon_pay_back)}
+                        {formatCurrency(row.amazon_pay_back, currencySymbol)}
                       </TableCell>
                       <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                        {formatCurrency(creditCardUsd)}
+                        {formatCurrency(creditCard, currencySymbol)}
                       </TableCell>
                       {isAdmin ? (
                         <>
@@ -2710,7 +2733,7 @@ export default function FinancialDataClient({
                         {formatRmb(netProfitRmb)}
                       </TableCell>
                       <TableCell className='px-2 py-1.5 text-right font-semibold tabular-nums'>
-                        {formatCurrency(netProfitUsd)}
+                        {formatCurrency(netProfitUsd, currencySymbol)}
                       </TableCell>
                       <TableCell className='px-2 py-1.5 text-right font-semibold tabular-nums'>
                         {formatSignedRatio(netProfitRate)}
@@ -2728,46 +2751,46 @@ export default function FinancialDataClient({
                     合计
                   </TableCell>
                   <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatCurrency(totals.income_sales)}
+                    {formatCurrency(totals.income_sales, currencySymbol)}
                   </TableCell>
                   <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatCurrency(totals.income_refund)}
+                    {formatCurrency(totals.income_refund, currencySymbol)}
                   </TableCell>
                   <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatCurrency(totals.income_adjustment)}
+                    {formatCurrency(totals.income_adjustment, currencySymbol)}
                   </TableCell>
                   <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatCurrency(totals.income_other)}
+                    {formatCurrency(totals.income_other, currencySymbol)}
                   </TableCell>
                   <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatCurrency(totals.expense_selling_fee)}
+                    {formatCurrency(totals.expense_selling_fee, currencySymbol)}
                   </TableCell>
                   <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatCurrency(totals.expense_fba_fee)}
+                    {formatCurrency(totals.expense_fba_fee, currencySymbol)}
                   </TableCell>
                   <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatCurrency(totals.expense_inventory_fee)}
+                    {formatCurrency(totals.expense_inventory_fee, currencySymbol)}
                   </TableCell>
                   <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatCurrency(totals.expense_service_fee)}
+                    {formatCurrency(totals.expense_service_fee, currencySymbol)}
                   </TableCell>
                   <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatCurrency(totals.expense_advertising)}
+                    {formatCurrency(totals.expense_advertising, currencySymbol)}
                   </TableCell>
                   <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatCurrency(totals.expense_other_fees)}
+                    {formatCurrency(totals.expense_other_fees, currencySymbol)}
                   </TableCell>
                   <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatCurrency(totals.income_total)}
+                    {formatCurrency(totals.income_total, currencySymbol)}
                   </TableCell>
                   <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatCurrency(totals.expense_total)}
+                    {formatCurrency(totals.expense_total, currencySymbol)}
                   </TableCell>
                   <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatCurrency(totals.amazon_pay_back)}
+                    {formatCurrency(totals.amazon_pay_back, currencySymbol)}
                   </TableCell>
                   <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatCurrency(totals.credit_card_deduction_usd)}
+                    {formatCurrency(totals.credit_card_deduction_usd, currencySymbol)}
                   </TableCell>
                   {isAdmin ? (
                     <>
@@ -2863,7 +2886,7 @@ export default function FinancialDataClient({
                     {formatRmb(totals.net_profit_rmb)}
                   </TableCell>
                   <TableCell className='px-2 py-2 text-right tabular-nums'>
-                    {formatCurrency(totals.net_profit_usd)}
+                    {formatCurrency(totals.net_profit_usd, currencySymbol)}
                   </TableCell>
                   <TableCell className='px-2 py-2 text-right tabular-nums'>
                     {formatSignedRatio(
@@ -2910,12 +2933,12 @@ export default function FinancialDataClient({
                     <TableRow className='bg-muted/20 hover:bg-muted/20'>
                       <TableHead className='border-r px-2 py-1.5 text-center'>Income</TableHead>
                       <TableHead className='border-r px-2 py-1.5 text-center'>收入</TableHead>
-                      <TableHead className='border-r px-2 py-1.5 text-center'>In金额（USD）</TableHead>
+                      <TableHead className='border-r px-2 py-1.5 text-center'>In金额（{currencyLabel}）</TableHead>
                       <TableHead className='border-r px-2 py-1.5 text-center'>In源表</TableHead>
                       <TableHead className='border-r px-2 py-1.5 text-center' />
                       <TableHead className='border-r px-2 py-1.5 text-center'>Expense</TableHead>
                       <TableHead className='border-r px-2 py-1.5 text-center'>支出</TableHead>
-                      <TableHead className='border-r px-2 py-1.5 text-center'>Ex金额（USD）</TableHead>
+                      <TableHead className='border-r px-2 py-1.5 text-center'>Ex金额（{currencyLabel}）</TableHead>
                       <TableHead className='px-2 py-1.5 text-center'>Ex源表</TableHead>
                     </TableRow>
                   </TableHeader>

@@ -80,6 +80,32 @@ def create_monthly_report(
     )
     after_resolve_paths = perf_counter()
 
+    # ── Foolproof: validate payment report CSV matches selected project & country ──
+    validation = monthly_report_service.validate_payment_report_project_match(
+        db,
+        transaction_file_path=str(transaction_path),
+        selected_project_name=project_name,
+        selected_country=country,
+    )
+    if not validation.get("valid", True):
+        error_detail = "；".join(validation.get("errors", ["文件校验失败"]))
+        raise HTTPException(status_code=400, detail=error_detail)
+    if validation.get("warnings"):
+        append_operation_audit_log(
+            db,
+            action="monthly_reports.validation_warning",
+            target_type="monthly_report_validation",
+            target_id=None,
+            operator=operator,
+            after={
+                "project_name": project_name,
+                "country": country,
+                "warnings": validation["warnings"],
+            },
+            request=request,
+        )
+    after_validation = perf_counter()
+
     task = monthly_report_runtime_service.create_task(
         settings,
         project_id=project_id,
@@ -114,8 +140,8 @@ def create_monthly_report(
     )
     db.commit()
     after_enqueue_job = perf_counter()
-    prepare_ms = 0
-    enqueue_ms = int((after_enqueue_job - after_resolve_paths) * 1000)
+    validation_ms = int((after_validation - after_resolve_paths) * 1000)
+    enqueue_ms = int((after_enqueue_job - after_validation) * 1000)
     total_ms = int((after_enqueue_job - started_at) * 1000)
     if response is not None:
         response.headers["X-Monthly-Create-Total-Ms"] = str(total_ms)
@@ -125,7 +151,7 @@ def create_monthly_report(
         response.headers["X-Monthly-Create-Resolve-Ms"] = str(
             int((after_resolve_paths - after_project) * 1000)
         )
-        response.headers["X-Monthly-Create-Prepare-Ms"] = str(prepare_ms)
+        response.headers["X-Monthly-Create-Validation-Ms"] = str(validation_ms)
         response.headers["X-Monthly-Create-Enqueue-Ms"] = str(enqueue_ms)
 
     return MonthlyReportResponse(

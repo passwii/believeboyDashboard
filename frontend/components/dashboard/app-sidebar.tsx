@@ -154,6 +154,10 @@ const primaryGroups: NavGroup[] = [
         url: '/dashboard/data-management/shipment-management',
       },
       { title: 'SKU 信息', url: '/dashboard/data-management/sku-cost' },
+      {
+        title: '报表核对',
+        url: '/dashboard/data-management/report-reconciliation',
+      },
       { title: '汇率信息', url: '/dashboard/data-management/exchange-rate' },
       { title: '报表自动化', url: '/dashboard/data-management/auto-upload' },
     ],

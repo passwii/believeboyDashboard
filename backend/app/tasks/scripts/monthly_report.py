@@ -288,6 +288,32 @@ def _apply_styles(workbook: Workbook) -> None:
                 ws.column_dimensions[get_column_letter(c)].width = 12
 
 
+def _get_currency_symbol(country: str) -> str:
+    """Map country code to currency symbol."""
+    currency_map = {
+        'US': 'USD',
+        'DE': 'EUR',
+        'UK': 'GBP',
+        'GB': 'GBP',
+        'JP': 'JPY',
+        'CA': 'CAD',
+        'MX': 'MXN',
+        'AU': 'AUD',
+        'IN': 'INR',
+        'BR': 'BRL',
+        'IT': 'EUR',
+        'FR': 'EUR',
+        'ES': 'EUR',
+        'NL': 'EUR',
+        'PL': 'PLN',
+        'SE': 'SEK',
+        'AE': 'AED',
+        'SA': 'SAR',
+        'SG': 'SGD',
+    }
+    return currency_map.get(country.upper(), 'USD')
+
+
 def run(input_path: str, output_dir: str, params: dict) -> dict:
     callback: ProgressCallback | None = params.get("_progress_callback")
 
@@ -535,15 +561,16 @@ def run(input_path: str, output_dir: str, params: dict) -> dict:
 
     ws_accounting = wb.create_sheet(title="报表核算")
     report("building_accounting", 68, "合成数据：正在生成报表核算")
+    currency_symbol = _get_currency_symbol(country)
     ws_accounting.append([
         "Income",
         "收入",
-        "In金额（USD）",
+        f"In金额（{currency_symbol}）",
         "In源表",
         "",
         "Expense",
         "支出",
-        "Ex金额（USD）",
+        f"Ex金额（{currency_symbol}）",
         "Ex源表",
     ])
     income_lines = [
