@@ -123,35 +123,36 @@ PAYMENT_DESCRIPTION_ALIASES = {
     'Cost of Advertising': ['cost of advertising', 'werbekosten'],
     'Refund for Advertiser': [
         'refund for advertiser',
-        # DE: Not observed yet, using EN as fallback
+        'werbekosten-erstattung',
+        'erstattung werbekosten',
     ],
-    
+
     # Adjustment related
     'FBA Inventory Reimbursement - General Adjustment': [
         'fba inventory reimbursement - general adjustment',
-        # DE: Not observed yet, using EN as fallback
+        'fba-bestandsentschaedigung - allgemeine anpassung',
     ],
     'Non-subscription Fee Adjustment': [
         'non-subscription fee adjustment',
-        # DE: Not observed yet, using EN as fallback
+        'nicht-abonnement-gebu ehrenanpassung',
     ],
-    
+
     # AGL (Amazon Global Logistics) related
     'FBA International Freight Shipping Charge': [
         'fba international freight shipping charge',
-        # DE: Not observed yet, using EN as fallback
+        'fba internationale frachtversandkosten',
     ],
     'FBA International Freight Duties and Taxes Charge': [
         'fba international freight duties and taxes charge',
-        # DE: Not observed yet, using EN as fallback
+        'fba internationale frachtzoelle und steuern',
     ],
-    
+
     # Fee adjustments
     'Fee Adjustment - Weight and Dimension Change': [
         'fee adjustment - weight and dimension change',
-        # DE: Not observed yet, using EN as fallback
+        'gebuehrenanpassung - gewichts- und massaenderung',
     ],
-    
+
     # Deal and Coupon fees
     'Deal Participation Fee': [
         'deal participation fee',
@@ -169,13 +170,13 @@ PAYMENT_DESCRIPTION_ALIASES = {
         'coupon performance based fee',
         'leistungsbasierte coupon-gebuehr',
     ],
-    
+
     # Vine program
     'Vine Enrollment Fee': [
         'vine enrollment fee',
         'vine-registrierungsgebuehr',
     ],
-    
+
     # FBA storage and removal
     'FBA storage fee': [
         'fba storage fee',
@@ -193,7 +194,7 @@ PAYMENT_DESCRIPTION_ALIASES = {
         'fba long-term storage fee',
         'fba langzeitlagergebuehr',
     ],
-    
+
     # Other system descriptions
     'Subscription': [
         'subscription',
@@ -209,35 +210,9 @@ PAYMENT_DESCRIPTION_ALIASES = {
         'micro-einzahlung',
         'kleineinzahlung',
     ],
-    
-    # Additional descriptions from PENDING_DE list
-    'Refund for Advertiser': [
-        'refund for advertiser',
-        'werbekosten-erstattung',
-        'erstattung werbekosten',
-    ],
-    'FBA Inventory Reimbursement - General Adjustment': [
-        'fba inventory reimbursement - general adjustment',
-        'fba-bestandsentschaedigung - allgemeine anpassung',
-    ],
-    'Non-subscription Fee Adjustment': [
-        'non-subscription fee adjustment',
-        'nicht-abonnement-gebu ehrenanpassung',
-    ],
-    'FBA International Freight Shipping Charge': [
-        'fba international freight shipping charge',
-        'fba internationale frachtversandkosten',
-    ],
-    'FBA International Freight Duties and Taxes Charge': [
-        'fba international freight duties and taxes charge',
-        'fba internationale frachtzoelle und steuern',
-    ],
-    'Fee Adjustment - Weight and Dimension Change': [
-        'fee adjustment - weight and dimension change',
-        'gebuehrenanpassung - gewichts- und massaenderung',
-    ],
+
     'Other': ['other', 'andere'],
-    
+
     # Transfer/Disbursement patterns
     # Note: Transfer descriptions vary by account, pattern matching needed
 }
