@@ -1104,7 +1104,7 @@ function AutoUploadContent() {
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 export default function AutoUploadPage() {
-  const [activeTab, setActiveTab] = useState<'upload' | 'status'>('upload')
+  const [activeTab, setActiveTab] = useState<'upload' | 'status'>('status')
 
   return (
     <div className='flex min-h-[calc(100vh-8rem)] flex-col gap-4 overflow-auto pb-2 sm:gap-6 sm:overflow-hidden lg:min-h-[calc(100vh-8rem)]'>
