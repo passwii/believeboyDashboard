@@ -87,15 +87,12 @@ class ReconcileResultItem(BaseModel):
 
 
 class ReconcileResultSummary(BaseModel):
-    db_total_income: float | None = Field(default=None, alias="excel_total_income")
-    db_total_expense: float | None = Field(default=None, alias="excel_total_expense")
-    db_net_amount: float | None = Field(default=None, alias="excel_net_amount")
+    db_total_income: float | None = None
+    db_total_expense: float | None = None
+    db_net_amount: float | None = None
     pdf_total_income: float | None = None
     pdf_total_expense: float | None = None
     pdf_net_amount: float | None = None
-
-    class Config:
-        populate_by_name = True
 
 
 class ReconcileResultResponse(BaseModel):
