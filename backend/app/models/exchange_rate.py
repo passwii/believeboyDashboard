@@ -15,7 +15,7 @@ class ExchangeRate(Base):
     )
 
     id: Mapped[int] = mapped_column(
-        BigInteger(),
+        BigInteger().with_variant(Integer, "sqlite"),
         primary_key=True,
         autoincrement=True,
     )

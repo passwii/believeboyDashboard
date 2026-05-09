@@ -3,7 +3,22 @@ from typing import Dict, List, Any, Optional
 import pdfplumber
 
 
-def parse_european_number(value_str: str) -> float:
+def parse_number(value_str: str, country: str = "US") -> float:
+    """Parse number from string based on country format.
+
+    European countries (DE, FR, IT, ES, NL, BE, etc.):
+        Thousand separator: '.' (dot)
+        Decimal separator: ',' (comma)
+        e.g., "25.309,50" → 25309.50
+
+    US and other countries (US, UK, JP, CA, MX, AU, IN, BR, SE, PL, TR, SG, AE, SA):
+        Thousand separator: ',' (comma)
+        Decimal separator: '.' (dot)
+        e.g., "25,309.50" → 25309.50
+    """
+    # European countries use dot as thousand separator and comma as decimal
+    EUROPEAN_COUNTRIES = {"DE", "FR", "IT", "ES", "NL", "BE", "AT", "CH", "PT", "IE", "FI", "GR", "LU"}
+
     value_str = value_str.strip()
     value_str = value_str.replace(" ", "")
     if value_str.startswith("-"):
@@ -11,7 +26,16 @@ def parse_european_number(value_str: str) -> float:
         value_str = value_str[1:]
     else:
         negative = False
-    value_str = value_str.replace(".", "").replace(",", ".")
+
+    if country.upper() in EUROPEAN_COUNTRIES:
+        # European format: dot=thousand, comma=decimal
+        # e.g., "25.309,50" → "25309.50"
+        value_str = value_str.replace(".", "").replace(",", ".")
+    else:
+        # US format: comma=thousand, dot=decimal
+        # e.g., "25,309.50" → "25309.50"
+        value_str = value_str.replace(",", "")
+
     try:
         result = float(value_str)
         return -result if negative else result
@@ -20,8 +44,9 @@ def parse_european_number(value_str: str) -> float:
 
 
 class PDFExtractor:
-    def __init__(self, pdf_path: str):
+    def __init__(self, pdf_path: str, country: str = "US"):
         self.pdf_path = pdf_path
+        self.country = country.upper()
 
     def extract_text(self) -> str:
         with pdfplumber.open(self.pdf_path) as pdf:
@@ -57,41 +82,46 @@ class PDFExtractor:
             "FBA_product_sales": [
                 r"Verkäufe mit Versand durch Amazon\s+([\d\s.,]+)",
                 r"Verkäufe, die durch Verkäufer selbst verschickt wurden\s+([\d\s.,]+)",
-                r"FBA product sales",
-                r"Product Sales",
+                r"FBA product sales\s+([\d\s.,]+)",
+                r"Product Sales\s+([\d\s.,]+)",
             ],
             "FBA_product_sale_refunds": [
                 r"Erstattungen für durch Amazon versandte Artikel\s+(-?[\d\s.,]+)",
                 r"Erstattungen für vom Verkäufer versandte Artikel\s+(-?[\d\s.,]+)",
-                r"FBA product sale refunds",
+                r"FBA product sale refunds\s+(-?[\d\s.,]+)",
             ],
             "FBA_selling_fees": [
                 r"Verkaufsgebühren Versand durch Amazon\s+(-?[\d\s.,]+)",
-                r"FBA selling fees",
+                r"FBA selling fees\s+(-?[\d\s.,]+)",
             ],
             "FBA_transaction_fees": [
                 r"Transaktionsgebühren Versand durch Amazon\s+(-?[\d\s.,]+)",
-                r"FBA transaction fees",
+                r"FBA transaction fees\s+(-?[\d\s.,]+)",
             ],
             "FBA_inventory_and_inbound_services": [
                 r"Lagerbestands- und Service-Gebühren für Versand durch Amazon\s+(-?[\d\s.,]+)",
-                r"FBA inventory and inbound services fees",
+                r"FBA inventory and inbound services fees\s+(-?[\d\s.,]+)",
             ],
             "service_fees": [
                 r"Servicegebühren\s+(-?[\d\s.,]+)",
-                r"Service fees",
+                r"Service fees\s+(-?[\d\s.,]+)",
             ],
             "advertising_costs": [
                 r"Werbekosten\s+(-?[\d\s.,]+)",
-                r"Cost of Advertising",
+                r"Cost of Advertising\s+(-?[\d\s.,]+)",
             ],
             "total_income": [
                 r"Einnahmen\s+Umsätze, Einnahmen und Erstattungen\s+([\d\s.,]+)",
                 r"Gesamt\s*Einnahmen\s+([\d\s.,]+)",
+                r"Total\s+Income\s+([\d\s.,]+)",
+                r"Income\s+([\d\s.,]+)",
+                r"Total\s+Revenue\s+([\d\s.,]+)",
             ],
             "total_expense": [
                 r"Ausgaben\s+Gebühren, einschließlich.*?\s+(-?[\d\s.,]+)",
                 r"Gesamt\s+Ausgaben\s+(-?[\d\s.,]+)",
+                r"Total\s+Expenses\s+(-?[\d\s.,]+)",
+                r"Expenses\s+(-?[\d\s.,]+)",
             ],
         }
 
@@ -101,14 +131,14 @@ class PDFExtractor:
                 match = re.search(pattern, text, re.IGNORECASE)
                 if match:
                     value_str = match.group(1)
-                    results[key] = parse_european_number(value_str)
+                    results[key] = parse_number(value_str, self.country)
                     break
                 match = re.search(
                     rf"{re.escape(key.replace('_', ' '))}\s+(-?[\d\s.,]+)", text, re.IGNORECASE
                 )
                 if match:
                     value_str = match.group(1)
-                    results[key] = parse_european_number(value_str)
+                    results[key] = parse_number(value_str, self.country)
                     break
 
         return results

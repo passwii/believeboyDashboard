@@ -17,7 +17,7 @@ class ShopCalculation(Base):
     __tablename__ = 'shop_calculation'
 
     id: Mapped[int] = mapped_column(
-        BigInteger(),
+        BigInteger().with_variant(Integer, "sqlite"),
         primary_key=True,
         autoincrement=True,
     )
@@ -111,7 +111,7 @@ class ShopCalculation(Base):
     # 操作人
     created_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # 原始快照来源
-    snapshot_source_id: Mapped[int | None] = mapped_column(BigInteger(), nullable=True)
+    snapshot_source_id: Mapped[int | None] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()

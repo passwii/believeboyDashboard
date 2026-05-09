@@ -81,13 +81,11 @@ class AdUploadFile(Base):
         ),
     )
 
-    id: Mapped[int] = mapped_column(
-        BigInteger(),
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         primary_key=True,
         autoincrement=True,
     )
-    project_id: Mapped[int] = mapped_column(
-        BigInteger(),
+    project_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         ForeignKey('projects.id', ondelete='CASCADE'),
         nullable=False,
     )
@@ -108,7 +106,7 @@ class AdUploadFile(Base):
     stored_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     logical_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     file_extension: Mapped[str] = mapped_column(String(16), nullable=False)
-    file_size_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    file_size_bytes: Mapped[int | None] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), nullable=True)
 
     recognition_status: Mapped[str] = mapped_column(String(16), nullable=False, server_default='recognized')
     ingestion_status: Mapped[str] = mapped_column(String(16), nullable=False, server_default='pending')
@@ -137,13 +135,11 @@ class AdUploadCampaignRow(Base):
         Index('idx_ad_upload_campaign_rows_dates', 'report_start_date', 'report_end_date'),
     )
 
-    id: Mapped[int] = mapped_column(
-        BigInteger(),
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         primary_key=True,
         autoincrement=True,
     )
-    source_file_id: Mapped[int] = mapped_column(
-        BigInteger(),
+    source_file_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         ForeignKey('ad_upload_files.id', ondelete='CASCADE'),
         nullable=False,
     )
@@ -180,13 +176,11 @@ class AdUploadSearchTermRow(Base):
         Index('idx_ad_upload_search_term_rows_dates', 'report_start_date', 'report_end_date'),
     )
 
-    id: Mapped[int] = mapped_column(
-        BigInteger(),
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         primary_key=True,
         autoincrement=True,
     )
-    source_file_id: Mapped[int] = mapped_column(
-        BigInteger(),
+    source_file_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         ForeignKey('ad_upload_files.id', ondelete='CASCADE'),
         nullable=False,
     )
@@ -223,13 +217,11 @@ class AdUploadPromotedProductRow(Base):
         Index('idx_ad_upload_promoted_product_rows_dates', 'report_start_date', 'report_end_date'),
     )
 
-    id: Mapped[int] = mapped_column(
-        BigInteger(),
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         primary_key=True,
         autoincrement=True,
     )
-    source_file_id: Mapped[int] = mapped_column(
-        BigInteger(),
+    source_file_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         ForeignKey('ad_upload_files.id', ondelete='CASCADE'),
         nullable=False,
     )
@@ -269,13 +261,11 @@ class AdUploadTargetRow(Base):
         Index('idx_ad_upload_target_rows_dates', 'report_start_date', 'report_end_date'),
     )
 
-    id: Mapped[int] = mapped_column(
-        BigInteger(),
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         primary_key=True,
         autoincrement=True,
     )
-    source_file_id: Mapped[int] = mapped_column(
-        BigInteger(),
+    source_file_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         ForeignKey('ad_upload_files.id', ondelete='CASCADE'),
         nullable=False,
     )
@@ -312,13 +302,11 @@ class AdUploadSearchTermShareRow(Base):
         Index('idx_ad_upload_search_term_share_rows_dates', 'report_start_date', 'report_end_date'),
     )
 
-    id: Mapped[int] = mapped_column(
-        BigInteger(),
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         primary_key=True,
         autoincrement=True,
     )
-    source_file_id: Mapped[int] = mapped_column(
-        BigInteger(),
+    source_file_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         ForeignKey('ad_upload_files.id', ondelete='CASCADE'),
         nullable=False,
     )
@@ -354,13 +342,11 @@ class AdUploadTimeTrendRow(Base):
         Index('idx_ad_upload_time_trend_rows_dates', 'report_start_date', 'report_end_date'),
     )
 
-    id: Mapped[int] = mapped_column(
-        BigInteger(),
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         primary_key=True,
         autoincrement=True,
     )
-    source_file_id: Mapped[int] = mapped_column(
-        BigInteger(),
+    source_file_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         ForeignKey('ad_upload_files.id', ondelete='CASCADE'),
         nullable=False,
     )
@@ -387,13 +373,11 @@ class AdUploadPurchasedProductRow(Base):
         Index('idx_ad_upload_purchased_product_rows_dates', 'report_start_date', 'report_end_date'),
     )
 
-    id: Mapped[int] = mapped_column(
-        BigInteger(),
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         primary_key=True,
         autoincrement=True,
     )
-    source_file_id: Mapped[int] = mapped_column(
-        BigInteger(),
+    source_file_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         ForeignKey('ad_upload_files.id', ondelete='CASCADE'),
         nullable=False,
     )
@@ -423,13 +407,11 @@ class AdUploadBudgetRow(Base):
         Index('idx_ad_upload_budget_rows_dates', 'report_start_date', 'report_end_date'),
     )
 
-    id: Mapped[int] = mapped_column(
-        BigInteger(),
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         primary_key=True,
         autoincrement=True,
     )
-    source_file_id: Mapped[int] = mapped_column(
-        BigInteger(),
+    source_file_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         ForeignKey('ad_upload_files.id', ondelete='CASCADE'),
         nullable=False,
     )
@@ -465,13 +447,11 @@ class AdUploadPlacementRow(Base):
         Index('idx_ad_upload_placement_rows_dates', 'report_start_date', 'report_end_date'),
     )
 
-    id: Mapped[int] = mapped_column(
-        BigInteger(),
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         primary_key=True,
         autoincrement=True,
     )
-    source_file_id: Mapped[int] = mapped_column(
-        BigInteger(),
+    source_file_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         ForeignKey('ad_upload_files.id', ondelete='CASCADE'),
         nullable=False,
     )
@@ -503,13 +483,11 @@ class AdUploadInvalidTrafficRow(Base):
         Index('idx_ad_upload_invalid_traffic_rows_dates', 'report_start_date', 'report_end_date'),
     )
 
-    id: Mapped[int] = mapped_column(
-        BigInteger(),
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         primary_key=True,
         autoincrement=True,
     )
-    source_file_id: Mapped[int] = mapped_column(
-        BigInteger(),
+    source_file_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         ForeignKey('ad_upload_files.id', ondelete='CASCADE'),
         nullable=False,
     )

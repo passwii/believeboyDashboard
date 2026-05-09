@@ -919,6 +919,7 @@ def import_product_costs(
             existing.sort_order = int(normalized["sort_order"])
             _resequence_project_sort_orders(
                 db,
+                project_id=existing.project_id,
                 project_name=existing.project_name,
                 prioritized_row=existing,
                 requested_sort_order=int(normalized["sort_order"]),

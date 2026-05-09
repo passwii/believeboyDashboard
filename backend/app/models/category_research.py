@@ -65,7 +65,7 @@ class CategoryResearchDataset(Base):
     upload_file_path: Mapped[str] = mapped_column(String(1024), nullable=False)
     original_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
     stored_filename: Mapped[str] = mapped_column(String(255), nullable=False)
-    file_size_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    file_size_bytes: Mapped[int | None] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), nullable=True)
     file_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     ingestion_status: Mapped[str] = mapped_column(String(16), nullable=False, server_default='pending')

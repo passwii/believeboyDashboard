@@ -1465,11 +1465,14 @@ export default function WeeklyProductAnalysisPage() {
 
     // 延迟显示骨架屏（避免快速切换闪烁），同时开始加载数据
     skeletonTimerRef.current = setTimeout(() => {
-      setSkeletonState('loading')
+      setSkeletonState(prev => prev === 'idle' ? 'loading' : prev)
     }, SKELETON_DELAY_MS)
 
     void loadWeeklyData().then(() => {
       // 加载完成后，开始 content 淡入，250ms 后骨架屏消失
+      setSkeletonState('visible')
+    }).finally(() => {
+      // 兜底：确保骨架屏不会永久卡住
       setSkeletonState('visible')
     })
   }, [projectId, projectsLoading, loadWeeklyData])
@@ -2374,11 +2377,25 @@ export default function WeeklyProductAnalysisPage() {
       {/* 骨架屏过渡包装 */}
       <div
         className={cn(
-          'transition-all',
+          'transition-all relative',
           skeletonState === 'loading' ? 'opacity-0' : 'opacity-100'
         )}
         style={{ transitionDuration: skeletonState === 'loading' ? '0ms' : `${FADE_DURATION_MS}ms` }}
       >
+        {/* 骨架屏覆盖层：切换项目/国家时覆盖表格区域 */}
+        {skeletonState === 'loading' && (
+          <div className='absolute inset-0 z-10 rounded-xl border border-border/70 bg-background'>
+            <div className='space-y-4 p-6'>
+              <div className='grid grid-cols-3 gap-4'>
+                <Skeleton className='h-8 w-full' />
+                <Skeleton className='h-8 w-full' />
+                <Skeleton className='h-8 w-full' />
+              </div>
+              <Skeleton className='h-[320px] w-full' />
+              <BarSkeleton rows={5} />
+            </div>
+          </div>
+        )}
         <DataTableCard className='animate-enter'>
         <DataTableCardHeader className='flex flex-wrap items-center justify-between gap-3 px-6 py-4'>
           <div>
@@ -2789,24 +2806,6 @@ export default function WeeklyProductAnalysisPage() {
         </DataTableCardBody>
         </DataTableCard>
       </div>
-
-      {/* 骨架屏占位：切换时显示 */}
-      {skeletonState === 'loading' && (
-        <DataCard>
-          <DataCardContent className='space-y-4'>
-            {/* 统计指标骨架 */}
-            <div className='grid grid-cols-3 gap-4'>
-              <Skeleton className='h-8 w-full' />
-              <Skeleton className='h-8 w-full' />
-              <Skeleton className='h-8 w-full' />
-            </div>
-            {/* 图表骨架 */}
-            <Skeleton className='h-[320px] w-full' />
-            {/* 表格骨架 */}
-            <BarSkeleton rows={5} />
-          </DataCardContent>
-        </DataCard>
-      )}
     </div>
   )
 }
