@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 from decimal import Decimal
 
@@ -8,7 +9,6 @@ from sqlalchemy.orm import Session
 
 from app.models import MonthlyReport, MonthlyReportPT3Calculation, ReconciliationRecord
 from app.utils.pdf_extractor import PDFExtractor
-
 
 # PT3 fields to compare with PDF key_values
 PT3_TO_PDF_MAPPING: Dict[str, str] = {
@@ -65,6 +65,7 @@ def get_available_reports(
     stmt = (
         select(MonthlyReport)
         .where(MonthlyReport.status == "success")
+        .where(MonthlyReport.is_current.is_(True))
         .order_by(MonthlyReport.report_month.desc())
     )
 
@@ -77,6 +78,12 @@ def get_available_reports(
 
     reports = db.execute(stmt).scalars().all()
 
+    # Get upload root for file existence check
+    from app.core.config import get_settings
+    settings = get_settings()
+    # Use resolved absolute path for upload_root
+    upload_root = settings.upload_root.resolve()
+
     result = []
     for report in reports:
         # Check if PT3 calculation exists
@@ -85,16 +92,43 @@ def get_available_reports(
         )
         pt3 = db.execute(pt3_stmt).scalars().first()
 
+        # Check if PDF file actually exists (not just the path is set)
+        pdf_path = report.summary_pdf_file_path
+        pdf_exists = False
+        pdf_file_missing = False
+        if pdf_path:
+            # The pdf_path in DB already includes the storage/uploads prefix
+            # We need to resolve it relative to the backend directory
+            # upload_root is "storage/uploads" which is relative to backend dir
+            # So we resolve pdf_path from the backend directory
+            backend_dir = Path(__file__).resolve().parents[2]  # Go up from app/services/ to backend/
+            full_pdf_path = backend_dir / pdf_path
+            pdf_exists = full_pdf_path.exists()
+            # If path is set but file doesn't exist, flag it
+            if pdf_path and not pdf_exists:
+                pdf_file_missing = True
+
+        # Check if this report has been reconciled before
+        recon_stmt = select(ReconciliationRecord).where(
+            ReconciliationRecord.report_id == report.id
+        ).order_by(ReconciliationRecord.created_at.desc())
+        recon_record = db.execute(recon_stmt).scalars().first()
+
         result.append({
             "report_id": report.id,
             "project_name": report.project_name,
             "country": report.country,
             "report_month": report.report_month,
-            "has_summary_pdf": report.summary_pdf_file_path is not None,
+            "has_summary_pdf": pdf_exists,
             "pdf_uploaded_at": report.updated_at,
             "pt3_calculation_complete": pt3 is not None,
             "pt4_calculation_complete": True,  # Simplified check
             "status": report.status.value if report.status else "unknown",
+            "pdf_file_missing": pdf_file_missing,
+            # Reconciliation status from history
+            "reconciled": recon_record is not None,
+            "reconcile_match_rate": float(recon_record.match_rate) if recon_record else None,
+            "reconcile_record_id": recon_record.id if recon_record else None,
         })
 
     return result

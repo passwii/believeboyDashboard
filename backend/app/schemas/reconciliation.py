@@ -51,6 +51,11 @@ class AvailableReportItem(BaseModel):
     pt3_calculation_complete: bool
     pt4_calculation_complete: bool
     status: str
+    pdf_file_missing: bool = False  # True if path exists but file is missing
+    # Reconciliation status from history
+    reconciled: bool = False
+    reconcile_match_rate: float | None = None
+    reconcile_record_id: int | None = None
 
 
 class AvailableReportsResponse(BaseModel):
@@ -102,3 +107,12 @@ class ReconcileResultResponse(BaseModel):
     match_rate: float
     items: list[ReconcileResultItem]
     record_id: int | None = None
+
+
+class PDFUploadResponse(BaseModel):
+    report_id: int
+    pdf_file_id: str
+    pdf_file_path: str
+    original_filename: str
+    size: int
+    message: str

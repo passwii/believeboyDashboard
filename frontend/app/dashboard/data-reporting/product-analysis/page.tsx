@@ -23,11 +23,7 @@ export default function ProductAnalysisPage() {
       </TabsContent>
 
       <TabsContent value="manual" className="space-y-0">
-        <ManualCalculationPanel
-          projects={[]}
-          projectsLoading={false}
-          projectLoadError={null}
-        />
+        <ManualCalculationPanel />
       </TabsContent>
     </Tabs>
   )
