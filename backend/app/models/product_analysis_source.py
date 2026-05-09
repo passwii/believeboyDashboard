@@ -390,7 +390,7 @@ class AnalysisPT1Calculation(Base):
             'report_start_date',
             'report_end_date',
             'version',
-            name='analysis_pt1_project_period_version_key',
+            name='analysis_pt1_project_period_version_country_key',
         ),
         CheckConstraint('version >= 1', name='ck_analysis_pt1_version_positive'),
         CheckConstraint('report_start_date <= report_end_date', name='ck_analysis_pt1_period_valid'),
