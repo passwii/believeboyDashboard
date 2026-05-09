@@ -35,3 +35,23 @@ class ProductAnalysisTaskStatusResponse(BaseModel):
     persistence_message: str | None
     created_at: datetime
     updated_at: datetime
+
+
+class UploadProductAnalysisSourcesRequest(BaseModel):
+    project_name: str = Field(min_length=1, max_length=128)
+    country: str = 'US'
+    report_start_date: str = Field(min_length=10, max_length=10)
+    report_end_date: str = Field(min_length=10, max_length=10)
+    file_ids: dict[str, str] = Field(description="Map of report_type to file_id/filename, e.g. {business_report: 'abc123.csv'}")
+    resolved_file_paths: dict[str, str] = Field(description="Map of report_type to full file path")
+
+
+class SourcePersistOutcomeSchema(BaseModel):
+    report_type: str
+    source_id: int | None = None
+    success: bool
+    error_message: str | None = None
+
+
+class UploadProductAnalysisSourcesResponse(BaseModel):
+    outcomes: list[SourcePersistOutcomeSchema]

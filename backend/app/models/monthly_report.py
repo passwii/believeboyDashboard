@@ -37,13 +37,11 @@ class MonthlyReport(Base):
         CheckConstraint("report_month LIKE '____-__'", name='ck_monthly_reports_report_month_format'),
     )
 
-    id: Mapped[int] = mapped_column(
-        BigInteger(),
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         primary_key=True,
         autoincrement=True,
     )
-    project_id: Mapped[int] = mapped_column(
-        BigInteger(),
+    project_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         ForeignKey('projects.id', ondelete='CASCADE'),
         nullable=False,
         index=True,
@@ -61,7 +59,7 @@ class MonthlyReport(Base):
     summary_pdf_file_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     result_file_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     settlement_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    file_size: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    file_size: Mapped[int | None] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), nullable=True)
 
     total_transactions: Mapped[int] = mapped_column(Integer, nullable=False, server_default='0')
     total_orders: Mapped[int] = mapped_column(Integer, nullable=False, server_default='0')
@@ -98,6 +96,10 @@ class MonthlyReport(Base):
         cascade='all, delete-orphan',
         uselist=False,
     )
+    reconciliation_records: Mapped[list['ReconciliationRecord']] = relationship(
+        back_populates='report',
+        cascade='all, delete-orphan',
+    )
 class MonthlyReportTransaction(Base):
     __tablename__ = 'monthly_report_transactions'
     __table_args__ = (
@@ -109,13 +111,11 @@ class MonthlyReportTransaction(Base):
         CheckConstraint("report_month LIKE '____-__'", name='ck_monthly_transactions_report_month_format'),
     )
 
-    id: Mapped[int] = mapped_column(
-        BigInteger(),
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         primary_key=True,
         autoincrement=True,
     )
-    report_id: Mapped[int] = mapped_column(
-        BigInteger(),
+    report_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         ForeignKey('monthly_reports.id', ondelete='CASCADE'),
         nullable=False,
         index=True,
@@ -170,13 +170,11 @@ class MonthlyReportPT3Calculation(Base):
         CheckConstraint("report_month LIKE '____-__'", name='ck_monthly_pt3_report_month_format'),
     )
 
-    id: Mapped[int] = mapped_column(
-        BigInteger(),
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         primary_key=True,
         autoincrement=True,
     )
-    report_id: Mapped[int] = mapped_column(
-        BigInteger(),
+    report_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         ForeignKey('monthly_reports.id', ondelete='CASCADE'),
         nullable=False,
         index=True,
@@ -245,13 +243,11 @@ class MonthlyReportPT4Calculation(Base):
         CheckConstraint("report_month LIKE '____-__'", name='ck_monthly_pt4_report_month_format'),
     )
 
-    id: Mapped[int] = mapped_column(
-        BigInteger(),
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         primary_key=True,
         autoincrement=True,
     )
-    report_id: Mapped[int] = mapped_column(
-        BigInteger(),
+    report_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         ForeignKey('monthly_reports.id', ondelete='CASCADE'),
         nullable=False,
         index=True,

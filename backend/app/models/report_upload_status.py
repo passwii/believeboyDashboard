@@ -24,13 +24,11 @@ class ReportUploadStatus(Base):
         Index('idx_report_upload_statuses_report_date', 'report_date'),
     )
 
-    id: Mapped[int] = mapped_column(
-        BigInteger(),
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         primary_key=True,
         autoincrement=True,
     )
-    project_id: Mapped[int] = mapped_column(
-        BigInteger(),
+    project_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         ForeignKey('projects.id', ondelete='CASCADE'),
         nullable=False,
     )
@@ -41,7 +39,7 @@ class ReportUploadStatus(Base):
     upload_file_path: Mapped[str] = mapped_column(String(1024), nullable=False)
     original_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
     stored_filename: Mapped[str] = mapped_column(String(255), nullable=False)
-    file_size_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    file_size_bytes: Mapped[int | None] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), nullable=True)
     created_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

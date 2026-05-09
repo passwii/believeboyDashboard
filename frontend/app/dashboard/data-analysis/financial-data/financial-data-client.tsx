@@ -1123,6 +1123,7 @@ export default function FinancialDataClient({
   }, [
     initialData,
     country,
+    currencyLabel,
     initialEndMonth,
     initialExchangeRateByMonth,
     initialStartMonth,

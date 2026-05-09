@@ -43,13 +43,12 @@ class CommissionProjectMonth(Base):
     )
 
     id: Mapped[int] = mapped_column(
-        BigInteger(),
+        BigInteger().with_variant(Integer, "sqlite"),
         primary_key=True,
         autoincrement=True,
     )
     report_month: Mapped[str] = mapped_column(String(7), nullable=False)
-    project_id: Mapped[int] = mapped_column(
-        BigInteger(),
+    project_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         ForeignKey('projects.id', ondelete='CASCADE'),
         nullable=False,
         index=True,

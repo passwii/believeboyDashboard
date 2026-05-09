@@ -48,13 +48,12 @@ class CommissionRecord(Base):
     )
 
     id: Mapped[int] = mapped_column(
-        BigInteger(),
+        BigInteger().with_variant(Integer, "sqlite"),
         primary_key=True,
         autoincrement=True,
     )
     report_month: Mapped[str] = mapped_column(String(7), nullable=False)
-    project_id: Mapped[int] = mapped_column(
-        BigInteger(),
+    project_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         ForeignKey('projects.id', ondelete='CASCADE'),
         nullable=False,
         index=True,
@@ -62,8 +61,7 @@ class CommissionRecord(Base):
     project_name: Mapped[str] = mapped_column(String(255), nullable=False)
     person_name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     income_category: Mapped[str] = mapped_column(String(16), nullable=False)
-    project_month_id: Mapped[int | None] = mapped_column(
-        BigInteger(),
+    project_month_id: Mapped[int | None] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         ForeignKey('commission_project_months.id', ondelete='SET NULL'),
         nullable=True,
         index=True,

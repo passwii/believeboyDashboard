@@ -20,6 +20,11 @@ from app.schemas.product_analysis_source import (
     ProductCalculationRunRequest,
     ProductCalculationRunResponse,
 )
+from app.schemas.product_analysis import (
+    UploadProductAnalysisSourcesRequest,
+    UploadProductAnalysisSourcesResponse,
+    SourcePersistOutcomeSchema,
+)
 from app.services.audit_log_service import append_operation_audit_log
 from app.services import product_analysis_source_service, project_service
 from app.services.redis_service import (
@@ -820,3 +825,75 @@ def _to_source_item(row) -> AnalysisSourceFileItem:
         created_at=row.created_at,
         updated_at=row.updated_at,
     )
+
+
+@router.post(
+    "/product-analysis/sources/upload-file",
+    response_model=UploadProductAnalysisSourcesResponse,
+)
+def upload_product_analysis_sources(
+    request: Request,
+    body: UploadProductAnalysisSourcesRequest,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
+):
+    """
+    Upload and persist product analysis source files to the database.
+
+    This endpoint parses the uploaded files and writes the parsed data to the database
+    (AnalysisSourceFile + AnalysisBusinessRow/AnalysisPaymentRow/AnalysisAdProductRow tables).
+
+    Unlike POST /product-analysis-reports which triggers immediate calculation,
+    this endpoint only persists the data - use POST /product-analysis/calculation/run
+    to compute after upload.
+    """
+    try:
+        outcomes = product_analysis_source_service.persist_product_analysis_sources(
+            db=db,
+            project_name=body.project_name,
+            country=body.country,
+            report_start_date=body.report_start_date,
+            report_end_date=body.report_end_date,
+            file_ids=body.file_ids,
+            resolved_file_paths=body.resolved_file_paths,
+            created_by=operator,
+        )
+        append_operation_audit_log(
+            db,
+            action="product_analysis.sources.upload_file",
+            target_type="product_analysis_source",
+            target_id=None,
+            operator=operator,
+            after={
+                "project_name": body.project_name,
+                "country": body.country,
+                "report_start_date": body.report_start_date,
+                "report_end_date": body.report_end_date,
+                "outcomes": [
+                    {"type": o.report_type, "success": o.success, "source_id": o.source_id}
+                    for o in outcomes
+                ],
+            },
+            request=request,
+        )
+        db.commit()
+        invalidate_weekly_analysis_cache()
+
+        return UploadProductAnalysisSourcesResponse(
+            outcomes=[
+                SourcePersistOutcomeSchema(
+                    report_type=o.report_type,
+                    source_id=o.source_id,
+                    success=o.success,
+                    error_message=o.error_message,
+                )
+                for o in outcomes
+            ]
+        )
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception:
+        db.rollback()
+        raise

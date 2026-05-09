@@ -86,13 +86,11 @@ class AnalysisSourceFile(Base):
         ),
     )
 
-    id: Mapped[int] = mapped_column(
-        BigInteger(),
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         primary_key=True,
         autoincrement=True,
     )
-    project_id: Mapped[int] = mapped_column(
-        BigInteger(),
+    project_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         ForeignKey('projects.id', ondelete='CASCADE'),
         nullable=False,
     )
@@ -112,7 +110,7 @@ class AnalysisSourceFile(Base):
     stored_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     logical_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     storage_key: Mapped[str] = mapped_column(String(1024), nullable=False)
-    file_size_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    file_size_bytes: Mapped[int | None] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), nullable=True)
     file_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     ingestion_status: Mapped[str] = mapped_column(String(16), nullable=False, server_default='pending')
@@ -163,13 +161,11 @@ class AnalysisBusinessRow(Base):
         Index('idx_analysis_business_source_asin', 'source_file_id', 'asin'),
     )
 
-    id: Mapped[int] = mapped_column(
-        BigInteger(),
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         primary_key=True,
         autoincrement=True,
     )
-    source_file_id: Mapped[int] = mapped_column(
-        BigInteger(),
+    source_file_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         ForeignKey('analysis_source_files.id', ondelete='CASCADE'),
         nullable=False,
     )
@@ -200,13 +196,11 @@ class AnalysisPaymentRow(Base):
         Index('idx_analysis_payment_type', 'source_file_id', 'transaction_type'),
     )
 
-    id: Mapped[int] = mapped_column(
-        BigInteger(),
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         primary_key=True,
         autoincrement=True,
     )
-    source_file_id: Mapped[int] = mapped_column(
-        BigInteger(),
+    source_file_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         ForeignKey('analysis_source_files.id', ondelete='CASCADE'),
         nullable=False,
     )
@@ -247,13 +241,11 @@ class AnalysisAdProductRow(Base):
         Index('idx_analysis_ad_product_scope', 'source_file_id', 'scope_status'),
     )
 
-    id: Mapped[int] = mapped_column(
-        BigInteger(),
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         primary_key=True,
         autoincrement=True,
     )
-    source_file_id: Mapped[int] = mapped_column(
-        BigInteger(),
+    source_file_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         ForeignKey('analysis_source_files.id', ondelete='CASCADE'),
         nullable=False,
     )
@@ -285,13 +277,11 @@ class InventorySnapshotRow(Base):
         Index('idx_inventory_snapshot_aging', 'source_file_id', 'aging_status'),
     )
 
-    id: Mapped[int] = mapped_column(
-        BigInteger(),
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         primary_key=True,
         autoincrement=True,
     )
-    source_file_id: Mapped[int] = mapped_column(
-        BigInteger(),
+    source_file_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         ForeignKey('analysis_source_files.id', ondelete='CASCADE'),
         nullable=False,
     )
@@ -323,13 +313,11 @@ class AnalysisReturnRow(Base):
         Index('idx_analysis_return_order_id', 'order_id'),
     )
 
-    id: Mapped[int] = mapped_column(
-        BigInteger(),
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         primary_key=True,
         autoincrement=True,
     )
-    source_file_id: Mapped[int] = mapped_column(
-        BigInteger(),
+    source_file_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         ForeignKey('analysis_source_files.id', ondelete='CASCADE'),
         nullable=False,
     )
@@ -365,13 +353,11 @@ class AnalysisSalesOrderRow(Base):
         Index('idx_analysis_sales_order_order_id', 'amazon_order_id'),
     )
 
-    id: Mapped[int] = mapped_column(
-        BigInteger(),
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         primary_key=True,
         autoincrement=True,
     )
-    source_file_id: Mapped[int] = mapped_column(
-        BigInteger(),
+    source_file_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         ForeignKey('analysis_source_files.id', ondelete='CASCADE'),
         nullable=False,
     )
@@ -414,13 +400,11 @@ class AnalysisPT1Calculation(Base):
         Index('idx_analysis_pt1_project_country_period_current', 'project_id', 'country', 'report_start_date', 'report_end_date', 'is_current'),
     )
 
-    id: Mapped[int] = mapped_column(
-        BigInteger(),
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         primary_key=True,
         autoincrement=True,
     )
-    project_id: Mapped[int] = mapped_column(
-        BigInteger(),
+    project_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         ForeignKey('projects.id', ondelete='CASCADE'),
         nullable=False,
     )
@@ -462,13 +446,11 @@ class AnalysisPTSKUDetail(Base):
         Index('idx_analysis_pt_sku_details_asin', 'pt1_calculation_id', 'asin'),
     )
 
-    id: Mapped[int] = mapped_column(
-        BigInteger(),
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         primary_key=True,
         autoincrement=True,
     )
-    pt1_calculation_id: Mapped[int] = mapped_column(
-        BigInteger(),
+    pt1_calculation_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         ForeignKey('analysis_pt1_calculation.id', ondelete='CASCADE'),
         nullable=False,
     )

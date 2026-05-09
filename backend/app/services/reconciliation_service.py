@@ -1,0 +1,328 @@
+from __future__ import annotations
+
+from typing import Any, Dict, List, Optional
+from decimal import Decimal
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.models import MonthlyReport, MonthlyReportPT3Calculation, ReconciliationRecord
+from app.utils.pdf_extractor import PDFExtractor
+
+
+# PT3 fields to compare with PDF key_values
+PT3_TO_PDF_MAPPING: Dict[str, str] = {
+    "income_fba_product_sales": "FBA_product_sales",
+    "income_fba_product_sale_refunds": "FBA_product_sale_refunds",
+    "income_total": "total_income",
+    "expense_fba_selling_fees": "FBA_selling_fees",
+    "expense_fba_transaction_fees": "FBA_transaction_fees",
+    "expense_fba_inventory_and_inbound_services_fees": "FBA_inventory_and_inbound_services",
+    "expense_service_fees": "service_fees",
+    "expense_cost_of_advertising": "advertising_costs",
+    "expense_total": "total_expense",
+}
+
+TOLERANCE = 0.01
+
+
+def get_pt3_value(pt3: MonthlyReportPT3Calculation, field_name: str) -> Optional[float]:
+    """Get a float value from PT3Calculation, handling Decimal conversion."""
+    value = getattr(pt3, field_name, None)
+    if value is None:
+        return None
+    if isinstance(value, Decimal):
+        return float(value)
+    return value
+
+
+def calculate_match(
+    db_val: Optional[float],
+    pdf_val: Optional[float],
+    tolerance: float = TOLERANCE,
+) -> tuple[bool, Optional[float], Optional[float]]:
+    """Calculate if db_val matches pdf_val within tolerance."""
+    if db_val is None and pdf_val is None:
+        return True, None, None
+    if db_val is None or pdf_val is None:
+        return False, None, None
+
+    diff = round(abs(db_val - pdf_val), 2)
+    diff_percent = round((diff / abs(pdf_val) * 100), 2) if pdf_val != 0 else None
+
+    is_match = diff <= tolerance
+
+    return is_match, diff, diff_percent
+
+
+def get_available_reports(
+    db: Session,
+    project_id: int | None = None,
+    country: str | None = None,
+    report_month: str | None = None,
+) -> List[Dict[str, Any]]:
+    """Get list of reports that are eligible for reconciliation."""
+    stmt = (
+        select(MonthlyReport)
+        .where(MonthlyReport.status == "success")
+        .order_by(MonthlyReport.report_month.desc())
+    )
+
+    if project_id is not None:
+        stmt = stmt.where(MonthlyReport.project_id == project_id)
+    if country:
+        stmt = stmt.where(MonthlyReport.country == country)
+    if report_month:
+        stmt = stmt.where(MonthlyReport.report_month == report_month)
+
+    reports = db.execute(stmt).scalars().all()
+
+    result = []
+    for report in reports:
+        # Check if PT3 calculation exists
+        pt3_stmt = select(MonthlyReportPT3Calculation).where(
+            MonthlyReportPT3Calculation.report_id == report.id
+        )
+        pt3 = db.execute(pt3_stmt).scalars().first()
+
+        result.append({
+            "report_id": report.id,
+            "project_name": report.project_name,
+            "country": report.country,
+            "report_month": report.report_month,
+            "has_summary_pdf": report.summary_pdf_file_path is not None,
+            "pdf_uploaded_at": report.updated_at,
+            "pt3_calculation_complete": pt3 is not None,
+            "pt4_calculation_complete": True,  # Simplified check
+            "status": report.status.value if report.status else "unknown",
+        })
+
+    return result
+
+
+def get_report_or_404(db: Session, report_id: int) -> MonthlyReport:
+    """Get a report by ID or raise 404."""
+    report = db.get(MonthlyReport, report_id)
+    if report is None:
+        raise ValueError(f"Report {report_id} not found")
+    return report
+
+
+def auto_reconcile(
+    db: Session,
+    report_id: int,
+    tolerance: float = TOLERANCE,
+    operator: str = "system",
+    country: str | None = None,
+) -> Dict[str, Any]:
+    """
+    Perform automatic reconciliation between database PT3 calculation and PDF.
+
+    1. Load PT3 calculation from database
+    2. Extract PDF key_values
+    3. Compare fields
+    4. Save result to ReconciliationRecord
+
+    Args:
+        country: Country code for PDF number format (e.g., US, DE). If not provided,
+                 will use US format by default.
+    """
+    # Get report
+    report = get_report_or_404(db, report_id)
+
+    # Check if PDF exists
+    if not report.summary_pdf_file_path:
+        raise ValueError(f"Report {report_id} does not have a summary PDF uploaded")
+
+    # Get PT3 calculation
+    pt3_stmt = select(MonthlyReportPT3Calculation).where(
+        MonthlyReportPT3Calculation.report_id == report_id
+    )
+    pt3 = db.execute(pt3_stmt).scalars().first()
+
+    if not pt3:
+        raise ValueError(f"Report {report_id} does not have PT3 calculation data")
+
+    # Extract PDF data
+    try:
+        extractor = PDFExtractor(report.summary_pdf_file_path, country=country)
+        pdf_data = extractor.get_raw_data().get("key_values", {})
+    except Exception as e:
+        raise ValueError(f"Failed to extract PDF data: {str(e)}")
+
+    # Compare fields
+    items: List[Dict[str, Any]] = []
+    matched = 0
+    mismatched = 0
+    missing = 0
+
+    # PT3 → PDF field comparison
+    for pt3_field, pdf_field in PT3_TO_PDF_MAPPING.items():
+        db_val = get_pt3_value(pt3, pt3_field)
+        pdf_val = pdf_data.get(pdf_field)
+
+        # Convert pdf_val if it's Decimal
+        if pdf_val is not None and isinstance(pdf_val, Decimal):
+            pdf_val = float(pdf_val)
+
+        # Skip if both are None
+        if db_val is None and pdf_val is None:
+            continue
+
+        is_match, diff, diff_pct = calculate_match(db_val, pdf_val, tolerance)
+
+        item = {
+            "field_name": pdf_field,
+            "db_value": db_val,
+            "pdf_value": pdf_val,
+            "match": is_match,
+            "difference": diff,
+            "difference_percent": diff_pct,
+        }
+        items.append(item)
+
+        if is_match:
+            matched += 1
+        elif db_val is None or pdf_val is None:
+            missing += 1
+        else:
+            mismatched += 1
+
+    total_items = len(items)
+    match_rate = round((matched / total_items * 100), 1) if total_items > 0 else 0.0
+
+    # Calculate summary
+    db_total_income = get_pt3_value(pt3, "income_total")
+    db_total_expense = get_pt3_value(pt3, "expense_total")
+    pdf_total_income = pdf_data.get("total_income")
+    pdf_total_expense = pdf_data.get("total_expense")
+
+    if pdf_total_income is not None and isinstance(pdf_total_income, Decimal):
+        pdf_total_income = float(pdf_total_income)
+    if pdf_total_expense is not None and isinstance(pdf_total_expense, Decimal):
+        pdf_total_expense = float(pdf_total_expense)
+
+    summary = {
+        "db_total_income": db_total_income,
+        "db_total_expense": db_total_expense,
+        "db_net_amount": (db_total_income or 0) + (db_total_expense or 0)
+            if db_total_income is not None and db_total_expense is not None
+            else None,
+        "pdf_total_income": pdf_total_income,
+        "pdf_total_expense": pdf_total_expense,
+        "pdf_net_amount": (pdf_total_income or 0) + (pdf_total_expense or 0)
+            if pdf_total_income is not None and pdf_total_expense is not None
+            else None,
+    }
+
+    # Save to database (upsert: update if exists, create if not)
+    detail_json = {
+        "summary": summary,
+        "items": items,
+    }
+
+    existing = db.query(ReconciliationRecord).filter(
+        ReconciliationRecord.report_id == report_id,
+        ReconciliationRecord.mode == "auto"
+    ).first()
+
+    if existing:
+        # Update existing record
+        existing.operator = operator
+        existing.match_rate = Decimal(str(match_rate))
+        existing.matched_items = matched
+        existing.mismatched_items = mismatched
+        existing.missing_items = missing
+        existing.detail_json = detail_json
+        record = existing
+    else:
+        # Create new record
+        record = ReconciliationRecord(
+            report_id=report_id,
+            operator=operator,
+            mode="auto",
+            match_rate=Decimal(str(match_rate)),
+            matched_items=matched,
+            mismatched_items=mismatched,
+            missing_items=missing,
+            detail_json=detail_json,
+        )
+        db.add(record)
+
+    db.commit()
+    db.refresh(record)
+
+    return {
+        "record_id": record.id,
+        "summary": summary,
+        "total_items": total_items,
+        "matched_items": matched,
+        "mismatched_items": mismatched,
+        "missing_items": missing,
+        "match_rate": match_rate,
+        "items": items,
+    }
+
+
+def get_reconciliation_history(
+    db: Session,
+    project_id: int | None = None,
+    report_month: str | None = None,
+    limit: int = 50,
+) -> List[Dict[str, Any]]:
+    """Get reconciliation history."""
+    stmt = (
+        select(ReconciliationRecord, MonthlyReport)
+        .join(MonthlyReport, ReconciliationRecord.report_id == MonthlyReport.id)
+        .order_by(ReconciliationRecord.created_at.desc())
+        .limit(limit)
+    )
+
+    if project_id is not None:
+        stmt = stmt.where(MonthlyReport.project_id == project_id)
+    if report_month:
+        stmt = stmt.where(MonthlyReport.report_month == report_month)
+
+    results = db.execute(stmt).all()
+
+    records = []
+    for record, report in results:
+        detail = record.detail_json or {}
+        summary = detail.get("summary", {})
+
+        records.append({
+            "id": record.id,
+            "report_id": record.report_id,
+            "project_name": report.project_name,
+            "country": report.country,
+            "report_month": report.report_month,
+            "operator": record.operator,
+            "mode": record.mode,
+            "match_rate": float(record.match_rate),
+            "matched_items": record.matched_items,
+            "mismatched_items": record.mismatched_items,
+            "missing_items": record.missing_items,
+            "total_items": record.matched_items + record.mismatched_items + record.missing_items,
+            "summary": {
+                "db_total_income": summary.get("db_total_income"),
+                "db_total_expense": summary.get("db_total_expense"),
+                "db_net_amount": summary.get("db_net_amount"),
+                "pdf_total_income": summary.get("pdf_total_income"),
+                "pdf_total_expense": summary.get("pdf_total_expense"),
+                "pdf_net_amount": summary.get("pdf_net_amount"),
+            },
+            "detail_json": [
+                {
+                    "field_name": item.get("field_name"),
+                    "db_value": item.get("db_value"),
+                    "pdf_value": item.get("pdf_value"),
+                    "match": item.get("match"),
+                    "difference": item.get("difference"),
+                    "difference_percent": item.get("difference_percent"),
+                }
+                for item in detail.get("items", [])
+            ],
+            "created_at": record.created_at,
+        })
+
+    return records

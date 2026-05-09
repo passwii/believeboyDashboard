@@ -77,6 +77,7 @@ from app.models.digital_employee import (
     LogLevel,
 )
 from app.models.project_goal import ProjectGoal
+from app.models.reconciliation import ReconciliationRecord
 
 __all__ = [
     'ProductCost',
@@ -154,4 +155,5 @@ __all__ = [
     'EmployeeStatus',
     'TaskStatus',
     'LogLevel',
+    'ReconciliationRecord',
 ]

@@ -38,8 +38,7 @@ class ProductCost(Base):
         primary_key=True,
         autoincrement=True,
     )
-    project_id: Mapped[int] = mapped_column(
-        BigInteger(),
+    project_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         ForeignKey("projects.id", ondelete="RESTRICT"),
         nullable=False,
     )
