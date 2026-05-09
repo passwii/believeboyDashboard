@@ -11,6 +11,7 @@ import {
   formatDateInputValue,
   parseDateRangeInputValue,
 } from '@/components/ui/date-picker'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import { cn } from '@/lib/utils'
@@ -893,29 +894,39 @@ export default function ProductCalculationPanel({ session }: ProductCalculationP
               <label className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 项目
               </label>
-              <select
-                className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              <Select
                 value={selectedProjectName}
-                onChange={(e) => {
-                  setSelectedProjectName(e.target.value)
+                onValueChange={(value) => {
+                  setSelectedProjectName(value)
                   setCheckState('idle')
                   setAvailability(null)
                   setRunState('idle')
                   setPeriods([])
                   setExpandedIndex(null)
                 }}
+                disabled={projectsLoading || projects.length === 0}
               >
-                <option value="">请选择项目</option>
-                {projectsLoading ? (
-                  <option value="" disabled>加载中…</option>
-                ) : projectLoadError ? (
-                  <option value="" disabled>{projectLoadError}</option>
-                ) : (
-                  projects.map((p) => (
-                    <option key={p.name} value={p.name}>{p.name}</option>
-                  ))
-                )}
-              </select>
+                <SelectTrigger className="h-10 max-w-full">
+                  <SelectValue
+                    placeholder={
+                      projectsLoading
+                        ? '项目加载中...'
+                        : projectLoadError
+                          ? projectLoadError
+                          : projects.length
+                            ? '请选择项目'
+                            : '暂无可选项目'
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent className="max-h-64 overflow-y-auto">
+                  {projects.map((p) => (
+                    <SelectItem key={p.name} value={p.name}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Country */}
@@ -923,21 +934,18 @@ export default function ProductCalculationPanel({ session }: ProductCalculationP
               <label className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 站点
               </label>
-              <select
-                className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                value={country}
-                onChange={(e) => {
-                  setCountry(e.target.value as CountryOption)
-                  setCheckState('idle')
-                  setAvailability(null)
-                  setRunState('idle')
-                  setPeriods([])
-                }}
-              >
-                {COUNTRY_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
+              <Select value={country} onValueChange={(value) => setCountry(value as CountryOption)}>
+                <SelectTrigger className="h-10 max-w-full">
+                  <SelectValue placeholder="请选择站点" />
+                </SelectTrigger>
+                <SelectContent>
+                  {COUNTRY_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Date Range */}
