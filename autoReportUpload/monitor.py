@@ -96,20 +96,20 @@ class RunLogger:
         if result.success:
             self.logger.info(
                 f"【{self._fixed(status, 4)}】-【{self._fixed(country, 4)}】-"
-                f"【{self._fixed(project, 16)}】-【{self._fixed(report_type_cn, 14)}】-"
+                f"【{self._fixed(project, 10)}】-【{self._fixed(report_type_cn, 10)}】-"
                 f"【{report_date}】"
             )
         elif result.skipped:
             self.logger.info(
                 f"【{self._fixed(status, 4)}】-【{self._fixed(country, 4)}】-"
-                f"【{self._fixed(project, 16)}】-【{self._fixed(report_type_cn, 14)}】-"
-                f"【{self._fixed(report_date, 20)}】  {result.reason}"
+                f"【{self._fixed(project, 10)}】-【{self._fixed(report_type_cn, 10)}】-"
+                f"【{self._fixed(report_date, 10)}】  {result.reason}"
             )
         else:
             self.logger.error(
                 f"【{self._fixed(status, 4)}】-【{self._fixed(country, 4)}】-"
-                f"【{self._fixed(project, 16)}】-【{self._fixed(report_type_cn, 14)}】-"
-                f"【{self._fixed(report_date, 20)}】  {result.error}"
+                f"【{self._fixed(project, 10)}】-【{self._fixed(report_type_cn, 10)}】-"
+                f"【{self._fixed(report_date, 10)}】  {result.error}"
             )
 
     @property

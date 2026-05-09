@@ -14,6 +14,7 @@ from app.schemas.reconciliation import (
     AvailableReportsResponse,
     ReconciliationHistoryResponse,
     ReconcileResultResponse,
+    PDFUploadResponse,
 )
 from app.services.reconciliation_service import (
     auto_reconcile,
@@ -21,6 +22,10 @@ from app.services.reconciliation_service import (
     get_reconciliation_history,
 )
 from app.services.report_reconciliation_service import reconcile_to_dict
+from app.models import ReconciliationRecord, MonthlyReport
+from app.services.upload_service import save_upload_file
+from decimal import Decimal
+import re
 
 router = APIRouter(dependencies=[Depends(protected)])
 
@@ -108,6 +113,7 @@ def reconcile_reports(
     excel_file: UploadFile = File(...),
     pdf_file: UploadFile = File(...),
     tolerance: float = 0.01,
+    report_id: int | None = Query(default=None, ge=1),
 ) -> dict:
     """Manual reconciliation: compare uploaded Excel and PDF files."""
     settings = get_settings()
@@ -137,6 +143,40 @@ def reconcile_reports(
             tolerance=tolerance,
         )
 
+        # If report_id provided, save to ReconciliationRecord for persistence
+        if report_id:
+            db_gen = get_db_session()
+            db = next(db_gen)
+            try:
+                # Check if already has a record
+                existing = db.query(ReconciliationRecord).filter(
+                    ReconciliationRecord.report_id == report_id,
+                    ReconciliationRecord.mode == "manual"
+                ).first()
+
+                match_rate = Decimal(str(result["match_rate"]))
+                if existing:
+                    existing.match_rate = match_rate
+                    existing.matched_items = result["matched_items"]
+                    existing.mismatched_items = result["mismatched_items"]
+                    existing.missing_items = result["missing_items"]
+                    existing.detail_json = {"items": result["items"], "summary": result.get("summary", {})}
+                else:
+                    record = ReconciliationRecord(
+                        report_id=report_id,
+                        operator="manual",
+                        mode="manual",
+                        match_rate=match_rate,
+                        matched_items=result["matched_items"],
+                        mismatched_items=result["mismatched_items"],
+                        missing_items=result["missing_items"],
+                        detail_json={"items": result["items"], "summary": result.get("summary", {})},
+                    )
+                    db.add(record)
+                db.commit()
+            finally:
+                db.close()
+
         return result
 
     except KeyError as e:
@@ -148,3 +188,72 @@ def reconcile_reports(
             excel_path.unlink()
         if pdf_path.exists():
             pdf_path.unlink()
+
+
+@router.post("/report-reconciliation/reports/{report_id}/pdf-upload", response_model=PDFUploadResponse)
+def upload_summary_pdf(
+    report_id: int,
+    pdf_file: UploadFile = File(...),
+    db=Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+):
+    """
+    Upload or replace summary PDF for a report.
+
+    - If the report already has a PDF path set (but file is missing), this will overwrite it
+    - If the report has no PDF path, this will create one
+    - File is stored following the existing naming convention: storage/uploads/{project_slug}/monthly-summary-pdf/{uuid}_{original_name}.pdf
+    """
+    # Get the report
+    report = db.query(MonthlyReport).filter(MonthlyReport.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail=f"Report {report_id} not found")
+
+    # Validate file
+    if not pdf_file.filename:
+        raise HTTPException(status_code=400, detail="Missing filename")
+
+    ext = Path(pdf_file.filename).suffix.lower()
+    if ext != '.pdf':
+        raise HTTPException(status_code=400, detail="Only PDF files are allowed")
+
+    # Check content type
+    if pdf_file.content_type and pdf_file.content_type != 'application/pdf':
+        raise HTTPException(status_code=400, detail="Invalid content type, expected PDF")
+
+    settings = get_settings()
+
+    # Use existing project_name from the report
+    project_name = report.project_name
+
+    try:
+        # Save the file using existing upload service
+        result = save_upload_file(
+            file=pdf_file,
+            settings=settings,
+            project_name=project_name,
+            file_type='monthly_summary_pdf',
+        )
+
+        # Update the report with new PDF info
+        # Convert absolute path to relative path (relative to project root, where storage/ lives)
+        # storage/uploads/... relative to project_root/backend/ → storage/uploads/...
+        project_root = settings.upload_root.resolve().parent.parent  # Go up from storage/uploads to project root
+        absolute_path = Path(result['file_path'])
+        relative_path = absolute_path.relative_to(project_root)
+
+        report.summary_pdf_file_id = result['file_id']
+        report.summary_pdf_file_path = str(relative_path)
+        db.commit()
+
+        return PDFUploadResponse(
+            report_id=report_id,
+            pdf_file_id=result['file_id'],
+            pdf_file_path=str(relative_path),
+            original_filename=result['original_filename'],
+            size=result['size'],
+            message="PDF uploaded successfully",
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save PDF: {str(e)}")
