@@ -34,6 +34,7 @@ import {
 } from '@/components/ui/tab-motion'
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import FactoryInfoSheet from '@/components/dashboard/sku-info/factory-info-sheet'
+import BatchFactoryInfoSheet from '@/components/dashboard/sku-info/batch-factory-info-sheet'
 import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 
@@ -315,6 +316,10 @@ export default function SkuInfoPage() {
 
   const [factorySheetOpen, setFactorySheetOpen] = useState(false)
   const [factoryEditingRow, setFactoryEditingRow] = useState<ProductCostItem | null>(null)
+
+  // 批量编辑产品属性
+  const [batchSheetOpen, setBatchSheetOpen] = useState(false)
+  const [selectedSkus, setSelectedSkus] = useState<ProductCostItem[]>([])
 
   const totalPages = useMemo(
     () => Math.max(1, Math.ceil(total / pageSize)),
@@ -902,6 +907,16 @@ export default function SkuInfoPage() {
                       onUpload={handleBatchImportFile}
                       onSync={handleSyncFirstLeg}
                     />
+                    {selectedSkus.length > 0 && (
+                      <Button
+                        type='button'
+                        size='sm'
+                        variant='outline'
+                        onClick={() => setBatchSheetOpen(true)}
+                      >
+                        批量编辑属性 ({selectedSkus.length})
+                      </Button>
+                    )}
                   </div>
                 </DataTableCardHeader>
                 <DataTableCardBody
@@ -916,6 +931,20 @@ export default function SkuInfoPage() {
                   <table className='w-full border-separate border-spacing-0 text-sm'>
                     <thead className='[&_tr]:border-b'>
                       <tr className='border-b bg-[hsl(var(--surface-subtle))]'>
+                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-2 text-center w-10'>
+                          <input
+                            type='checkbox'
+                            className='h-4 w-4 rounded border-border/60'
+                            checked={selectedSkus.length > 0 && selectedSkus.length === items.length}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedSkus([...items])
+                              } else {
+                                setSelectedSkus([])
+                              }
+                            }}
+                          />
+                        </th>
                         <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
                           排序
                         </th>
@@ -969,6 +998,20 @@ export default function SkuInfoPage() {
                             ) : (
                               row.sort_order
                             )}
+                          </td>
+                          <td className='border-b border-r border-border/60 p-4 align-top w-10'>
+                            <input
+                              type='checkbox'
+                              className='h-4 w-4 rounded border-border/60'
+                              checked={selectedSkus.some((s) => s.id === row.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedSkus((prev) => [...prev, row])
+                                } else {
+                                  setSelectedSkus((prev) => prev.filter((s) => s.id !== row.id))
+                                }
+                              }}
+                            />
                           </td>
                           <td className='border-b border-r border-border/60 p-4 align-top font-medium'>
                             {row.project_name}
@@ -1665,6 +1708,20 @@ export default function SkuInfoPage() {
           }}
         />
       )}
+
+      <BatchFactoryInfoSheet
+        open={batchSheetOpen}
+        selectedSkus={selectedSkus}
+        onClose={() => {
+          setBatchSheetOpen(false)
+          setSelectedSkus([])
+        }}
+        onSaved={() => {
+          setBatchSheetOpen(false)
+          setSelectedSkus([])
+          void loadData(undefined, { pageOverride: page, clearOnMissingProject: true })
+        }}
+      />
     </div>
   )
 }
