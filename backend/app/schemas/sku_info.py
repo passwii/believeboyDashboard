@@ -127,3 +127,33 @@ class SkuRecordFirstLegRecalculateRequest(BaseModel):
 class SkuRecordFirstLegRecalculateResponse(BaseModel):
     updated: int
     unit_price_per_kg_rmb: float
+
+
+class BatchUpdateFactoryInfoRequest(BaseModel):
+    """批量更新产品属性请求"""
+    sku_ids: list[int] = Field(..., min_length=1, description="SKU 记录 ID 列表")
+    sku_factory_info: dict[str, str] | None = Field(
+        default=None,
+        description="产品属性字典，传入 null 表示清除属性"
+    )
+
+    model_config = {"extra": "forbid"}
+
+
+class BatchUpdateFactoryInfoResponse(BaseModel):
+    """批量更新产品属性响应"""
+    updated: int = Field(..., description="更新记录数")
+    sku_ids: list[int] = Field(..., description="已更新的 SKU ID 列表")
+
+
+class ParseFactoryInfoRequest(BaseModel):
+    """解析产品属性请求"""
+    description: str = Field(..., min_length=1, max_length=2000, description="自然语言描述")
+
+    model_config = {"extra": "forbid"}
+
+
+class ParseFactoryInfoResponse(BaseModel):
+    """解析产品属性响应"""
+    result: dict[str, str] = Field(default_factory=dict, description="解析后的键值对")
+    raw: str = Field(..., description="原始 AI 输出")
