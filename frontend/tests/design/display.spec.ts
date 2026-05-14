@@ -2,7 +2,6 @@ import { test, expect } from '@playwright/test'
 
 test.describe('UI Logic Display Validation', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/dashboard/data-reporting/daily-report')
     await page.waitForLoadState('networkidle')
   })
 
@@ -70,7 +69,6 @@ test.describe('UI Logic Display Validation', () => {
   })
 
   test('loading state shows skeleton or spinner', async ({ page }) => {
-    await page.goto('/dashboard/data-reporting/daily-report')
 
     const loadingSpinner = page.locator(
       '[class*="animate-spin"], [class*="skeleton"], [role="status"]:has-text("加载")'

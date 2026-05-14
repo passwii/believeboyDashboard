@@ -2,7 +2,7 @@
 SQLAlchemy models for the auto-report-upload service.
 
 Analysis models (AnalysisSourceFile, Analysis*Row, InventorySnapshotRow) are
-imported from ``backend/app/shared/models.py`` — the single source of truth.
+imported from ``backend/app/utils/models.py`` — the single source of truth.
 Local models (Project, ProductCost, ReportUploadLog, ReturnCustomerComment)
 remain here because they are either RPA-specific or have backend-only features
 (constraints, relationships) that don't belong in the shared module.
@@ -33,12 +33,12 @@ from sqlalchemy import (
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 # ── Import shared analysis models ────────────────────────────────────────────
-# Add backend to path so we can reach app.shared.models
+# Add backend to path so we can reach app.utils.models
 _BACKEND_PATH = Path(__file__).resolve().parent.parent / "backend"
 if str(_BACKEND_PATH) not in sys.path:
     sys.path.insert(0, str(_BACKEND_PATH))
 
-from app.shared.models import (  # noqa: E402
+from app.utils.models import (  # noqa: E402
     AnalysisAdProductRow,
     AnalysisBusinessRow,
     AnalysisPaymentRow,

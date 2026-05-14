@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any
 
 from app.core.config import get_settings
-from app.services import redis_service
+from app.services import infra as redis_service
 
 
 DEFAULT_AVATAR_URL = "/avatars/default.svg"

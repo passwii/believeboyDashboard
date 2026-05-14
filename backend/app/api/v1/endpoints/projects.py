@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, get_request_operator, protected
-from app.schemas.project import ProjectCreate, ProjectItem, ProjectOption, ProjectUpdate
+from app.models import Project
+from app.schemas.project import ProjectContextResponse, ProjectContextUpdate, ProjectCreate, ProjectItem, ProjectOption, ProjectUpdate
 from app.services.audit_log_service import append_operation_audit_log, append_operation_view_log
 from app.services import project_service
 
@@ -22,6 +23,7 @@ def _serialize_project_item(row) -> dict[str, object | None]:
         'sort_order': row.sort_order,
         'is_active': row.is_active,
         'source_file': row.source_file,
+        'has_context': bool(row.project_context or row.sku_context),
     }
 
 
@@ -100,6 +102,7 @@ def list_projects_manage(
             sort_order=row.sort_order,
             is_active=row.is_active,
             source_file=row.source_file,
+            has_context=bool(row.project_context or row.sku_context),
         )
         for row in rows
     ]
@@ -208,3 +211,75 @@ def move_project(
     )
     db.commit()
     return ProjectItem(**after)
+
+
+@router.get('/projects/{project_id}/context', response_model=ProjectContextResponse)
+def get_project_context_endpoint(
+    project_id: int,
+    request: Request,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
+) -> ProjectContextResponse:
+    """Get project context configuration."""
+    project_service.ensure_project_access(db, project_id, operator=operator, is_admin=bool(is_admin))
+    project_context, sku_context = project_service.get_project_context(db, project_id)
+    row = db.get(Project, project_id)
+    append_operation_view_log(
+        db,
+        action='projects.context.view',
+        target_type='project_context',
+        target_id=project_id,
+        operator=operator,
+        after={'has_project_context': project_context is not None, 'has_sku_context': sku_context is not None},
+        request=request,
+    )
+    db.commit()
+    return ProjectContextResponse(
+        project_id=project_id,
+        project_name=row.project_name,
+        project_context=project_context or {},
+        sku_context=sku_context or {},
+    )
+
+
+@router.patch('/projects/{project_id}/context', response_model=ProjectContextResponse)
+def update_project_context_endpoint(
+    project_id: int,
+    payload: ProjectContextUpdate,
+    request: Request,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
+) -> ProjectContextResponse:
+    """Update project context configuration (JSON Merge Patch semantics)."""
+    project_service.ensure_project_access(db, project_id, operator=operator, is_admin=bool(is_admin))
+    before_project_context, before_sku_context = project_service.get_project_context(db, project_id)
+    before = {"project_context": before_project_context, "sku_context": before_sku_context}
+
+    row = project_service.update_project_context(
+        db,
+        project_id,
+        project_context=payload.project_context,
+        sku_context=payload.sku_context,
+        operator=operator,
+    )
+
+    append_operation_audit_log(
+        db,
+        action='projects.context.update',
+        target_type='project_context',
+        target_id=project_id,
+        operator=operator,
+        before=before,
+        after={"project_context": row.project_context, "sku_context": row.sku_context},
+        request=request,
+    )
+    db.commit()
+
+    return ProjectContextResponse(
+        project_id=project_id,
+        project_name=row.project_name,
+        project_context=row.project_context or {},
+        sku_context=row.sku_context or {},
+    )

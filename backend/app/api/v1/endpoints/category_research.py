@@ -25,7 +25,21 @@ from app.schemas.category_research import (
     CategoryResearchTrendPoint,
     CategoryResearchTrendResponse,
 )
-from app.services import category_research_service
+from app.services.category import (
+    build_export_payload,
+    effective_dimensions,
+    get_dataset_market_trend_points,
+    get_dataset_overview,
+    import_category_research_dataset,
+    list_available_exports,
+    list_dataset_products,
+    list_dataset_trend_points,
+    list_datasets,
+    normalize_dimension_map,
+    recompute_dataset_from_history,
+    recompute_datasets_from_history,
+    upsert_manual_dimensions,
+)
 
 router = APIRouter(dependencies=[Depends(protected)])
 
@@ -41,7 +55,7 @@ def _check_factory_can_access(dataset_id: int, db: Session, operator: str | None
 
 
 @router.post('/category-research/datasets/import', response_model=CategoryResearchImportResponse)
-def import_category_research_dataset(
+def import_category_research_dataset_endpoint(
     file: UploadFile = File(...),
     marketplace: str = Form(default='US'),
     category_keyword_en: str = Form(...),
@@ -51,7 +65,7 @@ def import_category_research_dataset(
     operator: str | None = Depends(get_request_operator),
 ) -> CategoryResearchImportResponse:
     try:
-        dataset = category_research_service.import_category_research_dataset(
+        dataset = import_category_research_dataset(
             db,
             settings=settings,
             marketplace=marketplace,
@@ -84,7 +98,7 @@ def list_category_research_datasets(
     role_type: str | None = Depends(get_request_role_type),
 ) -> list[CategoryResearchDatasetItem]:
     effective_current_only = False if include_history else current_only
-    rows = category_research_service.list_datasets(
+    rows = list_datasets(
         db,
         marketplace=marketplace,
         category_keyword_en=category_keyword_en,
@@ -107,7 +121,7 @@ def get_category_research_dataset(
     try:
         if role_type == 'factory' and operator:
             _check_factory_can_access(dataset_id, db, operator)
-        payload = category_research_service.get_dataset_overview(
+        payload = get_dataset_overview(
             db,
             dataset_id,
             price_band_standard=price_band_standard,
@@ -146,7 +160,7 @@ def recompute_category_research_dataset(
     try:
         if role_type == 'factory' and operator:
             _check_factory_can_access(dataset_id, db, operator)
-        dataset = category_research_service.recompute_dataset_from_history(db, dataset_id)
+        dataset = recompute_dataset_from_history(db, dataset_id)
     except ValueError as exc:
         if str(exc) == 'Dataset not found':
             raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -171,7 +185,7 @@ def recompute_category_research_datasets(
     if role_type == 'factory':
         raise HTTPException(status_code=403, detail='您没有权限使用批量重算')
     try:
-        payload = category_research_service.recompute_datasets_from_history(
+        payload = recompute_datasets_from_history(
             db,
             marketplace=marketplace,
             category_keyword_en=category_keyword_en,
@@ -204,7 +218,7 @@ def list_category_research_products(
     try:
         if role_type == 'factory' and operator:
             _check_factory_can_access(dataset_id, db, operator)
-        rows, has_next = category_research_service.list_dataset_products(
+        rows, has_next = list_dataset_products(
             db,
             dataset_id=dataset_id,
             page=page,
@@ -243,7 +257,7 @@ def upsert_category_research_manual_dimensions(
     try:
         if role_type == 'factory' and operator:
             _check_factory_can_access(dataset_id, db, operator)
-        result = category_research_service.upsert_manual_dimensions(
+        result = upsert_manual_dimensions(
             db,
             dataset_id=dataset_id,
             items=[item.model_dump() for item in payload.items],
@@ -270,7 +284,7 @@ def get_category_research_asin_trend(
     try:
         if role_type == 'factory' and operator:
             _check_factory_can_access(dataset_id, db, operator)
-        rows = category_research_service.list_dataset_trend_points(db, dataset_id=dataset_id, asin=asin)
+        rows = list_dataset_trend_points(db, dataset_id=dataset_id, asin=asin)
     except ValueError as exc:
         if str(exc) == 'Dataset not found':
             raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -295,7 +309,7 @@ def get_category_research_market_trend(
     try:
         if role_type == 'factory' and operator:
             _check_factory_can_access(dataset_id, db, operator)
-        points = category_research_service.get_dataset_market_trend_points(
+        points = get_dataset_market_trend_points(
             db,
             dataset_id=dataset_id,
             months=months,
@@ -323,7 +337,7 @@ def list_category_research_exports(
     try:
         if role_type == 'factory' and operator:
             _check_factory_can_access(dataset_id, db, operator)
-        items = category_research_service.list_available_exports(
+        items = list_available_exports(
             db,
             settings=settings,
             dataset_id=dataset_id,
@@ -353,7 +367,7 @@ def download_category_research_export(
     try:
         if role_type == 'factory' and operator:
             _check_factory_can_access(dataset_id, db, operator)
-        payload = category_research_service.build_export_payload(
+        payload = build_export_payload(
             db,
             settings=settings,
             dataset_id=dataset_id,
@@ -407,9 +421,9 @@ def _to_dataset_item(row) -> CategoryResearchDatasetItem:
 
 
 def _to_product_row(row) -> CategoryResearchProductRow:
-    extracted_dimensions = category_research_service.normalize_dimension_map(row.extracted_dimensions)
-    manual_dimensions = category_research_service.normalize_dimension_map(row.manual_dimensions)
-    effective_dimensions = category_research_service.effective_dimensions(row)
+    extracted_dimensions = normalize_dimension_map(row.extracted_dimensions)
+    manual_dimensions = normalize_dimension_map(row.manual_dimensions)
+    effective_dimensions = effective_dimensions(row)
     return CategoryResearchProductRow(
         id=row.id,
         source_row_no=row.source_row_no,

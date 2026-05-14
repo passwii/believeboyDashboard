@@ -12,11 +12,11 @@ from sqlalchemy.exc import OperationalError
 
 import app.models  # noqa: F401  # ensure model metadata is registered
 from app.db.session import Base, SessionLocal, engine
-from app.services import product_cost_service
+from app.services.data.sku_info import bulk_upsert_sku_records, read_sku_record_csv_file
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description='Import BLF Basic Info CSV into product_costs table.')
+    parser = argparse.ArgumentParser(description='Import BLF Basic Info CSV into sku_info table.')
     parser.add_argument(
         '--file',
         type=Path,
@@ -30,8 +30,8 @@ def main() -> int:
     args = parse_args()
     session = SessionLocal()
     try:
-                items, source_file = product_cost_service.read_product_cost_csv_file(args.file)
-        _, inserted, updated = product_cost_service.bulk_upsert_product_costs(session, items, source_file)
+                items, source_file = read_sku_record_csv_file(args.file)
+        _, inserted, updated = bulk_upsert_sku_records(session, items, source_file)
         session.commit()
     except OperationalError as exc:  # pragma: no cover - entrypoint fallback
         session.rollback()

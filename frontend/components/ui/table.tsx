@@ -11,16 +11,25 @@ interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
   noWrapperRounded?: boolean
   /** 显式恢复外层圆角（默认 false，即无圆角） */
   wrapperRounded?: boolean
+  /** 表格布局方式，fixed 模式下 colgroup/width 才能精确控制列宽 */
+  tableLayout?: 'auto' | 'fixed'
+  /** 是否使用边框折叠模式（推荐，用于精确列宽控制） */
+  borderCollapse?: boolean
 }
 
 const Table = React.forwardRef<
   HTMLTableElement,
   TableProps
->(({ className, containerClassName, noWrapperRounded, wrapperRounded, ...props }, ref) => (
+>(({ className, containerClassName, noWrapperRounded, wrapperRounded, tableLayout, borderCollapse, ...props }, ref) => (
   <div className={cn("relative w-full overflow-x-auto overflow-y-visible", wrapperRounded ? "rounded-lg" : "", containerClassName)}>
     <table
       ref={ref}
-      className={cn("w-full border-separate border-spacing-0 caption-bottom text-sm", className)}
+      className={cn(
+        "w-full caption-bottom text-sm",
+        borderCollapse ? "border-collapse" : "border-separate border-spacing-0",
+        tableLayout === 'fixed' && "[table-layout:fixed]",
+        className
+      )}
       {...props}
     />
   </div>
@@ -116,6 +125,34 @@ const TableCaption = React.forwardRef<
 ))
 TableCaption.displayName = "TableCaption"
 
+// ========================
+// ColGroup — 配合 table-fixed 使用，定义固定列宽
+// 用法: <Table><ColGroup columns={[{width: 112}, {width: 144}, ...]} />...</Table>
+// ========================
+interface ColGroupProps {
+  columns: { width?: number | string }[]
+  className?: string
+}
+
+export function ColGroup({ columns, className }: ColGroupProps) {
+  return (
+    <colgroup className={className}>
+      {columns.map((col, i) => (
+        <col
+          key={i}
+          style={col.width ? { width: typeof col.width === 'number' ? `${col.width}px` : col.width } : undefined}
+        />
+      ))}
+    </colgroup>
+  )
+}
+
+// ========================
+// 公共 Sticky 样式常量
+// 用于 DataTableCard、inventory-replenishment、shop-calculation 等页面
+// 原则：实体不透明背景（无 opacity），z-index 分层，shadow 模拟边框
+// ========================
+
 export {
   Table,
   TableHeader,
@@ -126,12 +163,6 @@ export {
   TableCell,
   TableCaption,
 }
-
-// ========================
-// 公共 Sticky 样式常量
-// 用于 DataTableCard、inventory-replenishment、shop-calculation 等页面
-// 原则：实体不透明背景（无 opacity），z-index 分层，shadow 模拟边框
-// ========================
 
 /** 第一列表头单元格：固定左侧 + 顶部（配合 STICKY_TOP_ROW 使用） */
 export const STICKY_LEFT_HEAD_CELL =

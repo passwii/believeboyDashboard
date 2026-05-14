@@ -266,7 +266,7 @@ const TARGET_TYPE_LABELS: Record<string, string> = {
   user_account: '账号',
   project: '项目',
   project_operator: '项目运营人',
-  product_cost: 'SKU 资料',
+  sku_info: 'SKU 资料',
   shipment_schedule: '发货计划',
   inventory_analysis: '库存分析',
   inventory_replenishment: '补货分析',

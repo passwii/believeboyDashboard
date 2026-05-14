@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, Header, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, get_request_operator, protected
@@ -10,7 +10,8 @@ from app.schemas.daily_analysis import (
     DailyAnalysisAllProjectsResponse,
     DailyAnalysisResponse,
 )
-from app.services import daily_analysis_service, project_service
+from app.services.daily import build_daily_analysis, build_daily_analysis_all_projects
+from app.services import project_service
 
 router = APIRouter(dependencies=[Depends(protected)])
 
@@ -32,7 +33,7 @@ def get_daily_analysis(
         operator=operator,
         is_admin=bool(is_admin),
     )
-    return daily_analysis_service.build_daily_analysis(
+    return build_daily_analysis(
         db,
         project_id=project_id,
         country=country,
@@ -75,7 +76,7 @@ def get_daily_analysis_all(
             is_admin=bool(is_admin),
         )
 
-    return daily_analysis_service.build_daily_analysis_all_projects(
+    return build_daily_analysis_all_projects(
         db,
         project_ids=ids,
         country=country,

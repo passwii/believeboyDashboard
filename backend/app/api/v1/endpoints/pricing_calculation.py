@@ -19,7 +19,19 @@ from app.schemas.pricing_calculation import (
     PricingCalculationRunListResponse,
 )
 from app.services.audit_log_service import append_operation_audit_log
-from app.services import pricing_calculation_service
+from app.services.pricing import (
+    PricingCalculationRun,
+    can_access_pricing_run,
+    create_pricing_cost_reverse_run,
+    create_pricing_eu_run,
+    create_pricing_fbm_run,
+    create_pricing_reverse_run,
+    create_pricing_run,
+    delete_pricing_run,
+    list_pricing_runs,
+    serialize_pricing_run,
+)
+from app.services.pricing.computation import _compute_pricing
 
 router = APIRouter(dependencies=[Depends(protected)])
 
@@ -27,7 +39,7 @@ router = APIRouter(dependencies=[Depends(protected)])
 @router.get(
     "/pricing-calculation/runs", response_model=PricingCalculationRunListResponse
 )
-def list_pricing_runs(
+def list_pricing_runs_endpoint(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=12, ge=1, le=100),
     exclude_project_id: bool = Query(
@@ -38,7 +50,7 @@ def list_pricing_runs(
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Depends(get_request_is_admin),
 ) -> PricingCalculationRunListResponse:
-    rows, total = pricing_calculation_service.list_pricing_runs(
+    rows, total = list_pricing_runs(
         db,
         page=page,
         page_size=page_size,
@@ -50,7 +62,7 @@ def list_pricing_runs(
     return PricingCalculationRunListResponse(
         items=[
             PricingCalculationRunItem(
-                **pricing_calculation_service.serialize_pricing_run(row)
+                **serialize_pricing_run(row)
             )
             for row in rows
         ],
@@ -68,13 +80,13 @@ def calculate_pricing_quote(
     operator: str | None = Depends(get_request_operator),
 ) -> PricingCalculationRunItem:
     try:
-        row = pricing_calculation_service.create_pricing_run(
+        row = create_pricing_run(
             db, payload, operator=operator
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    serialized = pricing_calculation_service.serialize_pricing_run(row)
+    serialized = serialize_pricing_run(row)
     append_operation_audit_log(
         db,
         action="pricing_calculation.run.create",
@@ -98,13 +110,13 @@ def calculate_pricing_reverse_quote(
     operator: str | None = Depends(get_request_operator),
 ) -> PricingCalculationRunItem:
     try:
-        row = pricing_calculation_service.create_pricing_reverse_run(
+        row = create_pricing_reverse_run(
             db, payload, operator=operator
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    serialized = pricing_calculation_service.serialize_pricing_run(row)
+    serialized = serialize_pricing_run(row)
     append_operation_audit_log(
         db,
         action="pricing_calculation.run.create",
@@ -128,13 +140,13 @@ def calculate_pricing_reverse_cost(
     operator: str | None = Depends(get_request_operator),
 ) -> PricingCalculationRunItem:
     try:
-        row = pricing_calculation_service.create_pricing_cost_reverse_run(
+        row = create_pricing_cost_reverse_run(
             db, payload, operator=operator
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    serialized = pricing_calculation_service.serialize_pricing_run(row)
+    serialized = serialize_pricing_run(row)
     append_operation_audit_log(
         db,
         action="pricing_calculation.run.create",
@@ -156,13 +168,13 @@ def calculate_pricing_fbm_quote(
     operator: str | None = Depends(get_request_operator),
 ) -> PricingCalculationRunItem:
     try:
-        row = pricing_calculation_service.create_pricing_fbm_run(
+        row = create_pricing_fbm_run(
             db, payload, operator=operator
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    serialized = pricing_calculation_service.serialize_pricing_run(row)
+    serialized = serialize_pricing_run(row)
     append_operation_audit_log(
         db,
         action="pricing_calculation.run.create",
@@ -185,13 +197,13 @@ def calculate_pricing_eu_quote(
 ) -> PricingCalculationRunItem:
     """欧洲（德国/英国）店铺 SKU 核算，使用手动费用和 VAT 计算"""
     try:
-        row = pricing_calculation_service.create_pricing_eu_run(
+        row = create_pricing_eu_run(
             db, payload, operator=operator
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    serialized = pricing_calculation_service.serialize_pricing_run(row)
+    serialized = serialize_pricing_run(row)
     append_operation_audit_log(
         db,
         action="pricing_calculation.run.create_eu",
@@ -208,23 +220,23 @@ def calculate_pricing_eu_quote(
 @router.delete(
     "/pricing-calculation/runs/{run_id}", status_code=status.HTTP_204_NO_CONTENT
 )
-def delete_pricing_run(
+def delete_pricing_run_endpoint(
     run_id: int,
     request: Request,
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Depends(get_request_is_admin),
 ) -> Response:
-    row = db.get(pricing_calculation_service.PricingCalculationRun, run_id)
+    row = db.get(PricingCalculationRun, run_id)
     if not row:
         raise HTTPException(status_code=404, detail="测算记录不存在")
-    if not pricing_calculation_service.can_access_pricing_run(
+    if not can_access_pricing_run(
         row, operator=operator, is_admin=is_admin
     ):
         raise HTTPException(status_code=403, detail="无权操作该测算记录")
 
-    before = pricing_calculation_service.serialize_pricing_run(row)
-    deleted = pricing_calculation_service.delete_pricing_run(
+    before = serialize_pricing_run(row)
+    deleted = delete_pricing_run(
         db, run_id, operator=operator, is_admin=is_admin
     )
     if not deleted:
@@ -256,15 +268,15 @@ def recalculate_pricing_run(
 ) -> PricingCalculationRunItem:
     """重新计算已有的测算记录，使用最新的计算逻辑（回款=售价-费用合计含广告费）"""
     # 获取原有记录
-    row = db.get(pricing_calculation_service.PricingCalculationRun, run_id)
+    row = db.get(PricingCalculationRun, run_id)
     if not row:
         raise HTTPException(status_code=404, detail="测算记录不存在")
-    if not pricing_calculation_service.can_access_pricing_run(
+    if not can_access_pricing_run(
         row, operator=operator, is_admin=is_admin
     ):
         raise HTTPException(status_code=403, detail="无权操作该测算记录")
 
-    before = pricing_calculation_service.serialize_pricing_run(row)
+    before = serialize_pricing_run(row)
 
     # 构建计算请求参数
     from app.schemas.pricing_calculation import PricingCalculationCreateRequest
@@ -287,7 +299,7 @@ def recalculate_pricing_run(
     )
 
     # 重新计算
-    computed = pricing_calculation_service._compute_pricing(payload, db)
+    computed = _compute_pricing(payload, db)
 
     # 更新原有记录
     row.payout_usd = computed["profit_decimal"]["payout_usd"]
@@ -299,7 +311,7 @@ def recalculate_pricing_run(
     row.profit_after_vat_rate = computed["profit_decimal"].get("profit_after_vat_rate")
 
     db.refresh(row)
-    serialized = pricing_calculation_service.serialize_pricing_run(row)
+    serialized = serialize_pricing_run(row)
     append_operation_audit_log(
         db,
         action="pricing_calculation.run.recalculate",

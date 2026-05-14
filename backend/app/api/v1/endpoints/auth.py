@@ -13,7 +13,7 @@ from app.core.passwords import verify_password
 from app.db.session import SessionLocal
 from app.schemas.system_management import UserRoleType
 from app.services.audit_log_service import append_operation_audit_log
-from app.services.redis_service import delete_user_sessions, validate_session, write_session
+from app.services.infra import delete_user_sessions, validate_session, write_session
 from app.services.rate_limit_service import clear_key, increment_and_check
 
 router = APIRouter(prefix='/auth', tags=['auth'])

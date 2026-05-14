@@ -3,204 +3,19 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Callable
 from datetime import datetime
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, NamedStyle, Side
 from openpyxl.utils import get_column_letter
 
-import app.services.payment_report_locale as payment_report_locale
+from app.services.payment import read_payment_csv, classify_rows, compute_metrics
+from app.services.payment.financial import _round2, _to_decimal, _sum_field
+from app.utils.country import normalize_country
 
 TWO_DP = Decimal("0.01")
-FOUR_DP = Decimal("0.0001")
 ProgressCallback = Callable[[str, int, str], None]
-
-
-def _safe_project_name(project_name: str) -> str:
-    sanitized = "".join(ch for ch in project_name.strip() if ch not in r'\\/:*?"<>|')
-    return sanitized or "unknown"
-
-
-def _to_decimal(value: object) -> Decimal:
-    if value is None:
-        return Decimal("0")
-    text = str(value).strip().replace(",", "")
-    if not text:
-        return Decimal("0")
-    try:
-        return Decimal(text)
-    except InvalidOperation:
-        return Decimal("0")
-
-
-def _round2(value: Decimal) -> Decimal:
-    return value.quantize(TWO_DP, rounding=ROUND_HALF_UP)
-
-
-def _sum_field(rows: list[dict[str, object]], field: str) -> Decimal:
-    return _round2(sum((_to_decimal(row.get(field)) for row in rows), Decimal("0")))
-
-
-def _safe_div_percent(numerator: Decimal, denominator: Decimal) -> str:
-    if denominator == 0:
-        return "0.00%"
-    ratio = (abs(numerator) / denominator) * Decimal("100")
-    return f"{_round2(ratio)}%"
-
-
-def _num(value: Decimal) -> float:
-    return float(_round2(value))
-
-
-def _safe_div_percent_decimal(numerator: Decimal, denominator: Decimal) -> Decimal:
-    if denominator == 0:
-        return Decimal("0")
-    return ((abs(numerator) / denominator) * Decimal("100")).quantize(FOUR_DP, rounding=ROUND_HALF_UP)
-
-
-def _read_transactions(input_path: str, country: str = 'US') -> list[dict[str, object]]:
-    rows: list[dict[str, object]] = []
-    payment_df = payment_report_locale.read_payment_report_dataframe(Path(input_path), country=country)
-    for row in payment_df.to_dict(orient='records'):
-        normalized: dict[str, object] = {}
-        for key, value in row.items():
-            normalized[str(key).strip()] = value.strip() if isinstance(value, str) else value
-        if not any(
-            (str(value).strip() if value is not None else "")
-            for value in normalized.values()
-        ):
-            continue
-        normalized["quantity"] = int(_to_decimal(normalized.get("quantity") or 0))
-        rows.append(normalized)
-    return rows
-
-
-def _classify_rows(all_rows: list[dict[str, object]]) -> dict[str, list[dict[str, object]]]:
-    classified: dict[str, list[dict[str, object]]] = {
-        "order": [],
-        "refund": [],
-        "blank_type": [],
-        "fba_customer_return_fee": [],
-        "amazon_fees_reversal": [],
-        "chargeback_refund": [],
-        "liquidation": [],
-        "adjustment": [],
-        "service_fee": [],
-        "fba_inventory_fee": [],
-        "amazon_fees": [],
-        "fee_adjustment": [],
-        "deal_fee": [],
-        "debt": [],
-        "fba_transaction_fees": [],
-        "fba_order": [],
-        "fbm_order": [],
-        "fba_refund": [],
-        "fbm_refund": [],
-        "adjustment_income": [],
-        "adjustment_expense": [],
-        "advertising": [],
-        "agl_selection": [],
-        "service_refund_for_advertiser": [],
-        "amazon_fees_and_service_fee_without_ad": [],
-        "price_discount": [],
-        "fee_adjustment_weight_dim": [],
-    }
-
-    adjustment_expense_descriptions = {
-        "FBA Inventory Reimbursement - General Adjustment",
-        "Non-subscription Fee Adjustment",
-    }
-    ad_excluded_descriptions = {
-        "Cost of Advertising",
-        "Refund for Advertiser",
-    }
-    agl_descriptions = {
-        "FBA International Freight Shipping Charge",
-        "FBA International Freight Duties and Taxes Charge",
-    }
-    fee_adjustment_target = "Fee Adjustment - Weight and Dimension Change"
-
-    for row in all_rows:
-        row_type = str(row.get("type", "")).strip()
-        description = str(row.get("description", "")).strip()
-        fulfillment = str(row.get("fulfillment", "")).strip()
-
-        if not row_type:
-            classified["blank_type"].append(row)
-            if description.startswith("Price Discount"):
-                classified["price_discount"].append(row)
-            continue
-
-        if row_type == "Order":
-            classified["order"].append(row)
-            if fulfillment == "Amazon":
-                classified["fba_order"].append(row)
-            elif fulfillment == "Seller":
-                classified["fbm_order"].append(row)
-            continue
-
-        if row_type == "Refund":
-            classified["refund"].append(row)
-            if fulfillment == "Amazon":
-                classified["fba_refund"].append(row)
-            elif fulfillment == "Seller":
-                classified["fbm_refund"].append(row)
-            continue
-
-        if row_type == "FBA Customer Return Fee":
-            classified["fba_customer_return_fee"].append(row)
-            continue
-        if row_type == "Amazon Fees - Reversal":
-            classified["amazon_fees_reversal"].append(row)
-            continue
-        if row_type == "Chargeback Refund":
-            classified["chargeback_refund"].append(row)
-            continue
-        if row_type == "Liquidations":
-            classified["liquidation"].append(row)
-            continue
-        if row_type == "FBA Inventory Fee":
-            classified["fba_inventory_fee"].append(row)
-            continue
-        if row_type == "Amazon Fees":
-            classified["amazon_fees"].append(row)
-            if description not in ad_excluded_descriptions:
-                classified["amazon_fees_and_service_fee_without_ad"].append(row)
-            continue
-        if row_type == "Deal Fee":
-            classified["deal_fee"].append(row)
-            continue
-        if row_type == "Debt":
-            classified["debt"].append(row)
-            continue
-        if row_type == "FBA Transaction fees":
-            classified["fba_transaction_fees"].append(row)
-            continue
-        if row_type == "Fee Adjustment":
-            classified["fee_adjustment"].append(row)
-            if description == fee_adjustment_target:
-                classified["fee_adjustment_weight_dim"].append(row)
-            continue
-        if row_type == "Adjustment":
-            classified["adjustment"].append(row)
-            if description in adjustment_expense_descriptions:
-                classified["adjustment_expense"].append(row)
-            else:
-                classified["adjustment_income"].append(row)
-            continue
-        if row_type == "Service Fee":
-            classified["service_fee"].append(row)
-            if description not in ad_excluded_descriptions:
-                classified["amazon_fees_and_service_fee_without_ad"].append(row)
-            if description == "Cost of Advertising":
-                classified["advertising"].append(row)
-            elif description == "Refund for Advertiser":
-                classified["service_refund_for_advertiser"].append(row)
-            elif description in agl_descriptions:
-                classified["agl_selection"].append(row)
-
-    return classified
 
 
 def _group_sku_quantity(rows: list[dict[str, object]]) -> list[dict[str, object]]:
@@ -331,7 +146,7 @@ def run(input_path: str, output_dir: str, params: dict) -> dict:
 
     project_name = _safe_project_name(str(params.get("project_name", "unknown")))
     report_month = str(params.get("report_month", datetime.utcnow().strftime("%Y-%m")))
-    country = payment_report_locale.normalize_country(str(params.get('country', 'US')))
+    country = normalize_country(str(params.get('country', 'US')))
 
     report("reading_transactions", 15, "处理中：正在读取交易数据")
     all_rows = _read_transactions(input_path, country)

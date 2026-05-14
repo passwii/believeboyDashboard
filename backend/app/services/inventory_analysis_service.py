@@ -8,8 +8,8 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import AnalysisSourceFile, InventorySnapshotRow, ProductCost, Project
-from app.utils.country import _normalize_country
+from app.models import AnalysisSourceFile, InventorySnapshotRow, SkuRecord, Project
+from app.utils.country import normalize_country
 
 
 @dataclass
@@ -172,13 +172,13 @@ def _get_current_inventory_source(
 def _load_base_skus(db: Session, project: Project, country: str) -> list[_BaseSkuRow]:
     normalized_project_name = _normalize_identity(project.project_name)
     rows = db.execute(
-        select(ProductCost.sku, ProductCost.asin, ProductCost.country)
+        select(SkuRecord.sku, SkuRecord.asin, SkuRecord.country)
         .where(
-            func.lower(func.trim(ProductCost.project_name)) == normalized_project_name,
-            ProductCost.is_active.is_(True),
-            ProductCost.country == country,
+            func.lower(func.trim(SkuRecord.project_name)) == normalized_project_name,
+            SkuRecord.is_active.is_(True),
+            SkuRecord.country == country,
         )
-        .order_by(ProductCost.sort_order.asc(), ProductCost.id.asc())
+        .order_by(SkuRecord.sort_order.asc(), SkuRecord.id.asc())
     ).all()
 
     result: list[_BaseSkuRow] = []
@@ -187,7 +187,7 @@ def _load_base_skus(db: Session, project: Project, country: str) -> list[_BaseSk
         normalized_sku = _normalize_text(sku)
         if normalized_sku is None:
             continue
-        normalized_country = _normalize_country(row_country)
+        normalized_country = normalize_country(row_country)
         key = (normalized_sku, normalized_country)
         if key in seen:
             continue
@@ -274,7 +274,7 @@ def list_inventory_analysis(
     report_date: date | None = None,
 ) -> dict[str, object]:
     project = _get_project_or_404(db, project_id)
-    normalized_country = _normalize_country(country)
+    normalized_country = normalize_country(country)
     base_rows = _load_base_skus(db, project, normalized_country)
     source = _get_inventory_source(
         db,

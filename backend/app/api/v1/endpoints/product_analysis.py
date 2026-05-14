@@ -9,7 +9,7 @@ from sqlalchemy import exists, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, get_request_operator, protected
-from app.models import AnalysisPT1Calculation, AnalysisPTSKUDetail, ProductCost
+from app.models import AnalysisPT1Calculation, AnalysisPTSKUDetail, SkuRecord
 from app.schemas.product_analysis_source import (
     AnalysisSourceFileItem,
     AnalysisSourceRowsResponse,
@@ -26,63 +26,48 @@ from app.schemas.product_analysis import (
     SourcePersistOutcomeSchema,
 )
 from app.services.audit_log_service import append_operation_audit_log
-from app.services import product_analysis_source_service, project_service
-from app.services.redis_service import (
+from app.services.product.analysis import (
+    check_product_calculation_data_availability,
+    list_weekly_product_analysis_from_details,
+    recompute_pt1_for_period,
+    recompute_weekly_product_analysis_from_history,
+    run_product_calculation_from_history,
+)
+from app.services.product.persistence import persist_product_analysis_sources
+from app.services.product.sources import (
+    get_current_inventory_snapshot,
+    get_source_rows,
+    list_sources,
+)
+from app.services import project_service
+from app.services.product.constants import (
+    WEEKLY_SUMMARY_COLUMNS,
+    WEEKLY_SUMMARY_SUM_COLUMNS,
+    WEEKLY_SUMMARY_INT_COLUMNS,
+    WEEKLY_SUMMARY_MONEY_COLUMNS,
+)
+from app.services.product.serialization import to_source_item
+from app.services.infra import (
     get_weekly_analysis_cache,
     set_weekly_analysis_cache,
     invalidate_weekly_analysis_cache,
 )
-from app.utils.country import _normalize_country_http as _normalize_country
+from app.utils.country import normalize_country
+from app.utils.math_utils import to_float, safe_div
 
 
-def _to_float(value: Any) -> float:
-    if value is None:
-        return 0.0
-    if isinstance(value, (int, float)):
-        return float(value)
-    text = str(value).strip().replace(",", "")
-    if not text:
-        return 0.0
+def _normalize_country(value: str | None) -> str:
+    """Normalize country, raising HTTP 422 on invalid input."""
     try:
-        return float(text)
-    except ValueError:
-        return 0.0
-
-
-def _safe_div(numerator: float, denominator: float) -> float:
-    if denominator == 0:
-        return 0.0
-    return numerator / denominator
+        return normalize_country(value)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e),
+        )
 
 
 router = APIRouter(dependencies=[Depends(protected)])
-
-WEEKLY_SUMMARY_COLUMNS = [
-    "日期", "SKU", "ASIN", "总销量", "总销售额", "页面浏览量", "总访客",
-    "总转化", "广告展示量", "广告点击量", "广告点击率", "广告订单量", "广告单占比",
-    "广告转化率", "广告花费", "广告销售额", "CPC", "ACOS", "SP占比",
-    "自然流量", "自然流量占比", "自然单", "自然单转化", "产品FOB", "成本占比",
-    "销售头程", "头程占比", "FBA配送费", "配送费占比", "平台佣金", "佣金占比",
-    "总成本", "总成本占比", "利润", "利润率", "实际销售额", "实际销售量",
-    "实际退款额", "实际退款量", "平均售价", "退款率",
-]
-
-WEEKLY_SUMMARY_SUM_COLUMNS = {
-    "总销量", "总销售额", "页面浏览量", "总访客", "广告展示量", "广告点击量",
-    "广告订单量", "广告花费", "广告销售额", "自然流量", "自然单", "产品FOB",
-    "实际销售额", "实际销售量", "实际退款额", "实际退款量", "销售头程",
-    "FBA配送费", "平台佣金", "总成本", "利润",
-}
-
-WEEKLY_SUMMARY_INT_COLUMNS = {
-    "总销量", "页面浏览量", "总访客", "广告展示量", "广告点击量", "广告订单量",
-    "自然流量", "自然单", "实际销售量", "实际退款量",
-}
-
-WEEKLY_SUMMARY_MONEY_COLUMNS = {
-    "总销售额", "广告花费", "广告销售额", "CPC", "产品FOB", "销售头程",
-    "FBA配送费", "平台佣金", "总成本", "利润", "实际销售额", "实际退款额", "平均售价",
-}
 
 
 def _is_summary_complete(summary_row: Any) -> bool:
@@ -225,8 +210,8 @@ def _load_weekly_summary_map(
                 report_start_date=item.report_start_date,
                 report_end_date=item.report_end_date,
             )
-        merged_summary = dict(rebuilt_summary)
-        merged_summary.update(existing_summary)
+        merged_summary = dict(existing_summary)
+        merged_summary.update(rebuilt_summary)
         summary_by_id[row_id] = {
             "row_count": int(item.row_count or 0),
             "summary_row": merged_summary,
@@ -253,7 +238,7 @@ def list_product_analysis_sources(
     db: Session = Depends(get_db_session),
 ) -> list[AnalysisSourceFileItem]:
     effective_current_only = False if include_history else current_only
-    rows = product_analysis_source_service.list_sources(
+    rows = list_sources(
         db,
         project_id=project_id,
         report_type=report_type,
@@ -276,7 +261,7 @@ def get_product_analysis_source_rows(
     db: Session = Depends(get_db_session),
 ) -> AnalysisSourceRowsResponse:
     try:
-        source, rows, has_next = product_analysis_source_service.get_source_rows(
+        source, rows, has_next = get_source_rows(
             db,
             source_id=source_id,
             page=page,
@@ -301,14 +286,14 @@ def get_product_analysis_source_rows(
     "/product-analysis/inventory/current",
     response_model=CurrentInventorySnapshotResponse,
 )
-def get_current_inventory_snapshot(
+def get_current_inventory_snapshot_endpoint(
     project_id: int = Query(gt=0),
     country: Annotated[str, Query()] = "US",
     start_date: date | None = Query(default=None),
     end_date: date | None = Query(default=None),
     db: Session = Depends(get_db_session),
 ) -> CurrentInventorySnapshotResponse:
-    payload = product_analysis_source_service.get_current_inventory_snapshot(
+    payload = get_current_inventory_snapshot(
         db,
         project_id=project_id,
         country=country,
@@ -378,7 +363,7 @@ def list_product_analysis_pt1_details(
     if pt1 is None:
         raise HTTPException(status_code=404, detail="PT1 calculation not found")
 
-    # Use PT1's country for details query, and normalize for ProductCost matching
+    # Use PT1's country for details query, and normalize for SkuRecord matching
     pt1_country = pt1.country
     normalized_country = _normalize_country(country)
     if normalized_country != pt1_country:
@@ -389,16 +374,16 @@ def list_product_analysis_pt1_details(
     detail_sku = func.lower(func.coalesce(AnalysisPTSKUDetail.sku, ""))
     detail_asin = func.lower(func.coalesce(AnalysisPTSKUDetail.asin, ""))
     product_match = or_(
-        func.lower(func.coalesce(ProductCost.sku, "")) == detail_sku,
-        func.lower(func.coalesce(ProductCost.asin, "")) == detail_asin,
+        func.lower(func.coalesce(SkuRecord.sku, "")) == detail_sku,
+        func.lower(func.coalesce(SkuRecord.asin, "")) == detail_asin,
     )
 
     sort_order_expr = (
-        select(func.min(ProductCost.sort_order))
+        select(func.min(SkuRecord.sort_order))
         .where(
-            ProductCost.project_name == pt1.project_name,
-            ProductCost.is_active.is_(True),
-            ProductCost.country == normalized_country,
+            SkuRecord.project_name == pt1.project_name,
+            SkuRecord.is_active.is_(True),
+            SkuRecord.country == normalized_country,
             product_match,
         )
         .correlate(AnalysisPTSKUDetail)
@@ -406,9 +391,9 @@ def list_product_analysis_pt1_details(
     )
     exists_expr = exists(
         select(1).where(
-            ProductCost.project_name == pt1.project_name,
-            ProductCost.is_active.is_(True),
-            ProductCost.country == normalized_country,
+            SkuRecord.project_name == pt1.project_name,
+            SkuRecord.is_active.is_(True),
+            SkuRecord.country == normalized_country,
             product_match,
         )
     )
@@ -483,7 +468,7 @@ def list_product_analysis_weekly(
     if cached is not None:
         return cached
 
-    rows = product_analysis_source_service.list_weekly_product_analysis_from_details(
+    rows = list_weekly_product_analysis_from_details(
         db,
         project_id=project_id,
         country=normalized_country,
@@ -622,7 +607,7 @@ def recompute_product_analysis_weekly(
     )
     normalized_country = _normalize_country(country)
     try:
-        payload = product_analysis_source_service.recompute_weekly_product_analysis_from_history(
+        payload = recompute_weekly_product_analysis_from_history(
             db,
             project_id=project_id,
             country=normalized_country,
@@ -674,7 +659,7 @@ def check_product_calculation_data(
         is_admin=bool(is_admin),
     )
     normalized_country = _normalize_country(body.country)
-    result = product_analysis_source_service.check_product_calculation_data_availability(
+    result = check_product_calculation_data_availability(
         db,
         project_id=body.project_id,
         country=normalized_country,
@@ -700,7 +685,7 @@ def run_product_calculation(
     )
     normalized_country = _normalize_country(body.country)
     try:
-        result = product_analysis_source_service.run_product_calculation_from_history(
+        result = run_product_calculation_from_history(
             db,
             project_id=body.project_id,
             country=normalized_country,
@@ -761,7 +746,7 @@ def trigger_pt1_recompute(
     )
     normalized_country = _normalize_country(country)
     try:
-        result = product_analysis_source_service.recompute_pt1_for_period(
+        result = recompute_pt1_for_period(
             db,
             project_id=project_id,
             country=normalized_country,
@@ -797,36 +782,6 @@ def trigger_pt1_recompute(
     return result
 
 
-def _to_source_item(row) -> AnalysisSourceFileItem:
-    return AnalysisSourceFileItem(
-        id=row.id,
-        project_id=row.project_id,
-        report_type=row.report_type,
-        report_date=row.report_date,
-        period_start_date=row.period_start_date,
-        period_end_date=row.period_end_date,
-        snapshot_at=row.snapshot_at,
-        version=row.version,
-        is_current=row.is_current,
-        superseded_at=row.superseded_at,
-        upload_file_id=row.upload_file_id,
-        upload_file_path=row.upload_file_path,
-        original_filename=row.original_filename,
-        stored_filename=row.stored_filename,
-        logical_filename=row.logical_filename,
-        storage_key=row.storage_key,
-        file_size_bytes=row.file_size_bytes,
-        file_sha256=row.file_sha256,
-        ingestion_status=row.ingestion_status,
-        ingestion_error=row.ingestion_error,
-        row_count_total=row.row_count_total,
-        row_count_included=row.row_count_included,
-        created_by=row.created_by,
-        created_at=row.created_at,
-        updated_at=row.updated_at,
-    )
-
-
 @router.post(
     "/product-analysis/sources/upload-file",
     response_model=UploadProductAnalysisSourcesResponse,
@@ -849,7 +804,7 @@ def upload_product_analysis_sources(
     to compute after upload.
     """
     try:
-        outcomes = product_analysis_source_service.persist_product_analysis_sources(
+        outcomes = persist_product_analysis_sources(
             db=db,
             project_name=body.project_name,
             country=body.country,

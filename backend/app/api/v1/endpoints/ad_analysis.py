@@ -16,7 +16,18 @@ from app.schemas.ad_analysis import (
     AdAnalysisTimeTrendResponse,
     AdAnalysisTrafficQualityResponse,
 )
-import app.services.ad_analysis_service as ad_analysis_service
+from app.services.ad import (
+    build_budget,
+    build_campaigns,
+    build_overview,
+    build_placements,
+    build_products,
+    build_purchased_products,
+    build_search_terms,
+    build_targets,
+    build_time_trend,
+    build_traffic_quality,
+)
 
 router = APIRouter(dependencies=[Depends(protected)])
 
@@ -31,7 +42,7 @@ def get_ad_analysis_overview(
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> AdAnalysisOverviewResponse:
-    payload = ad_analysis_service.build_overview(
+    payload = build_overview(
         db,
         project_id=project_id,
         country=country,
@@ -57,7 +68,7 @@ def get_ad_analysis_campaigns(
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> AdAnalysisCampaignsResponse:
-    payload = ad_analysis_service.build_campaigns(
+    payload = build_campaigns(
         db,
         project_id=project_id,
         country=country,
@@ -85,7 +96,7 @@ def get_ad_analysis_products(
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> AdAnalysisProductsResponse:
-    payload = ad_analysis_service.build_products(
+    payload = build_products(
         db,
         project_id=project_id,
         country=country,
@@ -109,7 +120,7 @@ def get_ad_analysis_time_trend(
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> AdAnalysisTimeTrendResponse:
-    payload = ad_analysis_service.build_time_trend(
+    payload = build_time_trend(
         db,
         project_id=project_id,
         country=country,
@@ -134,7 +145,7 @@ def get_ad_analysis_purchased_products(
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> AdAnalysisPurchasedProductsResponse:
-    payload = ad_analysis_service.build_purchased_products(
+    payload = build_purchased_products(
         db,
         project_id=project_id,
         country=country,
@@ -162,7 +173,7 @@ def get_ad_analysis_search_terms(
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> AdAnalysisSearchTermsResponse:
-    payload = ad_analysis_service.build_search_terms(
+    payload = build_search_terms(
         db,
         project_id=project_id,
         country=country,
@@ -190,7 +201,7 @@ def get_ad_analysis_targets(
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> AdAnalysisTargetsResponse:
-    payload = ad_analysis_service.build_targets(
+    payload = build_targets(
         db,
         project_id=project_id,
         country=country,
@@ -217,7 +228,7 @@ def get_ad_analysis_budget(
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> AdAnalysisBudgetResponse:
-    payload = ad_analysis_service.build_budget(
+    payload = build_budget(
         db,
         project_id=project_id,
         country=country,
@@ -244,7 +255,7 @@ def get_ad_analysis_placements(
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> AdAnalysisPlacementsResponse:
-    payload = ad_analysis_service.build_placements(
+    payload = build_placements(
         db,
         project_id=project_id,
         country=country,
@@ -271,7 +282,7 @@ def get_ad_analysis_traffic_quality(
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> AdAnalysisTrafficQualityResponse:
-    payload = ad_analysis_service.build_traffic_quality(
+    payload = build_traffic_quality(
         db,
         project_id=project_id,
         country=country,

@@ -1,7 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { ChevronDown, ChevronUp, ChevronsUpDown, PencilLine, PlusCircle } from 'lucide-react'
+import { useSearchParams } from 'next/navigation'
+import { ChevronDown, ChevronUp, ChevronsUpDown, PencilLine, PlusCircle, Settings } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 import { Badge } from '@/components/ui/badge'
@@ -32,6 +33,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { useGlobalLoading } from '@/components/global-loading-provider'
 import { useSmoothRefresh } from '@/hooks/use-smooth-refresh'
+import { ProjectContextDrawer } from '@/components/dashboard/project-context/project-context-drawer'
 import {
   clearProjectClientCaches,
   fetchManagedProjectsCached,
@@ -52,6 +54,7 @@ type ProjectItem = {
   sort_order: number
   is_active: boolean
   source_file: string | null
+  has_context: boolean
 }
 
 type CommissionBasisOption = {
@@ -221,6 +224,7 @@ export default function StoreInfoPage() {
   const { notify } = useNotifications()
   const { startGlobalLoading, endGlobalLoading } = useGlobalLoading()
   const { data: session, status } = useSession()
+  const searchParams = useSearchParams()
   const [items, setItems] = useState<ProjectItem[]>([])
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -246,6 +250,16 @@ export default function StoreInfoPage() {
   const [editCommissionMode, setEditCommissionMode] = useState('')
   const [editCommissionRate, setEditCommissionRate] = useState('')
   const [editIsActive, setEditIsActive] = useState(true)
+
+  const [contextDrawerOpen, setContextDrawerOpen] = useState(false)
+  const [contextProjectId, setContextProjectId] = useState<number | null>(null)
+  const [contextProjectName, setContextProjectName] = useState('')
+
+  const openContextDrawer = (item: ProjectItem) => {
+    setContextProjectId(item.id)
+    setContextProjectName(item.name)
+    setContextDrawerOpen(true)
+  }
   const isAddCashReceivedCommission = addCommissionMode === 'cash_received'
   const isEditCashReceivedCommission = editCommissionMode === 'cash_received'
   const { showSkeleton, isRefreshing } = useSmoothRefresh({ loading, hasData: items.length > 0 })
@@ -304,6 +318,21 @@ const loadOperatorOptions = useCallback(async () => {
   useEffect(() => {
     void loadOperatorOptions()
   }, [loadOperatorOptions])
+
+  // Handle configure query param to auto-open context drawer
+  useEffect(() => {
+    const configureId = searchParams.get('configure')
+    if (configureId) {
+      const projectId = Number(configureId)
+      const project = items.find((item) => item.id === projectId)
+      if (project) {
+        // Wait for items to be loaded, then open drawer
+        setContextProjectId(projectId)
+        setContextProjectName(project.name)
+        setContextDrawerOpen(true)
+      }
+    }
+  }, [searchParams, items])
 
   const onAddSingle = async () => {
     const normalizedName = addName.trim()
@@ -597,18 +626,28 @@ const loadOperatorOptions = useCallback(async () => {
               {showSkeleton ? (
                 Array.from({ length: 6 }).map((_, index) => (
                   <tr key={`skeleton-${index}`} className="border-b transition-colors hover:bg-muted/50 dark:hover:bg-[hsl(var(--surface-strong)/0.35)]">
-                    <td colSpan={11} className="p-4 align-middle">
+                    <td colSpan={12} className="p-4 align-middle">
                       <Skeleton className="h-6 w-full" />
                     </td>
                   </tr>
                 ))
               ) : items.length === 0 ? (
-                <EmptyState colSpan={11} message="暂无项目数据，请先新增一个项目。" />
+                <EmptyState colSpan={12} message="暂无项目数据，请先新增一个项目。" />
               ) : (
                   items.map((item) => (
                     <tr key={item.id} className="border-b transition-colors hover:bg-muted/50 dark:hover:bg-[hsl(var(--surface-strong)/0.35)]">
                       <td className="border-b border-r border-border/60 p-4 align-middle text-muted-foreground">{item.id}</td>
-                      <td className="border-b border-r border-border/60 p-4 align-middle font-medium text-foreground">{item.name}</td>
+                      <td className="border-b border-r border-border/60 p-4 align-middle">
+                        <div className="flex items-center gap-2">
+                          {item.has_context && (
+                            <span
+                              className="h-2 w-2 shrink-0 rounded-full bg-green-500"
+                              title="已配置项目背景"
+                            />
+                          )}
+                          <span className="font-medium text-foreground truncate">{item.name}</span>
+                        </div>
+                      </td>
                       <td className="border-b border-r border-border/60 p-4 align-middle">{item.brand_name || '-'}</td>
                       <td className="border-b border-r border-border/60 p-4 align-middle whitespace-pre-wrap break-words">{item.project_operator || '-'}</td>
                       <td className="border-b border-r border-border/60 p-4 align-middle whitespace-pre-wrap break-words">{item.assistant_operator || '-'}</td>
@@ -659,7 +698,18 @@ const loadOperatorOptions = useCallback(async () => {
                         </div>
                       </td>
                       <td className="border-b border-border/60 p-4 align-middle text-right">
-                        <div className="flex justify-end">
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openContextDrawer(item)}
+                            disabled={submitting}
+                            aria-label={`项目背景配置 ${item.name}`}
+                            title="项目背景配置"
+                          >
+                            <Settings className="h-4 w-4" />
+                          </Button>
                           <Button
                             type="button"
                             variant="outline"
@@ -828,6 +878,18 @@ const loadOperatorOptions = useCallback(async () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {contextProjectId && (
+        <ProjectContextDrawer
+          projectId={contextProjectId}
+          projectName={contextProjectName}
+          open={contextDrawerOpen}
+          onOpenChange={setContextDrawerOpen}
+          onSuccess={() => {
+            void loadProjects()
+          }}
+        />
+      )}
     </div>
   )
 }

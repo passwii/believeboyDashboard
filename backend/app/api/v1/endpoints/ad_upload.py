@@ -9,7 +9,12 @@ from app.schemas.ad_upload import (
     AdUploadRecognitionResponse,
     AdUploadStatusResponse,
 )
-import app.services.ad_upload_service as ad_upload_service
+from app.services.ad.upload import (
+    commit_ad_upload,
+    list_ad_upload_statuses,
+    recognize_saved_ad_upload,
+    save_ad_upload_temp_file,
+)
 
 router = APIRouter(dependencies=[Depends(protected)])
 
@@ -23,8 +28,8 @@ def recognize_ad_upload(
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> AdUploadRecognitionResponse:
-    saved = ad_upload_service.save_ad_upload_temp_file(file=file, settings=settings)
-    return ad_upload_service.recognize_saved_ad_upload(
+    saved = save_ad_upload_temp_file(file=file, settings=settings)
+    return recognize_saved_ad_upload(
         db,
         settings,
         temp_file_id=str(saved['temp_file_id']),
@@ -36,14 +41,14 @@ def recognize_ad_upload(
 
 
 @router.post('/ad-upload/commit', response_model=AdUploadCommitResponse)
-def commit_ad_upload(
+def commit_ad_upload_endpoint(
     payload: AdUploadCommitRequest,
     settings: Settings = Depends(get_settings),
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> AdUploadCommitResponse:
-    return ad_upload_service.commit_ad_upload(
+    return commit_ad_upload(
         db,
         settings,
         payload=payload,
@@ -63,7 +68,7 @@ def list_ad_upload_status(
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> AdUploadStatusResponse:
-    return ad_upload_service.list_ad_upload_statuses(
+    return list_ad_upload_statuses(
         db,
         country=country,
         project_name=project_name,

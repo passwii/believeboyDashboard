@@ -7,7 +7,8 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, get_request_operator, protected
 from app.schemas.return_analysis import ReturnAnalysisResponse
-from app.services import project_service, return_analysis_service
+from app.services import project_service
+from app.services.analysis.return_analysis import build_return_analysis
 
 router = APIRouter(dependencies=[Depends(protected)])
 
@@ -30,7 +31,7 @@ def get_return_analysis(
         operator=operator,
         is_admin=bool(is_admin),
     )
-    return return_analysis_service.build_return_analysis(
+    return build_return_analysis(
         db,
         project_id=project_id,
         country=country,

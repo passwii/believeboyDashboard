@@ -22,17 +22,27 @@ from app.schemas.monthly_report import (
     MonthlyReportTaskStatusResponse,
 )
 from app.services.audit_log_service import append_operation_audit_log
+from app.utils.country import normalize_country
 from app.services import (
     monthly_report_runtime_service,
-    monthly_report_service,
-    payment_report_locale,
     project_service,
     upload_service,
 )
-from app.services.redis_service import (
+from app.services.payment import validate_payment_report_project_match
+from app.services.infra import (
     get_financial_series_cache,
     invalidate_financial_series_cache,
     set_financial_series_cache,
+)
+from app.services.report.export import export_financial_accounting_detail_workbook
+from app.services.report.monthly import (
+    get_financial_accounting_detail,
+    get_financial_series,
+    get_report_detail,
+    get_report_or_404,
+    list_reports,
+    parse_report_month,
+    resolve_result_path,
 )
 
 router = APIRouter(dependencies=[Depends(protected)])
@@ -48,7 +58,7 @@ def create_monthly_report(
     operator: str | None = Depends(get_request_operator),
 ) -> MonthlyReportResponse:
     started_at = perf_counter()
-    monthly_report_service.parse_report_month(data.report_month)
+    parse_report_month(data.report_month)
 
     provided_project_name = (data.project_name or "").strip()
     if not provided_project_name:
@@ -57,7 +67,7 @@ def create_monthly_report(
     project_id = data.project_id
     project_name = provided_project_name
     try:
-        country = payment_report_locale.normalize_country(data.country)
+        country = normalize_country(data.country)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
     after_project = perf_counter()
@@ -81,7 +91,7 @@ def create_monthly_report(
     after_resolve_paths = perf_counter()
 
     # ── Foolproof: validate payment report CSV matches selected project & country ──
-    validation = monthly_report_service.validate_payment_report_project_match(
+    validation = validate_payment_report_project_match(
         db,
         transaction_file_path=str(transaction_path),
         selected_project_name=project_name,
@@ -226,14 +236,14 @@ def list_monthly_reports(
     include_history: bool = Query(default=False),
     db: Session = Depends(get_db_session),
 ) -> list[MonthlyReportListItem]:
-    report_month = monthly_report_service.parse_report_month(month) if month else None
+    report_month = parse_report_month(month) if month else None
     normalized_country: str | None = None
     if country is not None:
         try:
-            normalized_country = payment_report_locale.normalize_country(country)
+            normalized_country = normalize_country(country)
         except ValueError as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
-    rows = monthly_report_service.list_reports(
+    rows = list_reports(
         db,
         project_id=project_id,
         country=normalized_country,
@@ -264,7 +274,7 @@ def get_monthly_financial_series(
     )
 
     try:
-        normalized_country = payment_report_locale.normalize_country(country)
+        normalized_country = normalize_country(country)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
@@ -272,7 +282,7 @@ def get_monthly_financial_series(
     if cached:
         return MonthlyFinancialSeriesResponse(**cached)
 
-    payload = monthly_report_service.get_financial_series(
+    payload = get_financial_series(
         db,
         project_id=project_id,
         country=normalized_country,
@@ -306,13 +316,13 @@ def recalculate_monthly_financial_series(
     )
 
     try:
-        normalized_country = payment_report_locale.normalize_country(country)
+        normalized_country = normalize_country(country)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
     invalidate_financial_series_cache(project_id)
 
-    payload = monthly_report_service.get_financial_series(
+    payload = get_financial_series(
         db,
         project_id=project_id,
         country=normalized_country,
@@ -345,11 +355,11 @@ def get_monthly_financial_accounting_detail(
         is_admin=bool(is_admin),
     )
     try:
-        normalized_country = payment_report_locale.normalize_country(country)
+        normalized_country = normalize_country(country)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
-    payload = monthly_report_service.get_financial_accounting_detail(
+    payload = get_financial_accounting_detail(
         db,
         project_id=project_id,
         country=normalized_country,
@@ -374,11 +384,11 @@ def export_monthly_financial_accounting_detail(
         is_admin=bool(is_admin),
     )
     try:
-        normalized_country = payment_report_locale.normalize_country(country)
+        normalized_country = normalize_country(country)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
-    filename, content = monthly_report_service.export_financial_accounting_detail_workbook(
+    filename, content = export_financial_accounting_detail_workbook(
         db,
         project_id=project_id,
         country=normalized_country,
@@ -404,7 +414,7 @@ def get_monthly_report_detail(
     report_id: int,
     db: Session = Depends(get_db_session),
 ) -> MonthlyReportDetailResponse:
-    report, pt3, pt4 = monthly_report_service.get_report_detail(
+    report, pt3, pt4 = get_report_detail(
         db,
         report_id=report_id,
     )
@@ -422,11 +432,11 @@ def download_monthly_report_export(
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
 ):
-    report = monthly_report_service.get_report_or_404(db, report_id)
+    report = get_report_or_404(db, report_id)
     if report.status != JobStatus.success:
         raise HTTPException(status_code=409, detail="Monthly report is not finished")
 
-    result_path = monthly_report_service.resolve_result_path(report)
+    result_path = resolve_result_path(report)
     if result_path is None:
         raise HTTPException(status_code=404, detail="Result file missing")
     append_operation_audit_log(

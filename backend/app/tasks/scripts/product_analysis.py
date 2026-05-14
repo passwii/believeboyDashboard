@@ -14,9 +14,9 @@ from openpyxl.utils.dataframe import dataframe_to_rows
 from sqlalchemy import select
 
 from app.db.session import SessionLocal
-from app.models import ProductCost
+from app.models import SkuRecord
 from app.services import exchange_rate_service
-import app.services.payment_report_locale as payment_report_locale
+from app.services.payment.locale import read_payment_report_dataframe
 
 
 PERCENT_COLUMNS = {
@@ -145,19 +145,19 @@ def _read_ad_report(path: Path) -> pd.DataFrame:
 
 
 def _read_payment_report(path: Path, country: str = 'US') -> pd.DataFrame:
-    return payment_report_locale.read_payment_report_dataframe(path, country=country)
+    return read_payment_report_dataframe(path, country=country)
 
 
-from app.utils.country import _normalize_country
+from app.utils.country import normalize_country
 
 
 def _load_project_costs_df(project_name: str, country: str, year_month: str | None = None) -> pd.DataFrame:
     db = SessionLocal()
     try:
-        stmt = select(ProductCost).where(
-            ProductCost.project_name == project_name,
-            ProductCost.is_active.is_(True),
-            ProductCost.country == country,
+        stmt = select(SkuRecord).where(
+            SkuRecord.project_name == project_name,
+            SkuRecord.is_active.is_(True),
+            SkuRecord.country == country,
         )
         rows = db.execute(stmt).scalars().all()
     finally:
@@ -577,7 +577,7 @@ def run(input_path: str, output_dir: str, params: dict) -> dict:
     project_name = _safe_project_name(str(params.get('project_name', 'unknown')))
     report_start_date = str(params.get('report_start_date', '')).strip()
     report_end_date = str(params.get('report_end_date', '')).strip()
-    country = _normalize_country(str(params.get('country', 'US')))
+    country = normalize_country(str(params.get('country', 'US')))
 
     if not report_start_date or not report_end_date:
         raise ValueError('Missing report_start_date/report_end_date')

@@ -285,10 +285,19 @@ const SignInCard = ({ theme = 'light' }: SignInCardProps) => {
         callbackUrl,
         redirect: false,
       });
+
       if (!result || result.error) {
         setSubmitting(false);
         finishNavigationLoading();
-        setError("邮箱或密码错误，或账号已停用。");
+        // 根据 result.code 区分网络错误和认证失败
+        // code='network_error' 由后端 authorize 抛出，表示后端服务不可达
+        // code='credentials' 表示认证失败（密码错误/账号停用）
+        const errorCode = result?.code?.toLowerCase() ?? "";
+        if (errorCode === 'network_error') {
+          setError("无法连接到服务器，请检查后端服务是否启动。");
+        } else {
+          setError("邮箱或密码错误，或账号已停用。");
+        }
         return;
       }
 
@@ -307,10 +316,12 @@ const SignInCard = ({ theme = 'light' }: SignInCardProps) => {
       }
       router.push(nextPath);
       router.refresh();
-    } catch {
+    } catch (err) {
       setSubmitting(false);
       finishNavigationLoading();
-      setError("邮箱或密码错误，或账号已停用。");
+      // 网络/连接错误 - 后端未启动或网络问题
+      setError("无法连接到服务器，请检查后端服务是否启动。");
+      console.error("登录请求失败:", err);
       return;
     }
   };

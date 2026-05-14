@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import time
+import warnings
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import date, timedelta
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal
 from typing import Any, Callable
 
 from sqlalchemy import func, select
@@ -17,6 +18,9 @@ from app.models import (
     InventorySnapshotRow,
     Project,
 )
+from app.services import project_service
+from app.utils.math_utils import round_money, safe_ratio
+from app.utils.date_utils import date_range
 
 
 @dataclass
@@ -32,6 +36,8 @@ class AggregatedData:
     top_skus: list[dict[str, Any]] = field(default_factory=list)
     ad_campaigns: list[dict[str, Any]] = field(default_factory=list)
     data_coverage: dict[str, Any] = field(default_factory=dict)
+    project_context: dict[str, Any] = field(default_factory=dict)
+    sku_context: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -46,6 +52,8 @@ class AggregatedData:
             "top_skus": self.top_skus,
             "ad_campaigns": self.ad_campaigns,
             "data_coverage": self.data_coverage,
+            "project_context": self.project_context,
+            "sku_context": self.sku_context,
         }
 
 
@@ -63,18 +71,33 @@ ProgressCallback = Callable[[str], None]
 
 
 def _round_money(value: Decimal) -> float:
-    return float(value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+    """[已废弃] 请使用 app.shared.math_utils.round_money"""
+    warnings.warn(
+        "_round_money is deprecated, use app.shared.math_utils.round_money instead",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return round_money(value)
 
 
 def _safe_ratio(numerator: Decimal, denominator: int) -> float:
-    if denominator <= 0:
-        return 0.0
-    return float(Decimal(str(numerator)) / Decimal(str(denominator)))
+    """[已废弃] 请使用 app.shared.math_utils.safe_ratio"""
+    warnings.warn(
+        "_safe_ratio is deprecated, use app.shared.math_utils.safe_ratio instead",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return float(safe_ratio(numerator, denominator))
 
 
 def _daterange(start_date: date, end_date: date) -> list[date]:
-    days = (end_date - start_date).days
-    return [start_date + timedelta(days=offset) for offset in range(days + 1)]
+    """[已废弃] 请使用 app.shared.date_utils.date_range"""
+    warnings.warn(
+        "_daterange is deprecated, use app.shared.date_utils.date_range instead",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return date_range(start_date, end_date)
 
 
 def _get_project_or_404(db: Session, project_id: int) -> Project | None:
@@ -105,14 +128,15 @@ def aggregate_project_data(
     comp_end = start_date - timedelta(days=1)
     comp_start = comp_end - timedelta(days=period_days - 1)
 
-    # Run all queries in parallel using a thread pool
-    # Each function receives its own DB session so they can run concurrently
+    # Run queries in batches to limit peak DB connections.
+    # With 1 main + 4 workers, worst case = 5 connections per request.
+    # (pool_size=5, max_overflow=10 is sufficient.)
     from app.db.session import SessionLocal
 
     def run_queries():
         session_factory = SessionLocal
 
-        with ThreadPoolExecutor(max_workers=6) as executor:
+        with ThreadPoolExecutor(max_workers=4) as executor:
             f_sales = executor.submit(
                 _aggregate_sales_by_date_sql,
                 session_factory,
@@ -142,6 +166,24 @@ def aggregate_project_data(
                 AGGREGATE_STEP_INVENTORY,
                 progress_cb,
             )
+            f_top_skus = executor.submit(
+                _get_top_skus_sql,
+                session_factory,
+                project_id,
+                country,
+                start_date,
+                end_date,
+                AGGREGATE_STEP_TOP_SKUS,
+                progress_cb,
+            )
+
+            # Wait for sales + ad before launching comparison queries
+            sales_by_date, sales_coverage = f_sales.result()
+            ad_by_date, ad_coverage = f_ad.result()
+            inventory_summary = f_inventory.result()
+            top_skus = f_top_skus.result()
+
+            # Comparison queries (reuse same executor, 2 slots freed above)
             f_comp_sales = executor.submit(
                 _aggregate_sales_by_date_sql,
                 session_factory,
@@ -162,35 +204,23 @@ def aggregate_project_data(
                 AGGREGATE_STEP_COMPARISON_AD,
                 progress_cb,
             )
-            f_top_skus = executor.submit(
-                _get_top_skus_sql,
-                session_factory,
-                project_id,
-                country,
-                start_date,
-                end_date,
-                AGGREGATE_STEP_TOP_SKUS,
-                progress_cb,
-            )
-
-            # Wait for first 4 before starting ad campaigns (they're independent)
-            sales_by_date, sales_coverage = f_sales.result()
-            ad_by_date, ad_coverage = f_ad.result()
-            inventory_summary = f_inventory.result()
             comp_sales_result, _ = f_comp_sales.result()
             comp_ad_result, _ = f_comp_ad.result()
-            top_skus = f_top_skus.result()
 
-            # Ad campaigns (can start after ad_by_date is done, but independently)
-            ad_campaigns = _get_ad_campaign_summary_sql(
-                session_factory,
-                project_id,
-                country,
-                start_date,
-                end_date,
-                AGGREGATE_STEP_AD_CAMPAIGNS,
-                progress_cb,
-            )
+        # Ad campaigns runs after thread pool — no extra DB connection needed here
+        # because _get_ad_campaign_summary_sql creates its own session internally.
+        ad_campaigns = _get_ad_campaign_summary_sql(
+            session_factory,
+            project_id,
+            country,
+            start_date,
+            end_date,
+            AGGREGATE_STEP_AD_CAMPAIGNS,
+            progress_cb,
+        )
+
+        # 获取项目背景信息
+        project_context, sku_context = project_service.get_project_context(db, project_id)
 
         # Build comparison period summary
         total_comp_sales = sum(r["sales_amount"] for r in comp_sales_result)
@@ -224,6 +254,8 @@ def aggregate_project_data(
                 "ad_days": ad_coverage["days"],
                 "total_requested_days": len(_daterange(start_date, end_date)),
             },
+            project_context=project_context or {},
+            sku_context=sku_context or {},
         )
 
     return run_queries()

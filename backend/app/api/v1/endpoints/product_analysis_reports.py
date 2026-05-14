@@ -18,7 +18,19 @@ from app.services import analysis_report_runtime_service, upload_service
 router = APIRouter(dependencies=[Depends(protected)])
 
 
-from app.utils.country import _normalize_country_http as _normalize_country
+from app.utils.country import normalize_country
+
+
+def _normalize_country(value: str | None) -> str:
+    """Normalize country, raising HTTP 422 on invalid input."""
+    try:
+        return normalize_country(value)
+    except ValueError as e:
+        from fastapi import HTTPException, status
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e),
+        )
 
 
 @router.post('/product-analysis-reports', response_model=ProductAnalysisReportResponse)

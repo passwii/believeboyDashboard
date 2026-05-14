@@ -10,7 +10,6 @@ import {
   LayoutDashboard,
   ShieldUser,
   Store,
-  Wrench,
   Users,
 } from 'lucide-react'
 import Link from 'next/link'
@@ -92,7 +91,6 @@ const primaryGroups: NavGroup[] = [
     iconAccent: '#888888',
     activeIconAccent: 'rgba(255,255,255,0.95)',
     items: [
-      { title: '销售日报', url: '/dashboard/data-reporting/daily-report' },
       { title: '财务月报', url: '/dashboard/data-reporting/monthly-report' },
       { title: '产品分析', url: '/dashboard/data-reporting/product-analysis' },
       {
@@ -137,6 +135,7 @@ const primaryGroups: NavGroup[] = [
       },
       { title: '退货分析', url: '/dashboard/data-analysis/return-analysis' },
       { title: '项目目标', url: '/dashboard/data-analysis/project-goals' },
+      { title: '调研分析', url: '/dashboard/data-analysis/research-analysis' },
     ],
   },
   {
@@ -153,7 +152,7 @@ const primaryGroups: NavGroup[] = [
         title: '发货管理',
         url: '/dashboard/data-management/shipment-management',
       },
-      { title: 'SKU 信息', url: '/dashboard/data-management/sku-cost' },
+      { title: 'SKU 信息', url: '/dashboard/data-management/sku-info' },
       {
         title: '报表核对',
         url: '/dashboard/data-management/report-reconciliation',
@@ -162,15 +161,7 @@ const primaryGroups: NavGroup[] = [
       { title: '报表自动化', url: '/dashboard/data-management/auto-upload' },
     ],
   },
-  {
-    label: '工具集',
-    icon: <Wrench className='h-6 w-6' />,
-    accent: 'bg-[linear-gradient(180deg,#0d6a53,#159271)] text-[#c7fff0]',
-    activeAccent: 'bg-[linear-gradient(180deg,#118166,#1cab86)] text-white',
-    iconAccent: '#888888',
-    activeIconAccent: 'rgba(255,255,255,0.95)',
-    items: [{ title: '调研分析', url: '/dashboard/tools/research-analysis' }],
-  },
+
 ]
 
 const utilityLinks: Array<NavLink & { icon: React.ReactNode }> = [

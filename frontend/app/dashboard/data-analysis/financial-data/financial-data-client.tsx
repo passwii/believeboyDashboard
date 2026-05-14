@@ -1456,7 +1456,7 @@ export default function FinancialDataClient({
 
       const summaryLastColumn = 4
       summarySheet.mergeCells(1, 1, 1, summaryLastColumn)
-      summarySheet.getCell(1, 1).value = `月度财务汇总分析-${formatMonth(data.start_month)}`
+      summarySheet.getCell(1, 1).value = `月度财务汇总分析-${formatMonth(data.end_month)}`
       summarySheet.getCell(1, 1).font = {
         name: 'Microsoft YaHei',
         size: 16,
@@ -1640,7 +1640,7 @@ export default function FinancialDataClient({
 
       const detailLastColumn = activeExportColumns.length
       detailSheet.mergeCells(1, 1, 1, detailLastColumn)
-      detailSheet.getCell(1, 1).value = `月度财务核算明细-${formatMonth(data.start_month)}`
+      detailSheet.getCell(1, 1).value = `月度财务核算明细-${formatMonth(data.end_month)}`
       detailSheet.getCell(1, 1).font = {
         name: 'Microsoft YaHei',
         size: 16,
@@ -1924,9 +1924,9 @@ export default function FinancialDataClient({
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       const safeProjectName = data.project_name.replace(/[\\/:*?"<>|]/g, '-')
-      const startMonthStr = formatMonth(data.start_month)
+      const endMonthStr = formatMonth(data.end_month)
       link.href = url
-      link.download = `${safeProjectName}-月度财务汇总分析-${startMonthStr}.xlsx`
+      link.download = `${safeProjectName}-月度财务汇总分析-${endMonthStr}.xlsx`
       link.click()
       window.URL.revokeObjectURL(url)
       await logClientOperation({

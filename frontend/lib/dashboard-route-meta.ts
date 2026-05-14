@@ -1,5 +1,4 @@
 export const DASHBOARD_PAGE_TITLES: Array<{ match: string; title: string }> = [
-  { match: '/data-reporting/daily-report', title: '销售日报' },
   { match: '/data-reporting/monthly-report', title: '财务月报' },
   { match: '/data-reporting/product-analysis', title: '产品分析' },
   { match: '/data-reporting/pricing-calculation/shop-calculation', title: '店铺测算' },
@@ -15,7 +14,7 @@ export const DASHBOARD_PAGE_TITLES: Array<{ match: string; title: string }> = [
   { match: '/data-management/report-upload', title: '报表上传' },
   { match: '/data-management/ad-upload', title: '广告报表上传' },
   { match: '/data-management/shipment-management', title: '发货管理' },
-  { match: '/data-management/sku-cost', title: 'SKU 信息中心' },
+  { match: '/data-management/sku-info', title: 'SKU 信息中心' },
   { match: '/data-management/report-reconciliation', title: '报表核对' },
   { match: '/data-management/exchange-rate', title: '汇率信息' },
   { match: '/system-management/project-info', title: '项目信息' },

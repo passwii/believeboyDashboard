@@ -10,7 +10,11 @@ from app.schemas.upload import (
     ReportStatusResponse,
     UploadResponse,
 )
-import app.services.report_upload_service as report_upload_service
+from app.services.data.upload import (
+    commit_report_upload,
+    list_report_upload_statuses,
+    recognize_saved_report_upload,
+)
 from app.services.audit_log_service import append_operation_audit_log
 from app.services.upload_service import save_report_upload_temp_file, save_upload_file
 
@@ -41,7 +45,7 @@ def recognize_report_upload(
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> ReportRecognitionResponse:
     saved = save_report_upload_temp_file(file=file, settings=settings)
-    response = report_upload_service.recognize_saved_report_upload(
+    response = recognize_saved_report_upload(
         db,
         settings,
         temp_file_id=str(saved["temp_file_id"]),
@@ -70,7 +74,7 @@ def recognize_report_upload(
 
 
 @router.post("/report-upload/commit", response_model=ReportCommitResponse)
-def commit_report_upload(
+def commit_report_upload_endpoint(
     payload: ReportCommitRequest,
     request: Request,
     settings: Settings = Depends(get_settings),
@@ -78,7 +82,7 @@ def commit_report_upload(
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> ReportCommitResponse:
-    response = report_upload_service.commit_report_upload(
+    response = commit_report_upload(
         db,
         settings,
         payload=payload,
@@ -116,7 +120,7 @@ def list_report_upload_status(
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> ReportStatusResponse:
-    return report_upload_service.list_report_upload_statuses(
+    return list_report_upload_statuses(
         db,
         report_date=report_date,
         operator=operator,

@@ -3,12 +3,11 @@ from fastapi import APIRouter
 from app.api.v1.endpoints.health import router as health_router
 from app.api.v1.endpoints.jobs import router as jobs_router
 from app.api.v1.endpoints.monthly_reports import router as monthly_reports_router
-from app.api.v1.endpoints.daily_reports import router as daily_reports_router
 from app.api.v1.endpoints.daily_analysis import router as daily_analysis_router
 from app.api.v1.endpoints.product_analysis import router as product_analysis_router
 from app.api.v1.endpoints.product_analysis_reports import router as product_analysis_reports_router
 from app.api.v1.endpoints.presence import router as presence_router
-from app.api.v1.endpoints.product_costs import router as product_costs_router
+from app.api.v1.endpoints.sku_info import router as sku_info_router
 from app.api.v1.endpoints.pricing_calculation import router as pricing_calculation_router
 from app.api.v1.endpoints.store_sku_pricing_snapshots import router as store_sku_pricing_snapshots_router
 from app.api.v1.endpoints.shop_calculation import router as shop_calculation_router
@@ -37,7 +36,7 @@ api_router.include_router(auth_router)
 api_router.include_router(health_router)
 api_router.include_router(exchange_rates_router)
 api_router.include_router(projects_router)
-api_router.include_router(product_costs_router)
+api_router.include_router(sku_info_router)
 api_router.include_router(pricing_calculation_router)
 api_router.include_router(store_sku_pricing_snapshots_router)
 api_router.include_router(shop_calculation_router)
@@ -50,7 +49,6 @@ api_router.include_router(uploads_router)
 api_router.include_router(ad_upload_router)
 api_router.include_router(ad_analysis_router)
 api_router.include_router(jobs_router)
-api_router.include_router(daily_reports_router)
 api_router.include_router(daily_analysis_router)
 api_router.include_router(monthly_reports_router)
 api_router.include_router(product_analysis_reports_router)

@@ -108,11 +108,6 @@ const ALL_ITEMS: PinnedItem[] = [
   },
   // 运营核算
   {
-    title: '销售日报',
-    url: '/dashboard/data-reporting/daily-report',
-    icon: <ChartColumnBig className='h-4 w-4' />,
-  },
-  {
     title: '财务月报',
     url: '/dashboard/data-reporting/monthly-report',
     icon: <Calculator className='h-4 w-4' />,
@@ -186,7 +181,7 @@ const ALL_ITEMS: PinnedItem[] = [
   },
   {
     title: 'SKU 信息',
-    url: '/dashboard/data-management/sku-cost',
+    url: '/dashboard/data-management/sku-info',
     icon: <FileText className='h-4 w-4' />,
   },
   {

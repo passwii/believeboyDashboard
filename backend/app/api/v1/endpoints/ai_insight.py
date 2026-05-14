@@ -25,7 +25,6 @@ from app.schemas.ai_insight import (
     InsightStatusResponse,
     InsightUpdateRequest,
 )
-from app.services import ai_chat_service
 from app.services import project_service
 from app.services.ai_insight_aggregator import aggregate_project_data
 from app.services.ai_insight_generator import (

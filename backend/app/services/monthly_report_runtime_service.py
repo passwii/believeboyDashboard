@@ -12,7 +12,14 @@ from app.core.config import Settings
 from app.db.session import SessionLocal
 from app.models.job import JobStatus
 from app.tasks.script_registry import SCRIPT_HANDLERS
-from . import monthly_report_service
+from app.services.report.monthly import (
+    get_project_by_name_or_404,
+    mark_report_failed,
+    mark_report_running,
+    parse_report_month,
+    persist_monthly_report_result,
+    prepare_monthly_report,
+)
 
 logger = logging.getLogger(__name__)
 _TASK_TTL_SECONDS = 24 * 60 * 60
@@ -199,21 +206,20 @@ def _run_task(task_id: int, settings: Settings, payload: dict[str, Any]) -> None
         handler = SCRIPT_HANDLERS['monthly_report']
         result = handler(str(upload_path), str(output_dir), params)
         result_path = str(Path(result['result_path']).resolve())
-        mark_task_success(task_id, result_path, '处理完成：报表已生成，可下载')
         set_persistence_state(task_id, status='running', message='后台同步中：正在写入数据库')
 
-        persist_thread = Thread(
-            target=_persist_monthly_report,
-            args=(task_id, payload, result),
-            daemon=True,
-            name=f'monthly-persist-{task_id}',
-        )
-        persist_thread.start()
+        # 内联执行持久化，不再启动 daemon 子线程，确保进程退出时不会丢失数据
+        ok = _persist_monthly_report(task_id, payload, result)
+        if ok:
+            mark_task_success(task_id, result_path, '处理完成：报表已生成，可下载')
+        else:
+            mark_task_failed(task_id, '数据库持久化失败，详见日志')
     except Exception as exc:  # noqa: BLE001
         mark_task_failed(task_id, str(exc))
 
 
-def _persist_monthly_report(task_id: int, payload: dict[str, Any], result: dict[str, Any]) -> None:
+def _persist_monthly_report(task_id: int, payload: dict[str, Any], result: dict[str, Any]) -> bool:
+    """持久化月度报表到数据库。返回 True 表示成功，False 表示失败。"""
     db = SessionLocal()
     report_id: int | None = None
     try:
@@ -221,13 +227,13 @@ def _persist_monthly_report(task_id: int, payload: dict[str, Any], result: dict[
         raw_project_id = payload.get('project_id')
         project_id: int
         if raw_project_id is None:
-            project = monthly_report_service.get_project_by_name_or_404(db, project_name)
+            project = get_project_by_name_or_404(db, project_name)
             project_id = project.id
             project_name = project.project_name.strip()
         else:
             project_id = int(raw_project_id)
 
-        report_month = monthly_report_service.parse_report_month(str(payload.get('report_month') or '').strip())
+        report_month = parse_report_month(str(payload.get('report_month') or '').strip())
         transaction_file_id = str(payload.get('transaction_file_id') or '').strip()
         summary_pdf_file_id_raw = payload.get('summary_pdf_file_id')
         summary_pdf_file_id = str(summary_pdf_file_id_raw).strip() if summary_pdf_file_id_raw else None
@@ -238,7 +244,7 @@ def _persist_monthly_report(task_id: int, payload: dict[str, Any], result: dict[
         transaction_file_path = str(resolved_paths.get('transaction_report') or '').strip()
         summary_pdf_file_path = str(resolved_paths.get('monthly_summary_pdf') or '').strip() or None
 
-        report = monthly_report_service.prepare_monthly_report(
+        report = prepare_monthly_report(
             db,
             project_id=project_id,
             project_name=project_name,
@@ -251,8 +257,8 @@ def _persist_monthly_report(task_id: int, payload: dict[str, Any], result: dict[
             file_size=None,
         )
         report_id = report.id
-        monthly_report_service.mark_report_running(db, report.id)
-        monthly_report_service.persist_monthly_report_result(
+        mark_report_running(db, report.id)
+        persist_monthly_report_result(
             db,
             report_id=report.id,
             result=result,
@@ -260,12 +266,14 @@ def _persist_monthly_report(task_id: int, payload: dict[str, Any], result: dict[
         )
         db.commit()
         set_persistence_state(task_id, status='success', message='后台同步完成：数据库已更新')
+        return True
     except Exception as exc:  # noqa: BLE001
         db.rollback()
         logger.exception('monthly report persistence failed: %s', exc)
         if report_id is not None:
-            monthly_report_service.mark_report_failed(db, report_id, f'db_persist_error: {exc}')
+            mark_report_failed(db, report_id, f'db_persist_error: {exc}')
             db.commit()
         set_persistence_state(task_id, status='failed', message=f'后台同步失败：{exc}')
+        return False
     finally:
         db.close()
