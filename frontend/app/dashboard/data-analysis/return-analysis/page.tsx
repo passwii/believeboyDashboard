@@ -21,7 +21,7 @@ import { EmptyTableState } from '@/components/ui/empty-state'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { DirectionalTabTransition, SlidingTabsTrigger, TabsMotionGroup } from '@/components/ui/tab-motion'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, ColGroup } from '@/components/ui/table'
 import { TableSkeletonRows } from '@/components/ui/table-skeleton'
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
@@ -728,10 +728,20 @@ export default function ReturnAnalysisPage() {
             <DirectionalTabTransition value={activeTab} order={VIEW_TAB_ORDER}>
               <TabsContent forceMount value={activeTab} className="m-0">
                 {activeTab === 'rankings' && (
-                  <Table containerClassName="bg-[hsl(var(--surface-panel))]/94">
+                  <Table containerClassName="bg-[hsl(var(--surface-panel))]/94" tableLayout="fixed">
+                    <ColGroup columns={[
+                      { width: 112 },
+                      { width: 144 },
+                      { width: 80 },
+                      { width: 96 },
+                      { width: 96 },
+                      { width: 80 },
+                      { width: 80 },
+                    ]} />
                     <TableHeader>
                       <TableRow>
                         <TableHead>SKU</TableHead>
+                        <TableHead>品名</TableHead>
                         <TableHead>ASIN</TableHead>
                         <TableHead className="text-right">退货数量</TableHead>
                         <TableHead className="text-right">退货单数</TableHead>
@@ -741,32 +751,39 @@ export default function ReturnAnalysisPage() {
                     </TableHeader>
                     <TableBody>
                       {showSkeleton ? (
-                        <TableSkeletonRows
-                          columns={6}
-                          rows={5}
-                          widths={['w-24', 'w-16', 'w-12 ml-auto', 'w-12 ml-auto', 'w-12 ml-auto', 'w-12 ml-auto']}
-                        />
-                      ) : (
-                        <RefreshProgressBar refreshing={isRefreshing}>
-                          {data?.ranking_rows.length ? (
-                            data.ranking_rows.map((row) => (
-                              <TableRow key={row.sku}>
-                                <TableCell className="font-medium">{row.sku}</TableCell>
-                                <TableCell className="text-muted-foreground">{row.asin || '--'}</TableCell>
-                                <TableCell className="text-right font-semibold">{row.total_quantity.toLocaleString()}</TableCell>
-                                <TableCell className="text-right">{row.return_count.toLocaleString()}</TableCell>
-                                <TableCell className="text-right">{row.sales_quantity.toLocaleString()}</TableCell>
-                                <TableCell className={`text-right font-semibold ${
-                                  row.return_rate > 8 ? 'text-red-500' : row.return_rate > 3 ? 'text-yellow-500' : 'text-green-500'
-                                }`}>
-                                  {row.sales_quantity > 0 ? `${row.return_rate.toFixed(1)}%` : '--'}
-                                </TableCell>
-                              </TableRow>
-                            ))
-                          ) : (
-                            <EmptyTableState colSpan={6} message="暂无退货排行数据" />
-                          )}
+                        Array.from({ length: 5 }).map((_, i) => (
+                          <TableRow key={i}>
+                            <TableCell><div className="h-4 w-20 animate-pulse rounded bg-muted" /></TableCell>
+                            <TableCell><div className="h-4 w-28 animate-pulse rounded bg-muted" /></TableCell>
+                            <TableCell><div className="h-4 w-16 animate-pulse rounded bg-muted" /></TableCell>
+                            <TableCell className="text-right"><div className="ml-auto h-4 w-16 animate-pulse rounded bg-muted" /></TableCell>
+                            <TableCell className="text-right"><div className="ml-auto h-4 w-12 animate-pulse rounded bg-muted" /></TableCell>
+                            <TableCell className="text-right"><div className="ml-auto h-4 w-12 animate-pulse rounded bg-muted" /></TableCell>
+                            <TableCell className="text-right"><div className="ml-auto h-4 w-12 animate-pulse rounded bg-muted" /></TableCell>
+                          </TableRow>
+                        ))
+                      ) : isRefreshing ? (
+                        <RefreshProgressBar refreshing={true}>
+                          <TableRow><TableCell colSpan={7} /></TableRow>
                         </RefreshProgressBar>
+                      ) : data?.ranking_rows.length ? (
+                        data.ranking_rows.map((row) => (
+                          <TableRow key={row.sku}>
+                            <TableCell className="font-medium truncate">{row.sku}</TableCell>
+                            <TableCell className="truncate text-muted-foreground">{row.product_name || '--'}</TableCell>
+                            <TableCell className="text-muted-foreground">{row.asin || '--'}</TableCell>
+                            <TableCell className="text-right font-semibold">{row.total_quantity.toLocaleString()}</TableCell>
+                            <TableCell className="text-right">{row.return_count.toLocaleString()}</TableCell>
+                            <TableCell className="text-right">{row.sales_quantity.toLocaleString()}</TableCell>
+                            <TableCell className={`text-right font-semibold ${
+                              row.return_rate > 8 ? 'text-red-500' : row.return_rate > 3 ? 'text-yellow-500' : 'text-green-500'
+                            }`}>
+                              {row.sales_quantity > 0 ? `${row.return_rate.toFixed(1)}%` : '--'}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow><TableCell colSpan={7} className="py-12 text-center text-muted-foreground">暂无退货排行数据</TableCell></TableRow>
                       )}
                     </TableBody>
                   </Table>

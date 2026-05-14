@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, Boolean, DateTime, Integer, Numeric, String, Text, UniqueConstraint, CheckConstraint, func
+from sqlalchemy import BigInteger, Boolean, DateTime, Integer, JSON, Numeric, String, Text, UniqueConstraint, CheckConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -39,9 +39,11 @@ class Project(Base):
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     source_file: Mapped[str | None] = mapped_column(String, nullable=True)
+    project_context: Mapped[dict | None] = mapped_column(JSON, nullable=True, default=dict)
+    sku_context: Mapped[dict | None] = mapped_column(JSON, nullable=True, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
 
-    product_costs: Mapped[list["ProductCost"]] = relationship(back_populates="project")
+    sku_records: Mapped[list["SkuRecord"]] = relationship(back_populates="project")

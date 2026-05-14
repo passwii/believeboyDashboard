@@ -12,7 +12,11 @@ from app.core.config import Settings
 from app.db.session import SessionLocal
 from app.models.job import JobStatus
 from app.tasks.script_registry import SCRIPT_HANDLERS
-from . import product_analysis_source_service, redis_service
+from app.services.product._internal import _is_single_full_week as _is_single_full_week
+from app.services.product.persistence import (
+    persist_product_analysis_pt1_calculation,
+    persist_product_analysis_sources,
+)
 
 logger = logging.getLogger(__name__)
 _TASK_TTL_SECONDS = 24 * 60 * 60
@@ -61,7 +65,7 @@ def create_task(
     input_path: str,
     params: dict[str, Any],
 ) -> AnalysisReportTask:
-    if report_type not in {"daily_report", "product_analysis"}:
+    if report_type not in {"product_analysis"}:
         raise ValueError(f"Unsupported report_type: {report_type}")
 
     now = datetime.now(UTC)
@@ -208,17 +212,6 @@ def _run_task(task_id: int, payload: dict[str, Any]) -> None:
                 name=f"product-analysis-persist-{task_id}",
             )
             persist_thread.start()
-        elif report_type == "daily_report":
-            set_persistence_state(
-                task_id, status="running", message="后台同步中：正在写入数据库"
-            )
-            persist_thread = Thread(
-                target=_persist_single_date_report_sources,
-                args=(task_id, params),
-                daemon=True,
-                name=f"daily-report-persist-{task_id}",
-            )
-            persist_thread.start()
     except Exception as exc:  # noqa: BLE001
         logger.exception("analysis runtime task failed: %s", exc)
         mark_task_failed(task_id, str(exc))
@@ -243,7 +236,7 @@ def _persist_product_analysis_sources(
         )
         created_by = str(params.get("operator") or "").strip() or None
 
-        outcomes = product_analysis_source_service.persist_product_analysis_sources(
+        outcomes = persist_product_analysis_sources(
             db,
             project_name=project_name,
             report_start_date=report_start_date,
@@ -268,8 +261,8 @@ def _persist_product_analysis_sources(
             try:
                 _start = date.fromisoformat(report_start_date)
                 _end = date.fromisoformat(report_end_date)
-                if product_analysis_source_service._is_single_full_week(_start, _end):
-                    product_analysis_source_service.persist_product_analysis_pt1_calculation(
+                if _is_single_full_week(_start, _end):
+                    persist_product_analysis_pt1_calculation(
                         db,
                         project_name=project_name,
                         report_start_date=report_start_date,
@@ -305,54 +298,3 @@ def _persist_product_analysis_sources(
         db.close()
 
 
-def _persist_single_date_report_sources(task_id: int, params: dict[str, Any]) -> None:
-    db = SessionLocal()
-    try:
-        report_date = str(params.get("report_date") or "").strip()
-        project_name = str(params.get("project_name") or "").strip()
-        country = str(params.get("country") or "US").strip() or "US"
-        file_ids = (
-            params.get("file_ids") if isinstance(params.get("file_ids"), dict) else {}
-        )
-        resolved_file_paths = (
-            params.get("resolved_file_paths")
-            if isinstance(params.get("resolved_file_paths"), dict)
-            else {}
-        )
-        created_by = str(params.get("operator") or "").strip() or None
-
-        outcomes = product_analysis_source_service.persist_single_date_report_sources(
-            db,
-            project_name=project_name,
-            report_date=report_date,
-            country=country,
-            file_ids=file_ids,
-            resolved_file_paths=resolved_file_paths,
-            created_by=created_by,
-        )
-        failed = [item for item in outcomes if not item.success]
-        if failed:
-            details = "; ".join(
-                f"{item.report_type}: {(item.error_message or 'unknown error')[:120]}"
-                for item in failed
-            )
-            set_persistence_state(
-                task_id, status="failed", message=f"后台同步失败：{details}"
-            )
-            return
-        set_persistence_state(
-            task_id, status="success", message="后台同步完成：数据库已更新"
-        )
-
-        project_id = params.get("project_id")
-        if project_id:
-            try:
-                redis_service.invalidate_daily_analysis_cache(int(project_id))
-            except (ValueError, TypeError):
-                pass
-    except Exception as exc:  # noqa: BLE001
-        db.rollback()
-        logger.exception("single-date report persistence failed: %s", exc)
-        set_persistence_state(task_id, status="failed", message=f"后台同步失败：{exc}")
-    finally:
-        db.close()

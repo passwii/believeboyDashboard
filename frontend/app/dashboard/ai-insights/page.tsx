@@ -28,6 +28,7 @@ import {
   Loader2,
   Pencil,
   Save,
+  Settings,
   Sparkles,
   Trash2,
   X,
@@ -1947,34 +1948,50 @@ export default function AIInsightsPage() {
               {isLoadingProjects ? (
                 <Skeleton className="h-10 w-[180px]" />
               ) : (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="h-10 w-[180px] justify-between border-border/70 bg-[hsl(var(--surface-soft))] shadow-none">
-                      {selectedProjectId === 'all'
-                        ? '全部项目'
-                        : projects.find((p) => p.id === selectedProjectId)?.name ?? '选择项目'}
-                      <ChevronDown className="h-4 w-4 opacity-50" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-[180px]">
-                    <DropdownMenuItem
-                      key="all"
-                      onClick={() => setSelectedProjectId('all')}
-                      className={cn(selectedProjectId === 'all' && 'bg-primary/10')}
-                    >
-                      全部项目
-                    </DropdownMenuItem>
-                    {projects.map((p) => (
+                <>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" className="h-10 w-[180px] justify-between border-border/70 bg-[hsl(var(--surface-soft))] shadow-none">
+                        {selectedProjectId === 'all'
+                          ? '全部项目'
+                          : projects.find((p) => p.id === selectedProjectId)?.name ?? '选择项目'}
+                        <ChevronDown className="h-4 w-4 opacity-50" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-[180px]">
                       <DropdownMenuItem
-                        key={p.id}
-                        onClick={() => p.id !== null && setSelectedProjectId(p.id)}
-                        className={cn(selectedProjectId === p.id && 'bg-primary/10')}
+                        key="all"
+                        onClick={() => setSelectedProjectId('all')}
+                        className={cn(selectedProjectId === 'all' && 'bg-primary/10')}
                       >
-                        {p.name}
+                        全部项目
                       </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                      {projects.map((p) => (
+                        <DropdownMenuItem
+                          key={p.id}
+                          onClick={() => p.id !== null && setSelectedProjectId(p.id)}
+                          className={cn(selectedProjectId === p.id && 'bg-primary/10')}
+                        >
+                          {p.name}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  {selectedProjectId !== 'all' && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-10 px-3 text-muted-foreground hover:text-foreground"
+                      onClick={() => {
+                        window.location.href = `/dashboard/system-management/project-info?configure=${selectedProjectId}`
+                      }}
+                      title="配置项目背景"
+                    >
+                      <Settings className="h-4 w-4 mr-1.5" />
+                      配置背景
+                    </Button>
+                  )}
+                </>
               )}
 
               <DropdownMenu>

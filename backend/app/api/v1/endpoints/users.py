@@ -12,7 +12,7 @@ from app.services.audit_log_service import (
     append_operation_audit_log,
     append_operation_view_log,
 )
-from app.services.redis_service import delete_user_sessions
+from app.services.infra import delete_user_sessions
 
 router = APIRouter(
     prefix="/system-management/users", tags=["users"], dependencies=[Depends(protected)]

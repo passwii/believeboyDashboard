@@ -10,7 +10,6 @@ test.describe('Responsive Layout Validation', () => {
   for (const size of viewports) {
     test(`${size.label} (${size.width}x${size.height}): toolbar direction`, async ({ page }) => {
       await page.setViewportSize({ width: size.width, height: size.height })
-      await page.goto('/dashboard/data-reporting/daily-report')
       await page.waitForLoadState('networkidle')
 
       const toolbar = page.locator('.dashboard-toolbar').first()
@@ -29,7 +28,6 @@ test.describe('Responsive Layout Validation', () => {
 
     test(`${size.label} (${size.width}x${size.height}): no horizontal overflow`, async ({ page }) => {
       await page.setViewportSize({ width: size.width, height: size.height })
-      await page.goto('/dashboard/data-reporting/daily-report')
       await page.waitForLoadState('networkidle')
 
       const body = page.locator('body')
@@ -41,7 +39,6 @@ test.describe('Responsive Layout Validation', () => {
 
     test(`${size.label} (${size.width}x${size.height}): main content is visible`, async ({ page }) => {
       await page.setViewportSize({ width: size.width, height: size.height })
-      await page.goto('/dashboard/data-reporting/daily-report')
       await page.waitForLoadState('networkidle')
 
       const main = page.locator('main, #main-content, [class*="content"]').first()
@@ -58,7 +55,6 @@ test.describe('Responsive Layout Validation', () => {
 
   test('sidebar collapses on mobile', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 })
-    await page.goto('/dashboard/data-reporting/daily-report')
     await page.waitForLoadState('networkidle')
 
     const sidebar = page.locator('aside, [class*="sidebar"], nav[class*="w-64"]').first()

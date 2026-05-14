@@ -7,7 +7,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import MonthlyReport, MonthlyReportPT3Calculation, ReconciliationRecord
+from app.models import MonthlyReport, MonthlyReportPT3Calculation, MonthlyReportPT4Calculation, ReconciliationRecord
 from app.utils.pdf_extractor import PDFExtractor
 
 # PT3 fields to compare with PDF key_values
@@ -92,6 +92,12 @@ def get_available_reports(
         )
         pt3 = db.execute(pt3_stmt).scalars().first()
 
+        # Check if PT4 calculation exists
+        pt4_stmt = select(MonthlyReportPT4Calculation).where(
+            MonthlyReportPT4Calculation.report_id == report.id
+        )
+        pt4 = db.execute(pt4_stmt).scalars().first()
+
         # Check if PDF file actually exists (not just the path is set)
         pdf_path = report.summary_pdf_file_path
         pdf_exists = False
@@ -122,7 +128,7 @@ def get_available_reports(
             "has_summary_pdf": pdf_exists,
             "pdf_uploaded_at": report.updated_at,
             "pt3_calculation_complete": pt3 is not None,
-            "pt4_calculation_complete": True,  # Simplified check
+            "pt4_calculation_complete": pt4 is not None,
             "status": report.status.value if report.status else "unknown",
             "pdf_file_missing": pdf_file_missing,
             # Reconciliation status from history

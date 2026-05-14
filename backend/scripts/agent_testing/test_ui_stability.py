@@ -45,7 +45,7 @@ class TestUIStability:
         cfg = TEST_ACCOUNTS["admin"]  # use admin for most pages
         login_as(page, cfg["email"], cfg["password"])
 
-        page.goto(f"{FRONTEND_URL}/dashboard/data-management/sku-cost", wait_until="networkidle")
+        page.goto(f"{FRONTEND_URL}/dashboard/data-management/sku-info", wait_until="networkidle")
 
         # Check pagination controls exist
         pagination = page.locator("[data-testid='pagination'], .pagination, nav[aria-label='pagination']")

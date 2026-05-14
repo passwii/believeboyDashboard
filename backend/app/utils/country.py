@@ -1,31 +1,25 @@
-"""
-Shared country normalization utilities.
+"""Country normalization utilities.
 
-All modules that need to normalize country strings (US/DE/UK and their aliases)
-should import from this module rather than defining their own copies.
+This module is the single canonical source for country normalization
+and currency/locale mapping across both the backend service and autoReportUpload.
 
-Usage:
-    from app.utils.country import _normalize_country, COUNTRY_ALIASES
+All consumers should import from here:
+    from app.utils.country import normalize_country, get_currency, get_locale
 """
+
 from __future__ import annotations
 
 SUPPORTED_COUNTRIES: frozenset[str] = frozenset({"US", "DE", "UK"})
 
-# Alias for backwards compatibility — some modules use ALLOWED_COUNTRIES
-ALLOWED_COUNTRIES = SUPPORTED_COUNTRIES
-
 COUNTRY_ALIASES: dict[str, str] = {
-    # US variants
     "US": "US",
     "USA": "US",
     "美国": "US",
     "美国站": "US",
-    # DE variants
     "DE": "DE",
     "GERMANY": "DE",
     "德国": "DE",
     "德国站": "DE",
-    # UK variants
     "UK": "UK",
     "GB": "UK",
     "UNITED KINGDOM": "UK",
@@ -46,69 +40,41 @@ COUNTRY_TO_LOCALE: dict[str, str] = {
 }
 
 
-def _normalize_country(value: str | None) -> str:
-    """
-    Normalize a country input to one of: US, DE, UK.
+def normalize_country(value: str | None, *, default: str = "strict") -> str:
+    """Normalize a country value to one of US, DE, UK.
 
-    Empty/whitespace-only strings return "US" as the default.
-    All other inputs are looked up in COUNTRY_ALIASES first, then
-    checked directly against SUPPORTED_COUNTRIES.
+    Args:
+        value: Country string (e.g. ``"US"``, ``"USA"``, ``"德国"``).
+        default: Behaviour for unrecognised values:
+            - ``"strict"`` (default) — raises :class:`ValueError`.
+            - A valid country code (e.g. ``"US"``) — returned silently.
+
+    Returns:
+        Normalised country code (``"US"``, ``"DE"`` or ``"UK"``).
 
     Raises:
-        ValueError: if the normalized value is not a supported country.
+        ValueError: If *default* is ``"strict"`` and the value cannot be mapped.
     """
     normalized = (value or "").strip().upper()
     if not normalized:
         return "US"
 
-    # First try alias lookup
-    mapped = COUNTRY_ALIASES.get(normalized)
-    if mapped is not None:
+    mapped = COUNTRY_ALIASES.get(normalized, normalized)
+
+    if mapped in SUPPORTED_COUNTRIES:
         return mapped
 
-    # Then check if it's already a canonical country code
-    if normalized in SUPPORTED_COUNTRIES:
-        return normalized
+    if default == "strict":
+        raise ValueError(
+            f"country must be one of: {', '.join(sorted(SUPPORTED_COUNTRIES))}"
+        )
+    if default in SUPPORTED_COUNTRIES:
+        return default
 
-    allowed = ", ".join(sorted(SUPPORTED_COUNTRIES))
-    raise ValueError(f"country must be one of: {allowed}")
-
-
-def _normalize_country_http(value: str | None) -> str:
-    """
-    Normalize a country string, raising an HTTPException on invalid input.
-
-    Use this variant in FastAPI endpoints where you want a proper
-    HTTP 422 response instead of a plain ValueError.
-    """
-    from fastapi import HTTPException, status
-
-    normalized = (value or "").strip().upper()
-    if not normalized:
-        return "US"
-
-    mapped = COUNTRY_ALIASES.get(normalized)
-    if mapped is not None:
-        return mapped
-
-    if normalized in SUPPORTED_COUNTRIES:
-        return normalized
-
-    allowed = ", ".join(sorted(SUPPORTED_COUNTRIES))
-    raise HTTPException(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        detail=f"country must be one of: {allowed}",
+    raise ValueError(
+        f"default must be 'strict' or one of: "
+        f"{', '.join(sorted(SUPPORTED_COUNTRIES))}"
     )
-
-
-def is_valid_country(value: str | None) -> bool:
-    """Return True if the value normalizes to a supported country."""
-    if value is None:
-        return True  # None is valid (normalizes to "US")
-    normalized = value.strip().upper()
-    if not normalized:
-        return True
-    return _normalize_country(value) in SUPPORTED_COUNTRIES
 
 
 def get_currency(country: str) -> str:

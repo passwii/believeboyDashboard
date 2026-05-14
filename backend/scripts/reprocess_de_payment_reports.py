@@ -7,7 +7,7 @@ Usage:
 
 This script:
 1. Finds all DE payment reports in the database
-2. Re-parses them using the locale-aware reader (payment_report_locale)
+2. Re-parses them using the locale-aware reader (shared.payment_locale)
 3. Updates the AnalysisPaymentRow records with correctly parsed numeric values
 
 Run with --dry-run to see what would be processed without making changes.
@@ -28,13 +28,13 @@ from sqlalchemy.orm import Session
 import app.models  # noqa: F401  # ensure model metadata is registered
 from app.db.session import SessionLocal
 from app.models import AnalysisSourceFile, AnalysisPaymentRow
-from app.services.payment_report_locale import read_payment_report_dataframe
-from app.shared.parsers import parse_payment_rows
+from app.services.payment.locale import read_payment_report_dataframe
+from app.utils.parsers import parse_payment_rows
 
 
 def get_projects_skus_asins(session: Session, project_id: int, country: str = 'DE') -> tuple[set[str], set[str]]:
-    """Get known SKUs and ASINs for a project from ProductCost table."""
-    from app.models import ProductCost, Project
+    """Get known SKUs and ASINs for a project from SkuRecord table."""
+    from app.models import SkuRecord, Project
     from sqlalchemy import func
 
     skus = set()
@@ -48,12 +48,12 @@ def get_projects_skus_asins(session: Session, project_id: int, country: str = 'D
     if not project:
         return skus, asins
 
-    # Get SKUs from ProductCost for this project and country
+    # Get SKUs from SkuRecord for this project and country
     result = session.execute(
-        select(ProductCost.sku, ProductCost.asin)
+        select(SkuRecord.sku, SkuRecord.asin)
         .where(
-            ProductCost.project_name == project,
-            ProductCost.country == country
+            SkuRecord.project_name == project,
+            SkuRecord.country == country
         )
     )
 

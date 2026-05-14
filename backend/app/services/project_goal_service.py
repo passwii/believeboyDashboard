@@ -19,7 +19,7 @@ from app.schemas.project_goal import (
     ProjectGoalProgressResponse,
     ProjectGoalUpdate,
 )
-from app.utils.country import _normalize_country
+from app.utils.country import normalize_country
 
 ALLOWED_METRIC_TYPES = {'sales_amount'}
 COUNTRY_TO_CURRENCY = {'US': 'USD', 'DE': 'EUR', 'UK': 'GBP'}
@@ -190,7 +190,7 @@ def get_goal(db: Session, goal_id: int) -> ProjectGoalItem:
 
 def create_goal(db: Session, data: ProjectGoalCreate) -> ProjectGoalItem:
     """创建目标"""
-    normalized_country = _normalize_country(data.country)
+    normalized_country = normalize_country(data.country)
 
     if data.goal_type == MONTHLY and data.period_month is None:
         raise HTTPException(
@@ -270,7 +270,7 @@ def get_progress(
     metric_type: str = 'sales_amount',
 ) -> ProjectGoalProgressResponse:
     """计算目标完成进度"""
-    normalized_country = _normalize_country(country)
+    normalized_country = normalize_country(country)
     currency = _get_currency(normalized_country)
     _get_project_or_404(db, project_id)
 

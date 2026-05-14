@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import warnings
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -20,13 +21,20 @@ from app.models import (
     ReturnAnalysisRecord,
     ShipmentSchedule,
 )
-from app.utils.country import _normalize_country
+from app.utils.math_utils import round_money
+from app.utils.country import normalize_country
 
 
 # ─── helpers ─────────────────────────────────────────────────────────────────
 
 def _round_money(value: Decimal) -> float:
-    return float(value.quantize(Decimal("0.01")))
+    """[已废弃] 请使用 app.shared.math_utils.round_money"""
+    warnings.warn(
+        "_round_money is deprecated, use app.shared.math_utils.round_money instead",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return round_money(value)
 
 
 def _safe_rate(numerator: float, denominator: float) -> float:
@@ -212,7 +220,7 @@ def _build_shipment_snapshot(
         )
         .filter(
             ShipmentSchedule.project_id == project_id,
-            ShipmentSchedule.country == _normalize_country(country),
+            ShipmentSchedule.country == normalize_country(country),
             ShipmentSchedule.shipment_status == "in_transit",
         )
         .first()
@@ -238,7 +246,7 @@ def _build_return_snapshot(
         db.query(func.count(ReturnAnalysisRecord.id))
         .filter(
             ReturnAnalysisRecord.project_id == project_id,
-            ReturnAnalysisRecord.country == _normalize_country(country),
+            ReturnAnalysisRecord.country == normalize_country(country),
             ReturnAnalysisRecord.is_current == True,
             ReturnAnalysisRecord.return_date >= start_date.isoformat(),
             ReturnAnalysisRecord.return_date <= end_date.isoformat(),
@@ -250,7 +258,7 @@ def _build_return_snapshot(
         db.query(func.coalesce(func.sum(ReturnAnalysisRecord.quantity), 0))
         .filter(
             ReturnAnalysisRecord.project_id == project_id,
-            ReturnAnalysisRecord.country == _normalize_country(country),
+            ReturnAnalysisRecord.country == normalize_country(country),
             ReturnAnalysisRecord.is_current == True,
             ReturnAnalysisRecord.return_date >= start_date.isoformat(),
             ReturnAnalysisRecord.return_date <= end_date.isoformat(),
@@ -266,7 +274,7 @@ def _build_return_snapshot(
         )
         .filter(
             ReturnAnalysisRecord.project_id == project_id,
-            ReturnAnalysisRecord.country == _normalize_country(country),
+            ReturnAnalysisRecord.country == normalize_country(country),
             ReturnAnalysisRecord.is_current == True,
             ReturnAnalysisRecord.return_date >= start_date.isoformat(),
             ReturnAnalysisRecord.return_date <= end_date.isoformat(),
@@ -285,7 +293,7 @@ def _build_return_snapshot(
         )
         .filter(
             AnalysisSourceFile.project_id == project_id,
-            AnalysisSourceFile.country == _normalize_country(country),
+            AnalysisSourceFile.country == normalize_country(country),
             AnalysisSourceFile.report_type == "sales_report",
             AnalysisSourceFile.is_current == True,
             AnalysisSalesOrderRow.is_counted_sales == True,
@@ -332,7 +340,7 @@ def _build_ad_snapshot(
         )
         .filter(
             AdUploadFile.project_id == project_id,
-            AdUploadFile.country == _normalize_country(country),
+            AdUploadFile.country == normalize_country(country),
             AdUploadFile.is_current == True,
             AdUploadFile.report_date >= start_date,
             AdUploadFile.report_date <= end_date,
@@ -380,7 +388,7 @@ def build_digital_display(
         from fastapi import HTTPException, status
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
 
-    normalized_country = _normalize_country(country)
+    normalized_country = normalize_country(country)
     today = date.today()
     period_start = today - timedelta(days=days - 1)
 

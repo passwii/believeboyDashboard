@@ -19,7 +19,7 @@ def _rate_limit_key(limit_type: str, identifier: str) -> str:
 
 
 def _redis_client():
-    from app.services.redis_service import get_redis_client
+    from app.services.infra import get_redis_client
 
     try:
         return get_redis_client()
@@ -69,6 +69,18 @@ def increment_and_check(
 
 _IN_MEMORY: dict[str, tuple[int, float]] = {}
 _MEMORY_LOCK = threading.Lock()
+_IN_MEMORY_OP_COUNT = 0
+_IN_MEMORY_CLEANUP_INTERVAL = 1000  # 每 1000 次操作后清理一次过期条目
+
+
+def _clean_expired_in_memory_entries(now: float) -> None:
+    """清理已超过 24 小时的内存限流条目，防止字典无限增长。"""
+    expired_keys = [
+        key for key, (_, timestamp) in _IN_MEMORY.items()
+        if now - timestamp > 86400
+    ]
+    for key in expired_keys:
+        del _IN_MEMORY[key]
 
 
 def _in_memory_check(
@@ -79,7 +91,15 @@ def _in_memory_check(
 ) -> tuple[int, int]:
     key = f"{limit_type}:{identifier}"
     now = time.time()
+
+    # 周期性清理过期条目，防止内存无限增长
+    global _IN_MEMORY_OP_COUNT
     with _MEMORY_LOCK:
+        _IN_MEMORY_OP_COUNT += 1
+        if _IN_MEMORY_OP_COUNT >= _IN_MEMORY_CLEANUP_INTERVAL:
+            _IN_MEMORY_OP_COUNT = 0
+            _clean_expired_in_memory_entries(now)
+
         entry = _IN_MEMORY.get(key)
         if entry is None or (now - entry[1]) > window_seconds:
             _IN_MEMORY[key] = (1, now)

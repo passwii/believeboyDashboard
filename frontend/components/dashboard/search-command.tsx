@@ -50,7 +50,6 @@ const navItems: SearchItem[] = [
   { title: 'AI 聊天', url: '/dashboard/ai-panel/chat', icon: <Bot className='h-4 w-4' />, category: 'AI 面板' },
   { title: 'AI 洞察', url: '/dashboard/ai-insights', icon: <TrendingUp className='h-4 w-4' />, category: 'AI 面板' },
   // 运营核算
-  { title: '销售日报', url: '/dashboard/data-reporting/daily-report', icon: <BarChart3 className='h-4 w-4' />, category: '运营核算' },
   { title: '财务月报', url: '/dashboard/data-reporting/monthly-report', icon: <FileBarChart className='h-4 w-4' />, category: '运营核算' },
   { title: '产品分析', url: '/dashboard/data-reporting/product-analysis', icon: <Calculator className='h-4 w-4' />, category: '运营核算' },
   { title: '新品核算', url: '/dashboard/data-reporting/pricing-calculation/new-product', icon: <Coins className='h-4 w-4' />, category: '运营核算' },
@@ -71,7 +70,7 @@ const navItems: SearchItem[] = [
   // 数据管理
   { title: '广告管理', url: '/dashboard/data-management/ad-upload', icon: <Upload className='h-4 w-4' />, category: '数据管理' },
   { title: '发货管理', url: '/dashboard/data-management/shipment-management', icon: <Package className='h-4 w-4' />, category: '数据管理' },
-  { title: 'SKU 信息', url: '/dashboard/data-management/sku-cost', icon: <Database className='h-4 w-4' />, category: '数据管理' },
+  { title: 'SKU 信息', url: '/dashboard/data-management/sku-info', icon: <Database className='h-4 w-4' />, category: '数据管理' },
   { title: '汇率信息', url: '/dashboard/data-management/exchange-rate', icon: <Coins className='h-4 w-4' />, category: '数据管理' },
   { title: '报表自动化', url: '/dashboard/data-management/auto-upload', icon: <Upload className='h-4 w-4' />, category: '数据管理' },
   // 系统管理

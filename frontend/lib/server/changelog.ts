@@ -99,7 +99,7 @@ const RELEASES: ReleaseVersion[] = [
       },
     ],
     sourceLogs: [
-      'V2.25 更新数据库-1 SKU成本',
+      'V2.25 更新数据库-1 SKU信息',
       '添加项目管理和系统管理功能',
       'V2.26 Fix',
       'UI/UX: 优化深色模式样式和会话配置',
@@ -397,7 +397,7 @@ const RELEASES: ReleaseVersion[] = [
     ],
     sourceLogs: [
       'feat(ai-insights): 增强洞察重试、流式预览与 PNG 导出',
-      'fix(sku-cost): 修复切换国家时 summaryBySku 混合多国数据问题',
+      'fix(sku-info): 修复切换国家时 summaryBySku 混合多国数据问题',
       'fix(store-accounting): 修复整数导出格式被错误显示为小数',
       'refactor(sidebar): 重构侧边栏布局与间距结构',
       'docs: 更新 CLAUDE.md 项目文档',

@@ -107,6 +107,13 @@ class PaymentPeriodOverlapItem(BaseModel):
     source_id: int
 
 
+class PeriodCoverageInfoItem(BaseModel):
+    period_start_date: str
+    period_end_date: str
+    source_id: int
+    covered_dates: list[str]
+
+
 class WeeklyAvailabilityItem(BaseModel):
     iso_year: int
     iso_week: int
@@ -115,6 +122,8 @@ class WeeklyAvailabilityItem(BaseModel):
     total_days: int
     business_report_available_days: int
     ad_report_available_days: int
+    business_periodic_covered: bool = False
+    ad_periodic_covered: bool = False
     payment_covered: bool
     can_calculate: bool
     is_partial: bool
@@ -126,6 +135,10 @@ class ProductCalculationCheckResponse(BaseModel):
     business_report_missing: list[str]
     ad_report_missing: list[str]
     inventory_missing: list[str]
+    business_period_info: list[PeriodCoverageInfoItem] = []
+    ad_period_info: list[PeriodCoverageInfoItem] = []
+    business_periodic_only_missing: list[str] = []
+    ad_periodic_only_missing: list[str] = []
     payment_periods_overlapping: list[PaymentPeriodOverlapItem]
     payment_full_period_covered: bool
     payment_daily_covered_dates: list[str]

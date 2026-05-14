@@ -39,10 +39,25 @@ type PaymentPeriodOverlap = {
   source_id: number
 }
 
+type PeriodCoverageInfo = {
+  period_start_date: string
+  period_end_date: string
+  source_id: number
+  covered_dates: string[]
+}
+
 type DataAvailability = {
+  // Missing check (single-day only, NOT affected by periodic data)
   business_report_missing: string[]
   ad_report_missing: string[]
   inventory_missing: string[]
+  // Periodic coverage info
+  business_period_info: PeriodCoverageInfo[]
+  ad_period_info: PeriodCoverageInfo[]
+  // Missing but covered by periodic (can calculate, but daily data is incomplete)
+  business_periodic_only_missing: string[]
+  ad_periodic_only_missing: string[]
+  // Payment info
   payment_periods_overlapping: PaymentPeriodOverlap[]
   payment_full_period_covered: boolean
   payment_daily_covered_dates: string[]
@@ -58,6 +73,9 @@ type WeeklyAvailability = {
   total_days: number
   business_report_available_days: number
   ad_report_available_days: number
+  // Periodic coverage flag
+  business_periodic_covered: boolean
+  ad_periodic_covered: boolean
   payment_covered: boolean
   can_calculate: boolean
   is_partial: boolean
@@ -140,104 +158,304 @@ interface AvailabilityGridProps {
 
 function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGridProps) {
   const dates = useMemo(() => buildWeekDates(startDate, endDate), [startDate, endDate])
-  const missingSet = useMemo(() => ({
-    business_report: new Set(availability.business_report_missing),
-    ad_report: new Set(availability.ad_report_missing),
-    inventory: new Set(availability.inventory_missing),
-  }), [availability])
-  const paymentDailyCoveredSet = useMemo(
-    () => new Set(availability.payment_daily_covered_dates),
-    [availability.payment_daily_covered_dates],
+
+  // Build coverage map for each date (with safety checks for API compatibility)
+  const coverageMap = useMemo(() => {
+    // Single-day data (missing)
+    const businessMissingSet = new Set(availability.business_report_missing || [])
+    const adMissingSet = new Set(availability.ad_report_missing || [])
+    // Periodic only covered (no daily, but has periodic)
+    const businessPeriodicOnlySet = new Set(availability.business_periodic_only_missing || [])
+    const adPeriodicOnlySet = new Set(availability.ad_periodic_only_missing || [])
+
+    // Payment: compute periodic-only dates from overlapping periods
+    const paymentDailySet = new Set(availability.payment_daily_covered_dates || [])
+    const paymentPeriodDates = new Set<string>()
+    for (const p of availability.payment_periods_overlapping || []) {
+      const start = parseDateStr(p.period_start_date)
+      const end = parseDateStr(p.period_end_date)
+      const cur = new Date(start)
+      while (cur <= end) {
+        paymentPeriodDates.add(formatDateInputValue(cur) ?? '')
+        cur.setDate(cur.getDate() + 1)
+      }
+    }
+    const paymentPeriodicOnlySet = new Set<string>()
+    for (const d of dates) {
+      if (!paymentDailySet.has(d) && paymentPeriodDates.has(d)) {
+        paymentPeriodicOnlySet.add(d)
+      }
+    }
+
+    return {
+      business: {
+        hasData: (d: string) => !businessMissingSet.has(d) && !businessPeriodicOnlySet.has(d),
+        isPeriodicOnly: (d: string) => businessPeriodicOnlySet.has(d),
+        isMissing: (d: string) => businessMissingSet.has(d),
+      },
+      ad: {
+        hasData: (d: string) => !adMissingSet.has(d) && !adPeriodicOnlySet.has(d),
+        isPeriodicOnly: (d: string) => adPeriodicOnlySet.has(d),
+        isMissing: (d: string) => adMissingSet.has(d),
+      },
+      payment: {
+        hasData: (d: string) => paymentDailySet.has(d),
+        isPeriodicOnly: (d: string) => paymentPeriodicOnlySet.has(d),
+        isMissing: (d: string) => !paymentDailySet.has(d) && !paymentPeriodicOnlySet.has(d),
+      },
+    }
+  }, [availability, dates])
+
+  // Inventory missing set
+  const inventoryMissingSet = useMemo(
+    () => new Set(availability.inventory_missing || []),
+    [availability.inventory_missing],
   )
 
+  // Check if any periodic coverage exists (with safety checks for API compatibility)
+  const hasPeriodicData = useMemo(() => ({
+    business: availability.business_period_info?.length > 0,
+    ad: availability.ad_period_info?.length > 0,
+    payment: availability.payment_periods_overlapping?.length > 0,
+  }), [availability])
+
+  // Check if periodic data covers all dates (for right column indicator)
+  const periodicCoversAllDates = useMemo(() => {
+    const businessPeriodDates = new Set<string>()
+    const adPeriodDates = new Set<string>()
+    for (const p of availability.business_period_info || []) {
+      for (const d of p.covered_dates || []) {
+        businessPeriodDates.add(d)
+      }
+    }
+    for (const p of availability.ad_period_info || []) {
+      for (const d of p.covered_dates || []) {
+        adPeriodDates.add(d)
+      }
+    }
+    return {
+      business: dates.length > 0 && dates.every(d => businessPeriodDates.has(d)),
+      ad: dates.length > 0 && dates.every(d => adPeriodDates.has(d)),
+    }
+  }, [availability, dates])
+
+  const getCellClass = (hasData: boolean, isPeriodicOnly: boolean, isMissing: boolean) => {
+    if (hasData) return 'bg-emerald-500'
+    if (isPeriodicOnly) return 'bg-blue-500 border-2 border-dashed border-blue-300 dark:border-blue-600'
+    return 'bg-rose-500'
+  }
+
+  const getCellIcon = (hasData: boolean, isPeriodicOnly: boolean, _isMissing: boolean) => {
+    if (hasData) return <CheckCircle2 className="h-4 w-4 text-white" />
+    if (isPeriodicOnly) return <span className="text-xs text-white">P</span>
+    return <XCircle className="h-4 w-4 text-white" />
+  }
+
+  const getCellTitle = (label: string, d: string, hasData: boolean, isPeriodicOnly: boolean, isMissing: boolean) => {
+    if (hasData) return `${label} ${d} 有单日数据`
+    if (isPeriodicOnly) return `${label} ${d} 周期性数据兜底`
+    return `${label} ${d} 缺少数据`
+  }
+
   return (
-    <div className="overflow-x-auto">
-      <div
-        className="grid min-w-[480px]"
-        style={{ gridTemplateColumns: `120px repeat(${dates.length}, 1fr)` }}
-      >
-        {/* Header row */}
-        <div className="flex items-center border border-b-0 border-border/60 bg-[hsl(var(--surface-subtle))] px-2 py-2 text-xs font-semibold text-muted-foreground">
-          报表类型
+    <div className="space-y-3">
+      {/* Legend */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+        <div className="flex items-center gap-1.5">
+          <div className="h-3 w-3 rounded bg-emerald-500" />
+          <span className="text-muted-foreground">单日数据</span>
         </div>
-        {dates.map((d) => {
-          const weekdayIdx = (parseDateStr(d).getDay() + 6) % 7 // Mon=0
-          return (
-            <div
-              key={d}
-              className="flex flex-col items-center justify-center border border-b-0 border-border/60 bg-[hsl(var(--surface-subtle))] px-1 py-2 text-xs"
-            >
-              <span className="text-[10px] text-muted-foreground">{WEEKDAY_LABELS[weekdayIdx]}</span>
-              <span className="font-medium">{formatDayAbbr(d)}</span>
-            </div>
-          )
-        })}
-
-        {/* Data rows */}
-        {REPORT_ROWS.map((row) => {
-          const missing = missingSet[row.key]
-          return (
-            <React.Fragment key={row.key}>
-              <div className="flex items-center border border-t-0 border-border/60 bg-[hsl(var(--surface-panel))] px-2 py-2.5 text-sm font-medium">
-                {row.label}
-              </div>
-              {dates.map((d) => {
-                const isMissing = missing.has(d)
-                return (
-                  <div
-                    key={d}
-                    title={isMissing ? `${row.label} 缺少 ${d}` : `${row.label} ${d} 有数据`}
-                    className={cn(
-                      'flex items-center justify-center border border-t-0 border-border/60 py-2.5 transition-colors',
-                      isMissing ? 'bg-rose-500' : 'bg-emerald-500',
-                    )}
-                  >
-                    {isMissing ? (
-                      <XCircle className="h-4 w-4 text-white" />
-                    ) : (
-                      <CheckCircle2 className="h-4 w-4 text-white" />
-                    )}
-                  </div>
-                )
-              })}
-            </React.Fragment>
-          )
-        })}
-
-        {/* Payment report row */}
-        <div className="flex items-center border border-t-0 border-border/60 bg-[hsl(var(--surface-panel))] px-2 py-2.5 text-sm font-medium">
-          付款报告
+        <div className="flex items-center gap-1.5">
+          <div className="h-3 w-3 rounded border-2 border-dashed border-blue-400 bg-blue-500" />
+          <span className="text-muted-foreground">周期性兜底</span>
         </div>
-        {availability.payment_full_period_covered ? (
-          <div
-            style={{ gridColumn: `span ${dates.length} / span ${dates.length}` }}
-            className="flex items-center justify-center gap-1.5 border border-t-0 border-border/60 bg-emerald-500 py-2.5 text-sm font-medium text-white"
-            title={availability.payment_periods_overlapping.length > 0 ? `全周期数据覆盖（${availability.payment_periods_overlapping.length} 个重叠周期）` : '全周期数据覆盖'}
-          >
-            <CheckCircle2 className="h-4 w-4" />
-            <span>全周期数据覆盖</span>
-          </div>
-        ) : dates.map((d) => {
-          const isCovered = paymentDailyCoveredSet.has(d)
-          return (
-            <div
-              key={d}
-              title={isCovered ? `付款报告 ${d} 有单日数据` : `付款报告 缺少 ${d}`}
-              className={cn(
-                'flex items-center justify-center border border-t-0 border-border/60 py-2.5 transition-colors',
-                isCovered ? 'bg-emerald-500' : 'bg-rose-500',
-              )}
-            >
-              {isCovered ? (
-                <CheckCircle2 className="h-4 w-4 text-white" />
-              ) : (
-                <XCircle className="h-4 w-4 text-white" />
-              )}
-            </div>
-          )
-        })}
+        <div className="flex items-center gap-1.5">
+          <div className="h-3 w-3 rounded bg-rose-500" />
+          <span className="text-muted-foreground">缺失</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="h-3 w-3 rounded bg-blue-500" />
+          <span className="text-muted-foreground">有周期性数据</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="h-3 w-3 rounded border border-dashed border-muted-foreground/40" />
+          <span className="text-muted-foreground">无周期性数据</span>
+        </div>
       </div>
 
+      {/* Grid */}
+      <div className="overflow-x-auto">
+        <div
+          className="grid min-w-[520px]"
+          style={{ gridTemplateColumns: `120px repeat(${dates.length}, 1fr) 100px` }}
+        >
+          {/* Header row */}
+          <div className="flex items-center border border-b-0 border-border/60 bg-[hsl(var(--surface-subtle))] px-2 py-2 text-xs font-semibold text-muted-foreground">
+            报表类型
+          </div>
+          {dates.map((d) => {
+            const weekdayIdx = (parseDateStr(d).getDay() + 6) % 7 // Mon=0
+            return (
+              <div
+                key={d}
+                className="flex flex-col items-center justify-center border border-b-0 border-border/60 bg-[hsl(var(--surface-subtle))] px-1 py-2 text-xs"
+              >
+                <span className="text-[10px] text-muted-foreground">{WEEKDAY_LABELS[weekdayIdx]}</span>
+                <span className="font-medium">{formatDayAbbr(d)}</span>
+              </div>
+            )
+          })}
+          {/* Header: Periodic column */}
+          <div className="flex items-center justify-center border border-b-0 border-border/60 bg-[hsl(var(--surface-subtle))] px-2 py-2 text-xs font-semibold text-muted-foreground">
+            周期性数据
+          </div>
+
+          {/* Business Report row */}
+          <div className="flex items-center border border-t-0 border-border/60 bg-[hsl(var(--surface-panel))] px-2 py-2.5 text-sm font-medium">
+            业务报告
+          </div>
+          {dates.map((d) => {
+            const { hasData, isPeriodicOnly, isMissing } = coverageMap.business
+            return (
+              <div
+                key={d}
+                title={getCellTitle('业务报告', d, hasData(d), isPeriodicOnly(d), isMissing(d))}
+                className={cn(
+                  'flex items-center justify-center border border-t-0 border-border/60 py-2.5 transition-colors',
+                  getCellClass(hasData(d), isPeriodicOnly(d), isMissing(d)),
+                )}
+              >
+                {getCellIcon(hasData(d), isPeriodicOnly(d), isMissing(d))}
+              </div>
+            )
+          })}
+          {/* Business: Periodic column */}
+          <div
+            className={cn(
+              'flex items-center justify-center border border-t-0 border-border/60 py-2.5 text-xs',
+              hasPeriodicData.business ? 'bg-blue-500 text-white' : 'bg-[hsl(var(--surface-panel))] text-muted-foreground border-dashed',
+            )}
+            title={hasPeriodicData.business
+              ? `有周期性数据（覆盖 ${availability.business_period_info.map(p => `${p.period_start_date}~${p.period_end_date}`).join(', ')}）`
+              : '无周期性数据'}
+          >
+            {hasPeriodicData.business ? (
+              <div className="flex flex-col items-center">
+                <span className="font-medium">{periodicCoversAllDates.business ? '全周期' : '部分'}</span>
+                <span className="text-[10px] opacity-80">P</span>
+              </div>
+            ) : (
+              <span className="text-muted-foreground">-</span>
+            )}
+          </div>
+
+          {/* Ad Report row */}
+          <div className="flex items-center border border-t-0 border-border/60 bg-[hsl(var(--surface-panel))] px-2 py-2.5 text-sm font-medium">
+            广告报告
+          </div>
+          {dates.map((d) => {
+            const { hasData, isPeriodicOnly, isMissing } = coverageMap.ad
+            return (
+              <div
+                key={d}
+                title={getCellTitle('广告报告', d, hasData(d), isPeriodicOnly(d), isMissing(d))}
+                className={cn(
+                  'flex items-center justify-center border border-t-0 border-border/60 py-2.5 transition-colors',
+                  getCellClass(hasData(d), isPeriodicOnly(d), isMissing(d)),
+                )}
+              >
+                {getCellIcon(hasData(d), isPeriodicOnly(d), isMissing(d))}
+              </div>
+            )
+          })}
+          {/* Ad: Periodic column */}
+          <div
+            className={cn(
+              'flex items-center justify-center border border-t-0 border-border/60 py-2.5 text-xs',
+              hasPeriodicData.ad ? 'bg-blue-500 text-white' : 'bg-[hsl(var(--surface-panel))] text-muted-foreground border-dashed',
+            )}
+            title={hasPeriodicData.ad
+              ? `有周期性数据（覆盖 ${availability.ad_period_info.map(p => `${p.period_start_date}~${p.period_end_date}`).join(', ')}）`
+              : '无周期性数据'}
+          >
+            {hasPeriodicData.ad ? (
+              <div className="flex flex-col items-center">
+                <span className="font-medium">{periodicCoversAllDates.ad ? '全周期' : '部分'}</span>
+                <span className="text-[10px] opacity-80">P</span>
+              </div>
+            ) : (
+              <span className="text-muted-foreground">-</span>
+            )}
+          </div>
+
+          {/* Inventory Report row */}
+          <div className="flex items-center border border-t-0 border-border/60 bg-[hsl(var(--surface-panel))] px-2 py-2.5 text-sm font-medium">
+            库存报告
+          </div>
+          {dates.map((d) => {
+            const isMissing = inventoryMissingSet.has(d)
+            return (
+              <div
+                key={d}
+                title={isMissing ? `库存报告 缺少 ${d}` : `库存报告 ${d} 有数据`}
+                className={cn(
+                  'flex items-center justify-center border border-t-0 border-border/60 py-2.5 transition-colors',
+                  isMissing ? 'bg-rose-500' : 'bg-emerald-500',
+                )}
+              >
+                {isMissing ? (
+                  <XCircle className="h-4 w-4 text-white" />
+                ) : (
+                  <CheckCircle2 className="h-4 w-4 text-white" />
+                )}
+              </div>
+            )
+          })}
+          {/* Inventory: N/A */}
+          <div className="flex items-center justify-center border border-t-0 border-border/60 bg-[hsl(var(--surface-panel))] py-2.5 text-xs text-muted-foreground border-dashed">
+            -
+          </div>
+
+          {/* Payment report row */}
+          <div className="flex items-center border border-t-0 border-border/60 bg-[hsl(var(--surface-panel))] px-2 py-2.5 text-sm font-medium">
+            付款报告
+          </div>
+          {dates.map((d) => {
+            const { hasData, isPeriodicOnly, isMissing } = coverageMap.payment
+            return (
+              <div
+                key={d}
+                title={getCellTitle('付款报告', d, hasData(d), isPeriodicOnly(d), isMissing(d))}
+                className={cn(
+                  'flex items-center justify-center border border-t-0 border-border/60 py-2.5 transition-colors',
+                  getCellClass(hasData(d), isPeriodicOnly(d), isMissing(d)),
+                )}
+              >
+                {getCellIcon(hasData(d), isPeriodicOnly(d), isMissing(d))}
+              </div>
+            )
+          })}
+          {/* Payment: Periodic column */}
+          <div
+            className={cn(
+              'flex items-center justify-center border border-t-0 border-border/60 py-2.5 text-xs',
+              hasPeriodicData.payment ? 'bg-blue-500 text-white' : 'bg-[hsl(var(--surface-panel))] text-muted-foreground border-dashed',
+            )}
+            title={hasPeriodicData.payment
+              ? `有周期性数据（覆盖 ${availability.payment_periods_overlapping.map(p => `${p.period_start_date}~${p.period_end_date}`).join(', ')}）`
+              : '无周期性数据'}
+          >
+            {hasPeriodicData.payment ? (
+              <div className="flex flex-col items-center">
+                <span className="font-medium">{availability.payment_full_period_covered ? '全周期' : '部分'}</span>
+                <span className="text-[10px] opacity-80">P</span>
+              </div>
+            ) : (
+              <span className="text-muted-foreground">-</span>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

@@ -1,7 +1,13 @@
-import NextAuth from 'next-auth'
+import NextAuth, { CredentialsSignin } from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 
 import { backendFetchJson } from '@/lib/server/backend-api'
+
+class NetworkAuthError extends CredentialsSignin {
+  constructor() {
+    super('网络连接失败，请检查网络后重试')
+  }
+}
 
 type UserCredentials = Partial<Record<'email' | 'password', unknown>>
 
@@ -50,7 +56,24 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             roleType: account.role_type,
             sessionId: account.session_id,
           }
-        } catch {
+        } catch (err: unknown) {
+          // 区分网络错误和认证错误，让前端可以显示正确的错误提示
+          const errorMessage = (err instanceof Error ? err.message : String(err)).toLowerCase()
+          const isNetworkError =
+            errorMessage.includes('fetch') ||
+            errorMessage.includes('network') ||
+            errorMessage.includes('timeout') ||
+            errorMessage.includes('connection') ||
+            errorMessage.includes('econnrefused') ||
+            errorMessage.includes('enotfound') ||
+            errorMessage.includes('failed to fetch') ||
+            errorMessage.includes('typeerror')
+
+          if (isNetworkError) {
+            // 抛出 CredentialsSignin 子类，确保 NextAuth 正确传递错误类型
+            throw new NetworkAuthError()
+          }
+          // 其他错误（如认证失败）不抛出，让 NextAuth 返回默认错误
           return null
         }
       },

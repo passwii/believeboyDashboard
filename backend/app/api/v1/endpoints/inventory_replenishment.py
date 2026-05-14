@@ -22,8 +22,13 @@ from app.schemas.inventory_replenishment import (
 )
 from app.services import (
     inventory_analysis_service,
-    inventory_replenishment_service,
     project_service,
+)
+from app.services.inventory.replenishment import (
+    list_inventory_replenishment_analysis,
+    list_inventory_replenishment_shipments,
+    list_snapshot_options,
+    upsert_inventory_replenishment_setting,
 )
 from app.services.audit_log_service import (
     append_operation_audit_log,
@@ -94,55 +99,10 @@ def list_inventory_snapshot_options(
     country: str = Query(default="US"),
     db: Session = Depends(get_db_session),
 ) -> list[InventorySnapshotOption]:
-    rows = db.execute(
-        select(
-            func.max(AnalysisSourceFile.id).label("max_id"),
-        )
-        .where(
-            AnalysisSourceFile.project_id == project_id,
-            AnalysisSourceFile.report_type == "inventory_report",
-            AnalysisSourceFile.country == country,
-            AnalysisSourceFile.report_date.isnot(None),
-        )
-        .group_by(
-            AnalysisSourceFile.project_id,
-            AnalysisSourceFile.country,
-            AnalysisSourceFile.report_date,
-        )
-    ).all()
-
-    current_ids = set()
-    if rows:
-        current_rows = db.execute(
-            select(AnalysisSourceFile.id)
-            .where(
-                AnalysisSourceFile.project_id == project_id,
-                AnalysisSourceFile.report_type == "inventory_report",
-                AnalysisSourceFile.country == country,
-                AnalysisSourceFile.report_date.isnot(None),
-                AnalysisSourceFile.is_current.is_(True),
-            )
-        ).all()
-        current_ids = {r.id for r in current_rows}
-
-    option_rows = db.execute(
-        select(
-            AnalysisSourceFile.report_date.label("report_date"),
-            func.max(AnalysisSourceFile.id).label("max_id"),
-        )
-        .where(
-            AnalysisSourceFile.project_id == project_id,
-            AnalysisSourceFile.report_type == "inventory_report",
-            AnalysisSourceFile.country == country,
-            AnalysisSourceFile.report_date.isnot(None),
-        )
-        .group_by(AnalysisSourceFile.report_date)
-        .order_by(AnalysisSourceFile.report_date.desc())
-    ).all()
-
+    options = list_snapshot_options(db, project_id=project_id, country=country)
     return [
-        InventorySnapshotOption(report_date=row.report_date, is_current=row.max_id in current_ids)
-        for row in option_rows
+        InventorySnapshotOption(report_date=row["report_date"], is_current=row["is_current"])
+        for row in options
     ]
 
 
@@ -150,7 +110,7 @@ def list_inventory_snapshot_options(
     "/inventory-replenishment-analysis",
     response_model=InventoryReplenishmentListResponse,
 )
-def list_inventory_replenishment_analysis(
+def list_inventory_replenishment_analysis_endpoint(
     request: Request,
     project_id: int = Query(gt=0),
     country: str = Query(default="US"),
@@ -170,7 +130,7 @@ def list_inventory_replenishment_analysis(
         is_admin=bool(is_admin),
     )
     rows, summary, total, has_next = (
-        inventory_replenishment_service.list_inventory_replenishment_analysis(
+        list_inventory_replenishment_analysis(
             db,
             project_id=project_id,
             country=country,
@@ -231,7 +191,7 @@ def update_inventory_replenishment_setting(
         operator=operator,
         is_admin=bool(is_admin),
     )
-    row = inventory_replenishment_service.upsert_inventory_replenishment_setting(
+    row = upsert_inventory_replenishment_setting(
         db,
         project_id=project_id,
         sku=sku,
@@ -276,7 +236,7 @@ def update_inventory_replenishment_setting(
     "/inventory-replenishment-shipments",
     response_model=InventoryReplenishmentShipmentResponse,
 )
-def list_inventory_replenishment_shipments(
+def list_inventory_replenishment_shipments_endpoint(
     request: Request,
     project_id: int = Query(gt=0),
     sku: str = Query(min_length=1),
@@ -290,7 +250,7 @@ def list_inventory_replenishment_shipments(
         operator=operator,
         is_admin=bool(is_admin),
     )
-    rows = inventory_replenishment_service.list_inventory_replenishment_shipments(
+    rows = list_inventory_replenishment_shipments(
         db,
         project_id=project_id,
         sku=sku,

@@ -306,30 +306,26 @@ class CategoryResearchBandDistributionItem(BaseModel):
 
 class CategoryResearchDimensionPriceBandValue(BaseModel):
     value: str
+    price_band: str
     count: int
-    share: float
-    band_distribution: list[CategoryResearchBandDistributionItem] = Field(default_factory=list)
 
 
 class CategoryResearchDimensionPriceBandAnalysis(BaseModel):
-    key: str
-    label: str
-    total_count: int
-    values: list[CategoryResearchDimensionPriceBandValue] = Field(default_factory=list)
+    dimension_key: str
+    total_samples: int
+    top_combinations: list[CategoryResearchDimensionPriceBandValue]
 
 
-class CategoryResearchBrandPriceRange(BaseModel):
-    min_price: float
-    max_price: float
+class CategoryResearchBrandPriceBandItem(BaseModel):
+    band: str
+    sales: int
+    share: float
 
 
 class CategoryResearchBrandPriceBandAnalysis(BaseModel):
     brand: str
-    product_count: int
-    monthly_sales: int
-    price_range: CategoryResearchBrandPriceRange
-    covered_bands: list[str] = Field(default_factory=list)
-    band_distribution: list[CategoryResearchBandDistributionItem] = Field(default_factory=list)
+    total_sales: int
+    price_bands: list[CategoryResearchBrandPriceBandItem]
 
 
 class CategoryResearchAdvancedMetrics(BaseModel):
@@ -365,7 +361,7 @@ class CategoryResearchOverviewResponse(BaseModel):
     kpis: CategoryResearchOverviewKpis
     brand_sales_share: list[CategoryResearchBrandShareItem]
     listing_age_distribution: list[CategoryResearchBucketItem]
-    launch_month_distribution: list[CategoryResearchBucketSalesItem]
+    launch_month_distribution: list[CategoryResearchBucketItem]
     fulfillment_distribution: list[CategoryResearchBucketItem]
     fixed_price_bands: list[CategoryResearchBucketItem]
     quantile_price_bands: list[CategoryResearchQuantileBandItem]

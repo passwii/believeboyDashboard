@@ -16,7 +16,7 @@ import { normalizeErrorMessage } from '@/lib/error-utils'
 import { cn } from '@/lib/utils'
 
 // =============================================================================
-// Types - Reused from ProductCalculationPanel
+// Types
 // =============================================================================
 
 type CountryOption = 'US' | 'DE' | 'UK'
@@ -42,10 +42,25 @@ type PaymentPeriodOverlap = {
   source_id: number
 }
 
+type PeriodCoverageInfo = {
+  period_start_date: string
+  period_end_date: string
+  source_id: number
+  covered_dates: string[]
+}
+
 type DataAvailability = {
+  // Missing check (single-day only, NOT affected by periodic data)
   business_report_missing: string[]
   ad_report_missing: string[]
   inventory_missing: string[]
+  // Periodic coverage info
+  business_period_info: PeriodCoverageInfo[]
+  ad_period_info: PeriodCoverageInfo[]
+  // Missing but covered by periodic (can calculate, but daily data is incomplete)
+  business_periodic_only_missing: string[]
+  ad_periodic_only_missing: string[]
+  // Payment info
   payment_periods_overlapping: PaymentPeriodOverlap[]
   payment_full_period_covered: boolean
   payment_daily_covered_dates: string[]
@@ -61,6 +76,9 @@ type WeeklyAvailability = {
   total_days: number
   business_report_available_days: number
   ad_report_available_days: number
+  // Periodic coverage flag
+  business_periodic_covered: boolean
+  ad_periodic_covered: boolean
   payment_covered: boolean
   can_calculate: boolean
   is_partial: boolean
@@ -371,119 +389,6 @@ const DETAIL_DISPLAY_COLUMNS = [
   { key: '利润', label: '利润', fmt: 'currency' as const },
   { key: '利润率', label: '利润率', fmt: 'percent' as const },
 ]
-
-// =============================================================================
-// AvailabilityGrid - Reused from ProductCalculationPanel
-// =============================================================================
-
-interface AvailabilityGridProps {
-  startDate: string
-  endDate: string
-  availability: DataAvailability
-}
-
-function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGridProps) {
-  const dates = useMemo(() => buildWeekDates(startDate, endDate), [startDate, endDate])
-  const missingSet = useMemo(() => ({
-    business_report: new Set(availability.business_report_missing),
-    ad_report: new Set(availability.ad_report_missing),
-    inventory: new Set(availability.inventory_missing),
-  }), [availability])
-  const paymentDailyCoveredSet = useMemo(
-    () => new Set(availability.payment_daily_covered_dates),
-    [availability.payment_daily_covered_dates],
-  )
-
-  return (
-    <div className="overflow-x-auto">
-      <div
-        className="grid min-w-[480px]"
-        style={{ gridTemplateColumns: `120px repeat(${dates.length}, 1fr)` }}
-      >
-        {/* Header row */}
-        <div className="flex items-center border border-b-0 border-border/60 bg-[hsl(var(--surface-subtle))] px-2 py-2 text-xs font-semibold text-muted-foreground">
-          报表类型
-        </div>
-        {dates.map((d) => {
-          const weekdayIdx = (parseDateStr(d).getDay() + 6) % 7 // Mon=0
-          return (
-            <div
-              key={d}
-              className="flex flex-col items-center justify-center border border-b-0 border-border/60 bg-[hsl(var(--surface-subtle))] px-1 py-2 text-xs"
-            >
-              <span className="text-[10px] text-muted-foreground">{WEEKDAY_LABELS[weekdayIdx]}</span>
-              <span className="font-medium">{formatDayAbbr(d)}</span>
-            </div>
-          )
-        })}
-
-        {/* Data rows */}
-        {REPORT_ROWS.map((row) => {
-          const missing = missingSet[row.key]
-          return (
-            <React.Fragment key={row.key}>
-              <div className="flex items-center border border-t-0 border-border/60 bg-[hsl(var(--surface-panel))] px-2 py-2.5 text-sm font-medium">
-                {row.label}
-              </div>
-              {dates.map((d) => {
-                const isMissing = missing.has(d)
-                return (
-                  <div
-                    key={d}
-                    title={isMissing ? `${row.label} 缺少 ${d}` : `${row.label} ${d} 有数据`}
-                    className={cn(
-                      'flex items-center justify-center border border-t-0 border-border/60 py-2.5 transition-colors',
-                      isMissing ? 'bg-rose-500' : 'bg-emerald-500',
-                    )}
-                  >
-                    {isMissing ? (
-                      <XCircle className="h-4 w-4 text-white" />
-                    ) : (
-                      <CheckCircle2 className="h-4 w-4 text-white" />
-                    )}
-                  </div>
-                )
-              })}
-            </React.Fragment>
-          )
-        })}
-
-        {/* Payment report row */}
-        <div className="flex items-center border border-t-0 border-border/60 bg-[hsl(var(--surface-panel))] px-2 py-2.5 text-sm font-medium">
-          付款报告
-        </div>
-        {availability.payment_full_period_covered ? (
-          <div
-            style={{ gridColumn: `span ${dates.length} / span ${dates.length}` }}
-            className="flex items-center justify-center gap-1.5 border border-t-0 border-border/60 bg-emerald-500 py-2.5 text-sm font-medium text-white"
-            title={availability.payment_periods_overlapping.length > 0 ? `全周期数据覆盖（${availability.payment_periods_overlapping.length} 个重叠周期）` : '全周期数据覆盖'}
-          >
-            <CheckCircle2 className="h-4 w-4" />
-            <span>全周期数据覆盖</span>
-          </div>
-        ) : dates.map((d) => {
-          const isCovered = paymentDailyCoveredSet.has(d)
-          return (
-            <div
-              key={d}
-              title={isCovered ? `付款报告 ${d} 有单日数据` : `付款报告 缺少 ${d}`}
-              className={cn(
-                'flex items-center justify-center border border-t-0 border-border/60 py-2.5 transition-colors',
-                isCovered ? 'bg-emerald-500' : 'bg-rose-500',
-              )}
-            >
-              {isCovered ? (
-                <CheckCircle2 className="h-4 w-4 text-white" />
-              ) : (
-                <XCircle className="h-4 w-4 text-white" />
-              )}
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
 
 // =============================================================================
 // Main Component
@@ -1410,12 +1315,6 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <AvailabilityGrid
-              startDate={startDate}
-              endDate={endDate}
-              availability={availability}
-            />
-
             <div className="flex items-center gap-2 border-t border-[hsl(var(--border))] pt-2.5">
               {availability.has_minimum_data ? (
                 <div className="flex items-center gap-1.5 text-sm font-medium text-emerald-600 dark:text-emerald-300">

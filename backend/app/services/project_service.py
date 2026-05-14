@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import re
 from decimal import Decimal, InvalidOperation
 from io import StringIO
@@ -11,20 +12,21 @@ from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.models import ProductCost, Project
-from app.services.redis_service import (
+from app.models import SkuRecord, Project
+from app.services.infra import (
     cache_delete,
     cache_delete_pattern,
     cache_get,
     cache_set,
     _make_cache_key,
 )
+from app.utils.constants import ALLOWED_COMMISSION_BASIS
+from typing import Any
 
 DEFAULT_PROJECTS_CSV_PATH = (
     Path(__file__).resolve().parents[3] / "Docs" / "ModelFiles" / "projects.csv"
 )
 PROJECT_NAME_HEADER = "项目名称"
-ALLOWED_COMMISSION_BASIS = {"sales_amount", "cash_received", "profit_margin"}
 MULTI_NAME_SPLIT_RE = re.compile(r"[、,，;\n]+")
 
 
@@ -267,6 +269,7 @@ def _serialize_project_for_cache(row: Project) -> dict:
         "sort_order": row.sort_order,
         "is_active": row.is_active,
         "source_file": row.source_file,
+        "has_context": bool(row.project_context or row.sku_context),
     }
 
 
@@ -407,11 +410,11 @@ def list_project_options(db: Session) -> list[dict[str, str | int | None]]:
     if rows:
         return [{"id": row.id, "name": row.project_name} for row in rows]
 
-    # Backward-compatible fallback: if projects table is empty, use product_costs distinct project names.
+    # Backward-compatible fallback: if projects table is empty, use sku_records distinct project names.
     fallback_stmt = (
-        select(ProductCost.project_name)
+        select(SkuRecord.project_name)
         .distinct()
-        .order_by(ProductCost.project_name.asc())
+        .order_by(SkuRecord.project_name.asc())
     )
     try:
         names = [row[0] for row in db.execute(fallback_stmt).all()]
@@ -451,6 +454,11 @@ def create_single_project(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="name is required"
         )
+
+    # 使用 PostgreSQL advisory lock 消除并发创建同名项目的竞争窗口
+    # 对项目名取 hash 作为锁 ID，确保同名项目必然获得相同锁
+    name_hash = int(hashlib.md5(project_name.encode()).hexdigest()[:16], 16)
+    db.execute(text("SELECT pg_advisory_xact_lock(:lock_id)"), {"lock_id": name_hash})
 
     existing = (
         db.execute(select(Project).where(Project.project_name == project_name))
@@ -618,38 +626,83 @@ def reorder_project(db: Session, project_id: int, direction: str) -> Project:
     db.refresh(row)
     invalidate_projects_cache()
     return row
-    project_name = name.strip()
-    if not project_name:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="name is required"
-        )
 
+
+def get_project_context(db: Session, project_id: int) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    """Get the project context and SKU context for a project.
+
+    Args:
+        db: Database session
+        project_id: The project ID
+
+    Returns:
+        A tuple of (project_context, sku_context). Both can be None if not set.
+
+    Raises:
+        HTTPException: If the project does not exist
+    """
     row = db.execute(select(Project).where(Project.id == project_id)).scalars().first()
-    if not row:
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+    return row.project_context, row.sku_context
+
+
+def _deep_merge(base: dict[str, Any], update: dict[str, Any]) -> dict[str, Any]:
+    """Recursively merge update into base, with update values taking precedence.
+
+    Nested dictionaries are merged recursively. All other values are replaced.
+    """
+    result = dict(base)
+    for key, value in update.items():
+        if (
+            key in result
+            and isinstance(result[key], dict)
+            and isinstance(value, dict)
+        ):
+            result[key] = _deep_merge(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
+def update_project_context(
+    db: Session,
+    project_id: int,
+    project_context: dict[str, Any] | None = None,
+    sku_context: dict[str, Any] | None = None,
+    operator: str | None = None,
+) -> Project:
+    """Update project context using JSON Merge Patch semantics.
+
+    Nested objects are deep-merged: only the keys present in the update
+    will be replaced; other keys within the same nested object are preserved.
+
+    Args:
+        db: Database session
+        project_id: The project ID
+        project_context: Partial project context to merge (deep merge at nested level)
+        sku_context: Partial SKU context to merge (shallow merge for SKU-level overrides)
+        operator: Optional operator name for logging
+
+    Returns:
+        The updated Project row
+
+    Raises:
+        HTTPException: If the project does not exist
+    """
+    row = db.execute(select(Project).where(Project.id == project_id)).scalars().first()
+    if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
 
-    duplicate = (
-        db.execute(
-            select(Project).where(
-                Project.project_name == project_name, Project.id != project_id
-            )
-        )
-        .scalars()
-        .first()
-    )
-    if duplicate:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="项目名称已存在"
-        )
+    if project_context is not None:
+        existing = row.project_context or {}
+        row.project_context = _deep_merge(existing, project_context)
 
-    row.project_name = project_name
-    row.brand_name = _normalize_optional_text(brand_name)
-    row.store_address = _normalize_optional_text(store_address)
-    row.project_operator = _normalize_multi_name_text(project_operator)
-    row.assistant_operator = _normalize_multi_name_text(assistant_operator)
-    row.commission_basis = _normalize_commission_basis(commission_basis)
-    row.commission_rate = _normalize_commission_rate(commission_rate)
-    row.is_active = is_active if is_active is not None else True
+    if sku_context is not None:
+        existing = row.sku_context or {}
+        existing.update(sku_context)
+        row.sku_context = existing
+
     db.flush()
     db.refresh(row)
     invalidate_projects_cache()

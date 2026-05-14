@@ -128,6 +128,59 @@ python scripts/init_user_accounts.py --email=yawei@believeboy.com --password='Xe
 
 - All `/api/v1/*` except `/api/v1/health` require `X-API-Key`.
 
+## Services Architecture
+
+The backend services layer has been restructured into subpackages for better organization and maintainability:
+
+```
+app/services/
+├── ad/                    # Advertising analysis
+├── ai/                    # AI chat and insights
+├── category/              # Category research
+├── daily/                 # Daily analysis reports
+├── data/                  # Data management (costs, exchange rates, projects)
+├── digital/               # Digital employees
+├── financial/             # Financial reports and payment validation
+├── infra/                 # Infrastructure (Redis, jobs)
+├── inventory/             # Inventory analysis and replenishment
+├── payment/               # Payment report parsing
+├── pricing/               # Pricing calculations
+├── product/               # Product analysis
+├── report/                # Monthly report generation
+├── shipment/              # Shipment scheduling
+├── category_research_service.py    # [deprecated] Category research compat layer
+├── monthly_report_service.py       # [deprecated] Monthly report compat layer
+└── ...                    # Other legacy services
+```
+
+### Importing Services
+
+New code should import directly from subpackages:
+
+```python
+# ✅ Recommended (new style)
+from app.services.inventory.replenishment import list_snapshot_options
+from app.services.payment import validate_payment_report_project_match
+from app.services.report.monthly import get_financial_series
+
+# ⚠️ Legacy (backward compatible, but deprecated)
+from app.services.inventory_replenishment_service import ...
+```
+
+Backward compatibility is maintained through legacy service files that re-export from subpackages. These compatibility layers show deprecation warnings but remain functional.
+
+### Running Tests
+
+```bash
+# All tests
+pytest tests/ -v
+
+# Specific service tests
+pytest tests/services/report/ -v
+pytest tests/services/ad/ -v
+pytest tests/services/category/ -v
+```
+
 ## Systemd (VPS)
 
 ```bash

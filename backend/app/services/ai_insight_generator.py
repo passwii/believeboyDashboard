@@ -6,7 +6,84 @@ from typing import Any, Iterator
 
 from app.core.config import Settings
 from app.schemas.ai_chat import LLMConfigInput
-from app.services import ai_chat_service
+from app.services import ai as ai_chat_service
+
+
+def _format_project_context_for_prompt(context: dict[str, Any]) -> str:
+    """将 project_context 格式化为可读的文本片段。"""
+    if not context:
+        return "（暂无项目背景信息）"
+
+    lines = []
+    mapping = {
+        "factory": "🏭 工厂供货",
+        "productSeasonality": "📅 淡旺季",
+        "productGrowth": "📈 产品增长",
+        "projectStatus": "📊 项目状态",
+    }
+
+    for key, label in mapping.items():
+        if key in context and context[key]:
+            section = context[key]
+            parts = []
+            if key == "factory":
+                if section.get("description"):
+                    parts.append(f"说明：{section['description']}")
+                if section.get("productionCapacity"):
+                    parts.append(f"生产能力：{section['productionCapacity']}")
+                if section.get("communication"):
+                    parts.append(f"沟通协作：{section['communication']}")
+            elif key == "productSeasonality":
+                if section.get("peakSeason"):
+                    parts.append(f"高峰期：{section['peakSeason']}")
+                if section.get("offSeason"):
+                    parts.append(f"淡季：{section['offSeason']}")
+                if section.get("restockStrategy"):
+                    parts.append(f"备货策略：{section['restockStrategy']}")
+            elif key == "productGrowth":
+                if section.get("description"):
+                    parts.append(f"说明：{section['description']}")
+                if section.get("growthDriver"):
+                    parts.append(f"增长驱动：{section['growthDriver']}")
+            elif key == "projectStatus":
+                if section.get("description"):
+                    parts.append(f"说明：{section['description']}")
+                if section.get("riskNotes"):
+                    parts.append(f"风险备注：{section['riskNotes']}")
+
+            if parts:
+                lines.append(f"**{label}**：{'；'.join(parts)}")
+
+    # 自由备注
+    if context.get("notes"):
+        lines.append(f"**📝 自由备注**：{context['notes']}")
+
+    return "\n".join(lines) if lines else "（暂无项目背景信息）"
+
+
+def _format_sku_context_for_prompt(context: dict[str, Any]) -> str:
+    """将 sku_context 格式化为可读的文本片段。"""
+    if not context:
+        return "（暂无 SKU 特殊状态）"
+
+    lines = []
+    for sku, item in context.items():
+        parts = []
+        if item.get("status"):
+            parts.append(f"状态：{item['status']}")
+        if item.get("reason"):
+            parts.append(f"原因：{item['reason']}")
+        if item.get("action"):
+            parts.append(f"行动：{item['action']}")
+        if item.get("startDate"):
+            parts.append(f"开始日期：{item['startDate']}")
+        if item.get("endDate"):
+            parts.append(f"结束日期：{item['endDate']}")
+
+        if parts:
+            lines.append(f"- **{sku}**：{'；'.join(parts)}")
+
+    return "\n".join(lines) if lines else "（暂无 SKU 特殊状态）"
 
 
 INSIGHT_SYSTEM_PROMPT = """你是一位专业的跨境电商数据分析师，为Amazon卖家提供经营洞察。
@@ -104,6 +181,32 @@ title 库龄结构分布
 - inventory_summary: 库存汇总（available, out_of_stock_skus, aging_summary）
 - top_skus: TOP SKU排行（sku, asin, order_qty, sales_amount）
 - comparison_period: 对比周期数据
+- project_context: 项目背景信息（由运营人员填写）
+- sku_context: SKU 特殊状态（如清仓、秒杀等）
+
+## 项目背景信息使用规则
+
+生成洞察时必须遵循以下规则，结合运营人员提供的背景信息进行综合分析：
+
+### 销量异常解读
+- 如果某 SKU 正在"清仓"或做"促销/秒杀"活动，其销量增长应归因于促销活动而非自然增长
+- 在分析中明确标注"促销驱动的增长"，不要将此类增长完全归功于运营策略
+
+### 淡旺季判断
+- 如果项目背景中标注了高峰期（如 Q4）和淡季（如 Q2），应将其作为正常季节性表现
+- 不要将旺季销量高于淡季作为运营评价的加分项
+
+### 库存分析
+- 结合备货周期信息（如"交货周期 15 天"），判断当前库存水位是否合理
+- 如果背景说"产能充足"但库存经常断货，需在洞察中特别指出矛盾
+
+### 风险标注
+- 如果发现数据与背景信息矛盾，应在洞察中明确指出
+- 例如："广告数据表现不佳，但考虑到该项目为新开项目（爬坡期），此情况属正常"
+
+### 运营评价边界
+- 结合项目状态（新项目/增长期/成熟期）调整评价标准
+- 新项目应以"是否按计划推进"为主要评价维度，而非绝对业绩
 
 请根据以下数据生成洞察报告：
 """
@@ -228,11 +331,31 @@ def build_insight_messages(
     user_message: str | None = None,
 ) -> tuple[str, list[dict[str, Any]]]:
     """Build system prompt and user message for insight generation."""
-    data_str = json.dumps(data, ensure_ascii=False, indent=2)
+    # 提取数据（去掉 context 用于 JSON 展示，保持 user_content 清晰）
+    display_data = {k: v for k, v in data.items() if k not in ("project_context", "sku_context")}
+    data_str = json.dumps(display_data, ensure_ascii=False, indent=2)
+
+    # 格式化项目背景信息
+    project_context = data.get("project_context", {})
+    sku_context = data.get("sku_context", {})
+    project_context_text = _format_project_context_for_prompt(project_context)
+    sku_context_text = _format_sku_context_for_prompt(sku_context)
 
     system_prompt = INSIGHT_SYSTEM_PROMPT.strip()
 
-    user_content = f"请根据以下数据生成洞察报告：\n\n```json\n{data_str}\n```"
+    user_content = f"""请根据以下数据生成洞察报告：
+
+```json
+{data_str}
+```
+
+## 项目背景信息（由运营人员填写，生成洞察时请结合以下信息进行综合分析）
+
+### 项目背景
+{project_context_text}
+
+### SKU 特殊状态
+{sku_context_text}"""
 
     if user_message:
         user_content += f"\n\n用户补充说明：{user_message}"

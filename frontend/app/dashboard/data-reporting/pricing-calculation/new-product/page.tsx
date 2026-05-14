@@ -1002,72 +1002,200 @@ function getComparisonSections(): ComparisonSection[] {
   ]
 }
 
+function getExportComparisonSections(): ComparisonSection[] {
+  const baseSections = getComparisonSections()
+  const sections: ComparisonSection[] = []
+
+  for (const section of baseSections) {
+    const rows = [...section.rows]
+
+    if (section.title === '货品数据') {
+      rows.splice(
+        1,
+        0,
+        {
+          label: 'SKU',
+          getDisplayValue: (run) => run.sku ?? '-',
+          getExportValue: (run) => run.sku ?? '-',
+        },
+        {
+          label: '国家站点',
+          getDisplayValue: (run) => run.country,
+          getExportValue: (run) => run.country,
+        },
+        {
+          label: '测算时间',
+          getDisplayValue: (run) => formatCompactDate(run.created_at),
+          getExportValue: (run) => run.created_at,
+        },
+      )
+      rows.push(
+        {
+          label: '体积(in³)',
+          getDisplayValue: (run) => formatMetric(run.dimensions.volume_cubic_in, 1),
+          getExportValue: (run) => run.dimensions.volume_cubic_in,
+          valueType: 'number',
+        },
+        {
+          label: '体积(ft³)',
+          getDisplayValue: (run) => formatMetric(run.dimensions.volume_cubic_ft, 2),
+          getExportValue: (run) => run.dimensions.volume_cubic_ft,
+          valueType: 'number',
+        },
+      )
+    }
+
+    if (section.title === 'DDP 成本') {
+      rows.push({
+        label: '头程单价(RMB/kg)',
+        getDisplayValue: (run) =>
+          run.first_leg_unit_price_rmb_per_kg != null
+            ? formatRmb(run.first_leg_unit_price_rmb_per_kg)
+            : '-',
+        getExportValue: (run) => run.first_leg_unit_price_rmb_per_kg ?? '-',
+        valueType: 'currency_rmb',
+      })
+      rows.push({
+        label: '头程数量',
+        getDisplayValue: (run) =>
+          run.full_container_quantity != null
+            ? String(run.full_container_quantity)
+            : '-',
+        getExportValue: (run) => run.full_container_quantity ?? '-',
+        valueType: 'number',
+      })
+    }
+
+    if (section.title === '核算规则') {
+      rows.push(
+        {
+          label: '计费重规则',
+          getDisplayValue: (run) => run.weights.chargeable_weight_rule,
+          getExportValue: (run) => run.weights.chargeable_weight_rule,
+        },
+        {
+          label: '产品重(lb)',
+          getDisplayValue: (run) => formatMetric(run.weights.product_weight_lb, 2),
+          getExportValue: (run) => run.weights.product_weight_lb,
+          valueType: 'number',
+        },
+        {
+          label: '体积重(lb)',
+          getDisplayValue: (run) =>
+            formatMetric(run.weights.dimensional_weight_lb, 2),
+          getExportValue: (run) => run.weights.dimensional_weight_lb,
+          valueType: 'number',
+        },
+        {
+          label: '尺寸(in)',
+          getDisplayValue: (run) =>
+            `${run.dimensions.longest_side_in} × ${run.dimensions.middle_side_in} × ${run.dimensions.shortest_side_in}`,
+          getExportValue: (run) =>
+            `${run.dimensions.longest_side_in} × ${run.dimensions.middle_side_in} × ${run.dimensions.shortest_side_in}`,
+        },
+      )
+    }
+
+    sections.push({ title: section.title, rows })
+  }
+
+  return sections
+}
+
 async function exportComparisonMatrixToExcel(
   runs: PricingCalculationRunItem[],
+  productNamePrefix?: string,
 ) {
   const ExcelJS = await import('exceljs')
   const workbook = new ExcelJS.Workbook()
-  workbook.creator = 'Codex'
+  workbook.creator = 'BelieveBoy Dashboard'
   workbook.created = new Date()
 
   const worksheet = workbook.addWorksheet('测算对比矩阵', {
-    views: [{ state: 'frozen', ySplit: 4, xSplit: 2, showGridLines: false }],
+    views: [{ state: 'frozen', ySplit: 3, xSplit: 2, showGridLines: false }],
   })
 
-  const title = `测算对比矩阵 (${runs.length} 个产品)`
+  worksheet.pageSetup = {
+    orientation: 'landscape',
+    paperSize: 9,
+    fitToPage: true,
+    fitToWidth: 1,
+    margins: {
+      left: 0.4,
+      right: 0.4,
+      top: 0.4,
+      bottom: 0.4,
+      header: 0.2,
+      footer: 0.2,
+    },
+  }
+
+  const prefix = productNamePrefix ?? '测算对比'
+  const title = `${prefix} - 测算对比矩阵`
   const exportedAt = new Date().toLocaleString('zh-CN', { hour12: false })
-  const sections = getComparisonSections()
+  const sections = getExportComparisonSections()
   const lastColumn = runs.length + 2
 
+  const columnLabelWidth = 14
+  const columnSubWidth = 20
+  const columnDataWidth = 24
+
+  worksheet.columns = [
+    { width: columnLabelWidth },
+    { width: columnSubWidth },
+    ...runs.map(() => ({ width: columnDataWidth })),
+  ]
+
   worksheet.mergeCells(1, 1, 1, lastColumn)
-  worksheet.getCell(1, 1).value = title
-  worksheet.getCell(1, 1).font = {
+  const titleCell = worksheet.getCell(1, 1)
+  titleCell.value = title
+  titleCell.font = {
     name: 'Microsoft YaHei',
     size: 16,
     bold: true,
     color: { argb: 'FF0F172A' },
   }
-  worksheet.getCell(1, 1).fill = {
+  titleCell.fill = {
     type: 'pattern',
     pattern: 'solid',
     fgColor: { argb: 'FFE2E8F0' },
   }
-  worksheet.getCell(1, 1).alignment = { vertical: 'middle', horizontal: 'left' }
+  titleCell.alignment = { vertical: 'middle', horizontal: 'left' }
 
   worksheet.mergeCells(2, 1, 2, lastColumn)
-  worksheet.getCell(2, 1).value =
-    `导出时间：${exportedAt}    说明：仅导出当前已选中的对比矩阵结果`
-  worksheet.getCell(2, 1).font = {
+  const subtitleCell = worksheet.getCell(2, 1)
+  subtitleCell.value =
+    `导出时间：${exportedAt}    对比方案：${runs.length} 个`
+  subtitleCell.font = {
     name: 'Microsoft YaHei',
     size: 10,
     color: { argb: 'FF475569' },
   }
-  worksheet.getCell(2, 1).fill = {
+  subtitleCell.fill = {
     type: 'pattern',
     pattern: 'solid',
     fgColor: { argb: 'FFF8FAFC' },
   }
-  worksheet.getCell(2, 1).alignment = { vertical: 'middle', horizontal: 'left' }
+  subtitleCell.alignment = { vertical: 'middle', horizontal: 'left' }
 
-  const headerRow = worksheet.getRow(4)
+  const headerRow = worksheet.getRow(3)
+  headerRow.height = 40
   headerRow.values = [
     '指标',
-    '小类',
-    ...runs.map((run) => `${run.product_name} (#${run.id})`),
-  ]
-  headerRow.height = 24
-
-  worksheet.columns = [
-    { width: 16 },
-    { width: 18 },
-    ...runs.map(() => ({ width: 22 })),
+    '子项',
+    ...runs.map((run) => {
+      const typeLabel = getCalculationTypeMeta(run.calculation_type).label
+      const dateStr = formatCompactDate(run.created_at)
+      return `${run.product_name}\n${typeLabel} · ${run.country}站 · ${dateStr}`
+    }),
   ]
 
   const palette: Record<string, { section: string; sub: string }> = {
     货品数据: { section: 'FFDCEEFF', sub: 'FFF4F9FF' },
     'DDP 成本': { section: 'FFFEE7C7', sub: 'FFFFF8EB' },
     费用支出: { section: 'FFFFD9E2', sub: 'FFFFF1F4' },
-    利润核算: { section: 'FFD8F7E7', sub: 'FFEEFDF4' },
+    '售价与利润': { section: 'FFD8F7E7', sub: 'FFEEFDF4' },
+    核算规则: { section: 'FFE9D5F9', sub: 'FFF5EEFD' },
   }
 
   headerRow.eachCell((cell, colNumber) => {
@@ -1089,7 +1217,7 @@ async function exportComparisonMatrixToExcel(
     }
   })
 
-  let currentRowIndex = 5
+  let currentRowIndex = 4
   sections.forEach((section) => {
     const startRow = currentRowIndex
     const colors = palette[section.title] ?? {
@@ -1102,7 +1230,8 @@ async function exportComparisonMatrixToExcel(
       excelRow.getCell(2).value = row.label
       excelRow.getCell(2).font = {
         name: 'Microsoft YaHei',
-        bold: row.label === '售价' || row.label === '利润率',
+        size: row.label === '利润' || row.label === '利润率' || row.label === '售价' ? 11 : 10,
+        bold: row.label === '利润' || row.label === '利润率' || row.label === '售价',
         color: { argb: 'FF334155' },
       }
       excelRow.getCell(2).fill = {
@@ -1110,7 +1239,7 @@ async function exportComparisonMatrixToExcel(
         pattern: 'solid',
         fgColor: {
           argb:
-            row.label === '售价' || row.label === '利润率'
+            row.label === '利润' || row.label === '利润率' || row.label === '售价'
               ? 'FFFFEeba'
               : colors.sub,
         },
@@ -1138,7 +1267,7 @@ async function exportComparisonMatrixToExcel(
           if (row.valueType === 'currency_usd')
             cell.numFmt = '$#,##0.00;[Red]-$#,##0.00'
           if (row.valueType === 'currency_rmb')
-            cell.numFmt = '"RMB " #,##0.00;[Red]-"RMB " #,##0.00'
+            cell.numFmt = '"RMB "#,##0.00;[Red]-"RMB "#,##0.00'
           if (row.valueType === 'percent') cell.numFmt = '0.00%'
           if (row.valueType === 'number') cell.numFmt = '0.0000'
         }
@@ -1146,6 +1275,7 @@ async function exportComparisonMatrixToExcel(
         if (row.label === '利润' && typeof value === 'number') {
           cell.font = {
             name: 'Microsoft YaHei',
+            size: 11,
             bold: true,
             color: { argb: value >= 0 ? 'FF047857' : 'FFBE123C' },
           }
@@ -1153,6 +1283,7 @@ async function exportComparisonMatrixToExcel(
         if (row.label === '利润率' && typeof value === 'number') {
           cell.font = {
             name: 'Microsoft YaHei',
+            size: 11,
             bold: true,
             color: { argb: value >= 0 ? 'FF047857' : 'FFBE123C' },
           }
@@ -1165,6 +1296,7 @@ async function exportComparisonMatrixToExcel(
         if (row.label === '售价') {
           cell.font = {
             name: 'Microsoft YaHei',
+            size: 11,
             bold: true,
             color: { argb: 'FF0F172A' },
           }
@@ -1173,6 +1305,10 @@ async function exportComparisonMatrixToExcel(
             pattern: 'solid',
             fgColor: { argb: 'FFFFEeba' },
           }
+        }
+
+        if (typeof value === 'string' && value.startsWith('RMB')) {
+          cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF0F172A' } }
         }
       })
 
@@ -1204,6 +1340,132 @@ async function exportComparisonMatrixToExcel(
     applyHeaderBorder(sectionCell)
   })
 
+  if (runs.length >= 2) {
+    currentRowIndex += 1
+    const summaryStartRow = currentRowIndex
+    const profitRates = runs.map((run) => run.profit.profit_rate)
+    const profits = runs.map((run) => run.profit.profit_usd)
+    const bestRate = Math.max(...profitRates)
+    const worstRate = Math.min(...profitRates)
+    const bestProfit = Math.max(...profits)
+    const worstProfit = Math.min(...profits)
+    const bestRateIdx = profitRates.indexOf(bestRate)
+    const worstRateIdx = profitRates.indexOf(worstRate)
+    const bestProfitIdx = profits.indexOf(bestProfit)
+    const worstProfitIdx = profits.indexOf(worstProfit)
+    const totalRows = runs.length
+
+    const summaryTitleRow = worksheet.getRow(currentRowIndex)
+    worksheet.mergeCells(currentRowIndex, 1, currentRowIndex, lastColumn)
+    summaryTitleRow.getCell(1).value = '📊 综合对比摘要'
+    summaryTitleRow.getCell(1).font = {
+      name: 'Microsoft YaHei',
+      size: 13,
+      bold: true,
+      color: { argb: 'FF0F172A' },
+    }
+    summaryTitleRow.getCell(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFF1F5F9' },
+    }
+    summaryTitleRow.getCell(1).alignment = {
+      vertical: 'middle',
+      horizontal: 'left',
+    }
+    summaryTitleRow.height = 28
+    applyHeaderBorder(summaryTitleRow.getCell(1))
+    currentRowIndex += 1
+
+    const summaryRows: Array<{
+      label: string
+      values: (string | number)[]
+      valueType?: 'currency_usd' | 'currency_rmb' | 'percent' | 'number'
+    }> = [
+      {
+        label: '最高利润率',
+        values: [runs[bestRateIdx].product_name, bestRate],
+        valueType: 'percent',
+      },
+      {
+        label: '最低利润率',
+        values: [runs[worstRateIdx].product_name, worstRate],
+        valueType: 'percent',
+      },
+      {
+        label: '最大利润',
+        values: [runs[bestProfitIdx].product_name, bestProfit],
+        valueType: 'currency_usd',
+      },
+      {
+        label: '最小利润',
+        values: [runs[worstProfitIdx].product_name, worstProfit],
+        valueType: 'currency_usd',
+      },
+    ]
+
+    summaryRows.forEach((row) => {
+      const excelRow = worksheet.getRow(currentRowIndex)
+      worksheet.mergeCells(currentRowIndex, 1, currentRowIndex, 2)
+      excelRow.getCell(1).value = row.label
+      excelRow.getCell(1).font = {
+        name: 'Microsoft YaHei',
+        bold: true,
+        color: { argb: 'FF334155' },
+      }
+      excelRow.getCell(1).alignment = {
+        vertical: 'middle',
+        horizontal: 'left',
+      }
+      excelRow.getCell(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFF8FAFC' },
+      }
+
+      excelRow.getCell(3).value = row.values[0]
+      excelRow.getCell(3).font = {
+        name: 'Microsoft YaHei',
+        color: { argb: 'FF64748B' },
+      }
+      excelRow.getCell(3).alignment = {
+        vertical: 'middle',
+        horizontal: 'left',
+      }
+
+      const valCell = excelRow.getCell(4)
+      valCell.value = row.values[1]
+      valCell.font = {
+        name: 'Microsoft YaHei',
+        size: 11,
+        bold: true,
+        color: {
+          argb:
+            row.label.includes('最高') || row.label.includes('最大')
+              ? 'FF047857'
+              : 'FFBE123C',
+        },
+      }
+      valCell.alignment = {
+        vertical: 'middle',
+        horizontal: 'right',
+      }
+      if (typeof row.values[1] === 'number') {
+        if (row.valueType === 'percent') valCell.numFmt = '0.00%'
+        if (row.valueType === 'currency_usd')
+          valCell.numFmt = '$#,##0.00'
+      }
+
+      excelRow.eachCell((cell, colNumber) => {
+        if (colNumber <= 4) {
+          applyBorder(cell)
+        }
+      })
+
+      currentRowIndex += 1
+    })
+  }
+
   const buffer = await workbook.xlsx.writeBuffer()
   const blob = new Blob([buffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -1212,7 +1474,7 @@ async function exportComparisonMatrixToExcel(
   const link = document.createElement('a')
   const safeTimestamp = formatLocalTimestampForFilename()
   link.href = url
-  link.download = `测算对比矩阵-${safeTimestamp}.xlsx`
+  link.download = `${prefix.replace(/[/\\?%*:|"<>]/g, '_')}-测算对比矩阵-${safeTimestamp}.xlsx`
   link.click()
   window.URL.revokeObjectURL(url)
 }
@@ -2196,7 +2458,9 @@ export default function PricingCalculationPage() {
     setExporting(true)
     setError(null)
     try {
-      await exportComparisonMatrixToExcel(selectedRuns)
+      const productNamePrefix =
+        selectedRuns[selectedRuns.length - 1]?.product_name
+      await exportComparisonMatrixToExcel(selectedRuns, productNamePrefix)
       await logClientOperation({
         action: 'pricing_calculation.comparison.export',
         targetType: 'pricing_calculation_run',

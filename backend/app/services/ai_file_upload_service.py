@@ -6,10 +6,7 @@ from fastapi import HTTPException, UploadFile, status
 from PIL import Image
 from pypdf import PdfReader
 
-
-MAX_CONTENT_LENGTH = 50000
-MAX_EXCEL_ROWS = 1000
-MAX_EXCEL_COLS = 20
+from app.utils.constants import MAX_CONTENT_LENGTH, MAX_EXCEL_ROWS, MAX_EXCEL_COLS
 
 ALLOWED_EXTENSIONS = {".csv", ".xlsx", ".xls", ".jpg", ".jpeg", ".png", ".pdf", ".txt"}
 EXTENSION_SIZE_LIMITS = {

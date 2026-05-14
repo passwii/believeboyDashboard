@@ -48,7 +48,7 @@ from app.models.category_research import (
     CategoryResearchSalesTrend,
 )
 from app.models.project import Project
-from app.models.product_cost import ProductCost
+from app.models.sku_info import SkuRecord
 from app.models.ai_chat import AIConversation, AIMessage
 from app.models.ai_insight import AIInsight, InsightStatus, InsightType
 from app.models.commission_record import CommissionRecord
@@ -80,7 +80,7 @@ from app.models.project_goal import ProjectGoal
 from app.models.reconciliation import ReconciliationRecord
 
 __all__ = [
-    'ProductCost',
+    'SkuRecord',
     'Project',
     'Job',
     'JobRun',

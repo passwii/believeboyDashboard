@@ -70,6 +70,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  STICKY_TOP_ROW,
 } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import { logClientOperation } from '@/lib/operation-audit'
@@ -2103,6 +2104,7 @@ export default function DailyAnalysisPage() {
         onValueChange={(value) => setActiveTab(value as ViewTab)}
         className='w-full'
       >
+        <div className="sticky top-0 z-30">
         <DataTableCard>
           <DataTableCardHeader className='flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between pb-4'>
             <div>
@@ -2154,9 +2156,9 @@ export default function DailyAnalysisPage() {
               <TabsContent forceMount value={activeTab} className='m-0'>
                 {activeTab === 'summary' ? (
                   <Table
-                    containerClassName='bg-[hsl(var(--surface-panel))]/94 dark:bg-[hsl(var(--surface-panel))]/96'
+                    containerClassName='bg-[hsl(var(--surface-panel))]/94 dark:bg-[hsl(var(--surface-panel))]/96 max-h-[calc(100vh-16rem)] overflow-auto'
                   >
-                    <TableHeader className='bg-[hsl(var(--surface-soft))]/72 dark:bg-[hsl(var(--surface-strong))]'>
+                    <TableHeader className={STICKY_TOP_ROW}>
                       <TableRow className='border-0 hover:bg-transparent'>
                         <TableHead className='min-w-[120px]'>日期</TableHead>
                         <TableHead>订单量</TableHead>
@@ -2237,9 +2239,9 @@ export default function DailyAnalysisPage() {
                   </Table>
                 ) : (
                   <Table
-                    containerClassName='bg-[hsl(var(--surface-panel))]/96 dark:bg-[hsl(var(--surface-panel))]/98'
+                    containerClassName='bg-[hsl(var(--surface-panel))]/96 dark:bg-[hsl(var(--surface-panel))]/98 max-h-[calc(100vh-16rem)] overflow-auto'
                   >
-                    <TableHeader className='bg-[hsl(var(--surface-soft))]/82 dark:bg-[hsl(var(--surface-strong))]'>
+                    <TableHeader className={STICKY_TOP_ROW}>
                       <TableRow className='hover:bg-transparent'>
                         <TableHead className='min-w-[120px] bg-[hsl(var(--surface-soft))]/9 dark:bg-[hsl(var(--surface-strong))]'>
                           日期
@@ -2348,6 +2350,7 @@ export default function DailyAnalysisPage() {
             </DirectionalTabTransition>
           </DataTableCardBody>
         </DataTableCard>
+      </div>
       </Tabs>
     </div>
   )

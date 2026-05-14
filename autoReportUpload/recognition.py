@@ -1,7 +1,8 @@
 """
 Report type recognition for the auto-report-upload service.
 
-Uses the shared recognition module from backend/app/shared/recognition/.
+Uses recognition module from backend/app/utils/recognition/
+for non-payment report types. Payment reports use backend/app/services/payment/locale/.
 """
 
 from __future__ import annotations
@@ -17,13 +18,13 @@ if str(_BACKEND_PATH) not in sys.path:
 
 from sqlalchemy.orm import Session
 
-from app.shared.recognition import (
+from app.services.payment.locale import read_payment_report_dataframe
+from app.utils.recognition import (
     recognize_file as _shared_recognize_file,
     RecognitionResult as SharedRecognitionResult,
     _normalize_columns,
     _read_csv_with_encoding_fallback,
     _read_excel,
-    _read_payment_report,
 )
 from models import ProductCost
 
@@ -169,7 +170,7 @@ def _add_project_match(result: RecognitionResult, db: Session, path: Path, count
             else:
                 values = []
         elif result.report_type == "payment_report":
-            df, _, _, _ = _read_payment_report(path, extract_dates=True, country=country)
+            df = read_payment_report_dataframe(path, country=country)
             df = _normalize_columns(df)
             match_by = "sku"
             values = df["sku"].dropna().astype(str).tolist()

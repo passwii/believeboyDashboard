@@ -1,6 +1,6 @@
 """
 File processor: recognize → persist to DB → move file.
-Uses shared parsing and persistence modules from backend/app/shared/.
+Uses shared utilities from backend/app/utils/.
 """
 
 from __future__ import annotations
@@ -32,14 +32,14 @@ from models import (
 from recognition import (
     AD_PRODUCT_REPORT,
     recognize_file,
-    _read_payment_report as _read_payment_report_impl,
     _read_csv_with_encoding_fallback as _recog_csv,
 )
 
-# Shared utilities from backend/app/shared/utils.py
-from app.shared.utils import (
-    normalize_text as _normalize_text,
-    normalize_identity as _normalize_identity,
+# Payment report parsing — use locale (single source of truth)
+from app.services.payment.locale import read_payment_report_dataframe
+
+# Shared utilities from backend/app/utils/utils.py
+from app.utils.utils import (
     to_int as _to_int,
     to_decimal as _to_decimal,
     to_decimal_with_currency as _to_decimal_with_currency,
@@ -50,8 +50,14 @@ from app.shared.utils import (
     parse_yyyy_mm_dd as _parse_yyyy_mm_dd,
 )
 
-# Shared parsers — single source of truth (backend/app/shared/parsers.py)
-from app.shared.parsers import (
+# Shared text utilities from backend/app/utils/text_utils.py
+from app.utils.text_utils import (
+    normalize_text as _normalize_text,
+    normalize_identity as _normalize_identity,
+)
+
+# Shared parsers — single source of truth (backend/app/utils/parsers.py)
+from app.utils.parsers import (
     COUNTRY_TIMEZONE,
     PT_TIMEZONE,
     SCOPE_INCLUDED,
@@ -66,8 +72,8 @@ from app.shared.parsers import (
     parse_transaction_at as _parse_transaction_at,
 )
 
-# Shared persist helpers — single source of truth (backend/app/shared/persist_helpers.py)
-from app.shared.persist_helpers import (
+# Shared persist helpers — single source of truth (backend/app/utils/persist_helpers.py)
+from app.utils.persist_helpers import (
     PERIODIC_REPORT_TYPES,
     next_version as _next_version,
     replace_current_pointer as _replace_current_pointer,
@@ -825,7 +831,7 @@ def _parse_and_insert_rows(
         return total, included
 
     if report_type == "payment_report":
-        df, _, _, _ = _read_payment_report_impl(path)
+        df = read_payment_report_dataframe(path, country=country or "US")
         rows, total, included = _parse_payment_rows(df, source_id, known_skus, known_asins)
         if rows:
             db.execute(insert(AnalysisPaymentRow), rows)
