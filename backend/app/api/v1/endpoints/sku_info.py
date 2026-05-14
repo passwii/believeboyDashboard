@@ -20,6 +20,10 @@ from app.api.deps import get_db_session, get_request_operator, protected
 from app.models.sku_info import SkuRecord
 from app.models.project import Project
 from app.schemas.sku_info import (
+    BatchUpdateFactoryInfoRequest,
+    BatchUpdateFactoryInfoResponse,
+    ParseFactoryInfoRequest,
+    ParseFactoryInfoResponse,
     SkuRecordBulkCreate,
     SkuRecordBulkUpsertResponse,
     SkuRecordCreate,
@@ -51,6 +55,8 @@ from app.services.data.sku_info import (
 )
 from app.services.infra import invalidate_financial_series_cache
 from app.services.shipment import sync_first_leg_cost_from_shipment_summary
+from app.services.ai.factory_info_parser import parse_factory_info_sync
+from app.services.data.sku_info_batch import batch_update_factory_info, get_sku_records_by_ids
 
 router = APIRouter(dependencies=[Depends(protected)])
 
@@ -654,3 +660,80 @@ def sync_first_leg_cost_from_shipment(
         invalidate_financial_series_cache(project_id)
     db.commit()
     return {"updated": updated}
+
+
+@router.post(
+    "/sku-info/batch-parse-factory-info",
+    response_model=ParseFactoryInfoResponse,
+)
+def parse_factory_info_endpoint(
+    payload: ParseFactoryInfoRequest,
+    request: Request,
+    db: Session = Depends(get_db_session),
+) -> ParseFactoryInfoResponse:
+    """
+    使用 AI 将自然语言描述解析为产品属性 JSON。
+    """
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    result = parse_factory_info_sync(payload.description, settings)
+
+    if result is None:
+        return ParseFactoryInfoResponse(result={}, raw="")
+
+    import json
+    return ParseFactoryInfoResponse(
+        result=result,
+        raw=json.dumps(result, ensure_ascii=False),
+    )
+
+
+@router.post(
+    "/sku-info/batch-update-factory-info",
+    response_model=BatchUpdateFactoryInfoResponse,
+)
+def batch_update_factory_info_endpoint(
+    payload: BatchUpdateFactoryInfoRequest,
+    request: Request,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+) -> BatchUpdateFactoryInfoResponse:
+    """
+    批量更新 SKU 的产品属性。
+    """
+    # 验证 SKU 存在
+    existing = get_sku_records_by_ids(db, payload.sku_ids)
+    if len(existing) != len(payload.sku_ids):
+        found_ids = {r.id for r in existing}
+        missing = [id for id in payload.sku_ids if id not in found_ids]
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"部分 SKU 不存在: {missing}",
+        )
+
+    updated = batch_update_factory_info(
+        db,
+        updates=[{"id": sku_id, "sku_factory_info": payload.sku_factory_info} for sku_id in payload.sku_ids],
+        operator=operator,
+    )
+
+    # 记录审计日志
+    append_operation_audit_log(
+        db,
+        action="sku_info.batch_update_factory_info",
+        target_type="sku_info",
+        operator=operator,
+        after={
+            "sku_ids": payload.sku_ids,
+            "sku_factory_info": payload.sku_factory_info,
+            "updated": updated,
+        },
+        request=request,
+    )
+    db.commit()
+
+    return BatchUpdateFactoryInfoResponse(
+        updated=updated,
+        sku_ids=payload.sku_ids,
+    )
