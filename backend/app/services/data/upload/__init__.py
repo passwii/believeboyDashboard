@@ -21,15 +21,18 @@ from app.services.data.upload.status import (
     _status_cell,
     list_report_upload_statuses,
 )
+from app.services.data.upload.dedup import (
+    find_sha256_duplicates,
+    DuplicateInfo,
+)
 
 __all__ = [
     "RecognitionPayload",
-    "_result_to_payload",
-    "_build_project_match",
     "recognize_saved_report_upload",
     "commit_report_upload",
     "upsert_file_only_report_status",
     "STATUS_REPORT_TYPES",
-    "_status_cell",
     "list_report_upload_statuses",
+    "find_sha256_duplicates",
+    "DuplicateInfo",
 ]
