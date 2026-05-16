@@ -3,7 +3,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from app.services.payment.locale import read_payment_report_dataframe
+from app.services.payment.locale import (
+    read_payment_report_dataframe,
+    is_payment_report_by_columns,
+    PAYMENT_REPORT_HEADER_MARKERS,
+)
 from app.utils.country import normalize_country
 from app.utils.recognition.models import RecognitionResult
 from app.utils.recognition.patterns import (
@@ -13,6 +17,7 @@ from app.utils.recognition.patterns import (
     _detect_country_from_sales_amount_symbol,
     _detect_country_from_sales_channel,
     _normalize_columns,
+    _normalize_country,
     _read_csv_with_encoding_fallback,
     _read_excel,
     _read_text_with_encoding_fallback,
@@ -313,6 +318,7 @@ def recognize_return_report(path: Path, country: str = "US") -> RecognitionResul
     )
 
 
+
 def recognize_file(
     path: Path,
     country: str = "US",
@@ -342,11 +348,24 @@ def recognize_file(
             return None
 
         if extension == ".csv":
-            first_lines = _read_text_with_encoding_fallback(path).splitlines()[:8]
-            joined = "\n".join(first_lines)
-            if "Includes Amazon Marketplace" in joined:
+            # 1. Check filename for Transaction (payment reports often have this in filename)
+            if "transaction" in original_filename.lower():
                 return recognize_payment_report(path, normalized_country)
-            return recognize_business_report(path, normalized_country, original_filename)
+
+            first_lines = _read_text_with_encoding_fallback(path).splitlines()[:15]
+            joined = "\n".join(first_lines)
+
+            # 2. Check for header markers (English or German)
+            for marker in PAYMENT_REPORT_HEADER_MARKERS:
+                if marker in joined:
+                    return recognize_payment_report(path, normalized_country)
+
+            # 3. Check by column names (uses locale alias table for US/DE)
+            if is_payment_report_by_columns(path):
+                return recognize_payment_report(path, normalized_country)
+
+            # No payment signal matched — return None (recognition failure)
+            return None
 
         if extension == ".xlsx":
             df = _normalize_columns(_read_excel(path))
