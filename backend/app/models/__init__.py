@@ -59,6 +59,10 @@ from app.models.operator_performance_record import OperatorPerformanceRecord
 from app.models.operation_audit_log import OperationAuditLog
 from app.models.exchange_rate import ExchangeRate
 from app.models.inventory_replenishment import InventoryReplenishmentSetting
+from app.models.inventory_replenishment_snapshot import (
+    InventoryReplenishmentSnapshot,
+    InventoryReplenishmentSnapshotItem,
+)
 from app.models.pricing_calculation import PricingCalculationRun
 from app.models.store_sku_pricing_snapshot import StoreSkuPricingSnapshot
 from app.models.shop_calculation import ShopCalculation
@@ -98,6 +102,8 @@ __all__ = [
     'OperationAuditLog',
     'ExchangeRate',
     'InventoryReplenishmentSetting',
+    'InventoryReplenishmentSnapshot',
+    'InventoryReplenishmentSnapshotItem',
     'PricingCalculationRun',
     'StoreSkuPricingSnapshot',
     'ShopCalculation',

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { usePathname } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { LivePresence } from '@/components/dashboard/live-presence'
 import { DashboardPageLoading } from '@/components/dashboard/dashboard-page-loading'
 import { RecentPagesDropdown } from '@/components/dashboard/recent-pages-dropdown'
@@ -10,7 +11,14 @@ import { NotificationPanel, useNotifications } from '@/components/notifications'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { DashboardAISidebarProvider } from '@/components/dashboard/ai-sidebar-bridge'
 import { AppSidebar } from '@/components/dashboard/app-sidebar'
-import { SearchCommand } from '@/components/dashboard/search-command'
+import {
+  ALL_ITEMS,
+  getVisibleItems,
+  useSidebarPinnedItems,
+  useVisiblePinnedUrls,
+  PinSettingsPopover,
+  MAX_PINNED,
+} from '@/components/dashboard/sidebar-pin-settings'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { getDashboardPageTitle } from '@/lib/dashboard-route-meta'
@@ -22,8 +30,16 @@ import {
   ChevronDown,
   ChevronRight,
   MoreHorizontal,
-  Search,
+  Settings,
 } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { cn } from '@/lib/utils'
 
 function getDashboardBreadcrumbLabel(pathname: string, pageTitle: string) {
   if (pathname === '/dashboard') return '运营总览'
@@ -66,6 +82,163 @@ function NotificationBell() {
       </Button>
       <NotificationPanel open={panelOpen} onOpenChange={setPanelOpen} />
     </>
+  )
+}
+
+function DesktopPinnedItems() {
+  const { data: session } = useSession()
+  const { pinnedUrls, toggle } = useSidebarPinnedItems()
+  const roleType = session?.user?.roleType
+  const visiblePinnedUrls = useVisiblePinnedUrls(pinnedUrls, roleType)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+
+  const visibleItems = getVisibleItems(roleType)
+  const visibleUrlsSet = new Set(visiblePinnedUrls)
+
+  const displayCount = Math.min(visiblePinnedUrls.length, 3)
+  const hasMore = visiblePinnedUrls.length > 3
+  const moreUrls = visiblePinnedUrls.slice(3)
+
+  return (
+    <div className="hidden items-center xl:flex">
+      {visiblePinnedUrls.slice(0, displayCount).map((url) => {
+        const item = ALL_ITEMS.find((i) => i.url === url)
+        if (!item) return null
+        return (
+          <RouteLoadingLink
+            key={url}
+            href={url}
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-transparent bg-transparent text-secondary transition-colors hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground"
+            title={item.title}
+          >
+            {item.icon}
+          </RouteLoadingLink>
+        )
+      })}
+
+      {hasMore && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-10 w-10 rounded-xl border border-transparent bg-transparent text-secondary hover:bg-[hsl(var(--surface-subtle))]"
+              aria-label="更多快捷入口"
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            {moreUrls.map((url) => {
+              const item = ALL_ITEMS.find((i) => i.url === url)
+              if (!item) return null
+              return (
+                <DropdownMenuItem key={url} asChild>
+                  <RouteLoadingLink href={url} className="flex w-full items-center gap-2">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded border border-border/60 bg-muted/60 text-muted-foreground">
+                      {item.icon}
+                    </span>
+                    <span className="truncate">{item.title}</span>
+                  </RouteLoadingLink>
+                </DropdownMenuItem>
+              )
+            })}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <PinSettingsPopover
+                pinnedUrls={pinnedUrls}
+                onToggle={toggle}
+                roleType={roleType}
+                trigger={
+                  <button className="flex w-full cursor-pointer items-center gap-2 px-2 py-1.5 text-sm">
+                    <Settings className="h-4 w-4" />
+                    <span>管理快捷入口</span>
+                  </button>
+                }
+              />
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+
+      {!hasMore && (
+        <PinSettingsPopover
+          pinnedUrls={pinnedUrls}
+          onToggle={toggle}
+          roleType={roleType}
+          trigger={
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-10 w-10 rounded-xl border border-transparent bg-transparent text-secondary hover:bg-[hsl(var(--surface-subtle))]"
+              aria-label="管理快捷入口"
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
+          }
+        />
+      )}
+    </div>
+  )
+}
+
+function MobilePinnedItems() {
+  const { data: session } = useSession()
+  const { pinnedUrls, toggle } = useSidebarPinnedItems()
+  const roleType = session?.user?.roleType
+  const visiblePinnedUrls = useVisiblePinnedUrls(pinnedUrls, roleType)
+
+  const visibleItems = getVisibleItems(roleType)
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-9 w-9 shrink-0 rounded-xl border-border/65 bg-[hsl(var(--surface-subtle))] shadow-none sm:h-10 sm:w-10"
+          aria-label="快捷入口"
+        >
+          <MoreHorizontal className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-64">
+        {visiblePinnedUrls.length === 0 ? (
+          <div className="px-4 py-3 text-center text-sm text-muted-foreground">
+            暂无快捷入口
+          </div>
+        ) : (
+          visiblePinnedUrls.map((url) => {
+            const item = ALL_ITEMS.find((i) => i.url === url)
+            if (!item) return null
+            return (
+              <DropdownMenuItem key={url} asChild>
+                <RouteLoadingLink href={url} className="flex w-full items-center gap-2.5">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border/60 bg-muted/60 text-muted-foreground">
+                    {item.icon}
+                  </span>
+                  <span className="truncate text-[0.9rem]">{item.title}</span>
+                </RouteLoadingLink>
+              </DropdownMenuItem>
+            )
+          })
+        )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <PinSettingsPopover
+            pinnedUrls={pinnedUrls}
+            onToggle={toggle}
+            roleType={roleType}
+            trigger={
+              <button className="flex w-full cursor-pointer items-center gap-2.5 px-2 py-2 text-sm">
+                <Settings className="h-4 w-4" />
+                <span>管理快捷入口</span>
+              </button>
+            }
+          />
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -132,37 +305,10 @@ function DashboardLayoutInner({
                   ))}
                 </nav>
               </div>
-              <div className="hidden min-w-[18rem] flex-1 justify-end xl:flex">
-                <Button
-                  variant="outline"
-                  className="h-10 w-full max-w-[24rem] justify-start rounded-xl border-border/65 bg-[hsl(var(--surface-subtle))] px-4 text-muted-foreground shadow-none"
-                  onClick={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))}
-                >
-                  <Search className="h-4 w-4" />
-                  <span className="flex-1 text-left">搜索页面、工具与报表...</span>
-                  <span className="rounded-sm bg-background/90 px-2 py-1 text-[0.68rem] font-semibold text-foreground/70">⌘K</span>
-                </Button>
-              </div>
-              {/* Mobile: toggle + RecentPagesDropdown always visible */}
-              <div className="flex items-center justify-end gap-1.5 xl:hidden">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-9 w-9 shrink-0 rounded-xl border-border/65 bg-[hsl(var(--surface-subtle))] shadow-none sm:h-10 sm:w-10"
-                  onClick={() => setIconsExpanded((v) => !v)}
-                  aria-label={iconsExpanded ? '收起工具栏' : '展开工具栏'}
-                >
-                  {iconsExpanded ? (
-                    <ChevronDown className="h-4 w-4" />
-                  ) : (
-                    <MoreHorizontal className="h-4 w-4" />
-                  )}
-                </Button>
-                <RecentPagesDropdown />
-              </div>
 
               {/* Desktop icons toolbar */}
               <div className="hidden items-center justify-end gap-2 xl:flex">
+                <DesktopPinnedItems />
                 <LivePresence />
                 <div className="flex items-center justify-end gap-2">
                   <ThemeToggle />
@@ -181,6 +327,25 @@ function DashboardLayoutInner({
                   </Button>
                 </div>
               </div>
+
+              {/* Mobile: toggle + Pin + RecentPagesDropdown */}
+              <div className="flex items-center justify-end gap-1.5 xl:hidden">
+                <MobilePinnedItems />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9 shrink-0 rounded-xl border-border/65 bg-[hsl(var(--surface-subtle))] shadow-none sm:h-10 sm:w-10"
+                  onClick={() => setIconsExpanded((v) => !v)}
+                  aria-label={iconsExpanded ? '收起工具栏' : '展开工具栏'}
+                >
+                  {iconsExpanded ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : (
+                    <MoreHorizontal className="h-4 w-4" />
+                  )}
+                </Button>
+                <RecentPagesDropdown />
+              </div>
             </div>
 
             {/* Mobile expanded icons toolbar — overlays content below, doesn't push layout */}
@@ -192,15 +357,6 @@ function DashboardLayoutInner({
               }`}
             >
               <div className="flex items-center justify-end gap-2 px-2 py-2.5">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-10 w-10 rounded-xl border-border/65 bg-[hsl(var(--surface-subtle))] shadow-none"
-                  onClick={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))}
-                >
-                  <Search className="h-4 w-4" />
-                  <span className="sr-only">搜索</span>
-                </Button>
                 <ThemeToggle />
                 <NotificationBell />
                 <Button
@@ -236,7 +392,6 @@ function DashboardLayoutInner({
             </div>
           </main>
         </SidebarInset>
-        <SearchCommand />
       </SidebarProvider>
     </DashboardAISidebarProvider>
   )

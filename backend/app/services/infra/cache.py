@@ -18,6 +18,9 @@ SHIPMENT_SKU_TTL = 1800
 DAILY_ANALYSIS_KEY_PREFIX = "cache:reports:daily"
 DAILY_ANALYSIS_TTL = 7200
 
+SHIPMENT_IN_TRANSIT_QTY_KEY_PREFIX = "cache:shipment:in-transit-qty"
+SHIPMENT_IN_TRANSIT_QTY_TTL = 1800  # 30 minutes
+
 MONTHLY_FINANCIAL_SERIES_KEY_PREFIX = "cache:monthly:financial-series"
 MONTHLY_FINANCIAL_SERIES_TTL = 3600
 
@@ -231,6 +234,31 @@ def invalidate_shipment_fba_box_details_cache() -> int:
 
 def invalidate_all_shipment_schedules_cache() -> int:
     pattern = _make_shipment_schedules_cache_key("*")
+    return cache_delete_pattern(pattern)
+
+
+# ── In-Transit Quantity cache ─────────────────────────────────────────
+
+
+def get_shipment_in_transit_qty_cache(
+    project_id: int,
+    country: str,
+) -> dict | None:
+    key = f"{SHIPMENT_IN_TRANSIT_QTY_KEY_PREFIX}:project:{project_id}:country:{country}"
+    return cache_get(key)
+
+
+def set_shipment_in_transit_qty_cache(
+    project_id: int,
+    country: str,
+    data: dict,
+) -> None:
+    key = f"{SHIPMENT_IN_TRANSIT_QTY_KEY_PREFIX}:project:{project_id}:country:{country}"
+    cache_set(key, data, SHIPMENT_IN_TRANSIT_QTY_TTL)
+
+
+def invalidate_shipment_in_transit_qty_cache(project_id: int) -> int:
+    pattern = f"{SHIPMENT_IN_TRANSIT_QTY_KEY_PREFIX}:project:{project_id}:*"
     return cache_delete_pattern(pattern)
 
 

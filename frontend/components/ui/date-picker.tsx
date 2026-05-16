@@ -664,6 +664,83 @@ function SingleDatePickerWithPresets({
   )
 }
 
+// Simple SingleDatePicker without presets sidebar
+interface SimpleDatePickerProps {
+  value?: Date
+  onChange?: (date?: Date) => void
+  className?: string
+  disabled?: boolean
+  fromDate?: Date
+  toDate?: Date
+}
+
+function SimpleDatePickerInternal({
+  value,
+  onChange,
+  className,
+  disabled,
+  fromDate,
+  toDate,
+}: SimpleDatePickerProps) {
+  const today = new Date()
+  const [open, setOpen] = useState(false)
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(value)
+  const [month, setMonth] = useState<Date>(value ?? today)
+
+  // Sync with external value
+  useEffect(() => {
+    setSelectedDate(value)
+    if (value) setMonth(value)
+  }, [value])
+
+  const handleDateSelect = (selected?: Date) => {
+    setSelectedDate(selected)
+    onChange?.(selected)
+    setOpen(false)
+  }
+
+  const triggerLabel = selectedDate
+    ? format(selectedDate, "yyyy-MM-dd")
+    : "选择日期"
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          className={cn("h-9 px-2 justify-start text-left font-normal", className)}
+          disabled={disabled}
+        >
+          <CalendarIcon className="mr-1.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <span className={cn("text-xs", selectedDate ? "text-foreground" : "text-muted-foreground")}>
+            {triggerLabel}
+          </span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="rounded-xl border border-border/70 bg-background/95 p-3 shadow-xl backdrop-blur-sm w-auto"
+        align="start"
+        side="bottom"
+      >
+        <div className="flex justify-center min-w-0">
+          <Calendar
+            mode="single"
+            month={month}
+            onMonthChange={setMonth}
+            selected={selectedDate}
+            onSelect={handleDateSelect}
+            className="bg-transparent p-0"
+            fromDate={fromDate}
+            toDate={toDate}
+          />
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+export { SimpleDatePickerInternal as SimpleDatePicker }
+
 export function SingleDatePicker(props: Omit<SingleDatePickerProps, "mode">) {
   return <SingleDatePickerWithPresets {...props} timezone={props.timezone} />
 }

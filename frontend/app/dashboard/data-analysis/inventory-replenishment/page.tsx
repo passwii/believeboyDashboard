@@ -38,6 +38,8 @@ import {
   FilterField,
   RefreshButton,
 } from '@/components/dashboard/console'
+import { SnapshotSelector } from '@/components/dashboard/inventory-replenishment/snapshot-selector'
+import { CreateSnapshotDialog } from '@/components/dashboard/inventory-replenishment/create-snapshot-dialog'
 
 const API_BASE = '/api/backend'
 
@@ -241,6 +243,11 @@ export default function InventoryReplenishmentPage() {
   const [shipments, setShipments] = useState<ShipmentItem[]>([])
   const [shipmentsLoading, setShipmentsLoading] = useState(false)
 
+  // Snapshot state
+  const [selectedSnapshotId, setSelectedSnapshotId] = useState<number | null>(null)
+  const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [creatingSnapshot, setCreatingSnapshot] = useState(false)
+
   const currentProjectId = useMemo(() => {
     const parsed = Number(projectId)
     return Number.isFinite(parsed) && parsed > 0 ? parsed : null
@@ -310,8 +317,8 @@ export default function InventoryReplenishmentPage() {
     async function loadAnalysis() {
       setLoading(true)
       try {
-        const params = new URLSearchParams({
-          project_id: String(currentProjectId),
+        let url: string
+        let params = new URLSearchParams({
           country,
           page: '1',
           page_size: '200',
@@ -319,7 +326,16 @@ export default function InventoryReplenishmentPage() {
         if (deferredKeyword.trim()) params.set('keyword', deferredKeyword.trim())
         if (riskFilter !== 'all') params.set('risk_status', riskFilter)
 
-        const response = await fetch(`${API_BASE}/api/v1/inventory-replenishment-analysis?${params.toString()}`, {
+        if (selectedSnapshotId !== null) {
+          // Load from snapshot
+          url = `${API_BASE}/api/v1/inventory-replenishment-snapshots/${selectedSnapshotId}/items?${params.toString()}`
+        } else {
+          // Load real-time data
+          params.set('project_id', String(currentProjectId))
+          url = `${API_BASE}/api/v1/inventory-replenishment-analysis?${params.toString()}`
+        }
+
+        const response = await fetch(url, {
           headers: authHeaders(),
           cache: 'no-store',
         })
@@ -349,7 +365,7 @@ export default function InventoryReplenishmentPage() {
     return () => {
       active = false
     }
-  }, [notify, country, currentProjectId, deferredKeyword, refreshNonce, riskFilter])
+  }, [notify, country, currentProjectId, deferredKeyword, refreshNonce, riskFilter, selectedSnapshotId])
 
   async function openShipments(row: AnalysisRow) {
     setSelectedRow(row)
@@ -709,16 +725,26 @@ export default function InventoryReplenishmentPage() {
           title="补货分析控制台"
           badge={<p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">分析控制台</p>}
           action={
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={!currentProjectId || loading || refreshingAll}
-              onClick={() => void refreshWithSave()}
-            >
-              <RefreshCw className={`mr-1.5 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-              {loading || refreshingAll ? '重算中...' : '刷新重算'}
-            </Button>
+            <>
+              <SnapshotSelector
+                projectId={currentProjectId}
+                country={country}
+                selectedSnapshotId={selectedSnapshotId}
+                onSnapshotSelect={setSelectedSnapshotId}
+                onCreateSnapshot={() => setCreateDialogOpen(true)}
+                disabled={!currentProjectId || loading}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={!currentProjectId || loading || refreshingAll}
+                onClick={() => void refreshWithSave()}
+              >
+                <RefreshCw className={`mr-1.5 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                {loading || refreshingAll ? '重算中...' : '刷新重算'}
+              </Button>
+            </>
           }
         />
         <DataCardContent className="space-y-4">
@@ -1124,6 +1150,16 @@ export default function InventoryReplenishmentPage() {
           </div>
         </div>
       </div>
+
+      <CreateSnapshotDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+        projectId={currentProjectId}
+        country={country}
+        onSuccess={(snapshotId) => {
+          setSelectedSnapshotId(snapshotId)
+        }}
+      />
     </div>
   )
 }

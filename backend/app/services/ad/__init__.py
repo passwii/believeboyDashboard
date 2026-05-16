@@ -4,8 +4,12 @@ Extracted from ad_analysis_service.py (stage 3 of backend refactor plan).
 All public functions remain importable from the legacy module for backward compatibility.
 """
 from .loaders import *
-from .metrics import *
-from .helpers import *
+from .metrics import (
+    build_issue_card,
+    build_narrative_section,
+    classify_budget_action,
+    classify_budget_next_step,
+)
 from .analysis import *
 from .budget import *
 from .campaign import *

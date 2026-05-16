@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 import json
 import logging
-from typing import Any
+from typing import Any, Iterator
 
 import httpx
 from fastapi import HTTPException, status
@@ -79,7 +79,7 @@ def _stream_with_retries(
     messages: list[dict[str, Any]],
     temperature: float,
     settings: Settings,
-) -> tuple[list[dict[str, Any]], str | None]:
+) -> Iterator[dict[str, Any]]:
     import time as _time
 
     backup = settings.ai_chat_backup_model.strip()
@@ -90,7 +90,7 @@ def _stream_with_retries(
     for attempt_idx, model_name in enumerate(models_to_try):
         is_backup_model = attempt_idx > 0
         for retry_count in range(AI_CHAT_MAX_RETRIES + 1):
-            chunks_collected: list[dict[str, Any]] = []
+            has_streamed_output = False
             is_final_attempt = (
                 is_backup_model and retry_count == AI_CHAT_MAX_RETRIES
             )
@@ -160,18 +160,24 @@ def _stream_with_retries(
                                 continue
                             thinking = delta.get("thinking", "")
                             if isinstance(thinking, str) and thinking:
-                                chunks_collected.append({"type": "thinking", "content": thinking})
+                                has_streamed_output = True
+                                yield {"type": "thinking", "content": thinking}
                             content_chunk = delta.get("content", "")
                             if isinstance(content_chunk, str) and content_chunk:
-                                chunks_collected.append({"type": "content", "content": content_chunk})
+                                has_streamed_output = True
+                                yield {"type": "content", "content": content_chunk}
                             usage = data.get("usage")
                             if usage:
-                                chunks_collected.append({"type": "usage", "usage": usage})
+                                yield {"type": "usage", "usage": usage}
 
-                return chunks_collected, None
+                return
 
             except httpx.HTTPStatusError as exc:
-                if exc.response.status_code in RETRYABLE_STATUS_CODES and not is_final_attempt:
+                if (
+                    exc.response.status_code in RETRYABLE_STATUS_CODES
+                    and not is_final_attempt
+                    and not has_streamed_output
+                ):
                     retry_after = RETRY_WAIT_SECONDS
                     ra = exc.response.headers.get("retry-after", "")
                     if ra:
@@ -184,29 +190,39 @@ def _stream_with_retries(
 
                 exc.response.read()
                 detail = exc.response.text[:200]
-                if attempt_idx < len(models_to_try) - 1:
+                if attempt_idx < len(models_to_try) - 1 and not has_streamed_output:
                     continue
-                return chunks_collected, (
-                    f"LLM request failed ({exc.response.status_code}): {detail}"
-                )
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail=f"LLM request failed ({exc.response.status_code}): {detail}",
+                ) from exc
 
             except httpx.TimeoutException as exc:
-                if not is_final_attempt:
+                if not is_final_attempt and not has_streamed_output:
                     _time.sleep(RETRY_WAIT_SECONDS)
                     continue
-                if attempt_idx < len(models_to_try) - 1:
+                if attempt_idx < len(models_to_try) - 1 and not has_streamed_output:
                     continue
-                return chunks_collected, f"LLM request timed out: {exc}"
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail=f"LLM request timed out: {exc}",
+                ) from exc
 
             except httpx.HTTPError as exc:
-                if not is_final_attempt:
+                if not is_final_attempt and not has_streamed_output:
                     _time.sleep(RETRY_WAIT_SECONDS)
                     continue
-                if attempt_idx < len(models_to_try) - 1:
+                if attempt_idx < len(models_to_try) - 1 and not has_streamed_output:
                     continue
-                return chunks_collected, f"LLM request failed: {exc}"
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail=f"LLM request failed: {exc}",
+                ) from exc
 
-    return [], "Unexpected error in retry loop"
+    raise HTTPException(
+        status_code=status.HTTP_502_BAD_GATEWAY,
+        detail="Unexpected error in retry loop",
+    )
 
 
 def iter_chat_completion_stream(
@@ -215,14 +231,7 @@ def iter_chat_completion_stream(
     temperature: float,
     settings: Settings,
 ):
-    chunks, error_message = _stream_with_retries(llm_config, messages, temperature, settings)
-    for chunk in chunks:
-        yield chunk
-    if error_message:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=error_message,
-        )
+    yield from _stream_with_retries(llm_config, messages, temperature, settings)
 
 
 def fetch_models_from_provider(

@@ -1,6 +1,7 @@
 'use client'
 
 import { cn } from '@/lib/utils'
+import React from 'react'
 
 interface RefreshProgressBarProps {
   /** Show the progress bar and dim content */
@@ -9,22 +10,11 @@ interface RefreshProgressBarProps {
   className?: string
   /** The content to wrap */
   children: React.ReactNode
+  /** Wrapper element type (default: 'div'). Use 'tbody' when inside <table>. */
+  as?: React.ElementType
 }
 
-/**
- * Wraps content with a subtle shimmer progress bar + opacity dim when refreshing.
- * The parent container should be `relative` for the progress bar to position correctly.
- *
- * Usage:
- * ```tsx
- * <div className="relative flex-1">
- *   <RefreshProgressBar refreshing={isRefreshing}>
- *     <MyTable data={rows} />
- *   </RefreshProgressBar>
- * </div>
- * ```
- */
-export function RefreshProgressBar({ refreshing, className, children }: RefreshProgressBarProps) {
+export function RefreshProgressBar({ refreshing, className, children, as: Component = 'div' }: RefreshProgressBarProps) {
   return (
     <>
       {refreshing && (
@@ -32,7 +22,7 @@ export function RefreshProgressBar({ refreshing, className, children }: RefreshP
           <div className='h-full w-1/3 bg-blue-500 animate-shimmer' />
         </div>
       )}
-      <div
+      <Component
         className={cn(
           'transition-opacity duration-200',
           refreshing && 'opacity-50 pointer-events-none',
@@ -40,7 +30,7 @@ export function RefreshProgressBar({ refreshing, className, children }: RefreshP
         )}
       >
         {children}
-      </div>
+      </Component>
     </>
   )
 }

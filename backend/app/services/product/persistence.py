@@ -53,6 +53,7 @@ from app.utils import (
 )
 
 from app.services.product._internal import (
+    _get_row_model,
     _is_single_full_week,
 )
 
@@ -326,7 +327,7 @@ def _persist_one_source_file(
             report_type=report_type,
             period_start_date=period_start_date,
             period_end_date=period_end_date,
-            snapshot_at=now if is_inventory else None,
+            snapshot_at=now,
             version=version,
             extension=extension,
         ),

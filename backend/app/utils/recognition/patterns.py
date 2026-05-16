@@ -1,7 +1,6 @@
 """Country detection patterns for report files (no FastAPI/SQLAlchemy deps)."""
 from __future__ import annotations
 
-import io
 import re
 import warnings
 from datetime import datetime
@@ -60,86 +59,6 @@ def _read_text_with_encoding_fallback(path: Path) -> str:
     return raw_bytes.decode("latin-1", errors="replace")
 
 
-def _read_payment_report(
-    path: Path,
-    *,
-    extract_dates: bool = False,
-    country: str = "US",
-) -> tuple[pd.DataFrame, str | None, str | None, str | None]:
-    """Read Amazon payment report CSV with variable header offset.
-
-    Returns (df, detected_start_date, detected_end_date, detected_country).
-    Dates are in YYYY-MM-DD local time for the given country.
-    Country is detected from the 'marketplace' column if present.
-    When extract_dates=False (default), the date/country fields are always None
-    to preserve existing behaviour in callers that don't need them.
-    """
-    raw = path.read_bytes()
-    for enc in ("utf-8-sig", "utf-8"):
-        try:
-            text = raw.decode(enc)
-            break
-        except UnicodeDecodeError:
-            continue
-    else:
-        text = raw.decode("latin-1", errors="replace")
-
-    lines = text.splitlines()
-
-    # ── Locate header row (variable offset, search up to 30 lines) ──
-    header_idx = 0
-    for i, line in enumerate(lines[:30]):
-        if "transaction-type" in line.lower() or "sku" in line.lower():
-            header_idx = i
-            break
-
-    df = pd.read_csv(io.StringIO("\n".join(lines[header_idx:])))
-    df.columns = [str(c).strip() for c in df.columns]
-
-    # ── Date extraction (only when requested) ──
-    detected_start: str | None = None
-    detected_end: str | None = None
-    detected_country: str | None = None
-
-    if extract_dates:
-        # Detect country from marketplace column
-        mkt_col = next((c for c in df.columns if "marketplace" in c.lower()), None)
-        if mkt_col and not df[mkt_col].dropna().empty:
-            mkt_val = str(df[mkt_col].dropna().iloc[0]).strip().lower()
-            if "amazon.com" in mkt_val:
-                detected_country = "US"
-            elif "amazon.de" in mkt_val:
-                detected_country = "DE"
-            elif "amazon.co.uk" in mkt_val:
-                detected_country = "UK"
-
-        # Extract date range from transaction timestamps.
-        # The date/time column is already in the marketplace's local timezone
-        # (e.g. "May 1, 2026 2:01:59 AM PDT"). Strip the timezone suffix and
-        # parse just the date — no UTC conversion needed.
-        date_col = next(
-            (c for c in df.columns if "date/time" in c.lower() or "transaction date" in c.lower()),
-            None,
-        )
-        if date_col:
-            dates: list[str] = []
-            for raw in df[date_col].dropna():
-                text = str(raw).strip()
-                # Remove trailing timezone abbreviation: "May 1, 2026 2:01:59 AM PDT" → "May 1, 2026 2:01:59 AM"
-                cleaned = re.sub(r'\s+(PST|PDT|GMT|UTC)\s*$', '', text, flags=re.IGNORECASE)
-                try:
-                    # Parse to date only — no UTC conversion needed, file is already in local time
-                    dt = pd.to_datetime(cleaned, errors="coerce")
-                    if dt is not None and not pd.isna(dt):
-                        dates.append(dt.strftime("%Y-%m-%d"))
-                except Exception:
-                    continue
-            unique_dates = sorted(set(dates))
-            if unique_dates:
-                detected_start = unique_dates[0]
-                detected_end = unique_dates[-1]
-
-    return df, detected_start, detected_end, detected_country
 
 
 # ─── Column normalizers ────────────────────────────────────────────────────────

@@ -72,3 +72,29 @@ class InsightUpdateRequest(BaseModel):
 class InsightRetryResponse(BaseModel):
     status: str
     insight_id: int
+
+
+class AggregationDetail(BaseModel):
+    """数据聚合步骤的详细信息"""
+    step: str  # 步骤标识，如 data_aggregating_sales
+    step_label: str  # 显示标签，如"销售数据"
+    status: str  # "running" | "completed" | "error"
+    progress_percent: int = 0  # 0-100
+    record_count: int | None = None  # 记录数量
+    total_amount: float | None = None  # 总金额（销售/广告等）
+    days_count: int | None = None  # 数据天数
+    data_preview: dict | None = None  # 数据预览（如 top_skus 的前3条）
+    message: str | None = None  # 状态消息
+    elapsed_ms: int | None = None  # 已耗时（毫秒）
+
+
+class InsightStatusEvent(BaseModel):
+    """SSE 状态事件，支持详细数据"""
+    type: str = 'status'
+    status: str
+    sub_status: str | None = None
+    insight_id: int | None = None
+    title: str | None = None
+    content: str | None = None
+    error_message: str | None = None
+    detail: AggregationDetail | None = None  # 详细状态数据

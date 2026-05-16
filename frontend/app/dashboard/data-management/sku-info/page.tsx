@@ -391,13 +391,8 @@ export default function SkuInfoPage() {
     const statusValue = filters?.status ?? statusFilter
     const nextPage = options?.resetPage ? 1 : (options?.pageOverride ?? page)
 
-    if (!projectValue) {
-      if (options?.clearOnMissingProject) {
-        setItems([])
-        setTotal(0)
-        setHasNextPage(false)
-      }
-      notify({ type: 'error', title: '请先在筛选区域选择项目名' })
+    if (!projectValue && !skuValue && !asinValue) {
+      notify({ type: 'error', title: '请输入项目名或 SKU/ASIN 进行查询' })
       return
     }
 
@@ -407,8 +402,8 @@ export default function SkuInfoPage() {
         page: String(nextPage),
         page_size: String(pageSize),
         include_total: 'true',
-        project_name: projectValue,
       })
+      if (projectValue) search.set('project_name', projectValue)
       if (skuValue) search.set('sku', skuValue)
       if (asinValue) search.set('asin', asinValue)
       if (countryValue !== 'all') search.set('country', countryValue)
@@ -983,6 +978,20 @@ export default function SkuInfoPage() {
                           key={row.id}
                           className={`border-b border-border/50 transition-colors ${editingId === row.id ? 'bg-[hsl(var(--surface-subtle))]' : 'hover:bg-[hsl(var(--surface-subtle))]'} `}
                         >
+                          <td className='border-b border-r border-border/60 p-4 align-top text-center w-10'>
+                            <input
+                              type='checkbox'
+                              className='h-4 w-4 rounded border-border/60'
+                              checked={selectedSkus.some((s) => s.id === row.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedSkus((prev) => [...prev, row])
+                                } else {
+                                  setSelectedSkus((prev) => prev.filter((s) => s.id !== row.id))
+                                }
+                              }}
+                            />
+                          </td>
                           <td className='border-b border-r border-border/60 p-4 align-top'>
                             {editingId === row.id ? (
                               <Input
@@ -998,20 +1007,6 @@ export default function SkuInfoPage() {
                             ) : (
                               row.sort_order
                             )}
-                          </td>
-                          <td className='border-b border-r border-border/60 p-4 align-top w-10'>
-                            <input
-                              type='checkbox'
-                              className='h-4 w-4 rounded border-border/60'
-                              checked={selectedSkus.some((s) => s.id === row.id)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setSelectedSkus((prev) => [...prev, row])
-                                } else {
-                                  setSelectedSkus((prev) => prev.filter((s) => s.id !== row.id))
-                                }
-                              }}
-                            />
                           </td>
                           <td className='border-b border-r border-border/60 p-4 align-top font-medium'>
                             {row.project_name}
@@ -1226,7 +1221,7 @@ export default function SkuInfoPage() {
                           message={
                             projectFilter
                               ? '当前筛选条件下暂无 SKU 数据。'
-                              : '请先选择项目后再查询 SKU 数据。'
+                              : '暂无数据，请输入项目名或 SKU/ASIN 进行查询。'
                           }
                         />
                       ) : null}
@@ -1538,7 +1533,7 @@ export default function SkuInfoPage() {
                           message={
                             projectFilter
                               ? '当前筛选条件下暂无尺寸数据。'
-                              : '请选择项目后再查询尺寸数据。'
+                              : '暂无数据，请输入项目名或 SKU/ASIN 进行查询。'
                           }
                         />
                       ) : null}
@@ -1678,7 +1673,7 @@ export default function SkuInfoPage() {
                           message={
                             projectFilter
                               ? '当前筛选条件下暂无数据。'
-                              : '请先选择项目后再查询数据。'
+                              : '暂无数据，请输入项目名或 SKU/ASIN 进行查询。'
                           }
                         />
                       ) : null}

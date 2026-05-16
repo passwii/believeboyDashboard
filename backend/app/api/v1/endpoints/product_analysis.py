@@ -46,14 +46,14 @@ from app.services.product.constants import (
     WEEKLY_SUMMARY_INT_COLUMNS,
     WEEKLY_SUMMARY_MONEY_COLUMNS,
 )
-from app.services.product.serialization import to_source_item
+from app.services.product.serialization import to_source_item as _to_source_item
 from app.services.infra import (
     get_weekly_analysis_cache,
     set_weekly_analysis_cache,
     invalidate_weekly_analysis_cache,
 )
 from app.utils.country import normalize_country
-from app.utils.math_utils import to_float, safe_div
+from app.utils.math_utils import to_float as _to_float, safe_div as _safe_div
 
 
 def _normalize_country(value: str | None) -> str:
@@ -297,8 +297,8 @@ def get_current_inventory_snapshot_endpoint(
         db,
         project_id=project_id,
         country=country,
-        start_date=start_date,
-        end_date=end_date,
+        period_start_date=start_date,
+        period_end_date=end_date,
     )
     if payload is None:
         raise HTTPException(

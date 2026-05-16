@@ -3,6 +3,7 @@ import os
 import queue
 import threading
 import time
+import logging
 from datetime import datetime, timezone
 from typing import Any
 
@@ -10,6 +11,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 from app.api.deps import get_db_session, get_request_is_admin, get_request_operator, protected
 from app.core.config import Settings, get_settings
@@ -112,8 +115,12 @@ def _enqueue_if_exists(insight_id: int, event: dict) -> None:
     if q is not None:
         try:
             q.put_nowait(event)
+            logger.debug("SSE enqueue insight_id=%s event_type=%s sub_status=%s chunk_len=%s",
+                         insight_id, event.get("type"), event.get("sub_status"),
+                         len(event.get("delta", "")) if event.get("type") == "chunk" else "N/A")
         except queue.Full:
-            pass
+            logger.warning("SSE queue full for insight_id=%s, dropping event_type=%s",
+                           insight_id, event.get("type"))
 
 
 def _run_insight_generation(
@@ -143,9 +150,12 @@ def _run_insight_generation(
         except Exception:
             pass
 
-    def progress_callback(step: str) -> None:
+    def progress_callback(step: str, detail_data: dict[str, Any] | None = None) -> None:
         """Called by the aggregator as each sub-step starts. Only enqueues SSE events (no DB access)."""
-        _enqueue_if_exists(insight_id, {"type": "status", "status": "generating", "sub_status": step})
+        event: dict[str, Any] = {"type": "status", "status": "generating", "sub_status": step}
+        if detail_data:
+            event["detail"] = detail_data
+        _enqueue_if_exists(insight_id, event)
 
     try:
         # Register the queue for SSE consumers
@@ -413,6 +423,13 @@ def stream_insight(
             try:
                 event = q.get(timeout=60)
                 last_event = event
+                event_type = event.get("type", "?")
+                event_sub = event.get("sub_status", "")
+                chunk_len = len(event.get("delta", "")) if event_type == "chunk" else 0
+                logger.debug(
+                    "SSE yield insight_id=%s type=%s sub=%s chunk_len=%s",
+                    insight_id_val, event_type, event_sub, chunk_len,
+                )
                 yield _encode_sse_event(event)
 
                 if event.get("type") in ("done", "error"):

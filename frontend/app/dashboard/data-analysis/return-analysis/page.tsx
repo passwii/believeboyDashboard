@@ -749,7 +749,7 @@ export default function ReturnAnalysisPage() {
                         <TableHead className="text-right">退货率</TableHead>
                       </TableRow>
                     </TableHeader>
-                    <TableBody>
+                    <RefreshProgressBar refreshing={isRefreshing} as="tbody" className="[&_tr:last-child]:border-b-0">
                       {showSkeleton ? (
                         Array.from({ length: 5 }).map((_, i) => (
                           <TableRow key={i}>
@@ -762,10 +762,6 @@ export default function ReturnAnalysisPage() {
                             <TableCell className="text-right"><div className="ml-auto h-4 w-12 animate-pulse rounded bg-muted" /></TableCell>
                           </TableRow>
                         ))
-                      ) : isRefreshing ? (
-                        <RefreshProgressBar refreshing={true}>
-                          <TableRow><TableCell colSpan={7} /></TableRow>
-                        </RefreshProgressBar>
                       ) : data?.ranking_rows.length ? (
                         data.ranking_rows.map((row) => (
                           <TableRow key={row.sku}>
@@ -785,7 +781,7 @@ export default function ReturnAnalysisPage() {
                       ) : (
                         <TableRow><TableCell colSpan={7} className="py-12 text-center text-muted-foreground">暂无退货排行数据</TableCell></TableRow>
                       )}
-                    </TableBody>
+                    </RefreshProgressBar>
                   </Table>
                 )}
 
@@ -802,29 +798,19 @@ export default function ReturnAnalysisPage() {
                             <TableHead className="text-right">占比</TableHead>
                           </TableRow>
                         </TableHeader>
-                        <TableBody>
-                          {showSkeleton ? (
-                            <TableSkeletonRows
-                              columns={3}
-                              rows={5}
-                              widths={['w-24', 'w-12 ml-auto', 'w-12 ml-auto']}
-                            />
+                        <RefreshProgressBar refreshing={isRefreshing} as="tbody" className="[&_tr:last-child]:border-b-0">
+                          {data?.reason_rows.length ? (
+                            data.reason_rows.map((row) => (
+                              <TableRow key={row.reason}>
+                                <TableCell className="font-medium">{row.reason_display}</TableCell>
+                                <TableCell className="text-right">{row.total_quantity.toLocaleString()}</TableCell>
+                                <TableCell className="text-right text-muted-foreground">{row.percentage}%</TableCell>
+                              </TableRow>
+                            ))
                           ) : (
-                            <RefreshProgressBar refreshing={isRefreshing}>
-                              {data?.reason_rows.length ? (
-                                data.reason_rows.map((row) => (
-                                  <TableRow key={row.reason}>
-                                    <TableCell className="font-medium">{row.reason_display}</TableCell>
-                                    <TableCell className="text-right">{row.total_quantity.toLocaleString()}</TableCell>
-                                    <TableCell className="text-right text-muted-foreground">{row.percentage}%</TableCell>
-                                  </TableRow>
-                                ))
-                              ) : (
-                                <EmptyTableState colSpan={3} message="暂无退货原因数据" />
-                              )}
-                            </RefreshProgressBar>
+                            <EmptyTableState colSpan={3} message="暂无退货原因数据" />
                           )}
-                        </TableBody>
+                        </RefreshProgressBar>
                       </Table>
 
                       {/* Pie Chart */}
@@ -956,33 +942,23 @@ export default function ReturnAnalysisPage() {
                             <TableHead className="text-right">占比</TableHead>
                           </TableRow>
                         </TableHeader>
-                        <TableBody>
-                          {showSkeleton ? (
-                            <TableSkeletonRows
-                              columns={3}
-                              rows={3}
-                              widths={['w-20', 'w-12 ml-auto', 'w-12 ml-auto']}
-                            />
+                        <RefreshProgressBar refreshing={isRefreshing} as="tbody" className="[&_tr:last-child]:border-b-0">
+                          {data?.disposition_rows.length ? (
+                            data.disposition_rows.map((row) => (
+                              <TableRow key={row.detailed_disposition}>
+                                <TableCell className="font-medium">
+                                  <Badge variant="outline" className="mr-2">
+                                    {row.disposition_display}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-right">{row.return_count.toLocaleString()}</TableCell>
+                                <TableCell className="text-right text-muted-foreground">{row.percentage}%</TableCell>
+                              </TableRow>
+                            ))
                           ) : (
-                            <RefreshProgressBar refreshing={isRefreshing}>
-                              {data?.disposition_rows.length ? (
-                                data.disposition_rows.map((row) => (
-                                  <TableRow key={row.detailed_disposition}>
-                                    <TableCell className="font-medium">
-                                      <Badge variant="outline" className="mr-2">
-                                        {row.disposition_display}
-                                      </Badge>
-                                    </TableCell>
-                                    <TableCell className="text-right">{row.return_count.toLocaleString()}</TableCell>
-                                    <TableCell className="text-right text-muted-foreground">{row.percentage}%</TableCell>
-                                  </TableRow>
-                                ))
-                              ) : (
-                                <EmptyTableState colSpan={3} message="暂无商品状态数据" />
-                              )}
-                            </RefreshProgressBar>
+                            <EmptyTableState colSpan={3} message="暂无商品状态数据" />
                           )}
-                        </TableBody>
+                        </RefreshProgressBar>
                       </Table>
 
                       {data?.disposition_rows && data.disposition_rows.length > 0 && (
@@ -1008,33 +984,23 @@ export default function ReturnAnalysisPage() {
                             <TableHead className="text-right">占比</TableHead>
                           </TableRow>
                         </TableHeader>
-                        <TableBody>
-                          {showSkeleton ? (
-                            <TableSkeletonRows
-                              columns={3}
-                              rows={3}
-                              widths={['w-24', 'w-12 ml-auto', 'w-12 ml-auto']}
-                            />
+                        <RefreshProgressBar refreshing={isRefreshing} as="tbody" className="[&_tr:last-child]:border-b-0">
+                          {data?.status_rows.length ? (
+                            data.status_rows.map((row) => (
+                              <TableRow key={row.status}>
+                                <TableCell className="font-medium">
+                                  <Badge variant="outline" className="mr-2">
+                                    {row.status_display}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-right">{row.return_count.toLocaleString()}</TableCell>
+                                <TableCell className="text-right text-muted-foreground">{row.percentage}%</TableCell>
+                              </TableRow>
+                            ))
                           ) : (
-                            <RefreshProgressBar refreshing={isRefreshing}>
-                              {data?.status_rows.length ? (
-                                data.status_rows.map((row) => (
-                                  <TableRow key={row.status}>
-                                    <TableCell className="font-medium">
-                                      <Badge variant="outline" className="mr-2">
-                                        {row.status_display}
-                                      </Badge>
-                                    </TableCell>
-                                    <TableCell className="text-right">{row.return_count.toLocaleString()}</TableCell>
-                                    <TableCell className="text-right text-muted-foreground">{row.percentage}%</TableCell>
-                                  </TableRow>
-                                ))
-                              ) : (
-                                <EmptyTableState colSpan={3} message="暂无库存状态数据" />
-                              )}
-                            </RefreshProgressBar>
+                            <EmptyTableState colSpan={3} message="暂无库存状态数据" />
                           )}
-                        </TableBody>
+                        </RefreshProgressBar>
                       </Table>
 
                       {data?.status_rows && data.status_rows.length > 0 && (
@@ -1060,36 +1026,26 @@ export default function ReturnAnalysisPage() {
                           <TableHead>顾客评论</TableHead>
                         </TableRow>
                       </TableHeader>
-                      <TableBody>
-                        {showSkeleton ? (
-                          <TableSkeletonRows
-                            columns={4}
-                            rows={5}
-                            widths={['w-20', 'w-24', 'w-16', 'w-48']}
-                          />
+                      <RefreshProgressBar refreshing={isRefreshing} as="tbody" className="[&_tr:last-child]:border-b-0">
+                        {data?.feedback_rows.length ? (
+                          data.feedback_rows.slice(0, 50).map((row, index) => (
+                            <TableRow key={`${row.order_id}-${index}`}>
+                              <TableCell className="text-muted-foreground">{row.return_date}</TableCell>
+                              <TableCell className="font-medium">{row.sku}</TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className="text-xs">
+                                  {row.reason_display}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="max-w-[300px] truncate text-muted-foreground" title={row.customer_comment}>
+                                {row.customer_comment}
+                              </TableCell>
+                            </TableRow>
+                          ))
                         ) : (
-                          <RefreshProgressBar refreshing={isRefreshing}>
-                            {data?.feedback_rows.length ? (
-                              data.feedback_rows.slice(0, 50).map((row, index) => (
-                                <TableRow key={`${row.order_id}-${index}`}>
-                                  <TableCell className="text-muted-foreground">{row.return_date}</TableCell>
-                                  <TableCell className="font-medium">{row.sku}</TableCell>
-                                  <TableCell>
-                                    <Badge variant="outline" className="text-xs">
-                                      {row.reason_display}
-                                    </Badge>
-                                  </TableCell>
-                                  <TableCell className="max-w-[300px] truncate text-muted-foreground" title={row.customer_comment}>
-                                    {row.customer_comment}
-                                  </TableCell>
-                                </TableRow>
-                              ))
-                            ) : (
-                              <EmptyTableState colSpan={4} message="暂无顾客反馈数据" />
-                            )}
-                          </RefreshProgressBar>
+                          <EmptyTableState colSpan={4} message="暂无顾客反馈数据" />
                         )}
-                      </TableBody>
+                      </RefreshProgressBar>
                     </Table>
                   </div>
                 )}

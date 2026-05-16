@@ -144,6 +144,7 @@ type DailyAnalysisRow = {
 type DailyAnalysisDetailRow = DailyAnalysisRow & {
   sku: string
   asin: string | null
+  in_transit_qty: number
 }
 
 type ProjectSkuOption = {
@@ -185,6 +186,7 @@ type DetailDisplayRow = {
   showDate: boolean
   rowSpan: number
   isTintedGroup: boolean
+  productName: string | null
 }
 
 type ChartMetricKey = keyof Pick<
@@ -440,6 +442,7 @@ async function exportDailyAnalysisToExcel(
   projectName: string,
   country: string,
   dateRange: string,
+  skuOptions: ProjectSkuOption[],
 ) {
   const ExcelJS = await import('exceljs')
   const workbook = new ExcelJS.Workbook()
@@ -569,7 +572,7 @@ async function exportDailyAnalysisToExcel(
   const detailCols = [
     { header: '日期', key: 'date', width: 14 },
     { header: 'SKU', key: 'sku', width: 18 },
-    { header: 'ASIN', key: 'asin', width: 16 },
+    { header: '品名', key: 'product_name', width: 32 },
     { header: '订单量', key: 'order_qty', width: 12 },
     { header: '销售额', key: 'sales_amount', width: 14 },
     { header: '曝光量', key: 'impressions', width: 14 },
@@ -578,6 +581,7 @@ async function exportDailyAnalysisToExcel(
     { header: '广告花费', key: 'ad_spend', width: 14 },
     { header: '广告订单', key: 'ad_orders', width: 14 },
     { header: '可售库存', key: 'available_qty', width: 14 },
+    { header: '在途数量', key: 'in_transit_qty', width: 14 },
     { header: '页面浏览量', key: 'page_views', width: 14 },
     { header: '销量', key: 'units_ordered', width: 12 },
     { header: '访问量', key: 'sessions', width: 12 },
@@ -645,11 +649,16 @@ async function exportDailyAnalysisToExcel(
     applyHeaderBorder(cell)
   })
 
+  const skuProductNameMap = new Map(
+    skuOptions.map((s) => [s.sku, s.product_name ?? ''])
+  )
+
   detailRows.forEach((row, rowIndex) => {
+    const productName = skuProductNameMap.get(row.sku) ?? ''
     const excelRow = detailSheet.getRow(rowIndex + 4)
     excelRow.getCell(1).value = row.date
     excelRow.getCell(2).value = row.sku
-    excelRow.getCell(3).value = row.asin || ''
+    excelRow.getCell(3).value = productName
     excelRow.getCell(4).value = row.order_qty
     excelRow.getCell(5).value = row.sales_amount
     excelRow.getCell(5).numFmt = '#,##0.00'
@@ -661,11 +670,12 @@ async function exportDailyAnalysisToExcel(
     excelRow.getCell(9).numFmt = '#,##0.00'
     excelRow.getCell(10).value = row.ad_orders
     excelRow.getCell(11).value = row.available_qty
-    excelRow.getCell(12).value = row.page_views
-    excelRow.getCell(13).value = row.units_ordered
-    excelRow.getCell(14).value = row.sessions
-    excelRow.getCell(15).value = row.conversion_rate
-    excelRow.getCell(15).numFmt = '0.00%'
+    excelRow.getCell(12).value = row.in_transit_qty
+    excelRow.getCell(13).value = row.page_views
+    excelRow.getCell(14).value = row.units_ordered
+    excelRow.getCell(15).value = row.sessions
+    excelRow.getCell(16).value = row.conversion_rate
+    excelRow.getCell(16).numFmt = '0.00%'
 
     excelRow.eachCell((cell, colNumber) => {
       cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF0F172A' } }
@@ -1166,7 +1176,7 @@ export default function DailyAnalysisPage() {
   const { data: session } = useSession()
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
-  const [projectId, setProjectId] = useState<string>('')
+  const [projectId, setProjectId] = useState<string>('all')
   const [country, setCountry] = useState<CountryOption>('US')
   const defaultRange = useMemo(() => lastSevenDaysRange(country), [country])
   const [dateRange, setDateRange] = useState<DateRange | undefined>(
@@ -1196,6 +1206,7 @@ export default function DailyAnalysisPage() {
   const [skuOptions, setSkuOptions] = useState<ProjectSkuOption[]>([])
   const [skuLoading, setSkuLoading] = useState(false)
   const [selectedSku, setSelectedSku] = useState('')
+  const selectedSkuRef = useRef('')
   const [metricCardPage, setMetricCardPage] = useState(0)
   const METRICS_PER_PAGE = 6
   const latestLoadRequestRef = useRef(0)
@@ -1252,13 +1263,13 @@ export default function DailyAnalysisPage() {
       latestLoadRequestRef.current = requestId
       try {
         if (isAllProjects) {
+          if (projects.length === 0) return
           const ids = projects.map((p) => String(p.id)).join(',')
           const search = new URLSearchParams({
             project_ids: ids,
             country,
             start_date: startDate,
             end_date: endDate,
-            ...(selectedSku && { sku: selectedSku }),
           })
           const compareSearch = previousRange
             ? new URLSearchParams({
@@ -1266,7 +1277,6 @@ export default function DailyAnalysisPage() {
                 country,
                 start_date: formatYMD(previousRange.from!),
                 end_date: formatYMD(previousRange.to!),
-                ...(selectedSku && { sku: selectedSku }),
               })
             : null
 
@@ -1339,7 +1349,7 @@ export default function DailyAnalysisPage() {
             country,
             start_date: startDate,
             end_date: endDate,
-            ...(selectedSku && { sku: selectedSku }),
+            ...(selectedSkuRef.current && { sku: selectedSkuRef.current }),
           })
           const compareSearch = previousRange
             ? new URLSearchParams({
@@ -1347,7 +1357,7 @@ export default function DailyAnalysisPage() {
                 country,
                 start_date: formatYMD(previousRange.from!),
                 end_date: formatYMD(previousRange.to!),
-                ...(selectedSku && { sku: selectedSku }),
+                ...(selectedSkuRef.current && { sku: selectedSkuRef.current }),
               })
             : null
 
@@ -1406,7 +1416,7 @@ export default function DailyAnalysisPage() {
         setLoading(false)
       }
     },
-    [projectId, country, dateRange, selectedSku, notify, isAllProjects, projects],
+    [projectId, country, dateRange, notify, isAllProjects, projects],
   )
 
   const loadProjectSkus = useCallback(
@@ -1490,6 +1500,7 @@ export default function DailyAnalysisPage() {
 
   useEffect(() => {
     if (!projectId) return
+    selectedSkuRef.current = ''
     setSelectedSku('')
   }, [projectId])
 
@@ -1501,7 +1512,7 @@ export default function DailyAnalysisPage() {
   useEffect(() => {
     if (!projectId) return
     void loadData()
-  }, [projectId, country, selectedSku, loadData])
+  }, [loadData])
 
   // Fetch current month goal progress
   useEffect(() => {
@@ -1565,12 +1576,14 @@ export default function DailyAnalysisPage() {
         currentIndex += 1
       ) {
         const row = rowsToGroup[currentIndex]
+        const skuInfo = skuOptions.find((s) => s.sku === row.sku)
         groupedRows.push({
           row,
           rowKey: `${row.date}-${row.sku}-${row.asin ?? 'no-asin'}-${currentIndex}`,
           showDate: currentIndex === index,
           rowSpan: currentIndex === index ? rowSpan : 0,
           isTintedGroup,
+          productName: skuInfo?.product_name ?? null,
         })
       }
 
@@ -1579,7 +1592,7 @@ export default function DailyAnalysisPage() {
     }
 
     return groupedRows
-  }, [detailRows, filteredDetailRows, selectedSku])
+  }, [detailRows, filteredDetailRows, selectedSku, skuOptions])
 
   const selectedProjectName = useMemo(
     () => projects.find((p) => String(p.id) === projectId)?.name ?? '',
@@ -1712,6 +1725,7 @@ export default function DailyAnalysisPage() {
         selectedProjectName,
         country,
         dateRangeDisplay,
+        skuOptions,
       )
       await logClientOperation({
         action: 'daily_analysis.export',
@@ -1781,8 +1795,10 @@ export default function DailyAnalysisPage() {
                 options={skuOptions}
                 loading={skuLoading}
                 onChange={(value) => {
+                  selectedSkuRef.current = value
                   setSelectedSku(value)
                   setActiveTab('summary')
+                  void loadData()
                 }}
               />
             </FilterField>
@@ -2246,8 +2262,8 @@ export default function DailyAnalysisPage() {
                         <TableHead className='min-w-[120px] bg-[hsl(var(--surface-soft))]/9 dark:bg-[hsl(var(--surface-strong))]'>
                           日期
                         </TableHead>
-                        <TableHead className='min-w-[140px]'>SKU</TableHead>
-                        <TableHead className='min-w-[140px]'>ASIN</TableHead>
+                        <TableHead className='min-w-[200px]'>SKU</TableHead>
+                        <TableHead className='min-w-[200px]'>品名</TableHead>
                         <TableHead>订单量</TableHead>
                         <TableHead>销售额</TableHead>
                         <TableHead>曝光量</TableHead>
@@ -2256,6 +2272,7 @@ export default function DailyAnalysisPage() {
                         <TableHead>广告花费</TableHead>
                         <TableHead>广告订单</TableHead>
                         <TableHead>可售库存</TableHead>
+                        <TableHead>在途数量</TableHead>
                         <TableHead>页面浏览量</TableHead>
                         <TableHead>销量</TableHead>
                         <TableHead>访问量</TableHead>
@@ -2277,6 +2294,7 @@ export default function DailyAnalysisPage() {
                             showDate,
                             rowSpan,
                             isTintedGroup,
+                            productName,
                           }) => (
                             <TableRow
                               key={rowKey}
@@ -2301,7 +2319,9 @@ export default function DailyAnalysisPage() {
                                 </TableCell>
                               ) : null}
                               <TableCell>{row.sku}</TableCell>
-                              <TableCell>{row.asin || '--'}</TableCell>
+                              <TableCell className='max-w-[200px] truncate text-muted-foreground'>
+                                {productName || '--'}
+                              </TableCell>
                               <TableCell>
                                 {row.order_qty.toLocaleString('zh-CN')}
                               </TableCell>
@@ -2321,6 +2341,15 @@ export default function DailyAnalysisPage() {
                               </TableCell>
                               <TableCell>
                                 {row.available_qty.toLocaleString('zh-CN')}
+                              </TableCell>
+                              <TableCell>
+                                {row.in_transit_qty > 0 ? (
+                                  <span className="font-medium text-blue-600 dark:text-blue-400">
+                                    {row.in_transit_qty.toLocaleString('zh-CN')}
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground">--</span>
+                                )}
                               </TableCell>
                               <TableCell>
                                 {row.page_views.toLocaleString('zh-CN')}
