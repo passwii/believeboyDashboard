@@ -19,6 +19,12 @@ class PaymentReportStructure:
     locale: str
 
 
+# Header markers that identify a file as a payment report (scanned in first 15 lines)
+PAYMENT_REPORT_HEADER_MARKERS = [
+    "Includes Amazon Marketplace",
+    "Einschließlich Transaktionen zu Amazon Marketplace",
+]
+
 PAYMENT_REPORT_COLUMN_ALIASES = {
     'date/time': ['date/time', 'datum/uhrzeit'],
     'settlement id': ['settlement id', 'abrechnungsnummer'],
@@ -221,6 +227,49 @@ def _match_payment_columns(columns: list[str], fallback_locale: str) -> tuple[di
     return mapped, detected_locale
 
 
+def is_payment_report_by_columns(path: Path) -> bool:
+    """Check if the file looks like a payment report by matching column names.
+
+    Scans the first 15 lines, trying each line as a potential header row.
+    Uses PAYMENT_REPORT_COLUMN_ALIASES to match columns (supports US/DE locale).
+    A line is considered a header if at least 3 of its first 5 columns match
+    known payment report column aliases.
+    """
+    raw_bytes = path.read_bytes()
+    decoded_text = None
+    for encoding in ('utf-8-sig', 'utf-8', 'utf-16', 'utf-16le', 'utf-16be'):
+        try:
+            decoded_text = raw_bytes.decode(encoding)
+            break
+        except UnicodeDecodeError:
+            continue
+    if decoded_text is None:
+        decoded_text = raw_bytes.decode('latin1', errors='replace')
+
+    lines = decoded_text.splitlines()[:15]
+
+    canonical_columns = ['date/time', 'settlement id', 'type', 'order id', 'sku']
+    expected_aliases: set[str] = set()
+    for col in canonical_columns:
+        if col in PAYMENT_REPORT_COLUMN_ALIASES:
+            for alias in PAYMENT_REPORT_COLUMN_ALIASES[col]:
+                expected_aliases.add(_normalize_payment_token(alias))
+
+    for line in lines:
+        for delimiter in (',', '\t', ';'):
+            columns = [part.strip().strip('"') for part in line.split(delimiter)]
+            if len(columns) < 3:
+                continue
+
+            normalized_columns = [_normalize_payment_token(column) for column in columns[:5]]
+
+            matches = sum(1 for col in normalized_columns if col in expected_aliases)
+            if matches >= 3:
+                return True
+
+    return False
+
+
 def detect_payment_report_structure(path: Path, *, country: str = 'US') -> PaymentReportStructure:
     normalized_country = normalize_country(country)
     fallback_locale = COUNTRY_TO_LOCALE.get(normalized_country, 'en')
@@ -410,3 +459,22 @@ def read_payment_report_dataframe(path: Path, *, country: str = 'US') -> pd.Data
     if required_missing:
         raise ValueError(f'Payment report missing required columns: {required_missing}')
     return df
+
+
+__all__ = [
+    "PAYMENT_REPORT_HEADER_MARKERS",
+    "PAYMENT_REPORT_COLUMN_ALIASES",
+    "PAYMENT_REPORT_REQUIRED_COLUMNS",
+    "PAYMENT_NUMERIC_COLUMNS",
+    "PAYMENT_TYPE_ALIASES",
+    "PAYMENT_DESCRIPTION_ALIASES",
+    "PaymentReportStructure",
+    "_normalize_payment_token",
+    "_match_payment_columns",
+    "is_payment_report_by_columns",
+    "detect_payment_report_structure",
+    "parse_localized_number",
+    "normalize_payment_type",
+    "normalize_payment_description",
+    "read_payment_report_dataframe",
+]
