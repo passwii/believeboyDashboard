@@ -5,6 +5,7 @@ Uses shared utilities from backend/app/utils/.
 
 from __future__ import annotations
 
+import logging
 import re
 import shutil
 import uuid
@@ -78,6 +79,8 @@ from app.utils.persist_helpers import (
     next_version as _next_version,
     replace_current_pointer as _replace_current_pointer,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _resolve_upload_date(now: datetime) -> date:
@@ -199,6 +202,20 @@ def process_file(
                 f"[dry-run] 会入库 {result.report_type}，"
                 f"行数预估 {result.row_count_preview}，国家 {result.country}"
             ),
+        )
+
+    # SHA-256 duplicate detection (log warning only, do not block)
+    file_sha256 = _sha256_file(file_path)
+    duplicates = _find_sha256_duplicates(db, file_sha256)
+    if duplicates:
+        dup_info = ", ".join(
+            f"项目ID={d['project_id']}({d['report_type']}/{d['country']})"
+            for d in duplicates
+        )
+        logger.warning(
+            "SHA-256 重复文件: %s | 已存在: %s",
+            file_path.name,
+            dup_info,
         )
 
     # 2. Persist to DB
@@ -960,3 +977,24 @@ def _build_storage_key(
         f"{period_start.strftime('%Y%m%d')}_{period_end.strftime('%Y%m%d')}/"
         f"v{version}/{file_id}"
     )
+
+
+def _find_sha256_duplicates(db: Session, file_sha256: str) -> list[dict]:
+    """Find existing records with same SHA-256 (autoReportUpload version).
+
+    Returns list of dicts with project_id, report_type, country.
+    """
+    rows = db.execute(
+        select(AnalysisSourceFile).where(
+            AnalysisSourceFile.file_sha256 == file_sha256
+        )
+    ).scalars().all()
+
+    return [
+        {
+            "project_id": row.project_id,
+            "report_type": row.report_type,
+            "country": row.country,
+        }
+        for row in rows
+    ]
