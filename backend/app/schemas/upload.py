@@ -76,6 +76,7 @@ class ReportCommitResponse(BaseModel):
     persisted_source_id: int | None = None
     persisted_table: str | None = None
     message: str
+    duplicate_warnings: list[dict] = Field(default_factory=list)
 
 
 class ReportStatusCell(BaseModel):

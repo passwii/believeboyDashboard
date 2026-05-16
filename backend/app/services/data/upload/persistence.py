@@ -26,6 +26,8 @@ from app.services.report_type_service import AD_PRODUCT_REPORT, normalize_report
 from app.utils.constants import SUPPORTED_REPORT_TYPES
 from app.utils.country import normalize_country as _normalize_country
 from app.utils.date_utils import parse_yyyy_mm_dd as _parse_yyyy_mm_dd
+from app.services.data.upload.dedup import find_sha256_duplicates
+from app.utils.utils import sha256_file as _sha256_file
 
 
 def commit_report_upload(
@@ -163,6 +165,26 @@ def commit_report_upload(
         project_name=project_name,
         file_type=report_type,
     )
+
+    # SHA-256 duplicate detection (warn only, do not block)
+    file_path = Path(file_meta["file_path"])
+    file_sha256 = _sha256_file(file_path)
+    duplicates = find_sha256_duplicates(db, file_sha256)
+    duplicate_warnings = []
+    if duplicates:
+        from app.models import Project
+        for dup in duplicates:
+            project = db.execute(
+                select(Project).where(Project.id == dup.project_id)
+            ).scalars().first()
+            project_name = project.project_name if project else f"project_id={dup.project_id}"
+            duplicate_warnings.append({
+                "project_name": project_name,
+                "report_type": dup.report_type,
+                "country": dup.country,
+                "period": f"{dup.period_start_date} ~ {dup.period_end_date}" if dup.period_start_date else "N/A",
+                "original_filename": dup.original_filename,
+            })
 
     persisted_source_id: int | None = None
     persisted_table: str | None = None
@@ -356,6 +378,7 @@ def commit_report_upload(
         persisted_source_id=persisted_source_id,
         persisted_table=persisted_table,
         message=message,
+        duplicate_warnings=duplicate_warnings,
     )
 
 
