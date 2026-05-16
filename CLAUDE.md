@@ -16,9 +16,15 @@ pnpm lint                                     # linter
 ```
 
 ### Backend
+
+**Local Development Environment (Miniconda)**
+
+This project uses **Miniconda** for local development, not `venv`. The Python interpreter is located at `/Users/damon/miniconda3/bin/python3` (Python 3.12.7).
+
 ```bash
 cd backend
-python3 -m venv .venv && source .venv/bin/activate
+# Activate the conda environment (if using one) or use python3 directly
+conda activate <your-env-name>  # or skip if using base environment
 pip install -r requirements.txt
 cp .env.example .env                          # fill in DATABASE_URL + API_KEY
 ./run_api.sh                                  # http://localhost:8000
@@ -26,6 +32,8 @@ alembic upgrade head                          # run migrations
 pytest                                        # run tests (cd backend first)
 pytest tests/path/to/test_file.py::test_name  # single test
 ```
+
+> **Important**: When running tests or scripts, the system may default to `.venv`. Always ensure you're using the correct Miniconda Python interpreter. Verify with `which python3` before running commands.
 
 ### One-off Backend Scripts
 - `python scripts/seed_admin_user.py` — create admin user (use `--reset-password` to rotate)
@@ -110,6 +118,21 @@ Uses an external AI provider configured via `AI_CHAT_PROVIDER_*` env vars. Web s
 
 ## Database
 PostgreSQL only — no SQLite fallback. All models are in `backend/app/models/`. Use Alembic for migrations.
+
+### Alembic Migration Naming Convention
+Alembic 迁移脚本命名格式：`YYYYMMDD_NNN_description.py`
+- `YYYYMMDD` — 日期，如 `20260516`
+- `NNN` — **三位序号**，从最新迁移的序号开始递增，如 `121`、`122`
+- `description` — 简短的英文描述
+
+**注意**：序号是 3 位数字（如 `001`、`120`），不是从 1 开始重新计数。
+
+查询最新序号：
+```bash
+cd backend && ls alembic/versions/ | grep "^202605" | sort | tail -5
+# 或查看分支情况
+/Users/damon/miniconda3/bin/python3 -m alembic heads
+```
 
 ## Additional Docs
 - `backend/README.md` — detailed backend documentation

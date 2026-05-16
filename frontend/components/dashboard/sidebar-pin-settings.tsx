@@ -30,7 +30,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils'
 
 const STORAGE_KEY = 'believeboy-sidebar-pinned-v1'
-const MAX_PINNED = 3
+export const MAX_PINNED = 5
 
 export function useLongPress(duration = 500) {
   const [active, setActive] = React.useState(false)
@@ -83,7 +83,7 @@ type PinnedItem = {
   roles?: RoleType[] // undefined = visible to all
 }
 
-const ALL_ITEMS: PinnedItem[] = [
+export const ALL_ITEMS: PinnedItem[] = [
   // 运营导航
   {
     title: '站点导航',
@@ -258,7 +258,7 @@ export function useSidebarPinnedItems() {
   return { pinnedUrls, toggle, maxPinned: MAX_PINNED, mounted }
 }
 
-function getVisibleItems(roleType?: RoleType): PinnedItem[] {
+export function getVisibleItems(roleType?: RoleType): PinnedItem[] {
   return ALL_ITEMS.filter(
     (item) => !item.roles || item.roles.includes(roleType as RoleType)
   )

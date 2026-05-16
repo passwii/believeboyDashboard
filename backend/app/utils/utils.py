@@ -152,11 +152,13 @@ def build_storage_key(
     report_type: str,
     period_start_date: date | None,
     period_end_date: date | None,
-    snapshot_at: datetime,
+    snapshot_at: datetime | None,
     version: int,
     upload_file_id: str,
 ) -> str:
     if report_type == "inventory_report":
+        if snapshot_at is None:
+            raise ValueError("snapshot_at is required for inventory_report")
         period_or_snapshot = f"snapshot-{snapshot_at.strftime('%Y%m%dT%H%M%SZ')}"
     else:
         if period_start_date is None or period_end_date is None:

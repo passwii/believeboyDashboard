@@ -16,7 +16,7 @@ from fastapi import (
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, get_request_operator, protected
+from app.api.deps import get_db_session, get_request_is_admin, get_request_operator, protected
 from app.models.sku_info import SkuRecord
 from app.models.project import Project
 from app.schemas.sku_info import (
@@ -57,6 +57,7 @@ from app.services.infra import invalidate_financial_series_cache
 from app.services.shipment import sync_first_leg_cost_from_shipment_summary
 from app.services.ai.factory_info_parser import parse_factory_info_sync
 from app.services.data.sku_info_batch import batch_update_factory_info, get_sku_records_by_ids
+from app.services import project_service
 
 router = APIRouter(dependencies=[Depends(protected)])
 
@@ -121,7 +122,14 @@ def _list_sku_records_endpoint(
     include_total: bool = Query(default=False),
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Depends(get_request_is_admin),
 ) -> SkuRecordsPage:
+    managed_project_ids = project_service.list_accessible_project_ids(
+        db,
+        operator=operator,
+        is_admin=bool(is_admin),
+    )
+
     rows, total, has_next = list_sku_records(
         db,
         project_name,
@@ -132,6 +140,7 @@ def _list_sku_records_endpoint(
         page,
         page_size,
         include_total=include_total,
+        managed_project_ids=managed_project_ids,
     )
     append_operation_view_log(
         db,
@@ -444,7 +453,14 @@ def export_product_costs_csv(
     export_type: str = Query(default="update"),
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Depends(get_request_is_admin),
 ) -> Response:
+    managed_project_ids = project_service.list_accessible_project_ids(
+        db,
+        operator=operator,
+        is_admin=bool(is_admin),
+    )
+
     rows = list_sku_records_all(
         db,
         project_name=project_name,
@@ -452,6 +468,7 @@ def export_product_costs_csv(
         asin=asin,
         country=country,
         is_active=is_active,
+        managed_project_ids=managed_project_ids,
     )
 
     normalized_export_type = export_type.strip().lower()
@@ -734,6 +751,6 @@ def batch_update_factory_info_endpoint(
     db.commit()
 
     return BatchUpdateFactoryInfoResponse(
-        updated=updated,
+        updated=updated[0],
         sku_ids=payload.sku_ids,
     )

@@ -242,13 +242,19 @@ def list_sku_records(
     page: int,
     page_size: int,
     include_total: bool = False,
+    managed_project_ids: list[int] | None = None,
 ):
     stmt: Select = select(SkuRecord)
+
+    # Non-admin users: always filter by managed_project_ids unless project_name is set
+    if managed_project_ids is not None and not project_name:
+        stmt = stmt.where(SkuRecord.project_id.in_(managed_project_ids))
 
     if project_name:
         stmt = stmt.join(Project).where(
             Project.project_name.ilike(f"%{project_name}%")
         )
+
     if sku:
         stmt = stmt.where(SkuRecord.sku.ilike(f"%{sku}%"))
     if asin:
@@ -286,13 +292,19 @@ def list_sku_records_all(
     asin: str | None,
     country: str | None,
     is_active: bool | None = None,
+    managed_project_ids: list[int] | None = None,
 ) -> list[SkuRecord]:
     stmt: Select = select(SkuRecord)
+
+    # Non-admin users: always filter by managed_project_ids unless project_name is set
+    if managed_project_ids is not None and not project_name:
+        stmt = stmt.where(SkuRecord.project_id.in_(managed_project_ids))
 
     if project_name:
         stmt = stmt.join(Project).where(
             Project.project_name.ilike(f"%{project_name}%")
         )
+
     if sku:
         stmt = stmt.where(SkuRecord.sku.ilike(f"%{sku}%"))
     if asin:

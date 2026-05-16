@@ -4,7 +4,7 @@ from datetime import date
 from decimal import Decimal
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -12,6 +12,8 @@ from app.models import (
     AnalysisBusinessRow,
     AnalysisSourceFile,
     Project,
+    ShipmentSchedule,
+    ShipmentScheduleItem,
 )
 from app.services import infra as redis_service
 from app.services.daily.aggregation import (
@@ -33,6 +35,41 @@ def _get_project_or_404(db: Session, project_id: int) -> Project:
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
     return row
+
+
+IN_TRANSIT_STATUSES = ("draft", "in_transit")
+
+
+def _load_in_transit_quantities(
+    db: Session,
+    project_id: int,
+    country: str,
+) -> dict[str, int]:
+    cached = redis_service.get_shipment_in_transit_qty_cache(project_id, country)
+    if cached is not None:
+        return cached
+
+    stmt = (
+        select(
+            ShipmentScheduleItem.sku,
+            func.coalesce(func.sum(ShipmentScheduleItem.quantity), 0).label("total"),
+        )
+        .join(
+            ShipmentSchedule,
+            ShipmentSchedule.id == ShipmentScheduleItem.shipment_schedule_id,
+        )
+        .where(
+            ShipmentSchedule.project_id == project_id,
+            ShipmentSchedule.country == country,
+            ShipmentSchedule.shipment_status.in_(IN_TRANSIT_STATUSES),
+        )
+        .group_by(ShipmentScheduleItem.sku)
+    )
+    rows = db.execute(stmt).all()
+    result = {sku.strip(): int(total) for sku, total in rows if sku}
+
+    redis_service.set_shipment_in_transit_qty_cache(project_id, country, result)
+    return result
 
 
 def _build_asin_to_sku_map(
@@ -305,6 +342,10 @@ def build_daily_analysis(
 
     detail_rows, summary_rows = _aggregate_buckets(detail_buckets, sku_filter=sku)
 
+    in_transit_map = _load_in_transit_quantities(db, project_id, normalized_country)
+    for row in detail_rows:
+        row["in_transit_qty"] = in_transit_map.get(row["sku"], 0)
+
     requested_dates = [
         item.isoformat() for item in date_range(normalized_start, normalized_end)
     ]
@@ -383,6 +424,13 @@ def build_daily_analysis_all_projects(
 
     project_breakdown: dict[int, dict[str, object]] = {}
     global_buckets: dict[tuple[str, str], _MetricBucket] = {}
+    # Collect in_transit quantities from all projects for global aggregation
+    global_in_transit_map: dict[str, int] = {}
+
+    # When aggregating across all projects, SKU filtering is not applied
+    # because a single SKU belongs to one project and filtering by it
+    # would hide data from all other projects.
+    all_projects_sku_filter: str | None = None
 
     for project_id in project_ids:
         project = _get_project_or_404(db, project_id)
@@ -430,7 +478,7 @@ def build_daily_analysis_all_projects(
         )
 
         project_detail, project_summary = _aggregate_buckets(
-            detail_buckets, sku_filter=sku
+            detail_buckets, sku_filter=all_projects_sku_filter,
         )
         project_breakdown[project_id] = {
             "project_name": project.project_name,
@@ -440,7 +488,7 @@ def build_daily_analysis_all_projects(
 
         for key, bucket in detail_buckets.items():
             global_bucket = global_buckets.setdefault(key, _MetricBucket())
-            global_bucket.asin = bucket.asin
+            _set_asin_if_blank(global_bucket, bucket.asin)
             global_bucket.order_qty += bucket.order_qty
             global_bucket.sales_amount += bucket.sales_amount
             global_bucket.impressions += bucket.impressions
@@ -453,7 +501,21 @@ def build_daily_analysis_all_projects(
             global_bucket.sessions += bucket.sessions
             global_bucket.business_sales_amount += bucket.business_sales_amount
 
-    global_detail, global_summary = _aggregate_buckets(global_buckets, sku_filter=sku)
+        project_in_transit_map = _load_in_transit_quantities(
+            db, project_id, normalized_country
+        )
+        for row in project_detail:
+            row["in_transit_qty"] = project_in_transit_map.get(row["sku"], 0)
+
+        # Aggregate into global in_transit map
+        for sku, qty in project_in_transit_map.items():
+            global_in_transit_map[sku] = global_in_transit_map.get(sku, 0) + qty
+
+    global_detail, global_summary = _aggregate_buckets(global_buckets, sku_filter=all_projects_sku_filter)
+
+    # Inject in_transit_qty for global detail rows
+    for row in global_detail:
+        row["in_transit_qty"] = global_in_transit_map.get(row["sku"], 0)
 
     available_dates: dict[str, list[str]] = {
         "sales_report": [],
@@ -461,6 +523,24 @@ def build_daily_analysis_all_projects(
         "inventory_report": [],
         "business_report": [],
     }
+    report_type_key_map = {
+        "latest_sales_date": "sales_report",
+        "latest_ad_date": "ad_product_report",
+        "latest_inventory_date": "inventory_report",
+        "latest_business_date": "business_report",
+    }
+    for project_id in project_ids:
+        proj_dates = _load_latest_available_dates(
+            db, project_id=project_id, country=normalized_country
+        )
+        for key, latest_date in proj_dates.items():
+            if latest_date is not None:
+                report_type = report_type_key_map.get(key)
+                if report_type is None:
+                    continue
+                current = available_dates[report_type]
+                if not current or latest_date > current[0]:
+                    available_dates[report_type] = [latest_date]
     requested_dates = [
         item.isoformat() for item in date_range(normalized_start, normalized_end)
     ]

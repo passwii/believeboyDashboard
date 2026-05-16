@@ -23,8 +23,8 @@ from app.utils.recognition import (
     _normalize_columns,
     _read_csv_with_encoding_fallback,
     _read_excel,
-    _read_payment_report as _shared_read_payment_report,
 )
+from app.services.payment.locale import read_payment_report_dataframe
 from app.services.data.upload.project_match import _build_project_match
 
 
@@ -120,7 +120,7 @@ def recognize_saved_report_upload(
             else:
                 values = []
         elif result.report_type == "payment_report":
-            df, _, _, _ = _shared_read_payment_report(path)
+            df = read_payment_report_dataframe(path, country=effective_country)
             df = _normalize_columns(df)
             match_by = "sku"
             values = df["sku"].dropna().astype(str).tolist()

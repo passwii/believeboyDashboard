@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import time
 import warnings
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import Decimal
@@ -67,7 +66,19 @@ AGGREGATE_STEP_TOP_SKUS = "data_aggregating_top_skus"
 AGGREGATE_STEP_AD_CAMPAIGNS = "data_aggregating_ad_campaigns"
 
 
-ProgressCallback = Callable[[str], None]
+ProgressCallback = Callable[[str, dict[str, Any] | None], None]
+
+
+# 步骤标签映射
+STEP_LABELS: dict[str, str] = {
+    AGGREGATE_STEP_SALES: "销售数据",
+    AGGREGATE_STEP_AD: "广告数据",
+    AGGREGATE_STEP_INVENTORY: "库存快照",
+    AGGREGATE_STEP_COMPARISON_SALES: "对比期销售",
+    AGGREGATE_STEP_COMPARISON_AD: "对比期广告",
+    AGGREGATE_STEP_TOP_SKUS: "Top SKU",
+    AGGREGATE_STEP_AD_CAMPAIGNS: "广告活动",
+}
 
 
 def _round_money(value: Decimal) -> float:
@@ -105,10 +116,29 @@ def _get_project_or_404(db: Session, project_id: int) -> Project | None:
     return row
 
 
-def _report(progress_cb: ProgressCallback | None, step: str) -> None:
+def _report(
+    progress_cb: ProgressCallback | None,
+    step: str,
+    detail_data: dict[str, Any] | None = None,
+    min_display_ms: int = 600,
+) -> None:
+    """报告进度，确保每个步骤至少显示 min_display_ms 毫秒
+    
+    Args:
+        progress_cb: 进度回调函数
+        step: 步骤标识
+        detail_data: 详细数据，会被传递给回调
+        min_display_ms: 最小显示时间（毫秒），让用户能看清每个步骤
+    """
+    start_time = time.time()
+    
     if progress_cb:
-        progress_cb(step)
-    time.sleep(0.5)
+        progress_cb(step, detail_data)
+    
+    # 计算已耗时，如果太短则延迟
+    elapsed_ms = (time.time() - start_time) * 1000
+    if elapsed_ms < min_display_ms:
+        time.sleep((min_display_ms - elapsed_ms) / 1000)
 
 
 def aggregate_project_data(
@@ -128,137 +158,86 @@ def aggregate_project_data(
     comp_end = start_date - timedelta(days=1)
     comp_start = comp_end - timedelta(days=period_days - 1)
 
-    # Run queries in batches to limit peak DB connections.
-    # With 1 main + 4 workers, worst case = 5 connections per request.
-    # (pool_size=5, max_overflow=10 is sufficient.)
     from app.db.session import SessionLocal
+    session_factory = SessionLocal
 
-    def run_queries():
-        session_factory = SessionLocal
+    # Run queries sequentially so progress events are ordered and visible.
+    # Each query sends a "running" event before executing and a "completed"
+    # event with detail data after, giving the user clear step-by-step feedback.
 
-        with ThreadPoolExecutor(max_workers=4) as executor:
-            f_sales = executor.submit(
-                _aggregate_sales_by_date_sql,
-                session_factory,
-                project_id,
-                country,
-                start_date,
-                end_date,
-                AGGREGATE_STEP_SALES,
-                progress_cb,
-            )
-            f_ad = executor.submit(
-                _aggregate_ad_by_date_sql,
-                session_factory,
-                project_id,
-                country,
-                start_date,
-                end_date,
-                AGGREGATE_STEP_AD,
-                progress_cb,
-            )
-            f_inventory = executor.submit(
-                _aggregate_inventory_summary,
-                session_factory,
-                project_id,
-                country,
-                end_date,
-                AGGREGATE_STEP_INVENTORY,
-                progress_cb,
-            )
-            f_top_skus = executor.submit(
-                _get_top_skus_sql,
-                session_factory,
-                project_id,
-                country,
-                start_date,
-                end_date,
-                AGGREGATE_STEP_TOP_SKUS,
-                progress_cb,
-            )
+    sales_by_date, sales_coverage = _aggregate_sales_by_date_sql(
+        session_factory, project_id, country, start_date, end_date,
+        AGGREGATE_STEP_SALES, progress_cb,
+    )
 
-            # Wait for sales + ad before launching comparison queries
-            sales_by_date, sales_coverage = f_sales.result()
-            ad_by_date, ad_coverage = f_ad.result()
-            inventory_summary = f_inventory.result()
-            top_skus = f_top_skus.result()
+    ad_by_date, ad_coverage = _aggregate_ad_by_date_sql(
+        session_factory, project_id, country, start_date, end_date,
+        AGGREGATE_STEP_AD, progress_cb,
+    )
 
-            # Comparison queries (reuse same executor, 2 slots freed above)
-            f_comp_sales = executor.submit(
-                _aggregate_sales_by_date_sql,
-                session_factory,
-                project_id,
-                country,
-                comp_start,
-                comp_end,
-                AGGREGATE_STEP_COMPARISON_SALES,
-                progress_cb,
-            )
-            f_comp_ad = executor.submit(
-                _aggregate_ad_by_date_sql,
-                session_factory,
-                project_id,
-                country,
-                comp_start,
-                comp_end,
-                AGGREGATE_STEP_COMPARISON_AD,
-                progress_cb,
-            )
-            comp_sales_result, _ = f_comp_sales.result()
-            comp_ad_result, _ = f_comp_ad.result()
+    inventory_summary = _aggregate_inventory_summary(
+        session_factory, project_id, country, end_date,
+        AGGREGATE_STEP_INVENTORY, progress_cb,
+    )
 
-        # Ad campaigns runs after thread pool — no extra DB connection needed here
-        # because _get_ad_campaign_summary_sql creates its own session internally.
-        ad_campaigns = _get_ad_campaign_summary_sql(
-            session_factory,
-            project_id,
-            country,
-            start_date,
-            end_date,
-            AGGREGATE_STEP_AD_CAMPAIGNS,
-            progress_cb,
-        )
+    top_skus = _get_top_skus_sql(
+        session_factory, project_id, country, start_date, end_date,
+        AGGREGATE_STEP_TOP_SKUS, progress_cb,
+    )
 
-        # 获取项目背景信息
-        project_context, sku_context = project_service.get_project_context(db, project_id)
+    comp_sales_result, _ = _aggregate_sales_by_date_sql(
+        session_factory, project_id, country, comp_start, comp_end,
+        AGGREGATE_STEP_COMPARISON_SALES, progress_cb,
+    )
 
-        # Build comparison period summary
-        total_comp_sales = sum(r["sales_amount"] for r in comp_sales_result)
-        total_comp_orders = sum(r["order_qty"] for r in comp_sales_result)
-        total_comp_ad_spend = sum(r["ad_spend"] for r in comp_ad_result)
-        total_comp_ad_sales = sum(r["ad_sales"] for r in comp_ad_result)
+    comp_ad_result, _ = _aggregate_ad_by_date_sql(
+        session_factory, project_id, country, comp_start, comp_end,
+        AGGREGATE_STEP_COMPARISON_AD, progress_cb,
+    )
 
-        comparison_period = {
-            "period_start": comp_start.isoformat(),
-            "period_end": comp_end.isoformat(),
-            "period_days": period_days,
-            "total_sales": round(total_comp_sales, 2),
-            "total_orders": total_comp_orders,
-            "total_ad_spend": round(total_comp_ad_spend, 2),
-            "total_ad_sales": round(total_comp_ad_sales, 2),
-        }
+    ad_campaigns = _get_ad_campaign_summary_sql(
+        session_factory, project_id, country, start_date, end_date,
+        AGGREGATE_STEP_AD_CAMPAIGNS, progress_cb,
+    )
 
-        return AggregatedData(
-            project_name=project.project_name,
-            country=country,
-            date_range_start=start_date,
-            date_range_end=end_date,
-            sales_by_date=sales_by_date,
-            ad_by_date=ad_by_date,
-            inventory_summary=inventory_summary,
-            comparison_period=comparison_period,
-            top_skus=top_skus,
-            ad_campaigns=ad_campaigns,
-            data_coverage={
-                "sales_days": sales_coverage["days"],
-                "ad_days": ad_coverage["days"],
-                "total_requested_days": len(_daterange(start_date, end_date)),
-            },
-            project_context=project_context or {},
-            sku_context=sku_context or {},
-        )
+    # Fetch project context
+    project_context, sku_context = project_service.get_project_context(db, project_id)
 
-    return run_queries()
+    # Build comparison period summary
+    total_comp_sales = sum(r["sales_amount"] for r in comp_sales_result)
+    total_comp_orders = sum(r["order_qty"] for r in comp_sales_result)
+    total_comp_ad_spend = sum(r["ad_spend"] for r in comp_ad_result)
+    total_comp_ad_sales = sum(r["ad_sales"] for r in comp_ad_result)
+
+    comparison_period = {
+        "period_start": comp_start.isoformat(),
+        "period_end": comp_end.isoformat(),
+        "period_days": period_days,
+        "total_sales": round(total_comp_sales, 2),
+        "total_orders": total_comp_orders,
+        "total_ad_spend": round(total_comp_ad_spend, 2),
+        "total_ad_sales": round(total_comp_ad_sales, 2),
+    }
+
+    return AggregatedData(
+        project_name=project.project_name,
+        country=country,
+        date_range_start=start_date,
+        date_range_end=end_date,
+        sales_by_date=sales_by_date,
+        ad_by_date=ad_by_date,
+        inventory_summary=inventory_summary,
+        comparison_period=comparison_period,
+        top_skus=top_skus,
+        ad_campaigns=ad_campaigns,
+        data_coverage={
+            "sales_days": sales_coverage["days"],
+            "ad_days": ad_coverage["days"],
+            "total_requested_days": len(_daterange(start_date, end_date)),
+        },
+        project_context=project_context or {},
+        sku_context=sku_context or {},
+    )
 
 
 # --- SQL-side aggregation (avoids pulling millions of rows into Python) ---
@@ -275,7 +254,13 @@ def _aggregate_sales_by_date_sql(
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     db = session_factory()
     try:
-        _report(progress_cb, step)
+        # 先报告开始状态
+        _report(progress_cb, step, {
+            "step_label": STEP_LABELS.get(step, step),
+            "status": "running",
+            "message": "正在连接数据库...",
+        })
+        
         # Aggregate at SQL level — only returns one row per date, not one row per order
         stmt = (
             select(
@@ -319,7 +304,23 @@ def _aggregate_sales_by_date_sql(
                 }
             )
 
-        return result, {"days": len(set(r["date"] for r in result))}
+        # 计算统计数据
+        total_sales = sum(r["sales_amount"] for r in result)
+        total_orders = sum(r["order_qty"] for r in result)
+        days_count = len(set(r["date"] for r in result))
+        
+        # 报告完成状态（带详细数据）
+        _report(progress_cb, step, {
+            "step_label": STEP_LABELS.get(step, step),
+            "status": "completed",
+            "record_count": len(result),
+            "days_count": days_count,
+            "total_amount": total_sales,
+            "total_orders": total_orders,
+            "message": f"获取到 {days_count} 天销售数据",
+        })
+
+        return result, {"days": days_count}
     finally:
         db.close()
 
@@ -335,7 +336,13 @@ def _aggregate_ad_by_date_sql(
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     db = session_factory()
     try:
-        _report(progress_cb, step)
+        # 先报告开始状态
+        _report(progress_cb, step, {
+            "step_label": STEP_LABELS.get(step, step),
+            "status": "running",
+            "message": "正在查询广告数据...",
+        })
+        
         stmt = (
             select(
                 AnalysisSourceFile.report_date,
@@ -391,7 +398,25 @@ def _aggregate_ad_by_date_sql(
                 }
             )
 
-        return result, {"days": len(set(r["date"] for r in result))}
+        # 计算统计数据
+        total_ad_spend = sum(r["ad_spend"] for r in result)
+        total_ad_sales = sum(r["ad_sales"] for r in result)
+        total_impressions = sum(r["impressions"] for r in result)
+        days_count = len(set(r["date"] for r in result))
+        
+        # 报告完成状态（带详细数据）
+        _report(progress_cb, step, {
+            "step_label": STEP_LABELS.get(step, step),
+            "status": "completed",
+            "record_count": len(result),
+            "days_count": days_count,
+            "total_amount": total_ad_spend,
+            "total_ad_sales": total_ad_sales,
+            "total_impressions": total_impressions,
+            "message": f"获取到 {days_count} 天广告数据",
+        })
+
+        return result, {"days": days_count}
     finally:
         db.close()
 
@@ -406,7 +431,12 @@ def _aggregate_inventory_summary(
 ) -> dict[str, Any]:
     db = session_factory()
     try:
-        _report(progress_cb, step)
+        # 先报告开始状态
+        _report(progress_cb, step, {
+            "step_label": STEP_LABELS.get(step, step),
+            "status": "running",
+            "message": "正在查询库存快照...",
+        })
 
         # Use report_date (the business date) for ordering and filtering.
         # Old rows with report_date=NULL retain the upload-time snapshot_at value,
@@ -430,6 +460,12 @@ def _aggregate_inventory_summary(
         source = db.execute(stmt).scalar_one_or_none()
 
         if source is None:
+            _report(progress_cb, step, {
+                "step_label": STEP_LABELS.get(step, step),
+                "status": "completed",
+                "record_count": 0,
+                "message": "未找到库存数据",
+            })
             return {"available": 0, "out_of_stock_skus": [], "aging_summary": {}}
 
         source_id = int(source.id)
@@ -473,10 +509,27 @@ def _aggregate_inventory_summary(
             "365+": int(agg.age_365_plus or 0),
         }
 
+        total_available = int(agg.total_available or 0)
+        out_of_stock_count = int(agg.out_of_stock_count or 0)
+
+        # 报告完成状态（带详细数据）
+        _report(progress_cb, step, {
+            "step_label": STEP_LABELS.get(step, step),
+            "status": "completed",
+            "record_count": total_available,
+            "out_of_stock_count": out_of_stock_count,
+            "data_preview": {
+                "available": total_available,
+                "out_of_stock": out_of_stock_count,
+                "aging": aging_total,
+            },
+            "message": f"可用库存 {total_available}，缺货 {out_of_stock_count} SKU",
+        })
+
         return {
-            "available": int(agg.total_available or 0),
+            "available": total_available,
             "out_of_stock_skus": out_of_stock,
-            "out_of_stock_count": int(agg.out_of_stock_count or 0),
+            "out_of_stock_count": out_of_stock_count,
             "aging_summary": aging_total,
             "snapshot_date": (
                 source.snapshot_at.isoformat()
@@ -501,7 +554,13 @@ def _get_top_skus_sql(
 ) -> list[dict[str, Any]]:
     db = session_factory()
     try:
-        _report(progress_cb, step)
+        # 先报告开始状态
+        _report(progress_cb, step, {
+            "step_label": STEP_LABELS.get(step, step),
+            "status": "running",
+            "message": "正在统计 TOP SKU...",
+        })
+        
         stmt = (
             select(
                 AnalysisSalesOrderRow.sku,
@@ -531,7 +590,7 @@ def _get_top_skus_sql(
         )
         rows = db.execute(stmt).all()
 
-        return [
+        result = [
             {
                 "sku": (sku or "").strip(),
                 "asin": asin,
@@ -540,6 +599,23 @@ def _get_top_skus_sql(
             }
             for sku, asin, order_qty, sales_amount in rows
         ]
+
+        # 准备数据预览（前3个SKU）
+        data_preview = [
+            {"sku": item["sku"], "sales_amount": item["sales_amount"], "order_qty": item["order_qty"]}
+            for item in result[:3]
+        ]
+
+        # 报告完成状态（带详细数据）
+        _report(progress_cb, step, {
+            "step_label": STEP_LABELS.get(step, step),
+            "status": "completed",
+            "record_count": len(result),
+            "data_preview": data_preview,
+            "message": f"获取到 {len(result)} 个 SKU",
+        })
+
+        return result
     finally:
         db.close()
 
@@ -555,7 +631,13 @@ def _get_ad_campaign_summary_sql(
 ) -> list[dict[str, Any]]:
     db = session_factory()
     try:
-        _report(progress_cb, step)
+        # 先报告开始状态
+        _report(progress_cb, step, {
+            "step_label": STEP_LABELS.get(step, step),
+            "status": "running",
+            "message": "正在汇总广告活动数据...",
+        })
+        
         stmt = (
             select(
                 AnalysisSourceFile.report_date,
@@ -585,7 +667,7 @@ def _get_ad_campaign_summary_sql(
         )
         rows = db.execute(stmt).all()
 
-        return [
+        result = [
             {
                 "date": (report_date or date.min).isoformat(),
                 "impressions": int(impressions or 0),
@@ -603,5 +685,23 @@ def _get_ad_campaign_summary_sql(
                 ad_orders,
             ) in rows
         ]
+
+        # 计算统计数据
+        total_ad_spend = sum(r["ad_spend"] for r in result)
+        total_ad_sales = sum(r["ad_sales"] for r in result)
+        total_impressions = sum(r["impressions"] for r in result)
+
+        # 报告完成状态（带详细数据）
+        _report(progress_cb, step, {
+            "step_label": STEP_LABELS.get(step, step),
+            "status": "completed",
+            "record_count": len(result),
+            "total_amount": total_ad_spend,
+            "total_ad_sales": total_ad_sales,
+            "total_impressions": total_impressions,
+            "message": f"获取到 {len(result)} 天广告活动数据",
+        })
+
+        return result
     finally:
         db.close()

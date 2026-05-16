@@ -29,5 +29,4 @@ from app.utils.recognition.patterns import (
     _normalize_identifier,
     _normalize_country,
     _extract_date_from_filename,
-    _read_payment_report,
 )

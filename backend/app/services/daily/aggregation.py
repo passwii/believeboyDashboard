@@ -21,6 +21,7 @@ class _MetricBucket:
     ad_spend: Decimal = field(default_factory=lambda: Decimal("0"))
     ad_orders: int = 0
     available_qty: int = 0
+    in_transit_qty: int = 0
     page_views: int = 0
     units_ordered: int = 0
     sessions: int = 0
@@ -53,6 +54,7 @@ def _aggregate_buckets(
 
         page_views = int(bucket.page_views)
         units_ordered = int(bucket.units_ordered)
+        in_transit_qty = bucket.in_transit_qty
         detail_row = {
             "date": day_text,
             "sku": bucket_sku,
@@ -65,6 +67,7 @@ def _aggregate_buckets(
             "ad_spend": round_money(bucket.ad_spend),
             "ad_orders": int(bucket.ad_orders),
             "available_qty": int(bucket.available_qty),
+            "in_transit_qty": in_transit_qty,
             "page_views": page_views,
             "units_ordered": units_ordered,
             "sessions": int(bucket.sessions),

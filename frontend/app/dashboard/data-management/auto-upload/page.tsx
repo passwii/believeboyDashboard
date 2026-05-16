@@ -21,9 +21,9 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import {
-  SingleDatePicker,
   formatDateInputValue,
   parseDateInputValue,
+  SimpleDatePicker,
 } from '@/components/ui/date-picker'
 import {
   DropdownMenu,
@@ -291,7 +291,7 @@ function RpaStatusGrid() {
               >
                 <ChevronLeft className='h-4 w-4' />
               </Button>
-              <SingleDatePicker
+              <SimpleDatePicker
                 value={parseDateInputValue(statusDate)}
                 onChange={(date) => setStatusDate(formatDateInputValue(date))}
                 className='h-9 w-full sm:h-10 sm:w-[170px] bg-background dark:bg-[hsl(var(--surface-soft))]'
@@ -950,52 +950,49 @@ function AutoUploadContent() {
                                {item.reportType === 'payment_report' && item.userReportStartDate !== null ? (
                                  <div className='flex items-center gap-1.5 pt-0.5'>
                                    <span className='text-[10px] text-amber-600'>起：</span>
-                                   <input
-                                     type='date'
-                                     className='h-5 rounded border border-border/60 bg-background px-1.5 py-0 text-[10px]'
-                                     value={item.userReportStartDate || ''}
-                                     onChange={(e) => {
+                                   <SimpleDatePicker
+                                     value={parseDateInputValue(item.userReportStartDate || '')}
+                                     onChange={(date) => {
                                        setQueueItems((prev) =>
                                          prev.map((it) =>
                                            it.localId === item.localId
-                                             ? { ...it, userReportStartDate: e.target.value || null }
+                                             ? { ...it, userReportStartDate: formatDateInputValue(date) }
                                              : it,
                                          ),
                                        )
                                      }}
+                                     className='h-6 w-[130px] text-xs'
                                    />
                                    <span className='text-[10px] text-amber-600'>止：</span>
-                                   <input
-                                     type='date'
-                                     className='h-5 rounded border border-border/60 bg-background px-1.5 py-0 text-[10px]'
-                                     value={item.userReportEndDate || ''}
-                                     onChange={(e) => {
+                                   <SimpleDatePicker
+                                     value={parseDateInputValue(item.userReportEndDate || '')}
+                                     onChange={(date) => {
                                        setQueueItems((prev) =>
                                          prev.map((it) =>
                                            it.localId === item.localId
-                                             ? { ...it, userReportEndDate: e.target.value || null }
+                                             ? { ...it, userReportEndDate: formatDateInputValue(date) }
                                              : it,
                                          ),
                                        )
                                      }}
+                                     className='h-6 w-[130px] text-xs'
                                    />
                                  </div>
                                ) : item.userReportDate !== null && item.reportType !== 'payment_report' ? (
                                  <div className='flex items-center gap-1.5 pt-0.5'>
                                    <span className='text-[10px] text-amber-600'>日期：</span>
-                                   <input
-                                     type='date'
-                                     className='h-5 rounded border border-border/60 bg-background px-1.5 py-0 text-[10px]'
-                                     value={item.userReportDate || ''}
-                                     onChange={(e) => {
+                                   <SimpleDatePicker
+                                     value={parseDateInputValue(item.userReportDate || '')}
+                                     onChange={(date) => {
                                        setQueueItems((prev) =>
                                          prev.map((it) =>
                                            it.localId === item.localId
-                                             ? { ...it, userReportDate: e.target.value || null }
+                                             ? { ...it, userReportDate: formatDateInputValue(date) }
                                              : it,
                                          ),
                                        )
                                      }}
+                                     className='h-6 w-[130px] text-xs'
                                    />
                                  </div>
                                ) : null}
@@ -1007,52 +1004,47 @@ function AutoUploadContent() {
                                </span>
                                {item.reportType === 'payment_report' ? (
                                  <div className='flex items-center gap-1.5'>
-                                   <input
-                                     type='date'
-                                     className='h-6 rounded border border-border/60 bg-background px-1.5 py-0.5 text-xs'
-                                     value={item.userReportStartDate || ''}
-                                     onChange={(e) => {
+                                   <SimpleDatePicker
+                                     value={parseDateInputValue(item.userReportStartDate || '')}
+                                     onChange={(date) => {
                                        setQueueItems((prev) =>
                                          prev.map((it) =>
                                            it.localId === item.localId
-                                             ? { ...it, userReportStartDate: e.target.value || null }
+                                             ? { ...it, userReportStartDate: formatDateInputValue(date) }
                                              : it,
                                          ),
                                        )
                                      }}
-                                     placeholder='开始'
+                                     className='h-6 w-[130px] text-xs'
                                    />
                                    <span className='text-xs text-muted-foreground'>→</span>
-                                   <input
-                                     type='date'
-                                     className='h-6 rounded border border-border/60 bg-background px-1.5 py-0.5 text-xs'
-                                     value={item.userReportEndDate || ''}
-                                     onChange={(e) => {
+                                   <SimpleDatePicker
+                                     value={parseDateInputValue(item.userReportEndDate || '')}
+                                     onChange={(date) => {
                                        setQueueItems((prev) =>
                                          prev.map((it) =>
                                            it.localId === item.localId
-                                             ? { ...it, userReportEndDate: e.target.value || null }
+                                             ? { ...it, userReportEndDate: formatDateInputValue(date) }
                                              : it,
                                          ),
                                        )
                                      }}
-                                     placeholder='结束'
+                                     className='h-6 w-[130px] text-xs'
                                    />
                                  </div>
                                ) : (
-                                 <input
-                                   type='date'
-                                   className='h-6 rounded border border-border/60 bg-background px-1.5 py-0.5 text-xs'
-                                   value={item.userReportDate || ''}
-                                   onChange={(e) => {
+                                 <SimpleDatePicker
+                                   value={parseDateInputValue(item.userReportDate || '')}
+                                   onChange={(date) => {
                                      setQueueItems((prev) =>
                                        prev.map((it) =>
                                          it.localId === item.localId
-                                           ? { ...it, userReportDate: e.target.value || null }
+                                           ? { ...it, userReportDate: formatDateInputValue(date) }
                                            : it,
                                        ),
                                      )
                                    }}
+                                   className='h-6 w-[130px] text-xs'
                                  />
                                )}
                              </div>

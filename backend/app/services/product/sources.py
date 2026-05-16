@@ -14,7 +14,7 @@ from app.services.product._internal import (
     _normalize_country,
 )
 from app.services.report_type_service import normalize_report_type
-from app.services.product.persistence import ALL_REPORT_TYPES
+from app.services.product.persistence import ALL_REPORT_TYPES, ensure_tables
 
 
 def list_sources(
@@ -30,7 +30,7 @@ def list_sources(
     from sqlalchemy import or_ as _or
     from app.utils.parsers import normalize_report_type as _normalize
 
-    ensure_tables()
+    ensure_tables(db)
     stmt = select(AnalysisSourceFile).order_by(
         AnalysisSourceFile.created_at.desc(),
         AnalysisSourceFile.id.desc(),
@@ -74,7 +74,7 @@ def list_sources(
 
 
 def get_source_or_none(db: Session, source_id: int) -> AnalysisSourceFile | None:
-    ensure_tables()
+    ensure_tables(db)
     return db.get(AnalysisSourceFile, source_id)
 
 
@@ -89,7 +89,7 @@ def get_source_rows(
     from app.utils.parsers import SCOPE_INCLUDED
     from sqlalchemy import or_ as _or
 
-    ensure_tables()
+    ensure_tables(db)
     source = db.get(AnalysisSourceFile, source_id)
     if source is None:
         raise ValueError('Source file not found')
@@ -122,7 +122,7 @@ def get_current_inventory_snapshot(
     from datetime import datetime as Dt, timezone as Tz
     from sqlalchemy import or_ as _or
 
-    ensure_tables()
+    ensure_tables(db)
     normalized_country = _normalize_country(country)
     stmt = select(AnalysisSourceFile).where(
         AnalysisSourceFile.project_id == project_id,

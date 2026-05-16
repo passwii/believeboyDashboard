@@ -100,8 +100,28 @@ type InsightItem = {
   content?: string
 }
 
+type AggregationDetail = {
+  step: string
+  step_label: string
+  status: 'running' | 'completed' | 'error'
+  progress_percent: number
+  record_count?: number
+  total_amount?: number
+  total_orders?: number
+  total_ad_sales?: number
+  total_impressions?: number
+  days_count?: number
+  out_of_stock_count?: number
+  data_preview?: {
+    available?: number
+    out_of_stock?: number
+    aging?: Record<string, number>
+  } | Array<{sku: string; sales_amount: number; order_qty: number}>
+  message?: string
+}
+
 type SseEvent =
-  | { type: 'status'; status: string; sub_status?: string | null; insight_id?: number; title?: string; content?: string; error_message?: string | null }
+  | { type: 'status'; status: string; sub_status?: string | null; insight_id?: number; title?: string; content?: string; error_message?: string | null; detail?: AggregationDetail }
   | { type: 'chunk'; delta: string }
   | { type: 'done'; insight_id: number; title: string; content?: string; status?: string; error_message?: string | null }
   | { type: 'error'; error: string; insight_id?: number | null; status?: string; error_message?: string | null }
@@ -183,7 +203,13 @@ function lastSevenDaysRange(country: string) {
   return { from: start, to: end }
 }
 
-function GenerationProgress({ currentSubStatus }: { currentSubStatus: string | null }) {
+function GenerationProgress({ 
+  currentSubStatus, 
+  aggregationDetails 
+}: { 
+  currentSubStatus: string | null
+  aggregationDetails?: Record<string, AggregationDetail>
+}) {
   const effectiveSubStatus = currentSubStatus === 'queued' ? 'data_aggregating' : currentSubStatus
   // Top-level step (data_aggregating, ai_generating, title_generating)
   const topLevelIndex = effectiveSubStatus
@@ -293,37 +319,62 @@ function GenerationProgress({ currentSubStatus }: { currentSubStatus: string | n
                     {DATA_STEPS.map((ds, di) => {
                       const isDCompleted = activeSubStepIndex > di || topLevelIndex > 0
                       const isDActive = effectiveSubStatus === ds.key
+                      const detail = aggregationDetails?.[ds.key]
+                      
                       return (
                         <div key={ds.key} className={cn(
-                          'flex items-center gap-2 transition-all duration-300',
+                          'flex flex-col gap-1 transition-all duration-300',
                           isDActive ? 'translate-x-1' : ''
                         )}>
-                          <div className="relative flex items-center justify-center w-3 h-3">
-                            {/* Running dot for active step */}
+                          <div className="flex items-center gap-2">
+                            <div className="relative flex items-center justify-center w-3 h-3">
+                              {/* Running dot for active step */}
+                              {isDActive && (
+                                <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
+                              )}
+                              <div className={cn(
+                                'h-1.5 w-1.5 rounded-full transition-colors duration-300',
+                                isDActive ? 'bg-primary' : isDCompleted ? 'bg-primary' : 'bg-border'
+                              )} />
+                            </div>
+                            <span className={cn(
+                              'text-xs transition-colors duration-300',
+                              isDActive ? 'text-primary font-semibold' : isDCompleted ? 'text-foreground' : 'text-muted-foreground'
+                            )}>
+                              {ds.label}
+                            </span>
+                            {/* Animated indicator for active sub-step */}
                             {isDActive && (
-                              <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
+                              <div className="ml-auto flex gap-0.5">
+                                {[0, 1, 2].map((i) => (
+                                  <div
+                                    key={i}
+                                    className="h-1 w-1 rounded-full bg-primary animate-bounce"
+                                    style={{ animationDelay: `${i * 120}ms` }}
+                                  />
+                                ))}
+                              </div>
                             )}
-                            <div className={cn(
-                              'h-1.5 w-1.5 rounded-full transition-colors duration-300',
-                              isDActive ? 'bg-primary' : isDCompleted ? 'bg-primary' : 'bg-border'
-                            )} />
                           </div>
-                          <span className={cn(
-                            'text-xs transition-colors duration-300',
-                            isDActive ? 'text-primary font-semibold' : isDCompleted ? 'text-foreground' : 'text-muted-foreground'
-                          )}>
-                            {ds.label}
-                          </span>
-                          {/* Animated indicator for active sub-step */}
-                          {isDActive && (
-                            <div className="ml-auto flex gap-0.5">
-                              {[0, 1, 2].map((i) => (
-                                <div
-                                  key={i}
-                                  className="h-1 w-1 rounded-full bg-primary animate-bounce"
-                                  style={{ animationDelay: `${i * 120}ms` }}
-                                />
-                              ))}
+                          
+                          {/* Show detail data when available */}
+                          {detail && detail.status === 'completed' && (
+                            <div className="ml-5 text-[10px] text-muted-foreground/80 space-y-0.5">
+                              {detail.days_count !== undefined && detail.days_count > 0 && (
+                                <span className="inline-block mr-2">{detail.days_count}天</span>
+                              )}
+                              {detail.total_amount !== undefined && detail.total_amount > 0 && (
+                                <span className="inline-block mr-2">${detail.total_amount.toLocaleString()}</span>
+                              )}
+                              {detail.total_orders !== undefined && detail.total_orders > 0 && (
+                                <span className="inline-block mr-2">{detail.total_orders}单</span>
+                              )}
+                              {detail.record_count !== undefined && detail.record_count > 0 && ds.key.includes('sku') && (
+                                <span className="inline-block mr-2">{detail.record_count} SKU</span>
+                              )}
+                              {detail.out_of_stock_count !== undefined && detail.out_of_stock_count > 0 && (
+                                <span className="inline-block text-amber-500">缺货 {detail.out_of_stock_count}</span>
+                              )}
                             </div>
                           )}
                         </div>
@@ -1277,6 +1328,7 @@ export default function AIInsightsPage() {
   const [insightDialogOpen, setInsightDialogOpen] = useState(false)
   const currentInsightId = useRef<number | null>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
+  const [eventSourceKey, setEventSourceKey] = useState(0) // Increment to trigger useEffect re-attach
 
   // View historical insight
   const [viewingInsight, setViewingInsight] = useState<InsightItem | null>(null)
@@ -1293,6 +1345,7 @@ export default function AIInsightsPage() {
   const [streamingContent, setStreamingContent] = useState('')
   const [streamingPreviewContent, setStreamingPreviewContent] = useState('')
   const [currentSubStatus, setCurrentSubStatus] = useState<string | null>(null)
+  const [aggregationDetails, setAggregationDetails] = useState<Record<string, AggregationDetail>>({})
   const [isGenerating, setIsGenerating] = useState(false)
   const [modelConfig, setModelConfig] = useState<AIModelConfig | null>(null)
   const [isLoadingModelConfig, setIsLoadingModelConfig] = useState(false)
@@ -1460,6 +1513,9 @@ export default function AIInsightsPage() {
         const event: SseEvent = JSON.parse(e.data)
 
         if (event.type === 'ping') return
+
+        // Debug: log every SSE event for view mode
+        console.log('[SSE-view] event:', event.type, 'sub_status:', 'sub_status' in event ? event.sub_status : '', 'chunk_len:', event.type === 'chunk' ? (event as { type: 'chunk'; delta: string }).delta?.length ?? 0 : 'N/A')
 
         if (event.type === 'status') {
           setViewLiveSubStatus((prev) => {
@@ -1723,11 +1779,23 @@ export default function AIInsightsPage() {
 
         if (event.type === 'ping') return
 
+        // Debug: log every SSE event to help diagnose streaming issues
+        console.log('[SSE] event:', event.type, 'sub_status:', 'sub_status' in event ? event.sub_status : '', 'detail_step:', 'detail' in event && event.detail ? event.detail.step : '', 'chunk_len:', event.type === 'chunk' ? (event as { type: 'chunk'; delta: string }).delta?.length ?? 0 : 'N/A')
+
         if (event.type === 'status') {
           const sid = event.insight_id ?? currentInsightId.current
           const nextSubStatus = event.sub_status ?? (event.status === 'pending' ? 'queued' : null)
           if (sid && nextSubStatus) insightSubStatusRef.current[sid] = nextSubStatus
           setCurrentSubStatus((prev) => nextSubStatus ?? prev)
+          
+          // Store aggregation detail if available
+          if (event.detail && event.detail.step) {
+            setAggregationDetails((prev) => ({
+              ...prev,
+              [event.detail!.step]: event.detail!
+            }))
+          }
+          
           if (event.status === 'failed') {
             alert(`生成失败: ${event.error_message || '生成任务失败'}`)
             _closeSse()
@@ -1801,7 +1869,7 @@ export default function AIInsightsPage() {
       es.onerror = null
       attachedEses.delete(es)
     }
-  }, [_closeSse, loadInsights])
+  }, [_closeSse, loadInsights, eventSourceKey])
 
   // Polling fallback: refresh processing insights every 10s in case SSE missed the done event
   useEffect(() => {
@@ -1834,6 +1902,7 @@ export default function AIInsightsPage() {
     setStreamingPreviewContent('')
     streamingContentRef.current = '' // Reset ref
     setCurrentSubStatus('data_aggregating')  // Immediately show step 1 as active
+    setAggregationDetails({})  // Reset aggregation details
     setInsightDialogOpen(true)
     currentInsightId.current = null
 
@@ -1879,11 +1948,13 @@ export default function AIInsightsPage() {
       }
       setInsights((prev) => [optimisticRecord, ...prev])
 
-      // SSE is attached by the top-level useEffect — do NOT close it when dialog closes
+      // Close any previous SSE connection before creating a new one
+      _closeSse()
       const es = new EventSource(
         `/api/backend/v1/ai-insights/${insightId}/stream`
       )
       eventSourceRef.current = es
+      setEventSourceKey((k) => k + 1)
 
     } catch (e) {
       console.error('Failed to start insight generation', e)
@@ -2241,7 +2312,7 @@ export default function AIInsightsPage() {
             {isGenerationDialogExpanded && (
               <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
                 <div className="space-y-4">
-                  <GenerationProgress currentSubStatus={currentSubStatus} />
+                  <GenerationProgress currentSubStatus={currentSubStatus} aggregationDetails={aggregationDetails} />
                   <div className="overflow-hidden rounded-[24px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-soft)),hsl(var(--surface-panel)))] px-4 py-4 shadow-[0_20px_60px_-44px_rgba(15,23,42,0.55)]">
                     <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
                       <span className="h-2 w-2 rounded-full bg-primary animate-pulse motion-reduce:animate-none" />
@@ -2359,7 +2430,7 @@ export default function AIInsightsPage() {
 
             {/* Fallback: queued or unknown state */}
             {!currentSubStatus && streamingContent === '' && (
-              <GenerationProgress currentSubStatus={currentSubStatus} />
+              <GenerationProgress currentSubStatus={currentSubStatus} aggregationDetails={aggregationDetails} />
             )}
           </div>
         </DialogContent>
@@ -2520,7 +2591,7 @@ export default function AIInsightsPage() {
               /* Live generation view — stepper + streaming content */
               <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
                 <div className="space-y-4">
-                  <GenerationProgress currentSubStatus={viewLiveSubStatus} />
+                  <GenerationProgress currentSubStatus={viewLiveSubStatus} aggregationDetails={{}} />
                   <div className="overflow-hidden rounded-[24px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-soft)),hsl(var(--surface-panel)))] px-4 py-4 shadow-[0_20px_60px_-44px_rgba(15,23,42,0.55)]">
                     <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
                       <span className="h-2 w-2 rounded-full bg-primary animate-pulse motion-reduce:animate-none" />

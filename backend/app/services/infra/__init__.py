@@ -2,6 +2,8 @@
 
 from app.services.infra.cache import (
     SHIPMENT_SCHEDULES_KEY_PREFIX,
+    SHIPMENT_IN_TRANSIT_QTY_KEY_PREFIX,
+    SHIPMENT_IN_TRANSIT_QTY_TTL,
     cache_delete,
     cache_delete_pattern,
     cache_get,
@@ -10,6 +12,7 @@ from app.services.infra.cache import (
     get_daily_analysis_cache,
     get_financial_series_cache,
     get_shipment_fba_box_details_cache,
+    get_shipment_in_transit_qty_cache,
     get_shipment_schedule_cost_summary_cache,
     get_shipment_schedule_detail_cache,
     get_shipment_schedule_list_cache,
@@ -18,6 +21,7 @@ from app.services.infra.cache import (
     invalidate_daily_analysis_cache,
     invalidate_financial_series_cache,
     invalidate_shipment_fba_box_details_cache,
+    invalidate_shipment_in_transit_qty_cache,
     invalidate_shipment_schedule_detail_cache,
     invalidate_shipment_schedules_cost_summary_cache,
     invalidate_shipment_schedules_list_cache,
@@ -25,6 +29,7 @@ from app.services.infra.cache import (
     set_daily_analysis_cache,
     set_financial_series_cache,
     set_shipment_fba_box_details_cache,
+    set_shipment_in_transit_qty_cache,
     set_shipment_schedule_cost_summary_cache,
     set_shipment_schedule_detail_cache,
     set_shipment_schedule_list_cache,
@@ -135,6 +140,12 @@ __all__ = [
     "invalidate_daily_analysis_cache",
     "DAILY_ANALYSIS_KEY_PREFIX",
     "DAILY_ANALYSIS_TTL",
+    # in-transit shipment quantities cache
+    "get_shipment_in_transit_qty_cache",
+    "set_shipment_in_transit_qty_cache",
+    "invalidate_shipment_in_transit_qty_cache",
+    "SHIPMENT_IN_TRANSIT_QTY_KEY_PREFIX",
+    "SHIPMENT_IN_TRANSIT_QTY_TTL",
     # financial series
     "get_financial_series_cache",
     "set_financial_series_cache",

@@ -18,6 +18,7 @@ from app.api.v1.endpoints.ai_insight import router as ai_insight_router
 from app.api.v1.endpoints.auth import router as auth_router
 from app.api.v1.endpoints.exchange_rates import router as exchange_rates_router
 from app.api.v1.endpoints.inventory_replenishment import router as inventory_replenishment_router
+from app.api.v1.endpoints.inventory_replenishment_snapshots import router as inventory_replenishment_snapshots_router
 from app.api.v1.endpoints.shipment_schedules import router as shipment_schedules_router
 from app.api.v1.endpoints.system_management import router as system_management_router
 from app.api.v1.endpoints.uploads import router as uploads_router
@@ -30,6 +31,7 @@ from app.api.v1.endpoints.project_goals import router as project_goals_router
 from app.api.v1.endpoints.digital_employees import router as digital_employees_router
 from app.api.v1.endpoints.rpa_reports import router as rpa_reports_router
 from app.api.v1.endpoints.report_reconciliation import router as report_reconciliation_router
+from app.api.v1.endpoints.digital_display import router as digital_display_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router)
@@ -41,6 +43,7 @@ api_router.include_router(pricing_calculation_router)
 api_router.include_router(store_sku_pricing_snapshots_router)
 api_router.include_router(shop_calculation_router)
 api_router.include_router(inventory_replenishment_router)
+api_router.include_router(inventory_replenishment_snapshots_router)
 api_router.include_router(shipment_schedules_router)
 api_router.include_router(ai_chat_router)
 api_router.include_router(ai_file_upload_router)
@@ -62,3 +65,4 @@ api_router.include_router(project_goals_router)
 api_router.include_router(rpa_reports_router)
 api_router.include_router(digital_employees_router)
 api_router.include_router(report_reconciliation_router)
+api_router.include_router(digital_display_router)

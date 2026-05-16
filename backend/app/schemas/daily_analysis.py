@@ -54,6 +54,7 @@ class DailyAnalysisDetailRow(BaseModel):
     ad_spend: float
     ad_orders: int
     available_qty: int
+    in_transit_qty: int = 0
     page_views: int = 0
     units_ordered: int = 0
     sessions: int = 0

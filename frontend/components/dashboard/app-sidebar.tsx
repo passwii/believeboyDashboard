@@ -21,13 +21,6 @@ import { useDashboardAISidebar } from '@/components/dashboard/ai-sidebar-bridge'
 import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
 import { NavUser } from '@/components/dashboard/nav-user'
 import {
-  SidebarPinnedItem,
-  useSidebarPinnedItems,
-  useLongPress,
-  PinSettingsPopover,
-  useVisiblePinnedUrls,
-} from '@/components/dashboard/sidebar-pin-settings'
-import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
@@ -317,13 +310,6 @@ export function AppSidebar({
     roleType: user?.roleType,
   }
 
-  const { pinnedUrls, toggle } = useSidebarPinnedItems()
-  const { editVisible, handlers } = useLongPress(500)
-  const visiblePinnedUrls = useVisiblePinnedUrls(
-    pinnedUrls,
-    displayUser.roleType,
-  )
-
   return (
     <Sidebar collapsible='offcanvas' {...props}>
       {isAiChatPage && sidebarState ? (
@@ -345,23 +331,6 @@ export function AppSidebar({
               </span>
             </Link>
           </SidebarHeader>
-
-          {/* Quick Access Bar */}
-          <div className='px-3 py-2' {...handlers}>
-            <div className='flex items-center gap-1.5'>
-              {visiblePinnedUrls.map((url) => (
-                <SidebarPinnedItem
-                  key={url}
-                  url={url}
-                  title=''
-                  pinnedUrls={pinnedUrls}
-                  onToggle={toggle}
-                  roleType={displayUser.roleType}
-                  editVisible={editVisible}
-                />
-              ))}
-            </div>
-          </div>
 
           <SidebarSeparator className='mx-4 bg-[hsl(var(--sidebar-foreground)/0.08)]' />
 

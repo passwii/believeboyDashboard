@@ -486,6 +486,8 @@ def create_shipment_schedule(
     redis_service.invalidate_shipment_schedules_cost_summary_cache()
     redis_service.invalidate_shipment_sku_summary_cache()
     redis_service.invalidate_shipment_fba_box_details_cache()
+    redis_service.invalidate_shipment_in_transit_qty_cache(row.project_id)
+    redis_service.invalidate_daily_analysis_cache(row.project_id)
     append_operation_audit_log(
         db,
         action="shipment_schedules.create",
@@ -544,6 +546,9 @@ def import_shipment_schedules_csv(
     redis_service.invalidate_shipment_schedules_cost_summary_cache()
     redis_service.invalidate_shipment_sku_summary_cache()
     redis_service.invalidate_shipment_fba_box_details_cache()
+    for pid in {r.project_id for r in rows}:
+        redis_service.invalidate_shipment_in_transit_qty_cache(pid)
+        redis_service.invalidate_daily_analysis_cache(pid)
     append_operation_audit_log(
         db,
         action="shipment_schedules.import_csv",
@@ -582,6 +587,8 @@ def update_shipment_schedule(
     redis_service.invalidate_shipment_schedules_cost_summary_cache()
     redis_service.invalidate_shipment_sku_summary_cache()
     redis_service.invalidate_shipment_fba_box_details_cache()
+    redis_service.invalidate_shipment_in_transit_qty_cache(row.project_id)
+    redis_service.invalidate_daily_analysis_cache(row.project_id)
     append_operation_audit_log(
         db,
         action="shipment_schedules.update",
@@ -626,6 +633,8 @@ def delete_shipment_schedule(
     redis_service.invalidate_shipment_schedules_cost_summary_cache()
     redis_service.invalidate_shipment_sku_summary_cache()
     redis_service.invalidate_shipment_fba_box_details_cache()
+    redis_service.invalidate_shipment_in_transit_qty_cache(row.project_id)
+    redis_service.invalidate_daily_analysis_cache(row.project_id)
     append_operation_audit_log(
         db,
         action="shipment_schedules.delete",
@@ -683,6 +692,8 @@ def import_shipment_schedule_items_csv(
     redis_service.invalidate_shipment_schedules_cost_summary_cache()
     redis_service.invalidate_shipment_sku_summary_cache()
     redis_service.invalidate_shipment_fba_box_details_cache()
+    redis_service.invalidate_shipment_in_transit_qty_cache(row.project_id)
+    redis_service.invalidate_daily_analysis_cache(row.project_id)
     append_operation_audit_log(
         db,
         action="shipment_schedules.import_items_csv",
@@ -732,6 +743,8 @@ def calculate_shipment_schedule_costs(
     redis_service.invalidate_shipment_schedules_cost_summary_cache()
     redis_service.invalidate_shipment_sku_summary_cache()
     redis_service.invalidate_shipment_fba_box_details_cache()
+    redis_service.invalidate_shipment_in_transit_qty_cache(row.project_id)
+    redis_service.invalidate_daily_analysis_cache(row.project_id)
     append_operation_audit_log(
         db,
         action="shipment_schedules.calculate_costs",
