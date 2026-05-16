@@ -166,7 +166,7 @@ def process_file(
     t0 = time.time()
 
     # 1. Recognize
-    result = recognize_file(db, file_path, original_filename=file_path.name)
+    result = recognize_file(db, file_path, original_filename=file_path.name, country="US")
     t1 = time.time()
 
     if result is None:
