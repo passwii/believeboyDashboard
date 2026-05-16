@@ -190,6 +190,21 @@ PAYMENT_DESCRIPTION_ALIASES = {
 }
 
 
+# ─── Pending DE description mappings ─────────────────────────────────────────
+#
+# This dict is intentionally empty for now. As more German (DE) payment report
+# samples are collected, unmapped German description values will be logged by
+# normalize_payment_description() via the "[DE Mapping Monitor]" logger.
+#
+# To add a new mapping:
+#   1. Check logs for "[DE Mapping Monitor] Unknown German system description"
+#   2. Identify the canonical English description it should map to
+#   3. Add the German variant(s) to PAYMENT_DESCRIPTION_ALIASES (preferred)
+#      or here if the mapping is uncertain and needs review
+#
+# Example:
+#   "Some German Description": "notes about which English canonical it maps to",
+#
 PAYMENT_DESCRIPTION_ALIASES_PENDING_DE = {
 }
 
