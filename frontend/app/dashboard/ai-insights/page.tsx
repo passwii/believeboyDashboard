@@ -179,7 +179,7 @@ const DATA_STEPS = [
   { key: 'data_aggregating_ad_campaigns', label: '广告活动' },
 ]
 
-const STREAMING_PREVIEW_SYNC_MS = 180
+const STREAMING_PREVIEW_SYNC_MS = 50
 
 function formatYMD(date: Date): string {
   // Preserve the exact calendar date chosen in the picker.
