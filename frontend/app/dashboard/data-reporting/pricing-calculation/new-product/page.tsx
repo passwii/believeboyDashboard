@@ -81,7 +81,7 @@ import { applyBorder, applyHeaderBorder } from '@/lib/excel-styles'
 
 const API_BASE = '/api/backend'
 const MAX_VISIBLE_RUNS = 12
-const MAX_SELECTED_RUNS = 8
+const MAX_SELECTED_RUNS = 12
 const HISTORY_SHIPMENT_STATUSES = ['completed', 'in_transit'] as const
 const CALCULATION_MODE_ORDER = [
   'profit-calc',
