@@ -28,6 +28,15 @@ from app.schemas.ai_insight import (
     InsightStatusResponse,
     InsightUpdateRequest,
 )
+from app.schemas.insight_schedule import (
+    InsightScheduleCreate,
+    InsightScheduleUpdate,
+    InsightScheduleItem,
+    InsightScheduleListResponse,
+    InsightScheduleToggleResponse,
+    InsightScheduleRunNowResponse,
+    InsightScheduleDeleteResponse,
+)
 from app.services import project_service
 from app.services.ai_insight_aggregator import aggregate_project_data
 from app.services.ai_insight_generator import (
@@ -39,6 +48,16 @@ from app.services.digital_employee_reporter import (
     ai_insight_start,
     ai_insight_progress,
     ai_insight_complete,
+)
+from app.services.insight_schedule_service import (
+    get_schedules,
+    create_schedule,
+    update_schedule,
+    delete_schedule,
+    toggle_schedule,
+    run_schedule_now,
+    ensure_schedule_access,
+    calculate_date_range,
 )
 
 # 数字员工 ID（AI洞察报告员工 = id=4，通过环境变量可配置）
@@ -772,3 +791,163 @@ def delete_insight(
     db.delete(row)
     db.commit()
     return InsightDeleteResponse(deleted=True, id=insight_id)
+
+
+# -------------------------------------------------------------------------------------------------
+# Insight Schedule Endpoints (定时任务管理)
+# -------------------------------------------------------------------------------------------------
+
+def _serialize_schedule(db: Session, schedule) -> InsightScheduleItem:
+    """序列化 InsightSchedule 为响应模型"""
+    project = db.get(Project, schedule.project_id)
+    project_name = project.project_name if project else "未知项目"
+
+    return InsightScheduleItem(
+        id=schedule.id,
+        project_id=schedule.project_id,
+        project_name=project_name,
+        country=schedule.country,
+        insight_type=schedule.insight_type,
+        cron_expression=schedule.cron_expression,
+        date_range_strategy=schedule.date_range_strategy,
+        model=schedule.model,
+        is_active=schedule.is_active,
+        run_count=schedule.run_count,
+        failure_count=schedule.failure_count,
+        last_run_at=schedule.last_run_at,
+        last_insight_id=schedule.last_insight_id,
+        last_error=schedule.last_error,
+        next_run_at=schedule.next_run_at,
+        created_by=schedule.created_by,
+        created_at=schedule.created_at,
+        updated_at=schedule.updated_at,
+    )
+
+
+@router.get("/schedules", response_model=InsightScheduleListResponse)
+def list_schedules(
+    project_id: int | None = None,
+    is_active: bool | None = None,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    """
+    获取定时任务列表。
+    - Admin 用户看到所有任务
+    - 非 Admin 用户只看自己有项目访问权限的任务
+    """
+    schedules = get_schedules(db, project_id=project_id, is_active=is_active)
+
+    # 过滤：无项目访问权限的 schedule
+    if not is_admin:
+        from app.services import project_service
+
+        accessible_ids = project_service.list_accessible_project_ids(
+            db, operator=operator, is_admin=is_admin
+        )
+        if accessible_ids is not None:
+            schedules = [
+                s for s in schedules if s.project_id in accessible_ids
+            ]
+
+    return InsightScheduleListResponse(
+        items=[_serialize_schedule(db, s) for s in schedules],
+        total=len(schedules),
+    )
+
+
+@router.post(
+    "/schedules",
+    response_model=InsightScheduleItem,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_insight_schedule(
+    payload: InsightScheduleCreate,
+    db: Session = Depends(get_db_session),
+    x_operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    """创建新的定时洞察任务"""
+    # 权限校验：项目访问权限
+    project_service.ensure_project_access(
+        db, payload.project_id, operator=x_operator, is_admin=is_admin
+    )
+
+    schedule = create_schedule(db, payload, operator=x_operator)
+    return _serialize_schedule(db, schedule)
+
+
+@router.patch("/schedules/{schedule_id}", response_model=InsightScheduleItem)
+def update_insight_schedule(
+    schedule_id: int,
+    payload: InsightScheduleUpdate,
+    db: Session = Depends(get_db_session),
+    x_operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    """更新定时任务配置"""
+    ensure_schedule_access(db, schedule_id, operator=x_operator, is_admin=is_admin)
+    schedule = update_schedule(db, schedule_id, payload, operator=x_operator)
+    return _serialize_schedule(db, schedule)
+
+
+@router.delete("/schedules/{schedule_id}")
+def delete_insight_schedule(
+    schedule_id: int,
+    db: Session = Depends(get_db_session),
+    x_operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Depends(get_request_is_admin),
+) -> InsightScheduleDeleteResponse:
+    """删除定时任务"""
+    ensure_schedule_access(db, schedule_id, operator=x_operator, is_admin=is_admin)
+    success = delete_schedule(db, schedule_id)
+    return InsightScheduleDeleteResponse(deleted=success, id=schedule_id)
+
+
+@router.post(
+    "/schedules/{schedule_id}/toggle",
+    response_model=InsightScheduleToggleResponse,
+)
+def toggle_insight_schedule(
+    schedule_id: int,
+    db: Session = Depends(get_db_session),
+    x_operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    """启用/禁用定时任务"""
+    ensure_schedule_access(db, schedule_id, operator=x_operator, is_admin=is_admin)
+    schedule = toggle_schedule(db, schedule_id)
+    return InsightScheduleToggleResponse(
+        id=schedule.id,
+        is_active=schedule.is_active,
+        message="任务已启用" if schedule.is_active else "任务已禁用",
+    )
+
+
+@router.post(
+    "/schedules/{schedule_id}/run-now",
+    response_model=InsightScheduleRunNowResponse,
+)
+def run_insight_schedule_now(
+    schedule_id: int,
+    db: Session = Depends(get_db_session),
+    x_operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    """立即执行一次定时任务（跳过调度，直接生成洞察）"""
+    ensure_schedule_access(db, schedule_id, operator=x_operator, is_admin=is_admin)
+    result = run_schedule_now(db, schedule_id, operator=x_operator)
+
+    if "error" in result:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=result["error"],
+        )
+
+    return InsightScheduleRunNowResponse(
+        id=result["id"],
+        insight_id=result["insight_id"],
+        status=result["status"],
+        message=result["message"],
+    )

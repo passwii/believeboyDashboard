@@ -91,6 +91,7 @@ from app.models.scheduled_report import (
     ReportFrequency,
     DeliveryStatus,
 )
+from app.models.insight_schedule import InsightSchedule
 
 __all__ = [
     'SkuRecord',
@@ -179,4 +180,5 @@ __all__ = [
     'ScheduledReportDeliveryLog',
     'ReportFrequency',
     'DeliveryStatus',
+    'InsightSchedule',
 ]

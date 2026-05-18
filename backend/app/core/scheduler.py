@@ -9,6 +9,11 @@ logger = logging.getLogger(__name__)
 _scheduler: "BackgroundScheduler" | None = None
 
 
+def get_scheduler():
+    """Get the global scheduler instance (for insight_schedule_service)."""
+    return _scheduler
+
+
 def init_scheduler() -> None:
     """Initialize and start the background scheduler."""
     global _scheduler
@@ -76,6 +81,19 @@ def init_scheduler() -> None:
 
         _scheduler.start()
         logger.info("Scheduler started: hourly anomaly detection + daily(15:00) + weekly(Tue 10:00) + monthly(day 4 10:00)")
+
+        # Load insight schedules into scheduler
+        try:
+            from app.services.insight_schedule_service import (
+                reload_insight_schedules,
+                _set_scheduler,
+            )
+            _set_scheduler(_scheduler)
+            reload_insight_schedules()
+            logger.info("Insight schedules loaded into scheduler")
+        except Exception as e:
+            logger.error(f"Failed to load insight schedules: {e}")
+
     except ImportError:
         logger.warning("APScheduler not installed, scheduled alerts disabled")
     except Exception as e:
@@ -149,6 +167,13 @@ def shutdown_scheduler() -> None:
     """Shutdown the scheduler on app shutdown."""
     global _scheduler
     if _scheduler:
+        # Shutdown insight schedules first
+        try:
+            from app.services.insight_schedule_service import shutdown_insight_schedules
+            shutdown_insight_schedules()
+        except Exception as e:
+            logger.error(f"Error shutting down insight schedules: {e}")
+
         _scheduler.shutdown(wait=False)
         _scheduler = None
         logger.info("Scheduler stopped")
