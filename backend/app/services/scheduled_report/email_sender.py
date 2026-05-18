@@ -13,253 +13,451 @@ from app.core.config import get_settings
 logger = logging.getLogger(__name__)
 
 
+def _fmt_currency(val: float) -> str:
+    return f"${val:,.2f}"
+
+
+def _color_positive(val: float, good_threshold: float = 0) -> str:
+    """绿色正数 / 红色负数（相对于阈值）"""
+    return "#16A34A" if val >= good_threshold else "#DC2626"
+
+
+def _color_delta(positive: bool) -> str:
+    return "#16A34A" if positive else "#DC2626"
+
+
+def _arrow_delta(positive: bool) -> str:
+    return "↑" if positive else "↓"
+
+
+def _safe_html(text: str) -> str:
+    return (text
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;"))
+
+
 def _render_daily_report_html(report_data: dict[str, Any]) -> str:
-    """构建每日报告 HTML 邮件。"""
-    sales = report_data.get("sales", {})
-    inventory = report_data.get("inventory", {})
-    ads = report_data.get("ads", {})
-    ai_summary = report_data.get("ai_summary", "暂无 AI 摘要")
+    """构建每日报告 HTML 邮件（table-based 响应式，确保 Gmail App 移动端显示正常。"""
 
-    sales_change = sales.get("sales_change_pct", 0)
-    change_color = "#22C55E" if sales_change >= 0 else "#EF4444"
-    change_icon = "↑" if sales_change >= 0 else "↓"
-
-    return f"""<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><title>BelieveBoy 每日运营报告</title></head>
-<body style="font-family: -apple-system, 'Segoe UI', sans-serif; background: #F3F4F6; margin: 0; padding: 20px;">
-  <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-    <div style="background: linear-gradient(135deg, #1F2937 0%, #374151 100%); padding: 24px;">
-      <h1 style="margin: 0; color: white; font-size: 20px; font-weight: 600;">📊 BelieveBoy 每日运营报告</h1>
-      <p style="margin: 4px 0 0; color: #9CA3AF; font-size: 13px;">{report_data.get('report_date', date.today().isoformat())} · {report_data.get('country', 'US')}</p>
-    </div>
-    <div style="margin: 16px; padding: 16px; background: #EFF6FF; border-radius: 8px; border-left: 4px solid #3B82F6;">
-      <p style="margin: 0 0 8px; font-size: 12px; font-weight: 600; color: #1D4ED8; text-transform: uppercase;">🔍 AI 摘要</p>
-      <p style="margin: 0; font-size: 14px; color: #1E3A5F; line-height: 1.6;">{ai_summary}</p>
-    </div>
-    <div style="padding: 0 16px 16px; display: grid; gap: 12px;">
-      <div style="padding: 16px; border: 1px solid #E5E7EB; border-radius: 8px;">
-        <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: #374151;">📈 销售概览</h3>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-          <div><p style="margin: 0; font-size: 11px; color: #6B7280;">今日销量</p><p style="margin: 2px 0 0; font-size: 20px; font-weight: 700; color: #111827;">{sales.get('today_order_qty', 0):,}</p></div>
-          <div><p style="margin: 0; font-size: 11px; color: #6B7280;">今日销售额</p><p style="margin: 2px 0 0; font-size: 20px; font-weight: 700; color: #111827;">¥{sales.get('today_sales_amount', 0):,.2f}</p></div>
-          <div><p style="margin: 0; font-size: 11px; color: #6B7280;">环比变化</p><p style="margin: 2px 0 0; font-size: 16px; font-weight: 600; color: {change_color};">{change_icon} {abs(sales_change):.1f}%</p></div>
-        </div>
-      </div>
-      <div style="padding: 16px; border: 1px solid #E5E7EB; border-radius: 8px;">
-        <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: #374151;">📦 库存状态</h3>
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
-          <div><p style="margin: 0; font-size: 11px; color: #6B7280;">SKU 总数</p><p style="margin: 2px 0 0; font-size: 18px; font-weight: 700; color: #111827;">{inventory.get('sku_count', 0):,}</p></div>
-          <div><p style="margin: 0; font-size: 11px; color: #6B7280;">可用库存</p><p style="margin: 2px 0 0; font-size: 18px; font-weight: 700; color: #111827;">{inventory.get('available_qty', 0):,}</p></div>
-          <div><p style="margin: 0; font-size: 11px; color: #6B7280;">缺货 SKU</p><p style="margin: 2px 0 0; font-size: 18px; font-weight: 700; color: {'#EF4444' if inventory.get('out_of_stock_count', 0) > 0 else '#111827'};">{inventory.get('out_of_stock_count', 0)}</p></div>
-        </div>
-      </div>
-      <div style="padding: 16px; border: 1px solid #E5E7EB; border-radius: 8px;">
-        <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: #374151;">💰 广告数据</h3>
-        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; text-align: center;">
-          <div><p style="margin: 0; font-size: 10px; color: #6B7280;">花费</p><p style="margin: 2px 0 0; font-size: 14px; font-weight: 600;">¥{ads.get('period_spend', 0):,.2f}</p></div>
-          <div><p style="margin: 0; font-size: 10px; color: #6B7280;">ROAS</p><p style="margin: 2px 0 0; font-size: 14px; font-weight: 600;">{ads.get('period_roas', 0):.2f}</p></div>
-          <div><p style="margin: 0; font-size: 10px; color: #6B7280;">ACOS</p><p style="margin: 2px 0 0; font-size: 14px; font-weight: 600;">{ads.get('period_acos', 0):.1f}%</p></div>
-          <div><p style="margin: 0; font-size: 10px; color: #6B7280;">CTR</p><p style="margin: 2px 0 0; font-size: 14px; font-weight: 600;">{ads.get('period_ctr', 0):.2f}%</p></div>
-        </div>
-      </div>
-    </div>
-    <div style="padding: 16px; border-top: 1px solid #E5E7EB; text-align: center;">
-      <a href="{get_settings().frontend_url}/dashboard" style="display:inline-block;background:#2563EB;color:white;text-decoration:none;padding:10px 20px;border-radius:6px;font-size:13px;font-weight:500;">查看完整报告 →</a>
-      <p style="margin: 12px 0 0; font-size: 11px; color: #9CA3AF;">BelieveBoy Dashboard · 定时报告推送</p>
-    </div>
-  </div>
-</body>
-</html>"""
-
-
-def _render_weekly_report_html(report_data: dict[str, Any]) -> str:
-    """构建每周报告 HTML 邮件。"""
-    ai_summary = report_data.get("ai_summary", "暂无 AI 摘要")
+    # ── 提取数据 ──────────────────────────────────────
+    sales     = report_data.get("sales", {})
     week_sales = report_data.get("week_sales", {})
-    week_ads = report_data.get("week_ads", {})
+    trend    = report_data.get("trend_days", [])
     top_skus = report_data.get("top_skus", [])
-    inventory_alerts = report_data.get("inventory_alerts", [])
+    inventory = report_data.get("inventory", {})
+    ads      = report_data.get("ads", {})
+    returns  = report_data.get("returns", {})
+    alert_rows = report_data.get("alert_rows", [])
 
-    sku_rows = "".join(f"""<tr style="border-bottom: 1px solid #F3F4F6;">
-      <td style="padding: 8px; font-size: 13px; color: #374151;">{sku.get('sku', '')}</td>
-      <td style="padding: 8px; font-size: 13px; text-align: right; font-weight: 600;">{sku.get('quantity', 0):,}</td>
-    </tr>""" for sku in top_skus[:5])
+    ai_summary   = _safe_html(report_data.get("ai_summary", "暂无 AI 摘要"))
+    project_name = report_data.get("project_name", "项目")
+    country     = report_data.get("country", "US")
+    report_date = report_data.get("report_date", date.today().isoformat())
+    dash_url    = "https://dash.believeboy.com/dashboard"
 
-    alert_rows = "".join(f"""<tr style="border-bottom: 1px solid #FEF2F2;">
-      <td style="padding: 8px;"><span style="display:inline-block;background:#FEE2E2;color:#DC2626;border-radius:4px;padding:2px 6px;font-size:11px;">告急</span></td>
-      <td style="padding: 8px; font-size: 13px; color: #374151;">{alert.get('sku', '')}</td>
-      <td style="padding: 8px; font-size: 12px; color: #DC2626;">库存 {alert.get('available_qty', 0)} 件</td>
-    </tr>""" for alert in inventory_alerts[:3])
+    # 销售
+    y_qty   = sales.get("yesterday_qty", 0)
+    y_amt   = sales.get("yesterday_amount", 0.0)
+    prev_qty = sales.get("prev_qty", 0)
+    chg_pct = sales.get("change_pct", 0.0)
+    wk_qty  = week_sales.get("week_qty", 0)
+    wk_amt  = week_sales.get("week_amount", 0.0)
 
-    alert_section = f"""<div style="padding: 0 16px 16px;">
-      <h3 style="margin: 0 0 8px; font-size: 14px; font-weight: 600; color: #374151;">⚠️ 库存预警</h3>
-      <table style="width: 100%; border-collapse: collapse; border: 1px solid #FEE2E2; border-radius: 8px; overflow: hidden;">
-        <thead><tr style="background: #FEF2F2;"><th style="padding: 8px 16px; font-size: 11px; color: #991B1B;">状态</th><th style="padding: 8px 16px; font-size: 11px; color: #991B1B;">SKU</th><th style="padding: 8px 16px; font-size: 11px; color: #991B1B;">可用库存</th></tr></thead>
-        <tbody>{alert_rows}</tbody>
-      </table>
-    </div>""" if alert_rows else ""
+    is_up      = chg_pct >= 0
+    delta_clr  = _color_delta(is_up)
+    delta_icon = _arrow_delta(is_up)
 
+    # 库存
+    sku_cnt  = inventory.get("sku_count", 0)
+    oos      = inventory.get("oos_skus", [])
+    low_skus = inventory.get("low_stock_skus", [])
+    avail    = inventory.get("total_available", 0)
+
+    # 广告
+    ad_spend = ads.get("spend", 0.0)
+    ad_sales = ads.get("sales", 0.0)
+    ad_roas  = ads.get("roas", 0.0)
+    ad_acos  = ads.get("acos", 0.0)
+    ad_ctr   = ads.get("ctr", 0.0)
+    ad_ords  = ads.get("orders", 0)
+    roas_clr = _color_positive(ad_roas, good_threshold=2.0)
+    acos_clr = _color_positive(ad_acos, good_threshold=30)  # ACOS 越低越好
+    acos_clr = "#16A34A" if ad_acos <= 30 else "#DC2626"
+
+    # 退货
+    ret_qty  = returns.get("qty", 0)
+    ret_rate = returns.get("rate", 0.0)
+    ret_top  = returns.get("top_returns", [])
+    ret_clr  = "#DC2626" if ret_rate > 3 else "#F59E0B" if ret_rate > 1 else "#16A34A"
+
+    # ── 7天趋势柱图 ────────────────────────────────
+    max_q = max((d.get("qty", 0) for d in trend), default=1)
+    trend_tds = ""
+    for d in trend:
+        q  = d.get("qty", 0)
+        bar_h = max(4, int(q / max_q * 60)) if max_q > 0 else 4
+        trend_tds += f"""
+        <td width="14%" style="text-align: center; padding: 0 2px; vertical-align: bottom;">
+          <div style="font-size: 11px; font-weight: 700; color: #1D4ED8; margin-bottom: 3px;">{q}</div>
+          <div style="background: #DBEAFE; border-radius: 3px 3px 0 0; height: {bar_h}px; margin: 0 auto; min-height: 4px;"></div>
+          <div style="font-size: 10px; color: #9CA3AF; margin-top: 3px; white-space: nowrap;">{d.get("date", "")}</div>
+        </td>"""
+
+    # ── 指标卡（每行 2 列）──────────────────────────
+    # 行 1: 昨日销量 | 昨日销售额
+    # 行 2: 7天累计销量 | 7天累计销售额
+    card1 = f"""<td width="50%" style="padding: 14px 8px 10px; text-align: center; border: 1px solid #E5E7EB; background: white; vertical-align: top;">
+      <div style="font-size: 10px; color: #6B7280; margin-bottom: 6px;">昨日销量</div>
+      <div style="font-size: 32px; font-weight: 900; color: #111827; line-height: 1;">{y_qty} <span style="font-size: 16px; font-weight: 600;">件</span></div>
+      <div style="font-size: 11px; color: {delta_clr}; font-weight: 700; margin-top: 5px;">{delta_icon} {abs(chg_pct):.1f}% vs 前日</div>
+    </td>"""
+
+    card2 = f"""<td width="50%" style="padding: 14px 8px 10px; text-align: center; border: 1px solid #E5E7EB; background: white; vertical-align: top;">
+      <div style="font-size: 10px; color: #6B7280; margin-bottom: 6px;">昨日销售额</div>
+      <div style="font-size: 32px; font-weight: 900; color: #059669; line-height: 1;">{_fmt_currency(y_amt)}</div>
+      <div style="font-size: 11px; color: #6B7280; margin-top: 5px;">USD</div>
+    </td>"""
+
+    card3 = f"""<td width="50%" style="padding: 10px 8px 14px; text-align: center; border: 1px solid #E5E7EB; background: white; vertical-align: top;">
+      <div style="font-size: 10px; color: #6B7280; margin-bottom: 6px;">7天累计销量</div>
+      <div style="font-size: 32px; font-weight: 900; color: #111827; line-height: 1;">{wk_qty} <span style="font-size: 16px; font-weight: 600;">件</span></div>
+      <div style="font-size: 11px; color: #6B7280; margin-top: 5px;">{report_data.get("date_range", "")}</div>
+    </td>"""
+
+    card4 = f"""<td width="50%" style="padding: 10px 8px 14px; text-align: center; border: 1px solid #10B981; background: #F0FDF4; vertical-align: top;">
+      <div style="font-size: 10px; color: #6B7280; margin-bottom: 6px;">7天累计销售额</div>
+      <div style="font-size: 32px; font-weight: 900; color: #059669; line-height: 1;">{_fmt_currency(wk_amt)}</div>
+      <div style="font-size: 11px; color: #6B7280; margin-top: 5px;">USD</div>
+    </td>"""
+
+    # ── 库存 + 广告（并列一行）────────────────────
+    inv_rows_td = ""
+    for label, val, val_clr in [
+        ("SKU 总数", sku_cnt, "#111827"),
+        ("可用总量", f"{avail:,}", "#111827"),
+        ("缺货", len(oos), "#DC2626"),
+        ("告急 ≤10件", len(low_skus), "#D97706"),
+    ]:
+        inv_rows_td += f"""<tr>
+          <td style="padding: 8px 12px; font-size: 12px; color: #6B7280; border-bottom: 1px solid #F3F4F6;">{label}</td>
+          <td width="30%" style="padding: 8px 12px; font-size: 12px; font-weight: 700; text-align: right; color: {val_clr};">{val}</td>
+        </tr>"""
+
+    ads_rows_td = ""
+    for label, val, val_clr in [
+        ("广告花费", _fmt_currency(ad_spend), "#111827"),
+        ("ROAS", f"{ad_roas:.2f}", roas_clr),
+        ("ACOS", f"{ad_acos:.1f}%", acos_clr),
+        ("CTR / 订单", f"{ad_ctr:.1f}% / {ad_ords} 单", "#111827"),
+    ]:
+        ads_rows_td += f"""<tr>
+          <td style="padding: 8px 12px; font-size: 12px; color: #6B7280; border-bottom: 1px solid #F3F4F6;">{label}</td>
+          <td width="35%" style="padding: 8px 12px; font-size: 12px; font-weight: 700; text-align: right; color: {val_clr};">{val}</td>
+        </tr>"""
+
+    ret_rows_td = ""
+    if ret_top:
+        for r in ret_top[:3]:
+            ret_rows_td += f"""<tr>
+              <td style="padding: 8px 12px; font-size: 12px; color: #374151; border-bottom: 1px solid #F3F4F6;">{_safe_html(r.get("reason", "—"))}</td>
+              <td width="30%" style="padding: 8px 12px; font-size: 12px; font-weight: 700; text-align: right; color: #DC2626;">{r.get("qty", 0)} 件</td>
+            </tr>"""
+    else:
+        ret_rows_td = f"""<tr><td colspan="2" style="padding: 10px 12px; font-size: 11px; color: #9CA3AF; text-align: center;">暂无退货数据</td></tr>"""
+
+    # ── 库存告急（满宽警告条）────────────────
+    alert_section = ""
+    if alert_rows:
+        alert_tds = ""
+        for item in alert_rows[:6]:
+            alert_tds += f"""<tr>
+              <td style="padding: 8px 12px; font-size: 12px; color: #92400E; border-bottom: 1px solid #FDE68A;">
+                <span style="background:{item.get("badge_color","#F59E0B")};color:white;font-size:10px;font-weight:700;padding:2px 6px;border-radius:3px;margin-right:6px;">{item.get("badge","告急")}</span>
+                {item.get("sku","")} — 剩余 {item.get("qty","0")} 件
+              </td>
+            </tr>"""
+        alert_section = f"""
+        <tr>
+          <td style="padding: 0 16px 12px;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 8px; overflow: hidden;">
+              <tr><td style="padding: 10px 14px 6px; font-size: 12px; font-weight: 700; color: #92400E; border-bottom: 1px solid #FDE68A;">⚠️ 库存告急 / 缺货提醒</td></tr>
+              <tr><td style="padding: 0;">
+                <table width="100%" cellpadding="0" cellspacing="0" border="0">{alert_tds}</table>
+              </td></tr>
+            </table>
+          </td>
+        </tr>"""
+
+    # ── TOP SKU 表格（严格对齐，无 HOT 标签错位）─────
+    sku_thead = """<thead>
+      <tr style="background: #F9FAFB;">
+        <th style="padding: 8px 12px; font-size: 11px; color: #6B7280; text-align: left; font-weight: 600;">SKU</th>
+        <th style="padding: 8px 12px; font-size: 11px; color: #6B7280; text-align: center; font-weight: 600; white-space: nowrap;">7天销量</th>
+        <th style="padding: 8px 12px; font-size: 11px; color: #6B7280; text-align: right; font-weight: 600;">7天销售额</th>
+      </tr>
+    </thead>"""
+
+    sku_body = ""
+    for idx, sku in enumerate(top_skus[:5]):
+        bg      = "#EFF6FF" if idx == 0 else ""
+        sku_name = _safe_html(sku.get("sku", "—"))
+        qty_s   = sku.get("qty", 0)
+        amt_s   = _fmt_currency(sku.get("amount", 0.0))
+        # HOT 标在 SKU 名称后方，用同一 <td> 保证对齐
+        hot_badge = (' <span style="background:#FEF3C7;color:#D97706;font-size:10px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:6px;white-space:nowrap;">HOT</span>') if idx == 0 else ""
+        sku_body += f"""<tr>
+          <td style="padding: 10px 12px; font-size: 13px; color: #374151; background: {bg}; border-bottom: 1px solid #F3F4F6;">
+            <strong>{sku_name}</strong>{hot_badge}
+          </td>
+          <td style="padding: 10px 12px; font-size: 13px; text-align: center; font-weight: 700; color: #1D4ED8; background: {bg}; border-bottom: 1px solid #F3F4F6; white-space: nowrap;">{qty_s} 件</td>
+          <td style="padding: 10px 12px; font-size: 13px; text-align: right; font-weight: 600; color: #059669; background: {bg}; border-bottom: 1px solid #F3F4F6;">{amt_s}</td>
+        </tr>"""
+
+    # ── 完整 HTML ────────────────────────────────────
     return f"""<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"></head>
-<body style="font-family: -apple-system, 'Segoe UI', sans-serif; background: #F3F4F6; margin: 0; padding: 20px;">
-  <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-    <div style="background: linear-gradient(135deg, #1F2937 0%, #374151 100%); padding: 24px;">
-      <h1 style="margin: 0; color: white; font-size: 20px; font-weight: 600;">📊 BelieveBoy 每周运营报告</h1>
-      <p style="margin: 4px 0 0; color: #9CA3AF; font-size: 13px;">{report_data.get('report_date', '')} · 第 {report_data.get('week_number', '')} 周</p>
-    </div>
-    <div style="margin: 16px; padding: 16px; background: #EFF6FF; border-radius: 8px; border-left: 4px solid #3B82F6;">
-      <p style="margin: 0 0 8px; font-size: 12px; font-weight: 600; color: #1D4ED8; text-transform: uppercase;">🔍 AI 周报</p>
-      <p style="margin: 0; font-size: 14px; color: #1E3A5F; line-height: 1.6;">{ai_summary}</p>
-    </div>
-    <div style="padding: 0 16px 16px;">
-      <div style="padding: 16px; border: 1px solid #E5E7EB; border-radius: 8px; margin-bottom: 12px;">
-        <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600;">📈 本周销售</h3>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-          <div><p style="margin: 0; font-size: 11px; color: #6B7280;">本周总销量</p><p style="margin: 2px 0 0; font-size: 24px; font-weight: 700; color: #111827;">{week_sales.get('total_qty', 0):,}</p></div>
-          <div><p style="margin: 0; font-size: 11px; color: #6B7280;">本周总销售额</p><p style="margin: 2px 0 0; font-size: 24px; font-weight: 700; color: #111827;">¥{week_sales.get('total_amount', 0):,.2f}</p></div>
-        </div>
-      </div>
-      <div style="padding: 16px; border: 1px solid #E5E7EB; border-radius: 8px;">
-        <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600;">💰 本周广告</h3>
-        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; text-align: center;">
-          <div><p style="margin:0;font-size:11px;color:#6B7280;">花费</p><p style="margin:2px 0 0;font-size:14px;font-weight:600;">¥{week_ads.get('total_spend', 0):,.0f}</p></div>
-          <div><p style="margin:0;font-size:11px;color:#6B7280;">广告销售</p><p style="margin:2px 0 0;font-size:14px;font-weight:600;">¥{week_ads.get('total_sales', 0):,.0f}</p></div>
-          <div><p style="margin:0;font-size:11px;color:#6B7280;">ROAS</p><p style="margin:2px 0 0;font-size:14px;font-weight:600;">{week_ads.get('avg_roas', 0):.2f}</p></div>
-          <div><p style="margin:0;font-size:11px;color:#6B7280;">ACOS</p><p style="margin:2px 0 0;font-size:14px;font-weight:600;">{week_ads.get('avg_acos', 0):.1f}%</p></div>
-        </div>
-      </div>
-    </div>
-    <div style="padding: 0 16px 16px;">
-      <table style="width: 100%; border-collapse: collapse; border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden;">
-        <thead><tr style="background: #F9FAFB;"><th style="padding: 10px 16px; font-size: 12px; color: #6B7280; text-align: left;">TOP SKU</th><th style="padding: 10px 16px; font-size: 12px; color: #6B7280; text-align: right;">销量</th></tr></thead>
-        <tbody>{sku_rows}</tbody>
-      </table>
-    </div>
-    {alert_section}
-    <div style="padding: 16px; border-top: 1px solid #E5E7EB; text-align: center;">
-      <a href="{get_settings().frontend_url}/dashboard" style="display:inline-block;background:#2563EB;color:white;text-decoration:none;padding:10px 20px;border-radius:6px;font-size:13px;font-weight:500;">查看完整报告 →</a>
-    </div>
-  </div>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>每日运营报告 · {project_name}</title>
+</head>
+<body style="margin: 0; padding: 0; background: #F3F4F6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+<!-- 外层 table，确保移动端宽度撑满 -->
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: #F3F4F6; padding: 12px 0;">
+  <tr><td>
+    <!-- 邮件主体 -->
+    <table width="100%" cellpadding="0" cellspacing="0" border="0"
+           style="max-width: 680px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+
+      <!-- Header -->
+      <tr>
+        <td style="background: linear-gradient(135deg, #1F2937, #374151); padding: 20px 20px 18px;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td style="vertical-align: middle;">
+                <div style="font-size: 18px; font-weight: 700; color: white;">📊 每日运营报告</div>
+                <div style="font-size: 12px; color: #9CA3AF; margin-top: 4px;">{project_name} · {country} · {report_date}</div>
+              </td>
+              <td width="80" align="right" style="vertical-align: middle;">
+                <span style="display: inline-block; background: #2563EB; color: white; font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 20px; white-space: nowrap;">每日报告</span>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+      <!-- AI 摘要 -->
+      <tr>
+        <td style="padding: 14px 16px; background: #EFF6FF; border-bottom: 1px solid #BFDBFE;">
+          <div style="font-size: 10px; font-weight: 700; color: #1D4ED8; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px;">🔍 AI 摘要</div>
+          <div style="font-size: 13px; color: #1E3A5F; line-height: 1.7;">{ai_summary}</div>
+        </td>
+      </tr>
+
+      <!-- 指标卡：2×2 布局（行1） -->
+      <tr>
+        <td style="padding: 14px 16px 6px;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-radius: 8px; overflow: hidden; border: 1px solid #E5E7EB;">
+            <tr>{card1}{card2}</tr>
+          </table>
+        </td>
+      </tr>
+
+      <!-- 指标卡：2×2 布局（行2） -->
+      <tr>
+        <td style="padding: 6px 16px 12px;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden;">
+            <tr>{card3}{card4}</tr>
+          </table>
+        </td>
+      </tr>
+
+      <!-- 7天趋势 -->
+      <tr>
+        <td style="padding: 0 16px 4px;">
+          <div style="font-size: 12px; font-weight: 700; color: #374151; margin-bottom: 8px;">📈 近7天销量趋势</div>
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: #F8FAFC; border: 1px solid #E5E7EB; border-radius: 8px;">
+            <tr>{trend_tds}</tr>
+          </table>
+        </td>
+      </tr>
+
+      <!-- 库存 + 广告（并列一行） -->
+      <tr>
+        <td style="padding: 12px 16px;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+
+            <!-- 行：库存 | 广告 -->
+            <tr>
+
+              <!-- 库存（左半） -->
+              <td width="50%" valign="top" style="padding-right: 6px;">
+                <div style="font-size: 12px; font-weight: 700; color: #374151; margin-bottom: 6px;">📦 库存状态</div>
+                <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                       style="border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden;">
+                  <tr><td colspan="2">{inv_rows_td}</td></tr>
+                </table>
+              </td>
+
+              <!-- 广告（右半） -->
+              <td width="50%" valign="top" style="padding-left: 6px;">
+                <div style="font-size: 12px; font-weight: 700; color: #374151; margin-bottom: 6px;">💰 广告数据</div>
+                <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                       style="border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden;">
+                  <tr><td colspan="2">{ads_rows_td}</td></tr>
+                </table>
+              </td>
+
+            </tr>
+
+            <!-- 行：退货（全宽） -->
+            <tr>
+              <td colspan="2" valign="top" style="padding-top: 10px;">
+                <div style="font-size: 12px; font-weight: 700; color: #374151; margin-bottom: 6px;">↩️ 退货分析</div>
+                <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                       style="border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden;">
+                  <tr><td style="padding: 8px 12px; font-size: 12px; color: #6B7280; border-bottom: 1px solid #F3F4F6;">退货量</td>
+                      <td width="30%" style="padding: 8px 12px; font-size: 12px; font-weight: 700; text-align: right; color: #111827;">{ret_qty} 件</td></tr>
+                  <tr><td style="padding: 8px 12px; font-size: 12px; color: #6B7280; border-bottom: 1px solid #F3F4F6;">退货率</td>
+                      <td style="padding: 8px 12px; font-size: 12px; font-weight: 700; text-align: right; color: {ret_clr};">{ret_rate:.1f}%</td></tr>
+                  <tr><td colspan="2" style="padding: 0;">
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0">{ret_rows_td}</table>
+                  </td></tr>
+                </table>
+              </td>
+            </tr>
+
+          </table>
+        </td>
+      </tr>
+
+      <!-- 库存告急（全宽） -->
+      {alert_section}
+
+      <!-- TOP SKU -->
+      <tr>
+        <td style="padding: 0 16px 12px;">
+          <div style="font-size: 12px; font-weight: 700; color: #374151; margin-bottom: 8px;">🏆 近7天热销 SKU TOP 5</div>
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden;">
+            {sku_thead}
+            <tbody>{sku_body or f'<tr><td colspan="3" style="padding: 16px; text-align: center; color: #9CA3AF; font-size: 12px;">暂无销售数据</td></tr>'}</tbody>
+          </table>
+        </td>
+      </tr>
+
+      <!-- 数据说明 -->
+      <tr>
+        <td style="padding: 0 16px 10px;">
+          <div style="padding: 10px 14px; background: #FFFBEB; border-left: 3px solid #F59E0B; border-radius: 6px;">
+            <div style="font-size: 11px; color: #92400E; line-height: 1.6;">💡 数据来源于 Amazon Seller Central 自动同步，每日 15:00 准时推送。如有异常请登录仪表板核查。</div>
+          </div>
+        </td>
+      </tr>
+
+      <!-- CTA -->
+      <tr>
+        <td style="padding: 10px 16px 20px; text-align: center; border-top: 1px solid #F3F4F6;">
+          <a href="{dash_url}"
+             style="display: inline-block; background: #2563EB; color: white; text-decoration: none; padding: 11px 28px; border-radius: 8px; font-size: 14px; font-weight: 700;">
+            查看完整仪表板 →
+          </a>
+          <div style="margin-top: 10px; font-size: 11px; color: #9CA3AF;">BelieveBoy Dashboard · {report_date}</div>
+        </td>
+      </tr>
+
+    </table>
+  </td></tr>
+</table>
 </body>
 </html>"""
 
 
-def _render_monthly_report_html(report_data: dict[str, Any]) -> str:
-    """构建每月报告 HTML 邮件。"""
-    ai_summary = report_data.get("ai_summary", "暂无 AI 摘要")
-    financial = report_data.get("financial_summary", {})
-    projects = report_data.get("project_breakdown", [])
-    commission = report_data.get("commission_summary", {})
-
-    project_rows = "".join(f"""<tr style="border-bottom: 1px solid #F3F4F6;">
-      <td style="padding: 10px 16px; font-size: 13px; color: #374151;">{p.get('name', '')}</td>
-      <td style="padding: 10px 16px; font-size: 13px; text-align: right; font-weight: 600;">¥{p.get('revenue', 0):,.2f}</td>
-      <td style="padding: 10px 16px; font-size: 13px; text-align: right;">{p.get('profit_margin', 0):.1f}%</td>
-    </tr>""" for p in projects)
-
-    project_section = f"""<div style="padding: 0 16px 16px;">
-      <h3 style="margin: 0 0 8px; font-size: 14px; font-weight: 600;">📁 各项目表现</h3>
-      <table style="width: 100%; border-collapse: collapse; border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden;">
-        <thead><tr style="background: #F9FAFB;"><th style="padding: 10px 16px; font-size: 12px; color: #6B7280; text-align: left;">项目</th><th style="padding: 10px 16px; font-size: 12px; color: #6B7280; text-align: right;">收入</th><th style="padding: 10px 16px; font-size: 12px; color: #6B7280; text-align: right;">利润率</th></tr></thead>
-        <tbody>{project_rows}</tbody>
-      </table>
-    </div>""" if project_rows else ""
-
-    return f"""<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"></head>
-<body style="font-family: -apple-system, 'Segoe UI', sans-serif; background: #F3F4F6; margin: 0; padding: 20px;">
-  <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-    <div style="background: linear-gradient(135deg, #1F2937 0%, #374151 100%); padding: 24px;">
-      <h1 style="margin: 0; color: white; font-size: 20px; font-weight: 600;">📊 BelieveBoy {report_data.get('report_month', '')} 月度报告</h1>
-      <p style="margin: 4px 0 0; color: #9CA3AF; font-size: 13px;">月度财务汇总 · {report_data.get('country', 'US')}</p>
-    </div>
-    <div style="margin: 16px; padding: 16px; background: #EFF6FF; border-radius: 8px; border-left: 4px solid #3B82F6;">
-      <p style="margin: 0 0 8px; font-size: 12px; font-weight: 600; color: #1D4ED8; text-transform: uppercase;">🔍 AI 月报</p>
-      <p style="margin: 0; font-size: 14px; color: #1E3A5F; line-height: 1.6;">{ai_summary}</p>
-    </div>
-    <div style="padding: 0 16px 16px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;">
-      <div style="padding: 16px; border: 1px solid #E5E7EB; border-radius: 8px; text-align: center;"><p style="margin: 0; font-size: 11px; color: #6B7280;">总收入</p><p style="margin: 4px 0 0; font-size: 18px; font-weight: 700; color: #111827;">¥{financial.get('total_revenue', 0):,.2f}</p></div>
-      <div style="padding: 16px; border: 1px solid #E5E7EB; border-radius: 8px; text-align: center;"><p style="margin: 0; font-size: 11px; color: #6B7280;">总成本</p><p style="margin: 4px 0 0; font-size: 18px; font-weight: 700; color: #111827;">¥{financial.get('total_cost', 0):,.2f}</p></div>
-      <div style="padding: 16px; border: 1px solid #E5E7EB; border-radius: 8px; text-align: center;"><p style="margin: 0; font-size: 11px; color: #6B7280;">净利润</p><p style="margin: 4px 0 0; font-size: 18px; font-weight: 700; color: #22C55E;">¥{financial.get('net_profit', 0):,.2f}</p></div>
-      <div style="padding: 16px; border: 1px solid #E5E7EB; border-radius: 8px; text-align: center;"><p style="margin: 0; font-size: 11px; color: #6B7280;">佣金合计</p><p style="margin: 4px 0 0; font-size: 18px; font-weight: 700; color: #111827;">¥{commission.get('total', 0):,.2f}</p></div>
-    </div>
-    {project_section}
-    <div style="padding: 16px; border-top: 1px solid #E5E7EB; text-align: center;">
-      <a href="{get_settings().frontend_url}/dashboard" style="display:inline-block;background:#2563EB;color:white;text-decoration:none;padding:10px 20px;border-radius:6px;font-size:13px;font-weight:500;">查看完整报告 →</a>
-    </div>
-  </div>
-</body>
-</html>"""
+# ── Missing functions (required by scheduler.py and scheduled_reports.py) ──
 
 
-def send_scheduled_report_email(
-    to_email: str,
-    frequency: str,
-    report_data: dict[str, Any],
-) -> tuple[bool, str | None]:
-    """发送定时报告邮件。返回 (success, resend_id)。"""
+def send_scheduled_report_email(email: str, frequency: str, report_data: dict[str, Any]) -> tuple[bool, str | None]:
+    """
+    Send scheduled report email via Resend.
+    Returns (success, resend_id_or_error_message).
+    """
+    from app.core.config import get_settings
+    import resend
+
     settings = get_settings()
-    if not settings.resend_api_key:
-        logger.warning("RESEND_API_KEY not configured, skipping report email")
+    if not settings.RESEND_API_KEY:
         return False, "RESEND_API_KEY not configured"
 
-    resend.api_key = settings.resend_api_key
-
-    if frequency == "daily":
-        html = _render_daily_report_html(report_data)
-        subject = f"📊 BelieveBoy 每日运营报告 · {report_data.get('report_date', '')}"
-    elif frequency == "weekly":
-        html = _render_weekly_report_html(report_data)
-        subject = f"📊 BelieveBoy 每周运营报告 · {report_data.get('report_date', '')}"
-    else:
-        html = _render_monthly_report_html(report_data)
-        subject = f"📊 BelieveBoy {report_data.get('report_month', '')} 月度报告"
-
     try:
-        resp = resend.Emails.send({
-            "from": f"{settings.alert_from_name} <{settings.alert_from_email}>",
-            "to": [to_email],
+        resend.api_key = settings.RESEND_API_KEY
+
+        # Build HTML based on frequency
+        if frequency == "daily":
+            html = _render_daily_report_html(report_data)
+        else:
+            html = _render_daily_report_html(report_data)  # reuse for now
+
+        project_name = report_data.get("project_name", "项目")
+        report_date = report_data.get("report_date", "")
+
+        subject = f"📊 {project_name} · {'每日' if frequency == 'daily' else '每周' if frequency == 'weekly' else '每月'}运营报告 · {report_date}"
+
+        params: dict[str, Any] = {
+            "from": settings.RESEND_FROM_EMAIL,
+            "to": [email],
             "subject": subject,
             "html": html,
-        })
-        resend_id: str | None = resp.get("id")
-        logger.info(f"Scheduled report email sent to {to_email}, frequency={frequency}, resend_id={resend_id}")
-        return True, resend_id
+        }
+        resp = resend.Emails.send(params)  # type: ignore[assignment]
+        rid = resp.get("id", "")
+        return True, rid
+
     except Exception as e:
-        logger.error(f"Failed to send scheduled report email to {to_email}: {e}")
+        logger.error(f"Failed to send report email to {email}: {e}")
         return False, str(e)
 
 
-def send_test_report_email(to_email: str, frequency: str) -> tuple[bool, str | None]:
-    """发送测试报告邮件。"""
-    report_date = date.today().isoformat()
-    report_data = {
-        "report_date": report_date,
-        "report_month": report_date[:7],
-        "country": "US",
-        "ai_summary": "这是一封测试邮件，用于验证报告推送配置是否正确。如果收到此邮件，说明配置成功。",
-        "sales": {"today_order_qty": 1234, "today_sales_amount": 45678.90, "sales_change_pct": 8.5},
-        "inventory": {"sku_count": 456, "available_qty": 7890, "out_of_stock_count": 3},
-        "ads": {"period_spend": 234.56, "period_roas": 3.2, "period_acos": 18.5, "period_ctr": 2.1},
-        "week_sales": {"total_qty": 8765, "total_amount": 123456.78},
-        "week_ads": {"total_spend": 1234.56, "total_sales": 5678.90, "avg_roas": 4.6, "avg_acos": 21.7},
-        "top_skus": [
-            {"sku": "SKU-A001", "quantity": 234},
-            {"sku": "SKU-B002", "quantity": 189},
-            {"sku": "SKU-C003", "quantity": 156},
-        ],
-        "inventory_alerts": [
-            {"sku": "SKU-X100", "available_qty": 5},
-            {"sku": "SKU-Y200", "available_qty": 3},
-        ],
-        "financial_summary": {"total_revenue": 1234567.89, "total_cost": 876543.21, "net_profit": 358024.68},
-        "project_breakdown": [
-            {"name": "项目 A", "revenue": 567890.12, "profit_margin": 28.5},
-            {"name": "项目 B", "revenue": 456789.34, "profit_margin": 32.1},
-        ],
-        "commission_summary": {"total": 67890.12},
-    }
-    return send_scheduled_report_email(to_email, frequency, report_data)
+def send_test_report_email(email: str, frequency: str) -> tuple[bool, str | None]:
+    """Send a test report email to verify email configuration."""
+    from app.core.config import get_settings
+    import resend
+
+    settings = get_settings()
+    if not settings.RESEND_API_KEY:
+        return False, "RESEND_API_KEY not configured"
+
+    try:
+        resend.api_key = settings.RESEND_API_KEY
+
+        freq_label = {"daily": "每日", "weekly": "每周", "monthly": "每月"}.get(frequency, frequency)
+        test_html = f"""
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"></head>
+<body style="font-family: -apple-system, sans-serif; padding: 40px; text-align: center; background: #F3F4F6;">
+  <div style="max-width: 500px; margin: 0 auto; background: white; border-radius: 12px; padding: 40px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+    <div style="font-size: 48px; margin-bottom: 16px;">📧</div>
+    <h2 style="color: #111827; margin: 0 0 8px;">测试邮件</h2>
+    <p style="color: #6B7280; font-size: 14px;">这是一封来自 <strong>BelieveBoy Dashboard</strong> 的测试邮件。</p>
+    <p style="color: #374151; font-size: 14px;">报告频率：{freq_label}</p>
+    <div style="margin-top: 32px; padding: 16px; background: #F0FDF4; border-radius: 8px; border: 1px solid #BBF7D0;">
+      <span style="color: #16A34A; font-size: 12px; font-weight: 600;">✅ 邮件发送功能正常</span>
+    </div>
+  </div>
+</body>
+</html>"""
+
+        params: dict[str, Any] = {
+            "from": settings.RESEND_FROM_EMAIL,
+            "to": [email],
+            "subject": f"BelieveBoy Dashboard · {freq_label}运营报告配置测试",
+            "html": test_html,
+        }
+        resp = resend.Emails.send(params)  # type: ignore[assignment]
+        rid = resp.get("id", "")
+        return True, rid
+
+    except Exception as e:
+        logger.error(f"Failed to send test email to {email}: {e}")
+        return False, str(e)

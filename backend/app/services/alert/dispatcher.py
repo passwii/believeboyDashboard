@@ -71,33 +71,13 @@ def dispatch_batch(db: Session, events: list[AlertEvent]) -> None:
 
 
 def _get_notification_recipients(db: Session, project_id: int) -> list[dict[str, Any]]:
-    """Get users associated with a project (operators + admins) via raw SQL."""
-    project_op_row = db.execute(
-        text(
-            "SELECT operator_id FROM projects WHERE id = :pid"
-        ),
-        {"pid": project_id}
-    ).fetchone()
-
-    recipients: list[dict[str, Any]] = []
-    seen: set[int] = set()
-
-    if project_op_row and project_op_row[0]:
-        op_id = int(project_op_row[0])
-        user = _get_user_by_id(db, op_id)
-        if user:
-            recipients.append(user)
-            seen.add(op_id)
-
+    """Get admin users for alert notification via raw SQL."""
     admins = db.execute(
-        text("SELECT id, name, email, operator_name_zh FROM users WHERE is_admin = true")
+        text("SELECT id, name, email, operator_name_zh FROM user_accounts WHERE is_admin = true AND is_active = true")
     ).fetchall()
+    recipients = []
     for row in admins:
-        uid = int(row[0])
-        if uid not in seen:
-            seen.add(uid)
-            recipients.append({"id": uid, "name": row[1], "email": row[2], "operator_name_zh": row[3]})
-
+        recipients.append({"id": int(row[0]), "name": row[1], "email": row[2], "operator_name_zh": row[3]})
     return recipients
 
 
