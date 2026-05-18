@@ -135,3 +135,33 @@ class InventoryAnalysisResponse(BaseModel):
 class InventorySnapshotOption(BaseModel):
     report_date: date
     is_current: bool
+
+
+class CalendarRowItem(BaseModel):
+    """Single SKU row for calendar/gantt view."""
+    project_id: int
+    project_name: str
+    sku: str
+    country: str
+    risk_status: str
+    # Timeline anchors
+    today: str
+    sellout_date: str | None = None
+    order_date: str | None = None
+    warehouse_entry_date: str | None = None
+    # Current state
+    available_inventory: int
+    in_transit_quantity: int
+    weighted_dms: float | None = None
+    estimated_quantity: int | None = None
+    # Warning flags
+    is_slow_moving: bool = False
+    is_critical: bool = False
+
+
+class CalendarResponse(BaseModel):
+    items: list[CalendarRowItem]
+    page: int
+    page_size: int
+    total: int
+    has_next: bool

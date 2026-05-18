@@ -7,6 +7,8 @@ import {
   TrendingUp,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
+import { cn } from '@/lib/utils'
 
 interface MetricCardProps {
   title: string
@@ -26,12 +28,13 @@ function MetricCard({
   icon,
 }: MetricCardProps) {
   const gradientId = title.toLowerCase().replace(/\s+/g, '-')
-  const max = Math.max(...trend)
+  const max = Math.max(...trend, 1)
   const min = Math.min(...trend)
+  const range = Math.max(max - min, 1)
   const path = trend
     .map((point, index) => {
-      const x = (index / (trend.length - 1)) * 100
-      const y = 28 - ((point - min) / Math.max(max - min, 1)) * 22
+      const x = (index / Math.max(trend.length - 1, 1)) * 100
+      const y = 28 - ((point - min) / range) * 22
       return `${index === 0 ? 'M' : 'L'} ${x} ${y}`
     })
     .join(' ')
@@ -44,13 +47,14 @@ function MetricCard({
           <CardTitle className="dashboard-display text-[clamp(1.6rem,1.8vw,2rem)]">{value}</CardTitle>
           <div className="flex items-center gap-1">
             <span
-              className={`inline-flex items-center text-xs font-medium ${
+              className={cn(
+                'inline-flex items-center text-xs font-medium',
                 changeType === 'up'
                   ? 'text-secondary'
                   : changeType === 'down'
                   ? 'text-destructive'
                   : 'text-muted-foreground'
-              }`}
+              )}
             >
               {changeType === 'up' && <ArrowUp className="mr-0.5 h-3 w-3" />}
               {changeType === 'down' && <ArrowDown className="mr-0.5 h-3 w-3" />}
@@ -78,47 +82,84 @@ function MetricCard({
   )
 }
 
-export function MetricCards() {
-  const metrics = [
-    {
-      title: '销售额',
-      value: '$19,791.72',
-      change: '+12.4%',
-      changeType: 'up' as const,
-      trend: [15, 18, 16, 21, 20, 24, 28],
-      icon: <DollarSign className="h-4 w-4" />,
-    },
-    {
-      title: '订单量',
-      value: '1,284',
-      change: '+8.2%',
-      changeType: 'up' as const,
-      trend: [10, 12, 11, 15, 14, 18, 17],
-      icon: <Users className="h-4 w-4" />,
-    },
-    {
-      title: '广告成本比',
-      value: '21.4%',
-      change: '-1.3%',
-      changeType: 'down' as const,
-      trend: [24, 25, 23, 24, 22, 22, 21],
-      icon: <Activity className="h-4 w-4" />,
-    },
-    {
-      title: '增长指数',
-      value: '+14.6%',
-      change: '+4.8%',
-      changeType: 'up' as const,
-      trend: [8, 10, 13, 12, 16, 18, 21],
-      icon: <TrendingUp className="h-4 w-4" />,
-    },
-  ]
+function MetricCardSkeleton() {
+  return (
+    <Card className="min-w-[11rem] max-w-[13rem]">
+      <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0 pb-3">
+        <div className="flex flex-col gap-2">
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-8 w-32" />
+          <Skeleton className="h-3 w-16" />
+        </div>
+        <Skeleton className="h-11 w-11 rounded-lg" />
+      </CardHeader>
+      <CardContent className="px-4 pb-4">
+        <Skeleton className="h-10 w-full rounded-md" />
+      </CardContent>
+    </Card>
+  )
+}
+
+interface MetricCardsProps {
+  metrics?: MetricCardProps[]
+  loading?: boolean
+}
+
+export function MetricCards({ metrics, loading = false }: MetricCardsProps) {
+  if (loading && !metrics) {
+    return (
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <MetricCardSkeleton key={i} />
+        ))}
+      </div>
+    )
+  }
+
+  if (!metrics) {
+    metrics = [
+      {
+        title: '销售额',
+        value: '$0.00',
+        change: '+0.0%',
+        changeType: 'neutral' as const,
+        trend: [0, 0, 0, 0, 0, 0, 0],
+        icon: <DollarSign className="h-4 w-4" />,
+      },
+      {
+        title: '订单量',
+        value: '0',
+        change: '+0.0%',
+        changeType: 'neutral' as const,
+        trend: [0, 0, 0, 0, 0, 0, 0],
+        icon: <Users className="h-4 w-4" />,
+      },
+      {
+        title: '广告成本比',
+        value: '0.0%',
+        change: '0.0%',
+        changeType: 'neutral' as const,
+        trend: [0, 0, 0, 0, 0, 0, 0],
+        icon: <Activity className="h-4 w-4" />,
+      },
+      {
+        title: '增长指数',
+        value: '+0.0%',
+        change: '+0.0%',
+        changeType: 'neutral' as const,
+        trend: [0, 0, 0, 0, 0, 0, 0],
+        icon: <TrendingUp className="h-4 w-4" />,
+      },
+    ]
+  }
 
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
       {metrics.map((metric) => (
         <MetricCard key={metric.title} {...metric} />
       ))}
     </div>
   )
 }
+
+export type { MetricCardProps }

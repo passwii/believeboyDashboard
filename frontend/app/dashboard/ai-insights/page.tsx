@@ -173,9 +173,9 @@ const DATA_STEPS = [
   { key: 'data_aggregating_sales', label: '销售数据' },
   { key: 'data_aggregating_ad', label: '广告数据' },
   { key: 'data_aggregating_inventory', label: '库存快照' },
+  { key: 'data_aggregating_top_skus', label: 'Top SKU' },
   { key: 'data_aggregating_comparison_sales', label: '对比期销售' },
   { key: 'data_aggregating_comparison_ad', label: '对比期广告' },
-  { key: 'data_aggregating_top_skus', label: 'Top SKU' },
   { key: 'data_aggregating_ad_campaigns', label: '广告活动' },
 ]
 
@@ -1137,6 +1137,21 @@ const MarkdownContent = ({ content, collectChartSvgs }: { content: string; colle
     children: string
     components?: Record<string, any>
   }>
+  const bottomRef = useRef<HTMLDivElement>(null)
+  const prevContentLengthRef = useRef(0)
+
+  // Auto-scroll to bottom when content grows (for streaming preview)
+  useEffect(() => {
+    if (content && content.length > prevContentLengthRef.current) {
+      prevContentLengthRef.current = content.length
+      // Small delay to ensure DOM has rendered the new content
+      const timer = setTimeout(() => {
+        bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+      }, 30)
+      return () => clearTimeout(timer)
+    }
+    prevContentLengthRef.current = content.length
+  }, [content])
 
   return (
         <div id="ai-insight-export-root" className="dashboard-surface max-w-full min-w-0 overflow-hidden rounded-[28px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))] shadow-[0_28px_90px_-56px_rgba(15,23,42,0.55)]">
@@ -1306,6 +1321,8 @@ const MarkdownContent = ({ content, collectChartSvgs }: { content: string; colle
             {content}
           </Markdown>
         </div>
+        {/* Invisible anchor at bottom for auto-scroll during streaming */}
+        <div ref={bottomRef} className="h-0 w-0 opacity-0 pointer-events-none" aria-hidden />
       </div>
     </div>
   )

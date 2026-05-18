@@ -43,6 +43,9 @@ class ReportRecognitionResponse(BaseModel):
     reason: str
     status: Literal['recognized', 'unsupported', 'error']
     country: str = 'US'
+    # Multi-country detection for European sales reports
+    detected_countries: list[str] = Field(default_factory=list, description="All countries detected in file")
+    primary_country: str | None = Field(default=None, description="Primary country for single-country files")
     date_input_mode: DateInputMode
     detected_date: str | None = None
     detected_start_date: str | None = None

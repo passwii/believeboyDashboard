@@ -82,13 +82,20 @@ def commit_report_upload(
                     detail="report_type does not match recognized report",
                 )
             if report_type in {"sales_report", "inventory_report", "business_report", AD_PRODUCT_REPORT, "payment_report", "return_report"} and auto_recognition.country != country:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=(
-                        f"文件站点（{auto_recognition.country}）与所选站点（{country}）不一致，"
-                        "请确认后重新上传到对应站点"
-                    ),
+                # 多站点销售报表：跳过国家验证，后端会自动按站点拆分
+                is_multi_country_sales = (
+                    report_type == "sales_report" and
+                    auto_recognition.detected_countries and
+                    len(auto_recognition.detected_countries) > 1
                 )
+                if not is_multi_country_sales:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=(
+                            f"文件站点（{auto_recognition.country}）与所选站点（{country}）不一致，"
+                            "请确认后重新上传到对应站点"
+                        ),
+                    )
             auto_project_match = auto_recognition.project_match
             if auto_project_match.status != "matched" or not auto_project_match.project_name:
                 raise HTTPException(
@@ -133,13 +140,20 @@ def commit_report_upload(
                     detail="report_type does not match recognized report",
                 )
             if report_type in {"sales_report", "inventory_report", "business_report", AD_PRODUCT_REPORT, "payment_report", "return_report"} and recognition.country != country:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=(
-                        f"文件站点（{recognition.country}）与所选站点（{country}）不一致，"
-                        "请确认后重新上传到对应站点"
-                    ),
+                # 多站点销售报表：跳过国家验证，后端会自动按站点拆分
+                is_multi_country_sales = (
+                    report_type == "sales_report" and
+                    recognition.detected_countries and
+                    len(recognition.detected_countries) > 1
                 )
+                if not is_multi_country_sales:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=(
+                            f"文件站点（{recognition.country}）与所选站点（{country}）不一致，"
+                            "请确认后重新上传到对应站点"
+                        ),
+                    )
             project_match = recognition.project_match
             if project_match.status != "matched" or not project_match.project_name:
                 raise HTTPException(

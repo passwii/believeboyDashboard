@@ -52,6 +52,9 @@ export type RecognitionResponse = {
   reason: string
   status: RecognitionStatus
   country: string
+  /** Multi-country detection for European sales reports */
+  detected_countries: string[]
+  primary_country: string | null
   date_input_mode: DateInputMode
   detected_date: string | null
   detected_start_date: string | null
@@ -73,7 +76,11 @@ export type UploadQueueItem = {
   detectedDate: string | null
   detectedStartDate: string | null
   detectedEndDate: string | null
+  /** 单个国家（用于单站点文件） */
   detectedCountry: string | null
+  /** 多站点检测（用于欧洲混合文件） */
+  detectedCountries: string[]
+  isMultiCountry: boolean
   userReportDate: string | null
   userReportStartDate: string | null
   userReportEndDate: string | null

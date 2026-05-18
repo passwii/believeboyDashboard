@@ -34,7 +34,7 @@ from app.services.audit_log_service import (
     append_operation_audit_log,
     append_operation_view_log,
 )
-from app.schemas.inventory_replenishment import InventorySnapshotOption
+from app.schemas.inventory_replenishment import InventorySnapshotOption, CalendarRowItem, CalendarResponse
 
 router = APIRouter(dependencies=[Depends(protected)])
 
@@ -269,4 +269,111 @@ def list_inventory_replenishment_shipments_endpoint(
         project_id=project_id,
         sku=sku,
         items=[InventoryReplenishmentShipmentItem(**row) for row in rows],
+    )
+
+
+@router.get(
+    "/inventory-replenishment-calendar",
+    response_model=CalendarResponse,
+)
+def list_inventory_replenishment_calendar(
+    request: Request,
+    project_id: int = Query(gt=0),
+    country: str = Query(default="US"),
+    risk_status: str | None = Query(default=None),
+    date_from: date | None = Query(default=None),
+    date_to: date | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=100),
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
+) -> CalendarResponse:
+    from datetime import date as DateType, timedelta
+    from app.services.inventory.replenishment import list_inventory_replenishment_analysis
+
+    project_service.ensure_project_access(
+        db,
+        project_id,
+        operator=operator,
+        is_admin=bool(is_admin),
+    )
+
+    today = DateType.today()
+    today_str = today.isoformat()
+
+    rows, _, total, has_next = list_inventory_replenishment_analysis(
+        db,
+        project_id=project_id,
+        country=country,
+        keyword=None,
+        risk_status=risk_status,
+        in_transit_only=False,
+        page=page,
+        page_size=page_size,
+    )
+
+    SLOW_MOVING_STATUSES = {"滞销", "严重滞销"}
+    CRITICAL_STATUSES = {"长期断货", "短期断货", "断货风险"}
+
+    calendar_items = []
+    for row in rows:
+        sellout_date = row.get("sellout_date_with_transit") or row.get("sellout_date")
+
+        if sellout_date:
+            sellout_date_obj = DateType.fromisoformat(sellout_date) if isinstance(sellout_date, str) else sellout_date
+            if date_from and sellout_date_obj < date_from:
+                continue
+            if date_to and sellout_date_obj > date_to:
+                continue
+
+        risk = row.get("risk_status", "")
+        is_slow = risk in SLOW_MOVING_STATUSES
+        is_crit = risk in CRITICAL_STATUSES
+
+        calendar_items.append(CalendarRowItem(
+            project_id=row["project_id"],
+            project_name=row["project_name"],
+            sku=row["sku"],
+            country=row["country"],
+            risk_status=risk,
+            today=today_str,
+            sellout_date=sellout_date,
+            order_date=row.get("replenishment_order_date"),
+            warehouse_entry_date=row.get("warehouse_entry_date"),
+            available_inventory=row.get("available_inventory", 0),
+            in_transit_quantity=row.get("in_transit_quantity", 0),
+            weighted_dms=row.get("weighted_dms"),
+            estimated_quantity=row.get("estimated_replenishment_quantity"),
+            is_slow_moving=is_slow,
+            is_critical=is_crit,
+        ))
+
+    append_operation_view_log(
+        db,
+        action="inventory_replenishment.calendar.view",
+        target_type="inventory_replenishment",
+        target_id=project_id,
+        operator=operator,
+        after={
+            "project_id": project_id,
+            "country": country,
+            "risk_status": risk_status,
+            "date_from": str(date_from) if date_from else None,
+            "date_to": str(date_to) if date_to else None,
+            "page": page,
+            "page_size": page_size,
+            "count": len(calendar_items),
+            "total": total,
+        },
+        request=request,
+    )
+    db.commit()
+
+    return CalendarResponse(
+        items=calendar_items,
+        page=page,
+        page_size=page_size,
+        total=total,
+        has_next=has_next,
     )

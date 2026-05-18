@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Camera, ChevronDown, Clock, Trash2, Loader2 } from 'lucide-react'
+import { Camera, ChevronDown, Clock, Loader2, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -47,7 +47,11 @@ interface SnapshotSelectorProps {
   selectedSnapshotId: number | null
   onSnapshotSelect: (snapshotId: number | null) => void
   onCreateSnapshot: () => void
+  onEditSnapshot: (snapshot: SnapshotOption) => void
   disabled?: boolean
+  refreshNonce?: number
+  isAdmin?: boolean
+  onDeleteSnapshot?: (snapshotId: number) => void
 }
 
 function formatSnapshotLabel(snapshot: SnapshotOption): string {
@@ -77,11 +81,16 @@ export function SnapshotSelector({
   selectedSnapshotId,
   onSnapshotSelect,
   onCreateSnapshot,
+  onEditSnapshot,
   disabled = false,
+  refreshNonce = 0,
+  isAdmin = false,
+  onDeleteSnapshot,
 }: SnapshotSelectorProps) {
   const [snapshots, setSnapshots] = useState<SnapshotOption[]>([])
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
 
   useEffect(() => {
     if (!projectId) {
@@ -117,10 +126,36 @@ export function SnapshotSelector({
     return () => {
       active = false
     }
-  }, [projectId, country])
+  }, [projectId, country, refreshNonce])
 
   const selectedSnapshot = snapshots.find(s => s.id === selectedSnapshotId)
   const isLiveMode = selectedSnapshotId === null
+
+  async function handleDelete(e: React.MouseEvent, snapshotId: number) {
+    e.stopPropagation()
+    if (!confirm('确定要删除此快照吗？此操作不可恢复。')) return
+    setDeletingId(snapshotId)
+    try {
+      const response = await fetch(
+        `${API_BASE}/api/v1/inventory-replenishment-snapshots/${snapshotId}`,
+        { method: 'DELETE' }
+      )
+      if (!response.ok) {
+        const err = await response.json().catch(() => null)
+        throw new Error(err?.detail || '删除失败')
+      }
+      // If the deleted snapshot was selected, switch back to live mode
+      if (selectedSnapshotId === snapshotId) {
+        onSnapshotSelect(null)
+      }
+      onDeleteSnapshot?.(snapshotId)
+    } catch (err) {
+      console.error('Failed to delete snapshot:', err)
+      alert(err instanceof Error ? err.message : '删除失败')
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -182,9 +217,10 @@ export function SnapshotSelector({
                   onSnapshotSelect(snapshot.id)
                   setOpen(false)
                 }}
+                className="group/snapshot"
               >
                 <Camera className="mr-2 h-4 w-4" />
-                <div className="flex flex-col">
+                <div className="flex flex-col min-w-0 flex-1">
                   <span>{formatSnapshotLabel(snapshot)}</span>
                   <span className="text-xs text-muted-foreground">
                     {snapshot.created_by ? `${snapshot.created_by} · ` : ''}
@@ -193,6 +229,34 @@ export function SnapshotSelector({
                 </div>
                 {selectedSnapshotId === snapshot.id && (
                   <Badge className="ml-auto">当前</Badge>
+                )}
+                {isAdmin && (
+                  <div className="flex items-center gap-1 ml-auto">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 opacity-0 group-hover/snapshot:opacity-100 text-muted-foreground hover:text-primary"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onEditSnapshot(snapshot)
+                      }}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 opacity-0 group-hover/snapshot:opacity-100 text-muted-foreground hover:text-destructive"
+                      disabled={deletingId === snapshot.id}
+                      onClick={(e) => void handleDelete(e, snapshot.id)}
+                    >
+                      {deletingId === snapshot.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3.5 w-3.5" />
+                      )}
+                    </Button>
+                  </div>
                 )}
               </DropdownMenuItem>
             ))}

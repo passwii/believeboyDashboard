@@ -476,6 +476,40 @@ def validate_inventory_rows_against_project_mapping(
         )
 
 
+def detect_countries_in_sales_file(path: Path) -> list[str]:
+    """Detect all marketplace countries in a sales report file.
+
+    Reads the sales-channel column and extracts unique country codes.
+    Returns list like ['UK', 'DE'].
+    """
+    df = pd.read_csv(path, sep="\t", encoding="utf-8-sig")
+    df.columns = [str(col).strip() for col in df.columns]
+
+    # Try common column names for sales channel
+    channel_col = None
+    for col_name in ["sales-channel", "sales channel", "Sales Channel"]:
+        if col_name in df.columns:
+            channel_col = col_name
+            break
+
+    if channel_col is None:
+        return ["US"]  # Default fallback
+
+    countries: set[str] = set()
+    for value in df[channel_col].dropna():
+        text = str(value).strip().lower()
+        if "amazon.co.uk" in text or text == "amazon.co.uk":
+            countries.add("UK")
+        elif "amazon.de" in text or text == "amazon.de":
+            countries.add("DE")
+        elif "amazon.com" in text or text == "amazon.com":
+            countries.add("US")
+        elif "amazon.fr" in text or text == "amazon.fr":
+            countries.add("FR")
+
+    return list(countries) if countries else ["US"]
+
+
 def parse_sales_rows(
     path: Path,
     source_file_id: int,
@@ -504,6 +538,26 @@ def parse_sales_rows(
     payloads: list[dict[str, Any]] = []
     included = 0
 
+    # Try to find sales channel column for per-row country detection
+    channel_col = None
+    for col_name in ["sales-channel", "sales channel", "Sales Channel"]:
+        if col_name in df.columns:
+            channel_col = col_name
+            break
+
+    def extract_row_country(row_val: Any) -> str:
+        """Extract country code from sales channel value."""
+        if channel_col is None or row_val is None or pd.isna(row_val):
+            return normalized_country
+        text = str(row_val).strip().lower()
+        if "amazon.co.uk" in text:
+            return "UK"
+        elif "amazon.de" in text:
+            return "DE"
+        elif "amazon.fr" in text:
+            return "FR"
+        return normalized_country
+
     for index, row in df.iterrows():
         order_id = _normalize_text(row.get("amazon-order-id"))
         parsed_utc = pd.to_datetime(row.get("purchase-date"), utc=True, errors="coerce")
@@ -519,10 +573,14 @@ def parse_sales_rows(
         if counted:
             included += 1
 
+        # Extract per-row country from sales channel
+        row_country = extract_row_country(row.get(channel_col)) if channel_col else normalized_country
+
         payloads.append(
             {
                 "source_file_id": source_file_id,
                 "source_row_no": int(index) + 1,
+                "country": row_country,
                 "amazon_order_id": order_id,
                 "purchase_at_utc": purchase_at_utc,
                 "purchase_at_pt": purchase_at_pt,

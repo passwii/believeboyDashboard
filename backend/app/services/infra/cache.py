@@ -354,6 +354,9 @@ def clear_all_caches() -> int:
         PRODUCT_ANALYSIS_WEEKLY_KEY_PREFIX.split(":")[0],
         CACHE_KEY_PREFIX,
         SHIPMENT_SCHEDULES_KEY_PREFIX,
+        DAILY_ANALYSIS_KEY_PREFIX,
+        SHIPMENT_IN_TRANSIT_QTY_KEY_PREFIX,
+        MONTHLY_FINANCIAL_SERIES_KEY_PREFIX,
         "presence",
     ]
 

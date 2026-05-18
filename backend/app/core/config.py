@@ -57,9 +57,13 @@ class Settings(BaseSettings):
     redis_host: str = Field(default="localhost", max_length=200)
     redis_port: int = Field(default=6379, ge=1, le=65535)
     redis_password: str = Field(default="", max_length=200)
-    redis_db: int = Field(default=0, ge=0, le=15)
-
     frontend_url: str = Field(default="", max_length=500)
+
+    resend_api_key: str = Field(default="", max_length=200)
+    alert_from_email: str = Field(default="alerts@believeboy.com", max_length=256)
+    alert_from_name: str = Field(default="BelieveBoy Dashboard", max_length=128)
+
+    redis_db: int = Field(default=0, ge=0, le=15)
 
 
 @lru_cache
