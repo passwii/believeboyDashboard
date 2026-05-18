@@ -38,6 +38,8 @@ from app.utils import (
     _validate_inventory_rows_against_project_mapping,
 )
 from app.utils.country import normalize_country as _normalize_country
+from app.utils.text_utils import normalize_sku as _normalize_sku
+from app.utils.text_utils import normalize_asin as _normalize_asin
 from app.services.payment.locale import read_payment_report_dataframe as _read_payment_report_locale
 from app.utils import (
     _next_version,
@@ -789,14 +791,9 @@ def _load_project_product_mapping(db: Session, project_name: str, country: str =
             SkuRecord.country == _normalize_country(country),
         )
     ).all()
-    known_skus = {_normalize_identity_func(value) for value, _ in rows if _normalize_identity_func(value)}
-    known_asins = {_normalize_identity_func(value) for _, value in rows if _normalize_identity_func(value)}
+    known_skus = {_normalize_sku(value) for value, _ in rows if value}
+    known_asins = {_normalize_asin(value) for _, value in rows if value}
     return known_skus, known_asins
-
-
-def _normalize_identity_func(value):
-    from app.utils.text_utils import normalize_identity
-    return normalize_identity(value)
 
 
 def _get_project_by_name(db: Session, project_name: str) -> Project:
