@@ -59,6 +59,8 @@ export default function ShopCalculationPage() {
   // Store data for export (US)
   const [storeSkus, setStoreSkus] = useState<ProductCostItem[]>([])
   const [snapshotMap, setSnapshotMap] = useState<Map<string, StoreAccountingItem>>(new Map())
+  // Latest storeRows from US section (updated on every calculation)
+  const [usStoreRows, setUsStoreRows] = useState<Record<number, { draft: Record<string, string>; result: import('@/lib/pricing-calculation-types').PricingCalculationRunItem | null }>>({})
 
   // Store data for export (EU)
   const [euStoreSkus, setEuStoreSkus] = useState<ProductCostItem[]>([])
@@ -142,7 +144,9 @@ export default function ShopCalculationPage() {
   }, [selectedProjectName, selectedProjectId, selectedCountry])
 
   const isUS = selectedCountry === 'US'
-  const hasCalculatedRows = isUS ? stats.calculated > 0 : hasEuCalculatedRows
+  const hasCalculatedRows = isUS
+    ? Object.values(usStoreRows).some((r) => r.result != null)
+    : hasEuCalculatedRows
 
   // Smooth refresh: keep previous stats visible while reloading
   const { showSkeleton, isRefreshing } = useSmoothRefresh({
@@ -164,7 +168,7 @@ export default function ShopCalculationPage() {
     // 获取有结果的数据项
     let itemsWithResults: ProductCostItem[] = []
     if (isUS) {
-      itemsWithResults = storeSkus.filter((i) => snapshotMap.has(i.sku))
+      itemsWithResults = storeSkus.filter((i) => usStoreRows[i.id]?.result != null)
     } else {
       itemsWithResults = euStoreSkus.filter((i) => euStoreRows[i.id]?.result != null)
     }
@@ -274,7 +278,7 @@ export default function ShopCalculationPage() {
 
       // Build data rows
       const dataRows = itemsWithResults.map((item) => {
-        const snapshot = isUS ? snapshotMap.get(item.sku) : euStoreRows[item.id]?.result
+        const snapshot = isUS ? usStoreRows[item.id]?.result : euStoreRows[item.id]?.result
         if (!snapshot) return null
 
         const s = snapshot as StoreAccountingItem & import('@/lib/pricing-calculation-types').PricingCalculationRunItem
@@ -595,6 +599,7 @@ export default function ShopCalculationPage() {
                 skuKeyword={skuKeyword}
                 onProjectChange={setSelectedProjectName}
                 onSkuKeywordChange={setSkuKeyword}
+                onStoreRowsChange={setUsStoreRows}
               />
             ) : (
               <ShopCalculationEuSection
