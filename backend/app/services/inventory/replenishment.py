@@ -25,7 +25,7 @@ from app.models import (
     ShipmentScheduleItem,
 )
 
-from app.utils.text_utils import normalize_text, normalize_identity
+from app.utils.text_utils import normalize_text, normalize_asin
 from app.utils.math_utils import decimal_to_float, round_decimal, round_decimal_to_int
 from app.utils.constants import (
     DEFAULT_PRODUCTION_LEAD_DAYS,
@@ -60,15 +60,6 @@ def _normalize_text(value: str | None, *, max_length: int | None = None) -> str 
         stacklevel=2,
     )
     return normalize_text(value, max_length=max_length)
-
-
-def _normalize_identity(value: str | None) -> str:
-    warnings.warn(
-        "_normalize_identity is deprecated, use app.shared.text_utils.normalize_identity instead",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return normalize_identity(value)
 
 
 def _decimal_to_float(value: Decimal | None, digits: int = 4) -> float | None:
@@ -142,7 +133,7 @@ def _pick_business_source(
 
 
 def _load_base_skus(db: Session, project: Project, country: str) -> list[_BaseSkuRow]:
-    normalized_project_name = _normalize_identity(project.project_name)
+    normalized_project_name = normalize_text(project.project_name, max_length=128)
     product_rows = db.execute(
         select(SkuRecord.sku, SkuRecord.asin, SkuRecord.country)
         .where(
@@ -261,7 +252,7 @@ def _load_in_transit_map(db: Session, project_id: int, country: str) -> dict[str
 def _load_asin_to_skus_map(base_rows: list[_BaseSkuRow]) -> dict[str, set[str]]:
     mapping: dict[str, set[str]] = {}
     for row in base_rows:
-        normalized_asin = _normalize_identity(row.asin)
+        normalized_asin = normalize_asin(row.asin)
         if not normalized_asin:
             continue
         mapping.setdefault(normalized_asin, set()).add(row.sku)
@@ -290,7 +281,7 @@ def _load_business_dms_map(
 
     result: dict[str, Decimal] = {}
     for asin, units_ordered in rows:
-        normalized_asin = _normalize_identity(asin)
+        normalized_asin = normalize_asin(asin)
         if not normalized_asin:
             continue
         skus = asin_to_skus.get(normalized_asin, set())
