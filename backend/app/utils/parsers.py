@@ -29,7 +29,6 @@ from app.utils.utils import (
 
 from app.utils.text_utils import (
     normalize_text as _normalize_text,
-    normalize_identity as _normalize_identity,
     normalize_asin as _normalize_asin,
     normalize_sku as _normalize_sku,
 )

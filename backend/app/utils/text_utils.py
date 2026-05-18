@@ -1,6 +1,16 @@
 """文本规范化工具。
 
 本模块提供统一的文本处理函数，供所有 service 层使用。
+
+## SKU/ASIN 规范化规则（业务层统一标准）
+
+| 类型 | 函数 | 返回格式 | 示例 |
+|------|------|---------|------|
+| SKU | normalize_sku() | 大写 + 去空格 | USQR-DGREY-XL |
+| ASIN | normalize_asin() | 大写 | B0G4N7LSHM |
+| 项目名/其他标识符 | normalize_text() | 保留原大小写 | 弥森 |
+
+**注意**：normalize_identity() 已弃用（返回小写），新代码不应使用。
 """
 from __future__ import annotations
 
