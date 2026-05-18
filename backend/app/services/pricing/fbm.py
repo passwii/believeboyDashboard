@@ -47,6 +47,7 @@ def _compute_fbm_pricing(
     advertising_rate = _ratio(_decimal(getattr(payload, "advertising_rate", 0)))
     return_loss_rate = _ratio(_decimal(getattr(payload, "return_loss_rate", 0)))
     storage_months = _quantize(_decimal(getattr(payload, "storage_months", 1)), MONEY_QUANT)
+    delivery_fee_usd = _money(getattr(payload, "delivery_fee_usd", 0))
 
     usd_to_rmb_rate, rate_source = _resolve_exchange_rate_to_rmb(
         db,
@@ -91,7 +92,7 @@ def _compute_fbm_pricing(
         else Decimal("0")
     )
     total_fee_usd = _money_decimal(
-        referral_fee_usd + advertising_fee_usd + return_loss_usd
+        referral_fee_usd + advertising_fee_usd + return_loss_usd + delivery_fee_usd
     )
     payout_usd = _money_decimal(sale_price_usd - total_fee_usd)
     profit_usd = _money_decimal(payout_usd - ddp_cost_usd)
@@ -164,7 +165,7 @@ def _compute_fbm_pricing(
             "referral_fee_usd": referral_fee_usd,
             "advertising_fee_usd": advertising_fee_usd,
             "return_loss_usd": return_loss_usd,
-            "delivery_fee_usd": Decimal("0"),
+            "delivery_fee_usd": delivery_fee_usd,
             "fba_fulfillment_fee_usd": Decimal("0"),
             "inbound_config_fee_usd": Decimal("0"),
             "storage_fee_usd": Decimal("0"),

@@ -2174,8 +2174,8 @@ export default function PricingCalculationPage() {
                   snapshot.target_profit_rate !== null
                     ? String(snapshot.target_profit_rate)
                     : '25',
-                advertising_rate: String(snapshot.advertising_rate * 100),
-                return_loss_rate: String(snapshot.return_loss_rate * 100),
+                advertising_rate: String((snapshot.advertising_rate * 100).toFixed(2)),
+                return_loss_rate: String((snapshot.return_loss_rate * 100).toFixed(2)),
                 storage_months: String(snapshot.storage_months),
                 inbound_placement_mode: snapshot.inbound_placement_mode,
                 usd_to_rmb_rate:
@@ -2385,11 +2385,11 @@ export default function PricingCalculationPage() {
         firstLegUnitPriceRmb > 0 ? String(firstLegUnitPriceRmb.toFixed(4)) : '',
       sale_price_usd: run.sale_price_usd > 0 ? String(run.sale_price_usd) : '',
       target_profit_rate: '25',
-      commission_rate: run.commission_rate > 0 ? String(run.commission_rate * 100) : '',
+      commission_rate: run.commission_rate > 0 ? String((run.commission_rate * 100).toFixed(2)) : '',
       advertising_rate:
-        run.advertising_rate > 0 ? String(run.advertising_rate * 100) : '',
+        run.advertising_rate > 0 ? String((run.advertising_rate * 100).toFixed(2)) : '',
       return_loss_rate:
-        run.return_loss_rate > 0 ? String(run.return_loss_rate * 100) : '',
+        run.return_loss_rate > 0 ? String((run.return_loss_rate * 100).toFixed(2)) : '',
       storage_months: run.storage_months > 0 ? String(run.storage_months) : '1',
       delivery_fee_usd:
         run.delivery_fee_usd !== undefined && run.delivery_fee_usd > 0
