@@ -564,8 +564,24 @@ def build_return_analysis(
     if sku:
         new_records_query = new_records_query.filter(AnalysisReturnRow.sku == sku)
 
-    records: list = new_records_query.all()
-    is_new_source = bool(records)
+    raw_records: list = new_records_query.all()
+    is_new_source = bool(raw_records)
+
+    # Amazon return reports are cumulative: each daily snapshot contains ALL
+    # active returns, not just new ones for that day.  When multiple daily
+    # source files are stored (all is_current=True), the same return event
+    # (order_id, sku, return_date, license_plate_number) appears in every
+    # file that covers it.  We must keep only the row from the **latest**
+    # source file to avoid inflating quantities.
+    if raw_records:
+        seen: dict[tuple, AnalysisReturnRow] = {}
+        for r in raw_records:
+            key = (r.order_id, r.sku, str(r.return_date), r.license_plate_number or "")
+            if key not in seen or r.source_file_id > seen[key].source_file_id:
+                seen[key] = r
+        records = list(seen.values())
+    else:
+        records = []
 
     if not records:
         # Fall back to legacy ReturnAnalysisRecord
