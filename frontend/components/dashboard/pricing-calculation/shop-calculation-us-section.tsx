@@ -166,6 +166,8 @@ interface ShopCalculationUsSectionProps {
   skuKeyword: string
   onProjectChange: (name: string) => void
   onSkuKeywordChange: (keyword: string) => void
+  /** Sync storeRows back to parent for export (avoids stale snapshot data) */
+  onStoreRowsChange: (rows: Record<number, StoreSkuRowState>) => void
 }
 
 export function ShopCalculationUsSection({
@@ -174,6 +176,7 @@ export function ShopCalculationUsSection({
   selectedProjectId,
   skuKeyword,
   onSkuKeywordChange,
+  onStoreRowsChange,
 }: ShopCalculationUsSectionProps) {
   const { notify } = useNotifications()
   const [storeSkus, setStoreSkus] = useState<ProductCostItem[]>([])
@@ -366,6 +369,11 @@ export function ShopCalculationUsSection({
         item.asin.toLowerCase().includes(kw),
     )
   }, [skuKeyword, storeSkus])
+
+  // Sync storeRows to parent whenever it changes (so export gets latest data)
+  useEffect(() => {
+    onStoreRowsChange(storeRows)
+  }, [storeRows, onStoreRowsChange])
 
   function updateDraft(
     rowId: number,
