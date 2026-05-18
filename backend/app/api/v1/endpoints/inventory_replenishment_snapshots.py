@@ -12,7 +12,7 @@ from app.services.inventory.replenishment_snapshot import (
     get_snapshot_detail,
     get_snapshot_items,
     list_snapshots,
-    cleanup_old_snapshots,
+    update_snapshot,
 )
 from app.schemas.inventory_replenishment_snapshot import (
     InventoryReplenishmentSnapshotListItem,
@@ -20,6 +20,7 @@ from app.schemas.inventory_replenishment_snapshot import (
     InventoryReplenishmentSnapshotItemSchema,
     InventoryReplenishmentSnapshotSummary,
     CreateSnapshotRequest,
+    UpdateSnapshotRequest,
 )
 from app.schemas.inventory_replenishment import (
     InventoryReplenishmentListResponse,
@@ -349,14 +350,64 @@ def get_snapshot_items_endpoint(
     )
 
 
+@router.patch("/{snapshot_id}", response_model=InventoryReplenishmentSnapshotListItem)
+def update_snapshot_endpoint(
+    request: Request,
+    snapshot_id: int,
+    payload: UpdateSnapshotRequest,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
+) -> InventoryReplenishmentSnapshotListItem:
+    """更新快照名称或备注（仅管理员）"""
+    if not is_admin:
+        from fastapi import HTTPException, status
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="仅管理员可修改快照")
+
+    snapshot = get_snapshot_detail(db, snapshot_id)
+    if snapshot is None:
+        from fastapi import HTTPException, status
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="快照不存在")
+
+    updated = update_snapshot(
+        db,
+        snapshot_id=snapshot_id,
+        name=payload.name,
+        description=payload.description,
+        operator=operator,
+    )
+
+    append_operation_audit_log(
+        db,
+        action="inventory_replenishment_snapshot.update",
+        target_type="inventory_replenishment_snapshot",
+        target_id=snapshot_id,
+        operator=operator,
+        after={
+            "snapshot_id": snapshot_id,
+            "name": updated.name,
+            "description": updated.description,
+        },
+        request=request,
+    )
+    db.commit()
+
+    return _to_list_item(updated)
+
+
 @router.delete("/{snapshot_id}")
 def delete_snapshot_endpoint(
     request: Request,
     snapshot_id: int,
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> dict:
-    """删除快照"""
+    """删除快照（仅管理员）"""
+    if not is_admin:
+        from fastapi import HTTPException, status
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="仅管理员可删除快照")
+
     snapshot = get_snapshot_detail(db, snapshot_id)
     if snapshot is None:
         from fastapi import HTTPException, status
@@ -376,45 +427,3 @@ def delete_snapshot_endpoint(
         db.commit()
 
     return {"success": success, "snapshot_id": snapshot_id}
-
-
-@router.delete("/cleanup")
-def cleanup_old_snapshots_endpoint(
-    request: Request,
-    project_id: int = Query(gt=0),
-    country: str = Query(default="US"),
-    keep_count: int = Query(default=10, ge=1, le=100),
-    db: Session = Depends(get_db_session),
-    operator: str | None = Depends(get_request_operator),
-) -> dict:
-    """清理旧快照，保留最近的 N 个"""
-    deleted_count = cleanup_old_snapshots(
-        db,
-        project_id=project_id,
-        country=country,
-        keep_count=keep_count,
-    )
-
-    append_operation_audit_log(
-        db,
-        action="inventory_replenishment_snapshot.cleanup",
-        target_type="inventory_replenishment_snapshot",
-        target_id=0,
-        operator=operator,
-        after={
-            "project_id": project_id,
-            "country": country,
-            "keep_count": keep_count,
-            "deleted_count": deleted_count,
-        },
-        request=request,
-    )
-    db.commit()
-
-    return {
-        "success": True,
-        "project_id": project_id,
-        "country": country,
-        "keep_count": keep_count,
-        "deleted_count": deleted_count,
-    }

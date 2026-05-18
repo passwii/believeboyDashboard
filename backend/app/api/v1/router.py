@@ -32,6 +32,9 @@ from app.api.v1.endpoints.digital_employees import router as digital_employees_r
 from app.api.v1.endpoints.rpa_reports import router as rpa_reports_router
 from app.api.v1.endpoints.report_reconciliation import router as report_reconciliation_router
 from app.api.v1.endpoints.digital_display import router as digital_display_router
+from app.api.v1.endpoints.dashboard_overview import router as dashboard_overview_router
+from app.api.v1.endpoints.alerts import router as alerts_router
+from app.api.v1.endpoints.scheduled_reports import router as scheduled_reports_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router)
@@ -66,3 +69,6 @@ api_router.include_router(rpa_reports_router)
 api_router.include_router(digital_employees_router)
 api_router.include_router(report_reconciliation_router)
 api_router.include_router(digital_display_router)
+api_router.include_router(dashboard_overview_router)
+api_router.include_router(alerts_router)
+api_router.include_router(scheduled_reports_router)

@@ -126,6 +126,10 @@ const primaryGroups: NavGroup[] = [
         title: '补货分析',
         url: '/dashboard/data-analysis/inventory-replenishment',
       },
+      {
+        title: '组合分析',
+        url: '/dashboard/data-analysis/portfolio-overview',
+      },
       { title: '退货分析', url: '/dashboard/data-analysis/return-analysis' },
       { title: '项目目标', url: '/dashboard/data-analysis/project-goals' },
       { title: '调研分析', url: '/dashboard/data-analysis/research-analysis' },

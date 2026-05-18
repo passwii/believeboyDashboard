@@ -82,6 +82,15 @@ from app.models.digital_employee import (
 )
 from app.models.project_goal import ProjectGoal
 from app.models.reconciliation import ReconciliationRecord
+from app.models.alert_rule import AlertRule
+from app.models.alert_event import AlertEvent, AlertEventStatus
+from app.models.alert_preference import AlertPreference
+from app.models.scheduled_report import (
+    ScheduledReportSubscription,
+    ScheduledReportDeliveryLog,
+    ReportFrequency,
+    DeliveryStatus,
+)
 
 __all__ = [
     'SkuRecord',
@@ -162,4 +171,12 @@ __all__ = [
     'TaskStatus',
     'LogLevel',
     'ReconciliationRecord',
+    'AlertRule',
+    'AlertEvent',
+    'AlertEventStatus',
+    'AlertPreference',
+    'ScheduledReportSubscription',
+    'ScheduledReportDeliveryLog',
+    'ReportFrequency',
+    'DeliveryStatus',
 ]

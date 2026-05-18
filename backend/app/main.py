@@ -12,6 +12,7 @@ from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.services.audit_log_service import sync_operation_audit_log_sequence
+from app.core.scheduler import init_scheduler, shutdown_scheduler
 
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 
@@ -55,7 +56,7 @@ app.add_middleware(
 
 
 @app.on_event('startup')
-def sync_sequences_on_startup() -> None:
+def on_startup() -> None:
     db = SessionLocal()
     try:
         sync_operation_audit_log_sequence(db)
@@ -65,6 +66,12 @@ def sync_sequences_on_startup() -> None:
         raise
     finally:
         db.close()
+    init_scheduler()
+
+
+@app.on_event('shutdown')
+def on_shutdown() -> None:
+    shutdown_scheduler()
 
 
 @app.middleware('http')

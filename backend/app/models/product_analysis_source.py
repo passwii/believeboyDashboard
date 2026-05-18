@@ -351,6 +351,7 @@ class AnalysisSalesOrderRow(Base):
         Index('idx_analysis_sales_order_source_status', 'source_file_id', 'order_status'),
         Index('idx_analysis_sales_order_source_sku', 'source_file_id', 'sku'),
         Index('idx_analysis_sales_order_order_id', 'amazon_order_id'),
+        Index('idx_analysis_sales_order_country', 'country'),
     )
 
     id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
@@ -362,6 +363,8 @@ class AnalysisSalesOrderRow(Base):
         nullable=False,
     )
     source_row_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Per-row country for multi-site order splitting (UK/DE orders in same file)
+    country: Mapped[str] = mapped_column(String(2), nullable=False, server_default='US')
     amazon_order_id: Mapped[str] = mapped_column(String(64), nullable=False)
     purchase_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     purchase_at_pt: Mapped[datetime] = mapped_column(DateTime(timezone=False), nullable=False)

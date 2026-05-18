@@ -242,6 +242,29 @@ def list_snapshots(
     return list(snapshots[:page_size]), total, has_next
 
 
+def update_snapshot(
+    db: Session,
+    *,
+    snapshot_id: int,
+    name: str | None,
+    description: str | None,
+    operator: str | None,
+) -> InventoryReplenishmentSnapshot:
+    """更新快照的名称和备注"""
+    snapshot = db.get(InventoryReplenishmentSnapshot, snapshot_id)
+    if snapshot is None:
+        raise ValueError("快照不存在")
+
+    if name is not None:
+        snapshot.name = normalize_text(name, max_length=255)
+    if description is not None:
+        snapshot.description = normalize_text(description, max_length=512)
+
+    db.commit()
+    db.refresh(snapshot)
+    return snapshot
+
+
 def delete_snapshot(
     db: Session,
     snapshot_id: int,

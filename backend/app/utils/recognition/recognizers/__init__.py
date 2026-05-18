@@ -364,7 +364,20 @@ def recognize_file(
             if is_payment_report_by_columns(path):
                 return recognize_payment_report(path, normalized_country)
 
-            # No payment signal matched — return None (recognition failure)
+            # 4. Check for business report (has child ASIN columns)
+            try:
+                from app.utils.recognition.patterns import _read_csv_with_encoding_fallback, _normalize_columns
+                df = _normalize_columns(_read_csv_with_encoding_fallback(path, sep=","))
+                asin_col = next(
+                    (c for c in ["（子）ASIN", "(子)ASIN", "子ASIN", "ASIN"] if c in df.columns),
+                    None,
+                )
+                if asin_col:
+                    return recognize_business_report(path, normalized_country, original_filename)
+            except Exception:
+                pass
+
+            # No report type matched — return None (recognition failure)
             return None
 
         if extension == ".xlsx":

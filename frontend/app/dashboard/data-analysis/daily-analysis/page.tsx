@@ -1247,11 +1247,23 @@ export default function DailyAnalysisPage() {
   }, [country, defaultRange])
 
   const loadData = useCallback(
-    async (rangeOverride?: DateRange) => {
+    async (rangeOverride?: DateRange, clearCache: boolean = false) => {
       const effectiveRange = normalizeDateRange(rangeOverride ?? dateRange)
       if (!effectiveRange?.from || !effectiveRange?.to) {
         notify({ type: 'error', title: '请选择开始和结束日期' })
         return
+      }
+
+      // Clear Redis cache before loading fresh data
+      if (clearCache) {
+        try {
+          await fetch(`${API_BASE}/api/v1/cache/clear-all`, {
+            method: 'POST',
+            headers: authHeaders(),
+          })
+        } catch {
+          // Non-critical: cache clear failure should not block data refresh
+        }
       }
 
       const startDate = formatYMD(effectiveRange.from)
@@ -1821,7 +1833,7 @@ export default function DailyAnalysisPage() {
 
             <FilterField label="操作">
               <RefreshButton
-                onClick={() => void loadData()}
+                onClick={() => void loadData(undefined, true)}
                 loading={loading || projectsLoading}
                 label="刷新数据"
                 size="default"

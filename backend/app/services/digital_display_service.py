@@ -20,6 +20,7 @@ from app.models import (
     Project,
     ReturnAnalysisRecord,
     ShipmentSchedule,
+    ShipmentScheduleItem,
 )
 from app.utils.math_utils import round_money
 from app.utils.country import normalize_country
@@ -92,10 +93,9 @@ def _build_sales_snapshot(
             .first()
         )
 
-        # sessions from business report (grouped by period_start_date)
+        # sessions from business report (aggregated at source file level, not per-day)
         biz_rows = (
             db.query(
-                AnalysisBusinessRow.period_start_date,
                 func.coalesce(func.sum(AnalysisBusinessRow.sessions), 0).label("sessions"),
                 func.coalesce(func.sum(AnalysisBusinessRow.ordered_sales_amount), 0).label("sales"),
             )
@@ -108,15 +108,11 @@ def _build_sales_snapshot(
                 AnalysisSourceFile.country == country,
                 AnalysisSourceFile.report_type == "business_report",
                 AnalysisSourceFile.is_current == True,
-                AnalysisBusinessRow.period_start_date >= start,
-                AnalysisBusinessRow.period_start_date <= end,
-                AnalysisBusinessRow.period_start_date == AnalysisBusinessRow.period_end_date,
             )
-            .group_by(AnalysisBusinessRow.period_start_date)
-            .all()
+            .first()
         )
-        total_sessions = sum(int(r.sessions) for r in biz_rows)
-        total_sales = sum(float(r.sales or 0) for r in biz_rows)
+        total_sessions = int(biz_rows.sessions or 0)
+        total_sales = float(biz_rows.sales or 0)
 
         return {
             "order_qty": int(sales_rows.qty or 0),
@@ -213,22 +209,35 @@ def _build_shipment_snapshot(
     country: str,
 ) -> dict:
     """发货在途概况：批次数量、总数量"""
-    rows = (
-        db.query(
-            func.count(ShipmentSchedule.id).label("count"),
-            func.coalesce(func.sum(ShipmentSchedule.total_quantity), 0).label("qty"),
+    # Count schedules (batches)
+    count_row = (
+        db.query(func.count(ShipmentSchedule.id))
+        .filter(
+            ShipmentSchedule.project_id == project_id,
+            ShipmentSchedule.country == normalize_country(country),
+            ShipmentSchedule.shipment_status == "in_transit",
+        )
+        .scalar() or 0
+    )
+
+    # Sum quantities from items
+    qty_row = (
+        db.query(func.coalesce(func.sum(ShipmentScheduleItem.quantity), 0))
+        .join(
+            ShipmentSchedule,
+            ShipmentSchedule.id == ShipmentScheduleItem.shipment_schedule_id,
         )
         .filter(
             ShipmentSchedule.project_id == project_id,
             ShipmentSchedule.country == normalize_country(country),
             ShipmentSchedule.shipment_status == "in_transit",
         )
-        .first()
+        .scalar() or 0
     )
 
     return {
-        "in_transit_count": int(rows.count or 0),
-        "in_transit_qty": int(rows.qty or 0),
+        "in_transit_count": int(count_row),
+        "in_transit_qty": int(qty_row),
     }
 
 
@@ -329,14 +338,14 @@ def _build_ad_snapshot(
     rows = (
         db.query(
             func.coalesce(func.sum(AdUploadCampaignRow.spend), 0).label("spend"),
-            func.coalesce(func.sum(AdUploadCampaignRow.purchased_sales), 0).label("sales"),
+            func.coalesce(func.sum(AdUploadCampaignRow.sales_7d), 0).label("sales"),
             func.coalesce(func.sum(AdUploadCampaignRow.clicks), 0).label("clicks"),
             func.coalesce(func.sum(AdUploadCampaignRow.impressions), 0).label("impressions"),
-            func.coalesce(func.sum(AdUploadCampaignRow.orders), 0).label("orders"),
+            func.coalesce(func.sum(AdUploadCampaignRow.orders_7d), 0).label("orders"),
         )
         .join(
             AdUploadFile,
-            AdUploadFile.id == AdUploadCampaignRow.file_id,
+            AdUploadFile.id == AdUploadCampaignRow.source_file_id,
         )
         .filter(
             AdUploadFile.project_id == project_id,

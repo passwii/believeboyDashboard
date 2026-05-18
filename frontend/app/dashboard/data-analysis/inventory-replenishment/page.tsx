@@ -1,7 +1,8 @@
 'use client'
 
-import { useDeferredValue, useEffect, useMemo, useState } from 'react'
-import { CalendarClock, FileDown, Loader2, RefreshCw, Save, Send } from 'lucide-react'
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { CalendarClock, FileDown, Loader2, RefreshCw, Save, Send, Table2, CalendarDays } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 import { Badge } from '@/components/ui/badge'
@@ -27,6 +28,7 @@ import {
   DataTableCardHeader,
   DataTableCardStatBar,
 } from '@/components/ui/data-card'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useNotifications } from '@/components/notifications'
@@ -40,6 +42,9 @@ import {
 } from '@/components/dashboard/console'
 import { SnapshotSelector } from '@/components/dashboard/inventory-replenishment/snapshot-selector'
 import { CreateSnapshotDialog } from '@/components/dashboard/inventory-replenishment/create-snapshot-dialog'
+import { EditSnapshotDialog } from '@/components/dashboard/inventory-replenishment/edit-snapshot-dialog'
+import { CalendarView } from '@/components/dashboard/inventory-replenishment/calendar-view'
+import type { SnapshotOption } from '@/components/dashboard/inventory-replenishment/snapshot-selector'
 
 const API_BASE = '/api/backend'
 
@@ -219,11 +224,16 @@ function buildEditState(row: AnalysisRow): RowEditState {
 export default function InventoryReplenishmentPage() {
   const { notify } = useNotifications()
   const { data: session } = useSession()
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
 
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
-  const [projectId, setProjectId] = useState<string>('')
-  const [country, setCountry] = useState('US')
+  const [projectId, setProjectId] = useState<string>(() => searchParams.get('project') || '')
+  const [country, setCountry] = useState(() => searchParams.get('country') || 'US')
+  const [snapshotRefreshNonce, setSnapshotRefreshNonce] = useState(0)
+  const initializedFromUrl = useRef(false)
   const [keyword, setKeyword] = useState('')
   const [riskFilter, setRiskFilter] = useState('all')
   const deferredKeyword = useDeferredValue(keyword)
@@ -247,11 +257,26 @@ export default function InventoryReplenishmentPage() {
   const [selectedSnapshotId, setSelectedSnapshotId] = useState<number | null>(null)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [creatingSnapshot, setCreatingSnapshot] = useState(false)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [editingSnapshot, setEditingSnapshot] = useState<SnapshotOption | null>(null)
+
+  // View mode: table or calendar
+  const [viewMode, setViewMode] = useState<'table' | 'calendar'>('table')
+
+  const isAdmin = Boolean(session?.user?.isAdmin)
+  const isSnapshotMode = selectedSnapshotId !== null
 
   const currentProjectId = useMemo(() => {
     const parsed = Number(projectId)
     return Number.isFinite(parsed) && parsed > 0 ? parsed : null
   }, [projectId])
+
+  function syncUrlParams(nextProjectId: string, nextCountry: string) {
+    const params = new URLSearchParams()
+    if (nextProjectId) params.set('project', nextProjectId)
+    if (nextCountry) params.set('country', nextCountry)
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+  }
 
   const tableTotals = useMemo(
     () =>
@@ -291,8 +316,22 @@ export default function InventoryReplenishmentPage() {
         const payload = await fetchManagedProjectsCached<ProjectOption[]>(session)
         if (!active) return
         setProjects(payload)
-        if (!projectId && payload[0]?.id) {
-          setProjectId(String(payload[0].id))
+        if (payload.length > 0) {
+          const urlProjectId = searchParams.get('project')
+          const existsInList = urlProjectId && payload.some((p) => String(p.id) === urlProjectId)
+          if (existsInList) {
+            // URL has a valid projectId — keep it and mark as initialized
+            if (!initializedFromUrl.current) {
+              initializedFromUrl.current = true
+            }
+          } else if (!projectId || !existsInList) {
+            // No valid projectId in URL, fall back to first
+            setProjectId(String(payload[0].id))
+            if (!initializedFromUrl.current) {
+              initializedFromUrl.current = true
+              syncUrlParams(String(payload[0].id), country)
+            }
+          }
         }
       } catch (loadError) {
         if (!active) return
@@ -732,18 +771,27 @@ export default function InventoryReplenishmentPage() {
                 selectedSnapshotId={selectedSnapshotId}
                 onSnapshotSelect={setSelectedSnapshotId}
                 onCreateSnapshot={() => setCreateDialogOpen(true)}
+                onEditSnapshot={(snapshot) => {
+                  setEditingSnapshot(snapshot)
+                  setEditDialogOpen(true)
+                }}
                 disabled={!currentProjectId || loading}
+                refreshNonce={snapshotRefreshNonce}
+                isAdmin={isAdmin}
+                onDeleteSnapshot={() => setSnapshotRefreshNonce((n) => n + 1)}
               />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={!currentProjectId || loading || refreshingAll}
-                onClick={() => void refreshWithSave()}
-              >
-                <RefreshCw className={`mr-1.5 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-                {loading || refreshingAll ? '重算中...' : '刷新重算'}
-              </Button>
+              {!isSnapshotMode && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={!currentProjectId || loading || refreshingAll}
+                  onClick={() => void refreshWithSave()}
+                >
+                  <RefreshCw className={`mr-1.5 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                  {loading || refreshingAll ? '重算中...' : '刷新重算'}
+                </Button>
+              )}
             </>
           }
         />
@@ -755,7 +803,7 @@ export default function InventoryReplenishmentPage() {
                   {projectsLoading ? (
                     <Skeleton className="h-9 w-full rounded-lg" />
                   ) : (
-                    <Select value={projectId} onValueChange={setProjectId}>
+                    <Select value={projectId} onValueChange={(id) => { setProjectId(id); setSelectedSnapshotId(null); syncUrlParams(id, country) }}>
                       <SelectTrigger className="h-9 rounded-md border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground">
                         <SelectValue placeholder="选择项目" />
                       </SelectTrigger>
@@ -783,7 +831,7 @@ export default function InventoryReplenishmentPage() {
               <FilterField label="国家站点">
                 <CountrySelect
                   value={country}
-                  onChange={setCountry}
+                  onChange={(c) => { setCountry(c); setSelectedSnapshotId(null); syncUrlParams(projectId, c) }}
                   triggerClassName="h-9 rounded-md border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
                 />
               </FilterField>
@@ -824,22 +872,37 @@ export default function InventoryReplenishmentPage() {
         </DataCardContent>
       </DataCard>
 
-      <DataTableCard>
-        <DataTableCardHeader className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-1">
-            <h3 className="text-base font-semibold text-foreground">SKU 补货主表</h3>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={loading || exporting || rows.length === 0}
-            onClick={() => void exportToExcel()}
-          >
-            <FileDown className="h-3.5 w-3.5" />
-            {exporting ? '导出中...' : '导出 Excel'}
-          </Button>
-        </DataTableCardHeader>
-        <DataTableCardBody>
+      <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'table' | 'calendar')}>
+        <div className="mb-4 flex items-center justify-between">
+          <TabsList>
+            <TabsTrigger value="table" className="gap-1.5">
+              <Table2 className="h-4 w-4" />
+              表格视图
+            </TabsTrigger>
+            <TabsTrigger value="calendar" className="gap-1.5">
+              <CalendarDays className="h-4 w-4" />
+              日历视图
+            </TabsTrigger>
+          </TabsList>
+        </div>
+
+        <TabsContent value="table">
+          <DataTableCard>
+            <DataTableCardHeader className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="space-y-1">
+                <h3 className="text-base font-semibold text-foreground">SKU 补货主表</h3>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={loading || exporting || rows.length === 0}
+                onClick={() => void exportToExcel()}
+              >
+                <FileDown className="h-3.5 w-3.5" />
+                {exporting ? '导出中...' : '导出 Excel'}
+              </Button>
+            </DataTableCardHeader>
+            <DataTableCardBody>
           {!currentProjectId && !projectsLoading ? (
             <div className="px-6 py-16 text-center text-sm text-muted-foreground">请先选择项目。</div>
           ) : loading && rows.length === 0 ? (
@@ -913,16 +976,20 @@ export default function InventoryReplenishmentPage() {
                             {formatNumber(row.base_dms)}
                           </TableCell>
                           <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80`}>
-                            <div className="flex items-center gap-2">
-                              <Input
-                                value={edit.safety_factor}
-                                onChange={(event) =>
-                                  setEdits((prev) => ({ ...prev, [key]: { ...edit, safety_factor: event.target.value } }))
-                                }
-                                className="h-8 w-[72px] rounded-md border-border/70 bg-[hsl(var(--surface-panel))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
-                              />
-                              <span className="text-xs text-muted-foreground">%</span>
-                            </div>
+                            {isSnapshotMode ? (
+                              <span>{formatNumber(row.safety_factor)}%</span>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  value={edit.safety_factor}
+                                  onChange={(event) =>
+                                    setEdits((prev) => ({ ...prev, [key]: { ...edit, safety_factor: event.target.value } }))
+                                  }
+                                  className="h-8 w-[72px] rounded-md border-border/70 bg-[hsl(var(--surface-panel))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
+                                />
+                                <span className="text-xs text-muted-foreground">%</span>
+                              </div>
+                            )}
                           </TableCell>
                           <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80} text-right font-medium text-foreground`}>
                             {formatNumber(row.weighted_dms)}
@@ -931,25 +998,33 @@ export default function InventoryReplenishmentPage() {
                           <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80`}>{formatDate(row.sellout_date)}</TableCell>
                           <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80`}>{formatDate(row.sellout_date_with_transit)}</TableCell>
                           <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80`}>
-                            <Input
-                              value={edit.production_lead_days}
-                              onChange={(event) =>
-                                setEdits((prev) => ({
-                                  ...prev,
-                                  [key]: { ...edit, production_lead_days: event.target.value },
-                                }))
-                              }
-                              className="h-8 w-[72px] rounded-md border-border/70 bg-[hsl(var(--surface-panel))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
-                            />
+                            {isSnapshotMode ? (
+                              <span>{row.production_lead_days}</span>
+                            ) : (
+                              <Input
+                                value={edit.production_lead_days}
+                                onChange={(event) =>
+                                  setEdits((prev) => ({
+                                    ...prev,
+                                    [key]: { ...edit, production_lead_days: event.target.value },
+                                  }))
+                                }
+                                className="h-8 w-[72px] rounded-md border-border/70 bg-[hsl(var(--surface-panel))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
+                              />
+                            )}
                           </TableCell>
                           <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80`}>
-                            <Input
-                              value={edit.shipping_days}
-                              onChange={(event) =>
-                                setEdits((prev) => ({ ...prev, [key]: { ...edit, shipping_days: event.target.value } }))
-                              }
-                              className="h-8 w-[72px] rounded-md border-border/70 bg-[hsl(var(--surface-panel))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
-                            />
+                            {isSnapshotMode ? (
+                              <span>{row.shipping_days}</span>
+                            ) : (
+                              <Input
+                                value={edit.shipping_days}
+                                onChange={(event) =>
+                                  setEdits((prev) => ({ ...prev, [key]: { ...edit, shipping_days: event.target.value } }))
+                                }
+                                className="h-8 w-[72px] rounded-md border-border/70 bg-[hsl(var(--surface-panel))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
+                              />
+                            )}
                           </TableCell>
                           <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80`}>{formatDate(row.replenishment_order_date)}</TableCell>
                           <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80`}>{formatDate(row.warehouse_entry_date)}</TableCell>
@@ -965,15 +1040,17 @@ export default function InventoryReplenishmentPage() {
                           <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80`}>
                             <div className="flex flex-col gap-1.5">
                               <div className="flex items-center gap-2">
-                                <Button
-                                  size="sm"
-                                  className="h-8 gap-1.5 whitespace-nowrap px-2.5 text-xs dark:bg-[hsl(var(--surface-strong))] dark:text-foreground"
-                                  onClick={() => void saveRow(row)}
-                                  disabled={savingSku === key}
-                                >
-                                  {savingSku === key ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-1.5 h-3.5 w-3.5" />}
-                                  保存
-                                </Button>
+                                {!isSnapshotMode && (
+                                  <Button
+                                    size="sm"
+                                    className="h-8 gap-1.5 whitespace-nowrap px-2.5 text-xs dark:bg-[hsl(var(--surface-strong))] dark:text-foreground"
+                                    onClick={() => void saveRow(row)}
+                                    disabled={savingSku === key}
+                                  >
+                                    {savingSku === key ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-1.5 h-3.5 w-3.5" />}
+                                    保存
+                                  </Button>
+                                )}
                                 <Button
                                   size="sm"
                                   variant="outline"
@@ -1020,6 +1097,12 @@ export default function InventoryReplenishmentPage() {
           )}
         </DataTableCardBody>
       </DataTableCard>
+        </TabsContent>
+
+        <TabsContent value="calendar">
+          <CalendarView projectId={currentProjectId} country={country} />
+        </TabsContent>
+      </Tabs>
 
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent side="right" className="w-full overflow-y-auto dark:border-border/85 dark:bg-[hsl(var(--surface-panel))] sm:max-w-2xl">
@@ -1158,8 +1241,22 @@ export default function InventoryReplenishmentPage() {
         country={country}
         onSuccess={(snapshotId) => {
           setSelectedSnapshotId(snapshotId)
+          setSnapshotRefreshNonce((n) => n + 1)
         }}
       />
+
+      {editingSnapshot && (
+        <EditSnapshotDialog
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          snapshotId={editingSnapshot.id}
+          initialName={editingSnapshot.name}
+          initialDescription={editingSnapshot.description}
+          onSuccess={() => {
+            setSnapshotRefreshNonce((n) => n + 1)
+          }}
+        />
+      )}
     </div>
   )
 }

@@ -24,6 +24,7 @@ from app.utils.recognition import (
     _read_csv_with_encoding_fallback,
     _read_excel,
 )
+from app.utils.parsers import detect_countries_in_sales_file
 from app.services.payment.locale import read_payment_report_dataframe
 from app.services.data.upload.project_match import _build_project_match
 
@@ -42,6 +43,8 @@ class RecognitionPayload:
     row_count_preview: int | None = None
     warnings: list[str] | None = None
     country: str = "US"
+    detected_countries: list[str] = field(default_factory=list)  # Multi-site detection
+    primary_country: str | None = None
 
 
 def _result_to_payload(result: RecognitionResult) -> RecognitionPayload:
@@ -103,6 +106,13 @@ def recognize_saved_report_upload(
     payload = _result_to_payload(result)
     effective_country = _normalize_country(payload.country or normalized_country)
 
+    # Multi-country detection for sales reports
+    if result.report_type == "sales_report":
+        detected = detect_countries_in_sales_file(path)
+        if detected:
+            payload.detected_countries = detected
+            payload.primary_country = detected[0] if len(detected) == 1 else None
+
     try:
         if result.report_type in {"inventory_report", "sales_report", "return_report"}:
             df = _normalize_columns(_read_csv_with_encoding_fallback(path))
@@ -141,6 +151,8 @@ def recognize_saved_report_upload(
                 reason=payload.reason,
                 status="recognized",
                 country=effective_country,
+                detected_countries=payload.detected_countries,
+                primary_country=payload.primary_country,
                 date_input_mode=payload.date_input_mode,
                 detected_date=payload.detected_date,
                 detected_start_date=payload.detected_start_date,
@@ -196,6 +208,8 @@ def recognize_saved_report_upload(
         reason=payload.reason,
         status="recognized",
         country=effective_country,
+        detected_countries=payload.detected_countries,
+        primary_country=payload.primary_country,
         date_input_mode=payload.date_input_mode,
         detected_date=payload.detected_date,
         detected_start_date=payload.detected_start_date,

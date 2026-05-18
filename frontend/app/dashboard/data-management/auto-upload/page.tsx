@@ -435,6 +435,14 @@ function getUploadReportTypeLabel(type: UploadQueueItem['reportType']): string {
   return REPORT_UPLOAD_REPORT_TYPE_LABELS[type] ?? type
 }
 
+function getMultiCountryDisplay(countries: string[]): string {
+  if (!countries || countries.length === 0) return '未识别'
+  if (countries.length === 1) {
+    return getReportUploadCountryLabel(countries[0], true)
+  }
+  return countries.map(c => getReportUploadCountryLabel(c, true)).join(' + ')
+}
+
 function AutoUploadContent() {
   const { data: session } = useSession()
   const [dragActive, setDragActive] = useState(false)
@@ -475,6 +483,8 @@ function AutoUploadContent() {
       detectedStartDate: null,
       detectedEndDate: null,
       detectedCountry: null,
+      detectedCountries: [],
+      isMultiCountry: false,
       userReportDate: null,
       userReportStartDate: null,
       userReportEndDate: null,
@@ -524,6 +534,8 @@ function AutoUploadContent() {
                   detectedStartDate: recognition.detected_start_date ?? null,
                   detectedEndDate: recognition.detected_end_date ?? null,
                   detectedCountry: recognition.country,
+                  detectedCountries: recognition.detected_countries ?? [],
+                  isMultiCountry: (recognition.detected_countries?.length ?? 0) > 1,
                   error:
                     recognition.status === 'recognized'
                       ? null
@@ -573,7 +585,14 @@ function AutoUploadContent() {
       const recognition = recognitionMap[item.localId]
       if (!recognition) continue
 
-      if (recognition.country && recognition.country !== country) {
+      // Multi-country detection: sales reports with multiple countries are auto-split
+      const isMultiCountrySalesReport =
+        item.reportType === 'sales_report' &&
+        recognition.detected_countries &&
+        recognition.detected_countries.length > 1
+
+      // Validate country only for single-country files
+      if (!isMultiCountrySalesReport && recognition.country && recognition.country !== country) {
         setQueueItems((prev) =>
           prev.map((it) =>
             it.localId === item.localId
@@ -586,6 +605,12 @@ function AutoUploadContent() {
           ),
         )
         continue
+      }
+
+      // Multi-country file: show info but allow processing
+      if (isMultiCountrySalesReport) {
+        const countries = recognition.detected_countries.join(', ')
+        // Update detectedCountry to show multi-country info (optional enhancement)
       }
 
       // 检查项目匹配状态
@@ -646,6 +671,12 @@ function AutoUploadContent() {
         }
       }
 
+      // 多站点文件：跳过国家验证，后端会自动拆分
+      if (isMultiCountrySalesReport) {
+        const countries = recognition.detected_countries.join(', ')
+        // 后端会根据检测到的国家自动拆分为多个 source_file
+      }
+
       setQueueItems((prev) =>
         prev.map((it) =>
           it.localId === item.localId
@@ -657,6 +688,12 @@ function AutoUploadContent() {
        try {
         const resolvedStartDate = item.userReportStartDate ?? recognition.detected_start_date ?? null
         const resolvedEndDate = item.userReportEndDate ?? recognition.detected_end_date ?? null
+
+        // 多站点文件：传入 primary_country 供后端参考（后端会按检测到的所有国家拆分）
+        const effectiveCountry = isMultiCountrySalesReport
+          ? (recognition.primary_country ?? country)
+          : country
+
         const payload = {
           temp_file_id: item.tempFileId,
           original_filename: item.originalFileName,
@@ -664,7 +701,7 @@ function AutoUploadContent() {
           report_date: resolvedDate,
           report_start_date: resolvedStartDate,
           report_end_date: resolvedEndDate,
-          country,
+          country: effectiveCountry,
           project_name: finalProjectName,
         }
         const res = await fetch(`${API_BASE}/api/v1/report-upload/commit`, {
@@ -846,7 +883,15 @@ function AutoUploadContent() {
                 {queueItems.map((item) => (
                   <div
                     key={item.localId}
-                    className='flex items-start justify-between gap-3 rounded-xl border border-border/60 bg-[hsl(var(--surface-subtle))]/85 px-3 py-3'
+                    className={cn(
+                      'relative flex items-start justify-between gap-3 rounded-xl border border-border/60 bg-[hsl(var(--surface-subtle))]/85 px-3 py-3 transition-colors duration-300',
+                      // 上传成功：整条绿色覆盖
+                      item.fileCommitStatus === 'success' && 'border-emerald-400/50 bg-emerald-500/15 dark:bg-emerald-500/20',
+                      // 保存中：淡蓝色
+                      item.fileCommitStatus === 'saving' && 'border-sky-400/40 bg-sky-500/10 dark:bg-sky-500/15',
+                      // 识别错误：淡红色
+                      item.recognitionStatus === 'error' && 'border-rose-400/40 bg-rose-500/10',
+                    )}
                   >
                     <div className='min-w-0 flex-1 space-y-1'>
                       <p className='truncate text-sm font-medium text-foreground'>
@@ -860,7 +905,12 @@ function AutoUploadContent() {
                       {item.recognitionStatus !== 'pending' ? (
                         <>
                           <p className='text-xs text-muted-foreground'>
-                            国家：{item.detectedCountry ? getReportUploadCountryLabel(item.detectedCountry, true) : '未识别'}
+                            国家：{item.isMultiCountry
+                              ? <span className='text-blue-600 dark:text-blue-400 font-medium'>
+                                  {getMultiCountryDisplay(item.detectedCountries)} (自动拆分)
+                                </span>
+                              : (item.detectedCountry ? getReportUploadCountryLabel(item.detectedCountry, true) : '未识别')
+                            }
                           </p>
                           {item.recognizedProject === '未匹配' || item.recognizedProject === null ? (
                             <div className='flex items-center gap-1.5'>
