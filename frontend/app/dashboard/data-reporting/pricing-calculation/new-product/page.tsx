@@ -1183,11 +1183,7 @@ async function exportComparisonMatrixToExcel(
   headerRow.values = [
     '指标',
     '子项',
-    ...runs.map((run) => {
-      const typeLabel = getCalculationTypeMeta(run.calculation_type).label
-      const dateStr = formatCompactDate(run.created_at)
-      return `${run.product_name}\n${typeLabel} · ${run.country}站 · ${dateStr}`
-    }),
+    ...runs.map((run) => run.product_name),
   ]
 
   const palette: Record<string, { section: string; sub: string }> = {
