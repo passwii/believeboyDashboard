@@ -1753,7 +1753,7 @@ export default function AIInsightsPage() {
         toPng(dataUrl, { backgroundColor: '#ffffff', pixelRatio: 2, cacheBust: true })
           .then((url) => {
             const link = document.createElement('a')
-            link.download = `AI洞察_${viewingInsight?.title ?? '报告'}_${new Date().toISOString().slice(0, 10)}.png`
+            link.download = `${viewingInsight?.project_name}-${viewingInsight?.title ?? '报告'}_${new Date().toISOString().slice(0, 10)}.png`
             link.href = url
             link.click()
           })
