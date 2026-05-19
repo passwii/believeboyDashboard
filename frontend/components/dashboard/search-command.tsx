@@ -78,7 +78,7 @@ const navItems: SearchItem[] = [
   { title: '数据库状态', url: '/dashboard/system-management/data-management', icon: <Database className='h-4 w-4' />, category: '系统管理' },
   { title: '账号管理', url: '/dashboard/system-management/account-management', icon: <Settings className='h-4 w-4' />, category: '系统管理' },
   { title: '运营管理', url: '/dashboard/system-management/operator-management', icon: <ShieldUser className='h-4 w-4' />, category: '系统管理' },
-  { title: '项目佣金', url: '/dashboard/system-management/commission-overview', icon: <Coins className='h-4 w-4' />, category: '系统管理' },
+  { title: '项目佣金', url: '/dashboard/system-management/commission-management', icon: <Coins className='h-4 w-4' />, category: '系统管理' },
   { title: '日志查看', url: '/dashboard/system-management/logs', icon: <History className='h-4 w-4' />, category: '系统管理' },
   // 工具入口
   { title: '更新日志', url: '/dashboard/changelog', icon: <BookOpen className='h-4 w-4' />, category: '支持入口' },

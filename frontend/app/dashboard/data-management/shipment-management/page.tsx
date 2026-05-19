@@ -2395,8 +2395,8 @@ export default function ShipmentManagementPage() {
     <div className="min-w-0 space-y-6 text-foreground">
       <DataCard>
         <DataCardHeader title="控制台" titleClassName="text-2xl tracking-tight" />
-        <DataCardContent className="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_auto] xl:gap-5">
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 xl:col-span-1 [&>div]:min-w-0">
+        <DataCardContent className="grid gap-4 p-4 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-5">
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4 xl:col-span-1 [&>div]:min-w-0">
           {projectsLoading ? (
             <ShipmentControlSkeleton />
           ) : (
@@ -2964,7 +2964,7 @@ export default function ShipmentManagementPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-4 py-2 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 py-2 md:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-2">
               <div className="text-sm font-medium text-foreground">项目</div>
               <Select value={form.project_id} onValueChange={(value) => handleFormChange('project_id', value)}>

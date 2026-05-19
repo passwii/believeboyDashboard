@@ -1330,7 +1330,7 @@ export default function ReportUploadPage() {
                   </CardHeader>
                 </Card>
 
-                <div className='grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.95fr)]'>
+                <div className='grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.95fr)]'>
                   <Card className='overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-sm dark:border-border/90'>
                     <CardHeader className='border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-6 py-5 md:px-8'>
                       <div className='flex items-center gap-3'>

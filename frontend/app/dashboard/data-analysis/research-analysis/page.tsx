@@ -1275,7 +1275,7 @@ function MetricGridCard({ title, description, items }: { title: string; descript
         description={description}
         titleClassName="text-base"
       />
-      <DataCardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <DataCardContent className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
         {items.map((item) => (
           <div key={item.label} className="rounded-xl border border-border/70 bg-muted/[0.14] p-3 transition-colors duration-200 hover:border-primary/30 hover:bg-muted/[0.2]">
             <p className="text-xs text-muted-foreground">{item.label}</p>
@@ -1414,7 +1414,7 @@ function ContextSummaryStrip({
 }) {
   return (
     <div className="rounded-2xl border border-border/80 bg-background/80 p-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/65">
-      <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-[repeat(6,minmax(0,1fr))_220px]">
+      <div className="grid gap-2 md:grid-cols-3 lg:grid-cols-[repeat(6,minmax(0,1fr))_220px]">
         {items.map((item) => (
           <div key={item.key} className="rounded-xl border border-border/70 bg-muted/[0.12] px-3 py-2">
             <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{item.label}</p>
@@ -2037,7 +2037,7 @@ export default function CategoryResearchPage() {
             action={<Upload className="h-5 w-5" />}
           />
           <DataCardContent className="space-y-5">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
               <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">站点</p>
                 <Select value={marketplace} onValueChange={setMarketplace}>
@@ -2084,7 +2084,7 @@ export default function CategoryResearchPage() {
             description="保持上传与版本流转逻辑不变，分析端升级为图表工作台。"
             titleClassName="text-base"
           />
-          <DataCardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <DataCardContent className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
             {[
               '填写站点与关键词',
               '上传 xlsx 原始数据',
@@ -2119,7 +2119,7 @@ export default function CategoryResearchPage() {
             action={<Database className="h-5 w-5" />}
           />
           <DataCardContent className="space-y-5">
-            <div className="grid gap-4 xl:grid-cols-[1fr_1.35fr_220px]">
+            <div className="grid gap-4 lg:grid-cols-[1fr_1.35fr_220px]">
               <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">站点</p>
                 <Select value={marketplace} onValueChange={setMarketplace}>
@@ -2161,7 +2161,7 @@ export default function CategoryResearchPage() {
               </div>
             </div>
 
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_auto_auto_auto] xl:items-end">
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_auto_auto_auto] lg:items-end">
               {datasetLoading && datasets.length === 0 ? (
                 <ResearchControlSkeleton widthClass="xl:col-span-1" />
               ) : (
@@ -2259,7 +2259,7 @@ export default function CategoryResearchPage() {
         </DataCard>
 
         {overviewLoading ? (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             {Array.from({ length: 8 }).map((_, index) => (
               <Skeleton key={index} className="h-48 rounded-xl" />
             ))}
@@ -2271,14 +2271,14 @@ export default function CategoryResearchPage() {
             <div ref={analysisExportRef} className="space-y-6">
               <section id="analysis-section-overview" className="scroll-mt-32 space-y-6">
                 <AnalysisSectionHeader section={ANALYSIS_SECTIONS[0]} />
-                <div className="grid gap-4 xl:grid-cols-3">
+                <div className="grid gap-4 lg:grid-cols-3">
                   {summaryCards.map((item) => (
                     <DecisionSummaryCard key={item.key} item={item} />
                   ))}
                 </div>
                 <MetricGridCard title="总览结论板" description="把增长、季节性、新品窗口、供给复杂度、数据质量和样本跨度放在同一屏做决策扫描。" items={overviewModels.metrics} />
 
-                <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+                <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
                   <InsightChartCard
                     title="高优先风险 / 机会"
                     description="先看最影响 go / no-go 判断的三个结论，再决定要不要继续展开图表。"
@@ -2342,7 +2342,7 @@ export default function CategoryResearchPage() {
                   </InsightChartCard>
                 </div>
 
-              <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+              <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
                 <InsightChartCard
                   title="市场画像雷达"
                   description="把机会、结构和执行三个维度压成一张决策图。分数越高，越接近可进入状态。"
@@ -2372,7 +2372,7 @@ export default function CategoryResearchPage() {
                 <InsightChartCard
                   title="关键风险环"
                   description="先看最容易否决决策的三类风险：品牌垄断、卖家垄断、中国卖家竞争。"
-                  contentClassName="grid gap-3 md:grid-cols-3 xl:grid-cols-1"
+                  contentClassName="grid gap-3 md:grid-cols-3 lg:grid-cols-1"
                 >
                   {overviewModels.radialRisks.map((item, index) => (
                     <div key={item.label} className="space-y-2">
@@ -2383,7 +2383,7 @@ export default function CategoryResearchPage() {
                 </InsightChartCard>
               </div>
 
-              <div className="grid gap-4 xl:grid-cols-2">
+              <div className="grid gap-4 lg:grid-cols-2">
                 <InsightChartCard title="版本样本历史" description="先确认样本是否足够稳定，再决定是否进入下一层判断。">
                   {overviewModels.historyData.length > 0 ? (
                     <ChartContainer config={{ products: { label: '样本数', color: DASHBOARD_PALETTE.blue } }} className="h-[300px] w-full">
@@ -2399,7 +2399,7 @@ export default function CategoryResearchPage() {
                     <EmptyChartState message="暂无版本历史数据" height="h-[300px]" />
                   )}
                 </InsightChartCard>
-                <InsightChartCard title="数据质量警报" description="先识别会误导判断的原始问题，再决定这份样本是否值得继续分析。" contentClassName="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <InsightChartCard title="数据质量警报" description="先识别会误导判断的原始问题，再决定这份样本是否值得继续分析。" contentClassName="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
                   {overviewModels.warningItems.map((item) => (
                     <div key={item.label} className="rounded-xl border border-border/70 bg-muted/[0.12] p-4">
                       <p className="text-xs text-muted-foreground">{item.label}</p>
@@ -2425,7 +2425,7 @@ export default function CategoryResearchPage() {
                     </Button>
                   ) : null
                 }
-                contentClassName="grid gap-3 xl:grid-cols-2"
+                contentClassName="grid gap-3 lg:grid-cols-2"
               >
                 {(showAllDefinitions ? overviewModels.metricDefinitionCards : collapsedMetricDefinitions).map((item) => (
                   <div key={item.title} className="rounded-xl border border-border/70 bg-muted/10 p-4">
@@ -2449,7 +2449,7 @@ export default function CategoryResearchPage() {
               <AnalysisSectionHeader section={ANALYSIS_SECTIONS[1]} />
               <MetricGridCard title="市场节奏总览" description="先看增长斜率、峰值位置和同比环比，再判断这个市场是在扩张、波动还是回落。" items={marketModels.trendMetrics} />
 
-              <div className="grid gap-4 xl:grid-cols-[1.3fr_0.7fr]">
+              <div className="grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
                 <InsightChartCard
                   title="类目月度销量趋势"
                   description={`默认展示近12个月，并与上一轮12个月逐月对比。${marketModels.peakMonth ? `峰值月份：${marketModels.peakMonth.year_month}` : ''}`}
@@ -2545,7 +2545,7 @@ export default function CategoryResearchPage() {
                 </InsightChartCard>
               </div>
 
-              <div className="grid gap-4 xl:grid-cols-2">
+              <div className="grid gap-4 lg:grid-cols-2">
                 <InsightChartCard title="上架时间天数分布" description="看这个类目是靠老品统治，还是仍然有新上架产品持续进入。">
                   {marketModels.listingAgeData.length > 0 ? (
                     <ChartContainer config={marketStructureChartConfig} className="h-[280px] w-full">
@@ -2625,7 +2625,7 @@ export default function CategoryResearchPage() {
               <MetricGridCard title="品牌竞争总览" description="先看品牌集中度，再看头部品牌覆盖力和价格带控制力。 " items={brandModels.metrics} />
 
               <InsightChartCard title="品牌指标说明" description="把 CR / HHI 的公式、阈值和当前值统一放在一起，避免品牌判断只剩一个风险词。">
-                <div className="grid gap-3 xl:grid-cols-2">
+                <div className="grid gap-3 lg:grid-cols-2">
                   {brandModels.explanationCards.map((item) => (
                     <div key={item.title} className="rounded-xl border border-border/70 bg-muted/10 p-4">
                       <p className="font-medium text-foreground">{item.title}</p>
@@ -2643,7 +2643,7 @@ export default function CategoryResearchPage() {
                 </div>
               </InsightChartCard>
 
-              <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+              <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
                 <InsightChartCard title="Top10 品牌销量" description="先认清谁在拿走市场，再决定是否要正面竞争。">
                   {brandModels.top10.length > 0 ? (
                     <ChartContainer config={brandBarChartConfig} className="h-[340px] w-full">
@@ -2703,7 +2703,7 @@ export default function CategoryResearchPage() {
                 </InsightChartCard>
               </div>
 
-              <div className="grid gap-4 xl:grid-cols-2">
+              <div className="grid gap-4 lg:grid-cols-2">
                 <InsightChartCard
                   title="Top5 品牌对比雷达"
                   description="比较头部品牌的覆盖能力，不只看销量，还看它们对价格带和产品矩阵的控制力。"
@@ -2806,7 +2806,7 @@ export default function CategoryResearchPage() {
               <MetricGridCard title="卖家结构总览" description="把国籍、自营、履约和渠道集中度放在一起，看第三方卖家有没有空间。 " items={sellerModels.metrics} />
 
               <InsightChartCard title="卖家指标说明" description="统一解释 CR、HHI、中国卖家占比和卖家垄断系数，让卖家结构判断有明确口径。">
-                <div className="grid gap-3 xl:grid-cols-3">
+                <div className="grid gap-3 lg:grid-cols-3">
                   {sellerModels.explanationCards.map((item) => (
                     <div key={item.title} className="rounded-xl border border-border/70 bg-muted/10 p-4">
                       <p className="font-medium text-foreground">{item.title}</p>
@@ -2824,7 +2824,7 @@ export default function CategoryResearchPage() {
                 </div>
               </InsightChartCard>
 
-              <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+              <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
                 <InsightChartCard title="卖家国籍构成" description="先看中国卖家有没有拿走核心销量，再看数量占比是否同步抬升。">
                   {sellerModels.nationalityPieData.length > 0 ? (
                     <div className="space-y-4">
@@ -2881,7 +2881,7 @@ export default function CategoryResearchPage() {
                 </InsightChartCard>
               </div>
 
-              <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+              <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
                 <InsightChartCard title="卖家结构仪表" description="用三项快读指标先判断履约、自营和国别竞争压力。">
                   <div className="grid gap-3 md:grid-cols-3">
                     {sellerModels.radialData.map((item, index) => (
@@ -2932,7 +2932,7 @@ export default function CategoryResearchPage() {
               <AnalysisSectionHeader section={ANALYSIS_SECTIONS[4]} />
               <MetricGridCard title="评论门槛总览" description="重点回答两个问题：评论门槛高不高，低评论产品还有没有拿量机会。 " items={reviewModels.metrics} />
 
-              <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+              <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
                 <InsightChartCard title="评分星级分布" description="看高评分是不是已经高度集中，避免只看到评论数看不到口碑结构。">
                   {reviewModels.ratingDistribution.length > 0 ? (
                     <ChartContainer config={reviewChartConfig} className="h-[300px] w-full">
@@ -2981,7 +2981,7 @@ export default function CategoryResearchPage() {
                 </InsightChartCard>
               </div>
 
-              <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+              <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
                 <InsightChartCard title="评价数量段累计销量占比" description="看销量是不是被高评论段快速吃掉，判断后发进入难度。">
                   {reviewModels.cumulativeShareData.length > 0 ? (
                     <ChartContainer config={reviewChartConfig} className="h-[320px] w-full">
@@ -3080,7 +3080,7 @@ export default function CategoryResearchPage() {
                 </div>
               </InsightChartCard>
 
-              <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+              <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
                 <InsightChartCard title="价格区间销量" description="先找主战场价格带，判断销量到底集中在哪些价位。">
                   {priceModels.largeBandData.length > 0 ? (
                     <ChartContainer config={priceChartConfig} className="h-[300px] w-full">
@@ -3129,7 +3129,7 @@ export default function CategoryResearchPage() {
                 </InsightChartCard>
               </div>
 
-              <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+              <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
                 <InsightChartCard title="价格区间销量趋势" description="看价格带之间的销量迁移，判断消费者是否只认少数价位。">
                   {priceModels.smallBandData.length > 0 ? (
                     <ChartContainer config={priceChartConfig} className="h-[320px] w-full">

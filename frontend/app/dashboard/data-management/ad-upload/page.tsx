@@ -572,7 +572,7 @@ export default function AdUploadPage() {
 
   return (
     <div className='space-y-5'>
-      <div className='grid gap-5 xl:grid-cols-[420px_minmax(0,1fr)]'>
+      <div className='grid gap-5 lg:grid-cols-[420px_minmax(0,1fr)]'>
         <div ref={uploadPanelRef} className='space-y-5'>
           <Card className='overflow-hidden'>
             <CardHeader className='pb-4'>

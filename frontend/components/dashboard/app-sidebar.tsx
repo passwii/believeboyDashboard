@@ -216,7 +216,7 @@ const adminGroup: NavGroup = {
     },
     {
       title: '项目佣金',
-      url: '/dashboard/system-management/commission-overview',
+      url: '/dashboard/system-management/commission-management',
     },
     { title: '日志查看', url: '/dashboard/system-management/logs' },
   ],
