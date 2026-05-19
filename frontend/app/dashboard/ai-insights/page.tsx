@@ -572,7 +572,18 @@ function parseAsciiCallout(code: string) {
 
   // Plain style (e.g. ```alert\n⚠️ Title\nBody line\n```): 1–2 lines, no box chars needed
   const title = lines[0].replace(/^⚠️\s*/, '').trim()
-  const body = lines.slice(1).filter((line) => line.trim())
+
+  // Merge short lines (< 30 chars) with the previous line to handle AI line-wrapping
+  const rawBody = lines.slice(1).filter((line) => line.trim())
+  const body: string[] = []
+  for (const line of rawBody) {
+    if (line.length < 30 && body.length > 0) {
+      // Short line: merge with previous entry
+      body[body.length - 1] = body[body.length - 1] + line
+    } else {
+      body.push(line)
+    }
+  }
 
   if (!title) return null
 
