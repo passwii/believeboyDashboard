@@ -100,7 +100,9 @@ def recompute_commission_records(
         factory_commission_rate, _, factory_commission_usd = _resolve_factory_commission(
             project.commission_basis, project.commission_rate, income_total_usd, amazon_pay_back,
         )
-        factory_commission_rmb = _to_decimal(usd_to_rmb_rate * factory_commission_usd, "0.01")
+        factory_commission_rmb = _to_decimal(
+            Decimal(str(factory_commission_usd)) * usd_to_rmb_rate, "0.01"
+        )
 
         pm_row = project_month_map.get(int(project.id))
         if pm_row is None:
@@ -156,7 +158,9 @@ def recompute_commission_records(
             row.operator_bonus_ratio = _to_decimal(ratio_value, "0.000001")
             row.bonus_amount_usd = bonus_amount_usd
             row.usd_to_rmb_rate = _to_decimal(usd_to_rmb_rate, "0.00000001")
-            row.bonus_amount_rmb = _to_decimal(bonus_amount_usd * usd_to_rmb_rate, "0.01")
+            row.bonus_amount_rmb = _to_decimal(
+                Decimal(str(bonus_amount_usd)) * usd_to_rmb_rate, "0.01"
+            )
             row.bonus_ratio_source = ratio_source.value
             row.manual_bonus_ratio = _to_decimal(manual_ratio, "0.000001") if manual_ratio is not None else None
             row.computed_at = now
