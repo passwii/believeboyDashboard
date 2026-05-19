@@ -11,11 +11,11 @@ import { formatMonthInputValue, parseMonthInputValue } from '@/components/ui/dat
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { buildBackendHeaders } from '@/lib/backend-auth'
 import { useNotifications } from '@/components/notifications'
-import { DetailTab } from '@/components/dashboard/commission/detail-tab'
-import { MonthlySummaryTab } from '@/components/dashboard/commission/monthly-summary-tab'
-import { ProjectSummaryTab } from '@/components/dashboard/commission/project-summary-tab'
-import { MonthlyCollectionTab } from '@/components/dashboard/commission/monthly-collection-tab'
-import { CommissionRulesCard } from '@/components/dashboard/commission/commission-rules-card'
+import { DetailTab } from './detail-tab'
+import { MonthlySummaryTab } from './monthly-summary-tab'
+import { ProjectSummaryTab } from './project-summary-tab'
+import { MonthlyCollectionTab } from './monthly-collection-tab'
+import { CommissionRulesCard } from './commission-rules-card'
 
 type PaymentStatus = 'paid' | 'partial' | 'unpaid'
 
