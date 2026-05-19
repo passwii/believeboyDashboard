@@ -150,7 +150,7 @@ def _render_daily_report_html(report_data: dict[str, Any]) -> str:
         ("广告花费", _fmt_currency(ad_spend), "#111827"),
         ("ROAS", f"{ad_roas:.2f}", roas_clr),
         ("ACOS", f"{ad_acos:.1f}%", acos_clr),
-        ("CTR / 订单", f"{ad_ctr:.1f}% / {ad_ords} 单", "#111827"),
+        ("CTR", f"{ad_ctr:.1f}%", "#111827"),
     ]:
         ads_rows_td += f"""<tr>
           <td style="padding: 8px 12px; font-size: 12px; color: #6B7280; border-bottom: 1px solid #F3F4F6;">{label}</td>
@@ -193,27 +193,26 @@ def _render_daily_report_html(report_data: dict[str, Any]) -> str:
     # ── TOP SKU 表格（严格对齐，无 HOT 标签错位）─────
     sku_thead = """<thead>
       <tr style="background: #F9FAFB;">
-        <th style="padding: 8px 12px; font-size: 11px; color: #6B7280; text-align: left; font-weight: 600;">SKU</th>
-        <th style="padding: 8px 12px; font-size: 11px; color: #6B7280; text-align: center; font-weight: 600; white-space: nowrap;">7天销量</th>
-        <th style="padding: 8px 12px; font-size: 11px; color: #6B7280; text-align: right; font-weight: 600;">7天销售额</th>
+        <th style="padding: 8px 12px; font-size: 11px; color: #6B7280; text-align: left; font-weight: 600; border-bottom: 1px solid #E5E7EB; width: 50%;">SKU</th>
+        <th style="padding: 8px 12px; font-size: 11px; color: #6B7280; text-align: center; font-weight: 600; border-bottom: 1px solid #E5E7EB; width: 25%;">7天销量</th>
+        <th style="padding: 8px 12px; font-size: 11px; color: #6B7280; text-align: right; font-weight: 600; border-bottom: 1px solid #E5E7EB; width: 25%;">7天销售额</th>
       </tr>
     </thead>"""
 
     sku_body = ""
     for idx, sku in enumerate(top_skus[:5]):
-        bg      = "#EFF6FF" if idx == 0 else ""
+        bg      = "#EFF6FF" if idx == 0 else "#FFFFFF"
         sku_name = _safe_html(sku.get("sku", "—"))
         qty_s   = sku.get("qty", 0)
         amt_s   = _fmt_currency(sku.get("amount", 0.0))
-        # HOT 标在 SKU 名称后方，用同一 <td> 保证对齐
-        hot_badge = (' <span style="background:#FEF3C7;color:#D97706;font-size:10px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:6px;white-space:nowrap;">HOT</span>') if idx == 0 else ""
-        # 统一 line-height=1 确保有/无 HOT 标签时行高一致，配合 vertical-align:middle 居中
+        # 统一包裹 <span> 确保每行结构一致，防止 text-only vs text+inline-block 差异
+        sku_badge = (' <span style="background:#FEF3C7;color:#D97706;font-size:10px;font-weight:700;padding:1px 5px;border-radius:3px;white-space:nowrap;">HOT</span>') if idx == 0 else ""
         sku_body += f"""<tr>
-          <td style="padding: 10px 12px; font-size: 13px; line-height: 1; color: #374151; background: {bg}; border-bottom: 1px solid #F3F4F6; vertical-align: middle;">
-            <strong style="font-size: 13px; font-weight: 700;">{sku_name}</strong>{hot_badge}
+          <td width="50%" style="width: 50%; padding: 10px 12px; font-size: 13px; color: #374151; background: {bg}; border-bottom: 1px solid #F3F4F6; vertical-align: middle;">
+            <span style="font-weight: 700; line-height: 1;">{sku_name}</span>{sku_badge}
           </td>
-          <td style="padding: 10px 12px; font-size: 13px; line-height: 1; text-align: center; font-weight: 700; color: #1D4ED8; background: {bg}; border-bottom: 1px solid #F3F4F6; white-space: nowrap; vertical-align: middle;">{qty_s} 件</td>
-          <td style="padding: 10px 12px; font-size: 13px; line-height: 1; text-align: right; font-weight: 600; color: #059669; background: {bg}; border-bottom: 1px solid #F3F4F6; vertical-align: middle;">{amt_s}</td>
+          <td width="25%" style="width: 25%; padding: 10px 12px; font-size: 13px; text-align: center; font-weight: 700; color: #1D4ED8; background: {bg}; border-bottom: 1px solid #F3F4F6; white-space: nowrap; vertical-align: middle;">{qty_s} 件</td>
+          <td width="25%" style="width: 25%; padding: 10px 12px; font-size: 13px; text-align: right; font-weight: 600; color: #059669; background: {bg}; border-bottom: 1px solid #F3F4F6; vertical-align: middle;">{amt_s}</td>
         </tr>"""
 
     # ── 完整 HTML ────────────────────────────────────
@@ -341,7 +340,7 @@ def _render_daily_report_html(report_data: dict[str, Any]) -> str:
       <tr>
         <td style="padding: 0 16px 12px;">
           <div style="font-size: 12px; font-weight: 700; color: #374151; margin-bottom: 8px;">🏆 近7天热销 SKU TOP 5</div>
-          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="width: 100%; border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden; border-collapse: collapse; table-layout: fixed;">
             {sku_thead}
             <tbody>{sku_body or f'<tr><td colspan="3" style="padding: 16px; text-align: center; color: #9CA3AF; font-size: 12px;">暂无销售数据</td></tr>'}</tbody>
           </table>
