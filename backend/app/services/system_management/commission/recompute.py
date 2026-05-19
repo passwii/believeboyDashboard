@@ -100,7 +100,7 @@ def recompute_commission_records(
         factory_commission_rate, _, factory_commission_usd = _resolve_factory_commission(
             project.commission_basis, project.commission_rate, income_total_usd, amazon_pay_back,
         )
-        factory_commission_rmb = _to_decimal(factory_commission_usd * usd_to_rmb_rate, "0.01")
+        factory_commission_rmb = _to_decimal(usd_to_rmb_rate * factory_commission_usd, "0.01")
 
         pm_row = project_month_map.get(int(project.id))
         if pm_row is None:
