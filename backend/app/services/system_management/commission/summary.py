@@ -3,7 +3,7 @@
 """
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.commission_project_month import CommissionProjectMonth
@@ -23,10 +23,10 @@ def get_commission_yearly_monthly_summary(
     rows = db.execute(
         select(
             CommissionProjectMonth.report_month,
-            CommissionProjectMonth.income_total_usd,
-            CommissionProjectMonth.factory_commission_usd,
-            CommissionProjectMonth.factory_commission_rmb,
-            CommissionProjectMonth.received_rmb,
+            func.sum(CommissionProjectMonth.income_total_usd).label("income_total_usd"),
+            func.sum(CommissionProjectMonth.factory_commission_usd).label("factory_commission_usd"),
+            func.sum(CommissionProjectMonth.factory_commission_rmb).label("factory_commission_rmb"),
+            func.sum(CommissionProjectMonth.received_rmb).label("received_rmb"),
         ).where(
             CommissionProjectMonth.report_month >= month_start,
             CommissionProjectMonth.report_month <= month_end,
