@@ -58,7 +58,7 @@ def recompute_commission_records(
     ).scalars().first()
     if exchange_rate is None:
         raise ValueError(f"USD exchange rate for {report_month} not found")
-    usd_to_rmb_rate = exchange_rate.rate
+    usd_to_rmb_rate: Decimal = Decimal(str(exchange_rate.rate))
 
     role_rows = db.execute(
         select(ProjectRoleAssignment).where(
