@@ -756,7 +756,7 @@ export default function SystemOperationLogsPage() {
 
           <Card className="dashboard-surface">
             <CardContent className="p-4">
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
                 <Input
                   value={keywordInput}
                   onChange={(event) => setKeywordInput(event.target.value)}

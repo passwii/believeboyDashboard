@@ -1040,7 +1040,7 @@ export default function OperatorManagementPage() {
                 title="运营佣金备注"
                 description='这里承接原"运营提成"页签的规则说明。当前仍沿用原有运营与助理的基础分配逻辑，后续可以在这个页面继续叠加绩效点、岗位差异和更多岗位类型。'
               />
-              <DataCardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <DataCardContent className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
                 {OPERATOR_PUBLIC_COMMISSION_TIERS.map((item, index) => (
                   <article
                     key={item.range}

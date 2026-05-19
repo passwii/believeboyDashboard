@@ -1763,8 +1763,9 @@ export default function AIInsightsPage() {
 
         toPng(dataUrl, { backgroundColor: '#ffffff', pixelRatio: 2, cacheBust: true })
           .then((url) => {
+            const periodLabel = viewingInsight?.insight_type === 'monthly' ? '上个月总结' : '上周总结'
             const link = document.createElement('a')
-            link.download = `${viewingInsight?.project_name}-${viewingInsight?.title ?? '报告'}_${new Date().toISOString().slice(0, 10)}.png`
+            link.download = `${viewingInsight?.project_name}-${periodLabel}_${new Date().toISOString().slice(0, 10)}.png`
             link.href = url
             link.click()
           })

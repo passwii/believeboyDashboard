@@ -42,8 +42,8 @@ export default function ChangelogPage() {
 
   return (
     <div className="space-y-6 md:space-y-7">
-      <div className="grid gap-6 xl:grid-cols-[16.5rem_minmax(0,1fr)]">
-        <aside className="space-y-4 xl:sticky xl:top-24 xl:self-start">
+      <div className="grid gap-6 lg:grid-cols-[16.5rem_minmax(0,1fr)]">
+        <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
           <Card className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
             <CardContent className="space-y-4 p-4">
               <div className="space-y-1">
@@ -113,7 +113,7 @@ export default function ChangelogPage() {
                     ))}
                   </div>
 
-                  <div className="grid gap-3 xl:grid-cols-2">
+                  <div className="grid gap-3 lg:grid-cols-2">
                     {release.highlights.map((highlight) => (
                       <article
                         key={`${release.version}-${highlight.title}`}
