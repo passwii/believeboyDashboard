@@ -13,6 +13,27 @@ DECIMAL_ZERO = Decimal("0")
 TWO_DP = Decimal("0.01")
 FOUR_DP = Decimal("0.0001")
 
+# ─── 极值函数 ────────────────────────────────────────────────────────────────
+
+
+def max(a: Decimal | Any, b: Decimal | Any) -> Decimal:
+    """比较两个值，返回较大者（支持 Decimal 和 None）。"""
+    if not isinstance(a, Decimal):
+        a = Decimal(str(a)) if a is not None else DECIMAL_ZERO
+    if not isinstance(b, Decimal):
+        b = Decimal(str(b)) if b is not None else DECIMAL_ZERO
+    return a if a >= b else b
+
+
+def min(a: Decimal | Any, b: Decimal | Any) -> Decimal:
+    """比较两个值，返回较小者（支持 Decimal 和 None）。"""
+    if not isinstance(a, Decimal):
+        a = Decimal(str(a)) if a is not None else DECIMAL_ZERO
+    if not isinstance(b, Decimal):
+        b = Decimal(str(b)) if b is not None else DECIMAL_ZERO
+    return a if a <= b else b
+
+
 # ─── 金额计算 ────────────────────────────────────────────────────────────────
 
 
