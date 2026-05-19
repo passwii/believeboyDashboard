@@ -331,6 +331,10 @@ def recognize_file(
     normalized_country = _normalize_country(country) if country else "US"
     extension = path.suffix.lower()
 
+    # Initialize df to avoid UnboundLocalError when xlsx branch accesses df
+    # after an exception occurred in the csv branch (where df would be defined)
+    df: "pd.DataFrame | None" = None
+
     try:
         if extension == ".txt":
             header = (
@@ -366,7 +370,6 @@ def recognize_file(
 
             # 4. Check for business report (has child ASIN columns)
             try:
-                from app.utils.recognition.patterns import _read_csv_with_encoding_fallback, _normalize_columns
                 df = _normalize_columns(_read_csv_with_encoding_fallback(path, sep=","))
                 asin_col = next(
                     (c for c in ["（子）ASIN", "(子)ASIN", "子ASIN", "ASIN"] if c in df.columns),
