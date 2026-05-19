@@ -27,11 +27,13 @@ class CommissionRecord(Base):
         UniqueConstraint(
             'report_month',
             'project_id',
+            'country',
             'person_name',
             'income_category',
-            name='commission_records_unique_month_project_person_category',
+            name='commission_records_unique_month_project_person_country',
         ),
         CheckConstraint("report_month LIKE '____-__'", name='ck_commission_records_report_month_format'),
+        CheckConstraint("country IN ('US', 'UK', 'DE')", name='ck_commission_records_country'),
         CheckConstraint("income_category in ('operator', 'assistant')", name='ck_commission_records_income_category'),
         CheckConstraint("payment_status in ('paid', 'unpaid')", name='ck_commission_records_payment_status'),
         CheckConstraint('factory_commission_rate >= 0 and factory_commission_rate <= 1', name='ck_commission_records_factory_rate'),
@@ -45,6 +47,7 @@ class CommissionRecord(Base):
         Index('idx_commission_records_month', 'report_month'),
         Index('idx_commission_records_person_month', 'person_name', 'report_month'),
         Index('idx_commission_records_month_active', 'report_month', 'is_active'),
+        Index('idx_commission_records_country', 'country'),
     )
 
     id: Mapped[int] = mapped_column(
@@ -53,6 +56,7 @@ class CommissionRecord(Base):
         autoincrement=True,
     )
     report_month: Mapped[str] = mapped_column(String(7), nullable=False)
+    country: Mapped[str] = mapped_column(String(2), nullable=False, server_default='US', index=True)
     project_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         ForeignKey('projects.id', ondelete='CASCADE'),
         nullable=False,

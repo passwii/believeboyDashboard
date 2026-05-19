@@ -47,7 +47,7 @@ router = APIRouter(prefix="/commission-management", tags=["佣金管理"])
 
 def _serialize_commission_record_row(row: CommissionRecord) -> CommissionRecordItem:
     return CommissionRecordItem(
-        id=row.id, report_month=row.report_month, project_id=row.project_id,
+        id=row.id, report_month=row.report_month, country=row.country, project_id=row.project_id,
         project_name=row.project_name, project_month_id=row.project_month_id,
         person_name=row.person_name, income_category=CommissionIncomeCategory(row.income_category),
         income_total_usd=float(row.income_total_usd), factory_commission_rate=float(row.factory_commission_rate),
@@ -67,6 +67,7 @@ def _serialize_commission_record_row(row: CommissionRecord) -> CommissionRecordI
 def upsert_commission_records_endpoint(
     payload: UpsertCommissionRecordsRequest,
     request: Request,
+    country: str = "US",
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> CommissionRecordsResponse:
@@ -80,11 +81,12 @@ def upsert_commission_records_endpoint(
     rows = upsert_commission_records(
         db,
         report_month=report_month,
+        country=country,
         items=payload.items,
         now=now,
     )
 
-    append_operation_audit_log(db, action="commission.bonus_records.upsert", target_type="commission_bonus_record", target_id=report_month, operator=operator, after={"report_month": report_month, "incoming_items": len(payload.items)}, request=request)
+    append_operation_audit_log(db, action="commission.bonus_records.upsert", target_type="commission_bonus_record", target_id=report_month, operator=operator, after={"report_month": report_month, "country": country, "incoming_items": len(payload.items)}, request=request)
 
     from app.services.infra import invalidate_data_management_overview_cache
     invalidate_data_management_overview_cache()
@@ -96,6 +98,7 @@ def upsert_commission_records_endpoint(
 def list_commission_records(
     report_month: str,
     request: Request,
+    country: str = "US",
     person_name: str | None = None,
     include_inactive: bool = False,
     db: Session = Depends(get_db_session),
@@ -106,7 +109,10 @@ def list_commission_records(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    stmt = select(CommissionRecord).where(CommissionRecord.report_month == month)
+    stmt = select(CommissionRecord).where(
+        CommissionRecord.report_month == month,
+        CommissionRecord.country == country,
+    )
     if not include_inactive:
         stmt = stmt.where(CommissionRecord.is_active.is_(True))
     normalized_person = (person_name or "").strip()
@@ -115,7 +121,7 @@ def list_commission_records(
     stmt = stmt.order_by(CommissionRecord.person_name.asc(), CommissionRecord.project_name.asc(), CommissionRecord.income_category.asc())
 
     rows = db.execute(stmt).scalars().all()
-    append_operation_view_log(db, action="commission.bonus_records.view", target_type="commission_bonus_record", target_id=month, operator=operator, after={"report_month": month, "person_name": normalized_person or None, "include_inactive": include_inactive, "count": len(rows)}, request=request)
+    append_operation_view_log(db, action="commission.bonus_records.view", target_type="commission_bonus_record", target_id=month, operator=operator, after={"report_month": month, "country": country, "person_name": normalized_person or None, "include_inactive": include_inactive, "count": len(rows)}, request=request)
     db.commit()
     return CommissionRecordsResponse(report_month=month, items=[_serialize_commission_record_row(r) for r in rows])
 
@@ -157,6 +163,7 @@ def update_commission_payment_status_endpoint(
 def list_commission_project_months(
     report_month: str,
     request: Request,
+    country: str = "US",
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> CommissionProjectMonthsResponse:
@@ -168,17 +175,21 @@ def list_commission_project_months(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     rows = db.execute(
-        select(CommissionProjectMonth).where(CommissionProjectMonth.report_month == month)
+        select(CommissionProjectMonth).where(
+            CommissionProjectMonth.report_month == month,
+            CommissionProjectMonth.country == country,
+        )
         .order_by(CommissionProjectMonth.project_id.asc())
     ).scalars().all()
 
-    append_operation_view_log(db, action="commission.project_months.view", target_type="commission_project_month", target_id=month, operator=operator, after={"report_month": month, "count": len(rows)}, request=request)
+    append_operation_view_log(db, action="commission.project_months.view", target_type="commission_project_month", target_id=month, operator=operator, after={"report_month": month, "country": country, "count": len(rows)}, request=request)
     db.commit()
 
     items = [
         CommissionProjectMonthItem(
             id=r.id,
             report_month=r.report_month,
+            country=r.country,
             project_id=r.project_id,
             project_name=r.project_name,
             income_total_usd=float(r.income_total_usd),
@@ -220,6 +231,7 @@ def update_commission_project_payment_endpoint(
     before_data = {
         "id": row.id,
         "report_month": row.report_month,
+        "country": row.country,
         "project_id": row.project_id,
         "project_name": row.project_name,
         "income_total_usd": float(row.income_total_usd),
@@ -245,6 +257,7 @@ def update_commission_project_payment_endpoint(
     after_data = {
         "id": row.id,
         "report_month": row.report_month,
+        "country": row.country,
         "project_id": row.project_id,
         "project_name": row.project_name,
         "income_total_usd": float(row.income_total_usd),
@@ -263,6 +276,7 @@ def update_commission_project_payment_endpoint(
         item=CommissionProjectMonthItem(
             id=row.id,
             report_month=row.report_month,
+            country=row.country,
             project_id=row.project_id,
             project_name=row.project_name,
             income_total_usd=float(row.income_total_usd),
