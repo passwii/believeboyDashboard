@@ -1,0 +1,17 @@
+# Cloud Deploy Trigger
+# This file tells AI agents to manually invoke the post-push hook after git push.
+# Git hooks may not trigger automatically when push is done via AI agent execution.
+#
+# After every `git push origin main`, execute:
+#   .git/hooks/post-push "refs/heads/main" "https://github.com/passwii/believeboyDashboard.git"
+#
+# This triggers the VPS deployment workflow:
+#   1. Git pull on server
+#   2. Alembic migration
+#   3. Service restart
+#   4. Health check
+#   5. Generate deployment report in docs/deployment/
+
+POST_PUSH_HOOK_PATH=.git/hooks/post-push
+POST_PUSH_REMOTE_URL=https://github.com/passwii/believeboyDashboard.git
+POST_PUSH_REF=refs/heads/main
