@@ -26,9 +26,10 @@ def _resolve_factory_commission(
     """根据 commission_basis 计算工厂佣金比例、基础金额和佣金金额。
 
     Returns:
-        (commission_rate, base_amount_usd, commission_usd)
+        (commission_rate, base_amount_usd, commission_usd) — all Decimal
     """
-    from app.utils.math_utils import max as _max, round_money
+    from decimal import ROUND_HALF_UP
+    from app.utils.math_utils import max as _max
 
     normalized_income = _max(income_total_usd, Decimal("0"))
     normalized_payback = _max(amazon_pay_back_usd, Decimal("0"))
@@ -54,7 +55,7 @@ def _resolve_factory_commission(
         commission_rate = _normalize_rate_decimal(configured_commission_rate)
         base_amount_usd = normalized_income
 
-    commission_usd = round_money(base_amount_usd * commission_rate)
+    commission_usd = (base_amount_usd * commission_rate).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     return commission_rate, base_amount_usd, commission_usd
 
 
