@@ -207,12 +207,13 @@ def _render_daily_report_html(report_data: dict[str, Any]) -> str:
         amt_s   = _fmt_currency(sku.get("amount", 0.0))
         # HOT 标在 SKU 名称后方，用同一 <td> 保证对齐
         hot_badge = (' <span style="background:#FEF3C7;color:#D97706;font-size:10px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:6px;white-space:nowrap;">HOT</span>') if idx == 0 else ""
+        # 统一 line-height=1 确保有/无 HOT 标签时行高一致，配合 vertical-align:middle 居中
         sku_body += f"""<tr>
-          <td style="padding: 10px 12px; font-size: 13px; color: #374151; background: {bg}; border-bottom: 1px solid #F3F4F6;">
-            <strong>{sku_name}</strong>{hot_badge}
+          <td style="padding: 10px 12px; font-size: 13px; line-height: 1; color: #374151; background: {bg}; border-bottom: 1px solid #F3F4F6; vertical-align: middle;">
+            <strong style="font-size: 13px; font-weight: 700;">{sku_name}</strong>{hot_badge}
           </td>
-          <td style="padding: 10px 12px; font-size: 13px; text-align: center; font-weight: 700; color: #1D4ED8; background: {bg}; border-bottom: 1px solid #F3F4F6; white-space: nowrap;">{qty_s} 件</td>
-          <td style="padding: 10px 12px; font-size: 13px; text-align: right; font-weight: 600; color: #059669; background: {bg}; border-bottom: 1px solid #F3F4F6;">{amt_s}</td>
+          <td style="padding: 10px 12px; font-size: 13px; line-height: 1; text-align: center; font-weight: 700; color: #1D4ED8; background: {bg}; border-bottom: 1px solid #F3F4F6; white-space: nowrap; vertical-align: middle;">{qty_s} 件</td>
+          <td style="padding: 10px 12px; font-size: 13px; line-height: 1; text-align: right; font-weight: 600; color: #059669; background: {bg}; border-bottom: 1px solid #F3F4F6; vertical-align: middle;">{amt_s}</td>
         </tr>"""
 
     # ── 完整 HTML ────────────────────────────────────

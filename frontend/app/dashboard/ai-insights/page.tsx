@@ -35,9 +35,12 @@ import {
 } from 'lucide-react'
 import { toPng } from 'html-to-image'
 import { useSession } from 'next-auth/react'
+import { Clock } from 'lucide-react'
 
 // Module-level registry: chartId → SVG data URL (used during PNG export)
 const chartSvgRegistry = new Map<string, string>()
+
+import { ScheduleList, ScheduleDialog } from '@/components/dashboard/ai-insights'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -1369,6 +1372,12 @@ export default function AIInsightsPage() {
   const [selectedModel, setSelectedModel] = useState('')
   const streamingRef = useRef<HTMLDivElement>(null)
 
+  // Schedule-related state
+  const [activeTab, setActiveTab] = useState<'insights' | 'schedules'>('insights')
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false)
+  const [editingSchedule, setEditingSchedule] = useState<any>(null)
+  const [scheduleRefreshTrigger, setScheduleRefreshTrigger] = useState(0)
+
   // Use a ref to accumulate streaming content (avoids React batching issues)
   const streamingContentRef = useRef('')
 
@@ -2024,6 +2033,67 @@ export default function AIInsightsPage() {
 
   return (
     <div className="space-y-6">
+      {/* Tab Bar: 洞察记录 / 定时生成 */}
+      <div className="flex items-center gap-1 rounded-lg border border-border/70 bg-[hsl(var(--surface-soft))] p-1 w-fit">
+        <button
+          onClick={() => setActiveTab('insights')}
+          className={cn(
+            'flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors',
+            activeTab === 'insights'
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          )}
+        >
+          <Sparkles className="h-4 w-4" />
+          洞察记录
+        </button>
+        <button
+          onClick={() => setActiveTab('schedules')}
+          className={cn(
+            'flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors',
+            activeTab === 'schedules'
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          )}
+        >
+          <Clock className="h-4 w-4" />
+          定时生成
+        </button>
+      </div>
+
+      {/* Scheduled Generation Tab */}
+      {activeTab === 'schedules' && (
+        <div className="space-y-4">
+          {/* Header with "New Schedule" button */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">定时任务管理</h2>
+              <p className="text-sm text-muted-foreground">配置定时任务，自动在指定时间生成 AI Insight 报告</p>
+            </div>
+            <Button onClick={() => {
+              setEditingSchedule(null)
+              setScheduleDialogOpen(true)
+            }}>
+              <Sparkles className="mr-2 h-4 w-4" />
+              新建定时任务
+            </Button>
+          </div>
+
+          {/* Schedule List */}
+          <ScheduleList
+            onEdit={(schedule) => {
+              setEditingSchedule(schedule)
+              setScheduleDialogOpen(true)
+            }}
+            onRefresh={() => setScheduleRefreshTrigger((n) => n + 1)}
+            isRefreshing={scheduleRefreshTrigger > 0}
+          />
+        </div>
+      )}
+
+      {/* Insights Tab */}
+      {activeTab === 'insights' && (
+        <>
       <Card className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
           <CardHeader className="pb-4">
             <CardTitle className="flex items-center gap-2 text-lg">
@@ -2696,6 +2766,36 @@ export default function AIInsightsPage() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+
+      {/* Schedule Dialog */}
+      <ScheduleDialog
+        open={scheduleDialogOpen}
+        onOpenChange={(open) => {
+          setScheduleDialogOpen(open)
+          if (!open) setEditingSchedule(null)
+        }}
+        schedule={editingSchedule}
+        onSave={async (data) => {
+          const res = editingSchedule
+            ? await fetch(`/api/backend/v1/ai-insights/schedules/${editingSchedule.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data),
+              })
+            : await fetch('/api/backend/v1/ai-insights/schedules', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data),
+              })
+          if (!res.ok) {
+            const err = await res.text()
+            throw new Error(err || '保存失败')
+          }
+          setScheduleRefreshTrigger((n) => n + 1)
+        }}
+      />
+    </>
+  )}
+</div>
   )
 }
