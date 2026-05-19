@@ -169,6 +169,22 @@ B2B SaaS dashboard with a light-mode-first design. Inspired by Linear's informat
 ### Before Pushing
 Always run `pnpm build` in the frontend directory before pushing to ensure the build passes. If there are build errors, fix them before pushing.
 
+### Post-Push Hook (VPS Deployment)
+
+This project uses a **post-push hook** at `.git/hooks/post-push` to automatically deploy to the VPS after each push to `main`. The hook runs `productEnvAgent/deploy_vps.py --auto`, which:
+1. Git pull on server
+2. Alembic migration
+3. Service restart
+4. Health check
+5. Generates a deployment report in `docs/deployment/`
+
+> **⚠️ AI Agent Limitation**: When `git push` is executed via an AI agent, the post-push hook does **not** trigger automatically. To work around this, the hook must be invoked manually after push. After any `git push origin main`, the agent **must** also run:
+```bash
+.git/hooks/post-push "refs/heads/main" "https://github.com/passwii/believeboyDashboard.git"
+```
+
+The hook configuration is tracked in `.cloudmtd` at the repo root. Read this file to get the hook path and parameters if needed.
+
 ## Key Conventions
 - Backend uses Pydantic v2 (`pydantic-settings` for env config)
 - Frontend uses React 18 with TanStack Table v8 and Recharts
