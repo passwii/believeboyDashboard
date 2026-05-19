@@ -33,6 +33,7 @@ class UpsertCommissionRecordsRequest(BaseModel):
 class CommissionRecordItem(BaseModel):
     id: int
     report_month: str
+    country: str = "US"
     project_id: int
     project_name: str
     project_month_id: int | None = None

@@ -36,6 +36,7 @@ router = APIRouter(prefix="/commission-management", tags=["佣金管理"])
 def list_commission_yearly_monthly_summary(
     year: str,
     request: Request,
+    country: str = "US",
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> CommissionYearlyMonthlySummaryResponse:
@@ -44,10 +45,10 @@ def list_commission_yearly_monthly_summary(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    items_data = get_commission_yearly_monthly_summary(db, year=normalized_year)
+    items_data = get_commission_yearly_monthly_summary(db, year=normalized_year, country=country)
     items = [CommissionYearlyMonthlySummaryItem(**item) for item in items_data]
 
-    append_operation_view_log(db, action="commission.summary.monthly.view", target_type="commission_summary", target_id=normalized_year, operator=operator, after={"year": normalized_year, "count": len(items)}, request=request)
+    append_operation_view_log(db, action="commission.summary.monthly.view", target_type="commission_summary", target_id=normalized_year, operator=operator, after={"year": normalized_year, "country": country, "count": len(items)}, request=request)
 
     return CommissionYearlyMonthlySummaryResponse(year=normalized_year, items=items)
 
@@ -56,6 +57,7 @@ def list_commission_yearly_monthly_summary(
 def list_commission_project_yearly_summary(
     year: str,
     request: Request,
+    country: str = "US",
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> CommissionProjectYearlySummaryResponse:
@@ -64,10 +66,10 @@ def list_commission_project_yearly_summary(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    items_data = get_commission_project_yearly_summary(db, year=normalized_year)
+    items_data = get_commission_project_yearly_summary(db, year=normalized_year, country=country)
     items = [CommissionProjectYearlySummaryItem(**item) for item in items_data]
 
-    append_operation_view_log(db, action="commission.summary.project.view", target_type="commission_summary", target_id=normalized_year, operator=operator, after={"year": normalized_year, "count": len(items)}, request=request)
+    append_operation_view_log(db, action="commission.summary.project.view", target_type="commission_summary", target_id=normalized_year, operator=operator, after={"year": normalized_year, "country": country, "count": len(items)}, request=request)
 
     return CommissionProjectYearlySummaryResponse(year=normalized_year, items=items)
 
@@ -76,6 +78,7 @@ def list_commission_project_yearly_summary(
 def recompute_commission_records_endpoint(
     payload: RecomputeCommissionRequest,
     request: Request,
+    country: str = "US",
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> RecomputeCommissionResponse:
@@ -91,6 +94,7 @@ def recompute_commission_records_endpoint(
             db,
             report_month=report_month,
             now=now,
+            country=country,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -101,7 +105,7 @@ def recompute_commission_records_endpoint(
         target_type="commission_bonus_record",
         target_id=report_month,
         operator=operator,
-        after={"report_month": report_month, "project_month_count": project_month_count, "record_count": record_count},
+        after={"report_month": report_month, "country": country, "project_month_count": project_month_count, "record_count": record_count},
         request=request,
     )
     invalidate_data_management_overview_cache()

@@ -79,7 +79,7 @@ type CommissionProjectYearlySummaryResponse = {
   items: CommissionProjectYearlySummaryItem[]
 }
 
-type CommissionViewTab = 'detail' | 'monthly' | 'projectSummary'
+type CommissionViewTab = 'detail' | 'monthly' | 'projectSummary' | 'monthlyCollection'
 
 type ProjectMeta = {
   id: number
@@ -90,6 +90,14 @@ type ProjectMeta = {
 const API_BASE = '/api/backend'
 const FULL_BLEED_TABLE_CLASS = "[&_th]:px-3 [&_th]:py-3 [&_td]:px-3 [&_td]:py-3 sm:[&_th]:px-4 sm:[&_td]:px-4"
 const FULL_BLEED_TABLE_CONTAINER_CLASS = "-m-px h-[calc(100%+2px)] w-[calc(100%+2px)] rounded-none"
+
+type SiteCode = "US" | "UK" | "DE"
+
+const SITE_OPTIONS: { value: SiteCode; label: string; flag: string }[] = [
+  { value: "US", label: "美国", flag: "🇺🇸" },
+  { value: "UK", label: "英国", flag: "🇬🇧" },
+  { value: "DE", label: "德国", flag: "🇩🇪" },
+]
 
 function lastMonthString(): string {
   const now = new Date()
@@ -158,6 +166,13 @@ function toPaymentLabel(value: PaymentStatus): string {
   return '未回款'
 }
 
+function getReceiveRateColor(rate: number): { bg: string; text: string } {
+  if (rate >= 1) return { bg: 'bg-green-100 dark:bg-green-500/20', text: 'text-green-700 dark:text-green-300' }
+  if (rate >= 0.5) return { bg: 'bg-orange-100 dark:bg-orange-500/20', text: 'text-orange-700 dark:text-orange-300' }
+  if (rate >= 0.2) return { bg: 'bg-yellow-100 dark:bg-yellow-500/20', text: 'text-yellow-700 dark:text-yellow-300' }
+  return { bg: 'bg-red-100 dark:bg-red-500/20', text: 'text-red-700 dark:text-red-300' }
+}
+
 const PROJECT_COMMISSION_RULES = [
   {
     code: 'Rule 01',
@@ -185,6 +200,7 @@ export default function CommissionOverviewPage() {
   const [month, setMonth] = useState(lastMonthString())
   const [summaryYear, setSummaryYear] = useState(getCurrentYear())
   const [activeTab, setActiveTab] = useState<CommissionViewTab>('detail')
+  const [site, setSite] = useState<SiteCode>("US")
 
   const [loading, setLoading] = useState(true)
   const [summaryLoading, setSummaryLoading] = useState(false)
@@ -201,7 +217,7 @@ export default function CommissionOverviewPage() {
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
-      const response = await fetch(`${API_BASE}/api/v1/system-management/commission-management/project-months?report_month=${month}`, {
+      const response = await fetch(`${API_BASE}/api/v1/system-management/commission-management/project-months?report_month=${month}&country=${site}`, {
         cache: 'no-store',
         headers: buildBackendHeaders(session),
       })
@@ -224,7 +240,7 @@ export default function CommissionOverviewPage() {
     } finally {
       setLoading(false)
     }
-  }, [month, session, notify])
+  }, [month, session, notify, site])
 
   const loadProjectMeta = useCallback(async () => {
     try {
@@ -255,11 +271,11 @@ export default function CommissionOverviewPage() {
     setSummaryLoading(true)
     try {
       const [monthlyResp, projectResp] = await Promise.all([
-        fetch(`${API_BASE}/api/v1/system-management/commission-management/summary/monthly?year=${summaryYear}`, {
+        fetch(`${API_BASE}/api/v1/system-management/commission-management/summary/monthly?year=${summaryYear}&country=${site}`, {
           cache: 'no-store',
           headers: buildBackendHeaders(session),
         }),
-        fetch(`${API_BASE}/api/v1/system-management/commission-management/summary/project?year=${summaryYear}`, {
+        fetch(`${API_BASE}/api/v1/system-management/commission-management/summary/project?year=${summaryYear}&country=${site}`, {
           cache: 'no-store',
           headers: buildBackendHeaders(session),
         }),
@@ -283,7 +299,7 @@ export default function CommissionOverviewPage() {
     } finally {
       setSummaryLoading(false)
     }
-  }, [session, summaryYear, notify])
+  }, [session, summaryYear, notify, site])
 
   useEffect(() => {
     void loadData()
@@ -302,7 +318,7 @@ export default function CommissionOverviewPage() {
   }, [])
 
   useEffect(() => {
-    if (activeTab === 'monthly' || activeTab === 'projectSummary') {
+    if (activeTab === 'monthly' || activeTab === 'projectSummary' || activeTab === 'monthlyCollection') {
       void loadYearlySummary()
     }
   }, [activeTab, loadYearlySummary])
@@ -390,7 +406,7 @@ export default function CommissionOverviewPage() {
       const response = await fetch(`${API_BASE}/api/v1/system-management/commission-management/recompute`, {
         method: 'POST',
         headers: buildBackendHeaders(session, { contentType: 'application/json' }),
-        body: JSON.stringify({ report_month: month }),
+        body: JSON.stringify({ report_month: month, country: site }),
       })
       if (!response.ok) {
         throw new Error(parseErrorBody(await response.text(), response.status))
@@ -512,6 +528,87 @@ export default function CommissionOverviewPage() {
     </div>
   )
 
+  const renderMonthlyCollectionTable = () => (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit]">
+      <Table className={FULL_BLEED_TABLE_CLASS} containerClassName={`${FULL_BLEED_TABLE_CONTAINER_CLASS} overflow-auto`}>
+        <TableHeader className="bg-slate-100/80 dark:bg-slate-900/45">
+          <TableRow>
+            <TableHead className="sticky left-0 top-0 z-30 whitespace-nowrap bg-slate-100/90 font-semibold text-foreground dark:bg-slate-900/60">项目名称</TableHead>
+            {getYearMonths(summaryYear).map((m) => (
+              <TableHead key={m} className="sticky top-0 z-20 bg-slate-100/90 text-center text-xs whitespace-nowrap font-semibold text-foreground dark:bg-slate-900/60">
+                {m.slice(5)}月
+              </TableHead>
+            ))}
+            <TableHead className="sticky top-0 z-20 bg-slate-100/90 text-center whitespace-nowrap font-semibold text-foreground dark:bg-slate-900/60">年度汇总</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {summaryLoading ? (
+            <TableRow>
+              <TableCell colSpan={14} className="text-center text-muted-foreground">加载中...</TableCell>
+            </TableRow>
+          ) : projectSummary.length === 0 ? (
+            <EmptyTableState colSpan={14} message={`${summaryYear}年暂无数据`} />
+          ) : (
+            projectSummary.map((project) => (
+              <TableRow key={project.project_id}>
+                <TableCell className="sticky left-0 bg-background z-20 font-medium">{project.project_name}</TableCell>
+                {getYearMonths(summaryYear).map((m) => {
+                  const monthData = project.months[m]
+                  if (!monthData) {
+                    return (
+                      <TableCell key={m} className="text-center">
+                        <span className="inline-block rounded px-1.5 py-0.5 text-xs text-muted-foreground bg-slate-100 dark:bg-slate-800">-</span>
+                      </TableCell>
+                    )
+                  }
+                  const { bg, text } = getReceiveRateColor(monthData.receive_rate)
+                  return (
+                    <TableCell key={m} className="text-center">
+                      <span className={`inline-block min-w-[48px] rounded px-1.5 py-1 text-xs font-medium tabular-nums ${bg} ${text}`}>
+                        {formatPercent(monthData.receive_rate)}
+                      </span>
+                    </TableCell>
+                  )
+                })}
+                <TableCell className="text-center">
+                  {project.receive_rate > 0 ? (
+                    <span className={`inline-block min-w-[56px] rounded px-1.5 py-1 text-xs font-semibold tabular-nums ${getReceiveRateColor(project.receive_rate).bg} ${getReceiveRateColor(project.receive_rate).text}`}>
+                      {formatPercent(project.receive_rate)}
+                    </span>
+                  ) : (
+                    <span className="inline-block rounded px-1.5 py-0.5 text-xs text-muted-foreground bg-slate-100 dark:bg-slate-800">-</span>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))
+          )}
+        </TableBody>
+      </Table>
+
+      {/* 图例 */}
+      <div className="flex flex-wrap items-center justify-center gap-4 border-t border-border/50 bg-slate-50/50 px-4 py-3 dark:bg-slate-900/30">
+        <span className="text-xs text-muted-foreground">回款率色块：</span>
+        <div className="flex items-center gap-1.5">
+          <span className="inline-block h-4 w-12 rounded bg-green-100 dark:bg-green-500/20" />
+          <span className="text-xs text-foreground">≥100%</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="inline-block h-4 w-12 rounded bg-orange-100 dark:bg-orange-500/20" />
+          <span className="text-xs text-foreground">50%~70%</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="inline-block h-4 w-12 rounded bg-yellow-100 dark:bg-yellow-500/20" />
+          <span className="text-xs text-foreground">20%~50%</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="inline-block h-4 w-12 rounded bg-red-100 dark:bg-red-500/20" />
+          <span className="text-xs text-foreground">&lt;20%</span>
+        </div>
+      </div>
+    </div>
+  )
+
   return (
     <div className="mx-auto flex w-full max-w-[1520px] flex-col gap-4 pb-6">
       <div className="flex">
@@ -526,6 +623,9 @@ export default function CommissionOverviewPage() {
             <TabsTrigger value="projectSummary" className="min-h-10 px-5 py-2 text-sm">
               项目汇总
             </TabsTrigger>
+            <TabsTrigger value="monthlyCollection" className="min-h-10 px-5 py-2 text-sm">
+              月度回款
+            </TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
@@ -536,10 +636,42 @@ export default function CommissionOverviewPage() {
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div className="flex flex-wrap items-end gap-3">
               {activeTab === 'detail' ? (
-                <MonthNavigation
-                  value={parseMonthInputValue(month)}
-                  onChange={(date) => setMonth(formatMonthInputValue(date))}
-                />
+                <>
+                  <MonthNavigation
+                    value={parseMonthInputValue(month)}
+                    onChange={(date) => setMonth(formatMonthInputValue(date))}
+                  />
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSite("US")}
+                      className={`h-9 rounded-lg px-3 text-sm font-medium transition-colors ${
+                        site === "US" ? "bg-primary text-primary-foreground" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      }`}
+                    >
+                      🇺🇸 美国
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSite("UK")}
+                      className={`h-9 rounded-lg px-3 text-sm font-medium transition-colors ${
+                        site === "UK" ? "bg-primary text-primary-foreground" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      }`}
+                    >
+                      🇬🇧 英国
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSite("DE")}
+                      className={`h-9 rounded-lg px-3 text-sm font-medium transition-colors ${
+                        site === "DE" ? "bg-primary text-primary-foreground" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      }`}
+                    >
+                      🇩🇪 德国
+                    </button>
+                  </div>
+                </>
               ) : (
                 <YearNavigation
                   value={Number(summaryYear)}
@@ -674,6 +806,8 @@ export default function CommissionOverviewPage() {
             renderMonthlySummaryTable()
           ) : activeTab === 'projectSummary' ? (
             renderProjectSummaryTable()
+          ) : activeTab === 'monthlyCollection' ? (
+            renderMonthlyCollectionTable()
           ) : null}
         </CardContent>
       </Card>

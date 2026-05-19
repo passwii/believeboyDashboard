@@ -11,6 +11,7 @@ from app.schemas.system_management.commission._enums import (
 class CommissionProjectMonthItem(BaseModel):
     id: int
     report_month: str
+    country: str = "US"
     project_id: int
     project_name: str
     income_total_usd: float

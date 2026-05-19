@@ -22,6 +22,7 @@ from app.services.system_management.shared import _to_decimal, _to_iso
 def upsert_commission_records(
     db: Session,
     report_month: str,
+    country: str,
     items: list[dict],
     now: datetime,
 ) -> list[CommissionRecord]:
@@ -30,6 +31,7 @@ def upsert_commission_records(
     Args:
         db: 数据库会话
         report_month: 报表月份 (YYYY-MM)
+        country: 国家代码，US/UK/DE
         items: 佣金记录项列表
         now: 当前时间
 
@@ -54,7 +56,10 @@ def upsert_commission_records(
         })
 
     existing_project_months = db.execute(
-        select(CommissionProjectMonth).where(CommissionProjectMonth.report_month == report_month)
+        select(CommissionProjectMonth).where(
+            CommissionProjectMonth.report_month == report_month,
+            CommissionProjectMonth.country == country,
+        )
     ).scalars().all()
     project_month_map = {row.project_id: row for row in existing_project_months}
 
@@ -63,6 +68,7 @@ def upsert_commission_records(
         if pm_row is None:
             pm_row = CommissionProjectMonth(
                 report_month=report_month,
+                country=country,
                 project_id=project_id,
                 project_name=str(values["project_name"]).strip(),
                 payment_status=CommissionProjectPaymentStatus.unpaid.value,
@@ -87,7 +93,10 @@ def upsert_commission_records(
     db.flush()
 
     existing_rows = db.execute(
-        select(CommissionRecord).where(CommissionRecord.report_month == report_month)
+        select(CommissionRecord).where(
+            CommissionRecord.report_month == report_month,
+            CommissionRecord.country == country,
+        )
     ).scalars().all()
     existing_map = {(row.project_id, row.person_name, row.income_category): row for row in existing_rows}
     incoming_keys: set[tuple[int, str, str]] = set()
@@ -102,6 +111,7 @@ def upsert_commission_records(
         if row is None:
             row = CommissionRecord(
                 report_month=report_month,
+                country=country,
                 project_id=item.project_id,
                 project_name=item.project_name.strip(),
                 project_month_id=pm_row.id if pm_row else None,
@@ -146,6 +156,7 @@ def upsert_commission_records(
     return db.execute(
         select(CommissionRecord).where(
             CommissionRecord.report_month == report_month,
+            CommissionRecord.country == country,
             CommissionRecord.is_active.is_(True),
         ).order_by(
             CommissionRecord.person_name.asc(),

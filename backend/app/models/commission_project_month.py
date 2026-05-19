@@ -23,8 +23,9 @@ from app.db.session import Base
 class CommissionProjectMonth(Base):
     __tablename__ = 'commission_project_months'
     __table_args__ = (
-        UniqueConstraint('report_month', 'project_id', name='commission_project_months_unique_month_project'),
+        UniqueConstraint('report_month', 'project_id', 'country', name='commission_project_months_unique_month_project_country'),
         CheckConstraint("report_month LIKE '____-__'", name='ck_commission_project_months_report_month_format'),
+        CheckConstraint("country IN ('US', 'UK', 'DE')", name='ck_commission_project_months_country'),
         CheckConstraint(
             "payment_status in ('unpaid', 'partial', 'paid')",
             name='ck_commission_project_months_payment_status',
@@ -40,6 +41,7 @@ class CommissionProjectMonth(Base):
         CheckConstraint('received_rmb >= 0', name='ck_commission_project_months_received_rmb'),
         Index('idx_commission_project_months_month', 'report_month'),
         Index('idx_commission_project_months_payment_status', 'payment_status'),
+        Index('idx_commission_project_months_country', 'country'),
     )
 
     id: Mapped[int] = mapped_column(
@@ -48,6 +50,7 @@ class CommissionProjectMonth(Base):
         autoincrement=True,
     )
     report_month: Mapped[str] = mapped_column(String(7), nullable=False)
+    country: Mapped[str] = mapped_column(String(2), nullable=False, server_default='US', index=True)
     project_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         ForeignKey('projects.id', ondelete='CASCADE'),
         nullable=False,

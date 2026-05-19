@@ -12,8 +12,14 @@ from app.models.commission_project_month import CommissionProjectMonth
 def get_commission_yearly_monthly_summary(
     db: Session,
     year: str,
+    country: str = "US",
 ) -> list[dict]:
     """获取按月汇总的佣金数据。
+
+    Args:
+        db: 数据库会话
+        year: 年份
+        country: 国家代码，US/UK/DE
 
     Returns list of dicts with report_month, income_total_usd, factory_commission_usd,
     factory_commission_rmb, received_rmb, receive_rate.
@@ -30,6 +36,7 @@ def get_commission_yearly_monthly_summary(
         ).where(
             CommissionProjectMonth.report_month >= month_start,
             CommissionProjectMonth.report_month <= month_end,
+            CommissionProjectMonth.country == country,
         ).group_by(CommissionProjectMonth.report_month).order_by(CommissionProjectMonth.report_month.asc())
     ).all()
 
@@ -62,8 +69,14 @@ def get_commission_yearly_monthly_summary(
 def get_commission_project_yearly_summary(
     db: Session,
     year: str,
+    country: str = "US",
 ) -> list[dict]:
     """获取按项目汇总的佣金数据。
+
+    Args:
+        db: 数据库会话
+        year: 年份
+        country: 国家代码，US/UK/DE
 
     Returns list of dicts with project_id, project_name, months dict, etc.
     """
@@ -80,6 +93,7 @@ def get_commission_project_yearly_summary(
         ).where(
             CommissionProjectMonth.report_month >= month_start,
             CommissionProjectMonth.report_month <= month_end,
+            CommissionProjectMonth.country == country,
         ).order_by(CommissionProjectMonth.project_id.asc(), CommissionProjectMonth.report_month.asc())
     ).all()
 

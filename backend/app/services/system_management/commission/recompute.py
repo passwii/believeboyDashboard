@@ -3,6 +3,7 @@
 """
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -27,12 +28,27 @@ from app.services.system_management.commission._commission_calculator import (
 from app.services.system_management.shared import _to_decimal, _dedupe_names, _split_role_names
 
 
+# 国家代码到源货币的映射
+COUNTRY_CURRENCY_MAP: dict[Literal["US", "UK", "DE"], str] = {
+    "US": "USD",
+    "UK": "GBP",
+    "DE": "EUR",
+}
+
+
 def recompute_commission_records(
     db: Session,
     report_month: str,
     now: datetime,
+    country: Literal["US", "UK", "DE"] = "US",
 ) -> tuple[int, int, int]:
     """重新计算佣金记录。
+
+    Args:
+        db: 数据库会话
+        report_month: 报表月份，格式 YYYY-MM
+        now: 当前时间
+        country: 国家代码，US/UK/DE
 
     Returns:
         (project_month_count, record_count, locked_record_count)
@@ -42,6 +58,7 @@ def recompute_commission_records(
             MonthlyReportPT4Calculation, MonthlyReportPT4Calculation.report_id == MonthlyReport.id
         ).where(
             MonthlyReport.report_month == report_month,
+            MonthlyReport.country == country,
             MonthlyReport.is_current.is_(True),
         ).order_by(MonthlyReport.project_id.asc())
     ).all()
@@ -53,11 +70,13 @@ def recompute_commission_records(
     projects = db.execute(select(Project).where(Project.id.in_(project_ids))).scalars().all()
     project_map = {int(project.id): project for project in projects}
 
+    # 根据国家获取对应的汇率
+    source_currency = COUNTRY_CURRENCY_MAP[country]
     exchange_rate = db.execute(
-        select(ExchangeRate).where(ExchangeRate.currency == "USD", ExchangeRate.year_month == report_month)
+        select(ExchangeRate).where(ExchangeRate.currency == source_currency, ExchangeRate.year_month == report_month)
     ).scalars().first()
     if exchange_rate is None:
-        raise ValueError(f"USD exchange rate for {report_month} not found")
+        raise ValueError(f"{source_currency} exchange rate for {report_month} not found")
     usd_to_rmb_rate: Decimal = Decimal(str(exchange_rate.rate))
 
     role_rows = db.execute(
@@ -77,17 +96,26 @@ def recompute_commission_records(
     ).scalars().all()
     override_map = {(int(row.project_id), row.person_name.strip(), row.income_category): row for row in override_rows}
 
+    # 查询现有记录时添加 country 过滤
     existing_project_months = db.execute(
-        select(CommissionProjectMonth).where(CommissionProjectMonth.report_month == report_month)
+        select(CommissionProjectMonth).where(
+            CommissionProjectMonth.report_month == report_month,
+            CommissionProjectMonth.country == country,
+        )
     ).scalars().all()
     project_month_map = {int(row.project_id): row for row in existing_project_months}
 
     existing_records = db.execute(
-        select(CommissionRecord).where(CommissionRecord.report_month == report_month)
+        select(CommissionRecord).where(
+            CommissionRecord.report_month == report_month,
+            CommissionRecord.country == country,
+        )
     ).scalars().all()
-    record_map = {(int(row.project_id), row.person_name.strip(), row.income_category): row for row in existing_records}
+    # record_map 包含 country 作为 key 的一部分
+    record_map = {(int(row.project_id), row.person_name.strip(), row.income_category, row.country): row for row in existing_records}
 
-    incoming_record_keys: set[tuple[int, str, str]] = set()
+    # incoming_record_keys 包含 country
+    incoming_record_keys: set[tuple[int, str, str, str]] = set()
     locked_record_count = 0
 
     for report, pt4 in report_rows:
@@ -108,6 +136,7 @@ def recompute_commission_records(
         if pm_row is None:
             pm_row = CommissionProjectMonth(
                 report_month=report_month,
+                country=country,
                 project_id=project.id,
                 project_name=project.project_name,
                 payment_status=CommissionProjectPaymentStatus.unpaid.value,
@@ -131,17 +160,19 @@ def recompute_commission_records(
         )
 
         for (person_name, income_category), default_ratio in default_ratio_map.items():
-            incoming_record_keys.add((int(project.id), person_name, income_category))
+            incoming_record_keys.add((int(project.id), person_name, income_category, country))
             override_row = override_map.get((int(project.id), person_name, income_category))
             ratio_value = override_row.override_ratio if override_row is not None else default_ratio
             ratio_source = CommissionRatioSource.manual if override_row is not None else CommissionRatioSource.rule
             manual_ratio = override_row.override_ratio if override_row is not None else None
             bonus_amount_usd = _to_decimal(factory_commission_usd * ratio_value, "0.01")
 
-            row = record_map.get((int(project.id), person_name, income_category))
+            record_key = (int(project.id), person_name, income_category, country)
+            row = record_map.get(record_key)
             if row is None:
                 row = CommissionRecord(
                     report_month=report_month,
+                    country=country,
                     project_id=project.id,
                     project_name=project.project_name,
                     project_month_id=pm_row.id,
@@ -151,7 +182,7 @@ def recompute_commission_records(
                     is_active=True,
                 )
                 db.add(row)
-                record_map[(int(project.id), person_name, income_category)] = row
+                record_map[record_key] = row
 
             row.income_total_usd = _to_decimal(income_total_usd, "0.01")
             row.factory_commission_rate = _to_decimal(factory_commission_rate, "0.000001")
@@ -174,9 +205,10 @@ def recompute_commission_records(
             db.flush()
             break
 
+    # stale_records 判断也包含 country
     stale_records = [
-        row for (pid, pn, ic), row in record_map.items()
-        if (pid, pn, ic) not in incoming_record_keys and row.is_active
+        row for (pid, pn, ic, c), row in record_map.items()
+        if (pid, pn, ic, c) not in incoming_record_keys and row.is_active
     ]
     for stale in stale_records:
         stale.is_active = False
