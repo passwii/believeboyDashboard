@@ -24,6 +24,7 @@ export const DASHBOARD_PAGE_TITLES: Array<{ match: string; title: string }> = [
   { match: '/system-management/commission-management', title: '佣金管理' },
   { match: '/system-management/logs', title: '日志查看' },
   { match: '/data-management/auto-upload', title: '报表自动化' },
+  { match: '/data-management/platform-revenue', title: '平台回款' },
   { match: '/operations/site-navigation', title: '跨境平台书签导航' },
   { match: '/operations/store-navigation', title: '店铺导航' },
   { match: '/ai-panel/chat', title: 'AI 聊天面板' },

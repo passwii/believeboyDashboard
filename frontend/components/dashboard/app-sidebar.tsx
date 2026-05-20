@@ -156,6 +156,7 @@ const primaryGroups: NavGroup[] = [
       },
       { title: '汇率信息', url: '/dashboard/data-management/exchange-rate' },
       { title: '报表自动化', url: '/dashboard/data-management/auto-upload' },
+      { title: '平台回款', url: '/dashboard/data-management/platform-revenue' },
     ],
   },
 

@@ -73,6 +73,7 @@ const navItems: SearchItem[] = [
   { title: 'SKU 信息', url: '/dashboard/data-management/sku-info', icon: <Database className='h-4 w-4' />, category: '数据管理' },
   { title: '汇率信息', url: '/dashboard/data-management/exchange-rate', icon: <Coins className='h-4 w-4' />, category: '数据管理' },
   { title: '报表自动化', url: '/dashboard/data-management/auto-upload', icon: <Upload className='h-4 w-4' />, category: '数据管理' },
+  { title: '平台回款', url: '/dashboard/data-management/platform-revenue', icon: <Coins className='h-4 w-4' />, category: '数据管理' },
   // 系统管理
   { title: '项目信息', url: '/dashboard/system-management/project-info', icon: <ShoppingCart className='h-4 w-4' />, category: '系统管理' },
   { title: '数据库状态', url: '/dashboard/system-management/data-management', icon: <Database className='h-4 w-4' />, category: '系统管理' },
