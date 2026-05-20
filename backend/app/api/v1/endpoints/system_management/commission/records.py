@@ -163,7 +163,7 @@ def update_commission_payment_status_endpoint(
 def list_commission_project_months(
     report_month: str,
     request: Request,
-    country: str = "US",
+    country: str | None = None,
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> CommissionProjectMonthsResponse:
@@ -174,13 +174,14 @@ def list_commission_project_months(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    rows = db.execute(
-        select(CommissionProjectMonth).where(
-            CommissionProjectMonth.report_month == month,
-            CommissionProjectMonth.country == country,
-        )
-        .order_by(CommissionProjectMonth.project_id.asc())
-    ).scalars().all()
+    stmt = select(CommissionProjectMonth).where(
+        CommissionProjectMonth.report_month == month,
+    )
+    if country:
+        stmt = stmt.where(CommissionProjectMonth.country == country)
+    stmt = stmt.order_by(CommissionProjectMonth.project_id.asc(), CommissionProjectMonth.country.asc())
+
+    rows = db.execute(stmt).scalars().all()
 
     append_operation_view_log(db, action="commission.project_months.view", target_type="commission_project_month", target_id=month, operator=operator, after={"report_month": month, "country": country, "count": len(rows)}, request=request)
     db.commit()

@@ -1145,7 +1145,7 @@ function ReportSectionTitle({ children, className, ...props }: ComponentPropsWit
   )
 }
 
-const MarkdownContent = ({ content, collectChartSvgs }: { content: string; collectChartSvgs?: boolean }) => {
+const MarkdownContent = ({ content, collectChartSvgs, autoScroll = true }: { content: string; collectChartSvgs?: boolean; autoScroll?: boolean }) => {
   const Markdown = ReactMarkdown as React.FC<{
     remarkPlugins?: unknown[]
     children: string
@@ -1156,7 +1156,7 @@ const MarkdownContent = ({ content, collectChartSvgs }: { content: string; colle
 
   // Auto-scroll to bottom when content grows (for streaming preview)
   useEffect(() => {
-    if (content && content.length > prevContentLengthRef.current) {
+    if (autoScroll && content && content.length > prevContentLengthRef.current) {
       prevContentLengthRef.current = content.length
       // Small delay to ensure DOM has rendered the new content
       const timer = setTimeout(() => {
@@ -1165,7 +1165,7 @@ const MarkdownContent = ({ content, collectChartSvgs }: { content: string; colle
       return () => clearTimeout(timer)
     }
     prevContentLengthRef.current = content.length
-  }, [content])
+  }, [content, autoScroll])
 
   return (
         <div id="ai-insight-export-root" className="dashboard-surface max-w-full min-w-0 overflow-hidden rounded-[28px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))] shadow-[0_28px_90px_-56px_rgba(15,23,42,0.55)]">
@@ -2648,7 +2648,7 @@ export default function AIInsightsPage() {
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">预览</p>
                   </div>
                   <div className="flex-1 overflow-y-auto px-4 py-4">
-                    <MarkdownContent content={editingContent} collectChartSvgs={collectChartSvgs} />
+                    <MarkdownContent content={editingContent} collectChartSvgs={collectChartSvgs} autoScroll={false} />
                   </div>
                 </div>
                 <div className="flex flex-col gap-3 min-h-0">

@@ -1,8 +1,7 @@
 import type { CommissionProjectMonth, ExchangeRate, ProjectGroup, SiteRow, SiteCode } from './types'
+import { SITE_ORDER } from './types'
 
-export const SITE_ORDER: SiteCode[] = ['US', 'DE', 'UK']
-
-export const COUNTRY_TO_CURRENCY: Record<string, string> = {
+export const COUNTRY_TO_CURRENCY: Record<SiteCode, string> = {
   US: 'USD',
   DE: 'EUR',
   UK: 'GBP',
@@ -22,15 +21,13 @@ export const SITE_BORDER_COLORS: Record<SiteCode, string> = {
 
 export function convertToUsd(
   amount: number,
-  country: string,
+  country: SiteCode,
   exchangeRates: ExchangeRate[]
 ): number {
   if (country === 'US') return amount
 
-  const getRate = (currency: string): number => {
-    const rate = exchangeRates.find(r => r.currency === currency)
-    return rate?.rate ?? 0
-  }
+  const rateMap = new Map(exchangeRates.map(r => [r.currency, r.rate]))
+  const getRate = (currency: string): number => rateMap.get(currency) ?? 0
 
   const localCurrency = COUNTRY_TO_CURRENCY[country]
   if (!localCurrency) return amount
@@ -45,8 +42,7 @@ export function convertToUsd(
 }
 
 export function groupProjectsBySites(
-  rows: CommissionProjectMonth[],
-  exchangeRates: ExchangeRate[]
+  rows: CommissionProjectMonth[]
 ): ProjectGroup[] {
   const groupsMap = new Map<number, CommissionProjectMonth[]>()
   const nameMap = new Map<number, string>()
@@ -105,6 +101,7 @@ export function formatRmb(value: number): string {
   return `${value < 0 ? '-' : ''}¥${text}`
 }
 
-export function formatPercent(value: number): string {
+export function formatPercent(value: number | null | undefined): string {
+  if (value == null) return '—'
   return `${(value * 100).toFixed(2)}%`
 }
