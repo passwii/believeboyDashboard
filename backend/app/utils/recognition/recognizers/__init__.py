@@ -108,7 +108,7 @@ def recognize_business_report(path: Path, country: str = "US", original_filename
     asin_column = next(
         (
             column
-            for column in ["（子）ASIN", "(子)ASIN", "子ASIN", "ASIN"]
+            for column in ["（子）asin", "(子)asin", "子asin", "asin"]
             if column in df.columns
         ),
         None,
@@ -209,7 +209,7 @@ def recognize_payment_report(path: Path, country: str = "US") -> RecognitionResu
 def recognize_ad_product_report(path: Path, country: str = "US") -> RecognitionResult:
     """Recognize ad product report (.xlsx with 开始日期 / 结束日期 / 广告SKU / 广告ASIN)."""
     df = _normalize_columns(_read_excel(path))
-    required = ["开始日期", "结束日期", "广告SKU", "广告ASIN"]
+    required = ["开始日期", "结束日期", "广告sku", "广告asin"]
     missing = [c for c in required if c not in df.columns]
     if missing:
         raise ValueError(f"Ad report missing required columns: {missing}")
@@ -372,7 +372,7 @@ def recognize_file(
             try:
                 df = _normalize_columns(_read_csv_with_encoding_fallback(path, sep=","))
                 asin_col = next(
-                    (c for c in ["（子）ASIN", "(子)ASIN", "子ASIN", "ASIN"] if c in df.columns),
+                    (c for c in ["（子）asin", "(子)asin", "子asin", "asin"] if c in df.columns),
                     None,
                 )
                 if asin_col:
@@ -386,7 +386,7 @@ def recognize_file(
         if extension == ".xlsx":
             df = _normalize_columns(_read_excel(path))
             columns = set(df.columns)
-            if {"广告SKU", "广告ASIN"}.issubset(columns):
+            if {"广告sku", "广告asin"}.issubset(columns):
                 return recognize_ad_product_report(path, normalized_country)
             if {"开始日期", "结束日期", "投放", "客户搜索词"}.issubset(columns):
                 return recognize_ad_search_term_report(path, normalized_country)

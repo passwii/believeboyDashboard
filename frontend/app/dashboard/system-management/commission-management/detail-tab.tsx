@@ -232,7 +232,7 @@ export function DetailTab({
               step="0.01"
               min="0"
               value={receivedDraftById[record.id] ?? ''}
-              className="h-9 w-[150px] text-right"
+              className="h-9 w-[150px] text-right [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none hover:!ring-0 active:!ring-0 focus-visible:!ring-2 focus-visible:ring-offset-0 focus-visible:!ring-ring"
               onChange={(event) => {
                 onUpdateDraft(record.id, event.target.value)
               }}

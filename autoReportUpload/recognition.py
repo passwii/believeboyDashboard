@@ -168,7 +168,7 @@ def _add_project_match(result: RecognitionResult, db: Session, path: Path, count
             df = _normalize_columns(_read_csv_with_encoding_fallback(path, sep=","))
             match_by = "asin"
             asin_col = next(
-                (c for c in ["（子）ASIN", "(子)ASIN", "子ASIN", "ASIN"] if c in df.columns),
+                (c for c in ["（子）asin", "(子)asin", "子asin", "asin"] if c in df.columns),
                 None,
             )
             if asin_col:
@@ -183,7 +183,7 @@ def _add_project_match(result: RecognitionResult, db: Session, path: Path, count
         elif result.report_type == AD_PRODUCT_REPORT:
             df = _normalize_columns(_read_excel(path))
             match_by = "sku"
-            values = df["广告SKU"].dropna().astype(str).tolist()
+            values = df["广告sku"].dropna().astype(str).tolist()
         elif result.report_type == "ad_search_term_report":
             result.project_match = {"status": "manual", "message": "该报表项目需手动选择"}
             return result
