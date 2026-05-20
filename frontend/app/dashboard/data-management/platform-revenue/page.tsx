@@ -165,7 +165,7 @@ export default function PlatformRevenuePage() {
   // 获取项目列表
   const fetchProjects = useCallback(async () => {
     try {
-      const response = await fetch('/api/projects')
+      const response = await fetch('/api/backend/api/v1/projects')
       if (response.ok) {
         const result = await response.json()
         setProjects(result.data || [])
@@ -189,7 +189,7 @@ export default function PlatformRevenuePage() {
       if (filters.month) queryParams.append('month', filters.month)
       if (filters.currency) queryParams.append('currency', filters.currency)
 
-      const response = await fetch(`/api/platform-revenues?${queryParams}`)
+      const response = await fetch(`/api/backend/api/v1/platform-revenues?${queryParams}`)
       if (!response.ok) {
         throw new Error('Failed to fetch revenues')
       }
@@ -212,7 +212,7 @@ export default function PlatformRevenuePage() {
   // 获取项目的站点列表
   const fetchProjectCountries = useCallback(async (projectId: number) => {
     try {
-      const response = await fetch(`/api/platform-revenues/project-countries/${projectId}`)
+      const response = await fetch(`/api/backend/api/v1/platform-revenues/project-countries/${projectId}`)
       if (response.ok) {
         const result = await response.json()
         return result.countries || []
@@ -310,8 +310,8 @@ export default function PlatformRevenuePage() {
       }
 
       const url = editingRevenue
-        ? `/api/platform-revenues/${editingRevenue.id}`
-        : '/api/platform-revenues'
+        ? `/api/backend/api/v1/platform-revenues/${editingRevenue.id}`
+        : '/api/backend/api/v1/platform-revenues'
       const method = editingRevenue ? 'PATCH' : 'POST'
 
       const response = await fetch(url, {
@@ -339,7 +339,7 @@ export default function PlatformRevenuePage() {
     if (!deletingRevenue) return
 
     try {
-      const response = await fetch(`/api/platform-revenues/${deletingRevenue.id}`, {
+      const response = await fetch(`/api/backend/api/v1/platform-revenues/${deletingRevenue.id}`, {
         method: 'DELETE',
       })
 
@@ -365,7 +365,7 @@ export default function PlatformRevenuePage() {
       const formData = new FormData()
       formData.append('file', file)
 
-      const response = await fetch('/api/platform-revenues/upload-image', {
+      const response = await fetch('/api/backend/api/v1/platform-revenues/upload-image', {
         method: 'POST',
         body: formData,
       })
