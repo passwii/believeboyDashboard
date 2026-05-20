@@ -70,11 +70,9 @@ export function DetailTab({
       return (
         <TableRow key={`nodata-${country}`} className="bg-gray-50/50">
           <TableCell>
-            <div className="flex items-center gap-2">
-              <span className="text-lg">{info.flag}</span>
-              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600">
-                {country}
-              </span>
+            <div className="flex items-center gap-3">
+              <span className={`h-2 w-2 rounded-full ${info.dotClass}`} />
+              <span className="text-xs font-medium text-slate-500">{info.label}</span>
               {projectName && <span className="text-sm text-muted-foreground">{projectName}</span>}
             </div>
           </TableCell>
@@ -96,12 +94,10 @@ export function DetailTab({
         className={`border-l-4 ${SITE_BORDER_COLORS[country]}`}
       >
         <TableCell>
-          <div className="flex items-center gap-2">
-            <span className="text-lg">{info.flag}</span>
-            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600">
-              {country}
-            </span>
-            {projectName && <span className="text-sm text-muted-foreground">{projectName}</span>}
+          <div className="flex items-center gap-3">
+            <span className={`h-2 w-2 rounded-full ${info.dotClass}`} />
+            <span className="text-xs font-medium text-slate-500">{info.label}</span>
+            {projectName && <span>{projectName}</span>}
           </div>
         </TableCell>
         <TableCell className="text-right tabular-nums">
