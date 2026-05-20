@@ -27,15 +27,10 @@ export interface ProjectMeta {
   commission_rate: number | null
 }
 
-export interface SiteRow {
-  country: SiteCode
-  hasData: boolean
-  record?: CommissionProjectMonth
-}
-
-export interface ProjectGroup {
+// 扁平化的项目行，包含 Row Span 信息
+export interface ProjectRow {
   projectId: number
   projectName: string
-  isSingleUS: boolean
-  sites: SiteRow[]
+  rowSpan: number  // 项目名列需要合并的行数，0 表示不显示项目名
+  record: CommissionProjectMonth  // 该行的完整数据
 }

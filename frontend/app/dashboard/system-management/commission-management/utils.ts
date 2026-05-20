@@ -1,4 +1,4 @@
-import type { CommissionProjectMonth, ExchangeRate, ProjectGroup, SiteRow, SiteCode } from './types'
+import type { CommissionProjectMonth, ExchangeRate, ProjectRow, SiteCode } from './types'
 import { SITE_ORDER } from './types'
 
 export const COUNTRY_TO_CURRENCY: Record<SiteCode, string> = {
@@ -43,7 +43,7 @@ export function convertToUsd(
 
 export function groupProjectsBySites(
   rows: CommissionProjectMonth[]
-): ProjectGroup[] {
+): ProjectRow[] {
   const groupsMap = new Map<number, CommissionProjectMonth[]>()
   const nameMap = new Map<number, string>()
 
@@ -55,28 +55,23 @@ export function groupProjectsBySites(
     groupsMap.get(row.project_id)!.push(row)
   }
 
-  const result: ProjectGroup[] = []
+  const result: ProjectRow[] = []
 
   for (const [projectId, siteRows] of groupsMap) {
     const projectName = nameMap.get(projectId)!
-    const siteSet = new Set(siteRows.map(r => r.country))
-
-    const isSingleUS = siteSet.size === 1 && siteSet.has('US')
-
-    const sites: SiteRow[] = SITE_ORDER.map(country => {
-      const record = siteRows.find(r => r.country === country)
-      return {
-        country,
-        hasData: !!record,
-        record,
-      }
+    // 按 SITE_ORDER 排序，确保站点顺序一致
+    const sortedRows = siteRows.sort((a, b) => {
+      return SITE_ORDER.indexOf(a.country as SiteCode) - SITE_ORDER.indexOf(b.country as SiteCode)
     })
 
-    result.push({
-      projectId,
-      projectName,
-      isSingleUS,
-      sites,
+    sortedRows.forEach((record, index) => {
+      result.push({
+        projectId,
+        projectName,
+        // 只有第一行显示项目名
+        rowSpan: index === 0 ? sortedRows.length : 0,
+        record,
+      })
     })
   }
 
@@ -104,4 +99,18 @@ export function formatRmb(value: number): string {
 export function formatPercent(value: number | null | undefined): string {
   if (value == null) return '—'
   return `${(value * 100).toFixed(2)}%`
+}
+
+export function formatIncomeWithCurrency(amount: number, country: SiteCode): string {
+  const symbols: Record<SiteCode, { symbol: string; currency: string }> = {
+    US: { symbol: '$', currency: 'USD' },
+    DE: { symbol: '€', currency: 'EUR' },
+    UK: { symbol: '£', currency: 'GBP' },
+  }
+  const { symbol, currency } = symbols[country]
+  const formatted = amount.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+  return `${symbol}${formatted} ${currency}`
 }
