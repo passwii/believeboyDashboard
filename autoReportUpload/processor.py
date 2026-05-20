@@ -18,12 +18,7 @@ from dotenv import load_dotenv
 from sqlalchemy import insert, select, update as sa_update
 from sqlalchemy.orm import Session
 
-# Load backend .env first (validates DATABASE_URL / API_KEY),
-# then autoReportUpload .env second (adds AUTO_REPORT_ENV / DIGITAL_EMPLOYEE_*).
-# Neither call overrides already-set values, so the backend's DATABASE_URL
-# and API_KEY are never clobbered by the service's own .env file.
-_backend_env = Path(__file__).resolve().parent.parent / "backend" / ".env"
-load_dotenv(_backend_env)
+# Load autoReportUpload .env before importing backend modules
 _env_path = Path(__file__).parent / ".env"
 load_dotenv(_env_path)
 
