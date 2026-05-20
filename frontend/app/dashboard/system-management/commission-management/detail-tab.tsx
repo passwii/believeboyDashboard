@@ -287,7 +287,7 @@ export function DetailTab({
         className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit] transition-opacity duration-200"
         style={{ opacity: loading ? 0 : 1 }}
       >
-        <div className="flex-1 overflow-auto p-6">
+        <div className="flex-1 overflow-auto">
           <Table className={FULL_BLEED_TABLE_CLASS} containerClassName={FULL_BLEED_TABLE_CONTAINER_CLASS}>
             <TableHeader className="sticky top-0 z-10 bg-slate-100/80 dark:bg-slate-900/45">
               <TableRow>

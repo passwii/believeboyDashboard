@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { formatMonthInputValue, parseMonthInputValue } from '@/components/ui/date-picker'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { buildBackendHeaders } from '@/lib/backend-auth'
 import { useNotifications } from '@/components/notifications'
 import { DetailTab } from './detail-tab'
@@ -16,8 +17,9 @@ import { MonthlySummaryTab } from './monthly-summary-tab'
 import { ProjectSummaryTab } from './project-summary-tab'
 import { MonthlyCollectionTab } from './monthly-collection-tab'
 import { CommissionRulesCard } from './commission-rules-card'
-import { groupProjectsBySites, formatRmb, formatUsd } from './utils'
-import type { CommissionProjectMonth, ExchangeRate, ProjectMeta, ProjectGroup, PaymentStatus } from './types'
+import { groupProjectsBySites, formatRmb, formatUsd, SITE_INFO } from './utils'
+import type { CommissionProjectMonth, ExchangeRate, ProjectMeta, ProjectGroup, PaymentStatus, SiteCode } from './types'
+import { SITE_ORDER } from './types'
 
 type CommissionProjectMonthsResponse = {
   report_month: string
@@ -106,6 +108,7 @@ export default function CommissionManagementPage() {
   const [month, setMonth] = useState(lastMonthString())
   const [summaryYear, setSummaryYear] = useState(getCurrentYear())
   const [activeTab, setActiveTab] = useState<CommissionViewTab>('detail')
+  const [countryFilter, setCountryFilter] = useState<SiteCode | 'all'>('all') // 'all', 'US', 'DE', 'UK'
 
   const [loading, setLoading] = useState(true)
   const [summaryLoading, setSummaryLoading] = useState(false)
@@ -138,7 +141,11 @@ export default function CommissionManagementPage() {
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
-      const response = await fetch(`${API_BASE}/api/v1/system-management/commission-management/project-months?report_month=${month}`, {
+      const params = new URLSearchParams({ report_month: month })
+      if (countryFilter !== 'all') {
+        params.set('country', countryFilter)
+      }
+      const response = await fetch(`${API_BASE}/api/v1/system-management/commission-management/project-months?${params.toString()}`, {
         cache: 'no-store',
         headers: buildBackendHeaders(session),
       })
@@ -161,7 +168,7 @@ export default function CommissionManagementPage() {
     } finally {
       setLoading(false)
     }
-  }, [month, session, notify])
+  }, [month, session, countryFilter])
 
   const loadProjectMeta = useCallback(async () => {
     try {
@@ -192,11 +199,11 @@ export default function CommissionManagementPage() {
     setSummaryLoading(true)
     try {
       const [monthlyResp, projectResp] = await Promise.all([
-        fetch(`${API_BASE}/api/v1/system-management/commission-management/summary/monthly?year=${summaryYear}`, {
+        fetch(`${API_BASE}/api/v1/system-management/commission-management/summary/monthly?year=${summaryYear}&country=${countryFilter}`, {
           cache: 'no-store',
           headers: buildBackendHeaders(session),
         }),
-        fetch(`${API_BASE}/api/v1/system-management/commission-management/summary/project?year=${summaryYear}`, {
+        fetch(`${API_BASE}/api/v1/system-management/commission-management/summary/project?year=${summaryYear}&country=${countryFilter}`, {
           cache: 'no-store',
           headers: buildBackendHeaders(session),
         }),
@@ -233,6 +240,13 @@ export default function CommissionManagementPage() {
   useEffect(() => {
     void loadExchangeRates()
   }, [loadExchangeRates])
+
+  // Reload when country filter changes (but not for 'all' since we already have all data)
+  useEffect(() => {
+    if (countryFilter !== 'all') {
+      void loadData()
+    }
+  }, [countryFilter, loadData])
 
   const sortedRows = useMemo(() => {
     return [...rows].sort((a, b) => a.project_id - b.project_id)
@@ -400,6 +414,29 @@ export default function CommissionManagementPage() {
                 loading={activeTab === 'detail' ? loading : summaryLoading}
                 disabled={recomputing}
               />
+
+              {activeTab === 'detail' ? (
+                <Select
+                  value={countryFilter}
+                  onValueChange={(value) => setCountryFilter(value as SiteCode | 'all')}
+                >
+                  <SelectTrigger className="w-[100px]">
+                    <SelectValue placeholder="站点" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全部站点</SelectItem>
+                    {SITE_ORDER.map((code) => (
+                      <SelectItem key={code} value={code}>
+                        <span className="flex items-center gap-2">
+                          <span className={`h-1.5 w-1.5 rounded-full ${SITE_INFO[code].dotClass}`} />
+                          {SITE_INFO[code].label}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : null}
+
               {activeTab === 'detail' ? (
                 <Button
                   onClick={() => void handleRecompute()}
