@@ -165,7 +165,7 @@ export default function PlatformRevenuePage() {
   // 获取项目列表
   const fetchProjects = useCallback(async () => {
     try {
-      const response = await fetch('/api/backend/api/v1/projects')
+      const response = await fetch('/api/backend/api/v1/projects/manage')
       if (response.ok) {
         const data = await response.json()
         const items = Array.isArray(data) ? data : (data.items ?? data.data ?? [])
