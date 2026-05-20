@@ -190,6 +190,7 @@ The hook configuration is tracked in `.cloudmtd` at the repo root. Read this fil
 - Frontend uses React 18 with TanStack Table v8 and Recharts
 - Next.js App Router pages are split: `page.tsx` (server component) + `*-client.tsx` (client component) when interactivity is needed
 - All backend API endpoints follow `/api/v1/{resource}/` naming
+- **Projects API**: 前端获取项目列表必须使用 `/api/v1/projects/manage` 而非 `/api/v1/projects`，因为 `/projects/manage` 有基于 `X-Operator` header 的权限控制，会根据当前用户过滤可访问的项目
 
 <!-- superpowers-zh:begin (do not edit between these markers) -->
 # Superpowers-ZH 中文增强版
