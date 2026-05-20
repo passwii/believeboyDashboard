@@ -36,6 +36,7 @@ type AvailableReport = {
   country: string
   report_month: string
   has_summary_pdf: boolean
+  pdf_url: string | null  // R2 URL for direct access
   pdf_uploaded_at: string | null
   pt3_calculation_complete: boolean
   pt4_calculation_complete: boolean

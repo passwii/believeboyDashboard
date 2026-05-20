@@ -3,12 +3,78 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from decimal import Decimal
+import tempfile
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import MonthlyReport, MonthlyReportPT3Calculation, MonthlyReportPT4Calculation, ReconciliationRecord
 from app.utils.pdf_extractor import PDFExtractor
+from app.core.config import get_settings
+
+# PT3 fields to compare with PDF key_values
+def _resolve_pdf_path(relative_path: str | None) -> Path:
+    """
+    Resolve PDF path from database storage path.
+
+    Supports:
+    - R2 URLs (https://...) - download to temp
+    - Local paths (legacy support)
+    """
+    if not relative_path:
+        raise ValueError("PDF path is not set")
+
+    # If it's a URL, download from R2 to temp file
+    if relative_path.startswith('http'):
+        return _download_from_r2(relative_path)
+
+    # Local file path (legacy support)
+    pdf_path = Path(relative_path)
+
+    # If absolute and exists, return directly
+    if pdf_path.is_absolute() and pdf_path.exists():
+        return pdf_path
+
+    # Try relative to backend directory
+    backend_dir = Path(__file__).resolve().parents[2]
+    absolute_path = backend_dir / relative_path
+    if absolute_path.exists():
+        return absolute_path
+
+    raise FileNotFoundError(f"PDF file not found: {relative_path}")
+
+
+def _build_r2_url_from_key(key: str) -> str:
+    """Build R2 URL from key."""
+    from app.core.config import get_settings
+    settings = get_settings()
+    return f"{settings.r2_endpoint_url}/{settings.r2_bucket_name}/{key}"
+
+
+def _download_from_r2(url: str) -> Path:
+    """Download PDF from R2 to temporary file."""
+    from app.services.r2_service import download_file_to_path
+
+    settings = get_settings()
+    # Extract R2 key from URL
+    # URL format: https://...r2.cloudflarestorage.com/bucket/key
+    parts = url.split(f"{settings.r2_bucket_name}/")
+    if len(parts) < 2:
+        raise ValueError(f"Invalid R2 URL format: {url}")
+
+    key = parts[1]
+
+    # Download to temp file
+    temp_file = tempfile.NamedTemporaryFile(suffix='.pdf', delete=False)
+    temp_path = Path(temp_file.name)
+    temp_file.close()
+
+    success = download_file_to_path(settings, key, temp_path)
+    if not success:
+        temp_path.unlink(missing_ok=True)
+        raise FileNotFoundError(f"Failed to download PDF from R2: {url}")
+
+    return temp_path
 
 # PT3 fields to compare with PDF key_values
 PT3_TO_PDF_MAPPING: Dict[str, str] = {
@@ -98,21 +164,11 @@ def get_available_reports(
         )
         pt4 = db.execute(pt4_stmt).scalars().first()
 
-        # Check if PDF file actually exists (not just the path is set)
-        pdf_path = report.summary_pdf_file_path
-        pdf_exists = False
+        # Check if PDF exists in R2 (via r2_key or r2_url)
+        # Legacy support: also check summary_pdf_r2_url
+        pdf_exists = bool(report.summary_pdf_r2_key or report.summary_pdf_r2_url)
         pdf_file_missing = False
-        if pdf_path:
-            # The pdf_path in DB already includes the storage/uploads prefix
-            # We need to resolve it relative to the backend directory
-            # upload_root is "storage/uploads" which is relative to backend dir
-            # So we resolve pdf_path from the backend directory
-            backend_dir = Path(__file__).resolve().parents[2]  # Go up from app/services/ to backend/
-            full_pdf_path = backend_dir / pdf_path
-            pdf_exists = full_pdf_path.exists()
-            # If path is set but file doesn't exist, flag it
-            if pdf_path and not pdf_exists:
-                pdf_file_missing = True
+        pdf_url = report.summary_pdf_r2_url
 
         # Check if this report has been reconciled before
         recon_stmt = select(ReconciliationRecord).where(
@@ -126,6 +182,7 @@ def get_available_reports(
             "country": report.country,
             "report_month": report.report_month,
             "has_summary_pdf": pdf_exists,
+            "pdf_url": pdf_url,
             "pdf_uploaded_at": report.updated_at,
             "pt3_calculation_complete": pt3 is not None,
             "pt4_calculation_complete": pt4 is not None,
@@ -170,9 +227,9 @@ def auto_reconcile(
     # Get report
     report = get_report_or_404(db, report_id)
 
-    # Check if PDF exists
-    if not report.summary_pdf_file_path:
-        raise ValueError(f"Report {report_id} does not have a summary PDF uploaded")
+    # Check if PDF exists in R2
+    if not report.summary_pdf_r2_key and not report.summary_pdf_r2_url:
+        raise ValueError(f"Report {report_id} does not have a summary PDF uploaded to R2")
 
     # Get PT3 calculation
     pt3_stmt = select(MonthlyReportPT3Calculation).where(
@@ -183,9 +240,12 @@ def auto_reconcile(
     if not pt3:
         raise ValueError(f"Report {report_id} does not have PT3 calculation data")
 
-    # Extract PDF data
+    # Extract PDF data from R2
+    # Prefer R2 URL, fall back to constructing from R2 key
+    pdf_url = report.summary_pdf_r2_url or _build_r2_url_from_key(report.summary_pdf_r2_key)
+    pdf_path = _resolve_pdf_path(pdf_url)
     try:
-        extractor = PDFExtractor(report.summary_pdf_file_path, country=country)
+        extractor = PDFExtractor(str(pdf_path), country=country)
         pdf_data = extractor.get_raw_data().get("key_values", {})
     except Exception as e:
         raise ValueError(f"Failed to extract PDF data: {str(e)}")

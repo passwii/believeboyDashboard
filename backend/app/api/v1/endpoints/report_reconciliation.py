@@ -199,9 +199,9 @@ def upload_summary_pdf(
     """
     Upload or replace summary PDF for a report.
 
-    - If the report already has a PDF path set (but file is missing), this will overwrite it
-    - If the report has no PDF path, this will create one
-    - File is stored following the existing naming convention: storage/uploads/{project_slug}/monthly-summary-pdf/{uuid}_{original_name}.pdf
+    - PDF is uploaded to R2 cloud storage
+    - Database records: summary_pdf_r2_key, summary_pdf_r2_url
+    - Frontend can directly access PDF via R2 URL
     """
     # Get the report
     report = db.query(MonthlyReport).filter(MonthlyReport.id == report_id).first()
@@ -226,7 +226,7 @@ def upload_summary_pdf(
     project_name = report.project_name
 
     try:
-        # Save the file using existing upload service
+        # Save the file to R2
         result = save_upload_file(
             file=pdf_file,
             settings=settings,
@@ -234,24 +234,20 @@ def upload_summary_pdf(
             file_type='monthly_summary_pdf',
         )
 
-        # Update the report with new PDF info
-        # Convert absolute path to relative path (relative to project root, where storage/ lives)
-        # storage/uploads/... relative to project_root/backend/ → storage/uploads/...
-        project_root = settings.upload_root.resolve().parent.parent  # Go up from storage/uploads to project root
-        absolute_path = Path(result['file_path'])
-        relative_path = absolute_path.relative_to(project_root)
-
-        report.summary_pdf_file_id = result['file_id']
-        report.summary_pdf_file_path = str(relative_path)
+        # Update the report with R2 storage info
+        report.summary_pdf_r2_key = result['r2_key']
+        report.summary_pdf_r2_url = result['r2_url']
+        # Keep file_id for compatibility (stores the R2 key)
+        report.summary_pdf_file_id = result['r2_key']
         db.commit()
 
         return PDFUploadResponse(
             report_id=report_id,
-            pdf_file_id=result['file_id'],
-            pdf_file_path=str(relative_path),
+            pdf_file_id=result['r2_key'],
+            pdf_file_path=result['r2_url'],
             original_filename=result['original_filename'],
             size=result['size'],
-            message="PDF uploaded successfully",
+            message="PDF uploaded to R2 successfully",
         )
 
     except Exception as e:
