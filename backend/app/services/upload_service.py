@@ -43,6 +43,18 @@ def _safe_project_folder_name(project_name: str) -> str:
 
 
 def save_upload_file(file: UploadFile, settings: Settings, project_name: str, file_type: str) -> dict:
+    """
+    Upload a file to R2 storage (cloud-only, no local storage).
+
+    Args:
+        file: FastAPI UploadFile
+        settings: Application settings
+        project_name: Project name for path organization
+        file_type: File type (e.g., 'monthly_summary_pdf')
+
+    Returns:
+        dict with r2_key, r2_url, file_id, original_filename, size
+    """
     if not file.filename:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Missing filename')
 
@@ -62,30 +74,45 @@ def save_upload_file(file: UploadFile, settings: Settings, project_name: str, fi
 
     project_slug = _safe_project_folder_name(project_name)
     type_slug = slugify(normalized_file_type)[:50] or 'file'
-    folder = settings.upload_root / project_slug / type_slug
-    folder.mkdir(parents=True, exist_ok=True)
 
+    # Generate unique filename
     unique_id = uuid.uuid4().hex
     safe_name = _safe_name(file.filename)
     stored_name = f'{unique_id}_{safe_name}'
-    path = folder / stored_name
 
+    # Read file content
+    file_content = b''
     size = 0
-    with path.open('wb') as target:
-        while True:
-            chunk = file.file.read(1024 * 1024)
-            if not chunk:
-                break
-            size += len(chunk)
-            if size > settings.max_upload_bytes:
-                path.unlink(missing_ok=True)
-                raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail='File too large')
-            target.write(chunk)
+    while True:
+        chunk = file.file.read(1024 * 1024)
+        if not chunk:
+            break
+        size += len(chunk)
+        if size > settings.max_upload_bytes:
+            raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail='File too large')
+        file_content += chunk
+
+    # Upload to R2 (required)
+    if not settings.r2_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail='Cloud storage is not configured. Please contact administrator.'
+        )
+
+    from app.services.r2_service import upload_bytes_to_r2
+    r2_result = upload_bytes_to_r2(
+        settings,
+        file_content,
+        stored_name,
+        project_slug,
+        type_slug,
+        content_type or 'application/octet-stream',
+    )
 
     return {
-        'file_id': stored_name,
-        'file_path': str(path.resolve()),
-        'filename': stored_name,
+        'file_id': r2_result['key'],
+        'r2_key': r2_result['key'],
+        'r2_url': r2_result['url'],
         'original_filename': file.filename,
         'size': size,
     }

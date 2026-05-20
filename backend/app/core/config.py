@@ -65,6 +65,19 @@ class Settings(BaseSettings):
 
     redis_db: int = Field(default=0, ge=0, le=15)
 
+    # Cloudflare R2 Storage
+    r2_account_id: str = Field(default="", max_length=100)
+    r2_endpoint_url: str = Field(default="", max_length=500)
+    r2_access_key_id: str = Field(default="", max_length=100)
+    r2_secret_access_key: str = Field(default="", max_length=200)
+    r2_bucket_name: str = Field(default="", max_length=100)
+    r2_region: str = Field(default="auto", max_length=50)
+
+    @property
+    def r2_enabled(self) -> bool:
+        """Check if R2 is properly configured."""
+        return bool(self.r2_endpoint_url and self.r2_access_key_id and self.r2_secret_access_key and self.r2_bucket_name)
+
 
 @lru_cache
 def get_settings() -> Settings:

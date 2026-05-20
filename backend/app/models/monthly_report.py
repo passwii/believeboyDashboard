@@ -57,6 +57,8 @@ class MonthlyReport(Base):
     transaction_file_path: Mapped[str] = mapped_column(String(1024), nullable=False)
     summary_pdf_file_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     summary_pdf_file_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    summary_pdf_r2_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    summary_pdf_r2_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     result_file_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     settlement_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     file_size: Mapped[int | None] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), nullable=True)
