@@ -2,6 +2,7 @@
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { EmptyTableState } from '@/components/ui/empty-state'
+import { formatUsd, formatRmb, formatPercent } from './utils'
 
 type CommissionYearlyMonthlySummaryItem = {
   report_month: string
@@ -14,28 +15,6 @@ type CommissionYearlyMonthlySummaryItem = {
 
 const FULL_BLEED_TABLE_CLASS = "[&_th]:px-3 [&_th]:py-3 [&_td]:px-3 [&_td]:py-3 sm:[&_th]:px-4 sm:[&_td]:px-4"
 const FULL_BLEED_TABLE_CONTAINER_CLASS = "-m-px h-[calc(100%+2px)] w-[calc(100%+2px)] rounded-none"
-
-function formatRmb(value: number): string {
-  const abs = Math.abs(value)
-  const text = abs.toLocaleString('zh-CN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
-  return `${value < 0 ? '-' : ''}¥${text}`
-}
-
-function formatUsd(value: number): string {
-  const abs = Math.abs(value)
-  const text = abs.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
-  return `${value < 0 ? '-' : ''}$${text}`
-}
-
-function formatPercent(value: number): string {
-  return `${(value * 100).toFixed(2)}%`
-}
 
 interface MonthlySummaryTabProps {
   items: CommissionYearlyMonthlySummaryItem[]
