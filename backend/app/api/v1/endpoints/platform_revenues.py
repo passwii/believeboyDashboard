@@ -128,7 +128,7 @@ def create_platform_revenue(
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> PlatformRevenueItem:
-    operator_name = request.headers.get('X-Operator', 'system')
+    operator_name = operator or 'system'
 
     # Get project name
     from app.models import Project
@@ -182,7 +182,7 @@ def update_platform_revenue(
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> PlatformRevenueItem:
-    operator_name = request.headers.get('X-Operator', 'system')
+    operator_name = operator or 'system'
 
     update_data = payload.model_dump(exclude_unset=True)
     if payload.attachments is not None:
@@ -220,7 +220,7 @@ def delete_platform_revenue(
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> Response:
-    operator_name = request.headers.get('X-Operator', 'system')
+    operator_name = operator or 'system'
 
     # Get before state for audit (with permission check)
     row = platform_revenue_service.get_revenue(db, revenue_id, operator=operator_name, is_admin=bool(is_admin))
