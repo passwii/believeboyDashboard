@@ -96,12 +96,12 @@ function DetailSkeletonContent() {
         <Table className={FULL_BLEED_TABLE_CLASS} containerClassName={FULL_BLEED_TABLE_CONTAINER_CLASS}>
           <TableHeader className="sticky top-0 z-10 bg-slate-100/80 dark:bg-slate-900/45">
             <TableRow>
-              <TableHead className="font-semibold text-foreground">项目</TableHead>
-              <TableHead className="text-right font-semibold text-foreground">销售收入(USD)</TableHead>
-              <TableHead className="text-right font-semibold text-foreground">佣金比例</TableHead>
-              <TableHead className="text-right font-semibold text-foreground">工厂佣金(USD)</TableHead>
-              <TableHead className="text-right font-semibold text-foreground">已回款(RMB)</TableHead>
-              <TableHead className="font-semibold text-foreground">回款状态</TableHead>
+              <TableHead className="text-center font-semibold text-foreground">项目</TableHead>
+              <TableHead className="text-center font-semibold text-foreground">销售收入(USD)</TableHead>
+              <TableHead className="text-center font-semibold text-foreground">佣金比例</TableHead>
+              <TableHead className="text-center font-semibold text-foreground">工厂佣金(USD)</TableHead>
+              <TableHead className="text-center font-semibold text-foreground">已回款(RMB)</TableHead>
+              <TableHead className="text-center font-semibold text-foreground">回款状态</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -185,18 +185,18 @@ export function DetailTab({
     if (!hasData || !record) {
       return (
         <TableRow key={`nodata-${country}`} className="bg-gray-50/50">
-          <TableCell className="!pl-0">
-            <div className="flex items-center gap-3">
+          <TableCell className="text-center">
+            <div className="flex items-center justify-center gap-3">
               <span className={`h-2 w-2 rounded-full ${info.dotClass}`} />
               <span className="text-xs font-medium text-slate-500">{info.label}</span>
               {projectName && <span className="text-sm text-muted-foreground">{projectName}</span>}
             </div>
           </TableCell>
-          <TableCell className="text-right text-gray-400">无数据</TableCell>
-          <TableCell className="text-right text-gray-400">无数据</TableCell>
-          <TableCell className="text-right text-gray-400">无数据</TableCell>
-          <TableCell className="text-gray-400">无数据</TableCell>
-          <TableCell className="text-gray-400">无数据</TableCell>
+          <TableCell className="text-center text-gray-400">无数据</TableCell>
+          <TableCell className="text-center text-gray-400">无数据</TableCell>
+          <TableCell className="text-center text-gray-400">无数据</TableCell>
+          <TableCell className="text-center text-gray-400">无数据</TableCell>
+          <TableCell className="text-center text-gray-400">无数据</TableCell>
         </TableRow>
       )
     }
@@ -209,30 +209,30 @@ export function DetailTab({
         key={record.id}
         className={`border-l-4 ${SITE_BORDER_COLORS[country]}`}
       >
-        <TableCell>
-          <div className="flex items-center gap-3">
+        <TableCell className="text-center">
+          <div className="flex items-center justify-center gap-3">
             <span className={`h-2 w-2 rounded-full ${info.dotClass}`} />
             <span className="text-xs font-medium text-slate-500">{info.label}</span>
             {projectName && <span>{projectName}</span>}
           </div>
         </TableCell>
-        <TableCell className="text-right tabular-nums">
+        <TableCell className="text-center tabular-nums">
           {formatUsd(incomeUsd)}
         </TableCell>
-        <TableCell className="text-right tabular-nums">
+        <TableCell className="text-center tabular-nums">
           {getCommissionRatioLabel(record)}
         </TableCell>
-        <TableCell className="text-right tabular-nums font-medium">
+        <TableCell className="text-center tabular-nums font-medium">
           {formatUsd(commissionUsd)}
         </TableCell>
-        <TableCell>
-          <div className="flex items-center justify-end gap-2">
+        <TableCell className="text-center">
+          <div className="flex items-center justify-center gap-2">
             <Input
               type="number"
               step="0.01"
               min="0"
               value={receivedDraftById[record.id] ?? ''}
-              className="h-9 w-[150px] text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+              className="h-9 w-[150px] text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
               onChange={(event) => {
                 onUpdateDraft(record.id, event.target.value)
               }}
@@ -249,7 +249,7 @@ export function DetailTab({
             />
           </div>
         </TableCell>
-        <TableCell className="!pr-0">
+        <TableCell className="text-center">
           <Select
             value={record.payment_status}
             onValueChange={(value: PaymentStatus) => {
@@ -257,7 +257,7 @@ export function DetailTab({
             }}
             disabled={updatingId === record.id}
           >
-            <SelectTrigger className="w-[140px]">
+            <SelectTrigger className="w-[140px] mx-auto">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -291,12 +291,12 @@ export function DetailTab({
           <Table className={FULL_BLEED_TABLE_CLASS} containerClassName={FULL_BLEED_TABLE_CONTAINER_CLASS}>
             <TableHeader className="sticky top-0 z-10 bg-slate-100/80 dark:bg-slate-900/45">
               <TableRow>
-                <TableHead className="!pl-0 font-semibold text-foreground">项目</TableHead>
-                <TableHead className="text-right font-semibold text-foreground">销售收入(USD)</TableHead>
-                <TableHead className="text-right font-semibold text-foreground">佣金比例</TableHead>
-                <TableHead className="text-right font-semibold text-foreground">工厂佣金(USD)</TableHead>
-                <TableHead className="text-right font-semibold text-foreground">已回款(RMB)</TableHead>
-                <TableHead className="!pr-0 font-semibold text-foreground">回款状态</TableHead>
+                <TableHead className="text-center font-semibold text-foreground">项目</TableHead>
+                <TableHead className="text-center font-semibold text-foreground">销售收入(USD)</TableHead>
+                <TableHead className="text-center font-semibold text-foreground">佣金比例</TableHead>
+                <TableHead className="text-center font-semibold text-foreground">工厂佣金(USD)</TableHead>
+                <TableHead className="text-center font-semibold text-foreground">已回款(RMB)</TableHead>
+                <TableHead className="text-center font-semibold text-foreground">回款状态</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
