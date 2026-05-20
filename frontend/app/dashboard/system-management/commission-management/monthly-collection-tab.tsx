@@ -2,6 +2,10 @@
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { EmptyTableState } from '@/components/ui/empty-state'
+import { formatRmb, formatPercent, SITE_INFO } from './utils'
+import { type SiteCode } from './types'
+
+const SITE_ORDER: SiteCode[] = ['US', 'DE', 'UK']
 
 type CommissionProjectMonthlySummaryMonthItem = {
   report_month: string
@@ -24,10 +28,6 @@ type CommissionProjectYearlySummaryItem = {
 const FULL_BLEED_TABLE_CLASS = "[&_th]:px-3 [&_th]:py-3 [&_td]:px-3 [&_td]:py-3 sm:[&_th]:px-4 sm:[&_td]:px-4"
 const FULL_BLEED_TABLE_CONTAINER_CLASS = "-m-px h-[calc(100%+2px)] w-[calc(100%+2px)] rounded-none"
 
-function formatPercent(value: number): string {
-  return `${(value * 100).toFixed(2)}%`
-}
-
 function getYearMonths(year: string): string[] {
   return Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`)
 }
@@ -45,49 +45,68 @@ interface MonthlyCollectionTabProps {
   loading: boolean
 }
 
+const TOTAL_MONTH_COLS = 12
+const SITE_COLS = SITE_ORDER.length
+const DATA_COLS = TOTAL_MONTH_COLS * SITE_COLS + 1 // months + annual summary
+
 export function MonthlyCollectionTab({ items, year, loading }: MonthlyCollectionTabProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit]">
       <Table className={FULL_BLEED_TABLE_CLASS} containerClassName={`${FULL_BLEED_TABLE_CONTAINER_CLASS} overflow-auto`}>
         <TableHeader className="bg-slate-100/80 dark:bg-slate-900/45">
           <TableRow>
-            <TableHead className="sticky left-0 top-0 z-30 whitespace-nowrap bg-slate-100/90 font-semibold text-foreground dark:bg-slate-900/60">项目名称</TableHead>
+            <TableHead className="sticky left-0 z-30 bg-slate-100/90 font-semibold text-foreground" rowSpan={2}>
+              项目名称
+            </TableHead>
             {getYearMonths(year).map((m) => (
-              <TableHead key={m} className="sticky top-0 z-20 bg-slate-100/90 text-center text-xs whitespace-nowrap font-semibold text-foreground dark:bg-slate-900/60">
+              <TableHead
+                key={m}
+                className="z-20 bg-slate-100/90 text-center text-xs font-semibold text-foreground"
+                colSpan={3}
+              >
                 {m.slice(5)}月
               </TableHead>
             ))}
-            <TableHead className="sticky top-0 z-20 bg-slate-100/90 text-center whitespace-nowrap font-semibold text-foreground dark:bg-slate-900/60">年度汇总</TableHead>
+            <TableHead className="z-20 bg-slate-100/90 text-center font-semibold text-foreground" rowSpan={2}>
+              年度汇总
+            </TableHead>
+          </TableRow>
+          <TableRow>
+            {getYearMonths(year).flatMap((m) =>
+              SITE_ORDER.map((site) => (
+                <TableHead key={`${m}-${site}`} className="z-10 bg-slate-100/70 text-center text-xs whitespace-nowrap">
+                  {SITE_INFO[site].flag} {site}
+                </TableHead>
+              ))
+            )}
           </TableRow>
         </TableHeader>
         <TableBody>
           {loading ? (
             <TableRow>
-              <TableCell colSpan={14} className="text-center text-muted-foreground">加载中...</TableCell>
+              <TableCell colSpan={DATA_COLS} className="text-center text-muted-foreground">加载中...</TableCell>
             </TableRow>
           ) : items.length === 0 ? (
-            <EmptyTableState colSpan={14} message={`${year}年暂无数据`} />
+            <EmptyTableState colSpan={DATA_COLS} message={`${year}年暂无数据`} />
           ) : (
             items.map((project) => (
               <TableRow key={project.project_id}>
-                <TableCell className="sticky left-0 bg-background z-20 font-medium">{project.project_name}</TableCell>
-                {getYearMonths(year).map((m) => {
+                <TableCell className="sticky left-0 bg-background z-20 font-medium">
+                  {project.project_name}
+                </TableCell>
+                {getYearMonths(year).flatMap((m) => {
                   const monthData = project.months[m]
-                  if (!monthData) {
-                    return (
-                      <TableCell key={m} className="text-center">
+                  return SITE_ORDER.map((site) => (
+                    <TableCell key={`${m}-${site}`} className="text-center">
+                      {monthData ? (
+                        <span className={`inline-block min-w-[48px] rounded px-1.5 py-1 text-xs font-medium tabular-nums ${getReceiveRateColor(monthData.receive_rate).bg} ${getReceiveRateColor(monthData.receive_rate).text}`}>
+                          {formatPercent(monthData.receive_rate)}
+                        </span>
+                      ) : (
                         <span className="inline-block rounded px-1.5 py-0.5 text-xs text-muted-foreground bg-slate-100 dark:bg-slate-800">-</span>
-                      </TableCell>
-                    )
-                  }
-                  const { bg, text } = getReceiveRateColor(monthData.receive_rate)
-                  return (
-                    <TableCell key={m} className="text-center">
-                      <span className={`inline-block min-w-[48px] rounded px-1.5 py-1 text-xs font-medium tabular-nums ${bg} ${text}`}>
-                        {formatPercent(monthData.receive_rate)}
-                      </span>
+                      )}
                     </TableCell>
-                  )
+                  ))
                 })}
                 <TableCell className="text-center">
                   {project.receive_rate > 0 ? (
