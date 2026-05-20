@@ -65,7 +65,7 @@ def _read_text_with_encoding_fallback(path: Path) -> str:
 
 
 def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
-    df.columns = [str(column).strip() for column in df.columns]
+    df.columns = [str(column).strip().lower() for column in df.columns]
     return df
 
 
