@@ -36,23 +36,16 @@ COUNTRY_CURRENCY_MAP: dict[Literal["US", "UK", "DE"], str] = {
 }
 
 
-def recompute_commission_records(
+ALL_COUNTRIES = ("US", "UK", "DE")
+
+
+def _recompute_single_country(
     db: Session,
     report_month: str,
     now: datetime,
-    country: Literal["US", "UK", "DE"] = "US",
+    country: str,
 ) -> tuple[int, int, int]:
-    """重新计算佣金记录。
-
-    Args:
-        db: 数据库会话
-        report_month: 报表月份，格式 YYYY-MM
-        now: 当前时间
-        country: 国家代码，US/UK/DE
-
-    Returns:
-        (project_month_count, record_count, locked_record_count)
-    """
+    """为单个国家重新计算佣金记录。"""
     report_rows = db.execute(
         select(MonthlyReport, MonthlyReportPT4Calculation).join(
             MonthlyReportPT4Calculation, MonthlyReportPT4Calculation.report_id == MonthlyReport.id
@@ -70,7 +63,6 @@ def recompute_commission_records(
     projects = db.execute(select(Project).where(Project.id.in_(project_ids))).scalars().all()
     project_map = {int(project.id): project for project in projects}
 
-    # 根据国家获取对应的汇率
     source_currency = COUNTRY_CURRENCY_MAP[country]
     exchange_rate = db.execute(
         select(ExchangeRate).where(ExchangeRate.currency == source_currency, ExchangeRate.year_month == report_month)
@@ -96,7 +88,6 @@ def recompute_commission_records(
     ).scalars().all()
     override_map = {(int(row.project_id), row.person_name.strip(), row.income_category): row for row in override_rows}
 
-    # 查询现有记录时添加 country 过滤
     existing_project_months = db.execute(
         select(CommissionProjectMonth).where(
             CommissionProjectMonth.report_month == report_month,
@@ -111,10 +102,8 @@ def recompute_commission_records(
             CommissionRecord.country == country,
         )
     ).scalars().all()
-    # record_map 包含 country 作为 key 的一部分
     record_map = {(int(row.project_id), row.person_name.strip(), row.income_category, row.country): row for row in existing_records}
 
-    # incoming_record_keys 包含 country
     incoming_record_keys: set[tuple[int, str, str, str]] = set()
     locked_record_count = 0
 
@@ -205,7 +194,6 @@ def recompute_commission_records(
             db.flush()
             break
 
-    # stale_records 判断也包含 country
     stale_records = [
         row for (pid, pn, ic, c), row in record_map.items()
         if (pid, pn, ic, c) not in incoming_record_keys and row.is_active
@@ -230,3 +218,39 @@ def recompute_commission_records(
     db.commit()
 
     return len(project_ids), len(incoming_record_keys), locked_record_count
+
+
+def recompute_commission_records(
+    db: Session,
+    report_month: str,
+    now: datetime,
+    country: str | None = None,
+) -> tuple[int, int, int]:
+    """重新计算佣金记录。
+
+    Args:
+        db: 数据库会话
+        report_month: 报表月份，格式 YYYY-MM
+        now: 当前时间
+        country: 国家代码，US/UK/DE。为 None 时计算所有国家。
+
+    Returns:
+        (project_month_count, record_count, locked_record_count)
+    """
+    if country is not None:
+        return _recompute_single_country(db, report_month, now, country)
+
+    total_project_count = 0
+    total_record_count = 0
+    total_locked_count = 0
+
+    for c in ALL_COUNTRIES:
+        try:
+            pc, rc, lc = _recompute_single_country(db, report_month, now, c)
+            total_project_count += pc
+            total_record_count += rc
+            total_locked_count += lc
+        except ValueError:
+            continue
+
+    return total_project_count, total_record_count, total_locked_count

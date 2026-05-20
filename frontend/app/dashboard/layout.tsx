@@ -95,12 +95,13 @@ function DesktopPinnedItems() {
   const visibleItems = getVisibleItems(roleType)
   const visibleUrlsSet = new Set(visiblePinnedUrls)
 
+  // iPad (lg): 4 icons + overflow; xl: 3 icons + overflow
   const displayCount = Math.min(visiblePinnedUrls.length, 3)
-  const hasMore = visiblePinnedUrls.length > 3
-  const moreUrls = visiblePinnedUrls.slice(3)
+  const hasMore = visiblePinnedUrls.length > displayCount
+  const moreUrls = visiblePinnedUrls.slice(displayCount)
 
   return (
-    <div className="hidden items-center xl:flex">
+    <div className="hidden items-center lg:flex">
       {visiblePinnedUrls.slice(0, displayCount).map((url) => {
         const item = ALL_ITEMS.find((i) => i.url === url)
         if (!item) return null
@@ -306,8 +307,8 @@ function DashboardLayoutInner({
                 </nav>
               </div>
 
-              {/* Desktop icons toolbar */}
-              <div className="hidden items-center justify-end gap-2 xl:flex">
+              {/* Desktop icons toolbar — shows on lg (iPad) and above */}
+              <div className="hidden items-center justify-end gap-2 lg:flex">
                 <DesktopPinnedItems />
                 <LivePresence />
                 <div className="flex items-center justify-end gap-2">
@@ -328,8 +329,8 @@ function DashboardLayoutInner({
                 </div>
               </div>
 
-              {/* Mobile: toggle + Pin + RecentPagesDropdown */}
-              <div className="flex items-center justify-end gap-1.5 xl:hidden">
+              {/* Mobile: only on screens smaller than lg (iPad) */}
+              <div className="flex items-center justify-end gap-1.5 lg:hidden">
                 <MobilePinnedItems />
                 <Button
                   variant="outline"
@@ -348,9 +349,9 @@ function DashboardLayoutInner({
               </div>
             </div>
 
-            {/* Mobile expanded icons toolbar — overlays content below, doesn't push layout */}
+            {/* Mobile expanded icons toolbar — only on screens smaller than lg (iPad) */}
             <div
-              className={`xl:hidden overflow-hidden border-t border-border/60 bg-[hsl(var(--surface-overlay)/0.92)] backdrop-blur-xl transition-all duration-200 ease-out ${
+              className={`lg:hidden overflow-hidden border-t border-border/60 bg-[hsl(var(--surface-overlay)/0.92)] backdrop-blur-xl transition-all duration-200 ease-out ${
                 iconsExpanded
                   ? 'max-h-24 opacity-100'
                   : 'max-h-0 opacity-0'
