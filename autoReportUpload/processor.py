@@ -89,6 +89,28 @@ from app.utils.persist_helpers import (
 
 logger = logging.getLogger(__name__)
 
+_MONTH_MAP = {
+    "jan": 1,
+    "feb": 2,
+    "mar": 3,
+    "apr": 4,
+    "may": 5,
+    "jun": 6,
+    "jul": 7,
+    "aug": 8,
+    "sep": 9,
+    "oct": 10,
+    "nov": 11,
+    "dec": 12,
+}
+
+_PAYMENT_FILENAME_RE = re.compile(
+    r"(?i)(\d{4})(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)(\d{1,2})"
+    r"\s*-\s*"
+    r"(\d{4})(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)(\d{1,2})"
+    r"customtransaction"
+)
+
 
 def _resolve_upload_date(now: datetime) -> date:
     """返回当前本地日期作为 upload_log 日期。"""
@@ -211,7 +233,7 @@ def process_file(
             ),
         )
 
-    # SHA-256 duplicate detection (log warning only, do not block)
+    # SHA-256 duplicate detection: exact same file is treated as already handled
     file_sha256 = _sha256_file(file_path)
     duplicates = _find_sha256_duplicates(db, file_sha256)
     if duplicates:
@@ -223,6 +245,13 @@ def process_file(
             "SHA-256 重复文件: %s | 已存在: %s",
             file_path.name,
             dup_info,
+        )
+        if not IS_LOCAL:
+            _move_to_processed(file_path)
+        return ProcessResult(
+            skipped=True,
+            report_type=result.report_type,
+            reason="检测到 SHA-256 重复文件，已视为处理完成并归档" if not IS_LOCAL else "检测到 SHA-256 重复文件，local 模式下不移动文件",
         )
 
     # 2. Persist to DB
@@ -319,6 +348,18 @@ def _persist_one_file(
         if result.detected_date:
             report_date = _parse_yyyy_mm_dd(result.detected_date)
         snapshot_at = now
+    elif report_type == "payment_report":
+        filename_period = _parse_payment_period_from_filename(file_path.name)
+        if result.detected_start_date and result.detected_end_date:
+            period_start = _parse_yyyy_mm_dd(result.detected_start_date)
+            period_end = _parse_yyyy_mm_dd(result.detected_end_date)
+            report_date = period_end
+        elif result.detected_date:
+            report_date = _parse_yyyy_mm_dd(result.detected_date)
+            period_start = period_end = report_date
+        elif filename_period:
+            period_start, period_end = filename_period
+            report_date = period_end
     else:
         if result.detected_date:
             report_date = _parse_yyyy_mm_dd(result.detected_date)
@@ -985,6 +1026,32 @@ def _build_storage_key(
         f"{period_start.strftime('%Y%m%d')}_{period_end.strftime('%Y%m%d')}/"
         f"v{version}/{file_id}"
     )
+
+
+def _build_month_date(year_text: str, month_text: str, day_text: str) -> date | None:
+    month = _MONTH_MAP.get(str(month_text).strip().lower())
+    if month is None:
+        return None
+    try:
+        return date(int(year_text), month, int(day_text))
+    except ValueError:
+        return None
+
+
+def _parse_payment_period_from_filename(value: str | None) -> tuple[date, date] | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+
+    match = _PAYMENT_FILENAME_RE.search(text)
+    if match is None:
+        return None
+
+    start_date = _build_month_date(match.group(1), match.group(2), match.group(3))
+    end_date = _build_month_date(match.group(4), match.group(5), match.group(6))
+    if start_date is None or end_date is None or start_date > end_date:
+        return None
+    return start_date, end_date
 
 
 def _find_sha256_duplicates(db: Session, file_sha256: str) -> list[dict]:

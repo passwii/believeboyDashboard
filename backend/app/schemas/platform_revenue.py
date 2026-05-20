@@ -42,7 +42,7 @@ class PlatformRevenueCreate(BaseModel):
     project_id: int = Field(gt=0)
     country: str = Field(min_length=1, max_length=10)
     received_date: date
-    amount: Decimal = Field(gt=0, decimal_places=2)
+    amount: Decimal = Field(gt=0)
     currency: str = Field(default="USD", max_length=10)
     exchange_rate: Decimal | None = Field(default=None, ge=0)
     note: str | None = None
@@ -52,7 +52,7 @@ class PlatformRevenueCreate(BaseModel):
 class PlatformRevenueUpdate(BaseModel):
     country: str | None = Field(default=None, max_length=10)
     received_date: date | None = None
-    amount: Decimal | None = Field(default=None, gt=0, decimal_places=2)
+    amount: Decimal | None = Field(default=None, gt=0)
     currency: str | None = Field(default=None, max_length=10)
     exchange_rate: Decimal | None = Field(default=None, ge=0)
     note: str | None = None

@@ -61,6 +61,7 @@ type DataAvailability = {
   payment_periods_overlapping: PaymentPeriodOverlap[]
   payment_full_period_covered: boolean
   payment_daily_covered_dates: string[]
+  payment_objective_empty_dates: string[]
   has_minimum_data: boolean
   weekly_availability: WeeklyAvailability[]
 }
@@ -81,6 +82,7 @@ type WeeklyAvailability = {
   is_partial: boolean
   business_missing_dates: string[]
   ad_missing_dates: string[]
+  payment_objective_empty_dates?: string[]
 }
 
 type CalculationPeriod = {
@@ -102,6 +104,8 @@ type CalculationPeriod = {
     payment_type: string
     payment_missing: boolean
     payment_missing_dates?: string[]
+    payment_objective_empty?: boolean
+    payment_objective_empty_dates?: string[]
   }
 }
 
@@ -168,8 +172,9 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
     const businessPeriodicOnlySet = new Set(availability.business_periodic_only_missing || [])
     const adPeriodicOnlySet = new Set(availability.ad_periodic_only_missing || [])
 
-    // Payment: compute periodic-only dates from overlapping periods
+    // Payment: compute real periodic coverage and objective-empty dates
     const paymentDailySet = new Set(availability.payment_daily_covered_dates || [])
+    const paymentObjectiveEmptySet = new Set(availability.payment_objective_empty_dates || [])
     const paymentPeriodDates = new Set<string>()
     for (const p of availability.payment_periods_overlapping || []) {
       const start = parseDateStr(p.period_start_date)
@@ -201,7 +206,8 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
       payment: {
         hasData: (d: string) => paymentDailySet.has(d),
         isPeriodicOnly: (d: string) => paymentPeriodicOnlySet.has(d),
-        isMissing: (d: string) => !paymentDailySet.has(d) && !paymentPeriodicOnlySet.has(d),
+        isObjectiveEmpty: (d: string) => paymentObjectiveEmptySet.has(d) && !paymentDailySet.has(d) && !paymentPeriodicOnlySet.has(d),
+        isMissing: (d: string) => !paymentDailySet.has(d) && !paymentPeriodicOnlySet.has(d) && !paymentObjectiveEmptySet.has(d),
       },
     }
   }, [availability, dates])
@@ -239,21 +245,24 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
     }
   }, [availability, dates])
 
-  const getCellClass = (hasData: boolean, isPeriodicOnly: boolean, isMissing: boolean) => {
+  const getCellClass = (hasData: boolean, isPeriodicOnly: boolean, isObjectiveEmpty: boolean, isMissing: boolean) => {
     if (hasData) return 'bg-emerald-500'
     if (isPeriodicOnly) return 'bg-blue-500 border-2 border-dashed border-blue-300 dark:border-blue-600'
+    if (isObjectiveEmpty) return 'bg-amber-500'
     return 'bg-rose-500'
   }
 
-  const getCellIcon = (hasData: boolean, isPeriodicOnly: boolean, _isMissing: boolean) => {
+  const getCellIcon = (hasData: boolean, isPeriodicOnly: boolean, isObjectiveEmpty: boolean, _isMissing: boolean) => {
     if (hasData) return <CheckCircle2 className="h-4 w-4 text-white" />
     if (isPeriodicOnly) return <span className="text-xs text-white">P</span>
+    if (isObjectiveEmpty) return <AlertTriangle className="h-4 w-4 text-white" />
     return <XCircle className="h-4 w-4 text-white" />
   }
 
-  const getCellTitle = (label: string, d: string, hasData: boolean, isPeriodicOnly: boolean, isMissing: boolean) => {
+  const getCellTitle = (label: string, d: string, hasData: boolean, isPeriodicOnly: boolean, isObjectiveEmpty: boolean, isMissing: boolean) => {
     if (hasData) return `${label} ${d} 有单日数据`
     if (isPeriodicOnly) return `${label} ${d} 周期性数据兜底`
+    if (isObjectiveEmpty) return `${label} ${d} 已导入，但当日客观无数据`
     return `${label} ${d} 缺少数据`
   }
 
@@ -268,6 +277,10 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
         <div className="flex items-center gap-1.5">
           <div className="h-3 w-3 rounded border-2 border-dashed border-blue-400 bg-blue-500" />
           <span className="text-muted-foreground">周期性兜底</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="h-3 w-3 rounded bg-amber-500" />
+          <span className="text-muted-foreground">已导入但客观无数据</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="h-3 w-3 rounded bg-rose-500" />
@@ -319,13 +332,13 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
             return (
               <div
                 key={d}
-                title={getCellTitle('业务报告', d, hasData(d), isPeriodicOnly(d), isMissing(d))}
+                title={getCellTitle('业务报告', d, hasData(d), isPeriodicOnly(d), false, isMissing(d))}
                 className={cn(
                   'flex items-center justify-center border border-t-0 border-border/60 py-2.5 transition-colors',
-                  getCellClass(hasData(d), isPeriodicOnly(d), isMissing(d)),
+                  getCellClass(hasData(d), isPeriodicOnly(d), false, isMissing(d)),
                 )}
               >
-                {getCellIcon(hasData(d), isPeriodicOnly(d), isMissing(d))}
+                {getCellIcon(hasData(d), isPeriodicOnly(d), false, isMissing(d))}
               </div>
             )
           })}
@@ -358,13 +371,13 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
             return (
               <div
                 key={d}
-                title={getCellTitle('广告报告', d, hasData(d), isPeriodicOnly(d), isMissing(d))}
+                title={getCellTitle('广告报告', d, hasData(d), isPeriodicOnly(d), false, isMissing(d))}
                 className={cn(
                   'flex items-center justify-center border border-t-0 border-border/60 py-2.5 transition-colors',
-                  getCellClass(hasData(d), isPeriodicOnly(d), isMissing(d)),
+                  getCellClass(hasData(d), isPeriodicOnly(d), false, isMissing(d)),
                 )}
               >
-                {getCellIcon(hasData(d), isPeriodicOnly(d), isMissing(d))}
+                {getCellIcon(hasData(d), isPeriodicOnly(d), false, isMissing(d))}
               </div>
             )
           })}
@@ -421,17 +434,17 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
             付款报告
           </div>
           {dates.map((d) => {
-            const { hasData, isPeriodicOnly, isMissing } = coverageMap.payment
+            const { hasData, isPeriodicOnly, isObjectiveEmpty, isMissing } = coverageMap.payment
             return (
               <div
                 key={d}
-                title={getCellTitle('付款报告', d, hasData(d), isPeriodicOnly(d), isMissing(d))}
+                title={getCellTitle('付款报告', d, hasData(d), isPeriodicOnly(d), isObjectiveEmpty(d), isMissing(d))}
                 className={cn(
                   'flex items-center justify-center border border-t-0 border-border/60 py-2.5 transition-colors',
-                  getCellClass(hasData(d), isPeriodicOnly(d), isMissing(d)),
+                  getCellClass(hasData(d), isPeriodicOnly(d), isObjectiveEmpty(d), isMissing(d)),
                 )}
               >
-                {getCellIcon(hasData(d), isPeriodicOnly(d), isMissing(d))}
+                {getCellIcon(hasData(d), isPeriodicOnly(d), isObjectiveEmpty(d), isMissing(d))}
               </div>
             )
           })}

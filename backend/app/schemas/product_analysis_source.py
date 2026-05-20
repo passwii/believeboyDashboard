@@ -57,6 +57,8 @@ class PeriodCompleteness(BaseModel):
     payment_type: str = 'none'
     payment_missing: bool = True
     payment_missing_dates: list[str] = []
+    payment_objective_empty: bool = False
+    payment_objective_empty_dates: list[str] = []
 
 
 class ProductAnalysisWeeklyRecomputePeriodItem(BaseModel):
@@ -129,6 +131,7 @@ class WeeklyAvailabilityItem(BaseModel):
     is_partial: bool
     business_missing_dates: list[str] = []
     ad_missing_dates: list[str] = []
+    payment_objective_empty_dates: list[str] = []
 
 
 class ProductCalculationCheckResponse(BaseModel):
@@ -142,6 +145,7 @@ class ProductCalculationCheckResponse(BaseModel):
     payment_periods_overlapping: list[PaymentPeriodOverlapItem]
     payment_full_period_covered: bool
     payment_daily_covered_dates: list[str]
+    payment_objective_empty_dates: list[str] = []
     has_minimum_data: bool
     weekly_availability: list[WeeklyAvailabilityItem] = []
 

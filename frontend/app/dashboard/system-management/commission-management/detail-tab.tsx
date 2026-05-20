@@ -24,7 +24,7 @@ import {
 } from './utils'
 
 const FULL_BLEED_TABLE_CLASS = "[&_th]:px-3 [&_th]:py-3 [&_td]:px-3 [&_td]:py-3 sm:[&_th]:px-4 sm:[&_td]:px-4"
-const FULL_BLEED_TABLE_CONTAINER_CLASS = "-m-px h-[calc(100%+2px)] w-[calc(100%+2px)] rounded-none"
+const FULL_BLEED_TABLE_CONTAINER_CLASS = "w-full"
 
 interface DetailTabProps {
   projectGroups: ProjectGroup[]
@@ -232,7 +232,7 @@ export function DetailTab({
               step="0.01"
               min="0"
               value={receivedDraftById[record.id] ?? ''}
-              className="h-9 w-[150px] text-right [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none hover:!ring-0 active:!ring-0 focus-visible:!ring-2 focus-visible:ring-offset-0 focus-visible:!ring-ring"
+              className="h-9 w-[150px] text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
               onChange={(event) => {
                 onUpdateDraft(record.id, event.target.value)
               }}
