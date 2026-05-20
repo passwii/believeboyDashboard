@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Loader2, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react'
+import { Loader2, RefreshCw } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 import { MonthNavigation, RefreshButton, YearNavigation } from '@/components/dashboard/console'
@@ -16,31 +16,12 @@ import { MonthlySummaryTab } from './monthly-summary-tab'
 import { ProjectSummaryTab } from './project-summary-tab'
 import { MonthlyCollectionTab } from './monthly-collection-tab'
 import { CommissionRulesCard } from './commission-rules-card'
-
-type PaymentStatus = 'paid' | 'partial' | 'unpaid'
-
-type CommissionProjectMonth = {
-  id: number
-  report_month: string
-  country: string
-  project_id: number
-  project_name: string
-  income_total_usd: number
-  factory_commission_rate: number
-  factory_commission_rmb: number
-  payment_status: PaymentStatus
-  received_rmb: number
-  note: string | null
-}
+import { groupProjectsBySites, formatRmb, formatUsd } from './utils'
+import type { CommissionProjectMonth, ExchangeRate, ProjectMeta, ProjectGroup, PaymentStatus } from './types'
 
 type CommissionProjectMonthsResponse = {
   report_month: string
   items: CommissionProjectMonth[]
-}
-
-type ExchangeRate = {
-  currency: string
-  rate: number
 }
 
 type CommissionYearlyMonthlySummaryItem = {
@@ -82,29 +63,12 @@ type CommissionProjectYearlySummaryResponse = {
 
 type CommissionViewTab = 'detail' | 'monthly' | 'projectSummary' | 'monthlyCollection'
 
-type ProjectMeta = {
-  id: number
-  commission_basis: string | null
-  commission_rate: number | null
-}
-
-type SiteCode = "US" | "UK" | "DE"
-
 const API_BASE = '/api/backend'
-const CURRENCY_MAP: Record<string, string> = {
-  US: 'USD',
-  UK: 'GBP',
-  DE: 'EUR',
-}
 
 function lastMonthString(): string {
   const now = new Date()
   now.setMonth(now.getMonth() - 1)
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-}
-
-function getCurrentYear(): string {
-  return new Date().getFullYear().toString()
 }
 
 function parseErrorBody(text: string, status: number): string {
@@ -132,22 +96,8 @@ function parseErrorBody(text: string, status: number): string {
   }
 }
 
-function formatRmb(value: number): string {
-  const abs = Math.abs(value)
-  const text = abs.toLocaleString('zh-CN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
-  return `${value < 0 ? '-' : ''}¥${text}`
-}
-
-function formatUsd(value: number): string {
-  const abs = Math.abs(value)
-  const text = abs.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
-  return `${value < 0 ? '-' : ''}$${text}`
+function getCurrentYear(): string {
+  return new Date().getFullYear().toString()
 }
 
 export default function CommissionManagementPage() {
@@ -156,7 +106,7 @@ export default function CommissionManagementPage() {
   const [month, setMonth] = useState(lastMonthString())
   const [summaryYear, setSummaryYear] = useState(getCurrentYear())
   const [activeTab, setActiveTab] = useState<CommissionViewTab>('detail')
-  const [site, setSite] = useState<SiteCode>("US")
+  const [site, setSite] = useState<'US' | 'DE' | 'UK'>('US')
 
   const [loading, setLoading] = useState(true)
   const [summaryLoading, setSummaryLoading] = useState(false)
@@ -170,9 +120,6 @@ export default function CommissionManagementPage() {
 
   const [updatingId, setUpdatingId] = useState<number | null>(null)
   const [receivedDraftById, setReceivedDraftById] = useState<Record<number, string>>({})
-
-  // 展开状态管理
-  const [expandedProjects, setExpandedProjects] = useState<Set<number>>(new Set())
 
   const loadExchangeRates = useCallback(async () => {
     try {
@@ -246,11 +193,11 @@ export default function CommissionManagementPage() {
     setSummaryLoading(true)
     try {
       const [monthlyResp, projectResp] = await Promise.all([
-        fetch(`${API_BASE}/api/v1/system-management/commission-management/summary/monthly?year=${summaryYear}&country=${site}`, {
+        fetch(`${API_BASE}/api/v1/system-management/commission-management/summary/monthly?year=${summaryYear}`, {
           cache: 'no-store',
           headers: buildBackendHeaders(session),
         }),
-        fetch(`${API_BASE}/api/v1/system-management/commission-management/summary/project?year=${summaryYear}&country=${site}`, {
+        fetch(`${API_BASE}/api/v1/system-management/commission-management/summary/project?year=${summaryYear}`, {
           cache: 'no-store',
           headers: buildBackendHeaders(session),
         }),
@@ -274,7 +221,7 @@ export default function CommissionManagementPage() {
     } finally {
       setSummaryLoading(false)
     }
-  }, [session, summaryYear, notify, site])
+  }, [session, summaryYear, notify])
 
   useEffect(() => {
     void loadData()
@@ -292,122 +239,9 @@ export default function CommissionManagementPage() {
     return [...rows].sort((a, b) => a.project_id - b.project_id)
   }, [rows])
 
-  // 获取汇率
-  const getExchangeRate = useCallback((currency: string): number => {
-    const rate = exchangeRates.find(r => r.currency === currency)
-    return rate?.rate ?? 1
-  }, [exchangeRates])
-
-  // 将金额转换为 USD（通过 CNY 中间转换）
-  const convertToUsd = useCallback((amountRmb: number, country: string): number => {
-    if (country === 'US') return amountRmb // US 已经是 USD，直接使用原值（这里假设原值是 USD）
-    // EU/UK: 需要将 amountRmb 转换为 USD
-    // amountRmb 是以目的地货币计的价值，需要先确定它是哪种货币
-    // 根据数据结构，factory_commission_rmb 是人民币
-    // income_total_usd 是美元
-    // factory_commission_usd 应该也是美元（如果已计算）
-    // 这里我们需要知道汇率来转换
-    const targetCurrency = CURRENCY_MAP[country] || 'USD'
-    const rate = getExchangeRate(targetCurrency)
-    if (rate && rate > 0) {
-      return amountRmb / rate
-    }
-    return amountRmb
-  }, [getExchangeRate])
-
-  // 按项目分组数据
-  const projectGroups = useMemo(() => {
-    const groups: Record<number, {
-      project_id: number
-      project_name: string
-      rows: CommissionProjectMonth[]
-      totalIncomeUsd: number
-      totalCommissionRmb: number
-      totalIncomeUsdConverted: number
-    }> = {}
-
-    for (const row of rows) {
-      if (!groups[row.project_id]) {
-        groups[row.project_id] = {
-          project_id: row.project_id,
-          project_name: row.project_name,
-          rows: [],
-          totalIncomeUsd: 0,
-          totalCommissionRmb: 0,
-          totalIncomeUsdConverted: 0,
-        }
-      }
-      groups[row.project_id].rows.push(row)
-      groups[row.project_id].totalIncomeUsd += row.income_total_usd
-      groups[row.project_id].totalCommissionRmb += row.factory_commission_rmb
-    }
-
-    // 计算转换后的 USD 合计
-    for (const group of Object.values(groups)) {
-      let totalConverted = 0
-      for (const row of group.rows) {
-        // income_total_usd 已经是 USD，所以需要根据 country 判断
-        // 但从 API 返回的数据来看，income_total_usd 已经是美元的销售额
-        // 而 factory_commission_rmb 是人民币
-        // 为了计算合计，我们需要将所有收入转换为美元
-        // 汇率转换：CNY -> USD
-        const usdToCnyRate = getExchangeRate('CNY') || 7.2 // 假设默认 7.2
-        if (row.country === 'US') {
-          totalConverted += row.income_total_usd
-        } else {
-          // DE/UK: 假设 income_total_usd 是以目的地货币计的销售额
-          // 需要转换为 USD
-          const countryCurrency = CURRENCY_MAP[row.country]
-          const countryRate = getExchangeRate(countryCurrency)
-          if (countryRate && countryRate > 0) {
-            // 假设 income_total_usd 实际是以目的地货币计的销售额
-            // 需要先转为 CNY，再转为 USD
-            // CNY = income * country_rate
-            // USD = CNY / usdToCnyRate
-            const cnyAmount = row.income_total_usd * countryRate
-            totalConverted += cnyAmount / usdToCnyRate
-          } else {
-            totalConverted += row.income_total_usd
-          }
-        }
-      }
-      group.totalIncomeUsdConverted = totalConverted
-    }
-
-    // 检查哪些项目有多站点
-    const multiSiteProjects = new Set<number>()
-    for (const group of Object.values(groups)) {
-      const countries = new Set(group.rows.map(r => r.country))
-      if (countries.size > 1) {
-        multiSiteProjects.add(group.project_id)
-      }
-    }
-
-    return {
-      groups: Object.values(groups).sort((a, b) => a.project_id - b.project_id),
-      multiSiteProjects,
-    }
-  }, [rows, getExchangeRate])
-
-  // 切换项目展开状态
-  const toggleProject = useCallback((projectId: number) => {
-    setExpandedProjects(prev => {
-      const next = new Set(prev)
-      if (next.has(projectId)) {
-        next.delete(projectId)
-      } else {
-        next.add(projectId)
-      }
-      return next
-    })
-  }, [])
-
-  // 初始展开所有多站点项目
-  useEffect(() => {
-    if (projectGroups.multiSiteProjects.size > 0) {
-      setExpandedProjects(projectGroups.multiSiteProjects)
-    }
-  }, [projectGroups.multiSiteProjects])
+  const projectGroups = useMemo((): ProjectGroup[] => {
+    return groupProjectsBySites(rows)
+  }, [rows])
 
   const getOverviewCommissionRmb = useCallback((row: CommissionProjectMonth) => {
     return row.factory_commission_rmb
@@ -621,8 +455,6 @@ export default function CommissionManagementPage() {
               projectMetaById={projectMetaById}
               loading={loading}
               updatingId={updatingId}
-              expandedProjects={expandedProjects}
-              onToggleProject={toggleProject}
               receivedDraftById={receivedDraftById}
               onUpdateDraft={(id, value) => setReceivedDraftById((prev) => ({ ...prev, [id]: value }))}
               onUpdatePaymentStatus={updatePaymentStatus}
