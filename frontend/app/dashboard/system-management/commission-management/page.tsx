@@ -198,12 +198,18 @@ export default function CommissionManagementPage() {
   const loadYearlySummary = useCallback(async () => {
     setSummaryLoading(true)
     try {
+      const monthlyParams = new URLSearchParams({ year: summaryYear })
+      const projectParams = new URLSearchParams({ year: summaryYear })
+      if (countryFilter !== 'all') {
+        monthlyParams.set('country', countryFilter)
+        projectParams.set('country', countryFilter)
+      }
       const [monthlyResp, projectResp] = await Promise.all([
-        fetch(`${API_BASE}/api/v1/system-management/commission-management/summary/monthly?year=${summaryYear}&country=${countryFilter}`, {
+        fetch(`${API_BASE}/api/v1/system-management/commission-management/summary/monthly?${monthlyParams.toString()}`, {
           cache: 'no-store',
           headers: buildBackendHeaders(session),
         }),
-        fetch(`${API_BASE}/api/v1/system-management/commission-management/summary/project?year=${summaryYear}&country=${countryFilter}`, {
+        fetch(`${API_BASE}/api/v1/system-management/commission-management/summary/project?${projectParams.toString()}`, {
           cache: 'no-store',
           headers: buildBackendHeaders(session),
         }),
