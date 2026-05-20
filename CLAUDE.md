@@ -183,7 +183,7 @@ This project uses a **post-push hook** at `.git/hooks/post-push` to automaticall
 .git/hooks/post-push "refs/heads/main" "https://github.com/passwii/believeboyDashboard.git"
 ```
 
-The hook configuration is tracked in `.cloudmtd` at the repo root. Read this file to get the hook path and parameters if needed.
+The hook script is at `.git/hooks/post-push` — it takes two arguments: the local ref (e.g. `refs/heads/main`) and the remote URL.
 
 ## Key Conventions
 - Backend uses Pydantic v2 (`pydantic-settings` for env config)
