@@ -15,7 +15,7 @@ type CommissionYearlyMonthlySummaryItem = {
 }
 
 const FULL_BLEED_TABLE_CLASS = "[&_th]:px-3 [&_th]:py-3 [&_td]:px-3 [&_td]:py-3 sm:[&_th]:px-4 sm:[&_td]:px-4"
-const FULL_BLEED_TABLE_CONTAINER_CLASS = "-m-px h-[calc(100%+2px)] w-[calc(100%+2px)] rounded-none"
+const FULL_BLEED_TABLE_CONTAINER_CLASS = "w-full"
 
 interface MonthlySummaryTabProps {
   items: CommissionYearlyMonthlySummaryItem[]

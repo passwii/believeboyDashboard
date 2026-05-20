@@ -347,12 +347,20 @@ def _list_history_weekly_period_sources(
     ).scalars().all()
 
     payment_daily_by_date: dict[date, AnalysisSourceFile] = {}
+    payment_empty_daily_by_date: dict[date, AnalysisSourceFile] = {}
     payment_period_rows: list[AnalysisSourceFile] = []
+    payment_empty_period_rows: list[AnalysisSourceFile] = []
     for row in payment_rows:
         if row.report_date is not None:
-            payment_daily_by_date.setdefault(row.report_date, row)
+            if int(row.row_count_total or 0) > 0:
+                payment_daily_by_date.setdefault(row.report_date, row)
+            else:
+                payment_empty_daily_by_date.setdefault(row.report_date, row)
             continue
-        payment_period_rows.append(row)
+        if int(row.row_count_total or 0) > 0:
+            payment_period_rows.append(row)
+        else:
+            payment_empty_period_rows.append(row)
 
     weeks: dict[tuple[int, int], list[date]] = {}
     current = effective_start
@@ -429,6 +437,7 @@ def _list_history_weekly_period_sources(
         payment_covered = False
         payment_type = 'none'
         payment_missing_dates_list: list[str] = []
+        payment_objective_empty_dates_list: list[str] = []
 
         if all(day in payment_daily_by_date for day in week_dates):
             payment_source_ids = [int(payment_daily_by_date[day].id) for day in week_dates]
@@ -450,15 +459,52 @@ def _list_history_weekly_period_sources(
                 payment_covered = True
                 payment_type = 'period'
             else:
-                payment_missing_dates_list = [d.isoformat() for d in week_dates if d not in payment_daily_by_date]
-                partial_payment_ids = [int(payment_daily_by_date[day].id) for day in week_dates if day in payment_daily_by_date]
-                if partial_payment_ids:
-                    payment_source_ids = partial_payment_ids
-                    payment_covered = False
-                    payment_type = 'partial'
+                covering_empty_payment = next(
+                    (
+                        row for row in payment_empty_period_rows
+                        if row.period_start_date is not None
+                        and row.period_end_date is not None
+                        and row.period_start_date <= week_dates[0]
+                        and row.period_end_date >= week_dates[-1]
+                    ),
+                    None,
+                )
+                if covering_empty_payment is not None:
+                    payment_source_ids = [int(covering_empty_payment.id)]
+                    payment_covered = True
+                    payment_type = 'empty'
+                    payment_objective_empty_dates_list = [d.isoformat() for d in week_dates]
                 else:
-                    payment_covered = False
-                    payment_type = 'none'
+                    payment_missing_dates_list = [
+                        d.isoformat()
+                        for d in week_dates
+                        if d not in payment_daily_by_date and d not in payment_empty_daily_by_date
+                    ]
+                    payment_objective_empty_dates_list = [
+                        d.isoformat()
+                        for d in week_dates
+                        if d in payment_empty_daily_by_date and d not in payment_daily_by_date
+                    ]
+                    partial_payment_ids = [
+                        int(payment_daily_by_date[day].id)
+                        for day in week_dates
+                        if day in payment_daily_by_date
+                    ]
+                    empty_payment_ids = [
+                        int(payment_empty_daily_by_date[day].id)
+                        for day in week_dates
+                        if day in payment_empty_daily_by_date and day not in payment_daily_by_date
+                    ]
+                    payment_source_ids = list(dict.fromkeys(partial_payment_ids + empty_payment_ids))
+                    if not payment_missing_dates_list and payment_objective_empty_dates_list:
+                        payment_covered = True
+                        payment_type = 'mixed' if partial_payment_ids else 'empty'
+                    elif partial_payment_ids:
+                        payment_covered = False
+                        payment_type = 'partial'
+                    else:
+                        payment_covered = False
+                        payment_type = 'none'
 
         # Skip if no data at all
         if not business_source_ids and not ad_source_ids:
@@ -484,6 +530,8 @@ def _list_history_weekly_period_sources(
                 'payment_type': payment_type,
                 'payment_missing': not payment_covered,
                 'payment_missing_dates': payment_missing_dates_list if payment_type in ('partial', 'none') else [],
+                'payment_objective_empty': bool(payment_objective_empty_dates_list),
+                'payment_objective_empty_dates': payment_objective_empty_dates_list,
             },
         }
 

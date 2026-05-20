@@ -117,6 +117,7 @@ def check_product_calculation_data_availability(
             AnalysisSourceFile.period_start_date,
             AnalysisSourceFile.period_end_date,
             AnalysisSourceFile.id,
+            AnalysisSourceFile.row_count_total,
         ).where(
             AnalysisSourceFile.project_id == project_id,
             AnalysisSourceFile.report_type == 'payment_report',
@@ -129,7 +130,12 @@ def check_product_calculation_data_availability(
     payment_daily_covered_dates = sorted({
         r.report_date.isoformat()
         for r in daily_payment_rows
-        if r.report_date is not None
+        if r.report_date is not None and int(r.row_count_total or 0) > 0
+    })
+    payment_daily_empty_dates = sorted({
+        r.report_date.isoformat()
+        for r in daily_payment_rows
+        if r.report_date is not None and int(r.row_count_total or 0) <= 0
     })
 
     payment_period_rows = db.execute(
@@ -137,6 +143,7 @@ def check_product_calculation_data_availability(
             AnalysisSourceFile.period_start_date,
             AnalysisSourceFile.period_end_date,
             AnalysisSourceFile.id,
+            AnalysisSourceFile.row_count_total,
         ).where(
             AnalysisSourceFile.project_id == project_id,
             AnalysisSourceFile.report_type == 'payment_report',
@@ -149,11 +156,19 @@ def check_product_calculation_data_availability(
     payment_periods = [
         {'period_start_date': r.period_start_date, 'period_end_date': r.period_end_date, 'source_id': int(r.id)}
         for r in payment_period_rows
+        if int(r.row_count_total or 0) > 0
+    ]
+    payment_empty_periods = [
+        {'period_start_date': r.period_start_date, 'period_end_date': r.period_end_date, 'source_id': int(r.id)}
+        for r in payment_period_rows
+        if int(r.row_count_total or 0) <= 0
     ]
 
     payment_period_covered_dates: set[date] = set()
     for row in payment_period_rows:
         if row.period_start_date is None or row.period_end_date is None:
+            continue
+        if int(row.row_count_total or 0) <= 0:
             continue
         cur = max(row.period_start_date, start_date)
         cur_end = min(row.period_end_date, end_date)
@@ -162,11 +177,23 @@ def check_product_calculation_data_availability(
             cur += timedelta(days=1)
 
     payment_full_period_covered = all_dates <= payment_period_covered_dates
+    payment_objective_empty_dates: set[date] = {
+        date.fromisoformat(item) for item in payment_daily_empty_dates
+    }
+    for row in payment_empty_periods:
+        period_start = row['period_start_date']
+        period_end = row['period_end_date']
+        if period_start is None or period_end is None:
+            continue
+        cur = max(period_start, start_date)
+        cur_end = min(period_end, end_date)
+        while cur <= cur_end:
+            payment_objective_empty_dates.add(cur)
+            cur += timedelta(days=1)
 
     def _iso_week_key(d: date) -> tuple[int, int]:
         return d.isocalendar()[0], d.isocalendar()[1]
 
-    all_dates_sorted = sorted(all_dates)
     iso_weeks: dict[tuple[int, int], list[date]] = {}
     current = start_date
     while current <= end_date:
@@ -179,6 +206,8 @@ def check_product_calculation_data_availability(
         parsed = date.fromisoformat(date_str)
         payment_daily_by_date[parsed] = True
 
+    payment_real_covered_dates: set[date] = set(payment_daily_by_date.keys()) | payment_period_covered_dates
+
     weekly_availability: list[dict[str, Any]] = []
     for wk_key in sorted(iso_weeks):
         wk_dates = iso_weeks[wk_key]
@@ -190,12 +219,14 @@ def check_product_calculation_data_availability(
         wk_business_all = {d for d in wk_dates if d in business_all_covered}
         wk_ad_all = {d for d in wk_dates if d in ad_all_covered}
 
-        wk_payment_daily_dates = {d for d in wk_dates if payment_daily_by_date.get(d)}
-        wk_payment_period_covered = any(
-            p['period_start_date'] <= wk_start and p['period_end_date'] >= wk_end
-            for p in payment_periods
-        )
-        wk_payment_covered = len(wk_payment_daily_dates) == len(wk_dates) or wk_payment_period_covered
+        wk_payment_objective_empty_dates = {
+            d for d in wk_dates if d in payment_objective_empty_dates and d not in payment_real_covered_dates
+        }
+        wk_payment_missing_dates = [
+            d.isoformat() for d in wk_dates
+            if d not in payment_real_covered_dates and d not in payment_objective_empty_dates
+        ]
+        wk_payment_covered = not wk_payment_missing_dates
 
         wk_can_calculate = len(wk_business_all) > 0 or len(wk_ad_all) > 0
         is_partial_daily = len(wk_business_dates) < len(wk_dates) or len(wk_ad_dates) < len(wk_dates)
@@ -212,9 +243,10 @@ def check_product_calculation_data_availability(
             'ad_periodic_covered': len(wk_ad_all) > len(wk_ad_dates),
             'payment_covered': wk_payment_covered,
             'can_calculate': wk_can_calculate,
-            'is_partial': is_partial_daily and not wk_payment_covered,
+            'is_partial': is_partial_daily or not wk_payment_covered,
             'business_missing_dates': [d.isoformat() for d in sorted(set(wk_dates) - wk_business_dates)],
             'ad_missing_dates': [d.isoformat() for d in sorted(set(wk_dates) - wk_ad_dates)],
+            'payment_objective_empty_dates': [d.isoformat() for d in sorted(wk_payment_objective_empty_dates)],
         })
 
     has_minimum_data = any(wk['can_calculate'] for wk in weekly_availability)
@@ -237,6 +269,7 @@ def check_product_calculation_data_availability(
         ],
         'payment_full_period_covered': payment_full_period_covered,
         'payment_daily_covered_dates': payment_daily_covered_dates,
+        'payment_objective_empty_dates': [d.isoformat() for d in sorted(payment_objective_empty_dates - payment_real_covered_dates)],
         'has_minimum_data': has_minimum_data,
         'weekly_availability': weekly_availability,
     }
