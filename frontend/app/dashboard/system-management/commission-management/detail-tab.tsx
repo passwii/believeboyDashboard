@@ -20,6 +20,7 @@ import {
   SITE_BORDER_COLORS,
   convertToUsd,
   formatUsd,
+  formatRmb,
   formatPercent,
 } from './utils'
 
@@ -202,7 +203,7 @@ export function DetailTab({
     }
 
     const incomeUsd = convertToUsd(record.income_total_usd, country, exchangeRates)
-    const commissionUsd = convertToUsd(record.factory_commission_rmb, country, exchangeRates)
+    const commissionRmb = record.factory_commission_rmb
 
     return (
       <TableRow
@@ -223,7 +224,7 @@ export function DetailTab({
           {getCommissionRatioLabel(record)}
         </TableCell>
         <TableCell className="text-center tabular-nums font-medium">
-          {formatUsd(commissionUsd)}
+          {formatRmb(commissionRmb)}
         </TableCell>
         <TableCell className="text-center">
           <div className="flex items-center justify-center gap-2">
