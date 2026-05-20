@@ -47,7 +47,7 @@ from recognition import (
 )
 
 # Payment report parsing — use locale (single source of truth)
-from app.services.payment.locale import read_payment_report_dataframe
+from app.utils.payment_locale import read_payment_report_dataframe
 
 # Shared utilities from backend/app/utils/utils.py
 from app.utils.utils import (

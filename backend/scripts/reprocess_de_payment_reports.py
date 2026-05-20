@@ -28,7 +28,7 @@ from sqlalchemy.orm import Session
 import app.models  # noqa: F401  # ensure model metadata is registered
 from app.db.session import SessionLocal
 from app.models import AnalysisSourceFile, AnalysisPaymentRow
-from app.services.payment.locale import read_payment_report_dataframe
+from app.utils.payment_locale import read_payment_report_dataframe
 from app.utils.parsers import parse_payment_rows
 
 

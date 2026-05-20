@@ -387,22 +387,6 @@ export default function CommissionManagementPage() {
                     value={parseMonthInputValue(month)}
                     onChange={(date) => setMonth(formatMonthInputValue(date))}
                   />
-
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <span className="h-3 w-0.5 bg-blue-500" />
-                      <span className="rounded bg-blue-50 px-1.5 py-0.5 text-xs font-medium text-blue-700">US</span>
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <span className="h-3 w-0.5 bg-purple-500" />
-                      <span className="rounded bg-purple-50 px-1.5 py-0.5 text-xs font-medium text-purple-700">DE</span>
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <span className="h-3 w-0.5 bg-green-500" />
-                      <span className="rounded bg-green-50 px-1.5 py-0.5 text-xs font-medium text-green-700">UK</span>
-                    </span>
-                    <span className="ml-1">多站点并行显示</span>
-                  </div>
                 </>
               ) : (
                 <YearNavigation

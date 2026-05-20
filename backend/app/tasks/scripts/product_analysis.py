@@ -16,7 +16,7 @@ from sqlalchemy import select
 from app.db.session import SessionLocal
 from app.models import SkuRecord
 from app.services import exchange_rate_service
-from app.services.payment.locale import read_payment_report_dataframe
+from app.utils.payment_locale import read_payment_report_dataframe
 
 
 PERCENT_COLUMNS = {
