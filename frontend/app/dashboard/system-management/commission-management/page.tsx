@@ -18,7 +18,7 @@ import { ProjectSummaryTab } from './project-summary-tab'
 import { MonthlyCollectionTab } from './monthly-collection-tab'
 import { CommissionRulesCard } from './commission-rules-card'
 import { groupProjectsBySites, formatRmb, formatUsd, SITE_INFO } from './utils'
-import type { CommissionProjectMonth, ExchangeRate, ProjectMeta, ProjectGroup, PaymentStatus, SiteCode } from './types'
+import type { CommissionProjectMonth, ExchangeRate, ProjectMeta, PaymentStatus, SiteCode, ProjectRow } from './types'
 import { SITE_ORDER } from './types'
 
 type CommissionProjectMonthsResponse = {
@@ -258,7 +258,7 @@ export default function CommissionManagementPage() {
     return [...rows].sort((a, b) => a.project_id - b.project_id)
   }, [rows])
 
-  const projectGroups = useMemo((): ProjectGroup[] => {
+  const projectRows = useMemo((): ProjectRow[] => {
     return groupProjectsBySites(rows)
   }, [rows])
 
@@ -490,7 +490,7 @@ export default function CommissionManagementPage() {
         <CardContent className="flex min-h-0 flex-1 flex-col p-0">
           {activeTab === 'detail' ? (
             <DetailTab
-              projectGroups={projectGroups}
+              projectRows={projectRows}
               exchangeRates={exchangeRates}
               projectMetaById={projectMetaById}
               loading={loading}
