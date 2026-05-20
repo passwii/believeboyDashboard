@@ -11,15 +11,13 @@ import {
   type CommissionProjectMonth,
   type ExchangeRate,
   type ProjectMeta,
-  type ProjectGroup,
+  type ProjectRow,
   type PaymentStatus,
-  type SiteRow,
 } from './types'
 import {
   SITE_INFO,
   SITE_BORDER_COLORS,
-  convertToUsd,
-  formatUsd,
+  formatIncomeWithCurrency,
   formatRmb,
   formatPercent,
 } from './utils'
@@ -28,7 +26,7 @@ const FULL_BLEED_TABLE_CLASS = "[&_th]:px-0 [&_th]:py-3 [&_td]:px-0 [&_td]:py-3"
 const FULL_BLEED_TABLE_CONTAINER_CLASS = "w-full"
 
 interface DetailTabProps {
-  projectGroups: ProjectGroup[]
+  projectRows: ProjectRow[]
   exchangeRates: ExchangeRate[]
   projectMetaById: Record<number, ProjectMeta>
   loading: boolean
@@ -40,21 +38,14 @@ interface DetailTabProps {
 }
 
 // 骨架屏行
-function DetailSkeletonRow({ isProjectRow = false }: { isProjectRow?: boolean }) {
-  if (isProjectRow) {
-    return (
-      <TableRow className="bg-slate-50/50">
-        <TableCell colSpan={6} className="py-2">
-          <Skeleton className="h-4 w-24" />
-        </TableCell>
-      </TableRow>
-    )
-  }
-
+function DetailSkeletonRow() {
   return (
     <TableRow className="animate-pulse">
       <TableCell>
-        <div className="flex items-center gap-3">
+        <Skeleton className="h-4 w-32 mx-auto" />
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center justify-center gap-3">
           <Skeleton className="h-2 w-2 rounded-full" />
           <Skeleton className="h-4 w-12" />
         </div>
@@ -80,13 +71,9 @@ function DetailSkeletonRow({ isProjectRow = false }: { isProjectRow?: boolean })
 
 // 骨架屏内容
 function DetailSkeletonContent() {
-  // 模拟常见的项目结构：2个项目，每个3个站点 + 1个项目单独US
   const rows = [
-    { type: 'project' as const, name: '项目A' },
     { type: 'site' as const },
     { type: 'site' as const },
-    { type: 'site' as const },
-    { type: 'project' as const, name: '项目B' },
     { type: 'site' as const },
     { type: 'single' as const },
   ]
@@ -97,8 +84,9 @@ function DetailSkeletonContent() {
         <Table className={FULL_BLEED_TABLE_CLASS} containerClassName={FULL_BLEED_TABLE_CONTAINER_CLASS}>
           <TableHeader className="sticky top-0 z-10 bg-slate-100/80 dark:bg-slate-900/45">
             <TableRow>
-              <TableHead className="text-center font-semibold text-foreground">项目</TableHead>
-              <TableHead className="text-center font-semibold text-foreground">销售收入(USD)</TableHead>
+              <TableHead className="text-center font-semibold text-foreground w-[200px]">项目</TableHead>
+              <TableHead className="text-center font-semibold text-foreground">站点</TableHead>
+              <TableHead className="text-center font-semibold text-foreground">销售收入</TableHead>
               <TableHead className="text-center font-semibold text-foreground">佣金比例</TableHead>
               <TableHead className="text-center font-semibold text-foreground">工厂佣金(RMB)</TableHead>
               <TableHead className="text-center font-semibold text-foreground">已回款(RMB)</TableHead>
@@ -106,11 +94,8 @@ function DetailSkeletonContent() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((row, i) => (
-              <DetailSkeletonRow
-                key={i}
-                isProjectRow={row.type === 'project'}
-              />
+            {rows.map((_, i) => (
+              <DetailSkeletonRow key={i} />
             ))}
           </TableBody>
         </Table>
@@ -120,7 +105,7 @@ function DetailSkeletonContent() {
 }
 
 export function DetailTab({
-  projectGroups,
+  projectRows,
   exchangeRates,
   projectMetaById,
   loading,
@@ -131,7 +116,7 @@ export function DetailTab({
   onUpdateReceivedAmount,
 }: DetailTabProps) {
   const [isTransitioning, setIsTransitioning] = useState(false)
-  const [displayData, setDisplayData] = useState(projectGroups)
+  const [displayData, setDisplayData] = useState(projectRows)
   const prevLoadingRef = useRef(loading)
   const transitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -156,19 +141,19 @@ export function DetailTab({
 
   // 数据更新时平滑过渡
   useEffect(() => {
-    if (!loading && projectGroups !== displayData) {
+    if (!loading && projectRows !== displayData) {
       setIsTransitioning(true)
       transitionTimerRef.current = setTimeout(() => {
-        setDisplayData(projectGroups)
+        setDisplayData(projectRows)
         setIsTransitioning(false)
       }, 200)
     }
-  }, [loading, projectGroups, displayData])
+  }, [loading, projectRows, displayData])
 
-  const getCommissionRatioLabel = useCallback((row: CommissionProjectMonth): string => {
-    const projectMeta = projectMetaById[row.project_id]
+  const getCommissionRatioLabel = useCallback((record: CommissionProjectMonth): string => {
+    const projectMeta = projectMetaById[record.project_id]
     if (!projectMeta) {
-      return formatPercent(row.factory_commission_rate)
+      return formatPercent(record.factory_commission_rate)
     }
     if (projectMeta.commission_basis === 'cash_received') {
       return '阶梯(7/10/13/15%)'
@@ -176,56 +161,50 @@ export function DetailTab({
     if (typeof projectMeta.commission_rate === 'number' && Number.isFinite(projectMeta.commission_rate)) {
       return formatPercent(projectMeta.commission_rate)
     }
-    return formatPercent(row.factory_commission_rate)
+    return formatPercent(record.factory_commission_rate)
   }, [projectMetaById])
 
-  const renderSiteRow = (site: SiteRow, projectName?: string) => {
-    const { country, hasData, record } = site
+  const renderRow = (row: ProjectRow) => {
+    const { rowSpan, projectName, record } = row
+    const country = record.country as 'US' | 'DE' | 'UK'
     const info = SITE_INFO[country]
-
-    if (!hasData || !record) {
-      return (
-        <TableRow key={`nodata-${country}`} className="bg-gray-50/50">
-          <TableCell className="text-center">
-            <div className="flex items-center justify-center gap-3">
-              <span className={`h-2 w-2 rounded-full ${info.dotClass}`} />
-              <span className="text-xs font-medium text-slate-500">{info.label}</span>
-              {projectName && <span className="text-sm text-muted-foreground">{projectName}</span>}
-            </div>
-          </TableCell>
-          <TableCell className="text-center text-gray-400">无数据</TableCell>
-          <TableCell className="text-center text-gray-400">无数据</TableCell>
-          <TableCell className="text-center text-gray-400">无数据</TableCell>
-          <TableCell className="text-center text-gray-400">无数据</TableCell>
-          <TableCell className="text-center text-gray-400">无数据</TableCell>
-        </TableRow>
-      )
-    }
-
-    const incomeUsd = convertToUsd(record.income_total_usd, country, exchangeRates)
-    const commissionRmb = record.factory_commission_rmb
 
     return (
       <TableRow
         key={record.id}
         className={`border-l-4 ${SITE_BORDER_COLORS[country]}`}
       >
+        {/* 项目名称列 - 使用 rowSpan 合并，只在第一行显示 */}
+        {rowSpan > 0 && (
+          <TableCell className="text-center" rowSpan={rowSpan}>
+            <span className="text-sm font-medium">{projectName}</span>
+          </TableCell>
+        )}
+
+        {/* 站点列 */}
         <TableCell className="text-center">
           <div className="flex items-center justify-center gap-3">
             <span className={`h-2 w-2 rounded-full ${info.dotClass}`} />
             <span className="text-xs font-medium text-slate-500">{info.label}</span>
-            {projectName && <span>{projectName}</span>}
           </div>
         </TableCell>
+
+        {/* 销售额列 - 显示本地货币 */}
         <TableCell className="text-center tabular-nums">
-          {formatUsd(incomeUsd)}
+          {formatIncomeWithCurrency(record.income_total_usd, country)}
         </TableCell>
+
+        {/* 佣金比例 */}
         <TableCell className="text-center tabular-nums">
           {getCommissionRatioLabel(record)}
         </TableCell>
+
+        {/* 工厂佣金 */}
         <TableCell className="text-center tabular-nums font-medium">
-          {formatRmb(commissionRmb)}
+          {formatRmb(record.factory_commission_rmb)}
         </TableCell>
+
+        {/* 已回款 */}
         <TableCell className="text-center">
           <div className="flex items-center justify-center gap-2">
             <Input
@@ -250,6 +229,8 @@ export function DetailTab({
             />
           </div>
         </TableCell>
+
+        {/* 回款状态 */}
         <TableCell className="text-center">
           <Select
             value={record.payment_status}
@@ -292,8 +273,9 @@ export function DetailTab({
           <Table className={FULL_BLEED_TABLE_CLASS} containerClassName={FULL_BLEED_TABLE_CONTAINER_CLASS}>
             <TableHeader className="sticky top-0 z-10 bg-slate-100/80 dark:bg-slate-900/45">
               <TableRow>
-                <TableHead className="text-center font-semibold text-foreground">项目</TableHead>
-                <TableHead className="text-center font-semibold text-foreground">销售收入(USD)</TableHead>
+                <TableHead className="text-center font-semibold text-foreground w-[200px]">项目</TableHead>
+                <TableHead className="text-center font-semibold text-foreground">站点</TableHead>
+                <TableHead className="text-center font-semibold text-foreground">销售收入</TableHead>
                 <TableHead className="text-center font-semibold text-foreground">佣金比例</TableHead>
                 <TableHead className="text-center font-semibold text-foreground">工厂佣金(RMB)</TableHead>
                 <TableHead className="text-center font-semibold text-foreground">已回款(RMB)</TableHead>
@@ -301,26 +283,10 @@ export function DetailTab({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {projectGroups.length === 0 ? (
-                <EmptyTableState colSpan={6} message="当前月份暂无数据，请先刷新核算" />
+              {projectRows.length === 0 ? (
+                <EmptyTableState colSpan={7} message="当前月份暂无数据，请先刷新核算" />
               ) : (
-                displayData.map((group) => {
-                  if (group.isSingleUS) {
-                    const site = group.sites[0]
-                    return renderSiteRow(site, group.projectName)
-                  }
-
-                  return (
-                    <React.Fragment key={`group-${group.projectId}`}>
-                      <TableRow className="bg-slate-50/50">
-                        <TableCell colSpan={6} className="py-2 text-sm font-medium text-muted-foreground">
-                          {group.projectName}
-                        </TableCell>
-                      </TableRow>
-                      {group.sites.map(site => renderSiteRow(site))}
-                    </React.Fragment>
-                  )
-                })
+                displayData.map((row) => renderRow(row))
               )}
             </TableBody>
           </Table>
