@@ -233,7 +233,7 @@ export default function CommissionManagementPage() {
     } finally {
       setSummaryLoading(false)
     }
-  }, [session, summaryYear, notify])
+  }, [session, summaryYear, notify, countryFilter])
 
   useEffect(() => {
     void loadData()
@@ -352,14 +352,15 @@ export default function CommissionManagementPage() {
   const handleRecompute = async () => {
     setRecomputing(true)
     try {
-      const body: { report_month: string; country?: string } = { report_month: month }
+      const params = new URLSearchParams()
       if (countryFilter !== 'all') {
-        body.country = countryFilter
+        params.set('country', countryFilter)
       }
-      const response = await fetch(`${API_BASE}/api/v1/system-management/commission-management/recompute`, {
+      const url = `${API_BASE}/api/v1/system-management/commission-management/recompute${params.toString() ? '?' + params.toString() : ''}`
+      const response = await fetch(url, {
         method: 'POST',
         headers: buildBackendHeaders(session, { contentType: 'application/json' }),
-        body: JSON.stringify(body),
+        body: JSON.stringify({ report_month: month }),
       })
       if (!response.ok) {
         throw new Error(parseErrorBody(await response.text(), response.status))
