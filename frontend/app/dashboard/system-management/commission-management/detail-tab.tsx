@@ -1,65 +1,33 @@
 'use client'
 
+import * as React from 'react'
 import { useCallback } from 'react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { EmptyTableState } from '@/components/ui/empty-state'
-
-type PaymentStatus = 'paid' | 'partial' | 'unpaid'
-
-type CommissionProjectMonth = {
-  id: number
-  report_month: string
-  project_id: number
-  project_name: string
-  income_total_usd: number
-  factory_commission_rate: number
-  factory_commission_rmb: number
-  payment_status: PaymentStatus
-  received_rmb: number
-  note: string | null
-}
-
-type ProjectMeta = {
-  id: number
-  commission_basis: string | null
-  commission_rate: number | null
-}
+import {
+  type CommissionProjectMonth,
+  type ExchangeRate,
+  type ProjectMeta,
+  type ProjectGroup,
+  type PaymentStatus,
+} from './types'
+import {
+  SITE_INFO,
+  SITE_BORDER_COLORS,
+  convertToUsd,
+  formatUsd,
+  formatRmb,
+  formatPercent,
+} from './utils'
 
 const FULL_BLEED_TABLE_CLASS = "[&_th]:px-3 [&_th]:py-3 [&_td]:px-3 [&_td]:py-3 sm:[&_th]:px-4 sm:[&_td]:px-4"
 const FULL_BLEED_TABLE_CONTAINER_CLASS = "-m-px h-[calc(100%+2px)] w-[calc(100%+2px)] rounded-none"
 
-function formatUsd(value: number): string {
-  const abs = Math.abs(value)
-  const text = abs.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
-  return `${value < 0 ? '-' : ''}$${text}`
-}
-
-function formatRmb(value: number): string {
-  const abs = Math.abs(value)
-  const text = abs.toLocaleString('zh-CN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
-  return `${value < 0 ? '-' : ''}¥${text}`
-}
-
-function formatPercent(value: number): string {
-  return `${(value * 100).toFixed(2)}%`
-}
-
-function toPaymentLabel(value: PaymentStatus): string {
-  if (value === 'paid') return '已回款'
-  if (value === 'partial') return '部分回款'
-  return '未回款'
-}
-
 interface DetailTabProps {
-  rows: CommissionProjectMonth[]
+  projectGroups: ProjectGroup[]
+  exchangeRates: ExchangeRate[]
   projectMetaById: Record<number, ProjectMeta>
   loading: boolean
   updatingId: number | null
@@ -70,7 +38,8 @@ interface DetailTabProps {
 }
 
 export function DetailTab({
-  rows,
+  projectGroups,
+  exchangeRates,
   projectMetaById,
   loading,
   updatingId,
@@ -79,7 +48,7 @@ export function DetailTab({
   onUpdatePaymentStatus,
   onUpdateReceivedAmount,
 }: DetailTabProps) {
-  const getDetailCommissionRatioLabel = useCallback((row: CommissionProjectMonth): string => {
+  const getCommissionRatioLabel = useCallback((row: CommissionProjectMonth): string => {
     const projectMeta = projectMetaById[row.project_id]
     if (!projectMeta) {
       return formatPercent(row.factory_commission_rate)
@@ -93,7 +62,102 @@ export function DetailTab({
     return formatPercent(row.factory_commission_rate)
   }, [projectMetaById])
 
-  const sortedRows = [...rows].sort((a, b) => a.project_id - b.project_id)
+  const renderSiteRow = (site: ProjectGroup['sites'][number], projectName?: string) => {
+    const { country, hasData, record } = site
+    const info = SITE_INFO[country]
+
+    if (!hasData || !record) {
+      return (
+        <TableRow key={`nodata-${country}`} className="bg-gray-50/50">
+          <TableCell>
+            <div className="flex items-center gap-2">
+              <span className="text-lg">{info.flag}</span>
+              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600">
+                {country}
+              </span>
+              {projectName && <span className="text-sm text-muted-foreground">{projectName}</span>}
+            </div>
+          </TableCell>
+          <TableCell className="text-right text-gray-400">无数据</TableCell>
+          <TableCell className="text-right text-gray-400">无数据</TableCell>
+          <TableCell className="text-right text-gray-400">无数据</TableCell>
+          <TableCell className="text-gray-400">无数据</TableCell>
+          <TableCell className="text-gray-400">无数据</TableCell>
+        </TableRow>
+      )
+    }
+
+    const incomeUsd = convertToUsd(record.income_total_usd, country, exchangeRates)
+    const commissionUsd = convertToUsd(record.factory_commission_rmb, country, exchangeRates)
+
+    return (
+      <TableRow
+        key={record.id}
+        className={`border-l-4 ${SITE_BORDER_COLORS[country]}`}
+      >
+        <TableCell>
+          <div className="flex items-center gap-2">
+            <span className="text-lg">{info.flag}</span>
+            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600">
+              {country}
+            </span>
+            {projectName && <span>{projectName}</span>}
+          </div>
+        </TableCell>
+        <TableCell className="text-right tabular-nums">
+          {formatUsd(incomeUsd)}
+        </TableCell>
+        <TableCell className="text-right tabular-nums">
+          {getCommissionRatioLabel(record)}
+        </TableCell>
+        <TableCell className="text-right tabular-nums font-medium">
+          {formatUsd(commissionUsd)}
+        </TableCell>
+        <TableCell>
+          <div className="flex items-center justify-end gap-2">
+            <Input
+              type="number"
+              step="0.01"
+              min="0"
+              value={receivedDraftById[record.id] ?? ''}
+              className="h-9 w-[150px] text-right"
+              onChange={(event) => {
+                onUpdateDraft(record.id, event.target.value)
+              }}
+              onBlur={() => {
+                onUpdateReceivedAmount(record)
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  onUpdateReceivedAmount(record)
+                }
+              }}
+              disabled={updatingId === record.id}
+            />
+          </div>
+        </TableCell>
+        <TableCell>
+          <Select
+            value={record.payment_status}
+            onValueChange={(value: PaymentStatus) => {
+              onUpdatePaymentStatus(record, value)
+            }}
+            disabled={updatingId === record.id}
+          >
+            <SelectTrigger className="w-[140px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="paid">已回款</SelectItem>
+              <SelectItem value="partial">部分回款</SelectItem>
+              <SelectItem value="unpaid">未回款</SelectItem>
+            </SelectContent>
+          </Select>
+        </TableCell>
+      </TableRow>
+    )
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit]">
@@ -104,9 +168,9 @@ export function DetailTab({
               <TableHead className="font-semibold text-foreground">项目</TableHead>
               <TableHead className="text-right font-semibold text-foreground">销售收入(USD)</TableHead>
               <TableHead className="text-right font-semibold text-foreground">佣金比例</TableHead>
-              <TableHead className="text-right font-semibold text-foreground">工厂佣金(RMB)</TableHead>
-              <TableHead className="text-right font-semibold text-foreground">已回款(RMB，可编辑)</TableHead>
-              <TableHead className="font-semibold text-foreground">回款状态(可编辑)</TableHead>
+              <TableHead className="text-right font-semibold text-foreground">工厂佣金(USD)</TableHead>
+              <TableHead className="text-right font-semibold text-foreground">已回款(RMB)</TableHead>
+              <TableHead className="font-semibold text-foreground">回款状态</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -114,60 +178,26 @@ export function DetailTab({
               <TableRow>
                 <TableCell colSpan={6} className="text-center text-muted-foreground">加载中...</TableCell>
               </TableRow>
-            ) : rows.length === 0 ? (
+            ) : projectGroups.length === 0 ? (
               <EmptyTableState colSpan={6} message="当前月份暂无数据，请先刷新核算" />
             ) : (
-              sortedRows.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell>{row.project_name}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatUsd(row.income_total_usd)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{getDetailCommissionRatioLabel(row)}</TableCell>
-                  <TableCell className="text-right tabular-nums font-medium">{formatRmb(row.factory_commission_rmb)}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-end gap-2">
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={receivedDraftById[row.id] ?? ''}
-                        className="h-9 w-[150px] text-right"
-                        onChange={(event) => {
-                          const nextValue = event.target.value
-                          onUpdateDraft(row.id, nextValue)
-                        }}
-                        onBlur={() => {
-                          onUpdateReceivedAmount(row)
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter') {
-                            event.preventDefault()
-                            onUpdateReceivedAmount(row)
-                          }
-                        }}
-                        disabled={updatingId === row.id}
-                      />
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Select
-                      value={row.payment_status}
-                      onValueChange={(value: PaymentStatus) => {
-                        onUpdatePaymentStatus(row, value)
-                      }}
-                      disabled={updatingId === row.id}
-                    >
-                      <SelectTrigger className="w-[140px]">
-                        <SelectValue placeholder={toPaymentLabel(row.payment_status)} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="paid">已回款</SelectItem>
-                        <SelectItem value="partial">部分回款</SelectItem>
-                        <SelectItem value="unpaid">未回款</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                </TableRow>
-              ))
+              projectGroups.map((group) => {
+                if (group.isSingleUS) {
+                  const site = group.sites[0]
+                  return renderSiteRow(site, group.projectName)
+                }
+
+                return (
+                  <React.Fragment key={`group-${group.projectId}`}>
+                    <TableRow className="bg-slate-50/50">
+                      <TableCell colSpan={6} className="py-2 text-sm font-medium text-muted-foreground">
+                        {group.projectName}
+                      </TableCell>
+                    </TableRow>
+                    {group.sites.map(site => renderSiteRow(site))}
+                  </React.Fragment>
+                )
+              })
             )}
           </TableBody>
         </Table>
