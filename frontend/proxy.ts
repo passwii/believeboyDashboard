@@ -19,13 +19,13 @@ if (process.env.NODE_ENV === 'production') {
 
 // ─── Session invalidation cache ───────────────────────────────────────────────
 // Stores per-user session check results to avoid flooding the backend.
-// TTL: 60 seconds per entry.
+// TTL: 10 seconds per entry — balances security (fast revocation) vs backend load.
 interface SessionCache {
   ts: number
   valid: boolean
 }
 const _sessionCheckCache = new Map<string, SessionCache>()
-const SESSION_CHECK_TTL_MS = 60_000
+const SESSION_CHECK_TTL_MS = 10_000
 
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL ||
