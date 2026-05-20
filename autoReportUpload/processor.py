@@ -60,6 +60,8 @@ from app.utils.utils import (
 from app.utils.text_utils import (
     normalize_text as _normalize_text,
     normalize_identity as _normalize_identity,
+    normalize_sku as _normalize_sku,
+    normalize_asin as _normalize_asin,
 )
 
 # Shared parsers — single source of truth (backend/app/utils/parsers.py)
@@ -928,8 +930,9 @@ def _load_project_product_mapping(
             ProductCost.country == country,
         )
     ).all()
-    skus = {_normalize_identity(s) for s, _ in rows if _normalize_identity(s)}
-    asins = {_normalize_identity(a) for _, a in rows if _normalize_identity(a)}
+    # Use normalize_sku (uppercase + strip spaces) to match backend validation logic
+    skus = {_normalize_sku(s) for s, _ in rows if _normalize_sku(s)}
+    asins = {_normalize_asin(a) for _, a in rows if _normalize_asin(a)}
     return skus, asins
 
 
