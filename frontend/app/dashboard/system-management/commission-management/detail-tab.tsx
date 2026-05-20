@@ -12,13 +12,13 @@ import {
   type ProjectMeta,
   type ProjectGroup,
   type PaymentStatus,
+  type SiteRow,
 } from './types'
 import {
   SITE_INFO,
   SITE_BORDER_COLORS,
   convertToUsd,
   formatUsd,
-  formatRmb,
   formatPercent,
 } from './utils'
 
@@ -62,7 +62,7 @@ export function DetailTab({
     return formatPercent(row.factory_commission_rate)
   }, [projectMetaById])
 
-  const renderSiteRow = (site: ProjectGroup['sites'][number], projectName?: string) => {
+  const renderSiteRow = (site: SiteRow, projectName?: string) => {
     const { country, hasData, record } = site
     const info = SITE_INFO[country]
 
@@ -101,7 +101,7 @@ export function DetailTab({
             <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600">
               {country}
             </span>
-            {projectName && <span>{projectName}</span>}
+            {projectName && <span className="text-sm text-muted-foreground">{projectName}</span>}
           </div>
         </TableCell>
         <TableCell className="text-right tabular-nums">
