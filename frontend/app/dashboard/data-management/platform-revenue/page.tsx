@@ -36,10 +36,11 @@ import { Textarea } from '@/components/ui/textarea'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
+import { disableGridLines } from '@/lib/excel-styles'
 import { useNotifications } from '@/components/notifications'
 import { format } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
-import { CalendarIcon, Pencil, Trash2, Plus, RotateCcw, ImagePlus, Loader2, X } from 'lucide-react'
+import { CalendarIcon, Pencil, Trash2, Plus, RotateCcw, ImagePlus, Loader2, X, Download } from 'lucide-react'
 
 // 币种选项
 const CURRENCY_OPTIONS = [
@@ -94,7 +95,7 @@ interface PlatformRevenue {
   received_date: string
   amount: string
   currency: string
-  exchange_rate: string | null
+  revenue_type: string
   note: string | null
   attachments: Attachment[]
   created_by: string
@@ -120,6 +121,23 @@ const formatCurrency = (amount: string | number, currency: string) => {
   return `${symbol}${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
+// 计算合计金额（按币种分组）
+const calculateTotals = (revenues: PlatformRevenue[]) => {
+  const totals: Record<string, number> = {}
+  revenues.forEach((r) => {
+    const currency = r.currency || 'USD'
+    totals[currency] = (totals[currency] || 0) + parseFloat(r.amount)
+  })
+  return totals
+}
+
+// 格式化合计行显示
+const formatTotals = (totals: Record<string, number>) => {
+  return Object.entries(totals)
+    .map(([currency, amount]) => `${CURRENCY_OPTIONS.find(c => c.value === currency)?.symbol || currency}${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
+    .join(' | ')
+}
+
 export default function PlatformRevenuePage() {
   const { notify } = useNotifications()
   const { data: session } = useSession()
@@ -137,7 +155,7 @@ export default function PlatformRevenuePage() {
   })
   const [filters, setFilters] = useState<Filters>({
     project_id: '',
-    year: '',
+    year: new Date().getFullYear().toString(),
     month: '',
     currency: '',
   })
@@ -157,10 +175,13 @@ export default function PlatformRevenuePage() {
     received_date: null as Date | null,
     amount: '',
     currency: 'USD',
-    exchange_rate: '',
+    revenue_type: '订单回款',
     note: '',
     attachments: [] as Attachment[],
   })
+
+  // 导出状态
+  const [exporting, setExporting] = useState(false)
 
   // 获取项目列表
   const fetchProjects = useCallback(async () => {
@@ -250,11 +271,11 @@ export default function PlatformRevenuePage() {
     setEditingRevenue(null)
     setFormData({
       project_id: '',
-      country: '',
+      country: 'US',
       received_date: new Date(),
       amount: '',
       currency: 'USD',
-      exchange_rate: '',
+      revenue_type: '订单回款',
       note: '',
       attachments: [],
     })
@@ -270,7 +291,7 @@ export default function PlatformRevenuePage() {
       received_date: new Date(revenue.received_date),
       amount: revenue.amount,
       currency: revenue.currency,
-      exchange_rate: revenue.exchange_rate || '',
+      revenue_type: revenue.revenue_type || '订单回款',
       note: revenue.note || '',
       attachments: revenue.attachments || [],
     })
@@ -298,7 +319,7 @@ export default function PlatformRevenuePage() {
         received_date: formData.received_date ? format(formData.received_date, 'yyyy-MM-dd') : '',
         amount: parseFloat(formData.amount),
         currency: formData.currency,
-        exchange_rate: formData.exchange_rate ? parseFloat(formData.exchange_rate) : null,
+        revenue_type: formData.revenue_type,
         note: formData.note || null,
         attachments: formData.attachments.map(att => ({
           id: att.id,
@@ -402,6 +423,188 @@ export default function PlatformRevenuePage() {
     if (size < 1024) return `${size}B`
     if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)}KB`
     return `${(size / (1024 * 1024)).toFixed(1)}MB`
+  }
+
+  // 导出 Excel
+  const handleExport = async () => {
+    setExporting(true)
+    try {
+      // 获取所有筛选数据（分页拉取，后端限制 page_size 最大 200）
+      const allRevenues: PlatformRevenue[] = []
+      let currentPage = 1
+      let totalPages = 1
+
+      do {
+        const queryParams = new URLSearchParams()
+        if (filters.project_id) queryParams.append('project_id', filters.project_id)
+        if (filters.year) queryParams.append('year', filters.year)
+        if (filters.month) queryParams.append('month', filters.month)
+        if (filters.currency) queryParams.append('currency', filters.currency)
+        queryParams.append('page', currentPage.toString())
+        queryParams.append('page_size', '200')
+
+        const response = await fetch(`/api/backend/api/v1/platform-revenues?${queryParams}`)
+        if (!response.ok) throw new Error('获取导出数据失败')
+
+        const result = await response.json()
+        allRevenues.push(...(result.items || []))
+        totalPages = result.total_pages || 1
+        currentPage++
+      } while (currentPage <= totalPages)
+
+      if (allRevenues.length === 0) {
+        notify({ type: 'warning', title: '暂无数据可导出' })
+        return
+      }
+
+      // 动态导入 ExcelJS
+      const ExcelJS = await import('exceljs')
+      const workbook = new ExcelJS.Workbook()
+      workbook.creator = 'BelieveBoy Dashboard'
+      workbook.created = new Date()
+
+      const worksheet = workbook.addWorksheet('平台回款')
+      disableGridLines(worksheet)
+
+      // 设置列宽（不设 header，避免与后续 mergeCells 冲突）
+      worksheet.columns = [
+        { key: 'received_date', width: 14 },
+        { key: 'project_name', width: 20 },
+        { key: 'country', width: 8 },
+        { key: 'amount', width: 14 },
+        { key: 'currency', width: 8 },
+        { key: 'revenue_type', width: 12 },
+        { key: 'note', width: 30 },
+      ]
+
+      // 标题行
+      worksheet.mergeCells(1, 1, 1, 7)
+      const titleCell = worksheet.getCell(1, 1)
+      titleCell.value = '平台回款记录'
+      titleCell.font = { name: 'Microsoft YaHei', size: 16, bold: true }
+      titleCell.alignment = { horizontal: 'center', vertical: 'middle' }
+
+      // 筛选信息行
+      const filterInfo = [
+        filters.project_id ? `项目: ${projects.find(p => p.id.toString() === filters.project_id)?.name || filters.project_id}` : '',
+        filters.year ? `年份: ${filters.year}` : '',
+        filters.month ? `月份: ${filters.month}` : '',
+        filters.currency ? `币种: ${filters.currency}` : '',
+      ].filter(Boolean).join(' | ')
+      let currentRow = 2
+      if (filterInfo) {
+        worksheet.mergeCells(currentRow, 1, currentRow, 7)
+        const filterCell = worksheet.getCell(currentRow, 1)
+        filterCell.value = filterInfo
+        filterCell.font = { name: 'Microsoft YaHei', size: 11, color: { argb: 'FF64748B' } }
+        currentRow++
+      }
+
+      // 表头行
+      const headerLabels = ['回款日期', '项目', '站点', '金额', '币种', '回款类型', '备注']
+      const headerRow = worksheet.getRow(currentRow)
+      headerLabels.forEach((label, i) => {
+        const cell = headerRow.getCell(i + 1)
+        cell.value = label
+        cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
+        cell.alignment = { vertical: 'middle', horizontal: 'center' }
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        }
+      })
+      currentRow++
+
+      // 数据行
+      const dataStartRow = currentRow
+      allRevenues.forEach((revenue: PlatformRevenue, index: number) => {
+        const row = worksheet.getRow(dataStartRow + index)
+        row.values = [
+          revenue.received_date,
+          revenue.project_name,
+          revenue.country,
+          parseFloat(revenue.amount),
+          revenue.currency,
+          revenue.revenue_type || '订单回款',
+          revenue.note || '',
+        ]
+        row.getCell(1).alignment = { horizontal: 'left' }
+        row.getCell(2).alignment = { horizontal: 'left' }
+        row.getCell(3).alignment = { horizontal: 'center' }
+        row.getCell(4).numFmt = '#,##0.00'
+        row.getCell(4).alignment = { horizontal: 'right' }
+        row.getCell(5).alignment = { horizontal: 'center' }
+        row.getCell(6).alignment = { horizontal: 'center' }
+        row.getCell(7).alignment = { horizontal: 'left' }
+
+        // 添加边框
+        for (let col = 1; col <= 7; col++) {
+          const cell = row.getCell(col)
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          }
+        }
+      })
+
+      // 添加合计行
+      const totals = calculateTotals(allRevenues)
+      const totalRowIndex = dataStartRow + allRevenues.length
+      const totalRow = worksheet.getRow(totalRowIndex)
+      totalRow.values = [
+        '合计',
+        '',
+        '',
+        Object.values(totals).reduce((sum, v) => sum + v, 0),
+        Object.keys(totals).join('/'),
+        '',
+        '',
+      ]
+      totalRow.getCell(1).font = { name: 'Microsoft YaHei', bold: true }
+      totalRow.getCell(4).numFmt = '#,##0.00'
+      totalRow.getCell(4).font = { name: 'Microsoft YaHei', bold: true }
+      totalRow.getCell(5).font = { name: 'Microsoft YaHei', bold: true }
+
+      // 为合计行添加浅色背景
+      for (let col = 1; col <= 7; col++) {
+        const cell = totalRow.getCell(col)
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
+        cell.border = {
+          top: { style: 'medium', color: { argb: 'FFCBD5E1' } },
+          left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          bottom: { style: 'medium', color: { argb: 'FFCBD5E1' } },
+          right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        }
+      }
+
+      // 生成并下载
+      const buffer = await workbook.xlsx.writeBuffer()
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      const date = new Date().toISOString().slice(0, 10)
+      const projectName = filters.project_id
+        ? (projects.find(p => p.id.toString() === filters.project_id)?.name || filters.project_id)
+        : '全部项目'
+      link.href = url
+      link.download = `${projectName}_平台回款_${date}.xlsx`
+      link.click()
+      window.URL.revokeObjectURL(url)
+
+      notify({ type: 'success', title: `已导出 ${allRevenues.length} 条记录` })
+    } catch (error) {
+      console.error('Export error:', error)
+      notify({ type: 'error', title: '导出失败', message: error instanceof Error ? error.message : '未知错误' })
+    } finally {
+      setExporting(false)
+    }
   }
 
   return (
@@ -514,6 +717,22 @@ export default function PlatformRevenuePage() {
                 重置
               </Button>
             </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExport}
+                disabled={exporting}
+              >
+                {exporting ? (
+                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="mr-1 h-4 w-4" />
+                )}
+                导出
+              </Button>
+            </div>
           </div>
         </DataCardContent>
       </DataCard>
@@ -530,7 +749,7 @@ export default function PlatformRevenuePage() {
                   <TableHead>站点</TableHead>
                   <TableHead className="text-right">金额</TableHead>
                   <TableHead>币种</TableHead>
-                  <TableHead>汇率</TableHead>
+                  <TableHead>回款类型</TableHead>
                   <TableHead>备注</TableHead>
                   <TableHead className="text-right">操作</TableHead>
                 </TableRow>
@@ -564,8 +783,10 @@ export default function PlatformRevenuePage() {
                           {revenue.currency}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {revenue.exchange_rate ? parseFloat(revenue.exchange_rate).toFixed(4) : '-'}
+                      <TableCell>
+                        <Badge variant="secondary" className="text-xs">
+                          {revenue.revenue_type || '订单回款'}
+                        </Badge>
                       </TableCell>
                       <TableCell className="max-w-[200px]">
                         <div className="space-y-2">
@@ -622,6 +843,17 @@ export default function PlatformRevenuePage() {
                     </TableRow>
                   ))
                 )}
+              {/* 合计行 */}
+              {!loading && revenues.length > 0 && (
+                <TableRow className="bg-muted/50 font-medium">
+                  <TableCell className="py-3">合计</TableCell>
+                  <TableCell colSpan={2}></TableCell>
+                  <TableCell className="text-right">
+                    {formatTotals(calculateTotals(revenues))}
+                  </TableCell>
+                  <TableCell colSpan={4}></TableCell>
+                </TableRow>
+              )}
               </TableBody>
             </Table>
           </div>
@@ -691,7 +923,7 @@ export default function PlatformRevenuePage() {
                     setFormData((prev) => ({ ...prev, project_id: value, country: '' }))
                   }}
                 >
-                  <SelectTrigger id="project" className="dark:bg-[hsl(var(--surface-soft))]">
+                  <SelectTrigger id="project" className="w-full dark:bg-[hsl(var(--surface-soft))]">
                     <SelectValue placeholder="选择项目" />
                   </SelectTrigger>
                   <SelectContent>
@@ -712,7 +944,7 @@ export default function PlatformRevenuePage() {
                   onValueChange={(value) => setFormData((prev) => ({ ...prev, country: value }))}
                   disabled={!formData.project_id}
                 >
-                  <SelectTrigger id="country" className="dark:bg-[hsl(var(--surface-soft))]">
+                  <SelectTrigger id="country" className="w-full dark:bg-[hsl(var(--surface-soft))]">
                     <SelectValue placeholder="选择站点" />
                   </SelectTrigger>
                   <SelectContent>
@@ -773,6 +1005,7 @@ export default function PlatformRevenuePage() {
                     setFormData((prev) => ({ ...prev, amount: e.target.value }))
                   }
                   placeholder="0.00"
+                  className="w-full"
                 />
               </div>
             </div>
@@ -786,7 +1019,7 @@ export default function PlatformRevenuePage() {
                   value={formData.currency}
                   onValueChange={(value) => setFormData((prev) => ({ ...prev, currency: value }))}
                 >
-                  <SelectTrigger id="currency" className="dark:bg-[hsl(var(--surface-soft))]">
+                  <SelectTrigger id="currency" className="w-full dark:bg-[hsl(var(--surface-soft))]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -799,23 +1032,21 @@ export default function PlatformRevenuePage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="exchange_rate">
-                  汇率
+                <Label htmlFor="revenue_type">
+                  回款类型 <span className="text-destructive">*</span>
                 </Label>
-                <Input
-                  id="exchange_rate"
-                  type="number"
-                  step="0.000001"
-                  min="0"
-                  value={formData.exchange_rate}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, exchange_rate: e.target.value }))
-                  }
-                  placeholder="可选"
-                />
-                <p className="text-xs text-muted-foreground">
-                  币种非 USD 时可填写，用于折算显示
-                </p>
+                <Select
+                  value={formData.revenue_type}
+                  onValueChange={(value) => setFormData((prev) => ({ ...prev, revenue_type: value }))}
+                >
+                  <SelectTrigger id="revenue_type" className="w-full dark:bg-[hsl(var(--surface-soft))]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="订单回款">订单回款</SelectItem>
+                    <SelectItem value="B2B回款">B2B回款</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -829,6 +1060,7 @@ export default function PlatformRevenuePage() {
                 }
                 placeholder="可选：添加相关备注信息"
                 rows={2}
+                className="w-full"
               />
             </div>
 

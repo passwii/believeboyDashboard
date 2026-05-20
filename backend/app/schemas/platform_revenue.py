@@ -23,6 +23,7 @@ class PlatformRevenueItem(BaseModel):
     amount: Decimal
     currency: str = "USD"
     exchange_rate: Decimal | None = None
+    revenue_type: str = "订单回款"
     note: str | None = None
     attachments: list[PlatformRevenueAttachment] = []
     created_by: str
@@ -45,6 +46,7 @@ class PlatformRevenueCreate(BaseModel):
     amount: Decimal = Field(gt=0)
     currency: str = Field(default="USD", max_length=10)
     exchange_rate: Decimal | None = Field(default=None, ge=0)
+    revenue_type: str = Field(default="订单回款", max_length=20)
     note: str | None = None
     attachments: list[PlatformRevenueAttachment] = Field(default_factory=list)
 
@@ -55,5 +57,6 @@ class PlatformRevenueUpdate(BaseModel):
     amount: Decimal | None = Field(default=None, gt=0)
     currency: str | None = Field(default=None, max_length=10)
     exchange_rate: Decimal | None = Field(default=None, ge=0)
+    revenue_type: str | None = Field(default=None, max_length=20)
     note: str | None = None
     attachments: list[PlatformRevenueAttachment] | None = None

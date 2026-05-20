@@ -9,6 +9,8 @@ from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFil
 from PIL import Image, ImageOps, UnidentifiedImageError
 from sqlalchemy.orm import Session
 
+from pydantic import BaseModel
+
 from app.api.deps import get_db_session, protected
 from app.core.config import get_settings
 from app.schemas.exchange_rate import (
@@ -69,6 +71,59 @@ def list_exchange_rates(
         total=total,
         page=safe_page,
         page_size=safe_page_size,
+    )
+
+
+class ExchangeRateResolveResponse(BaseModel):
+    currency: str
+    year_month: str
+    rate: float | None
+    description: str | None
+    note_images: list
+    source: str  # 'exact' | 'fallback' | 'latest' | 'not_found'
+
+
+@router.get('/exchange-rates/resolve')
+def resolve_exchange_rate(
+    currency: str,
+    year_month: str | None = None,
+    db: Session = Depends(get_db_session),
+) -> ExchangeRateResolveResponse:
+    """
+    解析汇率：优先精确匹配指定年月，找不到则回退到最近的历史记录。
+    适用于回款录入时自动拉取汇率。
+    """
+    import re
+
+    # 支持 year_month=2024-03 或 year_month=2024-3 格式
+    if year_month and not re.match(r'^\d{4}-\d{1,2}$', year_month):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='year_month must be YYYY-MM format')
+
+    if not year_month:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='year_month is required')
+
+    row = exchange_rate_service.get_exchange_rate_by_currency_month_with_fallback(
+        db,
+        currency=currency.strip().upper(),
+        year_month=year_month,
+    )
+    if row is None:
+        return ExchangeRateResolveResponse(
+            currency=currency.strip().upper(),
+            year_month=year_month,
+            rate=None,
+            description=None,
+            note_images=[],
+            source='not_found',
+        )
+
+    return ExchangeRateResolveResponse(
+        currency=row.currency,
+        year_month=row.year_month,
+        rate=float(row.rate),
+        description=row.description,
+        note_images=exchange_rate_service.serialize_note_images(row.note_images),
+        source='exact' if row.year_month == year_month else 'fallback',
     )
 
 

@@ -20,6 +20,7 @@ from app.schemas.platform_revenue import (
     PlatformRevenueUpdate,
 )
 from app.services import platform_revenue_service
+from app.services.audit_log_service import append_operation_audit_log
 
 router = APIRouter(dependencies=[Depends(protected)])
 
@@ -57,6 +58,7 @@ def _serialize_item(row) -> PlatformRevenueItem:
         amount=row.amount,
         currency=row.currency,
         exchange_rate=row.exchange_rate,
+        revenue_type=row.revenue_type,
         note=row.note,
         attachments=attachments,
         created_by=row.created_by,
@@ -136,6 +138,7 @@ def create_platform_revenue(
         amount=payload.amount,
         currency=payload.currency,
         exchange_rate=payload.exchange_rate,
+        revenue_type=payload.revenue_type,
         note=payload.note,
         attachments=attachments_data,
         operator=operator,
@@ -143,7 +146,6 @@ def create_platform_revenue(
     db.commit()
 
     # Audit log
-    from app.utils.audit import append_operation_audit_log
     append_operation_audit_log(
         db,
         action='platform_revenues.create',
@@ -179,7 +181,6 @@ def update_platform_revenue(
     db.commit()
 
     # Audit log
-    from app.utils.audit import append_operation_audit_log
     append_operation_audit_log(
         db,
         action='platform_revenues.update',
@@ -218,7 +219,6 @@ def delete_platform_revenue(
     db.commit()
 
     # Audit log
-    from app.utils.audit import append_operation_audit_log
     append_operation_audit_log(
         db,
         action='platform_revenues.delete',
