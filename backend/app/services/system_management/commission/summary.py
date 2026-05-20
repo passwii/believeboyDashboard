@@ -12,32 +12,34 @@ from app.models.commission_project_month import CommissionProjectMonth
 def get_commission_yearly_monthly_summary(
     db: Session,
     year: str,
-    country: str = "US",
+    country: str | None = None,
 ) -> list[dict]:
     """获取按月汇总的佣金数据。
 
     Args:
         db: 数据库会话
         year: 年份
-        country: 国家代码，US/UK/DE
+        country: 国家代码，US/UK/DE。如果为 None 则查询所有国家并汇总。
 
     Returns list of dicts with report_month, income_total_usd, factory_commission_usd,
     factory_commission_rmb, received_rmb, receive_rate.
     """
     month_start = f"{year}-01"
     month_end = f"{year}-12"
+    stmt = select(
+        CommissionProjectMonth.report_month,
+        func.sum(CommissionProjectMonth.income_total_usd).label("income_total_usd"),
+        func.sum(CommissionProjectMonth.factory_commission_usd).label("factory_commission_usd"),
+        func.sum(CommissionProjectMonth.factory_commission_rmb).label("factory_commission_rmb"),
+        func.sum(CommissionProjectMonth.received_rmb).label("received_rmb"),
+    ).where(
+        CommissionProjectMonth.report_month >= month_start,
+        CommissionProjectMonth.report_month <= month_end,
+    )
+    if country:
+        stmt = stmt.where(CommissionProjectMonth.country == country)
     rows = db.execute(
-        select(
-            CommissionProjectMonth.report_month,
-            func.sum(CommissionProjectMonth.income_total_usd).label("income_total_usd"),
-            func.sum(CommissionProjectMonth.factory_commission_usd).label("factory_commission_usd"),
-            func.sum(CommissionProjectMonth.factory_commission_rmb).label("factory_commission_rmb"),
-            func.sum(CommissionProjectMonth.received_rmb).label("received_rmb"),
-        ).where(
-            CommissionProjectMonth.report_month >= month_start,
-            CommissionProjectMonth.report_month <= month_end,
-            CommissionProjectMonth.country == country,
-        ).group_by(CommissionProjectMonth.report_month).order_by(CommissionProjectMonth.report_month.asc())
+        stmt.group_by(CommissionProjectMonth.report_month).order_by(CommissionProjectMonth.report_month.asc())
     ).all()
 
     monthly_map: dict[str, tuple[float, float, float, float]] = {}
@@ -69,31 +71,37 @@ def get_commission_yearly_monthly_summary(
 def get_commission_project_yearly_summary(
     db: Session,
     year: str,
-    country: str = "US",
+    country: str | None = None,
 ) -> list[dict]:
     """获取按项目汇总的佣金数据。
 
     Args:
         db: 数据库会话
         year: 年份
-        country: 国家代码，US/UK/DE
+        country: 国家代码，US/UK/DE。如果为 None 则查询所有国家并汇总。
 
     Returns list of dicts with project_id, project_name, months dict, etc.
     """
     month_start = f"{year}-01"
     month_end = f"{year}-12"
+    stmt = select(
+        CommissionProjectMonth.project_id,
+        CommissionProjectMonth.project_name,
+        CommissionProjectMonth.report_month,
+        func.sum(CommissionProjectMonth.income_total_usd).label("income_total_usd"),
+        func.sum(CommissionProjectMonth.factory_commission_rmb).label("factory_commission_rmb"),
+        func.sum(CommissionProjectMonth.received_rmb).label("received_rmb"),
+    ).where(
+        CommissionProjectMonth.report_month >= month_start,
+        CommissionProjectMonth.report_month <= month_end,
+    )
+    if country:
+        stmt = stmt.where(CommissionProjectMonth.country == country)
     rows = db.execute(
-        select(
+        stmt.group_by(
             CommissionProjectMonth.project_id,
             CommissionProjectMonth.project_name,
             CommissionProjectMonth.report_month,
-            CommissionProjectMonth.income_total_usd,
-            CommissionProjectMonth.factory_commission_rmb,
-            CommissionProjectMonth.received_rmb,
-        ).where(
-            CommissionProjectMonth.report_month >= month_start,
-            CommissionProjectMonth.report_month <= month_end,
-            CommissionProjectMonth.country == country,
         ).order_by(CommissionProjectMonth.project_id.asc(), CommissionProjectMonth.report_month.asc())
     ).all()
 
