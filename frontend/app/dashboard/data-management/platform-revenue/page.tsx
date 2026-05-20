@@ -113,6 +113,7 @@ interface Filters {
   year: string
   month: string
   currency: string
+  revenue_type: string
 }
 
 const formatCurrency = (amount: string | number, currency: string) => {
@@ -250,6 +251,7 @@ export default function PlatformRevenuePage() {
     year: new Date().getFullYear().toString(),
     month: '',
     currency: '',
+    revenue_type: '',
   })
 
   // 弹窗状态
@@ -303,6 +305,7 @@ export default function PlatformRevenuePage() {
       if (filters.year) queryParams.append('year', filters.year)
       if (filters.month) queryParams.append('month', filters.month)
       if (filters.currency) queryParams.append('currency', filters.currency)
+      if (filters.revenue_type) queryParams.append('revenue_type', filters.revenue_type)
 
       const response = await fetch(`/api/backend/api/v1/platform-revenues?${queryParams}`)
       if (!response.ok) {
@@ -347,15 +350,14 @@ export default function PlatformRevenuePage() {
     fetchRevenues()
   }, [fetchRevenues])
 
-  // 处理筛选变化
-  const handleFilterChange = (key: keyof Filters, value: string) => {
+  const handleFilterChange = <K extends keyof Filters>(key: K, value: Filters[K]) => {
     setFilters((prev) => ({ ...prev, [key]: value }))
     setPagination((prev) => ({ ...prev, page: 1 }))
   }
 
   // 重置筛选
   const resetFilters = () => {
-    setFilters({ project_id: '', year: '', month: '', currency: '' })
+    setFilters({ project_id: '', year: '', month: '', currency: '', revenue_type: '' })
     setPagination((prev) => ({ ...prev, page: 1 }))
   }
 
@@ -538,6 +540,7 @@ export default function PlatformRevenuePage() {
         if (filters.year) queryParams.append('year', filters.year)
         if (filters.month) queryParams.append('month', filters.month)
         if (filters.currency) queryParams.append('currency', filters.currency)
+        if (filters.revenue_type) queryParams.append('revenue_type', filters.revenue_type)
         queryParams.append('page', currentPage.toString())
         queryParams.append('page_size', '200')
 
@@ -588,6 +591,7 @@ export default function PlatformRevenuePage() {
         filters.year ? `年份: ${filters.year}` : '',
         filters.month ? `月份: ${filters.month}` : '',
         filters.currency ? `币种: ${filters.currency}` : '',
+        filters.revenue_type ? `回款类型: ${filters.revenue_type}` : '',
       ].filter(Boolean).join(' | ')
       let currentRow = 2
       if (filterInfo) {
@@ -768,7 +772,7 @@ export default function PlatformRevenuePage() {
           }
         />
         <DataCardContent className="p-0 px-4 pb-4 pt-4">
-          <div className="flex flex-wrap gap-4 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-4">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-4">
             <div className="flex items-center gap-2">
               <Label className="whitespace-nowrap text-sm font-medium">项目</Label>
               <Select
@@ -858,13 +862,29 @@ export default function PlatformRevenuePage() {
             </div>
 
             <div className="flex items-center gap-2">
+              <Label className="whitespace-nowrap text-sm font-medium">回款类型</Label>
+              <Select
+                value={filters.revenue_type || ALL_FILTER_VALUE}
+                onValueChange={(value) =>
+                  handleFilterChange('revenue_type', value === ALL_FILTER_VALUE ? '' : value)
+                }
+              >
+                <SelectTrigger className="w-[140px] dark:bg-[hsl(var(--surface-soft))]">
+                  <SelectValue placeholder="全部类型" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_FILTER_VALUE}>全部类型</SelectItem>
+                  <SelectItem value="订单回款">订单回款</SelectItem>
+                  <SelectItem value="B2B回款">B2B回款</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center gap-3">
               <Button variant="outline" size="sm" onClick={resetFilters}>
                 <RotateCcw className="mr-1 h-4 w-4" />
                 重置
               </Button>
-            </div>
-
-            <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"

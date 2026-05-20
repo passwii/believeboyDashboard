@@ -23,7 +23,7 @@ import {
   formatPercent,
 } from './utils'
 
-const FULL_BLEED_TABLE_CLASS = "[&_th]:px-3 [&_th]:py-3 [&_td]:px-3 [&_td]:py-3 sm:[&_th]:px-4 sm:[&_td]:px-4"
+const FULL_BLEED_TABLE_CLASS = "[&_th]:px-0 [&_th]:py-3 [&_td]:px-0 [&_td]:py-3"
 const FULL_BLEED_TABLE_CONTAINER_CLASS = "w-full"
 
 interface DetailTabProps {
@@ -185,7 +185,7 @@ export function DetailTab({
     if (!hasData || !record) {
       return (
         <TableRow key={`nodata-${country}`} className="bg-gray-50/50">
-          <TableCell>
+          <TableCell className="!pl-0">
             <div className="flex items-center gap-3">
               <span className={`h-2 w-2 rounded-full ${info.dotClass}`} />
               <span className="text-xs font-medium text-slate-500">{info.label}</span>
@@ -249,7 +249,7 @@ export function DetailTab({
             />
           </div>
         </TableCell>
-        <TableCell>
+        <TableCell className="!pr-0">
           <Select
             value={record.payment_status}
             onValueChange={(value: PaymentStatus) => {
@@ -287,16 +287,16 @@ export function DetailTab({
         className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit] transition-opacity duration-200"
         style={{ opacity: loading ? 0 : 1 }}
       >
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto p-6">
           <Table className={FULL_BLEED_TABLE_CLASS} containerClassName={FULL_BLEED_TABLE_CONTAINER_CLASS}>
             <TableHeader className="sticky top-0 z-10 bg-slate-100/80 dark:bg-slate-900/45">
               <TableRow>
-                <TableHead className="font-semibold text-foreground">项目</TableHead>
+                <TableHead className="!pl-0 font-semibold text-foreground">项目</TableHead>
                 <TableHead className="text-right font-semibold text-foreground">销售收入(USD)</TableHead>
                 <TableHead className="text-right font-semibold text-foreground">佣金比例</TableHead>
                 <TableHead className="text-right font-semibold text-foreground">工厂佣金(USD)</TableHead>
                 <TableHead className="text-right font-semibold text-foreground">已回款(RMB)</TableHead>
-                <TableHead className="font-semibold text-foreground">回款状态</TableHead>
+                <TableHead className="!pr-0 font-semibold text-foreground">回款状态</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

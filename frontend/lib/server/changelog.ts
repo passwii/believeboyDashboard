@@ -353,9 +353,9 @@ const RELEASES: ReleaseVersion[] = [
   {
     version: 'V7',
     codename: 'AI 洞悉',
-    status: 'current',
+    status: 'stable',
     startDate: '2026-04-11',
-    endDate: '',
+    endDate: '2026-05-20',
     summary: 'V7 版本正式开启 AI 驱动的智能洞察阶段，通过深度整合 AI 能力，让数据转化为可执行的运营洞见。本版本持续完善洞察重试机制、实时生成流式预览、图片导出与国家级时区感知，并修复 SKU 成本汇总与店铺核算导出的边界问题。',
     focus: ['AI 洞察增强', '实时流式预览', '洞察重试', 'PNG 导出', '国家时区感知', 'SKU 汇总修复', '侧边栏布局'],
     highlights: [

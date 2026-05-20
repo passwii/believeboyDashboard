@@ -14,7 +14,7 @@ type CommissionYearlyMonthlySummaryItem = {
   receive_rate: number
 }
 
-const FULL_BLEED_TABLE_CLASS = "[&_th]:px-3 [&_th]:py-3 [&_td]:px-3 [&_td]:py-3 sm:[&_th]:px-4 sm:[&_td]:px-4"
+const FULL_BLEED_TABLE_CLASS = "[&_th]:px-0 [&_th]:py-3 [&_td]:px-0 [&_td]:py-3"
 const FULL_BLEED_TABLE_CONTAINER_CLASS = "w-full"
 
 interface MonthlySummaryTabProps {
@@ -53,16 +53,16 @@ function MonthlySummarySkeletonRow() {
 function MonthlySummarySkeletonContent() {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit]">
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto p-6">
         <Table className={FULL_BLEED_TABLE_CLASS} containerClassName={FULL_BLEED_TABLE_CONTAINER_CLASS}>
           <TableHeader className="bg-slate-100/80 dark:bg-slate-900/45 sticky top-0 z-10">
             <TableRow>
-              <TableHead className="font-semibold text-foreground">月份</TableHead>
+              <TableHead className="!pl-0 font-semibold text-foreground">月份</TableHead>
               <TableHead className="text-right font-semibold text-foreground">销售收入(USD)</TableHead>
               <TableHead className="text-right font-semibold text-foreground">工厂佣金(USD)</TableHead>
               <TableHead className="text-right font-semibold text-foreground">工厂佣金(RMB)</TableHead>
               <TableHead className="text-right font-semibold text-foreground">已回款(RMB)</TableHead>
-              <TableHead className="text-right font-semibold text-foreground">回款率</TableHead>
+              <TableHead className="!pr-0 text-right font-semibold text-foreground">回款率</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -93,16 +93,16 @@ export function MonthlySummaryTab({ items, year, loading }: MonthlySummaryTabPro
         className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit] transition-opacity duration-200"
         style={{ opacity: loading ? 0 : 1 }}
       >
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto p-6">
           <Table className={FULL_BLEED_TABLE_CLASS} containerClassName={FULL_BLEED_TABLE_CONTAINER_CLASS}>
             <TableHeader className="bg-slate-100/80 dark:bg-slate-900/45 sticky top-0 z-10">
               <TableRow>
-                <TableHead className="font-semibold text-foreground">月份</TableHead>
+                <TableHead className="!pl-0 font-semibold text-foreground">月份</TableHead>
                 <TableHead className="text-right font-semibold text-foreground">销售收入(USD)</TableHead>
                 <TableHead className="text-right font-semibold text-foreground">工厂佣金(USD)</TableHead>
                 <TableHead className="text-right font-semibold text-foreground">工厂佣金(RMB)</TableHead>
                 <TableHead className="text-right font-semibold text-foreground">已回款(RMB)</TableHead>
-                <TableHead className="text-right font-semibold text-foreground">回款率</TableHead>
+                <TableHead className="!pr-0 text-right font-semibold text-foreground">回款率</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -111,12 +111,12 @@ export function MonthlySummaryTab({ items, year, loading }: MonthlySummaryTabPro
               ) : (
                 items.map((item) => (
                   <TableRow key={item.report_month}>
-                    <TableCell className="font-medium">{item.report_month}</TableCell>
+                    <TableCell className="!pl-0 font-medium">{item.report_month}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatUsd(item.income_total_usd)}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatUsd(item.factory_commission_usd)}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatRmb(item.factory_commission_rmb)}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatRmb(item.received_rmb)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatPercent(item.receive_rate)}</TableCell>
+                    <TableCell className="!pr-0 text-right tabular-nums">{formatPercent(item.receive_rate)}</TableCell>
                   </TableRow>
                 ))
               )}

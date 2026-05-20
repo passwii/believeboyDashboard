@@ -1,9 +1,14 @@
+'use client'
+
+import { useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import { getChangelogSnapshot, ReleaseVersion } from '@/lib/server/changelog'
 import { cn } from '@/lib/utils'
 import {
   ArrowUpRight,
   Blocks,
+  ChevronDown,
   Layers3,
   Waypoints,
 } from 'lucide-react'
@@ -24,6 +29,49 @@ function formatDateRange(release: ReleaseVersion): string {
   }
 
   return `${formatDateLabel(release.startDate)} - ${formatDateLabel(release.endDate)}`
+}
+
+function SourceLogsSection({ logs }: { logs: string[] }) {
+  const [isExpanded, setIsExpanded] = useState(false)
+
+  if (logs.length === 0) return null
+
+  return (
+    <div className='space-y-3'>
+      <button
+        type='button'
+        onClick={() => setIsExpanded(!isExpanded)}
+        className='flex w-full items-center gap-2 text-sm font-medium text-foreground transition-colors hover:text-primary'
+      >
+        <Waypoints className='h-4 w-4 text-primary' />
+        <span>原始 log 线索</span>
+        <Badge variant='secondary' className='ml-1 rounded-full px-1.5 py-0.5 text-[0.65rem]'>
+          {logs.length}
+        </Badge>
+        <ChevronDown
+          className={cn(
+            'ml-auto h-4 w-4 text-muted-foreground transition-transform duration-200',
+            isExpanded && 'rotate-180',
+          )}
+        />
+      </button>
+      <div
+        className={cn(
+          'overflow-hidden rounded-3xl border border-dashed border-border/70 bg-background/56 transition-all duration-300 dark:border-border/90 dark:bg-[hsl(var(--surface-panel)/0.52)]',
+          isExpanded ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0',
+        )}
+      >
+        <ul className='space-y-2 p-4 text-sm leading-6 text-muted-foreground'>
+          {logs.map((log) => (
+            <li key={log} className='flex gap-2'>
+              <span className='mt-[0.72rem] h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70' />
+              <span className='break-all font-mono text-[0.8rem]'>{log}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  )
 }
 
 const releaseAccents = [
@@ -136,22 +184,7 @@ export default function ChangelogPage() {
                   </div>
 
                   <div className="grid gap-4 border-t border-border/70 pt-5 dark:border-border/80 lg:grid-cols-[minmax(0,0.82fr)_minmax(17rem,0.55fr)]">
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                        <Waypoints className="h-4 w-4 text-primary" />
-                        原始 log 线索
-                      </div>
-                      <div className="rounded-3xl border border-dashed border-border/70 bg-background/56 p-4 dark:border-border/90 dark:bg-[hsl(var(--surface-panel)/0.52)]">
-                        <ul className="space-y-2 text-sm leading-6 text-muted-foreground">
-                          {release.sourceLogs.map((log) => (
-                            <li key={`${release.version}-${log}`} className="flex gap-2">
-                              <span className="mt-[0.72rem] h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70" />
-                              <span>{log}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
+                    <SourceLogsSection logs={release.sourceLogs} />
 
                     <div className="space-y-3">
                       <div className="flex items-center gap-2 text-sm font-medium text-foreground">

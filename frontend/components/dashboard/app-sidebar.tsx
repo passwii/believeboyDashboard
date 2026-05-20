@@ -144,7 +144,6 @@ const primaryGroups: NavGroup[] = [
     activeIconAccent: 'rgba(255,255,255,0.95)',
     items: [
       { title: '广告管理', url: '/dashboard/data-management/ad-upload' },
-      // { title: '报表上传', url: '/dashboard/data-management/report-upload' }, // 后端保留，前端临时隐藏
       {
         title: '发货管理',
         url: '/dashboard/data-management/shipment-management',
@@ -155,8 +154,8 @@ const primaryGroups: NavGroup[] = [
         url: '/dashboard/data-management/report-reconciliation',
       },
       { title: '汇率信息', url: '/dashboard/data-management/exchange-rate' },
-      { title: '报表自动化', url: '/dashboard/data-management/auto-upload' },
       { title: '平台回款', url: '/dashboard/data-management/platform-revenue' },
+      { title: '报表自动化', url: '/dashboard/data-management/auto-upload' },
     ],
   },
 
