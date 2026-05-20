@@ -1,6 +1,7 @@
 'use client'
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyTableState } from '@/components/ui/empty-state'
 import { formatUsd, formatRmb, formatPercent } from './utils'
 
@@ -22,7 +23,34 @@ interface MonthlySummaryTabProps {
   loading: boolean
 }
 
-export function MonthlySummaryTab({ items, year, loading }: MonthlySummaryTabProps) {
+// 骨架屏行
+function MonthlySummarySkeletonRow() {
+  return (
+    <TableRow className="animate-pulse">
+      <TableCell>
+        <Skeleton className="h-5 w-16" />
+      </TableCell>
+      <TableCell className="text-right">
+        <Skeleton className="ml-auto h-5 w-20" />
+      </TableCell>
+      <TableCell className="text-right">
+        <Skeleton className="ml-auto h-5 w-20" />
+      </TableCell>
+      <TableCell className="text-right">
+        <Skeleton className="ml-auto h-5 w-20" />
+      </TableCell>
+      <TableCell className="text-right">
+        <Skeleton className="ml-auto h-5 w-20" />
+      </TableCell>
+      <TableCell className="text-right">
+        <Skeleton className="ml-auto h-5 w-16" />
+      </TableCell>
+    </TableRow>
+  )
+}
+
+// 骨架屏内容
+function MonthlySummarySkeletonContent() {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit]">
       <div className="flex-1 overflow-auto">
@@ -38,26 +66,63 @@ export function MonthlySummaryTab({ items, year, loading }: MonthlySummaryTabPro
             </TableRow>
           </TableHeader>
           <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground">加载中...</TableCell>
-              </TableRow>
-            ) : items.length === 0 ? (
-              <EmptyTableState colSpan={6} message={`${year}年暂无数据`} />
-            ) : (
-              items.map((item) => (
-                <TableRow key={item.report_month}>
-                  <TableCell className="font-medium">{item.report_month}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatUsd(item.income_total_usd)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatUsd(item.factory_commission_usd)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatRmb(item.factory_commission_rmb)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatRmb(item.received_rmb)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatPercent(item.receive_rate)}</TableCell>
-                </TableRow>
-              ))
-            )}
+            {Array.from({ length: 12 }).map((_, i) => (
+              <MonthlySummarySkeletonRow key={i} />
+            ))}
           </TableBody>
         </Table>
+      </div>
+    </div>
+  )
+}
+
+export function MonthlySummaryTab({ items, year, loading }: MonthlySummaryTabProps) {
+  return (
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit]">
+      {/* 骨架屏层 */}
+      <div
+        className="absolute inset-0 transition-opacity duration-200"
+        style={{ opacity: loading ? 1 : 0, pointerEvents: loading ? 'auto' : 'none' }}
+        aria-hidden={!loading}
+      >
+        <MonthlySummarySkeletonContent />
+      </div>
+
+      {/* 内容层 */}
+      <div
+        className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit] transition-opacity duration-200"
+        style={{ opacity: loading ? 0 : 1 }}
+      >
+        <div className="flex-1 overflow-auto">
+          <Table className={FULL_BLEED_TABLE_CLASS} containerClassName={FULL_BLEED_TABLE_CONTAINER_CLASS}>
+            <TableHeader className="bg-slate-100/80 dark:bg-slate-900/45 sticky top-0 z-10">
+              <TableRow>
+                <TableHead className="font-semibold text-foreground">月份</TableHead>
+                <TableHead className="text-right font-semibold text-foreground">销售收入(USD)</TableHead>
+                <TableHead className="text-right font-semibold text-foreground">工厂佣金(USD)</TableHead>
+                <TableHead className="text-right font-semibold text-foreground">工厂佣金(RMB)</TableHead>
+                <TableHead className="text-right font-semibold text-foreground">已回款(RMB)</TableHead>
+                <TableHead className="text-right font-semibold text-foreground">回款率</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {items.length === 0 ? (
+                <EmptyTableState colSpan={6} message={`${year}年暂无数据`} />
+              ) : (
+                items.map((item) => (
+                  <TableRow key={item.report_month}>
+                    <TableCell className="font-medium">{item.report_month}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatUsd(item.income_total_usd)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatUsd(item.factory_commission_usd)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatRmb(item.factory_commission_rmb)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatRmb(item.received_rmb)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatPercent(item.receive_rate)}</TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
     </div>
   )

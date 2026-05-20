@@ -42,6 +42,7 @@ WATCH_ROOT = _resolve_watch_root()
 # All project folder names (must match projects.project_name in the DB)
 PROJECTS = [
     "润茗",
+    "博朗姆",
     "金石",
     "弥森",
     "卡斯摩",
@@ -52,7 +53,6 @@ PROJECTS = [
     "华洋泛航",
     "玥涵",
     "博智1店",
-    "宝勒1店",
     "博智2店",
     "犀牛",
 ]

@@ -1,10 +1,11 @@
 'use client'
 
 import * as React from 'react'
-import { useCallback } from 'react'
+import { useCallback, useMemo, useState, useEffect, useRef } from 'react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyTableState } from '@/components/ui/empty-state'
 import {
   type CommissionProjectMonth,
@@ -37,6 +38,86 @@ interface DetailTabProps {
   onUpdateReceivedAmount: (row: CommissionProjectMonth) => void
 }
 
+// 骨架屏行
+function DetailSkeletonRow({ isProjectRow = false }: { isProjectRow?: boolean }) {
+  if (isProjectRow) {
+    return (
+      <TableRow className="bg-slate-50/50">
+        <TableCell colSpan={6} className="py-2">
+          <Skeleton className="h-4 w-24" />
+        </TableCell>
+      </TableRow>
+    )
+  }
+
+  return (
+    <TableRow className="animate-pulse">
+      <TableCell>
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-2 w-2 rounded-full" />
+          <Skeleton className="h-4 w-12" />
+        </div>
+      </TableCell>
+      <TableCell className="text-right">
+        <Skeleton className="ml-auto h-5 w-20" />
+      </TableCell>
+      <TableCell className="text-right">
+        <Skeleton className="ml-auto h-5 w-16" />
+      </TableCell>
+      <TableCell className="text-right">
+        <Skeleton className="ml-auto h-5 w-20" />
+      </TableCell>
+      <TableCell className="text-right">
+        <Skeleton className="ml-auto h-9 w-[150px]" />
+      </TableCell>
+      <TableCell>
+        <Skeleton className="h-9 w-[140px]" />
+      </TableCell>
+    </TableRow>
+  )
+}
+
+// 骨架屏内容
+function DetailSkeletonContent() {
+  // 模拟常见的项目结构：2个项目，每个3个站点 + 1个项目单独US
+  const rows = [
+    { type: 'project' as const, name: '项目A' },
+    { type: 'site' as const },
+    { type: 'site' as const },
+    { type: 'site' as const },
+    { type: 'project' as const, name: '项目B' },
+    { type: 'site' as const },
+    { type: 'single' as const },
+  ]
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit]">
+      <div className="flex-1 overflow-auto">
+        <Table className={FULL_BLEED_TABLE_CLASS} containerClassName={FULL_BLEED_TABLE_CONTAINER_CLASS}>
+          <TableHeader className="sticky top-0 z-10 bg-slate-100/80 dark:bg-slate-900/45">
+            <TableRow>
+              <TableHead className="font-semibold text-foreground">项目</TableHead>
+              <TableHead className="text-right font-semibold text-foreground">销售收入(USD)</TableHead>
+              <TableHead className="text-right font-semibold text-foreground">佣金比例</TableHead>
+              <TableHead className="text-right font-semibold text-foreground">工厂佣金(USD)</TableHead>
+              <TableHead className="text-right font-semibold text-foreground">已回款(RMB)</TableHead>
+              <TableHead className="font-semibold text-foreground">回款状态</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((row, i) => (
+              <DetailSkeletonRow
+                key={i}
+                isProjectRow={row.type === 'project'}
+              />
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  )
+}
+
 export function DetailTab({
   projectGroups,
   exchangeRates,
@@ -48,6 +129,41 @@ export function DetailTab({
   onUpdatePaymentStatus,
   onUpdateReceivedAmount,
 }: DetailTabProps) {
+  const [isTransitioning, setIsTransitioning] = useState(false)
+  const [displayData, setDisplayData] = useState(projectGroups)
+  const prevLoadingRef = useRef(loading)
+  const transitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // 处理过渡动画
+  useEffect(() => {
+    // 从加载完成变为加载中
+    if (prevLoadingRef.current && !loading) {
+      // 加载完成 - 立即显示新数据，不做过渡（数据已刷新）
+    } else if (!prevLoadingRef.current && loading) {
+      // 开始加载 - 如果需要可以添加视觉反馈
+    }
+
+    prevLoadingRef.current = loading
+
+    // 清理定时器
+    return () => {
+      if (transitionTimerRef.current) {
+        clearTimeout(transitionTimerRef.current)
+      }
+    }
+  }, [loading])
+
+  // 数据更新时平滑过渡
+  useEffect(() => {
+    if (!loading && projectGroups !== displayData) {
+      setIsTransitioning(true)
+      transitionTimerRef.current = setTimeout(() => {
+        setDisplayData(projectGroups)
+        setIsTransitioning(false)
+      }, 200)
+    }
+  }, [loading, projectGroups, displayData])
+
   const getCommissionRatioLabel = useCallback((row: CommissionProjectMonth): string => {
     const projectMeta = projectMetaById[row.project_id]
     if (!projectMeta) {
@@ -156,47 +272,58 @@ export function DetailTab({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit]">
-      <div className="flex-1 overflow-auto">
-        <Table className={FULL_BLEED_TABLE_CLASS} containerClassName={FULL_BLEED_TABLE_CONTAINER_CLASS}>
-          <TableHeader className="sticky top-0 z-10 bg-slate-100/80 dark:bg-slate-900/45">
-            <TableRow>
-              <TableHead className="font-semibold text-foreground">项目</TableHead>
-              <TableHead className="text-right font-semibold text-foreground">销售收入(USD)</TableHead>
-              <TableHead className="text-right font-semibold text-foreground">佣金比例</TableHead>
-              <TableHead className="text-right font-semibold text-foreground">工厂佣金(USD)</TableHead>
-              <TableHead className="text-right font-semibold text-foreground">已回款(RMB)</TableHead>
-              <TableHead className="font-semibold text-foreground">回款状态</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground">加载中...</TableCell>
-              </TableRow>
-            ) : projectGroups.length === 0 ? (
-              <EmptyTableState colSpan={6} message="当前月份暂无数据，请先刷新核算" />
-            ) : (
-              projectGroups.map((group) => {
-                if (group.isSingleUS) {
-                  const site = group.sites[0]
-                  return renderSiteRow(site, group.projectName)
-                }
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit]">
+      {/* 骨架屏层 */}
+      <div
+        className="absolute inset-0 transition-opacity duration-200"
+        style={{ opacity: loading ? 1 : 0, pointerEvents: loading ? 'auto' : 'none' }}
+        aria-hidden={!loading}
+      >
+        <DetailSkeletonContent />
+      </div>
 
-                return (
-                  <React.Fragment key={`group-${group.projectId}`}>
-                    <TableRow className="bg-slate-50/50">
-                      <TableCell colSpan={6} className="py-2 text-sm font-medium text-muted-foreground">
-                        {group.projectName}
-                      </TableCell>
-                    </TableRow>
-                    {group.sites.map(site => renderSiteRow(site))}
-                  </React.Fragment>
-                )
-              })
-            )}
-          </TableBody>
-        </Table>
+      {/* 内容层 */}
+      <div
+        className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit] transition-opacity duration-200"
+        style={{ opacity: loading ? 0 : 1 }}
+      >
+        <div className="flex-1 overflow-auto">
+          <Table className={FULL_BLEED_TABLE_CLASS} containerClassName={FULL_BLEED_TABLE_CONTAINER_CLASS}>
+            <TableHeader className="sticky top-0 z-10 bg-slate-100/80 dark:bg-slate-900/45">
+              <TableRow>
+                <TableHead className="font-semibold text-foreground">项目</TableHead>
+                <TableHead className="text-right font-semibold text-foreground">销售收入(USD)</TableHead>
+                <TableHead className="text-right font-semibold text-foreground">佣金比例</TableHead>
+                <TableHead className="text-right font-semibold text-foreground">工厂佣金(USD)</TableHead>
+                <TableHead className="text-right font-semibold text-foreground">已回款(RMB)</TableHead>
+                <TableHead className="font-semibold text-foreground">回款状态</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {projectGroups.length === 0 ? (
+                <EmptyTableState colSpan={6} message="当前月份暂无数据，请先刷新核算" />
+              ) : (
+                displayData.map((group) => {
+                  if (group.isSingleUS) {
+                    const site = group.sites[0]
+                    return renderSiteRow(site, group.projectName)
+                  }
+
+                  return (
+                    <React.Fragment key={`group-${group.projectId}`}>
+                      <TableRow className="bg-slate-50/50">
+                        <TableCell colSpan={6} className="py-2 text-sm font-medium text-muted-foreground">
+                          {group.projectName}
+                        </TableCell>
+                      </TableRow>
+                      {group.sites.map(site => renderSiteRow(site))}
+                    </React.Fragment>
+                  )
+                })
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
     </div>
   )
