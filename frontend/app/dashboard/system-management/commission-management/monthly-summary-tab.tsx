@@ -52,8 +52,8 @@ function MonthlySummarySkeletonRow() {
 // 骨架屏内容
 function MonthlySummarySkeletonContent() {
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit]">
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit]">
+      <div className="flex-1 overflow-auto">
         <Table className={FULL_BLEED_TABLE_CLASS} containerClassName={FULL_BLEED_TABLE_CONTAINER_CLASS}>
           <TableHeader className="bg-slate-100/80 dark:bg-slate-900/45 sticky top-0 z-10">
             <TableRow>
@@ -93,7 +93,7 @@ export function MonthlySummaryTab({ items, year, loading }: MonthlySummaryTabPro
         className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit] transition-opacity duration-200"
         style={{ opacity: loading ? 0 : 1 }}
       >
-        <div className="flex-1 overflow-auto p-6">
+        <div className="flex-1 overflow-auto">
           <Table className={FULL_BLEED_TABLE_CLASS} containerClassName={FULL_BLEED_TABLE_CONTAINER_CLASS}>
             <TableHeader className="bg-slate-100/80 dark:bg-slate-900/45 sticky top-0 z-10">
               <TableRow>
