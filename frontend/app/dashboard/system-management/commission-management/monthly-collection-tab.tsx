@@ -75,7 +75,8 @@ export function MonthlyCollectionTab({ items, year, loading }: MonthlyCollection
             {getYearMonths(year).flatMap((m) =>
               SITE_ORDER.map((site) => (
                 <TableHead key={`${m}-${site}`} className="z-10 bg-slate-100/70 text-center text-xs whitespace-nowrap">
-                  {SITE_INFO[site].flag} {site}
+                  <span className={`inline-block h-1.5 w-1.5 rounded-full ${SITE_INFO[site].dotClass} mr-1`} />
+                  {SITE_INFO[site].label}
                 </TableHead>
               ))
             )}

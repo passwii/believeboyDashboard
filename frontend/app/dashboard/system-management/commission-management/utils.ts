@@ -7,10 +7,10 @@ export const COUNTRY_TO_CURRENCY: Record<SiteCode, string> = {
   UK: 'GBP',
 }
 
-export const SITE_INFO: Record<SiteCode, { flag: string; label: string }> = {
-  US: { flag: '🇺🇸', label: '美国站' },
-  DE: { flag: '🇩🇪', label: '德国站' },
-  UK: { flag: '🇬🇧', label: '英国站' },
+export const SITE_INFO: Record<SiteCode, { label: string; dotClass: string }> = {
+  US: { label: 'US', dotClass: 'bg-blue-500' },
+  DE: { label: 'DE', dotClass: 'bg-purple-500' },
+  UK: { label: 'UK', dotClass: 'bg-green-500' },
 }
 
 export const SITE_BORDER_COLORS: Record<SiteCode, string> = {
