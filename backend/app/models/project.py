@@ -47,3 +47,4 @@ class Project(Base):
     )
 
     sku_records: Mapped[list["SkuRecord"]] = relationship(back_populates="project")
+    platform_revenues: Mapped[list["PlatformRevenue"]] = relationship(back_populates="project")
