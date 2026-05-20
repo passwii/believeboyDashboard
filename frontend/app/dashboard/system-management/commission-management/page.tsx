@@ -106,7 +106,6 @@ export default function CommissionManagementPage() {
   const [month, setMonth] = useState(lastMonthString())
   const [summaryYear, setSummaryYear] = useState(getCurrentYear())
   const [activeTab, setActiveTab] = useState<CommissionViewTab>('detail')
-  const [site, setSite] = useState<'US' | 'DE' | 'UK'>('US')
 
   const [loading, setLoading] = useState(true)
   const [summaryLoading, setSummaryLoading] = useState(false)
@@ -336,7 +335,7 @@ export default function CommissionManagementPage() {
       const response = await fetch(`${API_BASE}/api/v1/system-management/commission-management/recompute`, {
         method: 'POST',
         headers: buildBackendHeaders(session, { contentType: 'application/json' }),
-        body: JSON.stringify({ report_month: month, country: site }),
+        body: JSON.stringify({ report_month: month }),
       })
       if (!response.ok) {
         throw new Error(parseErrorBody(await response.text(), response.status))
