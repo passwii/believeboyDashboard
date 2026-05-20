@@ -5,7 +5,8 @@ import { clearClientCacheByPrefix, getClientCache, setClientCache } from '@/lib/
 import { normalizeErrorMessage } from '@/lib/error-utils'
 
 const PROJECT_CACHE_PREFIX = 'projects:'
-const PROJECTS_CACHE_TTL_MS = 10 * 60 * 1000
+// TTL: 2 minutes — balances UX (avoid频繁刷新) vs权限变更感知
+const PROJECTS_CACHE_TTL_MS = 2 * 60 * 1000
 
 function normalizeScopePart(value: string | null | undefined): string {
   return (value || '').trim() || 'none'

@@ -629,6 +629,10 @@ export default function PlatformRevenuePage() {
           revenue.revenue_type || '订单回款',
           revenue.note || '',
         ]
+        // 设置默认字体（Microsoft YaHei），后续条件样式会覆盖
+        for (let col = 1; col <= 7; col++) {
+          row.getCell(col).font = { name: 'Microsoft YaHei', color: { argb: 'FF0F172A' } }
+        }
         row.getCell(1).alignment = { horizontal: 'left' }
         row.getCell(2).alignment = { horizontal: 'left' }
         row.getCell(3).alignment = { horizontal: 'center' }
@@ -707,10 +711,10 @@ export default function PlatformRevenuePage() {
         '',
         '',
       ]
-      totalRow.getCell(1).font = { name: 'Microsoft YaHei', bold: true }
+      for (let col = 1; col <= 7; col++) {
+        totalRow.getCell(col).font = { name: 'Microsoft YaHei', bold: true }
+      }
       totalRow.getCell(4).numFmt = '#,##0.00'
-      totalRow.getCell(4).font = { name: 'Microsoft YaHei', bold: true }
-      totalRow.getCell(5).font = { name: 'Microsoft YaHei', bold: true }
 
       // 为合计行添加浅色背景
       for (let col = 1; col <= 7; col++) {
