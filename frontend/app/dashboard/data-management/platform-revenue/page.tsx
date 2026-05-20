@@ -138,6 +138,98 @@ const formatTotals = (totals: Record<string, number>) => {
     .join(' | ')
 }
 
+// 币种 Badge 元数据
+const getCurrencyBadgeMeta = (currency: string) => {
+  const normalizedCurrency = currency.trim().toUpperCase()
+  switch (normalizedCurrency) {
+    case 'USD':
+      return {
+        symbol: '$',
+        accent: '美元',
+        className: 'border-emerald-300 bg-gradient-to-r from-emerald-50 via-emerald-100 to-lime-100 text-emerald-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-emerald-800 dark:from-emerald-950 dark:via-emerald-900 dark:to-lime-950 dark:text-emerald-100',
+      }
+    case 'GBP':
+      return {
+        symbol: '£',
+        accent: '英镑',
+        className: 'border-amber-300 bg-gradient-to-r from-amber-50 via-amber-100 to-yellow-100 text-amber-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-amber-800 dark:from-amber-950 dark:via-amber-900 dark:to-yellow-950 dark:text-amber-100',
+      }
+    case 'EUR':
+      return {
+        symbol: '€',
+        accent: '欧元',
+        className: 'border-sky-300 bg-gradient-to-r from-sky-50 via-blue-100 to-indigo-100 text-sky-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-sky-800 dark:from-sky-950 dark:via-blue-950 dark:to-indigo-950 dark:text-sky-100',
+      }
+    default:
+      return {
+        symbol: '¤',
+        accent: '其他货币',
+        className: 'border-border/70 bg-[hsl(var(--surface-subtle))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))] dark:text-foreground',
+      }
+  }
+}
+
+// 站点 Badge 元数据
+const getCountryBadgeMeta = (country: string) => {
+  const normalizedCountry = country.trim().toUpperCase()
+  switch (normalizedCountry) {
+    case 'US':
+      return {
+        symbol: '🇺🇸',
+        accent: '美国',
+        className: 'border-rose-300 bg-gradient-to-r from-rose-50 via-red-100 to-orange-100 text-rose-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-rose-800 dark:from-rose-950 dark:via-red-950 dark:to-orange-950 dark:text-rose-100',
+      }
+    case 'UK':
+      return {
+        symbol: '🇬🇧',
+        accent: '英国',
+        className: 'border-violet-300 bg-gradient-to-r from-violet-50 via-purple-100 to-fuchsia-100 text-violet-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-violet-800 dark:from-violet-950 dark:via-purple-950 dark:to-fuchsia-950 dark:text-violet-100',
+      }
+    case 'DE':
+      return {
+        symbol: '🇩🇪',
+        accent: '德国',
+        className: 'border-cyan-300 bg-gradient-to-r from-cyan-50 via-blue-100 to-indigo-100 text-cyan-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-cyan-800 dark:from-cyan-950 dark:via-blue-950 dark:to-indigo-950 dark:text-cyan-100',
+      }
+    case 'CA':
+      return {
+        symbol: '🇨🇦',
+        accent: '加拿大',
+        className: 'border-emerald-300 bg-gradient-to-r from-emerald-50 via-teal-100 to-cyan-100 text-emerald-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-emerald-800 dark:from-emerald-950 dark:via-teal-950 dark:to-cyan-950 dark:text-emerald-100',
+      }
+    case 'JP':
+      return {
+        symbol: '🇯🇵',
+        accent: '日本',
+        className: 'border-pink-300 bg-gradient-to-r from-pink-50 via-rose-100 to-fuchsia-100 text-pink-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-pink-800 dark:from-pink-950 dark:via-rose-950 dark:to-fuchsia-950 dark:text-pink-100',
+      }
+    case 'AU':
+      return {
+        symbol: '🇦🇺',
+        accent: '澳大利亚',
+        className: 'border-orange-300 bg-gradient-to-r from-orange-50 via-amber-100 to-yellow-100 text-orange-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-orange-800 dark:from-orange-950 dark:via-amber-950 dark:to-yellow-950 dark:text-orange-100',
+      }
+    case 'MX':
+      return {
+        symbol: '🇲🇽',
+        accent: '墨西哥',
+        className: 'border-teal-300 bg-gradient-to-r from-teal-50 via-cyan-100 to-sky-100 text-teal-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-teal-800 dark:from-teal-950 dark:via-cyan-950 dark:to-sky-950 dark:text-teal-100',
+      }
+    case 'BR':
+      return {
+        symbol: '🇧🇷',
+        accent: '巴西',
+        className: 'border-lime-300 bg-gradient-to-r from-lime-50 via-green-100 to-emerald-100 text-lime-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-lime-800 dark:from-lime-950 dark:via-green-950 dark:to-emerald-950 dark:text-lime-100',
+      }
+    default:
+      return {
+        symbol: '🏳️',
+        accent: '其他',
+        className: 'border-border/70 bg-[hsl(var(--surface-subtle))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))] dark:text-foreground',
+      }
+  }
+}
+
 export default function PlatformRevenuePage() {
   const { notify } = useNotifications()
   const { data: session } = useSession()
@@ -171,13 +263,14 @@ export default function PlatformRevenuePage() {
   // 表单状态
   const [formData, setFormData] = useState({
     project_id: '',
-    country: '',
+    country: 'US',
     received_date: null as Date | null,
     amount: '',
     currency: 'USD',
     revenue_type: '订单回款',
     note: '',
     attachments: [] as Attachment[],
+    currencyLocked: true,
   })
 
   // 导出状态
@@ -278,6 +371,7 @@ export default function PlatformRevenuePage() {
       revenue_type: '订单回款',
       note: '',
       attachments: [],
+      currencyLocked: true,
     })
     setDialogOpen(true)
   }
@@ -285,6 +379,9 @@ export default function PlatformRevenuePage() {
   // 打开编辑弹窗
   const handleEdit = (revenue: PlatformRevenue) => {
     setEditingRevenue(revenue)
+    // 编辑时根据当前站点判断是否锁定币种
+    const lockedCountries = ['US', 'UK', 'DE']
+    const isCurrencyLocked = lockedCountries.includes(revenue.country)
     setFormData({
       project_id: revenue.project_id.toString(),
       country: revenue.country,
@@ -294,6 +391,7 @@ export default function PlatformRevenuePage() {
       revenue_type: revenue.revenue_type || '订单回款',
       note: revenue.note || '',
       attachments: revenue.attachments || [],
+      currencyLocked: isCurrencyLocked,
     })
     setDialogOpen(true)
   }
@@ -540,6 +638,50 @@ export default function PlatformRevenuePage() {
         row.getCell(6).alignment = { horizontal: 'center' }
         row.getCell(7).alignment = { horizontal: 'left' }
 
+        // 为回款类型单元格添加颜色
+        const revenueType = revenue.revenue_type || '订单回款'
+        const typeCell = row.getCell(6)
+        if (revenueType === 'B2B回款') {
+          typeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEDE9FE' } }
+          typeCell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF6B21A8' } }
+        } else {
+          typeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDBEAFE' } }
+          typeCell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF1E40AF' } }
+        }
+
+        // 为站点单元格添加颜色
+        const countryCell = row.getCell(3)
+        const countryMeta = getCountryBadgeMeta(revenue.country)
+        if (countryMeta.symbol !== '🏳️') {
+          const countryColorMap: Record<string, { bg: string; fg: string }> = {
+            '🇺🇸': { bg: 'FFF1F2', fg: 'BE123C' },
+            '🇬🇧': { bg: 'FAF5FF', fg: '7E22CE' },
+            '🇩🇪': { bg: 'ECFEFF', fg: '0369A1' },
+            '🇨🇦': { bg: 'ECFDF5', fg: '047857' },
+            '🇯🇵': { bg: 'FFF1F2', fg: 'BE123C' },
+            '🇦🇺': { bg: 'FFFBEB', fg: 'B45309' },
+            '🇲🇽': { bg: 'F0FDFA', fg: '0D9488' },
+            '🇧🇷': { bg: 'F0FDF4', fg: '15803D' },
+          }
+          const countryColors = countryColorMap[countryMeta.symbol] || { bg: 'F8FAFC', fg: '64748B' }
+          countryCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: countryColors.bg } }
+          countryCell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: countryColors.fg } }
+        }
+
+        // 为币种单元格添加颜色
+        const currencyCell = row.getCell(5)
+        const currencyMeta = getCurrencyBadgeMeta(revenue.currency)
+        if (currencyMeta.symbol !== '¤') {
+          const currencyColorMap: Record<string, { bg: string; fg: string }> = {
+            '$': { bg: 'ECFDF5', fg: '047857' },
+            '£': { bg: 'FFFBEB', fg: 'B45309' },
+            '€': { bg: 'F0F9FF', fg: '0369A1' },
+          }
+          const currencyColors = currencyColorMap[currencyMeta.symbol] || { bg: 'F8FAFC', fg: '64748B' }
+          currencyCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: currencyColors.bg } }
+          currencyCell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: currencyColors.fg } }
+        }
+
         // 添加边框
         for (let col = 1; col <= 7; col++) {
           const cell = row.getCell(col)
@@ -771,20 +913,48 @@ export default function PlatformRevenuePage() {
                       </TableCell>
                       <TableCell className="font-medium">{revenue.project_name}</TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="font-mono text-xs">
-                          {revenue.country}
-                        </Badge>
+                        {(() => {
+                          const badgeMeta = getCountryBadgeMeta(revenue.country)
+                          return (
+                            <Badge
+                              className={cn(
+                                "gap-1 rounded-full px-2 py-0.5 font-mono text-[11px] font-bold tracking-[0.1em]",
+                                badgeMeta.className
+                              )}
+                              title={`${revenue.country} - ${badgeMeta.accent}`}
+                            >
+                              <span className="text-sm leading-none">{badgeMeta.symbol}</span>
+                              <span>{revenue.country}</span>
+                            </Badge>
+                          )
+                        })()}
                       </TableCell>
                       <TableCell className="text-right font-mono text-sm font-medium">
                         {formatCurrency(revenue.amount, revenue.currency)}
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="font-mono text-xs">
-                          {revenue.currency}
-                        </Badge>
+                        {(() => {
+                          const badgeMeta = getCurrencyBadgeMeta(revenue.currency)
+                          return (
+                            <Badge
+                              className={cn(
+                                "gap-1 rounded-full px-2 py-0.5 font-mono text-[11px] font-bold tracking-[0.1em]",
+                                badgeMeta.className
+                              )}
+                              title={`${revenue.currency} - ${badgeMeta.accent}`}
+                            >
+                              <span className="text-sm leading-none">{badgeMeta.symbol}</span>
+                              <span>{revenue.currency}</span>
+                            </Badge>
+                          )
+                        })()}
                       </TableCell>
                       <TableCell>
-                        <Badge variant="secondary" className="text-xs">
+                        <Badge className={`text-xs ${
+                          revenue.revenue_type === 'B2B回款'
+                            ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
+                            : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+                        }`}>
                           {revenue.revenue_type || '订单回款'}
                         </Badge>
                       </TableCell>
@@ -920,7 +1090,13 @@ export default function PlatformRevenuePage() {
                 <Select
                   value={formData.project_id}
                   onValueChange={(value) => {
-                    setFormData((prev) => ({ ...prev, project_id: value, country: '' }))
+                    setFormData((prev) => ({
+                      ...prev,
+                      project_id: value,
+                      country: 'US',
+                      currency: 'USD',
+                      currencyLocked: true,
+                    }))
                   }}
                 >
                   <SelectTrigger id="project" className="w-full dark:bg-[hsl(var(--surface-soft))]">
@@ -941,7 +1117,22 @@ export default function PlatformRevenuePage() {
                 </Label>
                 <Select
                   value={formData.country}
-                  onValueChange={(value) => setFormData((prev) => ({ ...prev, country: value }))}
+                  onValueChange={(value) => {
+                    const currencyMap: Record<string, string> = {
+                      'US': 'USD',
+                      'UK': 'GBP',
+                      'DE': 'EUR',
+                    }
+                    const newCurrency = currencyMap[value] || formData.currency
+                    const isLocked = !!currencyMap[value]
+
+                    setFormData((prev) => ({
+                      ...prev,
+                      country: value,
+                      currency: newCurrency,
+                      currencyLocked: isLocked,
+                    }))
+                  }}
                   disabled={!formData.project_id}
                 >
                   <SelectTrigger id="country" className="w-full dark:bg-[hsl(var(--surface-soft))]">
@@ -1017,7 +1208,12 @@ export default function PlatformRevenuePage() {
                 </Label>
                 <Select
                   value={formData.currency}
-                  onValueChange={(value) => setFormData((prev) => ({ ...prev, currency: value }))}
+                  onValueChange={(value) => {
+                    if (!formData.currencyLocked) {
+                      setFormData((prev) => ({ ...prev, currency: value }))
+                    }
+                  }}
+                  disabled={formData.currencyLocked}
                 >
                   <SelectTrigger id="currency" className="w-full dark:bg-[hsl(var(--surface-soft))]">
                     <SelectValue />

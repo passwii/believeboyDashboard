@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import PlatformRevenue, Project
+from app.services import project_service
 
 
 def list_revenues(
@@ -21,11 +22,48 @@ def list_revenues(
     month: int | None = None,
     country: str | None = None,
     currency: str | None = None,
+    operator: str | None = None,
+    is_admin: bool = False,
 ) -> tuple[list[PlatformRevenue], int]:
-    """List platform revenues with filtering and pagination."""
+    """List platform revenues with filtering and pagination.
+
+    Args:
+        db: Database session
+        page: Page number (1-indexed)
+        page_size: Number of items per page
+        project_id: Filter by project ID
+        year: Filter by year
+        month: Filter by month
+        country: Filter by country
+        currency: Filter by currency
+        operator: Current operator name (for permission check)
+        is_admin: Whether current user is admin
+
+    Returns:
+        Tuple of (rows, total_count)
+    """
+    # Get accessible project IDs based on permissions
+    accessible_project_ids = project_service.list_accessible_project_ids(
+        db, operator=operator, is_admin=is_admin
+    )
+
+    # If user has no accessible projects (non-admin without operator or no projects), return empty
+    if accessible_project_ids is not None and len(accessible_project_ids) == 0:
+        return [], 0
+
     stmt = select(PlatformRevenue)
 
+    # Apply permission-based project filter for non-admin users
+    if accessible_project_ids is not None:
+        stmt = stmt.where(PlatformRevenue.project_id.in_(accessible_project_ids))
+
     if project_id is not None:
+        # Validate project_id access for non-admin users
+        if accessible_project_ids is not None and project_id not in accessible_project_ids:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="无权限访问该项目",
+            )
         stmt = stmt.where(PlatformRevenue.project_id == project_id)
 
     if year is not None:
@@ -40,8 +78,13 @@ def list_revenues(
     if currency is not None:
         stmt = stmt.where(PlatformRevenue.currency == currency)
 
-    # Get total count
+    # Get total count with permission filter
     count_stmt = select(func.count(PlatformRevenue.id))
+    if accessible_project_ids is not None:
+        count_stmt = count_stmt.where(PlatformRevenue.project_id.in_(accessible_project_ids))
+    if project_id is not None:
+        count_stmt = count_stmt.where(PlatformRevenue.project_id == project_id)
+
     total = db.execute(count_stmt).scalar_one()
 
     # Apply pagination and ordering
@@ -55,8 +98,13 @@ def list_revenues(
     return rows, total
 
 
-def get_revenue(db: Session, revenue_id: int) -> PlatformRevenue:
-    """Get a single platform revenue by ID."""
+def get_revenue(
+    db: Session,
+    revenue_id: int,
+    operator: str | None = None,
+    is_admin: bool = False,
+) -> PlatformRevenue:
+    """Get a single platform revenue by ID with permission check."""
     row = db.execute(
         select(PlatformRevenue).where(PlatformRevenue.id == revenue_id)
     ).scalars().first()
@@ -66,6 +114,17 @@ def get_revenue(db: Session, revenue_id: int) -> PlatformRevenue:
             status_code=status.HTTP_404_NOT_FOUND,
             detail="回款记录不存在",
         )
+
+    # Check permission for non-admin users
+    accessible_project_ids = project_service.list_accessible_project_ids(
+        db, operator=operator, is_admin=is_admin
+    )
+    if accessible_project_ids is not None and row.project_id not in accessible_project_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="无权限访问该回款记录",
+        )
+
     return row
 
 
@@ -82,8 +141,9 @@ def create_revenue(
     note: str | None = None,
     attachments: list[dict[str, Any]] | None = None,
     operator: str | None = None,
+    is_admin: bool = False,
 ) -> PlatformRevenue:
-    """Create a new platform revenue record."""
+    """Create a new platform revenue record with permission check."""
     # Verify project exists
     project = db.execute(
         select(Project).where(Project.id == project_id)
@@ -93,6 +153,16 @@ def create_revenue(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="项目不存在",
+        )
+
+    # Check permission for non-admin users
+    accessible_project_ids = project_service.list_accessible_project_ids(
+        db, operator=operator, is_admin=is_admin
+    )
+    if accessible_project_ids is not None and project_id not in accessible_project_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="无权限在该项目下创建回款",
         )
 
     row = PlatformRevenue(
@@ -125,9 +195,11 @@ def update_revenue(
     revenue_type: str | None = None,
     note: str | None = None,
     attachments: list[dict[str, Any]] | None = None,
+    operator: str | None = None,
+    is_admin: bool = False,
 ) -> PlatformRevenue:
-    """Update an existing platform revenue record."""
-    row = get_revenue(db, revenue_id)
+    """Update an existing platform revenue record with permission check."""
+    row = get_revenue(db, revenue_id, operator=operator, is_admin=is_admin)
 
     if country is not None:
         row.country = country
@@ -151,9 +223,14 @@ def update_revenue(
     return row
 
 
-def delete_revenue(db: Session, revenue_id: int) -> None:
-    """Delete a platform revenue record."""
-    row = get_revenue(db, revenue_id)
+def delete_revenue(
+    db: Session,
+    revenue_id: int,
+    operator: str | None = None,
+    is_admin: bool = False,
+) -> None:
+    """Delete a platform revenue record with permission check."""
+    row = get_revenue(db, revenue_id, operator=operator, is_admin=is_admin)
     db.delete(row)
     db.flush()
 

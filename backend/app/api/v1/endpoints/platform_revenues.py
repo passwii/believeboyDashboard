@@ -6,11 +6,12 @@ from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, Request, Response, UploadFile, status
 from PIL import Image, ImageOps, UnidentifiedImageError
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, protected
+from app.api.deps import get_db_session, get_request_operator, protected
+from app.services import project_service
 from app.core.config import get_settings
 from app.schemas.platform_revenue import (
     PlatformRevenueAttachment,
@@ -78,6 +79,8 @@ def list_platform_revenues(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=200),
     db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> PlatformRevenueListResponse:
     safe_page = max(page, 1)
     safe_page_size = min(max(page_size, 1), 200)
@@ -91,6 +94,8 @@ def list_platform_revenues(
         month=month,
         country=country,
         currency=currency,
+        operator=operator,
+        is_admin=bool(is_admin),
     )
 
     total_pages = math.ceil(total / safe_page_size) if total > 0 else 1
@@ -105,8 +110,13 @@ def list_platform_revenues(
 
 
 @router.get('/platform-revenues/{revenue_id}', response_model=PlatformRevenueItem)
-def get_platform_revenue(revenue_id: int, db: Session = Depends(get_db_session)) -> PlatformRevenueItem:
-    row = platform_revenue_service.get_revenue(db, revenue_id)
+def get_platform_revenue(
+    revenue_id: int,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
+) -> PlatformRevenueItem:
+    row = platform_revenue_service.get_revenue(db, revenue_id, operator=operator, is_admin=bool(is_admin))
     return _serialize_item(row)
 
 
@@ -115,8 +125,10 @@ def create_platform_revenue(
     request: Request,
     payload: PlatformRevenueCreate,
     db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> PlatformRevenueItem:
-    operator = request.headers.get('X-Operator', 'system')
+    operator_name = request.headers.get('X-Operator', 'system')
 
     # Get project name
     from app.models import Project
@@ -141,7 +153,8 @@ def create_platform_revenue(
         revenue_type=payload.revenue_type,
         note=payload.note,
         attachments=attachments_data,
-        operator=operator,
+        operator=operator_name,
+        is_admin=bool(is_admin),
     )
     db.commit()
 
@@ -151,7 +164,7 @@ def create_platform_revenue(
         action='platform_revenues.create',
         target_type='platform_revenue',
         target_id=row.id,
-        operator=operator,
+        operator=operator_name,
         after={'data': payload.model_dump()},
         request=request,
     )
@@ -166,8 +179,10 @@ def update_platform_revenue(
     revenue_id: int,
     payload: PlatformRevenueUpdate,
     db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> PlatformRevenueItem:
-    operator = request.headers.get('X-Operator', 'system')
+    operator_name = request.headers.get('X-Operator', 'system')
 
     update_data = payload.model_dump(exclude_unset=True)
     if payload.attachments is not None:
@@ -176,6 +191,8 @@ def update_platform_revenue(
     row = platform_revenue_service.update_revenue(
         db,
         revenue_id=revenue_id,
+        operator=operator_name,
+        is_admin=bool(is_admin),
         **update_data,
     )
     db.commit()
@@ -186,7 +203,7 @@ def update_platform_revenue(
         action='platform_revenues.update',
         target_type='platform_revenue',
         target_id=revenue_id,
-        operator=operator,
+        operator=operator_name,
         after={'data': payload.model_dump(exclude_unset=True)},
         request=request,
     )
@@ -200,11 +217,13 @@ def delete_platform_revenue(
     request: Request,
     revenue_id: int,
     db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> Response:
-    operator = request.headers.get('X-Operator', 'system')
+    operator_name = request.headers.get('X-Operator', 'system')
 
-    # Get before state for audit
-    row = platform_revenue_service.get_revenue(db, revenue_id)
+    # Get before state for audit (with permission check)
+    row = platform_revenue_service.get_revenue(db, revenue_id, operator=operator_name, is_admin=bool(is_admin))
     before_data = {
         'id': row.id,
         'project_id': row.project_id,
@@ -215,7 +234,7 @@ def delete_platform_revenue(
         'currency': row.currency,
     }
 
-    platform_revenue_service.delete_revenue(db, revenue_id)
+    platform_revenue_service.delete_revenue(db, revenue_id, operator=operator_name, is_admin=bool(is_admin))
     db.commit()
 
     # Audit log
@@ -224,7 +243,7 @@ def delete_platform_revenue(
         action='platform_revenues.delete',
         target_type='platform_revenue',
         target_id=revenue_id,
-        operator=operator,
+        operator=operator_name,
         before={'data': before_data},
         request=request,
     )
@@ -295,7 +314,14 @@ def get_platform_revenue_image(filename: str) -> Response:
 
 
 @router.get('/platform-revenues/project-countries/{project_id}')
-def get_project_countries(project_id: int, db: Session = Depends(get_db_session)) -> dict:
+def get_project_countries(
+    project_id: int,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
+) -> dict:
     """Get the list of countries (sites) for a project."""
+    # Check permission for non-admin users
+    project_service.ensure_project_access(db, project_id, operator=operator, is_admin=bool(is_admin))
     countries = platform_revenue_service.get_project_countries(db, project_id)
     return {'countries': countries}
