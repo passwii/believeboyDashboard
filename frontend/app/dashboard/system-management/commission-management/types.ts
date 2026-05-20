@@ -1,5 +1,5 @@
 export type PaymentStatus = 'paid' | 'partial' | 'unpaid'
-export type SiteCode = 'US' | 'UK' | 'DE'
+export type SiteCode = 'US' | 'DE' | 'UK'
 export const SITE_ORDER: SiteCode[] = ['US', 'DE', 'UK']
 
 export interface CommissionProjectMonth {
