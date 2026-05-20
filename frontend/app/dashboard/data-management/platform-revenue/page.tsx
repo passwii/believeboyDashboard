@@ -167,8 +167,9 @@ export default function PlatformRevenuePage() {
     try {
       const response = await fetch('/api/backend/api/v1/projects')
       if (response.ok) {
-        const result = await response.json()
-        setProjects(result.data || [])
+        const data = await response.json()
+        const items = Array.isArray(data) ? data : (data.items ?? data.data ?? [])
+        setProjects(items)
       }
     } catch (error) {
       console.error('Error fetching projects:', error)
