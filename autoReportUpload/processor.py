@@ -14,8 +14,13 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+from dotenv import load_dotenv
 from sqlalchemy import insert, select, update as sa_update
 from sqlalchemy.orm import Session
+
+# Load .env before importing backend modules (which may call get_settings() at import time)
+_env_path = Path(__file__).parent / ".env"
+load_dotenv(_env_path)
 
 from config import IS_LOCAL, PROCESSED_SUBDIR
 from models import (
