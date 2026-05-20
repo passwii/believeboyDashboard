@@ -25,7 +25,7 @@ from app.utils.recognition import (
     _read_excel,
 )
 from app.utils.parsers import detect_countries_in_sales_file
-from app.services.payment.locale import read_payment_report_dataframe
+from app.utils.payment_locale import read_payment_report_dataframe
 from app.services.data.upload.project_match import _build_project_match
 
 

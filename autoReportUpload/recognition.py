@@ -29,7 +29,7 @@ if str(_BACKEND_PATH) not in sys.path:
 
 from sqlalchemy.orm import Session
 
-from app.services.payment.locale import read_payment_report_dataframe
+from app.utils.payment_locale import read_payment_report_dataframe
 from app.utils.recognition import (
     recognize_file as _shared_recognize_file,
     RecognitionResult as SharedRecognitionResult,

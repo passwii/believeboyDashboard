@@ -40,7 +40,7 @@ from app.utils import (
 from app.utils.country import normalize_country as _normalize_country
 from app.utils.text_utils import normalize_sku as _normalize_sku
 from app.utils.text_utils import normalize_asin as _normalize_asin
-from app.services.payment.locale import read_payment_report_dataframe as _read_payment_report_locale
+from app.utils.payment_locale import read_payment_report_dataframe as _read_payment_report_locale
 from app.utils import (
     _next_version,
     _replace_current_pointer,

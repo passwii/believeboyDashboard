@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from app.services.payment.locale import (
+from app.utils.payment_locale import (
     read_payment_report_dataframe,
     is_payment_report_by_columns,
     PAYMENT_REPORT_HEADER_MARKERS,
