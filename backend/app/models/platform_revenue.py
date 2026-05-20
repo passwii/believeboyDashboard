@@ -29,6 +29,7 @@ class PlatformRevenue(Base):
     amount: Mapped[Decimal] = mapped_column(Numeric(15, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(10), nullable=False, default='USD')
     exchange_rate: Mapped[Decimal | None] = mapped_column(Numeric(15, 6), nullable=True)
+    revenue_type: Mapped[str] = mapped_column(String(20), nullable=False, default='订单回款')
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     attachments: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     created_by: Mapped[str] = mapped_column(String(255), nullable=False)

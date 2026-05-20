@@ -63,7 +63,7 @@ export function applyRowHeaderBorder(row: Row, startCol: number, endCol: number)
  * 配合 applyRowBorder 使用，可以实现"只为有数据的行添加边框"的效果
  */
 export function disableGridLines(worksheet: Worksheet) {
-  worksheet.views = [{ state: 'frozen', showGridLines: false }]
+  worksheet.views = [{ showGridLines: false }]
 }
 
 export function applyHeaderStyle(cell: Cell) {

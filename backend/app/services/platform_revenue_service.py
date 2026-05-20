@@ -78,6 +78,7 @@ def create_revenue(
     amount: Decimal,
     currency: str = "USD",
     exchange_rate: Decimal | None = None,
+    revenue_type: str = "订单回款",
     note: str | None = None,
     attachments: list[dict[str, Any]] | None = None,
     operator: str | None = None,
@@ -102,6 +103,7 @@ def create_revenue(
         amount=amount,
         currency=currency,
         exchange_rate=exchange_rate,
+        revenue_type=revenue_type,
         note=note,
         attachments=attachments or [],
         created_by=operator or "system",
@@ -120,6 +122,7 @@ def update_revenue(
     amount: Decimal | None = None,
     currency: str | None = None,
     exchange_rate: Decimal | None = None,
+    revenue_type: str | None = None,
     note: str | None = None,
     attachments: list[dict[str, Any]] | None = None,
 ) -> PlatformRevenue:
@@ -136,6 +139,8 @@ def update_revenue(
         row.currency = currency
     if exchange_rate is not None:
         row.exchange_rate = exchange_rate
+    if revenue_type is not None:
+        row.revenue_type = revenue_type
     if note is not None:
         row.note = note
     if attachments is not None:
