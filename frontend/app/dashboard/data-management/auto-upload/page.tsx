@@ -872,7 +872,7 @@ function AutoUploadContent() {
               ) : null}
             </div>
           </CardHeader>
-          <CardContent className='!px-0 !pt-0 flex h-full overflow-hidden'>
+          <CardContent className='px-0 pt-0 flex h-full overflow-hidden'>
             <ScrollArea className='flex-1 h-full'>
               <div className='space-y-2 p-3'>
                 {queueItems.length === 0 ? (

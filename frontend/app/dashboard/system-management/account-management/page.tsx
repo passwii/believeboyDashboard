@@ -312,7 +312,7 @@ export default function AccountManagementPage() {
             </div>
           }
         />
-        <DataCardContent className="!p-0 space-y-0">
+        <DataCardContent className="p-0 space-y-0">
           <div className="border-t border-border/70 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
             <Table>
               <TableHeader>
