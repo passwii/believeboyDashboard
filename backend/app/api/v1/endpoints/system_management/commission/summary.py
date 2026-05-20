@@ -36,7 +36,7 @@ router = APIRouter(prefix="/commission-management", tags=["佣金管理"])
 def list_commission_yearly_monthly_summary(
     year: str,
     request: Request,
-    country: str = "US",
+    country: str | None = None,
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> CommissionYearlyMonthlySummaryResponse:
@@ -57,7 +57,7 @@ def list_commission_yearly_monthly_summary(
 def list_commission_project_yearly_summary(
     year: str,
     request: Request,
-    country: str = "US",
+    country: str | None = None,
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> CommissionProjectYearlySummaryResponse:

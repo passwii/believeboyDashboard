@@ -3,7 +3,6 @@
 """
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session

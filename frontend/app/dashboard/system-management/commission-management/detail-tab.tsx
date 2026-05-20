@@ -99,7 +99,7 @@ function DetailSkeletonContent() {
               <TableHead className="text-center font-semibold text-foreground">项目</TableHead>
               <TableHead className="text-center font-semibold text-foreground">销售收入(USD)</TableHead>
               <TableHead className="text-center font-semibold text-foreground">佣金比例</TableHead>
-              <TableHead className="text-center font-semibold text-foreground">工厂佣金(USD)</TableHead>
+              <TableHead className="text-center font-semibold text-foreground">工厂佣金(RMB)</TableHead>
               <TableHead className="text-center font-semibold text-foreground">已回款(RMB)</TableHead>
               <TableHead className="text-center font-semibold text-foreground">回款状态</TableHead>
             </TableRow>
@@ -294,7 +294,7 @@ export function DetailTab({
                 <TableHead className="text-center font-semibold text-foreground">项目</TableHead>
                 <TableHead className="text-center font-semibold text-foreground">销售收入(USD)</TableHead>
                 <TableHead className="text-center font-semibold text-foreground">佣金比例</TableHead>
-                <TableHead className="text-center font-semibold text-foreground">工厂佣金(USD)</TableHead>
+                <TableHead className="text-center font-semibold text-foreground">工厂佣金(RMB)</TableHead>
                 <TableHead className="text-center font-semibold text-foreground">已回款(RMB)</TableHead>
                 <TableHead className="text-center font-semibold text-foreground">回款状态</TableHead>
               </TableRow>
