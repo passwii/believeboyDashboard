@@ -113,6 +113,8 @@ def save_upload_file(file: UploadFile, settings: Settings, project_name: str, fi
         'file_id': r2_result['key'],
         'r2_key': r2_result['key'],
         'r2_url': r2_result['url'],
+        'file_path': r2_result['url'],
+        'filename': stored_name,
         'original_filename': file.filename,
         'size': size,
     }
