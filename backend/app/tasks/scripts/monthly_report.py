@@ -10,8 +10,8 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, NamedStyle, Side
 from openpyxl.utils import get_column_letter
 
-from app.services.payment import read_payment_csv, classify_rows, compute_metrics
-from app.services.payment.financial import _round2, _to_decimal, _sum_field
+from app.services.payment import read_payment_csv, classify_rows
+from app.services.payment.financial import _round2, _to_decimal, _sum_field, _safe_div_percent_decimal
 from app.services.report.utils import _safe_project_name
 from app.utils.country import normalize_country
 
@@ -102,6 +102,20 @@ def _apply_styles(workbook: Workbook) -> None:
         else:
             for c in range(1, ws.max_column + 1):
                 ws.column_dimensions[get_column_letter(c)].width = 12
+
+
+def _num(value: Decimal | float | int | None) -> str:
+    """Format a numeric value for display in the report sheet."""
+    if value is None:
+        return "0"
+    return f"{float(value):,.2f}"
+
+
+def _safe_div_percent(numerator: Decimal | float, denominator: Decimal | float) -> str:
+    """Format a safe division result as percentage string."""
+    if not denominator:
+        return "0%"
+    return f"{(float(numerator) / float(denominator) * 100):.2f}%"
 
 
 def _get_currency_symbol(country: str) -> str:
