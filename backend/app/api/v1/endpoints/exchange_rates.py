@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from io import BytesIO
-from pathlib import Path
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
@@ -23,26 +22,30 @@ from app.schemas.exchange_rate import (
     ExchangeRateUploadResponse,
 )
 from app.services import exchange_rate_service
+from app.services.r2_service import upload_bytes_to_r2
 
 router = APIRouter(dependencies=[Depends(protected)])
 
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
 ALLOWED_IMAGE_TYPES = {'image/jpeg', 'image/png', 'image/webp', 'image/gif'}
-CONTENT_TYPE_MAP = {
-    '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-    '.png': 'image/png',
-    '.webp': 'image/webp',
-    '.gif': 'image/gif',
-}
+# R2 storage paths
+R2_PROJECT_SLUG = 'exchange-rate-notes'
+R2_IMAGES_FOLDER = 'images'
+R2_THUMBS_FOLDER = 'thumbs'
 
 
-def _exchange_rate_image_dir() -> Path:
+def _get_r2_image_url(image_name: str) -> str:
+    """Generate R2 public URL for an image."""
     settings = get_settings()
-    root = settings.upload_root / 'exchange-rate-notes'
-    root.mkdir(parents=True, exist_ok=True)
-    (root / 'thumbs').mkdir(parents=True, exist_ok=True)
-    return root
+    base = settings.r2_public_url or f"{settings.r2_endpoint_url}/{settings.r2_bucket_name}"
+    return f"{base}/{R2_PROJECT_SLUG}/{R2_IMAGES_FOLDER}/{image_name}"
+
+
+def _get_r2_thumb_url(thumb_name: str) -> str:
+    """Generate R2 public URL for a thumbnail."""
+    settings = get_settings()
+    base = settings.r2_public_url or f"{settings.r2_endpoint_url}/{settings.r2_bucket_name}"
+    return f"{base}/{R2_PROJECT_SLUG}/{R2_THUMBS_FOLDER}/{thumb_name}"
 
 
 def _serialize_item(row) -> ExchangeRateItem:
@@ -210,6 +213,14 @@ def delete_exchange_rate(exchange_rate_id: int, db: Session = Depends(get_db_ses
 
 @router.post('/exchange-rates/upload-image', response_model=ExchangeRateUploadResponse)
 async def upload_exchange_rate_image(file: UploadFile = File(...)) -> ExchangeRateUploadResponse:
+    settings = get_settings()
+
+    if not settings.r2_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail='Cloud storage is not configured. Please contact administrator.',
+        )
+
     if file.content_type not in ALLOWED_IMAGE_TYPES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Unsupported file type')
 
@@ -229,43 +240,46 @@ async def upload_exchange_rate_image(file: UploadFile = File(...)) -> ExchangeRa
 
     thumb_image = ImageOps.fit(image.copy(), (320, 320), method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
     image_id = uuid4().hex
-    image_dir = _exchange_rate_image_dir()
     image_name = f'{image_id}.webp'
     thumb_name = f'{image_id}_thumb.webp'
-    image_path = image_dir / image_name
-    thumb_path = image_dir / 'thumbs' / thumb_name
 
-    image.save(image_path, format='WEBP', quality=82, method=6)
-    thumb_image.save(thumb_path, format='WEBP', quality=72, method=6)
+    # Convert images to bytes for R2 upload
+    image_buffer = BytesIO()
+    image.save(image_buffer, format='WEBP', quality=82, method=6)
+    image_bytes = image_buffer.getvalue()
+
+    thumb_buffer = BytesIO()
+    thumb_image.save(thumb_buffer, format='WEBP', quality=72, method=6)
+    thumb_bytes = thumb_buffer.getvalue()
+
+    # Upload original image to R2
+    upload_bytes_to_r2(
+        settings,
+        image_bytes,
+        image_name,
+        R2_PROJECT_SLUG,
+        R2_IMAGES_FOLDER,
+        'image/webp',
+    )
+
+    # Upload thumbnail to R2
+    upload_bytes_to_r2(
+        settings,
+        thumb_bytes,
+        thumb_name,
+        R2_PROJECT_SLUG,
+        R2_THUMBS_FOLDER,
+        'image/webp',
+    )
 
     uploaded_at = datetime.now(timezone.utc).isoformat()
 
     return ExchangeRateUploadResponse(
         id=image_id,
-        url=f'/api/exchange-rates/images/{image_name}',
-        thumbnail_url=f'/api/exchange-rates/images/thumbs/{thumb_name}',
+        url=_get_r2_image_url(image_name),
+        thumbnail_url=_get_r2_thumb_url(thumb_name),
         filename=file.filename or image_name,
         content_type='image/webp',
-        size=image_path.stat().st_size,
+        size=len(image_bytes),
         uploaded_at=str(uploaded_at),
-    )
-
-
-@router.get('/exchange-rates/images/{image_path:path}')
-def get_exchange_rate_image(image_path: str) -> Response:
-    if not image_path:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Invalid image path')
-
-    root = _exchange_rate_image_dir().resolve()
-    resolved = (root / image_path).resolve()
-    if not str(resolved).startswith(str(root)):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Invalid image path')
-    if not resolved.exists() or not resolved.is_file():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Image not found')
-
-    content_type = CONTENT_TYPE_MAP.get(resolved.suffix.lower(), 'application/octet-stream')
-    return Response(
-        content=resolved.read_bytes(),
-        media_type=content_type,
-        headers={'Cache-Control': 'private, max-age=86400'},
     )

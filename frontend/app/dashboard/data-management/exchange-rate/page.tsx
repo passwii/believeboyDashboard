@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef, DragEvent } from "react"
 import Image from "next/image"
 import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
@@ -32,7 +32,7 @@ import {
 import { EmptyTableState } from "@/components/ui/empty-state"
 import { DataCard, DataCardHeader, DataCardContent } from "@/components/ui/data-card"
 import { Badge } from "@/components/ui/badge"
-import { Pencil, Trash2, Plus, RotateCcw, ImagePlus, Loader2 } from "lucide-react"
+import { Pencil, Trash2, Plus, RotateCcw, ImagePlus, Loader2, Upload, X, CheckCircle, AlertCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useNotifications } from "@/components/notifications"
 
@@ -64,6 +64,12 @@ const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => ({
   value: i + 1,
   label: `${i + 1}月`,
 }))
+interface Filters {
+  currency: string
+  year: string
+  month: string
+}
+
 const ALL_FILTER_VALUE = "__ALL__"
 
 interface ExchangeRate {
@@ -89,10 +95,19 @@ interface NoteImage {
   uploadedAt: string
 }
 
-interface Filters {
-  currency: string
-  year: string
-  month: string
+// 拖拽上传状态
+type UploadStatus = 'idle' | 'uploading' | 'success' | 'error'
+
+interface ImageUploadState {
+  status: UploadStatus
+  message: string
+}
+
+// 表单验证状态
+interface FormValidation {
+  currency: string | null
+  currencyName: string | null
+  rate: string | null
 }
 
 const getCurrencyBadgeMeta = (currency: string) => {
@@ -148,6 +163,11 @@ export default function ExchangeRatePage() {
   const [deletingRate, setDeletingRate] = useState<ExchangeRate | null>(null)
   const [previewImage, setPreviewImage] = useState<NoteImage | null>(null)
   const [uploadingImage, setUploadingImage] = useState(false)
+  const [isDragOver, setIsDragOver] = useState(false)
+  const [imageUploadState, setImageUploadState] = useState<ImageUploadState>({ status: 'idle', message: '' })
+  const [submitting, setSubmitting] = useState(false)
+  const [formValidation, setFormValidation] = useState<FormValidation>({ currency: null, currencyName: null, rate: null })
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // 表单状态
   const [formData, setFormData] = useState({
@@ -242,15 +262,35 @@ export default function ExchangeRatePage() {
     setDeleteDialogOpen(true)
   }
 
+  // 验证汇率值
+  const validateRate = (value: string): string | null => {
+    if (!value) return '请输入汇率值'
+    const num = parseFloat(value)
+    if (isNaN(num) || num <= 0) return '汇率必须是正数'
+    if (num > 1000000) return '汇率值过大'
+    return null
+  }
+
+  // 实时验证表单
+  const validateForm = useCallback(() => {
+    const errors: FormValidation = {
+      currency: formData.currency ? null : '请选择货币代码',
+      currencyName: formData.currencyName ? null : '请输入货币名称',
+      rate: validateRate(formData.rate),
+    }
+    setFormValidation(errors)
+    return !errors.currency && !errors.currencyName && !errors.rate
+  }, [formData])
+
   // 提交表单
   const handleSubmit = async () => {
-    try {
-      // 验证必填字段
-      if (!formData.currency || !formData.currencyName || !formData.rate) {
-        // Validation error - no toast
-        return
-      }
+    if (!validateForm()) {
+      notify({ type: 'error', title: '表单验证失败', message: '请检查输入项' })
+      return
+    }
 
+    setSubmitting(true)
+    try {
       const url = editingRate
         ? `/api/exchange-rates/${editingRate.id}`
         : "/api/exchange-rates"
@@ -273,6 +313,8 @@ export default function ExchangeRatePage() {
     } catch (error: any) {
       console.error("Error saving exchange rate:", error)
       notify({ type: 'error', title: '保存失败', message: error instanceof Error ? error.message : '操作失败' })
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -313,6 +355,21 @@ export default function ExchangeRatePage() {
 
   const handleImageUpload = async (file: File | null) => {
     if (!file) return
+
+    // 客户端验证
+    const validTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
+    if (!validTypes.includes(file.type)) {
+      setImageUploadState({ status: 'error', message: '不支持的图片格式' })
+      setTimeout(() => setImageUploadState({ status: 'idle', message: '' }), 3000)
+      return
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setImageUploadState({ status: 'error', message: '图片大小不能超过 10MB' })
+      setTimeout(() => setImageUploadState({ status: 'idle', message: '' }), 3000)
+      return
+    }
+
+    setImageUploadState({ status: 'uploading', message: '上传中...' })
     setUploadingImage(true)
     try {
       const payload = new FormData()
@@ -322,8 +379,10 @@ export default function ExchangeRatePage() {
         method: "POST",
         body: payload,
       })
+
       if (!response.ok) {
-        throw new Error("上传图片失败")
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.detail || '上传图片失败')
       }
 
       const result = await response.json()
@@ -336,12 +395,64 @@ export default function ExchangeRatePage() {
         ...prev,
         noteImages: [...prev.noteImages, image],
       }))
-    } catch (error) {
+      setImageUploadState({ status: 'success', message: '上传成功' })
+      setTimeout(() => setImageUploadState({ status: 'idle', message: '' }), 2000)
+    } catch (error: any) {
       console.error("Error uploading image:", error)
+      setImageUploadState({ status: 'error', message: error instanceof Error ? error.message : '上传失败' })
+      setTimeout(() => setImageUploadState({ status: 'idle', message: '' }), 3000)
     } finally {
       setUploadingImage(false)
     }
   }
+
+  // 拖拽处理
+  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(true)
+  }
+
+  const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(false)
+  }
+
+  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(false)
+
+    const files = e.dataTransfer.files
+    if (files && files.length > 0) {
+      void handleImageUpload(files[0])
+    }
+  }
+
+  // 粘贴上传：监听 Ctrl/Cmd+V 粘贴图片
+  useEffect(() => {
+    if (!dialogOpen) return
+
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items
+      if (!items) return
+
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          e.preventDefault()
+          const file = item.getAsFile()
+          if (file) {
+            void handleImageUpload(file)
+          }
+          break
+        }
+      }
+    }
+
+    document.addEventListener('paste', handlePaste)
+    return () => document.removeEventListener('paste', handlePaste)
+  }, [dialogOpen])
 
   const handleRemoveImage = (imageId: string) => {
     setFormData((prev) => ({
@@ -737,21 +848,23 @@ export default function ExchangeRatePage() {
 
             <div className="space-y-3">
               <Label htmlFor="note-image-upload">备注图片</Label>
-              <div className="flex items-center gap-3">
-                <label
-                  htmlFor="note-image-upload"
-                className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-border/70 px-3 py-2 text-sm hover:bg-muted dark:hover:bg-[hsl(var(--surface-subtle))]"
-                >
-                  {uploadingImage ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <ImagePlus className="h-4 w-4" />
-                  )}
-                  上传图片
-                </label>
+              <div
+                className={cn(
+                  "relative rounded-md border-2 border-dashed p-4 transition-colors",
+                  isDragOver
+                    ? "border-primary bg-primary/5"
+                    : "border-border/70 hover:border-primary/50",
+                  imageUploadState.status === 'error' && "border-destructive bg-destructive/5",
+                  imageUploadState.status === 'success' && "border-green-500 bg-green-500/5"
+                )}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
                 <input
                   id="note-image-upload"
                   type="file"
+                  ref={fileInputRef}
                   accept="image/png,image/jpeg,image/webp,image/gif"
                   className="hidden"
                   onChange={(e) => {
@@ -761,7 +874,45 @@ export default function ExchangeRatePage() {
                   }}
                   disabled={uploadingImage}
                 />
-                <p className="text-xs text-muted-foreground">支持 PNG/JPG/WEBP/GIF，最大 10MB</p>
+                <div className="flex items-center gap-3">
+                  <label
+                    htmlFor="note-image-upload"
+                    className={cn(
+                      "inline-flex cursor-pointer items-center gap-2 rounded-md border border-border/70 px-3 py-2 text-sm transition-colors",
+                      "hover:bg-muted dark:hover:bg-[hsl(var(--surface-subtle))]",
+                      uploadingImage && "cursor-not-allowed opacity-50"
+                    )}
+                  >
+                    {uploadingImage ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : imageUploadState.status === 'success' ? (
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                    ) : imageUploadState.status === 'error' ? (
+                      <AlertCircle className="h-4 w-4 text-destructive" />
+                    ) : (
+                      <Upload className="h-4 w-4" />
+                    )}
+                    上传图片
+                  </label>
+                  <p className="text-xs text-muted-foreground">支持 PNG/JPG/WEBP/GIF，最大 10MB · 可直接 Ctrl+V 粘贴</p>
+                </div>
+                {imageUploadState.message && (
+                  <div className={cn(
+                    "mt-2 text-xs",
+                    imageUploadState.status === 'error' && "text-destructive",
+                    imageUploadState.status === 'success' && "text-green-600",
+                    imageUploadState.status === 'uploading' && "text-muted-foreground"
+                  )}>
+                    {imageUploadState.message}
+                  </div>
+                )}
+                {isDragOver && (
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                    <div className="rounded-md bg-primary/20 px-4 py-2 text-sm font-medium text-primary">
+                      释放在此处上传
+                    </div>
+                  </div>
+                )}
               </div>
               {formData.noteImages.length > 0 && (
                 <div className="flex flex-wrap gap-3 rounded-md border border-border/70 bg-[hsl(var(--surface-subtle))] p-3">
@@ -800,11 +951,18 @@ export default function ExchangeRatePage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={submitting}>
               取消
             </Button>
-            <Button onClick={handleSubmit}>
-              {editingRate ? "保存修改" : "确认创建"}
+            <Button onClick={handleSubmit} disabled={submitting}>
+              {submitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  保存中...
+                </>
+              ) : (
+                editingRate ? "保存修改" : "确认创建"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

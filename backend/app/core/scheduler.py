@@ -86,9 +86,7 @@ def init_scheduler() -> None:
         try:
             from app.services.insight_schedule_service import (
                 reload_insight_schedules,
-                _set_scheduler,
             )
-            _set_scheduler(_scheduler)
             reload_insight_schedules()
             logger.info("Insight schedules loaded into scheduler")
         except Exception as e:

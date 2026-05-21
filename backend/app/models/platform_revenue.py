@@ -32,6 +32,8 @@ class PlatformRevenue(Base):
     revenue_type: Mapped[str] = mapped_column(String(20), nullable=False, default='订单回款')
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     attachments: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    screenshot_r2_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    screenshot_r2_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     created_by: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

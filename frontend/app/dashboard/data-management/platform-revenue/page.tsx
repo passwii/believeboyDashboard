@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef, DragEvent } from 'react'
 import Image from 'next/image'
 import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
@@ -40,7 +40,7 @@ import { disableGridLines } from '@/lib/excel-styles'
 import { useNotifications } from '@/components/notifications'
 import { format } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
-import { CalendarIcon, Pencil, Trash2, Plus, RotateCcw, ImagePlus, Loader2, X, Download } from 'lucide-react'
+import { CalendarIcon, Pencil, Trash2, Plus, RotateCcw, ImagePlus, Loader2, X, Download, Upload, CheckCircle, AlertCircle } from 'lucide-react'
 
 // 币种选项
 const CURRENCY_OPTIONS = [
@@ -98,6 +98,7 @@ interface PlatformRevenue {
   revenue_type: string
   note: string | null
   attachments: Attachment[]
+  screenshot_r2_url?: string | null
   created_by: string
   created_at: string
   updated_at: string
@@ -260,11 +261,16 @@ export default function PlatformRevenuePage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deletingRevenue, setDeletingRevenue] = useState<PlatformRevenue | null>(null)
   const [previewImage, setPreviewImage] = useState<Attachment | null>(null)
+  const [previewScreenshotUrl, setPreviewScreenshotUrl] = useState<string | null>(null)
   const [uploadingImage, setUploadingImage] = useState(false)
+  const [isDragOver, setIsDragOver] = useState(false)
+  const [imageUploadState, setImageUploadState] = useState<{ status: 'idle' | 'uploading' | 'success' | 'error'; message: string }>({ status: 'idle', message: '' })
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // 表单状态
   const [formData, setFormData] = useState({
     project_id: '',
+    project_name: '',
     country: 'US',
     received_date: null as Date | null,
     amount: '',
@@ -366,6 +372,7 @@ export default function PlatformRevenuePage() {
     setEditingRevenue(null)
     setFormData({
       project_id: '',
+      project_name: '',
       country: 'US',
       received_date: new Date(),
       amount: '',
@@ -386,6 +393,7 @@ export default function PlatformRevenuePage() {
     const isCurrencyLocked = lockedCountries.includes(revenue.country)
     setFormData({
       project_id: revenue.project_id.toString(),
+      project_name: revenue.project_name,
       country: revenue.country,
       received_date: new Date(revenue.received_date),
       amount: revenue.amount,
@@ -413,23 +421,42 @@ export default function PlatformRevenuePage() {
         return
       }
 
-      const payload = {
-        project_id: parseInt(formData.project_id),
-        country: formData.country,
-        received_date: formData.received_date ? format(formData.received_date, 'yyyy-MM-dd') : '',
-        amount: parseFloat(formData.amount),
-        currency: formData.currency,
-        revenue_type: formData.revenue_type,
-        note: formData.note || null,
-        attachments: formData.attachments.map(att => ({
-          id: att.id,
-          filename: att.filename,
-          stored_path: att.stored_path,
-          url: att.url,
-          size: att.size,
-          created_at: att.created_at,
-        })),
-      }
+      const payload: Record<string, any> = editingRevenue
+        ? {
+            // PATCH: only send mutable fields (no project_id)
+            country: formData.country,
+            received_date: formData.received_date ? format(formData.received_date, 'yyyy-MM-dd') : '',
+            amount: parseFloat(formData.amount),
+            currency: formData.currency,
+            revenue_type: formData.revenue_type,
+            note: formData.note || null,
+            attachments: formData.attachments.map(att => ({
+              id: att.id,
+              filename: att.filename,
+              stored_path: att.stored_path,
+              url: att.url,
+              size: att.size,
+              created_at: att.created_at,
+            })),
+          }
+        : {
+            // POST: include project_id
+            project_id: parseInt(formData.project_id),
+            country: formData.country,
+            received_date: formData.received_date ? format(formData.received_date, 'yyyy-MM-dd') : '',
+            amount: parseFloat(formData.amount),
+            currency: formData.currency,
+            revenue_type: formData.revenue_type,
+            note: formData.note || null,
+            attachments: formData.attachments.map(att => ({
+              id: att.id,
+              filename: att.filename,
+              stored_path: att.stored_path,
+              url: att.url,
+              size: att.size,
+              created_at: att.created_at,
+            })),
+          }
 
       const url = editingRevenue
         ? `/api/backend/api/v1/platform-revenues/${editingRevenue.id}`
@@ -444,7 +471,12 @@ export default function PlatformRevenuePage() {
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.detail || '操作失败')
+        console.error('Validation error detail:', JSON.stringify(error.detail, null, 2))
+        // Pydantic validation errors: detail is an array of {msg, loc, type}
+        const detail = Array.isArray(error.detail)
+          ? error.detail.map((e: any) => `${e.loc?.join('.')} — ${e.msg}`).join('; ')
+          : error.detail
+        throw new Error(detail || '操作失败')
       }
 
       setDialogOpen(false)
@@ -482,17 +514,39 @@ export default function PlatformRevenuePage() {
   // 图片上传
   const handleImageUpload = async (file: File | null) => {
     if (!file) return
+
+    if (!formData.project_name) {
+      notify({ type: 'error', title: '请先选择项目' })
+      return
+    }
+
+    // 客户端验证
+    const validTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
+    if (!validTypes.includes(file.type)) {
+      setImageUploadState({ status: 'error', message: '不支持的图片格式' })
+      setTimeout(() => setImageUploadState({ status: 'idle', message: '' }), 3000)
+      return
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setImageUploadState({ status: 'error', message: '图片大小不能超过 10MB' })
+      setTimeout(() => setImageUploadState({ status: 'idle', message: '' }), 3000)
+      return
+    }
+
+    setImageUploadState({ status: 'uploading', message: '上传中...' })
     setUploadingImage(true)
     try {
-      const formData = new FormData()
-      formData.append('file', file)
+      const uploadFormData = new FormData()
+      uploadFormData.append('file', file)
+      uploadFormData.append('project_name', formData.project_name)
 
       const response = await fetch('/api/backend/api/v1/platform-revenues/upload-image', {
         method: 'POST',
-        body: formData,
+        body: uploadFormData,
       })
       if (!response.ok) {
-        throw new Error('上传图片失败')
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.detail || '上传图片失败')
       }
 
       const result = await response.json()
@@ -504,13 +558,64 @@ export default function PlatformRevenuePage() {
         ...prev,
         attachments: [...prev.attachments, result],
       }))
+      setImageUploadState({ status: 'success', message: '上传成功' })
+      setTimeout(() => setImageUploadState({ status: 'idle', message: '' }), 2000)
     } catch (error) {
       console.error('Error uploading image:', error)
-      notify({ type: 'error', title: '上传失败' })
+      setImageUploadState({ status: 'error', message: error instanceof Error ? error.message : '上传失败' })
+      setTimeout(() => setImageUploadState({ status: 'idle', message: '' }), 3000)
     } finally {
       setUploadingImage(false)
     }
   }
+
+  // 拖拽处理
+  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(true)
+  }
+
+  const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(false)
+  }
+
+  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(false)
+
+    const files = e.dataTransfer.files
+    if (files && files.length > 0) {
+      void handleImageUpload(files[0])
+    }
+  }
+
+  // 粘贴上传：监听 Ctrl/Cmd+V 粘贴图片
+  useEffect(() => {
+    if (!dialogOpen) return
+
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items
+      if (!items) return
+
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          e.preventDefault()
+          const file = item.getAsFile()
+          if (file) {
+            void handleImageUpload(file)
+          }
+          break
+        }
+      }
+    }
+
+    document.addEventListener('paste', handlePaste)
+    return () => document.removeEventListener('paste', handlePaste)
+  }, [dialogOpen])
 
   const handleRemoveImage = (imageId: string) => {
     setFormData((prev) => ({
@@ -917,18 +1022,19 @@ export default function PlatformRevenuePage() {
                   <TableHead>币种</TableHead>
                   <TableHead>回款类型</TableHead>
                   <TableHead>备注</TableHead>
+                  <TableHead>截图</TableHead>
                   <TableHead className="text-right">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="h-24 text-center">
+                    <TableCell colSpan={9} className="h-24 text-center">
                       加载中...
                     </TableCell>
                   </TableRow>
                 ) : revenues.length === 0 ? (
-                  <EmptyTableState colSpan={8} message="暂无回款数据，点击右上角按钮新增" />
+                  <EmptyTableState colSpan={9} message="暂无回款数据，点击右上角按钮新增" />
                 ) : (
                   revenues.map((revenue) => (
                     <TableRow key={revenue.id}>
@@ -982,18 +1088,18 @@ export default function PlatformRevenuePage() {
                           {revenue.revenue_type || '订单回款'}
                         </Badge>
                       </TableCell>
-                      <TableCell className="max-w-[200px]">
+                      <TableCell className="max-w-[280px]">
                         <div className="space-y-2">
                           <p className="truncate text-sm">
-                            {revenue.note || (revenue.attachments?.length > 0 ? `[${revenue.attachments.length}张图片]` : '-')}
+                            {revenue.note || (revenue.attachments?.length > 0 ? "" : "-")}
                           </p>
                           {revenue.attachments?.length > 0 && (
-                            <div className="flex flex-wrap gap-1">
-                              {revenue.attachments.slice(0, 3).map((image) => (
+                            <div className="flex flex-wrap gap-2">
+                              {revenue.attachments.slice(0, 4).map((image) => (
                                 <button
                                   key={image.id}
                                   type="button"
-                                  className="relative h-8 w-8 overflow-hidden rounded border border-border/70"
+                                  className="relative h-10 w-10 overflow-hidden rounded border border-border/70"
                                   onClick={() => setPreviewImage(image)}
                                   title={image.filename}
                                 >
@@ -1006,14 +1112,34 @@ export default function PlatformRevenuePage() {
                                   />
                                 </button>
                               ))}
-                              {revenue.attachments.length > 3 && (
-                                <div className="flex h-8 w-8 items-center justify-center rounded border border-border/70 text-xs text-muted-foreground">
-                                  +{revenue.attachments.length - 3}
+                              {revenue.attachments.length > 4 && (
+                                <div className="flex h-10 w-10 items-center justify-center rounded border border-border/70 text-xs text-muted-foreground">
+                                  +{revenue.attachments.length - 4}
                                 </div>
                               )}
                             </div>
                           )}
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        {revenue.screenshot_r2_url ? (
+                          <button
+                            type="button"
+                            className="relative h-10 w-10 overflow-hidden rounded border border-border/70"
+                            onClick={() => setPreviewScreenshotUrl(`${revenue.screenshot_r2_url}?v=${encodeURIComponent(revenue.updated_at)}`)}
+                            title="回款截图"
+                          >
+                            <Image
+                              src={`${revenue.screenshot_r2_url}?v=${encodeURIComponent(revenue.updated_at)}`}
+                              alt="回款截图"
+                              fill
+                              className="object-cover"
+                              unoptimized
+                            />
+                          </button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
@@ -1037,17 +1163,17 @@ export default function PlatformRevenuePage() {
                     </TableRow>
                   ))
                 )}
-              {/* 合计行 */}
-              {!loading && revenues.length > 0 && (
-                <TableRow className="bg-muted/50 font-medium">
-                  <TableCell className="py-3">合计</TableCell>
-                  <TableCell colSpan={2}></TableCell>
-                  <TableCell className="text-right">
-                    {formatTotals(calculateTotals(revenues))}
-                  </TableCell>
-                  <TableCell colSpan={4}></TableCell>
-                </TableRow>
-              )}
+                {/* 合计行 */}
+                {!loading && revenues.length > 0 && (
+                  <TableRow className="bg-muted/50 font-medium">
+                    <TableCell className="py-3">合计</TableCell>
+                    <TableCell colSpan={2}></TableCell>
+                    <TableCell className="text-right">
+                      {formatTotals(calculateTotals(revenues))}
+                    </TableCell>
+                    <TableCell colSpan={5}></TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </div>
@@ -1114,9 +1240,11 @@ export default function PlatformRevenuePage() {
                 <Select
                   value={formData.project_id}
                   onValueChange={(value) => {
+                    const selectedProject = projects.find(p => p.id.toString() === value)
                     setFormData((prev) => ({
                       ...prev,
                       project_id: value,
+                      project_name: selectedProject?.name || '',
                       country: 'US',
                       currency: 'USD',
                       currencyLocked: true,
@@ -1285,18 +1413,24 @@ export default function PlatformRevenuePage() {
             </div>
 
             <div className="space-y-3">
-              <Label>图片附件</Label>
-              <div className="flex items-center gap-3">
-                <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-border/70 px-3 py-2 text-sm hover:bg-muted dark:hover:bg-[hsl(var(--surface-subtle))]">
-                  {uploadingImage ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <ImagePlus className="h-4 w-4" />
-                  )}
-                  上传图片
-                </label>
+              <Label htmlFor="note-image-upload">图片附件</Label>
+              <div
+                className={cn(
+                  "relative rounded-md border-2 border-dashed p-4 transition-colors",
+                  isDragOver
+                    ? "border-primary bg-primary/5"
+                    : "border-border/70 hover:border-primary/50",
+                  imageUploadState.status === 'error' && "border-destructive bg-destructive/5",
+                  imageUploadState.status === 'success' && "border-green-500 bg-green-500/5"
+                )}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
                 <input
+                  id="note-image-upload"
                   type="file"
+                  ref={fileInputRef}
                   accept="image/png,image/jpeg,image/webp,image/gif"
                   className="hidden"
                   onChange={(e) => {
@@ -1306,16 +1440,56 @@ export default function PlatformRevenuePage() {
                   }}
                   disabled={uploadingImage}
                 />
-                <p className="text-xs text-muted-foreground">支持 PNG/JPG/WEBP/GIF，最大 10MB</p>
+                <div className="flex items-center gap-3">
+                  <label
+                    htmlFor="note-image-upload"
+                    className={cn(
+                      "inline-flex cursor-pointer items-center gap-2 rounded-md border border-border/70 px-3 py-2 text-sm transition-colors",
+                      "hover:bg-muted dark:hover:bg-[hsl(var(--surface-subtle))]",
+                      uploadingImage && "cursor-not-allowed opacity-50"
+                    )}
+                  >
+                    {uploadingImage ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : imageUploadState.status === 'success' ? (
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                    ) : imageUploadState.status === 'error' ? (
+                      <AlertCircle className="h-4 w-4 text-destructive" />
+                    ) : (
+                      <Upload className="h-4 w-4" />
+                    )}
+                    上传图片
+                  </label>
+                  <p className="text-xs text-muted-foreground">支持 PNG/JPG/WEBP/GIF，最大 10MB · 可直接 Ctrl+V 粘贴</p>
+                </div>
+                {imageUploadState.message && (
+                  <div className={cn(
+                    "mt-2 text-xs",
+                    imageUploadState.status === 'error' && "text-destructive",
+                    imageUploadState.status === 'success' && "text-green-600",
+                    imageUploadState.status === 'uploading' && "text-muted-foreground"
+                  )}>
+                    {imageUploadState.message}
+                  </div>
+                )}
+                {isDragOver && (
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                    <div className="rounded-md bg-primary/20 px-4 py-2 text-sm font-medium text-primary">
+                      释放在此处上传
+                    </div>
+                  </div>
+                )}
               </div>
               {formData.attachments.length > 0 && (
                 <div className="flex flex-wrap gap-3 rounded-md border border-border/70 bg-[hsl(var(--surface-subtle))] p-3">
                   {formData.attachments.map((image) => (
                     <div key={image.id} className="space-y-1">
-                      <button
-                        type="button"
-                        className="relative block h-20 w-20 overflow-hidden rounded border"
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        className="relative block h-20 w-20 cursor-pointer overflow-hidden rounded border"
                         onClick={() => setPreviewImage(image)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setPreviewImage(image) }}
                       >
                         <Image
                           src={image.url}
@@ -1334,7 +1508,7 @@ export default function PlatformRevenuePage() {
                         >
                           <X className="h-3 w-3" />
                         </button>
-                      </button>
+                      </div>
                       <div className="w-20 truncate text-[10px] text-muted-foreground" title={image.filename}>
                         {image.filename}
                       </div>
@@ -1404,6 +1578,28 @@ export default function PlatformRevenuePage() {
               <Image
                 src={previewImage.url}
                 alt={previewImage.filename}
+                fill
+                className="object-contain"
+                unoptimized
+              />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 回款截图预览弹窗 */}
+      <Dialog open={!!previewScreenshotUrl} onOpenChange={(open) => !open && setPreviewScreenshotUrl(null)}>
+        <DialogContent aria-describedby="screenshot-preview-dialog-description" className="max-w-3xl dark:border-border/90 dark:bg-[hsl(var(--surface-panel))]">
+          <span id="screenshot-preview-dialog-description" className="sr-only">回款截图预览</span>
+          <DialogHeader>
+            <DialogTitle>回款截图</DialogTitle>
+            <DialogDescription>回款截图预览</DialogDescription>
+          </DialogHeader>
+          {previewScreenshotUrl && (
+            <div className="relative aspect-video w-full overflow-hidden rounded-md border border-border/70 bg-[hsl(var(--surface-subtle))]">
+              <Image
+                src={previewScreenshotUrl}
+                alt="回款截图"
                 fill
                 className="object-contain"
                 unoptimized

@@ -229,7 +229,8 @@ def prepare_monthly_report(
         filename = summary_pdf_file_id.split('/')[-1] if '/' in summary_pdf_file_id else summary_pdf_file_id
         r2_key = f"{project_slug}/{file_type_slug}/{filename}"
         report.summary_pdf_r2_key = r2_key
-        report.summary_pdf_r2_url = f"{settings.r2_endpoint_url}/{settings.r2_bucket_name}/{r2_key}"
+        r2_base = settings.r2_public_url or f"{settings.r2_endpoint_url}/{settings.r2_bucket_name}"
+        report.summary_pdf_r2_url = f"{r2_base}/{r2_key}"
 
     db.add(report)
     db.flush()
