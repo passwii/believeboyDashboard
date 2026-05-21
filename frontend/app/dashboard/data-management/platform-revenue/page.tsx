@@ -772,7 +772,7 @@ export default function PlatformRevenuePage() {
           }
         />
         <DataCardContent className="p-0 px-4 pb-4 pt-4">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-4">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <div className="flex items-center gap-2">
               <Label className="whitespace-nowrap text-sm font-medium">项目</Label>
               <Select
