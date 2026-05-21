@@ -1022,19 +1022,18 @@ export default function PlatformRevenuePage() {
                   <TableHead>币种</TableHead>
                   <TableHead>回款类型</TableHead>
                   <TableHead>备注</TableHead>
-                  <TableHead>截图</TableHead>
                   <TableHead className="text-right">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="h-24 text-center">
+                    <TableCell colSpan={8} className="h-24 text-center">
                       加载中...
                     </TableCell>
                   </TableRow>
                 ) : revenues.length === 0 ? (
-                  <EmptyTableState colSpan={9} message="暂无回款数据，点击右上角按钮新增" />
+                  <EmptyTableState colSpan={8} message="暂无回款数据，点击右上角按钮新增" />
                 ) : (
                   revenues.map((revenue) => (
                     <TableRow key={revenue.id}>
@@ -1121,26 +1120,6 @@ export default function PlatformRevenuePage() {
                           )}
                         </div>
                       </TableCell>
-                      <TableCell>
-                        {revenue.screenshot_r2_url ? (
-                          <button
-                            type="button"
-                            className="relative h-10 w-10 overflow-hidden rounded border border-border/70"
-                            onClick={() => setPreviewScreenshotUrl(`${revenue.screenshot_r2_url}?v=${encodeURIComponent(revenue.updated_at)}`)}
-                            title="回款截图"
-                          >
-                            <Image
-                              src={`${revenue.screenshot_r2_url}?v=${encodeURIComponent(revenue.updated_at)}`}
-                              alt="回款截图"
-                              fill
-                              className="object-cover"
-                              unoptimized
-                            />
-                          </button>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
                           <Button
@@ -1171,7 +1150,7 @@ export default function PlatformRevenuePage() {
                     <TableCell className="text-right">
                       {formatTotals(calculateTotals(revenues))}
                     </TableCell>
-                    <TableCell colSpan={5}></TableCell>
+                    <TableCell colSpan={4}></TableCell>
                   </TableRow>
                 )}
               </TableBody>
