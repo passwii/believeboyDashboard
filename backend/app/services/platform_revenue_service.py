@@ -140,6 +140,8 @@ def create_revenue(
     revenue_type: str = "订单回款",
     note: str | None = None,
     attachments: list[dict[str, Any]] | None = None,
+    screenshot_r2_key: str | None = None,
+    screenshot_r2_url: str | None = None,
     operator: str | None = None,
     is_admin: bool = False,
 ) -> PlatformRevenue:
@@ -176,6 +178,8 @@ def create_revenue(
         revenue_type=revenue_type,
         note=note,
         attachments=attachments or [],
+        screenshot_r2_key=screenshot_r2_key,
+        screenshot_r2_url=screenshot_r2_url,
         created_by=operator or "system",
     )
     db.add(row)
@@ -195,6 +199,8 @@ def update_revenue(
     revenue_type: str | None = None,
     note: str | None = None,
     attachments: list[dict[str, Any]] | None = None,
+    screenshot_r2_key: str | None = None,
+    screenshot_r2_url: str | None = None,
     operator: str | None = None,
     is_admin: bool = False,
 ) -> PlatformRevenue:
@@ -217,6 +223,10 @@ def update_revenue(
         row.note = note
     if attachments is not None:
         row.attachments = attachments
+    if screenshot_r2_key is not None:
+        row.screenshot_r2_key = screenshot_r2_key
+    if screenshot_r2_url is not None:
+        row.screenshot_r2_url = screenshot_r2_url
 
     db.flush()
     db.refresh(row)

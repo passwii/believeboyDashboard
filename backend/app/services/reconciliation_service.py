@@ -48,7 +48,8 @@ def _build_r2_url_from_key(key: str) -> str:
     """Build R2 URL from key."""
     from app.core.config import get_settings
     settings = get_settings()
-    return f"{settings.r2_endpoint_url}/{settings.r2_bucket_name}/{key}"
+    base = settings.r2_public_url or f"{settings.r2_endpoint_url}/{settings.r2_bucket_name}"
+    return f"{base}/{key}"
 
 
 def _download_from_r2(url: str) -> Path:
@@ -57,12 +58,15 @@ def _download_from_r2(url: str) -> Path:
 
     settings = get_settings()
     # Extract R2 key from URL
-    # URL format: https://...r2.cloudflarestorage.com/bucket/key
-    parts = url.split(f"{settings.r2_bucket_name}/")
-    if len(parts) < 2:
-        raise ValueError(f"Invalid R2 URL format: {url}")
-
-    key = parts[1]
+    # Public URL format: https://bucket.believeboy.com/key
+    # Legacy URL format: https://...r2.cloudflarestorage.com/bucket/key
+    if settings.r2_public_url and url.startswith(settings.r2_public_url):
+        key = url[len(settings.r2_public_url):].lstrip('/')
+    else:
+        parts = url.split(f"{settings.r2_bucket_name}/")
+        if len(parts) < 2:
+            raise ValueError(f"Invalid R2 URL format: {url}")
+        key = parts[1]
 
     # Download to temp file
     temp_file = tempfile.NamedTemporaryFile(suffix='.pdf', delete=False)

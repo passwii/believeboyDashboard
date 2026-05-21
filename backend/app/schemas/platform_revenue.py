@@ -8,10 +8,12 @@ from pydantic import BaseModel, Field
 class PlatformRevenueAttachment(BaseModel):
     id: str
     filename: str
-    stored_path: str
     url: str
     size: int
     created_at: datetime
+    stored_path: str | None = None
+    key: str | None = None
+    thumb_url: str | None = None
 
 
 class PlatformRevenueItem(BaseModel):
@@ -26,6 +28,8 @@ class PlatformRevenueItem(BaseModel):
     revenue_type: str = "订单回款"
     note: str | None = None
     attachments: list[PlatformRevenueAttachment] = []
+    screenshot_r2_key: str | None = None
+    screenshot_r2_url: str | None = None
     created_by: str
     created_at: datetime
     updated_at: datetime
@@ -49,6 +53,8 @@ class PlatformRevenueCreate(BaseModel):
     revenue_type: str = Field(default="订单回款", max_length=20)
     note: str | None = None
     attachments: list[PlatformRevenueAttachment] = Field(default_factory=list)
+    screenshot_r2_key: str | None = None
+    screenshot_r2_url: str | None = None
 
 
 class PlatformRevenueUpdate(BaseModel):
@@ -60,3 +66,5 @@ class PlatformRevenueUpdate(BaseModel):
     revenue_type: str | None = Field(default=None, max_length=20)
     note: str | None = None
     attachments: list[PlatformRevenueAttachment] | None = None
+    screenshot_r2_key: str | None = None
+    screenshot_r2_url: str | None = None

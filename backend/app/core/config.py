@@ -68,6 +68,7 @@ class Settings(BaseSettings):
     # Cloudflare R2 Storage
     r2_account_id: str = Field(default="", max_length=100)
     r2_endpoint_url: str = Field(default="", max_length=500)
+    r2_public_url: str = Field(default="", max_length=500)
     r2_access_key_id: str = Field(default="", max_length=100)
     r2_secret_access_key: str = Field(default="", max_length=200)
     r2_bucket_name: str = Field(default="", max_length=100)

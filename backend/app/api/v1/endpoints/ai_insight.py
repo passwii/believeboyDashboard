@@ -666,135 +666,9 @@ def get_latest_insight(
     return _serialize_insight_detail(row)
 
 
-@router.get("/{insight_id}")
-def get_insight(
-    insight_id: int,
-    db: Session = Depends(get_db_session),
-    operator: str | None = Depends(get_request_operator),
-    is_admin: bool = Depends(get_request_is_admin),
-) -> InsightDetail:
-    row = db.get(AIInsight, insight_id)
-    if row is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="洞察不存在")
-
-    # Access check: non-admin users can only view insights from projects they manage
-    project_service.ensure_project_access(db, row.project_id, operator=operator, is_admin=is_admin)
-
-    return InsightDetail(
-        id=row.id,
-        project_id=row.project_id,
-        project_name=row.project_name,
-        country=row.country,
-        title=row.title,
-        content=row.content,
-        insight_type=row.insight_type.value if isinstance(row.insight_type, InsightType) else row.insight_type,
-        date_range_start=row.date_range_start,
-        date_range_end=row.date_range_end,
-        status=row.status.value if isinstance(row.status, InsightStatus) else row.status,
-        sub_status=row.sub_status,
-        error_message=row.error_message,
-        created_by=row.created_by,
-        created_at=row.created_at,
-        updated_at=row.updated_at,
-    )
-
-
-@router.put("/{insight_id}")
-def update_insight(
-    insight_id: int,
-    payload: InsightUpdateRequest,
-    db: Session = Depends(get_db_session),
-    operator: str | None = Depends(get_request_operator),
-    is_admin: bool = Depends(get_request_is_admin),
-) -> InsightDetail:
-    row = db.get(AIInsight, insight_id)
-    if row is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="洞察不存在")
-
-    project_service.ensure_project_access(db, row.project_id, operator=operator, is_admin=is_admin)
-
-    row.content = normalize_insight_markdown(payload.content.strip())
-    row.updated_at = datetime.now(timezone.utc)
-    db.add(row)
-    db.commit()
-    db.refresh(row)
-
-    return _serialize_insight_detail(row)
-
-
-@router.post("/{insight_id}/retry", response_model=InsightRetryResponse)
-def retry_insight(
-    insight_id: int,
-    db: Session = Depends(get_db_session),
-    settings: Settings = Depends(get_settings),
-    x_operator: str | None = Depends(get_request_operator),
-    is_admin: bool = Depends(get_request_is_admin),
-):
-    """
-    Retry a failed or stuck insight by resetting it and spawning a new background
-    generation thread with the same parameters.
-    """
-    row = db.get(AIInsight, insight_id)
-    if row is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="洞察不存在")
-
-    # Access check: non-admin users can only retry insights from projects they manage
-    project_service.ensure_project_access(db, row.project_id, operator=x_operator, is_admin=is_admin)
-
-    if row.status == InsightStatus.completed:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="已完成的洞察无法重试，请删除后重新生成",
-        )
-
-    # Reset status so the SSE stream can pick it up
-    row.status = InsightStatus.pending
-    row.sub_status = None
-    row.error_message = None
-    row.content = ""
-    row.title = "生成中..."
-    db.commit()
-
-    bg_payload = {
-        "project_id": row.project_id,
-        "project_name": row.project_name,
-        "country": row.country,
-        "start_date": row.date_range_start.isoformat(),
-        "end_date": row.date_range_end.isoformat(),
-        "model": None,  # model is not persisted; use default
-    }
-    thread = threading.Thread(
-        target=_run_insight_generation,
-        args=(row.id, settings, bg_payload, x_operator),
-        daemon=True,
-        name=f"ai-insight-retry-{row.id}",
-    )
-    thread.start()
-
-    return InsightRetryResponse(status="pending", insight_id=row.id)
-
-
-@router.delete("/{insight_id}")
-def delete_insight(
-    insight_id: int,
-    db: Session = Depends(get_db_session),
-    operator: str | None = Depends(get_request_operator),
-    is_admin: bool = Depends(get_request_is_admin),
-):
-    from app.schemas.ai_insight import InsightDeleteResponse
-    row = db.get(AIInsight, insight_id)
-    if row is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="洞察不存在")
-
-    project_service.ensure_project_access(db, row.project_id, operator=operator, is_admin=is_admin)
-
-    db.delete(row)
-    db.commit()
-    return InsightDeleteResponse(deleted=True, id=insight_id)
-
-
 # -------------------------------------------------------------------------------------------------
 # Insight Schedule Endpoints (定时任务管理)
+# NOTE: These MUST be defined BEFORE /{insight_id} routes to avoid path conflicts
 # -------------------------------------------------------------------------------------------------
 
 def _serialize_schedule(db: Session, schedule) -> InsightScheduleItem:
@@ -951,3 +825,130 @@ def run_insight_schedule_now(
         status=result["status"],
         message=result["message"],
     )
+
+
+@router.get("/{insight_id}")
+def get_insight(
+    insight_id: int,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Depends(get_request_is_admin),
+) -> InsightDetail:
+    row = db.get(AIInsight, insight_id)
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="洞察不存在")
+
+    # Access check: non-admin users can only view insights from projects they manage
+    project_service.ensure_project_access(db, row.project_id, operator=operator, is_admin=is_admin)
+
+    return InsightDetail(
+        id=row.id,
+        project_id=row.project_id,
+        project_name=row.project_name,
+        country=row.country,
+        title=row.title,
+        content=row.content,
+        insight_type=row.insight_type.value if isinstance(row.insight_type, InsightType) else row.insight_type,
+        date_range_start=row.date_range_start,
+        date_range_end=row.date_range_end,
+        status=row.status.value if isinstance(row.status, InsightStatus) else row.status,
+        sub_status=row.sub_status,
+        error_message=row.error_message,
+        created_by=row.created_by,
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+    )
+
+
+@router.put("/{insight_id}")
+def update_insight(
+    insight_id: int,
+    payload: InsightUpdateRequest,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Depends(get_request_is_admin),
+) -> InsightDetail:
+    row = db.get(AIInsight, insight_id)
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="洞察不存在")
+
+    project_service.ensure_project_access(db, row.project_id, operator=operator, is_admin=is_admin)
+
+    row.content = normalize_insight_markdown(payload.content.strip())
+    row.updated_at = datetime.now(timezone.utc)
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+
+    return _serialize_insight_detail(row)
+
+
+@router.post("/{insight_id}/retry", response_model=InsightRetryResponse)
+def retry_insight(
+    insight_id: int,
+    db: Session = Depends(get_db_session),
+    settings: Settings = Depends(get_settings),
+    x_operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    """
+    Retry a failed or stuck insight by resetting it and spawning a new background
+    generation thread with the same parameters.
+    """
+    row = db.get(AIInsight, insight_id)
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="洞察不存在")
+
+    # Access check: non-admin users can only retry insights from projects they manage
+    project_service.ensure_project_access(db, row.project_id, operator=x_operator, is_admin=is_admin)
+
+    if row.status == InsightStatus.completed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="已完成的洞察无法重试，请删除后重新生成",
+        )
+
+    # Reset status so the SSE stream can pick it up
+    row.status = InsightStatus.pending
+    row.sub_status = None
+    row.error_message = None
+    row.content = ""
+    row.title = "生成中..."
+    db.commit()
+
+    bg_payload = {
+        "project_id": row.project_id,
+        "project_name": row.project_name,
+        "country": row.country,
+        "start_date": row.date_range_start.isoformat(),
+        "end_date": row.date_range_end.isoformat(),
+        "model": None,  # model is not persisted; use default
+    }
+    thread = threading.Thread(
+        target=_run_insight_generation,
+        args=(row.id, settings, bg_payload, x_operator),
+        daemon=True,
+        name=f"ai-insight-retry-{row.id}",
+    )
+    thread.start()
+
+    return InsightRetryResponse(status="pending", insight_id=row.id)
+
+
+@router.delete("/{insight_id}")
+def delete_insight(
+    insight_id: int,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    from app.schemas.ai_insight import InsightDeleteResponse
+    row = db.get(AIInsight, insight_id)
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="洞察不存在")
+
+    project_service.ensure_project_access(db, row.project_id, operator=operator, is_admin=is_admin)
+
+    db.delete(row)
+    db.commit()
+    return InsightDeleteResponse(deleted=True, id=insight_id)

@@ -80,10 +80,9 @@ def upload_file_to_r2(
         },
     )
 
-    # Generate public URL (R2 bucket is public by default if configured)
-    # Format: https://{account_id}.r2.cloudflarestorage.com/{bucket}/{key}
-    # Or with custom domain if configured
-    public_url = f"{settings.r2_endpoint_url}/{settings.r2_bucket_name}/{key}"
+    # Generate public URL using custom domain if configured, otherwise R2 endpoint
+    base = settings.r2_public_url or f"{settings.r2_endpoint_url}/{settings.r2_bucket_name}"
+    public_url = f"{base}/{key}"
 
     return {
         'key': key,
@@ -127,7 +126,8 @@ def delete_file_from_r2(settings: Settings, key: str) -> bool:
 
 def get_file_url(settings: Settings, key: str) -> str:
     """Get the public URL for a file in R2."""
-    return f"{settings.r2_endpoint_url}/{settings.r2_bucket_name}/{key}"
+    base = settings.r2_public_url or f"{settings.r2_endpoint_url}/{settings.r2_bucket_name}"
+    return f"{base}/{key}"
 
 
 def generate_presigned_url(

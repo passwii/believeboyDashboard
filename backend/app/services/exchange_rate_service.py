@@ -2,14 +2,12 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
-from pathlib import Path
 from urllib.parse import unquote
 
 from fastapi import HTTPException, status
 from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
 from app.models import ExchangeRate
 from app.schemas.exchange_rate import ExchangeRateCreate, ExchangeRateNoteImage, ExchangeRateUpdate
 
@@ -108,38 +106,13 @@ def _normalize_note_image_record(item: object) -> dict[str, object] | None:
 def serialize_note_images(value: object) -> list[dict[str, object]]:
     if not isinstance(value, list):
         return []
-    settings = get_settings()
-    exchange_rate_root = (settings.upload_root / 'exchange-rate-notes').resolve()
     normalized: list[dict[str, object]] = []
     for item in value:
         normalized_item = _normalize_note_image_record(item)
         if normalized_item is None:
             continue
-
-        image_url = str(normalized_item.get('url') or '')
-        image_path = _resolve_exchange_rate_image_path(exchange_rate_root, image_url)
-        if image_path is None or not image_path.exists():
-            continue
-
-        thumb_url = normalized_item.get('thumbnail_url')
-        if isinstance(thumb_url, str) and thumb_url:
-            thumb_path = _resolve_exchange_rate_image_path(exchange_rate_root, thumb_url)
-            if thumb_path is None or not thumb_path.exists():
-                normalized_item['thumbnail_url'] = None
-
         normalized.append(normalized_item)
     return normalized
-
-
-def _resolve_exchange_rate_image_path(root: Path, url: str) -> Path | None:
-    prefix = '/api/exchange-rates/images/'
-    if not url.startswith(prefix):
-        return None
-    relative = unquote(url[len(prefix):]).lstrip('/')
-    resolved = (root / relative).resolve()
-    if not str(resolved).startswith(str(root)):
-        return None
-    return resolved
 
 
 def serialize_exchange_rate(row: ExchangeRate) -> dict[str, object]:

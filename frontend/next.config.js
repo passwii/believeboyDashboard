@@ -8,6 +8,14 @@ const nextConfig = {
         hostname: 'www.google.com',
         pathname: '/s2/favicons/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'bucket.believeboy.com',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.r2.cloudflarestorage.com',
+      },
     ],
     unoptimized: false,
   },

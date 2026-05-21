@@ -3,10 +3,9 @@ from __future__ import annotations
 import math
 from datetime import datetime, timezone
 from io import BytesIO
-from pathlib import Path
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, Request, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, Request, Response, UploadFile, status
 from PIL import Image, ImageOps, UnidentifiedImageError
 from sqlalchemy.orm import Session
 
@@ -22,6 +21,7 @@ from app.schemas.platform_revenue import (
 )
 from app.services import platform_revenue_service
 from app.services.audit_log_service import append_operation_audit_log
+from app.services.r2_service import upload_bytes_to_r2
 
 router = APIRouter(dependencies=[Depends(protected)])
 
@@ -34,13 +34,10 @@ CONTENT_TYPE_MAP = {
     '.webp': 'image/webp',
     '.gif': 'image/gif',
 }
-
-
-def _platform_revenue_image_dir() -> Path:
-    settings = get_settings()
-    root = settings.upload_root / 'platform_revenues'
-    root.mkdir(parents=True, exist_ok=True)
-    return root
+# R2 storage paths for payment screenshots
+R2_PAYMENT_SCREENSHOT_FOLDER = 'payment_screenshot'
+R2_IMAGES_FOLDER = 'images'
+R2_THUMBS_FOLDER = 'thumbs'
 
 
 def _serialize_item(row) -> PlatformRevenueItem:
@@ -62,6 +59,8 @@ def _serialize_item(row) -> PlatformRevenueItem:
         revenue_type=row.revenue_type,
         note=row.note,
         attachments=attachments,
+        screenshot_r2_key=getattr(row, 'screenshot_r2_key', None),
+        screenshot_r2_url=getattr(row, 'screenshot_r2_url', None),
         created_by=row.created_by,
         created_at=row.created_at,
         updated_at=row.updated_at,
@@ -139,7 +138,7 @@ def create_platform_revenue(
 
     attachments_data = None
     if payload.attachments:
-        attachments_data = [att.model_dump() for att in payload.attachments]
+        attachments_data = [att.model_dump(mode='json') for att in payload.attachments]
 
     row = platform_revenue_service.create_revenue(
         db,
@@ -153,6 +152,8 @@ def create_platform_revenue(
         revenue_type=payload.revenue_type,
         note=payload.note,
         attachments=attachments_data,
+        screenshot_r2_key=payload.screenshot_r2_key,
+        screenshot_r2_url=payload.screenshot_r2_url,
         operator=operator_name,
         is_admin=bool(is_admin),
     )
@@ -186,7 +187,7 @@ def update_platform_revenue(
 
     update_data = payload.model_dump(exclude_unset=True)
     if payload.attachments is not None:
-        update_data['attachments'] = [att.model_dump() for att in payload.attachments]
+        update_data['attachments'] = [att.model_dump(mode='json') for att in payload.attachments]
 
     row = platform_revenue_service.update_revenue(
         db,
@@ -256,6 +257,7 @@ def delete_platform_revenue(
 async def upload_platform_revenue_image(
     request: Request,
     file: UploadFile = File(...),
+    project_name: str = Form(...),
 ) -> dict:
     if file.content_type not in ALLOWED_IMAGE_TYPES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Unsupported file type')
@@ -274,43 +276,60 @@ async def upload_platform_revenue_image(
     image = image.convert('RGB')
     image.thumbnail((1920, 1920))
 
+    thumb_image = ImageOps.fit(image.copy(), (320, 320), method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
     image_id = uuid4().hex
-    image_dir = _platform_revenue_image_dir()
     image_name = f'{image_id}.webp'
-    image_path = image_dir / image_name
+    thumb_name = f'{image_id}_thumb.webp'
 
-    image.save(image_path, format='WEBP', quality=82, method=6)
+    # Convert images to bytes for R2 upload
+    image_buffer = BytesIO()
+    image.save(image_buffer, format='WEBP', quality=82, method=6)
+    image_bytes = image_buffer.getvalue()
+
+    thumb_buffer = BytesIO()
+    thumb_image.save(thumb_buffer, format='WEBP', quality=72, method=6)
+    thumb_bytes = thumb_buffer.getvalue()
+
+    settings = get_settings()
+    if not settings.r2_enabled:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail='R2 storage not configured')
+
+    # Upload original image to R2 (no project slug — avoid Chinese chars in R2 keys)
+    upload_bytes_to_r2(
+        settings,
+        image_bytes,
+        image_name,
+        R2_PAYMENT_SCREENSHOT_FOLDER,
+        R2_IMAGES_FOLDER,
+        'image/webp',
+    )
+
+    # Upload thumbnail to R2
+    upload_bytes_to_r2(
+        settings,
+        thumb_bytes,
+        thumb_name,
+        R2_PAYMENT_SCREENSHOT_FOLDER,
+        R2_THUMBS_FOLDER,
+        'image/webp',
+    )
 
     uploaded_at = datetime.now(timezone.utc).isoformat()
 
+    # Build R2 URLs directly (matching screenshot endpoint pattern)
+    r2_base = settings.r2_public_url or f"{settings.r2_endpoint_url}/{settings.r2_bucket_name}"
+    image_r2_key = f'{R2_PAYMENT_SCREENSHOT_FOLDER}/{R2_IMAGES_FOLDER}/{image_name}'
+    thumb_r2_key = f'{R2_PAYMENT_SCREENSHOT_FOLDER}/{R2_THUMBS_FOLDER}/{thumb_name}'
+
     return {
         'id': image_id,
+        'url': f'{r2_base}/{image_r2_key}',
+        'thumb_url': f'{r2_base}/{thumb_r2_key}',
+        'key': image_r2_key,
         'filename': file.filename or image_name,
-        'stored_path': str(image_path),
-        'url': f'/api/platform-revenues/images/{image_name}',
-        'size': image_path.stat().st_size,
+        'size': len(image_bytes),
         'created_at': uploaded_at,
     }
-
-
-@router.get('/platform-revenues/images/{filename}')
-def get_platform_revenue_image(filename: str) -> Response:
-    if not filename:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Invalid filename')
-
-    root = _platform_revenue_image_dir().resolve()
-    resolved = (root / filename).resolve()
-    if not str(resolved).startswith(str(root)):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Invalid filename')
-    if not resolved.exists() or not resolved.is_file():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Image not found')
-
-    content_type = CONTENT_TYPE_MAP.get(resolved.suffix.lower(), 'application/octet-stream')
-    return Response(
-        content=resolved.read_bytes(),
-        media_type=content_type,
-        headers={'Cache-Control': 'private, max-age=86400'},
-    )
 
 
 @router.get('/platform-revenues/project-countries/{project_id}')
