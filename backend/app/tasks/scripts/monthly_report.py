@@ -164,9 +164,10 @@ def run(input_path: str, output_dir: str, params: dict) -> dict:
     country = normalize_country(str(params.get('country', 'US')))
 
     report("reading_transactions", 15, "处理中：正在读取交易数据")
-    all_rows = _read_transactions(input_path, country)
+    df = read_payment_csv(Path(input_path), country=country)
+    all_rows: list[dict[str, object]] = df.to_dict(orient="records")
     report("classifying_transactions", 28, "处理中：正在分类交易数据")
-    c = _classify_rows(all_rows)
+    c = classify_rows(all_rows)
 
     order = c["order"]
     refund = c["refund"]
