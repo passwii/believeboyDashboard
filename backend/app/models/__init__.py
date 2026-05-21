@@ -85,6 +85,7 @@ from app.models.reconciliation import ReconciliationRecord
 from app.models.alert_rule import AlertRule
 from app.models.alert_event import AlertEvent, AlertEventStatus
 from app.models.alert_preference import AlertPreference
+from app.models.notification_subscription import NotificationSubscription
 from app.models.scheduled_report import (
     ScheduledReportSubscription,
     ScheduledReportDeliveryLog,
@@ -177,6 +178,7 @@ __all__ = [
     'AlertEvent',
     'AlertEventStatus',
     'AlertPreference',
+    'NotificationSubscription',
     'ScheduledReportSubscription',
     'ScheduledReportDeliveryLog',
     'ReportFrequency',
