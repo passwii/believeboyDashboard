@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 from datetime import datetime, timezone
 from io import BytesIO
+
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, Request, Response, UploadFile, status
@@ -22,6 +23,7 @@ from app.schemas.platform_revenue import (
 from app.services import platform_revenue_service
 from app.services.audit_log_service import append_operation_audit_log
 from app.services.r2_service import upload_bytes_to_r2
+from app.services.upload_service import _safe_project_folder_name
 
 router = APIRouter(dependencies=[Depends(protected)])
 
@@ -294,37 +296,42 @@ async def upload_platform_revenue_image(
     if not settings.r2_enabled:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail='R2 storage not configured')
 
-    # Upload original image to R2 (no project slug — avoid Chinese chars in R2 keys)
-    upload_bytes_to_r2(
+    # Generate safe project folder name (same pattern as save_upload_file)
+    project_slug = _safe_project_folder_name(project_name)
+
+    # Upload original image to R2 (organized by project folder)
+    # R2 key: {project_slug}/{R2_PAYMENT_SCREENSHOT_FOLDER}/{R2_IMAGES_FOLDER}/{filename}
+    image_r2_result = upload_bytes_to_r2(
         settings,
         image_bytes,
         image_name,
-        R2_PAYMENT_SCREENSHOT_FOLDER,
-        R2_IMAGES_FOLDER,
+        project_slug,
+        f'{R2_PAYMENT_SCREENSHOT_FOLDER}/{R2_IMAGES_FOLDER}',
         'image/webp',
     )
 
     # Upload thumbnail to R2
-    upload_bytes_to_r2(
+    thumb_r2_result = upload_bytes_to_r2(
         settings,
         thumb_bytes,
         thumb_name,
-        R2_PAYMENT_SCREENSHOT_FOLDER,
-        R2_THUMBS_FOLDER,
+        project_slug,
+        f'{R2_PAYMENT_SCREENSHOT_FOLDER}/{R2_THUMBS_FOLDER}',
         'image/webp',
     )
 
     uploaded_at = datetime.now(timezone.utc).isoformat()
 
-    # Build R2 URLs directly (matching screenshot endpoint pattern)
-    r2_base = settings.r2_public_url or f"{settings.r2_endpoint_url}/{settings.r2_bucket_name}"
-    image_r2_key = f'{R2_PAYMENT_SCREENSHOT_FOLDER}/{R2_IMAGES_FOLDER}/{image_name}'
-    thumb_r2_key = f'{R2_PAYMENT_SCREENSHOT_FOLDER}/{R2_THUMBS_FOLDER}/{thumb_name}'
+    # Use the URLs returned by upload_bytes_to_r2 to ensure consistency
+    # (R2 sanitizes keys internally, so the returned URL always matches the actual key)
+    image_url = image_r2_result['url']
+    thumb_url = thumb_r2_result['url']
+    image_r2_key = image_r2_result['key']
 
     return {
         'id': image_id,
-        'url': f'{r2_base}/{image_r2_key}',
-        'thumb_url': f'{r2_base}/{thumb_r2_key}',
+        'url': image_url,
+        'thumb_url': thumb_url,
         'key': image_r2_key,
         'filename': file.filename or image_name,
         'size': len(image_bytes),

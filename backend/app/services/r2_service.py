@@ -8,6 +8,7 @@ from __future__ import annotations
 import io
 from pathlib import Path
 from typing import BinaryIO
+from urllib.parse import quote
 
 import boto3
 from botocore.config import Config
@@ -36,13 +37,19 @@ def get_r2_client(settings: Settings) -> boto3.client:
 
 
 def _sanitize_key(key: str) -> str:
-    """Sanitize S3 key to be safe and predictable."""
-    # Replace spaces and special chars with underscore
+    """Sanitize S3 key to be safe and predictable.
+
+    S3 keys support Unicode characters (including Chinese).
+    We only remove control characters and normalize whitespace.
+    """
     import re
-    key = re.sub(r'[^\w\-_.]', '_', key)
-    # Remove consecutive underscores
-    key = re.sub(r'_+', '_', key)
-    return key.strip('_')
+    # Remove control characters (0x00-0x1f and 0x7f)
+    key = re.sub(r'[\x00-\x1f\x7f]', '', key)
+    # Normalize whitespace to single spaces
+    key = re.sub(r'\s+', ' ', key)
+    # Strip leading/trailing whitespace
+    key = key.strip()
+    return key
 
 
 def upload_file_to_r2(
@@ -82,7 +89,8 @@ def upload_file_to_r2(
 
     # Generate public URL using custom domain if configured, otherwise R2 endpoint
     base = settings.r2_public_url or f"{settings.r2_endpoint_url}/{settings.r2_bucket_name}"
-    public_url = f"{base}/{key}"
+    # URL-encode the key for the public URL (preserves Unicode by percent-encoding)
+    public_url = f"{base}/{quote(key, safe='/')}"
 
     return {
         'key': key,
@@ -127,7 +135,7 @@ def delete_file_from_r2(settings: Settings, key: str) -> bool:
 def get_file_url(settings: Settings, key: str) -> str:
     """Get the public URL for a file in R2."""
     base = settings.r2_public_url or f"{settings.r2_endpoint_url}/{settings.r2_bucket_name}"
-    return f"{base}/{key}"
+    return f"{base}/{quote(key, safe='/')}"
 
 
 def generate_presigned_url(
