@@ -57,16 +57,41 @@ def _download_from_r2(url: str) -> Path:
     from app.services.r2_service import download_file_to_path
 
     settings = get_settings()
+
     # Extract R2 key from URL
-    # Public URL format: https://bucket.believeboy.com/key
-    # Legacy URL format: https://...r2.cloudflarestorage.com/bucket/key
+    # Try multiple patterns:
+    # 1. Custom public URL: https://cdn.example.com/key
+    # 2. R2 endpoint with bucket: https://...r2.cloudflarestorage.com/bucket/key
+    # 3. Custom domain (any subdomain of known domains): https://bucket.example.com/key
+
+    key = None
+
+    # Pattern 1: r2_public_url
     if settings.r2_public_url and url.startswith(settings.r2_public_url):
         key = url[len(settings.r2_public_url):].lstrip('/')
-    else:
-        parts = url.split(f"{settings.r2_bucket_name}/")
-        if len(parts) < 2:
-            raise ValueError(f"Invalid R2 URL format: {url}")
-        key = parts[1]
+
+    # Pattern 2: R2 endpoint format
+    if key is None:
+        bucket_prefix = f"{settings.r2_bucket_name}/"
+        if bucket_prefix in url:
+            parts = url.split(bucket_prefix)
+            if len(parts) == 2:
+                key = parts[1]
+
+    # Pattern 3: Try to extract key from URL by removing protocol and host
+    if key is None:
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        # Remove leading slash and everything up to the first path component
+        path = parsed.path
+        if path.startswith('/'):
+            path = path[1:]
+        # The key is the full path if it looks like a valid key (has slashes or file extension)
+        if '/' in path or path.endswith('.pdf'):
+            key = path
+
+    if key is None:
+        raise ValueError(f"Could not extract R2 key from URL: {url}")
 
     # Download to temp file
     temp_file = tempfile.NamedTemporaryFile(suffix='.pdf', delete=False)
