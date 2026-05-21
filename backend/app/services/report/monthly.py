@@ -215,6 +215,22 @@ def prepare_monthly_report(
         settlement_id=None,
         computed_at=None,
     )
+    # Set R2-specific fields for PDF if present
+    if summary_pdf_file_id:
+        from app.core.config import get_settings
+        from app.services.upload_service import _safe_project_folder_name, slugify
+
+        settings = get_settings()
+        # Build R2 key: {project_slug}/{file_type}/{filename}
+        project_slug = _safe_project_folder_name(project_name)
+        file_type_slug = slugify('monthly_summary_pdf')[:50] or 'file'
+        # summary_pdf_file_id contains the full R2 key (e.g., "玥涵/monthly-summary-pdf/xxx.pdf")
+        # so we extract just the filename part to reconstruct the proper key
+        filename = summary_pdf_file_id.split('/')[-1] if '/' in summary_pdf_file_id else summary_pdf_file_id
+        r2_key = f"{project_slug}/{file_type_slug}/{filename}"
+        report.summary_pdf_r2_key = r2_key
+        report.summary_pdf_r2_url = f"{settings.r2_endpoint_url}/{settings.r2_bucket_name}/{r2_key}"
+
     db.add(report)
     db.flush()
     db.refresh(report)
