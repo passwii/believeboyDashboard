@@ -17,7 +17,7 @@ const nextConfig = {
         hostname: '*.r2.cloudflarestorage.com',
       },
     ],
-    unoptimized: false,
+    unoptimized: true,
   },
 }
 
