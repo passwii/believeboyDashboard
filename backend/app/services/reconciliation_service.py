@@ -55,14 +55,13 @@ def _build_r2_url_from_key(key: str) -> str:
 def _download_from_r2(url: str) -> Path:
     """Download PDF from R2 to temporary file."""
     from app.services.r2_service import download_file_to_path
+    from urllib.parse import unquote
 
     settings = get_settings()
 
     # Extract R2 key from URL
-    # Try multiple patterns:
-    # 1. Custom public URL: https://cdn.example.com/key
-    # 2. R2 endpoint with bucket: https://...r2.cloudflarestorage.com/bucket/key
-    # 3. Custom domain (any subdomain of known domains): https://bucket.example.com/key
+    # URL may be percent-encoded (e.g., %E9%93%A8%E5%AF%8C for 魁宝)
+    # but R2 stores the raw key, so we need to decode it
 
     key = None
 
@@ -92,6 +91,10 @@ def _download_from_r2(url: str) -> Path:
 
     if key is None:
         raise ValueError(f"Could not extract R2 key from URL: {url}")
+
+    # Decode URL-encoded characters (e.g., %E9%93%A8%E5%AF%8C -> 魁宝)
+    # R2 stores raw keys, so we need the decoded version
+    key = unquote(key)
 
     # Download to temp file
     temp_file = tempfile.NamedTemporaryFile(suffix='.pdf', delete=False)
