@@ -46,10 +46,12 @@ def _resolve_pdf_path(relative_path: str | None) -> Path:
 
 def _build_r2_url_from_key(key: str) -> str:
     """Build R2 URL from key."""
+    from urllib.parse import quote
     from app.core.config import get_settings
     settings = get_settings()
     base = settings.r2_public_url or f"{settings.r2_endpoint_url}/{settings.r2_bucket_name}"
-    return f"{base}/{key}"
+    # URL-encode the key (e.g., 魁宝 -> %E9%93%A8%E5%AF%8C)
+    return f"{base}/{quote(key, safe='/')}"
 
 
 def _download_from_r2(url: str) -> Path:
