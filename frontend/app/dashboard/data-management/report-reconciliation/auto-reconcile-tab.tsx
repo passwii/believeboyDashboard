@@ -203,19 +203,24 @@ function PDFUploadPanel({
   report,
   onUploadSuccess,
   onClose,
+  errorMessage,
 }: {
   report: AvailableReport
   onUploadSuccess: () => void
   onClose: () => void
+  errorMessage?: string  // NEW: external error to display
 }) {
   const { notify } = useNotifications()
   const [uploadState, setUploadState] = useState<PDFUploadState>('idle')
   const [dragActive, setDragActive] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [localErrorMessage, setLocalErrorMessage] = useState<string | null>(null)
 
   const isPdfMissing = report.pdf_file_missing
   const isReplacing = report.has_summary_pdf || isPdfMissing
+
+  // Use external error message if provided, otherwise use local
+  const displayError = errorMessage || localErrorMessage
 
   const handleDrag = useCallback((e: DragEvent<HTMLDivElement>) => {
     e.preventDefault()
@@ -240,9 +245,9 @@ function PDFUploadPanel({
       const file = files[0]
       if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
         setSelectedFile(file)
-        setErrorMessage(null)
+        setLocalErrorMessage(null)
       } else {
-        setErrorMessage('请上传 PDF 文件')
+        setLocalErrorMessage('请上传 PDF 文件')
       }
     }
   }, [])
@@ -253,9 +258,9 @@ function PDFUploadPanel({
       const file = files[0]
       if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
         setSelectedFile(file)
-        setErrorMessage(null)
+        setLocalErrorMessage(null)
       } else {
-        setErrorMessage('请上传 PDF 文件')
+        setLocalErrorMessage('请上传 PDF 文件')
       }
     }
   }, [])
@@ -264,7 +269,7 @@ function PDFUploadPanel({
     if (!selectedFile) return
 
     setUploadState('uploading')
-    setErrorMessage(null)
+    setLocalErrorMessage(null)
 
     try {
       const formData = new FormData()
@@ -296,7 +301,7 @@ function PDFUploadPanel({
       }, 1000)
     } catch (error) {
       setUploadState('error')
-      setErrorMessage(error instanceof Error ? error.message : '上传失败')
+      setLocalErrorMessage(error instanceof Error ? error.message : '上传失败')
       notify({
         type: 'error',
         title: '上传失败',
@@ -307,7 +312,7 @@ function PDFUploadPanel({
 
   const handleRemoveFile = useCallback(() => {
     setSelectedFile(null)
-    setErrorMessage(null)
+    setLocalErrorMessage(null)
     setUploadState('idle')
   }, [])
 
@@ -397,10 +402,10 @@ function PDFUploadPanel({
       </div>
 
       {/* Error Message */}
-      {errorMessage && (
+      {displayError && (
         <div className='mt-4 flex items-center gap-2 text-sm text-red-600 dark:text-red-400'>
           <XCircle className='h-4 w-4' />
-          {errorMessage}
+          {displayError}
         </div>
       )}
 
@@ -458,36 +463,69 @@ function PDFUploadPanel({
 
 // ─── Detail Panel Component ──────────────────────────────────────────────────
 
+// Error types for reconciliation
+type ReconcileErrorType = 'pdf_download_failed' | 'extraction_failed' | 'unknown' | null
+
 function DetailPanel({
   report,
   result,
   reconciling,
   onClose,
   onUploadSuccess,
+  onReconcile,
+  errorType,
+  onClearError,
+  onShowUpload,
 }: {
   report: AvailableReport
   result: ReconcileResult | null
   reconciling: boolean
   onClose: () => void
   onUploadSuccess: () => void
+  onReconcile: (report: AvailableReport) => void
+  errorType: ReconcileErrorType
+  onClearError: () => void
+  onShowUpload: () => void  // Callback to show upload panel
 }) {
   const { notify } = useNotifications()
   const country = report.country
 
   // Determine if we should show upload panel or reconciliation result
-  const canReconcile = report.has_summary_pdf && report.pt3_calculation_complete
+  const hasPdf = report.has_summary_pdf && !report.pdf_file_missing
   const needsUpload = !report.has_summary_pdf || report.pdf_file_missing
   const needsCalculation = !report.pt3_calculation_complete
+
+  // Show upload panel if: needs upload OR has PDF error OR explicitly requested
+  const showUploadPanel = needsUpload || errorType !== null
 
   // Auto-trigger reconciliation when panel opens with canReconcile
   const [autoTriggered, setAutoTriggered] = useState(false)
 
   useEffect(() => {
-    if (canReconcile && !result && !reconciling && !autoTriggered) {
+    if (hasPdf && !result && !reconciling && !autoTriggered && errorType === null) {
       // Will be triggered by parent
       setAutoTriggered(true)
     }
-  }, [canReconcile, result, reconciling, autoTriggered])
+  }, [hasPdf, result, reconciling, autoTriggered, errorType])
+
+  // Clear error when switching to upload panel
+  useEffect(() => {
+    if (showUploadPanel && errorType !== null) {
+      onClearError()
+    }
+  }, [showUploadPanel, errorType, onClearError])
+
+  // Get error message for display
+  const getErrorMessage = () => {
+    switch (errorType) {
+      case 'pdf_download_failed':
+        return 'PDF 文件无法下载，可能已被删除或 R2 存储异常'
+      case 'extraction_failed':
+        return 'PDF 数据提取失败，请检查文件格式'
+      default:
+        return '核对过程中发生错误'
+    }
+  }
 
   return (
     <div className='fixed inset-y-0 right-0 z-50 w-full max-w-2xl border-l bg-background shadow-xl animate-in slide-in-from-right duration-300'>
@@ -506,12 +544,13 @@ function DetailPanel({
 
       {/* Content */}
       <div className='h-[calc(100vh-80px)] overflow-y-auto p-6'>
-        {/* Show upload panel if needs upload or file is missing */}
-        {needsUpload ? (
+        {/* Show upload panel if needs upload or file is missing or has error */}
+        {showUploadPanel ? (
           <PDFUploadPanel
             report={report}
             onUploadSuccess={onUploadSuccess}
             onClose={onClose}
+            errorMessage={errorType ? getErrorMessage() : undefined}
           />
         ) : needsCalculation ? (
           /* Show message if calculation not done */
@@ -521,9 +560,16 @@ function DetailPanel({
             <p className='mt-2 text-center text-sm text-muted-foreground'>
               请先在月报核算页面完成 PT3 报表核算，再进行核对
             </p>
-            <Button variant='outline' className='mt-6' onClick={onClose}>
-              关闭
-            </Button>
+            {/* Always show re-upload button */}
+            <div className='mt-6 flex gap-3'>
+              <Button variant='outline' onClick={() => onReconcile(report)}>
+                <RefreshCw className='mr-2 h-4 w-4' />
+                重新核对
+              </Button>
+              <Button variant='ghost' onClick={onClose}>
+                关闭
+              </Button>
+            </div>
           </div>
         ) : !result && reconciling ? (
           /* Loading state */
@@ -655,15 +701,11 @@ function DetailPanel({
               </table>
             </div>
 
-            {/* Re-upload PDF Button */}
-            <div className='mt-6 flex justify-center'>
+            {/* Re-upload PDF Button - Always visible */}
+            <div className='mt-6 flex justify-center gap-3'>
               <Button
                 variant='outline'
-                size='sm'
-                onClick={() => {
-                  // Close current panel and show upload panel via parent
-                  onClose()
-                }}
+                onClick={onShowUpload}
               >
                 <Upload className='mr-2 h-4 w-4' />
                 重新上传 PDF
@@ -675,6 +717,15 @@ function DetailPanel({
           <div className='flex flex-col items-center justify-center py-20'>
             <FileText className='h-10 w-10 text-muted-foreground/50' />
             <p className='mt-4 text-muted-foreground'>暂无数据</p>
+            <div className='mt-6 flex gap-3'>
+              <Button variant='outline' onClick={() => onReconcile(report)}>
+                <RefreshCw className='mr-2 h-4 w-4' />
+                重新核对
+              </Button>
+              <Button variant='ghost' onClick={onClose}>
+                关闭
+              </Button>
+            </div>
           </div>
         )}
       </div>
@@ -698,12 +749,40 @@ export default function AutoReconcileTab() {
   const [reconciling, setReconciling] = useState<number | null>(null)
   const [selectedReport, setSelectedReport] = useState<AvailableReport | null>(null)
 
+  // Error state for reconciliation
+  const [reconcileError, setReconcileError] = useState<{
+    reportId: number
+    errorType: ReconcileErrorType
+  } | null>(null)
+
+  // Track if we should show upload panel (for re-upload flow)
+  const [showUploadPanel, setShowUploadPanel] = useState(false)
+
   // Derive current reconciliation result based on selected report
   // This ensures we always have the latest result data
   const currentResult = useMemo(() => {
     if (!selectedReport) return null
     return reconcileResults.get(selectedReport.report_id) ?? null
   }, [selectedReport, reconcileResults])
+
+  // Get current error for selected report
+  const currentError = useMemo(() => {
+    if (!selectedReport) return null
+    if (reconcileError?.reportId === selectedReport.report_id) {
+      return reconcileError.errorType
+    }
+    return null
+  }, [selectedReport, reconcileError])
+
+  // Determine if we should show upload panel
+  const shouldShowUploadPanel = useMemo(() => {
+    if (!selectedReport) return false
+    if (showUploadPanel) return true
+    if (currentError) return true
+    // Also show if PDF is missing or doesn't exist
+    if (!selectedReport.has_summary_pdf || selectedReport.pdf_file_missing) return true
+    return false
+  }, [selectedReport, showUploadPanel, currentError])
 
   // Fetch available reports
   const fetchAvailableReports = useCallback(async () => {
@@ -749,6 +828,14 @@ export default function AutoReconcileTab() {
     // Check if can reconcile
     const canReconcile = report.has_summary_pdf && report.pt3_calculation_complete
 
+    // Clear any previous errors for this report
+    if (reconcileError?.reportId === report.report_id) {
+      setReconcileError(null)
+    }
+
+    // Close upload panel when opening detail
+    setShowUploadPanel(false)
+
     // Always open the panel first
     setSelectedReport(report)
 
@@ -769,7 +856,24 @@ export default function AutoReconcileTab() {
 
         if (!response.ok) {
           const error = await response.json()
-          throw new Error(error.detail || '核对失败')
+          const errorDetail = error.detail || '核对失败'
+
+          // Determine error type based on message
+          let errorType: ReconcileErrorType = 'unknown'
+          if (errorDetail.includes('download') || errorDetail.includes('Failed to download')) {
+            errorType = 'pdf_download_failed'
+          } else if (errorDetail.includes('extract') || errorDetail.includes('PDF')) {
+            errorType = 'extraction_failed'
+          }
+
+          // Set error state to show upload panel
+          setReconcileError({ reportId: report.report_id, errorType })
+          notify({
+            type: 'warning',
+            title: '核对失败',
+            message: errorDetail,
+          })
+          return
         }
 
         const result: ReconcileResult = await response.json()
@@ -780,6 +884,11 @@ export default function AutoReconcileTab() {
           newMap.set(report.report_id, result)
           return newMap
         })
+
+        // Clear any error state
+        if (reconcileError?.reportId === report.report_id) {
+          setReconcileError(null)
+        }
 
         // Show notification
         if (result.match_rate === 100) {
@@ -794,10 +903,21 @@ export default function AutoReconcileTab() {
           notify({ type: 'info', title: '核对完成', message: '核对成功' })
         }
       } catch (error) {
+        // Determine error type
+        const errorMessage = error instanceof Error ? error.message : '未知错误'
+        let errorType: ReconcileErrorType = 'unknown'
+        if (errorMessage.includes('download') || errorMessage.includes('Failed to download')) {
+          errorType = 'pdf_download_failed'
+        } else if (errorMessage.includes('extract') || errorMessage.includes('PDF')) {
+          errorType = 'extraction_failed'
+        }
+
+        // Set error state to show upload panel
+        setReconcileError({ reportId: report.report_id, errorType })
         notify({
-          type: 'error',
+          type: 'warning',
           title: '核对失败',
-          message: error instanceof Error ? error.message : '未知错误',
+          message: errorMessage,
         })
       } finally {
         setReconciling(null)
@@ -805,23 +925,135 @@ export default function AutoReconcileTab() {
     }
   }
 
-  // Handle upload success - refresh reports and optionally trigger reconcile
-  const handleUploadSuccess = useCallback(() => {
-    fetchAvailableReports()
-    // Clear the cached result so it will be re-fetched
-    if (selectedReport) {
-      setReconcileResults((prev) => {
-        const newMap = new Map(prev)
-        newMap.delete(selectedReport.report_id)
-        return newMap
-      })
+  // Trigger reconcile (called from DetailPanel)
+  const handleReconcile = useCallback(async (report: AvailableReport) => {
+    // Close upload panel first
+    setShowUploadPanel(false)
+
+    // Clear error state
+    if (reconcileError?.reportId === report.report_id) {
+      setReconcileError(null)
     }
-  }, [fetchAvailableReports, selectedReport])
+
+    // Clear cached result to force re-reconcile
+    setReconcileResults((prev) => {
+      const newMap = new Map(prev)
+      newMap.delete(report.report_id)
+      return newMap
+    })
+
+    // Trigger the row click to re-open panel and reconcile
+    await handleRowClick(report)
+  }, [reconcileError])
+
+  // Handle upload success - refresh reports and trigger reconcile
+  const handleUploadSuccess = useCallback(() => {
+    if (!selectedReport) return
+
+    // Close upload panel
+    setShowUploadPanel(false)
+
+    // Clear cached result
+    setReconcileResults((prev) => {
+      const newMap = new Map(prev)
+      newMap.delete(selectedReport.report_id)
+      return newMap
+    })
+
+    // Fetch updated reports first
+    fetchAvailableReports().then(() => {
+      // If PT3 calculation is complete, auto-trigger reconcile
+      if (selectedReport.pt3_calculation_complete) {
+        setReconciling(selectedReport.report_id)
+
+        fetch('/api/backend/api/v1/report-reconciliation/auto-reconcile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            report_id: selectedReport.report_id,
+            tolerance: 0.01,
+            country: selectedReport.country,
+          }),
+        })
+          .then((response) => {
+            if (!response.ok) {
+              const error = response.json()
+              return error.then((e: { detail?: string }) => {
+                throw new Error(e.detail || '核对失败')
+              })
+            }
+            return response.json()
+          })
+          .then((result: ReconcileResult) => {
+            setReconcileResults((prev) => {
+              const newMap = new Map(prev)
+              newMap.set(selectedReport.report_id, result)
+              return newMap
+            })
+
+            // Clear any error state
+            if (reconcileError?.reportId === selectedReport.report_id) {
+              setReconcileError(null)
+            }
+
+            // Show notification
+            if (result.match_rate === 100) {
+              notify({ type: 'success', title: '核对完成', message: '所有数据项均匹配' })
+            } else if (result.mismatched_items > 0) {
+              notify({
+                type: 'warning',
+                title: '核对完成',
+                message: `发现 ${result.mismatched_items} 项差异，请检查`,
+              })
+            } else {
+              notify({ type: 'info', title: '核对完成', message: '核对成功' })
+            }
+          })
+          .catch((error) => {
+            // Determine error type
+            const errorMessage = error instanceof Error ? error.message : '核对失败'
+            let errorType: ReconcileErrorType = 'unknown'
+            if (errorMessage.includes('download') || errorMessage.includes('Failed to download')) {
+              errorType = 'pdf_download_failed'
+            } else if (errorMessage.includes('extract') || errorMessage.includes('PDF')) {
+              errorType = 'extraction_failed'
+            }
+
+            setReconcileError({ reportId: selectedReport.report_id, errorType })
+            notify({
+              type: 'warning',
+              title: '核对失败',
+              message: errorMessage,
+            })
+          })
+          .finally(() => {
+            setReconciling(null)
+          })
+      }
+    })
+  }, [selectedReport, fetchAvailableReports, reconcileError, notify])
 
   // Handle panel close
   const handlePanelClose = useCallback(() => {
     setSelectedReport(null)
+    setReconcileError(null)
+    setShowUploadPanel(false)
   }, [])
+
+  // Handle showing upload panel (from re-upload button)
+  const handleShowUploadPanel = useCallback(() => {
+    setShowUploadPanel(true)
+    setReconcileError(null)
+  }, [])
+
+  // Handle clear error
+  const handleClearError = useCallback(() => {
+    if (selectedReport) {
+      setReconcileError((prev) =>
+        prev?.reportId === selectedReport.report_id ? null : prev
+      )
+    }
+  }, [selectedReport])
 
   // Group reports
   const canReconcileReports = availableReports.filter(
@@ -1003,6 +1235,10 @@ export default function AutoReconcileTab() {
             reconciling={reconciling === selectedReport.report_id}
             onClose={handlePanelClose}
             onUploadSuccess={handleUploadSuccess}
+            onReconcile={handleReconcile}
+            errorType={currentError}
+            onClearError={handleClearError}
+            onShowUpload={handleShowUploadPanel}
           />
         </>
       )}

@@ -169,10 +169,25 @@ def get_available_reports(
         pt4 = db.execute(pt4_stmt).scalars().first()
 
         # Check if PDF exists in R2 (via r2_key or r2_url)
-        # Legacy support: also check summary_pdf_r2_url
-        pdf_exists = bool(report.summary_pdf_r2_key or report.summary_pdf_r2_url)
-        pdf_file_missing = False
-        pdf_url = report.summary_pdf_r2_url
+        # ACTUALLY verify the file exists, not just check DB fields
+        from app.services.r2_service import check_file_exists, extract_key_from_url
+
+        pdf_exists_in_r2 = False
+        pdf_key = None
+
+        if report.summary_pdf_r2_key:
+            # Key is directly stored, check it
+            pdf_key = report.summary_pdf_r2_key
+            pdf_exists_in_r2 = check_file_exists(settings, pdf_key)
+        elif report.summary_pdf_r2_url:
+            # Try to extract key from URL and check
+            pdf_key = extract_key_from_url(report.summary_pdf_r2_url, settings)
+            if pdf_key:
+                pdf_exists_in_r2 = check_file_exists(settings, pdf_key)
+
+        pdf_exists = pdf_exists_in_r2
+        pdf_file_missing = not pdf_exists_in_r2
+        pdf_url = report.summary_pdf_r2_url if pdf_exists_in_r2 else None
 
         # Check if this report has been reconciled before
         recon_stmt = select(ReconciliationRecord).where(
