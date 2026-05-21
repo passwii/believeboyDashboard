@@ -47,7 +47,7 @@ DEPLOY_COMMANDS = [
 # 检查命令（部署后验证）
 CHECK_COMMANDS = [
     "systemctl is-active believeboy-api",
-    f"cd {BACKEND_DIR} && {VENV_ACTIVATE} && python -c 'import app.main'",
+    f"cd {BACKEND_DIR} && {VENV_ACTIVATE} && python -c \"import app.main\"",
 ]
 
 # 日志获取命令（用于错误分析）
