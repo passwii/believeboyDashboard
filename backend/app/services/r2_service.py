@@ -180,3 +180,37 @@ def download_file_to_path(settings: Settings, key: str, dest_path: Path) -> bool
         return True
     except ClientError:
         return False
+
+
+def extract_key_from_url(url: str, settings: Settings | None = None) -> str | None:
+    """
+    Extract R2 key from a public URL.
+
+    Supports formats:
+    - https://cdn.example.com/bucket/key
+    - https://bucket.r2.cloudflarestorage.com/bucket/key
+    - /bucket/key (relative)
+    """
+    from app.core.config import get_settings
+
+    if settings is None:
+        settings = get_settings()
+
+    # If it's already just a key (no slashes with bucket), return as-is
+    if not url.startswith('http') and not url.startswith('/'):
+        return url
+
+    # Try to extract key based on known patterns
+    # Pattern 1: Custom public URL
+    if settings.r2_public_url and url.startswith(settings.r2_public_url):
+        return url[len(settings.r2_public_url):].lstrip('/')
+
+    # Pattern 2: R2 endpoint with bucket
+    if settings.r2_bucket_name:
+        suffix = f"{settings.r2_bucket_name}/"
+        if suffix in url:
+            parts = url.split(suffix)
+            if len(parts) == 2:
+                return parts[1]
+
+    return None
