@@ -12,6 +12,7 @@ from openpyxl.utils import get_column_letter
 
 from app.services.payment import read_payment_csv, classify_rows, compute_metrics
 from app.services.payment.financial import _round2, _to_decimal, _sum_field
+from app.services.report.utils import _safe_project_name
 from app.utils.country import normalize_country
 
 TWO_DP = Decimal("0.01")
