@@ -20,6 +20,7 @@ from app.services.report.monthly import (
     persist_monthly_report_result,
     prepare_monthly_report,
 )
+from app.services.upload_service import delete_upload_file_local
 
 logger = logging.getLogger(__name__)
 _TASK_TTL_SECONDS = 24 * 60 * 60
@@ -212,6 +213,17 @@ def _run_task(task_id: int, settings: Settings, payload: dict[str, Any]) -> None
         ok = _persist_monthly_report(task_id, payload, result)
         if ok:
             mark_task_success(task_id, result_path, '处理完成：报表已生成，可下载')
+            # Delete local CSV cache after successful processing; R2 is the source of truth.
+            try:
+                delete_upload_file_local(
+                    settings,
+                    payload['project_name'],
+                    'payment_report',
+                    payload['transaction_file_id'],
+                )
+            except Exception:  # noqa: BLE001
+                # Deletion is best-effort; don't fail the task for this.
+                pass
         else:
             mark_task_failed(task_id, '数据库持久化失败，详见日志')
     except Exception as exc:  # noqa: BLE001

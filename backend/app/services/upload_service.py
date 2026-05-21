@@ -44,7 +44,14 @@ def _safe_project_folder_name(project_name: str) -> str:
 
 def save_upload_file(file: UploadFile, settings: Settings, project_name: str, file_type: str) -> dict:
     """
-    Upload a file to R2 storage (cloud-only, no local storage).
+    Upload a file to R2 storage, then sync to local UPLOAD_ROOT as a temporary cache.
+
+    - All files are stored in R2 (the source of truth, cloud-only).
+    - CSV/TXT/XLSX files are also cached locally in UPLOAD_ROOT so that report
+      processing scripts (which read from the local filesystem) can access them.
+    - PDF files are NOT cached locally; they are accessed via their R2 URL.
+    - When a report task finishes processing, it can delete the local cache
+      of that file via delete_upload_file_local().
 
     Args:
         file: FastAPI UploadFile
@@ -53,7 +60,7 @@ def save_upload_file(file: UploadFile, settings: Settings, project_name: str, fi
         file_type: File type (e.g., 'monthly_summary_pdf')
 
     Returns:
-        dict with r2_key, r2_url, file_id, original_filename, size
+        dict with r2_key, r2_url, file_id, original_filename, size, local_path
     """
     if not file.filename:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Missing filename')
@@ -99,7 +106,7 @@ def save_upload_file(file: UploadFile, settings: Settings, project_name: str, fi
             detail='Cloud storage is not configured. Please contact administrator.'
         )
 
-    from app.services.r2_service import upload_bytes_to_r2
+    from app.services.r2_service import download_file_to_path, upload_bytes_to_r2
     r2_result = upload_bytes_to_r2(
         settings,
         file_content,
@@ -109,6 +116,12 @@ def save_upload_file(file: UploadFile, settings: Settings, project_name: str, fi
         content_type or 'application/octet-stream',
     )
 
+    # Sync to local UPLOAD_ROOT for report processing scripts that read local files.
+    # PDF files are kept in R2 only (accessed via URL); CSV/TXT/XLSX files are cached locally.
+    local_dest = settings.upload_root / project_slug / type_slug / stored_name
+    local_dest.parent.mkdir(parents=True, exist_ok=True)
+    download_file_to_path(settings, r2_result['key'], local_dest)
+
     return {
         'file_id': r2_result['key'],
         'r2_key': r2_result['key'],
@@ -117,6 +130,7 @@ def save_upload_file(file: UploadFile, settings: Settings, project_name: str, fi
         'filename': stored_name,
         'original_filename': file.filename,
         'size': size,
+        'local_path': str(local_dest) if ext != '.pdf' else None,
     }
 
 
@@ -205,6 +219,21 @@ def finalize_report_upload_temp_file(
         'original_filename': original_filename or source.name,
         'size': destination.stat().st_size,
     }
+
+
+def delete_upload_file_local(settings: Settings, project_name: str, file_type: str, file_id: str) -> bool:
+    """
+    Delete a locally cached upload file after report processing is complete.
+    The source of truth is already in R2, so the local cache can be safely removed.
+    """
+    local_path = build_upload_file_path(settings, project_name, file_type, file_id)
+    if local_path.exists():
+        try:
+            local_path.unlink()
+            return True
+        except OSError:
+            return False
+    return False
 
 
 def build_upload_file_path(settings: Settings, project_name: str, file_type: str, file_id: str) -> Path:
