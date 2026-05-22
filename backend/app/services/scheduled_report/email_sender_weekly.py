@@ -224,7 +224,7 @@ def send_weekly_report_email(email: str, report_data: dict[str, Any]) -> tuple[b
             "html": html,
         }
 
-        # 生成截图附件
+        # 生成截图附件并上传到 R2
         try:
             from app.services.scheduled_report.screenshot import html_to_png
             png_bytes = html_to_png(html)
@@ -236,6 +236,30 @@ def send_weekly_report_email(email: str, report_data: dict[str, Any]) -> tuple[b
                     "content": base64.b64encode(png_bytes).decode("ascii"),
                     "content_type": "image/png",
                 }]
+
+                try:
+                    from datetime import datetime
+                    from app.services.r2_service import upload_bytes_to_r2
+                    from slugify import slugify
+
+                    settings = get_settings()
+                    project_slug = slugify(project_name)
+                    country = report_data.get("country", "US")
+                    report_date = report_data.get("report_date", "")
+                    ts = datetime.now().strftime("%Y%m%dT%H%M%S")
+                    r2_filename = f"{report_date}_weekly_{country}_{ts}.png"
+
+                    r2_result = upload_bytes_to_r2(
+                        settings=settings,
+                        data=png_bytes,
+                        filename=r2_filename,
+                        project_slug=project_slug,
+                        file_type="scheduled-reports",
+                        content_type="image/png",
+                    )
+                    logger.info("截图已上传到 R2: key=%s url=%s", r2_result["key"], r2_result["url"])
+                except Exception as r2_err:
+                    logger.warning("截图上传到 R2 失败（邮件已发送）: %s", r2_err)
         except Exception as e:
             logger.warning("截图生成跳过: %s", e)
 
