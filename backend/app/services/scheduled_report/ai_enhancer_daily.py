@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any
 
 from app.core.config import get_settings
@@ -25,7 +26,21 @@ SYSTEM_PROMPT = """你是一位跨境电商运营专家。请根据用户提供�
 4. 用中文回复，风格专业简洁
 5. 如果数据全为 0 或无有效数据，返回"暂无足够数据生成摘要"
 6. 不要输出任何"建议"或"建议措施"相关内容
+
+禁止输出：
+- 不要在正文中附带字数统计，如"(字数：100字)"
+- 不要输出标题、分隔线、签名等元信息
+- 只输出纯正文摘要段落，不要有多余格式
 """
+
+
+def _clean_ai_output(text: str) -> str:
+    """移除 AI 输出中常见的元信息污染（字数统计、标题行等）。"""
+    # 移除 "(字数：N字)" / "(共N字)" / "(约N字)" 等变体
+    text = re.sub(r"\s*[（(]\s*(?:字数[：:]?\s*|共|约)\d+\s*字\s*[)）]", "", text)
+    # 移除末尾独立的 "--- 字数：N字" 之类
+    text = re.sub(r"\s*[-—]+\s*字数[：:]\s*\d+\s*字\s*$", "", text)
+    return text.strip()
 
 
 def generate_ai_summary(
@@ -69,7 +84,7 @@ def generate_ai_summary(
         )
 
         if result and result.strip():
-            return result.strip()
+            return _clean_ai_output(result.strip())
         return _generate_fallback_summary(frequency, report_data)
 
     except Exception as e:
