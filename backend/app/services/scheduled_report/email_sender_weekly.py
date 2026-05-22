@@ -33,10 +33,10 @@ def _fmt_week_change(val: float) -> tuple[str, str, str]:
 def _render_week_kpi_card(label: str, current: str, prev: str, change: float, unit: str = "") -> str:
     """渲染周报 KPI 卡片"""
     color, change_str, _ = _fmt_week_change(change)
-    return f"""<td width="50%" style="padding: 12px; text-align: center; border: 1px solid #E5E7EB; background: white; vertical-align: top;">
-      <div style="font-size: 10px; color: #6B7280; margin-bottom: 4px;">{label}</div>
-      <div style="font-size: 28px; font-weight: 900; color: #111827;">{current}{unit}</div>
-      <div style="font-size: 11px; color: {color}; margin-top: 4px;">{change_str} vs 上周</div>
+    return f"""<td width="50%" style="padding: 18px 10px 14px; text-align: center; border: 1px solid #E5E7EB; background: white; vertical-align: top;">
+      <div style="font-size: 14px; color: #6B7280; margin-bottom: 8px;">{label}</div>
+      <div style="font-size: 42px; font-weight: 900; color: #111827;">{current}{unit}</div>
+      <div style="font-size: 14px; color: {color}; margin-top: 6px;">{change_str} vs 上周</div>
     </td>"""
 
 
@@ -44,19 +44,19 @@ def _render_week_comparison_table(rows: list[dict]) -> str:
     """渲染周报对比表格"""
     html = """<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden;">
       <thead><tr style="background: #F9FAFB;">
-        <th style="padding: 8px 12px; font-size: 11px; color: #6B7280; text-align: left; font-weight: 600; border-bottom: 1px solid #E5E7EB;">项目</th>
-        <th style="padding: 8px 12px; font-size: 11px; color: #6B7280; text-align: right; font-weight: 600; border-bottom: 1px solid #E5E7EB;">本周</th>
-        <th style="padding: 8px 12px; font-size: 11px; color: #6B7280; text-align: right; font-weight: 600; border-bottom: 1px solid #E5E7EB;">上周</th>
-        <th style="padding: 8px 12px; font-size: 11px; color: #6B7280; text-align: right; font-weight: 600; border-bottom: 1px solid #E5E7EB;">变化</th>
+        <th style="padding: 10px 12px; font-size: 13px; color: #6B7280; text-align: left; font-weight: 600; border-bottom: 1px solid #E5E7EB;">项目</th>
+        <th style="padding: 10px 12px; font-size: 13px; color: #6B7280; text-align: right; font-weight: 600; border-bottom: 1px solid #E5E7EB;">本周</th>
+        <th style="padding: 10px 12px; font-size: 13px; color: #6B7280; text-align: right; font-weight: 600; border-bottom: 1px solid #E5E7EB;">上周</th>
+        <th style="padding: 10px 12px; font-size: 13px; color: #6B7280; text-align: right; font-weight: 600; border-bottom: 1px solid #E5E7EB;">变化</th>
       </tr></thead><tbody>"""
-    
+
     for row in rows:
         color, change_str, _ = _fmt_week_change(row.get("change", 0))
         html += f"""<tr>
-          <td style="padding: 10px 12px; font-size: 13px; color: #374151; border-bottom: 1px solid #F3F4F6;">{row.get("label", "")}</td>
-          <td style="padding: 10px 12px; font-size: 13px; text-align: right; font-weight: 600; color: #111827; border-bottom: 1px solid #F3F4F6;">{row.get("current", "")}</td>
-          <td style="padding: 10px 12px; font-size: 13px; text-align: right; color: #6B7280; border-bottom: 1px solid #F3F4F6;">{row.get("prev", "")}</td>
-          <td style="padding: 10px 12px; font-size: 12px; font-weight: 700; text-align: right; color: {color}; border-bottom: 1px solid #F3F4F6;">{change_str}</td>
+          <td style="padding: 12px; font-size: 15px; color: #374151; border-bottom: 1px solid #F3F4F6;">{row.get("label", "")}</td>
+          <td style="padding: 12px; font-size: 15px; text-align: right; font-weight: 600; color: #111827; border-bottom: 1px solid #F3F4F6;">{row.get("current", "")}</td>
+          <td style="padding: 12px; font-size: 15px; text-align: right; color: #6B7280; border-bottom: 1px solid #F3F4F6;">{row.get("prev", "")}</td>
+          <td style="padding: 12px; font-size: 14px; font-weight: 700; text-align: right; color: {color}; border-bottom: 1px solid #F3F4F6;">{change_str}</td>
         </tr>"""
     
     html += "</tbody></table>"
@@ -68,13 +68,13 @@ def _render_attribution_bar(contribution: int, pct: float, is_positive: bool) ->
     color = "#16A34A" if is_positive else "#DC2626"
     icon = "+" if is_positive else ""
     return f"""<tr>
-      <td style="padding: 6px 8px; font-size: 12px; color: #374151;">{contribution}</td>
-      <td style="padding: 6px 8px; width: 120px;">
+      <td style="padding: 8px 10px; font-size: 14px; color: #374151;">{contribution}</td>
+      <td style="padding: 8px 10px; width: 120px;">
         <div style="background: #E5E7EB; border-radius: 4px; height: 8px; overflow: hidden;">
           <div style="background: {color}; width: {abs(pct):.0f}%; height: 100%;"></div>
         </div>
       </td>
-      <td style="padding: 6px 8px; font-size: 11px; color: {color}; font-weight: 600;">{icon}{pct:.1f}%</td>
+      <td style="padding: 8px 10px; font-size: 13px; color: {color}; font-weight: 600;">{icon}{pct:.1f}%</td>
     </tr>"""
 
 
@@ -113,17 +113,17 @@ def _render_weekly_report_html(report_data: dict[str, Any]) -> str:
     for alert in alerts[:5]:
         severity_color = "#DC2626" if alert.get("type") == "critical" else "#F59E0B"
         alert_rows += f"""<tr>
-          <td style="padding: 8px 12px; font-size: 12px; color: #374151; border-bottom: 1px solid #F3F4F6;">
-            <span style="background:{severity_color};color:white;font-size:10px;font-weight:700;padding:2px 6px;border-radius:3px;margin-right:6px;">{alert.get("type", "").upper()}</span>
+          <td style="padding: 10px 14px; font-size: 14px; color: #374151; border-bottom: 1px solid #F3F4F6;">
+            <span style="background:{severity_color};color:white;font-size:12px;font-weight:700;padding:2px 8px;border-radius:3px;margin-right:6px;">{alert.get("type", "").upper()}</span>
             {alert.get("message", "")}
           </td>
         </tr>"""
-    
+
     alert_section = ""
     if alert_rows:
         alert_section = f"""<tr>
           <td style="padding: 16px;">
-            <div style="font-size: 13px; font-weight: 700; color: #111827; margin-bottom: 8px;">⚠️ 需要关注</div>
+            <div style="font-size: 15px; font-weight: 700; color: #111827; margin-bottom: 8px;">⚠️ 需要关注</div>
             <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; overflow: hidden;">
               {alert_rows}
             </table>
@@ -146,15 +146,15 @@ def _render_weekly_report_html(report_data: dict[str, Any]) -> str:
 
       <!-- Header -->
       <tr>
-        <td style="background: linear-gradient(135deg, #1F2937, #374151); padding: 20px 20px 18px;">
+        <td style="background: linear-gradient(135deg, #1F2937, #374151); padding: 24px 20px 22px;">
           <table width="100%" cellpadding="0" cellspacing="0" border="0">
             <tr>
               <td style="vertical-align: middle;">
-                <div style="font-size: 18px; font-weight: 700; color: white;">📊 每周运营报告</div>
-                <div style="font-size: 12px; color: #9CA3AF; margin-top: 4px;">{project_name} · {country} · Week {week_number} · {date_range}</div>
+                <div style="font-size: 22px; font-weight: 700; color: white;">📊 每周运营报告</div>
+                <div style="font-size: 14px; color: #9CA3AF; margin-top: 5px;">{project_name} · {country} · Week {week_number} · {date_range}</div>
               </td>
-              <td width="80" align="right" style="vertical-align: middle;">
-                <span style="display: inline-block; background: #059669; color: white; font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 20px; white-space: nowrap;">每周报告</span>
+              <td width="90" align="right" style="vertical-align: middle;">
+                <span style="display: inline-block; background: #059669; color: white; font-size: 13px; font-weight: 700; padding: 5px 14px; border-radius: 20px; white-space: nowrap;">每周报告</span>
               </td>
             </tr>
           </table>
@@ -163,9 +163,9 @@ def _render_weekly_report_html(report_data: dict[str, Any]) -> str:
 
       <!-- 报表总结 -->
       <tr>
-        <td style="padding: 14px 16px; background: #EFF6FF; border-bottom: 1px solid #BFDBFE;">
-          <div style="font-size: 10px; font-weight: 700; color: #1D4ED8; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px;">🔍 报表总结</div>
-          <div style="font-size: 13px; color: #1E3A5F; line-height: 1.7;">{ai_summary}</div>
+        <td style="padding: 16px; background: #EFF6FF; border-bottom: 1px solid #BFDBFE;">
+          <div style="font-size: 13px; font-weight: 700; color: #1D4ED8; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 5px;">🔍 报表总结</div>
+          <div style="font-size: 15px; color: #1E3A5F; line-height: 1.7;">{ai_summary}</div>
         </td>
       </tr>
 
@@ -183,12 +183,12 @@ def _render_weekly_report_html(report_data: dict[str, Any]) -> str:
 
       <!-- CTA -->
       <tr>
-        <td style="padding: 10px 16px 20px; text-align: center; border-top: 1px solid #F3F4F6;">
+        <td style="padding: 12px 16px 24px; text-align: center; border-top: 1px solid #F3F4F6;">
           <a href="{dash_url}"
-             style="display: inline-block; background: #2563EB; color: white; text-decoration: none; padding: 11px 28px; border-radius: 8px; font-size: 14px; font-weight: 700;">
+             style="display: inline-block; background: #2563EB; color: white; text-decoration: none; padding: 13px 32px; border-radius: 8px; font-size: 16px; font-weight: 700;">
             查看完整仪表板 →
           </a>
-          <div style="margin-top: 10px; font-size: 11px; color: #9CA3AF;">BelieveBoy Dashboard · Week {week_number}</div>
+          <div style="margin-top: 12px; font-size: 13px; color: #9CA3AF;">BelieveBoy Dashboard · Week {week_number}</div>
         </td>
       </tr>
 
