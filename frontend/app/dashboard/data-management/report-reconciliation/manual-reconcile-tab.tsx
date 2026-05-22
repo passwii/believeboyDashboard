@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { FileText, FileUp, CheckCircle2, XCircle, AlertCircle, Loader2 } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { CheckCircle2, XCircle, AlertCircle, Loader2, FileText, FileUp } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { useNotifications } from '@/components/notifications'
@@ -11,6 +11,7 @@ import {
   DataCardContent,
 } from '@/components/ui/data-card'
 import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
 
 type ReconciliationItem = {
   field_name: string

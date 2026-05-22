@@ -22,18 +22,9 @@ from app.services.notification_service import (
     get_subscriptions_by_project,
     update_subscription,
 )
-from app.services.scheduled_report.email_sender import send_test_report_email
+from app.services.scheduled_report.email_sender_daily import send_test_report_email
 
 router = APIRouter(prefix="/notification-settings", tags=["notification-settings"], dependencies=[Depends(protected)])
-
-
-def _get_user_id(x_user_id: str | None = Header(default=None, alias="X-User-Id")) -> int | None:
-    if x_user_id is None:
-        return None
-    try:
-        return int(x_user_id.strip())
-    except (ValueError, TypeError):
-        return None
 
 
 @router.get("/subscriptions", response_model=SubscriptionListResponse)
@@ -57,9 +48,15 @@ def create_subscription_endpoint(
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
+    x_user_id: str | None = Header(default=None, alias="X-User-Id"),
 ) -> SubscriptionItem:
     project_service.ensure_project_access(db, data.project_id, operator=operator, is_admin=bool(is_admin))
-    user_id = _get_user_id()
+    user_id = None
+    if x_user_id:
+        try:
+            user_id = int(x_user_id.strip())
+        except (ValueError, TypeError):
+            pass
     sub = create_subscription(db, data, user_id)
     return SubscriptionItem.model_validate(sub)
 

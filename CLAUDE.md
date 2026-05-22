@@ -127,6 +127,12 @@ Alembic 迁移脚本命名格式：`YYYYMMDD_NNN_description.py`
 
 **注意**：序号是 3 位数字（如 `001`、`120`），不是从 1 开始重新计数。
 
+#### Revision ID 规范（短 ID）
+- 脚本内的 `revision` 和 `down_revision` 必须使用**纯数字短 ID**（如 `'131'`、`'132'`）。
+- **严禁**使用长格式（如 `'20260522_131'`）或随机 hash（如 `'48baadd13dac'`）。
+- **严禁**修改已运行到数据库中的 migration 的 `revision` ID（数据库 `alembic_version` 表已记录该 ID）。
+- 新 migration 的 `down_revision` 必须指向前一个版本的短数字 ID，确保版本链为单链无分支。
+
 查询最新序号：
 ```bash
 cd backend && ls alembic/versions/ | grep "^202605" | sort | tail -5
@@ -163,6 +169,66 @@ B2B SaaS dashboard with a light-mode-first design. Inspired by Linear's informat
 3. **Motion with purpose** — Animations communicate state (streaming, loading, transitions). Never decorative. Respect `prefers-reduced-motion`.
 4. **Consistent surface language** — Use `.dashboard-surface`, `.dashboard-panel`, `.dashboard-toolbar` consistently. Avoid ad-hoc card styling.
 5. **Typography creates hierarchy** — Space Grotesk for display/numbers, Manrope for UI text. Large display numbers for KPIs, small kicker labels for metadata.
+
+## 测试规则
+
+每次完成前端或后端开发后，必须执行**两轮测试**。
+
+### 规则 1：技术测试（每次必做）
+
+**前端开发**：
+```bash
+cd frontend && pnpm build
+```
+- 构建失败 → 立即修复
+- 构建成功 → 继续业务测试
+
+**后端开发**：
+```bash
+cd backend && pytest
+# 或单个测试
+pytest tests/path/to/test_file.py::test_name
+```
+- 测试失败 → 立即修复
+- 测试成功 → 继续业务测试
+
+### 规则 2：业务测试（每次必做）
+
+功能完成后，AI agent 必须提供**业务测试清单**给用户，用户手动执行并反馈。
+
+### 规则 3：反馈循环
+
+用户反馈后：
+- 如果是 bug → 修复并重新执行两轮测试
+- 如果是功能建议 → 记录并评估是否纳入下个迭代
+
+---
+
+## 如何向 AI 反馈
+
+完成业务测试后，请按以下格式反馈：
+
+```markdown
+## 测试反馈
+
+**功能**：<功能名称>
+**URL**：<测试页面 URL>
+
+### 技术测试结果
+- [ ] 前端构建通过
+- [ ] 后端测试通过（如果有）
+
+### 业务测试结果
+| 测试项 | 结果 | 说明 |
+|--------|------|------|
+| 测试项 1 | ✅/❌ | 说明 |
+
+### 问题/建议
+1. <问题描述>
+2. <建议>
+```
+
+---
 
 ## Git Workflow
 
@@ -235,3 +301,25 @@ Skills 位于 `.claude/skills/` 目录，每个 skill 有独立的 `SKILL.md` �
 
 如果你认为哪怕只有 1% 的可能性某个 skill 适用于你正在做的事情，你必须调用该 skill 检查。
 <!-- superpowers-zh:end -->
+
+## 广告数据说明
+
+### 数据表说明
+
+系统中存在两类广告数据表：
+
+| 表名 | 用途 | 使用状态 |
+|------|------|----------|
+| `ad_upload_*` | 亚马逊原始广告报表（直接上传） | **已废弃**，仅作占位 |
+| `analysis_ad_product_rows` | 每日维护的广告产品数据 | **正在使用** |
+
+### 重要决策记录
+
+**2026-05-22**: `_build_ad_snapshot` 函数已修改为从 `analysis_ad_product_rows` 查询广告数据，不再使用 `ad_upload_campaign_rows`。
+
+原因：`ad_upload_` 仅项目4（玥涵）有数据，且数据日期为2026-03-26。创酷（项目15）及其他13个项目的数据维护在 `analysis_ad_product_rows` 表中，最新数据到2026-05-21。
+
+### 报告类型映射
+
+- `analysis_ad_product_rows` 对应 `AnalysisSourceFile.report_type = 'ad_product_report'`
+- 日期过滤使用 `AnalysisSourceFile.period_end_date` 而非 `report_date`

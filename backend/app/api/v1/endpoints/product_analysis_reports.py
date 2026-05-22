@@ -14,6 +14,7 @@ from app.schemas.product_analysis import (
 )
 from app.services.audit_log_service import append_operation_audit_log
 from app.services import analysis_report_runtime_service, upload_service
+from app.services.artifact_service import ArtifactService
 
 router = APIRouter(dependencies=[Depends(protected)])
 
@@ -147,17 +148,42 @@ def download_product_analysis_task_result(
     if not task.result_path:
         raise HTTPException(status_code=404, detail='Result file missing')
 
+    # Check if result is stored in R2 (R2 key format) or local file
     result_path = Path(task.result_path)
-    if not result_path.exists() or not result_path.is_file():
-        raise HTTPException(status_code=404, detail='Result file missing')
-    append_operation_audit_log(
-        db,
-        action='product_analysis_reports.result.export',
-        target_type='product_analysis_report_task',
-        target_id=task.id,
-        operator=operator,
-        after={'job_id': task.id, 'filename': result_path.name},
-        request=request,
-    )
-    db.commit()
-    return FileResponse(path=str(result_path), filename=result_path.name)
+
+    if result_path.exists() and result_path.is_file():
+        # Local file exists, return it directly
+        append_operation_audit_log(
+            db,
+            action='product_analysis_reports.result.export',
+            target_type='product_analysis_report_task',
+            target_id=task.id,
+            operator=operator,
+            after={'job_id': task.id, 'filename': result_path.name, 'source': 'local'},
+            request=request,
+        )
+        db.commit()
+        return FileResponse(path=str(result_path), filename=result_path.name)
+
+    # Try to treat as R2 key
+    # R2 key format: project-slug/product-analysis/{task_id}/filename.xlsx
+    try:
+        r2_url = ArtifactService.build_public_url(task.result_path)
+        append_operation_audit_log(
+            db,
+            action='product_analysis_reports.result.export',
+            target_type='product_analysis_report_task',
+            target_id=task.id,
+            operator=operator,
+            after={'job_id': task.id, 'source': 'r2', 'url': r2_url},
+            request=request,
+        )
+        db.commit()
+        # Return redirect to R2 URL or the URL itself
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=r2_url, status_code=302)
+    except Exception:
+        pass
+
+    # Fallback: if neither local nor R2, return error
+    raise HTTPException(status_code=404, detail='Result file not found')

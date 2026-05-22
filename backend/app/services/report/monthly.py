@@ -219,6 +219,7 @@ def prepare_monthly_report(
     if summary_pdf_file_id:
         from app.core.config import get_settings
         from app.services.upload_service import _safe_project_folder_name, slugify
+        from app.services.artifact_service import ArtifactService
 
         settings = get_settings()
         # Build R2 key: {project_slug}/{file_type}/{filename}
@@ -229,8 +230,8 @@ def prepare_monthly_report(
         filename = summary_pdf_file_id.split('/')[-1] if '/' in summary_pdf_file_id else summary_pdf_file_id
         r2_key = f"{project_slug}/{file_type_slug}/{filename}"
         report.summary_pdf_r2_key = r2_key
-        r2_base = settings.r2_public_url or f"{settings.r2_endpoint_url}/{settings.r2_bucket_name}"
-        report.summary_pdf_r2_url = f"{r2_base}/{r2_key}"
+        # 使用 ArtifactService.build_public_url() 统一构建 URL
+        report.summary_pdf_r2_url = ArtifactService.build_public_url(r2_key)
 
     db.add(report)
     db.flush()

@@ -173,6 +173,52 @@ def set_persistence_state(task_id: int, *, status: str, message: str | None) -> 
         task.updated_at = datetime.now(UTC)
 
 
+def _upload_task_result_to_r2(
+    settings: Settings,
+    report_type: str,
+    task_id: int,
+    local_result_path: str,
+    params: dict[str, Any],
+) -> str | None:
+    """
+    Upload task result file to R2 storage.
+
+    Returns:
+        R2 key path if successful, None otherwise
+    """
+    from app.services.product_analysis_r2_service import build_product_analysis_result_key
+    from app.services.artifact_service import ArtifactService
+
+    result_file = Path(local_result_path)
+    if not result_file.exists():
+        logger.warning("Result file not found for R2 upload: %s", local_result_path)
+        return None
+
+    project_name = str(params.get("project_name") or "").strip() or "default"
+    filename = result_file.name
+
+    try:
+        r2_key_obj = build_product_analysis_result_key(project_name, task_id, filename)
+        r2_key = r2_key_obj.key
+
+        # Upload file to R2
+        with open(local_result_path, "rb") as f:
+            ArtifactService.upload(
+                file_data=f,
+                filename=filename,
+                project_slug=r2_key_obj.project_slug,
+                file_type=f"product-analysis/{task_id}",
+                content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                settings=settings,
+            )
+
+        logger.info("Uploaded result to R2: %s", r2_key)
+        return r2_key
+    except Exception as e:
+        logger.warning("Failed to upload result to R2: %s", e)
+        return None
+
+
 def _run_task(task_id: int, payload: dict[str, Any]) -> None:
     try:
         settings: Settings = payload["settings"]
@@ -200,14 +246,29 @@ def _run_task(task_id: int, payload: dict[str, Any]) -> None:
         )
         result = handler(str(input_path), str(output_dir), params)
         result_path = str(Path(result["result_path"]).resolve())
-        mark_task_success(task_id, result_path, "处理完成：报表已生成，可下载")
+
+        # Upload result to R2 if enabled
+        r2_result_path = None
+        if settings.r2_enabled and report_type == "product_analysis":
+            try:
+                r2_result_path = _upload_task_result_to_r2(
+                    settings, report_type, task_id, result_path, params
+                )
+            except Exception as r2_err:
+                logger.warning("Failed to upload result to R2: %s", r2_err)
+                # Continue with local result if R2 upload fails
+
+        # Use R2 path if available, otherwise use local path
+        final_result_path = r2_result_path or result_path
+        mark_task_success(task_id, final_result_path, "处理完成：报表已生成，可下载")
+
         if report_type == "product_analysis":
             set_persistence_state(
                 task_id, status="running", message="后台同步中：正在写入数据库"
             )
             persist_thread = Thread(
                 target=_persist_product_analysis_sources,
-                args=(task_id, params, result),
+                args=(task_id, params, result, r2_result_path),
                 daemon=True,
                 name=f"product-analysis-persist-{task_id}",
             )
@@ -218,8 +279,11 @@ def _run_task(task_id: int, payload: dict[str, Any]) -> None:
 
 
 def _persist_product_analysis_sources(
-    task_id: int, params: dict[str, Any], result: dict[str, Any]
+    task_id: int, params: dict[str, Any], result: dict[str, Any], r2_result_path: str | None = None
 ) -> None:
+    from app.services.product_analysis_r2_service import build_product_analysis_result_key
+    from app.services.artifact_service import ArtifactService
+
     db = SessionLocal()
     try:
         report_start_date = str(params.get("report_start_date") or "").strip()
@@ -262,6 +326,13 @@ def _persist_product_analysis_sources(
                 _start = date.fromisoformat(report_start_date)
                 _end = date.fromisoformat(report_end_date)
                 if _is_single_full_week(_start, _end):
+                    # Build R2 URL for result file
+                    result_r2_key = None
+                    result_r2_url = None
+                    if r2_result_path:
+                        result_r2_key = r2_result_path
+                        result_r2_url = ArtifactService.build_public_url(r2_result_path)
+
                     persist_product_analysis_pt1_calculation(
                         db,
                         project_name=project_name,
@@ -269,6 +340,8 @@ def _persist_product_analysis_sources(
                         report_end_date=report_end_date,
                         pt1=pt1_payload,
                         result_file_path=str(result.get("result_path") or "").strip() or None,
+                        result_r2_key=result_r2_key,
+                        result_r2_url=result_r2_url,
                         calculation_version=1,
                     )
                     db.commit()

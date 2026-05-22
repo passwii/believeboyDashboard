@@ -34,8 +34,15 @@ def build_dashboard_overview(
     is_admin: bool,
     country: str = "US",
     days: int = 7,
+    reference_date: date | None = None,
 ) -> dict:
-    """聚合所有可访问项目的数字大屏数据，返回单一概览响应。"""
+    """聚合所有可访问项目的数字大屏数据，返回单一概览响应。
+
+    Args:
+        reference_date: 用于替代 date.today() 的基准日期。
+            传入对应国家时区的"今天"可确保跨时区查询正确。
+            为 None 时回退到服务器本地 date.today()。
+    """
 
     # 1. 获取可访问项目列表
     if project_ids is not None and len(project_ids) == 0:
@@ -68,13 +75,15 @@ def build_dashboard_overview(
         return _empty_response(country, days)
 
     normalized_country = country.strip() or "US"
-    today = date.today()
+    today = reference_date or date.today()
     period_start = today - timedelta(days=days - 1)
 
     # 2. 初始化累加器
     # 销售
     total_today_qty = 0
     total_today_amount = 0.0
+    total_yesterday_qty = 0
+    total_yesterday_amount = 0.0
     total_prev_qty = 0
     total_prev_amount = 0.0
     # 趋势（按日期对齐）
@@ -114,6 +123,8 @@ def build_dashboard_overview(
             )
             total_today_qty += sales["today_order_qty"]
             total_today_amount += sales["today_sales_amount"]
+            total_yesterday_qty += sales.get("yesterday_order_qty", 0)
+            total_yesterday_amount += sales.get("yesterday_sales_amount", 0.0)
             total_prev_qty += sales["prev_order_qty"]
             total_prev_amount += sales["prev_sales_amount"]
             for item in sales["trend"]:
@@ -193,12 +204,12 @@ def build_dashboard_overview(
         except Exception as e:
             logger.warning("Ad snapshot failed for project %s: %s", pid, e)
 
-    # 4. 计算派生指标
+    # 4. 计算派生指标（单日环比：今日 vs 昨日）
     qty_change_pct, qty_change_type = _safe_pct_change(
-        float(total_today_qty), float(total_prev_qty)
+        float(total_today_qty), float(total_yesterday_qty)
     )
     amount_change_pct, amount_change_type = _safe_pct_change(
-        total_today_amount, total_prev_amount
+        total_today_amount, total_yesterday_amount
     )
 
     return_rate = round(
@@ -229,6 +240,8 @@ def build_dashboard_overview(
         "sales": {
             "today_order_qty": total_today_qty,
             "today_sales_amount": round_money(Decimal(str(total_today_amount))),
+            "yesterday_order_qty": total_yesterday_qty,
+            "yesterday_sales_amount": round_money(Decimal(str(total_yesterday_amount))),
             "prev_order_qty": total_prev_qty,
             "prev_sales_amount": round_money(Decimal(str(total_prev_amount))),
             "order_qty_change_pct": qty_change_pct,

@@ -597,6 +597,15 @@ def _run_insight_generation_for_runnow(schedule_id: int, insight_id: int) -> Non
     from app.core.config import get_settings
     from app.db.session import SessionLocal
 
+    # 获取并发槽位（与定时执行保持一致的并发控制）
+    acquired = _insight_semaphore.acquire(blocking=False)
+    if not acquired:
+        logger.warning(
+            f"[RunNow-{schedule_id}] Could not acquire slot "
+            f"(max {MAX_CONCURRENT_INSIGHTS} concurrent), skipping this run"
+        )
+        return
+
     db = SessionLocal()
     try:
         schedule = db.get(InsightSchedule, schedule_id)

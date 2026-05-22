@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo, type DragEvent, type ChangeEvent } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   CheckCircle2,
   XCircle,
@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { UploadZone } from '@/components/ui/upload-zone'
 import { useNotifications } from '@/components/notifications'
 import {
   DataCard,
@@ -197,7 +198,7 @@ function ReconcileStatusIcon({ status }: { status: ReconcileStatus }) {
 
 // ─── PDF Upload Panel Component ────────────────────────────────────────────────
 
-type PDFUploadState = 'idle' | 'dragging' | 'uploading' | 'success' | 'error'
+type PDFUploadState = 'idle' | 'uploading' | 'success' | 'error'
 
 function PDFUploadPanel({
   report,
@@ -212,7 +213,6 @@ function PDFUploadPanel({
 }) {
   const { notify } = useNotifications()
   const [uploadState, setUploadState] = useState<PDFUploadState>('idle')
-  const [dragActive, setDragActive] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [localErrorMessage, setLocalErrorMessage] = useState<string | null>(null)
 
@@ -222,58 +222,14 @@ function PDFUploadPanel({
   // Use external error message if provided, otherwise use local
   const displayError = errorMessage || localErrorMessage
 
-  const handleDrag = useCallback((e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    e.stopPropagation()
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true)
-      setUploadState('dragging')
-    } else if (e.type === 'dragleave') {
-      setDragActive(false)
-      setUploadState('idle')
-    }
-  }, [])
-
-  const handleDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setDragActive(false)
-    setUploadState('idle')
-
-    const files = e.dataTransfer.files
-    if (files && files[0]) {
-      const file = files[0]
-      if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
-        setSelectedFile(file)
-        setLocalErrorMessage(null)
-      } else {
-        setLocalErrorMessage('请上传 PDF 文件')
-      }
-    }
-  }, [])
-
-  const handleFileSelect = useCallback((e: ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (files && files[0]) {
-      const file = files[0]
-      if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
-        setSelectedFile(file)
-        setLocalErrorMessage(null)
-      } else {
-        setLocalErrorMessage('请上传 PDF 文件')
-      }
-    }
-  }, [])
-
-  const handleUpload = useCallback(async () => {
-    if (!selectedFile) return
-
+  const handleUpload = async (file: File) => {
+    setSelectedFile(file)
     setUploadState('uploading')
     setLocalErrorMessage(null)
 
     try {
       const formData = new FormData()
-      formData.append('pdf_file', selectedFile)
+      formData.append('pdf_file', file)
 
       const response = await fetch(
         `/api/backend/api/v1/report-reconciliation/reports/${report.report_id}/pdf-upload`,
@@ -307,14 +263,15 @@ function PDFUploadPanel({
         title: '上传失败',
         message: error instanceof Error ? error.message : '未知错误',
       })
+      throw error // Re-throw for UploadZone to handle
     }
-  }, [selectedFile, report.report_id, isReplacing, notify, onUploadSuccess])
+  }
 
-  const handleRemoveFile = useCallback(() => {
+  const handleRemoveFile = () => {
     setSelectedFile(null)
     setLocalErrorMessage(null)
     setUploadState('idle')
-  }, [])
+  }
 
   return (
     <div className='flex flex-col items-center justify-center py-12 px-4'>
@@ -332,74 +289,39 @@ function PDFUploadPanel({
         </p>
       </div>
 
-      {/* Dropzone */}
-      <div
-        className={cn(
-          'relative w-full max-w-md rounded-xl border-2 border-dashed p-8 transition-all duration-200',
-          dragActive
-            ? 'border-primary bg-primary/5'
-            : selectedFile
-              ? 'border-emerald-400 bg-emerald-50 dark:border-emerald-600 dark:bg-emerald-950/20'
-              : 'border-border/60 bg-[hsl(var(--surface-subtle))] hover:border-primary/40',
-          uploadState === 'uploading' && 'pointer-events-none opacity-60'
-        )}
-        onDragEnter={handleDrag}
-        onDragLeave={handleDrag}
-        onDragOver={handleDrag}
-        onDrop={handleDrop}
-      >
-        <input
-          id='pdf-upload-input'
-          type='file'
-          accept='.pdf,application/pdf'
-          className='hidden'
-          onChange={handleFileSelect}
+      {/* Upload Zone */}
+      <div className='w-full max-w-md'>
+        <UploadZone
+          accept=".pdf,application/pdf"
+          maxSize={50}
+          onUpload={handleUpload}
+          uploadingText="上传中..."
+          disabled={uploadState === 'uploading'}
+          className="[&>div:first-child]:flex-col"
         />
-
-        {selectedFile ? (
-          <div className='flex flex-col items-center gap-3'>
-            <div className='flex h-14 w-14 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/30'>
-              <File className='h-7 w-7 text-emerald-600 dark:text-emerald-400' />
-            </div>
-            <div className='text-center'>
-              <p className='text-sm font-medium truncate max-w-[280px]'>{selectedFile.name}</p>
-              <p className='text-xs text-muted-foreground'>
-                {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-              </p>
-            </div>
-            <Button
-              variant='outline'
-              size='sm'
-              onClick={handleRemoveFile}
-              disabled={uploadState === 'uploading'}
-            >
-              移除
-            </Button>
-          </div>
-        ) : (
-          <label
-            htmlFor='pdf-upload-input'
-            className='flex flex-col items-center gap-3 cursor-pointer'
-          >
-            <div className='flex h-14 w-14 items-center justify-center rounded-lg border border-border/50 bg-[hsl(var(--surface-soft))]'>
-              <FileUp className='h-6 w-6 text-slate-500 dark:text-slate-400' />
-            </div>
-            <div className='text-center'>
-              <p className='text-sm font-semibold'>拖拽 PDF 文件到这里，或点击选择</p>
-              <p className='text-xs text-muted-foreground mt-1'>支持 .pdf 文件</p>
-            </div>
-          </label>
-        )}
-
-        {uploadState === 'uploading' && (
-          <div className='absolute inset-0 flex items-center justify-center rounded-xl bg-background/60'>
-            <div className='flex flex-col items-center gap-2'>
-              <Loader2 className='h-8 w-8 animate-spin text-primary' />
-              <p className='text-sm text-muted-foreground'>上传中...</p>
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* Selected File Info */}
+      {selectedFile && uploadState === 'idle' && (
+        <div className='mt-4 flex flex-col items-center gap-3'>
+          <div className='flex h-14 w-14 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/30'>
+            <File className='h-7 w-7 text-emerald-600 dark:text-emerald-400' />
+          </div>
+          <div className='text-center'>
+            <p className='text-sm font-medium truncate max-w-[280px]'>{selectedFile.name}</p>
+            <p className='text-xs text-muted-foreground'>
+              {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+            </p>
+          </div>
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={handleRemoveFile}
+          >
+            移除
+          </Button>
+        </div>
+      )}
 
       {/* Error Message */}
       {displayError && (
@@ -422,27 +344,9 @@ function PDFUploadPanel({
       {/* Action Buttons */}
       <div className='mt-6 flex items-center gap-3'>
         {uploadState !== 'success' && (
-          <>
-            <Button
-              onClick={handleUpload}
-              disabled={!selectedFile || uploadState === 'uploading'}
-            >
-              {uploadState === 'uploading' ? (
-                <>
-                  <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                  上传中...
-                </>
-              ) : (
-                <>
-                  <Upload className='mr-2 h-4 w-4' />
-                  {isReplacing ? '确认覆盖' : '上传'}
-                </>
-              )}
-            </Button>
-            <Button variant='outline' onClick={onClose}>
-              取消
-            </Button>
-          </>
+          <Button variant='outline' onClick={onClose}>
+            取消
+          </Button>
         )}
         {uploadState === 'success' && (
           <Button variant='outline' onClick={onClose}>

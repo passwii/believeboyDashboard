@@ -28,22 +28,22 @@ function MonthlySummarySkeletonRow() {
   return (
     <TableRow className="animate-pulse">
       <TableCell>
-        <Skeleton className="h-5 w-16" />
+        <Skeleton className="h-5 w-16 mx-auto" />
       </TableCell>
-      <TableCell className="text-right">
-        <Skeleton className="ml-auto h-5 w-20" />
+      <TableCell className="text-center">
+        <Skeleton className="h-5 w-20 mx-auto" />
       </TableCell>
-      <TableCell className="text-right">
-        <Skeleton className="ml-auto h-5 w-20" />
+      <TableCell className="text-center">
+        <Skeleton className="h-5 w-20 mx-auto" />
       </TableCell>
-      <TableCell className="text-right">
-        <Skeleton className="ml-auto h-5 w-20" />
+      <TableCell className="text-center">
+        <Skeleton className="h-5 w-20 mx-auto" />
       </TableCell>
-      <TableCell className="text-right">
-        <Skeleton className="ml-auto h-5 w-20" />
+      <TableCell className="text-center">
+        <Skeleton className="h-5 w-20 mx-auto" />
       </TableCell>
-      <TableCell className="text-right">
-        <Skeleton className="ml-auto h-5 w-16" />
+      <TableCell className="text-center">
+        <Skeleton className="h-5 w-16 mx-auto" />
       </TableCell>
     </TableRow>
   )
@@ -57,12 +57,12 @@ function MonthlySummarySkeletonContent() {
         <Table className={FULL_BLEED_TABLE_CLASS} containerClassName={FULL_BLEED_TABLE_CONTAINER_CLASS}>
           <TableHeader className="bg-slate-100/80 dark:bg-slate-900/45 sticky top-0 z-10">
             <TableRow>
-              <TableHead className="!pl-0 font-semibold text-foreground">月份</TableHead>
-              <TableHead className="text-right font-semibold text-foreground">销售收入(USD)</TableHead>
-              <TableHead className="text-right font-semibold text-foreground">工厂佣金(USD)</TableHead>
-              <TableHead className="text-right font-semibold text-foreground">工厂佣金(RMB)</TableHead>
-              <TableHead className="text-right font-semibold text-foreground">已回款(RMB)</TableHead>
-              <TableHead className="!pr-0 text-right font-semibold text-foreground">回款率</TableHead>
+              <TableHead className="!pl-0 text-center font-semibold text-foreground">月份</TableHead>
+              <TableHead className="text-center font-semibold text-foreground">销售收入(USD)</TableHead>
+              <TableHead className="text-center font-semibold text-foreground">工厂佣金(USD)</TableHead>
+              <TableHead className="text-center font-semibold text-foreground">工厂佣金(RMB)</TableHead>
+              <TableHead className="text-center font-semibold text-foreground">已回款(RMB)</TableHead>
+              <TableHead className="!pr-0 text-center font-semibold text-foreground">回款率</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -97,12 +97,12 @@ export function MonthlySummaryTab({ items, year, loading }: MonthlySummaryTabPro
           <Table className={FULL_BLEED_TABLE_CLASS} containerClassName={FULL_BLEED_TABLE_CONTAINER_CLASS}>
             <TableHeader className="bg-slate-100/80 dark:bg-slate-900/45 sticky top-0 z-10">
               <TableRow>
-                <TableHead className="!pl-0 font-semibold text-foreground">月份</TableHead>
-                <TableHead className="text-right font-semibold text-foreground">销售收入(USD)</TableHead>
-                <TableHead className="text-right font-semibold text-foreground">工厂佣金(USD)</TableHead>
-                <TableHead className="text-right font-semibold text-foreground">工厂佣金(RMB)</TableHead>
-                <TableHead className="text-right font-semibold text-foreground">已回款(RMB)</TableHead>
-                <TableHead className="!pr-0 text-right font-semibold text-foreground">回款率</TableHead>
+                <TableHead className="!pl-0 text-center font-semibold text-foreground">月份</TableHead>
+                <TableHead className="text-center font-semibold text-foreground">销售收入(USD)</TableHead>
+                <TableHead className="text-center font-semibold text-foreground">工厂佣金(USD)</TableHead>
+                <TableHead className="text-center font-semibold text-foreground">工厂佣金(RMB)</TableHead>
+                <TableHead className="text-center font-semibold text-foreground">已回款(RMB)</TableHead>
+                <TableHead className="!pr-0 text-center font-semibold text-foreground">回款率</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -111,12 +111,12 @@ export function MonthlySummaryTab({ items, year, loading }: MonthlySummaryTabPro
               ) : (
                 items.map((item) => (
                   <TableRow key={item.report_month}>
-                    <TableCell className="!pl-0 font-medium">{item.report_month}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatUsd(item.income_total_usd)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatUsd(item.factory_commission_usd)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatRmb(item.factory_commission_rmb)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatRmb(item.received_rmb)}</TableCell>
-                    <TableCell className="!pr-0 text-right tabular-nums">{formatPercent(item.receive_rate)}</TableCell>
+                    <TableCell className="!pl-0 text-center font-medium">{item.report_month}</TableCell>
+                    <TableCell className="text-center tabular-nums">{formatUsd(item.income_total_usd)}</TableCell>
+                    <TableCell className="text-center tabular-nums">{formatUsd(item.factory_commission_usd)}</TableCell>
+                    <TableCell className="text-center tabular-nums">{formatRmb(item.factory_commission_rmb)}</TableCell>
+                    <TableCell className="text-center tabular-nums">{formatRmb(item.received_rmb)}</TableCell>
+                    <TableCell className="!pr-0 text-center tabular-nums">{formatPercent(item.receive_rate)}</TableCell>
                   </TableRow>
                 ))
               )}

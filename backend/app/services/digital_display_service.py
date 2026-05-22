@@ -13,9 +13,10 @@ from sqlalchemy.orm import Session
 from app.models import (
     AdUploadFile,
     AdUploadCampaignRow,
+    AnalysisAdProductRow,
     AnalysisBusinessRow,
-    AnalysisSalesOrderRow,
     AnalysisSourceFile,
+    AnalysisSalesOrderRow,
     InventorySnapshotRow,
     Project,
     ReturnAnalysisRecord,
@@ -122,6 +123,7 @@ def _build_sales_snapshot(
         }
 
     today_summary = _period_summary(today, today)
+    yesterday_summary = _period_summary(prev_end, prev_end)  # 真正的昨日单日数据
     prev_summary = _period_summary(prev_start, prev_end)
 
     # trend: daily breakdown for the past `days` days
@@ -136,11 +138,27 @@ def _build_sales_snapshot(
             "sessions": day_summary["sessions"],
         })
 
+    # 计算单日环比：今日 vs 昨日
+    yesterday_qty = yesterday_summary["order_qty"]
+    yesterday_amount = yesterday_summary["sales_amount"]
+    if yesterday_qty > 0:
+        daily_qty_change_pct = ((today_summary["order_qty"] - yesterday_qty) / yesterday_qty) * 100
+    else:
+        daily_qty_change_pct = 0.0
+    if yesterday_amount > 0:
+        daily_amount_change_pct = ((today_summary["sales_amount"] - yesterday_amount) / yesterday_amount) * 100
+    else:
+        daily_amount_change_pct = 0.0
+
     return {
         "today_order_qty": today_summary["order_qty"],
         "today_sales_amount": today_summary["sales_amount"],
         "today_sessions": today_summary["sessions"],
         "today_ordered_sales_amount": today_summary["ordered_sales_amount"],
+        "yesterday_order_qty": yesterday_qty,
+        "yesterday_sales_amount": yesterday_amount,
+        "daily_qty_change_pct": round(daily_qty_change_pct, 2),
+        "daily_amount_change_pct": round(daily_amount_change_pct, 2),
         "prev_order_qty": prev_summary["order_qty"],
         "prev_sales_amount": prev_summary["sales_amount"],
         "prev_sessions": prev_summary["sessions"],
@@ -334,25 +352,26 @@ def _build_ad_snapshot(
     start_date: date,
     end_date: date,
 ) -> dict:
-    """最近N天广告概况：花费、ROAS、ACOS、CTR"""
+    """最近N天广告概况：花费、ROAS、ACOS、CTR（数据来源：analysis_ad_product_rows）"""
     rows = (
         db.query(
-            func.coalesce(func.sum(AdUploadCampaignRow.spend), 0).label("spend"),
-            func.coalesce(func.sum(AdUploadCampaignRow.sales_7d), 0).label("sales"),
-            func.coalesce(func.sum(AdUploadCampaignRow.clicks), 0).label("clicks"),
-            func.coalesce(func.sum(AdUploadCampaignRow.impressions), 0).label("impressions"),
-            func.coalesce(func.sum(AdUploadCampaignRow.orders_7d), 0).label("orders"),
+            func.coalesce(func.sum(AnalysisAdProductRow.spend), 0).label("spend"),
+            func.coalesce(func.sum(AnalysisAdProductRow.sales_7d), 0).label("sales"),
+            func.coalesce(func.sum(AnalysisAdProductRow.clicks), 0).label("clicks"),
+            func.coalesce(func.sum(AnalysisAdProductRow.impressions), 0).label("impressions"),
+            func.coalesce(func.sum(AnalysisAdProductRow.orders_7d), 0).label("orders"),
         )
         .join(
-            AdUploadFile,
-            AdUploadFile.id == AdUploadCampaignRow.source_file_id,
+            AnalysisSourceFile,
+            AnalysisSourceFile.id == AnalysisAdProductRow.source_file_id,
         )
         .filter(
-            AdUploadFile.project_id == project_id,
-            AdUploadFile.country == normalize_country(country),
-            AdUploadFile.is_current == True,
-            AdUploadFile.report_date >= start_date,
-            AdUploadFile.report_date <= end_date,
+            AnalysisSourceFile.project_id == project_id,
+            AnalysisSourceFile.country == normalize_country(country),
+            AnalysisSourceFile.report_type == "ad_product_report",
+            AnalysisSourceFile.is_current == True,
+            AnalysisSourceFile.period_end_date >= start_date,
+            AnalysisSourceFile.period_end_date <= end_date,
         )
         .first()
     )

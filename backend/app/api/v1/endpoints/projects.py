@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, get_request_operator, protected
 from app.models import Project
-from app.schemas.project import ProjectContextResponse, ProjectContextUpdate, ProjectCreate, ProjectItem, ProjectOption, ProjectUpdate
+from app.schemas.project import ProjectContextResponse, ProjectContextUpdate, ProjectCreate, ProjectItem, ProjectOption, ProjectUpdate, ParseContextRequest, ParseContextResponse
 from app.services.audit_log_service import append_operation_audit_log, append_operation_view_log
 from app.services import project_service
 
@@ -283,3 +283,28 @@ def update_project_context_endpoint(
         project_context=row.project_context or {},
         sku_context=row.sku_context or {},
     )
+
+
+@router.post(
+    "/projects/{project_id}/context/parse",
+    response_model=ParseContextResponse,
+)
+def parse_project_context_endpoint(
+    project_id: int,
+    payload: ParseContextRequest,
+    request: Request,
+    db: Session = Depends(get_db_session),
+) -> ParseContextResponse:
+    """
+    使用 AI 将自然语言描述解析为项目背景配置 JSON。
+    """
+    from app.core.config import get_settings
+    from app.services.ai.context_parser import parse_context_sync
+
+    settings = get_settings()
+    result = parse_context_sync(payload.description, settings)
+
+    if result is None:
+        return ParseContextResponse(result={})
+
+    return ParseContextResponse(result=result)

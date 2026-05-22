@@ -13,6 +13,7 @@ class SubscriptionCreate(BaseModel):
     project_ids: str = Field(default="*", max_length=500, description="项目 ID 列表，逗号分隔，* 表示全部")
     country: str = Field(default="US", max_length=10)
     frequency: str = Field(..., pattern="^(daily|weekly|monthly)$")
+    ai_model: Optional[str] = Field(default=None, max_length=64, description="AI 摘要使用的模型，空则用默认模型")
 
 
 class SubscriptionUpdate(BaseModel):
@@ -20,6 +21,7 @@ class SubscriptionUpdate(BaseModel):
     project_ids: Optional[str] = Field(default=None, max_length=500)
     country: Optional[str] = Field(default=None, max_length=10)
     frequency: Optional[str] = Field(default=None, pattern="^(daily|weekly|monthly)$")
+    ai_model: Optional[str] = Field(default=None, max_length=64)
     enabled: Optional[bool] = None
 
 
@@ -30,6 +32,7 @@ class SubscriptionItem(BaseModel):
     project_ids: str
     country: str
     frequency: str
+    ai_model: Optional[str] = None
     enabled: bool
     created_at: datetime
     updated_at: datetime
@@ -65,6 +68,9 @@ class DeliveryLogListResponse(BaseModel):
 class TestEmailRequest(BaseModel):
     email: str = Field(..., max_length=256)
     frequency: str = Field(default="daily", pattern="^(daily|weekly|monthly)$")
+    project_ids: str = Field(default="*", max_length=500, description="项目 ID 列表，逗号分隔，* 表示全部")
+    country: str = Field(default="US", max_length=10)
+    ai_model: Optional[str] = Field(default=None, max_length=64, description="AI 摘要使用的模型，空则用默认模型")
 
 
 class TestEmailResponse(BaseModel):

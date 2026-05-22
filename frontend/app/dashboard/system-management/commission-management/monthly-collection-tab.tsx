@@ -3,10 +3,10 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyTableState } from '@/components/ui/empty-state'
-import { formatRmb, formatPercent, SITE_INFO } from './utils'
-import { type SiteCode } from './types'
+import { formatPercent } from './utils'
 
-const SITE_ORDER: SiteCode[] = ['US', 'DE', 'UK']
+const FULL_BLEED_TABLE_CLASS = "[&_th]:px-0 [&_th]:py-3 [&_td]:px-0 [&_td]:py-3"
+const FULL_BLEED_TABLE_CONTAINER_CLASS = "-m-px h-[calc(100%+2px)] w-[calc(100%+2px)] rounded-none"
 
 type CommissionProjectMonthlySummaryMonthItem = {
   report_month: string
@@ -26,9 +26,6 @@ type CommissionProjectYearlySummaryItem = {
   receive_rate: number
 }
 
-const FULL_BLEED_TABLE_CLASS = "[&_th]:px-0 [&_th]:py-3 [&_td]:px-0 [&_td]:py-3"
-const FULL_BLEED_TABLE_CONTAINER_CLASS = "-m-px h-[calc(100%+2px)] w-[calc(100%+2px)] rounded-none"
-
 function getYearMonths(year: string): string[] {
   return Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`)
 }
@@ -47,8 +44,7 @@ interface MonthlyCollectionTabProps {
 }
 
 const TOTAL_MONTH_COLS = 12
-const SITE_COLS = SITE_ORDER.length
-const DATA_COLS = TOTAL_MONTH_COLS * SITE_COLS + 1 // months + annual summary
+const DATA_COLS = TOTAL_MONTH_COLS + 1 // 12 months + annual summary
 
 // 骨架屏行（回款率色块样式）
 function MonthlyCollectionSkeletonRow() {
@@ -56,12 +52,12 @@ function MonthlyCollectionSkeletonRow() {
     <TableRow className="animate-pulse">
       {/* 项目名称列（sticky） */}
       <TableCell className="sticky left-0 bg-background z-20">
-        <Skeleton className="h-5 w-28" />
+        <Skeleton className="h-5 w-20 mx-auto" />
       </TableCell>
-      {/* 数据列：12个月 x 3个站点 + 1个汇总列 */}
-      {Array.from({ length: TOTAL_MONTH_COLS * SITE_COLS + 1 }).map((_, i) => (
+      {/* 数据列：12个月 + 1个汇总列 */}
+      {Array.from({ length: TOTAL_MONTH_COLS + 1 }).map((_, i) => (
         <TableCell key={i} className="text-center">
-          <Skeleton className="mx-auto h-6 w-12" />
+          <Skeleton className="h-6 w-12 mx-auto" />
         </TableCell>
       ))}
     </TableRow>
@@ -75,31 +71,20 @@ function MonthlyCollectionSkeletonContent() {
       <Table className={FULL_BLEED_TABLE_CLASS} containerClassName={`${FULL_BLEED_TABLE_CONTAINER_CLASS} overflow-auto`}>
         <TableHeader className="bg-slate-100/80 dark:bg-slate-900/45">
           <TableRow>
-            <TableHead className="!pl-0 sticky left-0 z-30 bg-slate-100/90 font-semibold text-foreground" rowSpan={2}>
+            <TableHead className="!pl-0 sticky left-0 z-30 bg-slate-100/90 font-semibold text-foreground text-center">
               项目名称
             </TableHead>
             {getYearMonths(new Date().getFullYear().toString()).map((m) => (
               <TableHead
                 key={m}
                 className="z-20 bg-slate-100/90 text-center text-xs font-semibold text-foreground"
-                colSpan={3}
               >
                 {m.slice(5)}月
               </TableHead>
             ))}
-            <TableHead className="!pr-0 z-20 bg-slate-100/90 text-center font-semibold text-foreground" rowSpan={2}>
+            <TableHead className="!pr-0 z-20 bg-slate-100/90 text-center font-semibold text-foreground">
               年度汇总
             </TableHead>
-          </TableRow>
-          <TableRow>
-            {getYearMonths(new Date().getFullYear().toString()).flatMap((m) =>
-              SITE_ORDER.map((site) => (
-                <TableHead key={`${m}-${site}`} className="z-10 bg-slate-100/70 text-center text-xs whitespace-nowrap">
-                  <span className={`inline-block h-1.5 w-1.5 rounded-full ${SITE_INFO[site].dotClass} mr-1`} />
-                  {SITE_INFO[site].label}
-                </TableHead>
-              ))
-            )}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -141,31 +126,20 @@ export function MonthlyCollectionTab({ items, year, loading }: MonthlyCollection
         <Table className={FULL_BLEED_TABLE_CLASS} containerClassName={`${FULL_BLEED_TABLE_CONTAINER_CLASS} overflow-auto`}>
           <TableHeader className="bg-slate-100/80 dark:bg-slate-900/45">
             <TableRow>
-              <TableHead className="!pl-0 sticky left-0 z-30 bg-slate-100/90 font-semibold text-foreground" rowSpan={2}>
+              <TableHead className="!pl-0 sticky left-0 z-30 bg-slate-100/90 font-semibold text-foreground text-center">
                 项目名称
               </TableHead>
               {getYearMonths(year).map((m) => (
                 <TableHead
                   key={m}
                   className="z-20 bg-slate-100/90 text-center text-xs font-semibold text-foreground"
-                  colSpan={3}
                 >
                   {m.slice(5)}月
                 </TableHead>
               ))}
-              <TableHead className="!pr-0 z-20 bg-slate-100/90 text-center font-semibold text-foreground" rowSpan={2}>
+              <TableHead className="!pr-0 z-20 bg-slate-100/90 text-center font-semibold text-foreground">
                 年度汇总
               </TableHead>
-            </TableRow>
-            <TableRow>
-              {getYearMonths(year).flatMap((m) =>
-                SITE_ORDER.map((site) => (
-                  <TableHead key={`${m}-${site}`} className="z-10 bg-slate-100/70 text-center text-xs whitespace-nowrap">
-                    <span className={`inline-block h-1.5 w-1.5 rounded-full ${SITE_INFO[site].dotClass} mr-1`} />
-                    {SITE_INFO[site].label}
-                  </TableHead>
-                ))
-              )}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -174,13 +148,13 @@ export function MonthlyCollectionTab({ items, year, loading }: MonthlyCollection
             ) : (
               items.map((project) => (
                 <TableRow key={project.project_id}>
-                  <TableCell className="!pl-0 sticky left-0 bg-background z-20 font-medium">
+                  <TableCell className="!pl-0 sticky left-0 bg-background z-20 font-medium text-center">
                     {project.project_name}
                   </TableCell>
-                  {getYearMonths(year).flatMap((m) => {
+                  {getYearMonths(year).map((m) => {
                     const monthData = project.months[m]
-                    return SITE_ORDER.map((site) => (
-                      <TableCell key={`${m}-${site}`} className="text-center">
+                    return (
+                      <TableCell key={m} className="text-center">
                         {monthData ? (
                           <span className={`inline-block min-w-[48px] rounded px-1.5 py-1 text-xs font-medium tabular-nums ${getReceiveRateColor(monthData.receive_rate).bg} ${getReceiveRateColor(monthData.receive_rate).text}`}>
                             {formatPercent(monthData.receive_rate)}
@@ -189,7 +163,7 @@ export function MonthlyCollectionTab({ items, year, loading }: MonthlyCollection
                           <span className="inline-block rounded px-1.5 py-0.5 text-xs text-muted-foreground bg-slate-100 dark:bg-slate-800">-</span>
                         )}
                       </TableCell>
-                    ))
+                    )
                   })}
                   <TableCell className="!pr-0 text-center">
                     {project.receive_rate > 0 ? (

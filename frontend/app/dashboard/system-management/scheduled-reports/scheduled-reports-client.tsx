@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Loader2, Plus, Trash2, Mail, Calendar, ChevronUp, ChevronDown } from 'lucide-react'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
@@ -22,6 +22,7 @@ type Subscription = {
   project_ids: string
   country: string
   frequency: Frequency
+  ai_model: string | null
   enabled: boolean
   created_at: string
   updated_at: string
@@ -37,6 +38,14 @@ type DeliveryLog = {
   error_message: string | null
   sent_at: string | null
   created_at: string
+}
+
+type AIModelConfig = {
+  providerConfigured: boolean
+  models: string[]
+  defaultModel: string
+  premiumModels: string[]
+  basicModels: string[]
 }
 
 const FREQUENCY_LABELS: Record<Frequency, string> = {
@@ -75,6 +84,32 @@ export function ScheduledReportsClient() {
   const [projects, setProjects] = useState<Array<{ id?: number | null; name: string }>>([])
   const [testingEmail, setTestingEmail] = useState(false)
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
+  const [modelConfig, setModelConfig] = useState<AIModelConfig | null>(null)
+  const [isLoadingModelConfig, setIsLoadingModelConfig] = useState(false)
+  const [formAiModel, setFormAiModel] = useState('')
+
+  // Load model config on mount
+  useEffect(() => {
+    async function loadModelConfig() {
+      setIsLoadingModelConfig(true)
+      try {
+        const res = await fetch('/api/ai-chat/config', {
+          method: 'GET',
+          cache: 'no-store',
+        })
+        const payload = await res.json() as AIModelConfig
+        if (res.ok) {
+          setModelConfig(payload)
+          setFormAiModel(payload.defaultModel || '')
+        }
+      } catch (e) {
+        console.error('Failed to load AI model config', e)
+      } finally {
+        setIsLoadingModelConfig(false)
+      }
+    }
+    void loadModelConfig()
+  }, [])
 
   useEffect(() => {
     const loadData = async () => {
@@ -110,7 +145,7 @@ export function ScheduledReportsClient() {
       const res = await fetch(resolveApiUrl('/api/v1/scheduled-reports/subscriptions'), {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: formEmail, project_ids: formProjectIds, country: formCountry, frequency: formFrequency }),
+        body: JSON.stringify({ email: formEmail, project_ids: formProjectIds, country: formCountry, frequency: formFrequency, ai_model: formAiModel || null }),
       })
       if (!res.ok) {
         const err = await res.text()
@@ -123,6 +158,7 @@ export function ScheduledReportsClient() {
       setFormProjectIds('*')
       setFormCountry('US')
       setFormFrequency('daily')
+      setFormAiModel(modelConfig?.defaultModel || '')
     } catch (e) {
       setFormError(normalizeErrorMessage(e, '创建失败'))
     } finally {
@@ -172,7 +208,7 @@ export function ScheduledReportsClient() {
       const res = await fetch(resolveApiUrl('/api/v1/scheduled-reports/test-email'), {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: formEmail, frequency: formFrequency }),
+        body: JSON.stringify({ email: formEmail, frequency: formFrequency, project_ids: formProjectIds, country: formCountry, ai_model: formAiModel || null }),
       })
       const data = await res.json()
       setTestResult({ success: data.success, message: data.message })
@@ -205,7 +241,7 @@ export function ScheduledReportsClient() {
             <CardTitle className="text-base">新增订阅</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               <div>
                 <label className="text-sm font-medium mb-1 block">邮箱地址</label>
                 <Input
@@ -248,6 +284,41 @@ export function ScheduledReportsClient() {
                     {projects.map(p => (
                       <SelectItem key={p.name} value={p.id?.toString() || p.name}>{p.name}</SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1 block">AI 模型</label>
+                <Select
+                  value={formAiModel}
+                  onValueChange={setFormAiModel}
+                  disabled={isLoadingModelConfig || !modelConfig?.models.length}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={isLoadingModelConfig ? '加载模型中...' : '选择模型'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(modelConfig?.premiumModels.length || 0) > 0 && (
+                      <SelectGroup>
+                        <SelectLabel>高级模型</SelectLabel>
+                        {modelConfig?.premiumModels.map((m) => (
+                          <SelectItem key={m} value={m}>{m}</SelectItem>
+                        ))}
+                      </SelectGroup>
+                    )}
+                    {(modelConfig?.basicModels.length || 0) > 0 && (
+                      <SelectGroup>
+                        <SelectLabel>基础模型</SelectLabel>
+                        {modelConfig?.basicModels.map((m) => (
+                          <SelectItem key={m} value={m}>{m}</SelectItem>
+                        ))}
+                      </SelectGroup>
+                    )}
+                    {modelConfig?.models
+                      .filter((m) => !modelConfig.premiumModels.includes(m) && !modelConfig.basicModels.includes(m))
+                      .map((m) => (
+                        <SelectItem key={m} value={m}>{m}</SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -299,7 +370,7 @@ export function ScheduledReportsClient() {
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      {sub.country} · {sub.project_ids === '*' ? '全部项目' : `项目: ${sub.project_ids}`} · 创建于 {new Date(sub.created_at).toLocaleDateString('zh-CN')}
+                      {sub.country} · {sub.project_ids === '*' ? '全部项目' : `项目: ${sub.project_ids}`}{sub.ai_model ? ` · 模型: ${sub.ai_model}` : ''} · 创建于 {new Date(sub.created_at).toLocaleDateString('zh-CN')}
                     </p>
                   </div>
                   <div className="flex gap-1 shrink-0">

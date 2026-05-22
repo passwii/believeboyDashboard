@@ -3,112 +3,18 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from decimal import Decimal
-import tempfile
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import MonthlyReport, MonthlyReportPT3Calculation, MonthlyReportPT4Calculation, ReconciliationRecord
 from app.utils.pdf_extractor import PDFExtractor
-from app.core.config import get_settings
+from app.services.artifact_service import ArtifactService
+from app.services.alert.reconciliation_detector import trigger_reconciliation_alert
 
 # PT3 fields to compare with PDF key_values
-def _resolve_pdf_path(relative_path: str | None) -> Path:
-    """
-    Resolve PDF path from database storage path.
-
-    Supports:
-    - R2 URLs (https://...) - download to temp
-    - Local paths (legacy support)
-    """
-    if not relative_path:
-        raise ValueError("PDF path is not set")
-
-    # If it's a URL, download from R2 to temp file
-    if relative_path.startswith('http'):
-        return _download_from_r2(relative_path)
-
-    # Local file path (legacy support)
-    pdf_path = Path(relative_path)
-
-    # If absolute and exists, return directly
-    if pdf_path.is_absolute() and pdf_path.exists():
-        return pdf_path
-
-    # Try relative to backend directory
-    backend_dir = Path(__file__).resolve().parents[2]
-    absolute_path = backend_dir / relative_path
-    if absolute_path.exists():
-        return absolute_path
-
-    raise FileNotFoundError(f"PDF file not found: {relative_path}")
-
-
-def _build_r2_url_from_key(key: str) -> str:
-    """Build R2 URL from key."""
-    from urllib.parse import quote
-    from app.core.config import get_settings
-    settings = get_settings()
-    base = settings.r2_public_url or f"{settings.r2_endpoint_url}/{settings.r2_bucket_name}"
-    # URL-encode the key (e.g., 魁宝 -> %E9%93%A8%E5%AF%8C)
-    return f"{base}/{quote(key, safe='/')}"
-
-
-def _download_from_r2(url: str) -> Path:
-    """Download PDF from R2 to temporary file."""
-    from app.services.r2_service import download_file_to_path
-    from urllib.parse import unquote
-
-    settings = get_settings()
-
-    # Extract R2 key from URL
-    # URL may be percent-encoded (e.g., %E9%93%A8%E5%AF%8C for 魁宝)
-    # but R2 stores the raw key, so we need to decode it
-
-    key = None
-
-    # Pattern 1: r2_public_url
-    if settings.r2_public_url and url.startswith(settings.r2_public_url):
-        key = url[len(settings.r2_public_url):].lstrip('/')
-
-    # Pattern 2: R2 endpoint format
-    if key is None:
-        bucket_prefix = f"{settings.r2_bucket_name}/"
-        if bucket_prefix in url:
-            parts = url.split(bucket_prefix)
-            if len(parts) == 2:
-                key = parts[1]
-
-    # Pattern 3: Try to extract key from URL by removing protocol and host
-    if key is None:
-        from urllib.parse import urlparse
-        parsed = urlparse(url)
-        # Remove leading slash and everything up to the first path component
-        path = parsed.path
-        if path.startswith('/'):
-            path = path[1:]
-        # The key is the full path if it looks like a valid key (has slashes or file extension)
-        if '/' in path or path.endswith('.pdf'):
-            key = path
-
-    if key is None:
-        raise ValueError(f"Could not extract R2 key from URL: {url}")
-
-    # Decode URL-encoded characters (e.g., %E9%93%A8%E5%AF%8C -> 魁宝)
-    # R2 stores raw keys, so we need the decoded version
-    key = unquote(key)
-
-    # Download to temp file
-    temp_file = tempfile.NamedTemporaryFile(suffix='.pdf', delete=False)
-    temp_path = Path(temp_file.name)
-    temp_file.close()
-
-    success = download_file_to_path(settings, key, temp_path)
-    if not success:
-        temp_path.unlink(missing_ok=True)
-        raise FileNotFoundError(f"Failed to download PDF from R2: {url}")
-
-    return temp_path
+# 注意: 已移除 _resolve_pdf_path, _build_r2_url_from_key, _download_from_r2
+# 请使用 ArtifactService.build_public_url(), ArtifactService.extract_key_from_url(), ArtifactService.download_to_temp()
 
 # PT3 fields to compare with PDF key_values
 PT3_TO_PDF_MAPPING: Dict[str, str] = {
@@ -200,20 +106,18 @@ def get_available_reports(
 
         # Check if PDF exists in R2 (via r2_key or r2_url)
         # ACTUALLY verify the file exists, not just check DB fields
-        from app.services.r2_service import check_file_exists, extract_key_from_url
-
         pdf_exists_in_r2 = False
         pdf_key = None
 
         if report.summary_pdf_r2_key:
             # Key is directly stored, check it
             pdf_key = report.summary_pdf_r2_key
-            pdf_exists_in_r2 = check_file_exists(settings, pdf_key)
+            pdf_exists_in_r2 = ArtifactService.check_exists(pdf_key)
         elif report.summary_pdf_r2_url:
             # Try to extract key from URL and check
-            pdf_key = extract_key_from_url(report.summary_pdf_r2_url, settings)
+            pdf_key = ArtifactService.extract_key_from_url(report.summary_pdf_r2_url)
             if pdf_key:
-                pdf_exists_in_r2 = check_file_exists(settings, pdf_key)
+                pdf_exists_in_r2 = ArtifactService.check_exists(pdf_key)
 
         pdf_exists = pdf_exists_in_r2
         pdf_file_missing = not pdf_exists_in_r2
@@ -291,11 +195,21 @@ def auto_reconcile(
 
     # Extract PDF data from R2
     # Prefer R2 URL, fall back to constructing from R2 key
-    pdf_url = report.summary_pdf_r2_url or _build_r2_url_from_key(report.summary_pdf_r2_key)
-    pdf_path = _resolve_pdf_path(pdf_url)
+    # 使用 ArtifactService.download_to_temp() 自动清理临时文件
+    pdf_key = report.summary_pdf_r2_key
+    if not pdf_key and report.summary_pdf_r2_url:
+        pdf_key = ArtifactService.extract_key_from_url(report.summary_pdf_r2_url)
+
+    if not pdf_key:
+        raise ValueError(f"Report {report_id} does not have a valid R2 PDF key")
+
+    pdf_data = None
     try:
-        extractor = PDFExtractor(str(pdf_path), country=country)
-        pdf_data = extractor.get_raw_data().get("key_values", {})
+        with ArtifactService.download_to_temp(pdf_key, suffix=".pdf") as pdf_path:
+            extractor = PDFExtractor(str(pdf_path), country=country)
+            pdf_data = extractor.get_raw_data().get("key_values", {})
+    except FileNotFoundError as e:
+        raise ValueError(f"Failed to download PDF from R2: {e}")
     except Exception as e:
         raise ValueError(f"Failed to extract PDF data: {str(e)}")
 
@@ -400,6 +314,34 @@ def auto_reconcile(
 
     db.commit()
     db.refresh(record)
+
+    # Trigger alert if match rate < 100%
+    if match_rate < 100:
+        # Calculate total difference
+        total_diff = 0.0
+        for item in items:
+            if not item.get("match") and item.get("difference") is not None:
+                total_diff += abs(item["difference"])
+
+        try:
+            trigger_reconciliation_alert(
+                db=db,
+                report_id=report_id,
+                project_id=report.project_id,
+                project_name=report.project_name,
+                country=report.country,
+                report_month=report.report_month,
+                match_rate=match_rate,
+                mismatched_items=mismatched,
+                missing_items=missing,
+                total_diff=total_diff,
+                detail_items=items,
+                created_by=operator,
+            )
+        except Exception as e:
+            # Log but don't fail the reconciliation if alert fails
+            import logging
+            logging.getLogger(__name__).warning(f"Failed to trigger reconciliation alert: {e}")
 
     return {
         "record_id": record.id,

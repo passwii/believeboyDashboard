@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef, DragEvent } from "react"
+import { useState, useEffect, useCallback } from "react"
 import Image from "next/image"
 import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { UploadZone } from "@/components/ui/upload-zone"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -32,7 +33,7 @@ import {
 import { EmptyTableState } from "@/components/ui/empty-state"
 import { DataCard, DataCardHeader, DataCardContent } from "@/components/ui/data-card"
 import { Badge } from "@/components/ui/badge"
-import { Pencil, Trash2, Plus, RotateCcw, ImagePlus, Loader2, Upload, X, CheckCircle, AlertCircle } from "lucide-react"
+import { Pencil, Trash2, Plus, RotateCcw, ImagePlus, Loader2, X, CheckCircle, AlertCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useNotifications } from "@/components/notifications"
 
@@ -163,11 +164,9 @@ export default function ExchangeRatePage() {
   const [deletingRate, setDeletingRate] = useState<ExchangeRate | null>(null)
   const [previewImage, setPreviewImage] = useState<NoteImage | null>(null)
   const [uploadingImage, setUploadingImage] = useState(false)
-  const [isDragOver, setIsDragOver] = useState(false)
   const [imageUploadState, setImageUploadState] = useState<ImageUploadState>({ status: 'idle', message: '' })
   const [submitting, setSubmitting] = useState(false)
   const [formValidation, setFormValidation] = useState<FormValidation>({ currency: null, currencyName: null, rate: null })
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // 表单状态
   const [formData, setFormData] = useState({
@@ -405,54 +404,6 @@ export default function ExchangeRatePage() {
       setUploadingImage(false)
     }
   }
-
-  // 拖拽处理
-  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDragOver(true)
-  }
-
-  const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDragOver(false)
-  }
-
-  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDragOver(false)
-
-    const files = e.dataTransfer.files
-    if (files && files.length > 0) {
-      void handleImageUpload(files[0])
-    }
-  }
-
-  // 粘贴上传：监听 Ctrl/Cmd+V 粘贴图片
-  useEffect(() => {
-    if (!dialogOpen) return
-
-    const handlePaste = (e: ClipboardEvent) => {
-      const items = e.clipboardData?.items
-      if (!items) return
-
-      for (const item of items) {
-        if (item.type.startsWith('image/')) {
-          e.preventDefault()
-          const file = item.getAsFile()
-          if (file) {
-            void handleImageUpload(file)
-          }
-          break
-        }
-      }
-    }
-
-    document.addEventListener('paste', handlePaste)
-    return () => document.removeEventListener('paste', handlePaste)
-  }, [dialogOpen])
 
   const handleRemoveImage = (imageId: string) => {
     setFormData((prev) => ({
@@ -847,73 +798,67 @@ export default function ExchangeRatePage() {
             </div>
 
             <div className="space-y-3">
-              <Label htmlFor="note-image-upload">备注图片</Label>
-              <div
-                className={cn(
-                  "relative rounded-md border-2 border-dashed p-4 transition-colors",
-                  isDragOver
-                    ? "border-primary bg-primary/5"
-                    : "border-border/70 hover:border-primary/50",
-                  imageUploadState.status === 'error' && "border-destructive bg-destructive/5",
-                  imageUploadState.status === 'success' && "border-green-500 bg-green-500/5"
-                )}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-              >
-                <input
-                  id="note-image-upload"
-                  type="file"
-                  ref={fileInputRef}
-                  accept="image/png,image/jpeg,image/webp,image/gif"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0] ?? null
-                    void handleImageUpload(file)
-                    e.currentTarget.value = ""
-                  }}
-                  disabled={uploadingImage}
-                />
-                <div className="flex items-center gap-3">
-                  <label
-                    htmlFor="note-image-upload"
-                    className={cn(
-                      "inline-flex cursor-pointer items-center gap-2 rounded-md border border-border/70 px-3 py-2 text-sm transition-colors",
-                      "hover:bg-muted dark:hover:bg-[hsl(var(--surface-subtle))]",
-                      uploadingImage && "cursor-not-allowed opacity-50"
-                    )}
-                  >
-                    {uploadingImage ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : imageUploadState.status === 'success' ? (
-                      <CheckCircle className="h-4 w-4 text-green-600" />
-                    ) : imageUploadState.status === 'error' ? (
-                      <AlertCircle className="h-4 w-4 text-destructive" />
-                    ) : (
-                      <Upload className="h-4 w-4" />
-                    )}
-                    上传图片
-                  </label>
-                  <p className="text-xs text-muted-foreground">支持 PNG/JPG/WEBP/GIF，最大 10MB · 可直接 Ctrl+V 粘贴</p>
+              <Label>备注图片</Label>
+              <UploadZone
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                maxSize={10}
+                onUpload={async (file) => {
+                  // 复用现有的上传逻辑，但调整一下以适配 UploadZone
+                  const validTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
+                  if (!validTypes.includes(file.type)) {
+                    throw new Error('不支持的图片格式')
+                  }
+
+                  setImageUploadState({ status: 'uploading', message: '上传中...' })
+                  setUploadingImage(true)
+                  try {
+                    const payload = new FormData()
+                    payload.append("file", file)
+
+                    const response = await fetch("/api/exchange-rates/upload-image", {
+                      method: "POST",
+                      body: payload,
+                    })
+
+                    if (!response.ok) {
+                      const errorData = await response.json().catch(() => ({}))
+                      throw new Error(errorData.detail || '上传图片失败')
+                    }
+
+                    const result = await response.json()
+                    const image = result?.data as NoteImage
+                    if (!image?.id || !image?.url) {
+                      throw new Error("图片信息异常")
+                    }
+
+                    setFormData((prev) => ({
+                      ...prev,
+                      noteImages: [...prev.noteImages, image],
+                    }))
+                    setImageUploadState({ status: 'success', message: '上传成功' })
+                    setTimeout(() => setImageUploadState({ status: 'idle', message: '' }), 2000)
+                  } catch (error: any) {
+                    console.error("Error uploading image:", error)
+                    setImageUploadState({ status: 'error', message: error instanceof Error ? error.message : '上传失败' })
+                    setTimeout(() => setImageUploadState({ status: 'idle', message: '' }), 3000)
+                    throw error
+                  } finally {
+                    setUploadingImage(false)
+                  }
+                }}
+                uploadingText={imageUploadState.message || '上传中...'}
+                disabled={uploadingImage}
+              />
+              {imageUploadState.message && imageUploadState.status !== 'idle' && (
+                <div className={cn(
+                  "text-xs",
+                  imageUploadState.status === 'error' && "text-destructive",
+                  imageUploadState.status === 'success' && "text-green-600",
+                  imageUploadState.status === 'uploading' && "text-muted-foreground"
+                )}>
+                  {imageUploadState.message}
                 </div>
-                {imageUploadState.message && (
-                  <div className={cn(
-                    "mt-2 text-xs",
-                    imageUploadState.status === 'error' && "text-destructive",
-                    imageUploadState.status === 'success' && "text-green-600",
-                    imageUploadState.status === 'uploading' && "text-muted-foreground"
-                  )}>
-                    {imageUploadState.message}
-                  </div>
-                )}
-                {isDragOver && (
-                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                    <div className="rounded-md bg-primary/20 px-4 py-2 text-sm font-medium text-primary">
-                      释放在此处上传
-                    </div>
-                  </div>
-                )}
-              </div>
+              )}
               {formData.noteImages.length > 0 && (
                 <div className="flex flex-wrap gap-3 rounded-md border border-border/70 bg-[hsl(var(--surface-subtle))] p-3">
                   {formData.noteImages.map((image) => (

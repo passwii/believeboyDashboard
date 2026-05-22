@@ -63,6 +63,9 @@ class Settings(BaseSettings):
     alert_from_email: str = Field(default="alerts@believeboy.com", max_length=256)
     alert_from_name: str = Field(default="BelieveBoy Dashboard", max_length=128)
 
+    # Scheduled report dispatch
+    report_ai_concurrency: int = Field(default=2, ge=1, le=10, description="Max concurrent AI summary API calls during report dispatch")
+
     redis_db: int = Field(default=0, ge=0, le=15)
 
     # Cloudflare R2 Storage

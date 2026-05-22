@@ -2779,7 +2779,10 @@ export default function AIInsightsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Schedule Dialog */}
+    </>
+  )}
+
+      {/* Schedule Dialog - rendered outside tab conditionals so it works from any tab */}
       <ScheduleDialog
         open={scheduleDialogOpen}
         onOpenChange={(open) => {
@@ -2806,8 +2809,6 @@ export default function AIInsightsPage() {
           setScheduleRefreshTrigger((n) => n + 1)
         }}
       />
-    </>
-  )}
 </div>
   )
 }

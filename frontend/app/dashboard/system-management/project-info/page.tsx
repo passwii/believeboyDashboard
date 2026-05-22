@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { ChevronDown, ChevronUp, ChevronsUpDown, PencilLine, PlusCircle, Settings } from 'lucide-react'
+import { ChevronDown, ChevronUp, ChevronsUpDown, PencilLine, PlusCircle, Settings, FileText } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
@@ -28,12 +29,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { RefreshProgressBar } from '@/components/ui/refresh-progress-bar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { useGlobalLoading } from '@/components/global-loading-provider'
 import { useSmoothRefresh } from '@/hooks/use-smooth-refresh'
 import { ProjectContextDrawer } from '@/components/dashboard/project-context/project-context-drawer'
+import { ProjectContextTab } from '@/components/dashboard/project-context/project-context-tab'
 import {
   clearProjectClientCaches,
   fetchManagedProjectsCached,
@@ -451,7 +454,22 @@ const loadOperatorOptions = useCallback(async () => {
 
 
   return (
-    <div className="w-full md:h-[calc(100vh-8.5rem)] md:overflow-hidden">
+    <div className="w-full h-full">
+      <Tabs defaultValue="basic" className="h-full flex flex-col">
+        <div className="mb-4">
+          <TabsList>
+            <TabsTrigger value="basic">
+              <FileText className="mr-2 h-4 w-4" />
+              基础信息
+            </TabsTrigger>
+            <TabsTrigger value="context">
+              <Settings className="mr-2 h-4 w-4" />
+              项目背景
+            </TabsTrigger>
+          </TabsList>
+        </div>
+
+        <TabsContent value="basic" className="flex-1 mt-0">
       <DataTableCard className="h-full flex flex-col overflow-hidden border-border/80 shadow-[0_20px_40px_-22px_rgba(15,23,42,0.22)] dark:border-border/80 dark:shadow-[0_24px_50px_-30px_rgba(0,0,0,0.45)]">
         <DataTableCardHeader className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex min-w-0 flex-col gap-1">
@@ -732,6 +750,12 @@ const loadOperatorOptions = useCallback(async () => {
           </div>
         </DataTableCardBody>
       </DataTableCard>
+        </TabsContent>
+
+        <TabsContent value="context" className="flex-1 mt-0">
+          <ProjectContextTab />
+        </TabsContent>
+      </Tabs>
 
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent aria-describedby="edit-project-dialog-description" className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">

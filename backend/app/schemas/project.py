@@ -61,3 +61,13 @@ class ProjectContextUpdate(BaseModel):
     """API request for updating project context (JSON Merge Patch semantics)."""
     project_context: dict[str, Any] | None = None
     sku_context: dict[str, Any] | None = None
+
+
+class ParseContextRequest(BaseModel):
+    """API request for parsing project context with AI."""
+    description: str = Field(min_length=1, description="自然语言项目背景描述")
+
+
+class ParseContextResponse(BaseModel):
+    """API response for parsed project context."""
+    result: dict[str, Any] = Field(default_factory=dict, description="解析后的上下文配置")

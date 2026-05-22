@@ -36,6 +36,18 @@ class AlertMetric(str):
     ACOS = "acos"
     RETURN_RATE = "return_rate"
     INVENTORY_RISK = "inventory_risk"
+    RECONCILIATION_MISMATCH = "reconciliation_mismatch"
+
+
+class AlertTriggerType(str):
+    THRESHOLD = "threshold"
+    BASELINE = "baseline"
+
+
+class AlertNotificationChannel(str):
+    EMAIL = "email"
+    IN_APP = "in_app"
+    BOTH = "both"
 
 
 class AlertRule(Base):
@@ -46,15 +58,22 @@ class AlertRule(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(64), nullable=False)
     project_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
     )
     country: Mapped[str] = mapped_column(String(2), nullable=False, default="US")
     metric: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    trigger_type: Mapped[str] = mapped_column(
+        String(16), nullable=False, default=AlertTriggerType.THRESHOLD
+    )
     condition: Mapped[str] = mapped_column(String(16), nullable=False)
     threshold: Mapped[float] = mapped_column(Float, nullable=False)
     window_days: Mapped[int] = mapped_column(Integer, nullable=False, default=7)
     severity: Mapped[str] = mapped_column(String(16), nullable=False, default=AlertSeverity.WARNING)
+    notification_channels: Mapped[str] = mapped_column(
+        String(16), nullable=False, default=AlertNotificationChannel.IN_APP
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_by: Mapped[str] = mapped_column(String(128), nullable=False)
     created_at: Mapped[datetime] = mapped_column(

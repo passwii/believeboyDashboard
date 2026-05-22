@@ -26,7 +26,8 @@ from app.services.scheduled_report import (
     get_subscriptions_by_user,
     update_subscription,
 )
-from app.services.scheduled_report.email_sender import send_test_report_email
+from app.services.scheduled_report.email_sender_daily import send_scheduled_report_email, send_test_report_email
+from app.services.scheduled_report.report_builder_daily import build_report_email_data
 
 router = APIRouter(dependencies=[Depends(protected)])
 
@@ -123,7 +124,61 @@ def test_email(
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ):
-    success, error = send_test_report_email(data.email, data.frequency)
+    # Parse project_ids
+    project_ids: list[int] | None = None
+    if data.project_ids and data.project_ids != "*":
+        try:
+            project_ids = [int(pid.strip()) for pid in data.project_ids.split(",") if pid.strip()]
+        except ValueError:
+            project_ids = None
+
+    # Aggregate real data from the database
+    try:
+        report_data = build_report_email_data(
+            db=db,
+            project_ids=project_ids,
+            country=data.country,
+            frequency=data.frequency,
+            ai_model=data.ai_model,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"数据聚合失败: {e}",
+        )
+
+    # Send full report email with real data
+    success, error = send_scheduled_report_email(data.email, data.frequency, report_data)
     if success:
-        return TestEmailResponse(success=True, message=f"测试邮件已发送到 {data.email}", resend_id=error)
+        return TestEmailResponse(success=True, message=f"测试报告已发送到 {data.email}（含真实数据）", resend_id=error)
     return TestEmailResponse(success=False, message=f"发送失败: {error}")
+
+
+@router.post("/scheduled-reports/trigger", response_model=TriggerReportResponse)
+def trigger_report_dispatch(
+    frequency: str = "daily",
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
+):
+    """手动触发指定频率的报告调度（仅管理员）。
+
+    用于测试或补发，会走完整的 dispatcher 流程（限流 + 缓存）。
+    """
+    if not is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="仅管理员可触发报告调度")
+    if frequency not in ("daily", "weekly", "monthly"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="frequency 必须为 daily/weekly/monthly")
+
+    import threading
+    from app.services.scheduled_report.dispatcher import dispatch_reports
+
+    # Run in background thread to avoid blocking the request
+    thread = threading.Thread(target=dispatch_reports, args=(frequency,), daemon=True)
+    thread.start()
+
+    return TriggerReportResponse(
+        success=True,
+        frequency=frequency,
+        subscriptions_affected=0,
+        message=f"{frequency} 报告调度已启动（后台执行中），请查看日志或推送记录确认结果。",
+    )
