@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from app.api.deps import get_db_session, protected
 from app.core.config import get_settings
+from app.services.artifact_service import ArtifactService
 from app.schemas.exchange_rate import (
     ExchangeRateCreate,
     ExchangeRateItem,
@@ -36,16 +37,14 @@ R2_THUMBS_FOLDER = 'thumbs'
 
 def _get_r2_image_url(image_name: str) -> str:
     """Generate R2 public URL for an image."""
-    settings = get_settings()
-    base = settings.r2_public_url or f"{settings.r2_endpoint_url}/{settings.r2_bucket_name}"
-    return f"{base}/{R2_PROJECT_SLUG}/{R2_IMAGES_FOLDER}/{image_name}"
+    key = f"{R2_PROJECT_SLUG}/{R2_IMAGES_FOLDER}/{image_name}"
+    return ArtifactService.build_public_url(key)
 
 
 def _get_r2_thumb_url(thumb_name: str) -> str:
     """Generate R2 public URL for a thumbnail."""
-    settings = get_settings()
-    base = settings.r2_public_url or f"{settings.r2_endpoint_url}/{settings.r2_bucket_name}"
-    return f"{base}/{R2_PROJECT_SLUG}/{R2_THUMBS_FOLDER}/{thumb_name}"
+    key = f"{R2_PROJECT_SLUG}/{R2_THUMBS_FOLDER}/{thumb_name}"
+    return ArtifactService.build_public_url(key)
 
 
 def _serialize_item(row) -> ExchangeRateItem:

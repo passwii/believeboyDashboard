@@ -39,6 +39,7 @@ class ScheduledReportSubscription(Base):
     project_ids: Mapped[str] = mapped_column(String(500), nullable=False, default="*")
     country: Mapped[str] = mapped_column(String(10), nullable=False, default="US")
     frequency: Mapped[str] = mapped_column(String(20), nullable=False)
+    ai_model: Mapped[str | None] = mapped_column(String(64), nullable=True, comment="AI 摘要使用的模型，空则用默认模型")
     enabled: Mapped[bool] = mapped_column(nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

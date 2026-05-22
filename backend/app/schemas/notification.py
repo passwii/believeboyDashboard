@@ -46,7 +46,7 @@ class SubscriptionListResponse(BaseModel):
 
 
 class TestEmailRequest(BaseModel):
-    subscription_id: int
+    """subscription_id is in the path, not in the body."""
     test_recipients: list[str] | None = None
 
 

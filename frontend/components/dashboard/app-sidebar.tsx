@@ -215,10 +215,13 @@ const adminGroup: NavGroup = {
       url: '/dashboard/system-management/operator-management',
     },
     {
-      title: '项目佣金',
+      title: '佣金管理',
       url: '/dashboard/system-management/commission-management',
     },
     { title: '日志查看', url: '/dashboard/system-management/logs' },
+    { title: '通知设置', url: '/dashboard/system-management/notification-settings' },
+    { title: '定时报告', url: '/dashboard/system-management/scheduled-reports' },
+    { title: '备份管理', url: '/dashboard/system-management/backup-management' },
   ],
 }
 

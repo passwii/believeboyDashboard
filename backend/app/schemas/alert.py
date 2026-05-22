@@ -7,13 +7,16 @@ from pydantic import BaseModel, Field
 
 
 class AlertRuleBase(BaseModel):
+    name: str = Field(max_length=64)
     project_id: int
     country: str = "US"
     metric: str = Field(max_length=32)
+    trigger_type: str = Field(default="threshold", max_length=16)
     condition: str = Field(max_length=16)
     threshold: float
     window_days: int = 7
     severity: str = Field(default="warning", max_length=16)
+    notification_channels: str = Field(default="in_app", max_length=16)
 
 
 class AlertRuleCreate(AlertRuleBase):
@@ -21,11 +24,14 @@ class AlertRuleCreate(AlertRuleBase):
 
 
 class AlertRuleUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, max_length=64)
     metric: Optional[str] = Field(default=None, max_length=32)
+    trigger_type: Optional[str] = Field(default=None, max_length=16)
     condition: Optional[str] = Field(default=None, max_length=16)
     threshold: Optional[float] = None
     window_days: Optional[int] = None
     severity: Optional[str] = Field(default=None, max_length=16)
+    notification_channels: Optional[str] = Field(default=None, max_length=16)
     is_active: Optional[bool] = None
 
 
@@ -53,6 +59,12 @@ class AlertEventItem(BaseModel):
     triggered_at: datetime
     acknowledged_at: Optional[datetime] = None
     acknowledged_by: Optional[str] = None
+    # Reconciliation-specific fields
+    match_rate: Optional[float] = None
+    mismatched_items: Optional[int] = None
+    total_diff: Optional[float] = None
+    report_month: Optional[str] = None
+    report_id: Optional[int] = None
 
     model_config = {"from_attributes": True}
 

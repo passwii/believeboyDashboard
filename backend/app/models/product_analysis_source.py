@@ -422,6 +422,9 @@ class AnalysisPT1Calculation(Base):
     row_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default='0')
     summary_row: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     result_file_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    # R2 storage for result files (product analysis reports)
+    result_r2_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    result_r2_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
 
     calculation_version: Mapped[int] = mapped_column(Integer, nullable=False, server_default='1')
     computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

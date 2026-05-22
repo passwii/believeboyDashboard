@@ -159,6 +159,8 @@ def persist_product_analysis_pt1_calculation(
     report_end_date: str,
     pt1: dict[str, Any],
     result_file_path: str | None = None,
+    result_r2_key: str | None = None,
+    result_r2_url: str | None = None,
     calculation_version: int = 1,
 ) -> AnalysisPT1Calculation:
     from app.models.product_analysis_source import AnalysisPT1Calculation, AnalysisPTSKUDetail
@@ -219,6 +221,8 @@ def persist_product_analysis_pt1_calculation(
         row_count=row_count,
         summary_row=_to_raw_row(summary_raw),
         result_file_path=(str(result_file_path).strip() if result_file_path else None),
+        result_r2_key=result_r2_key,
+        result_r2_url=result_r2_url,
         calculation_version=calculation_version,
         computed_at=now,
     )

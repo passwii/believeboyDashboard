@@ -60,6 +60,7 @@ def create_subscription(
         project_ids=data.project_ids,
         country=data.country,
         frequency=data.frequency,
+        ai_model=data.ai_model,
         enabled=True,
     )
     db.add(subscription)

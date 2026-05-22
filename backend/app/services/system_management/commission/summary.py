@@ -73,37 +73,36 @@ def get_commission_project_yearly_summary(
     year: str,
     country: str | None = None,
 ) -> list[dict]:
-    """获取按项目汇总的佣金数据。
+    """获取按项目汇总的佣金数据（跨站点求和）。
 
     Args:
         db: 数据库会话
         year: 年份
-        country: 国家代码，US/UK/DE。如果为 None 则查询所有国家并汇总。
+        country: 国家代码，US/UK/DE。当前实现忽略此参数，汇总所有站点的数据。
 
     Returns list of dicts with project_id, project_name, months dict, etc.
     """
     month_start = f"{year}-01"
     month_end = f"{year}-12"
+    # 按 (project_id, report_month) 分组，对所有数值字段求和
     stmt = select(
         CommissionProjectMonth.project_id,
-        CommissionProjectMonth.project_name,
         CommissionProjectMonth.report_month,
-        func.sum(CommissionProjectMonth.income_total_usd).label("income_total_usd"),
-        func.sum(CommissionProjectMonth.factory_commission_rmb).label("factory_commission_rmb"),
-        func.sum(CommissionProjectMonth.received_rmb).label("received_rmb"),
+        func.max(CommissionProjectMonth.project_name).label("project_name"),
+        func.sum(CommissionProjectMonth.income_total_usd).label("sum_income"),
+        func.sum(CommissionProjectMonth.factory_commission_rmb).label("sum_commission"),
+        func.sum(CommissionProjectMonth.received_rmb).label("sum_received"),
     ).where(
         CommissionProjectMonth.report_month >= month_start,
         CommissionProjectMonth.report_month <= month_end,
+    ).group_by(
+        CommissionProjectMonth.project_id,
+        CommissionProjectMonth.report_month,
+    ).order_by(
+        CommissionProjectMonth.project_id.asc(),
+        CommissionProjectMonth.report_month.asc(),
     )
-    if country:
-        stmt = stmt.where(CommissionProjectMonth.country == country)
-    rows = db.execute(
-        stmt.group_by(
-            CommissionProjectMonth.project_id,
-            CommissionProjectMonth.project_name,
-            CommissionProjectMonth.report_month,
-        ).order_by(CommissionProjectMonth.project_id.asc(), CommissionProjectMonth.report_month.asc())
-    ).all()
+    rows = db.execute(stmt).all()
 
     project_map: dict[int, dict] = {}
     for row in rows:
@@ -112,7 +111,7 @@ def get_commission_project_yearly_summary(
         if item is None:
             item = {
                 "project_id": pid,
-                "project_name": str(row.project_name),
+                "project_name": str(row.project_name or ""),
                 "months": {},
                 "total_income_usd": 0.0,
                 "total_commission_rmb": 0.0,
@@ -121,9 +120,9 @@ def get_commission_project_yearly_summary(
             }
             project_map[pid] = item
 
-        iv = float(row.income_total_usd or 0)
-        cv = float(row.factory_commission_rmb or 0)
-        rv = float(row.received_rmb or 0)
+        iv = float(row.sum_income or 0)
+        cv = float(row.sum_commission or 0)
+        rv = float(row.sum_received or 0)
         item["months"][str(row.report_month)] = {
             "report_month": str(row.report_month),
             "income_total_usd": iv,
@@ -155,7 +154,6 @@ def update_commission_project_payment(
 
     返回更新后的记录，如果不存在则返回 None。
     """
-    from datetime import datetime as dt
     from app.models.commission_record import CommissionRecord
     from app.schemas.system_management.commission._enums import CommissionPaymentStatus, CommissionProjectPaymentStatus
     from app.services.system_management.shared import _to_decimal

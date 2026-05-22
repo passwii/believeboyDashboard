@@ -41,6 +41,7 @@ def list_metric_options() -> MetricOptionsResponse:
             MetricOption(value="acos", label="ACOS", description="广告销售成本比"),
             MetricOption(value="return_rate", label="退货率", description="退货占总订单比例"),
             MetricOption(value="inventory_risk", label="库存风险", description="库存缺货风险等级"),
+            MetricOption(value="reconciliation_mismatch", label="报表核对异常", description="PDF与数据库数据匹配率低于阈值"),
         ]
     )
 

@@ -3,12 +3,12 @@ import { Session } from 'next-auth'
 export type ProjectContextResponse = {
   project_id: number
   project_name: string
-  project_context: Record<string, unknown> | null
+  project_context: Record<string, string> | null
   sku_context: Record<string, unknown> | null
 }
 
 export type ProjectContextUpdate = {
-  project_context?: Record<string, unknown>
+  project_context?: Record<string, string>
   sku_context?: Record<string, unknown>
 }
 

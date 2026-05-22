@@ -190,35 +190,10 @@ def extract_key_from_url(url: str, settings: Settings | None = None) -> str | No
     - https://cdn.example.com/bucket/key
     - https://bucket.r2.cloudflarestorage.com/bucket/key
     - /bucket/key (relative)
+
+    Note: 此函数保留在 r2_service 中以保持向后兼容。
+    新代码应使用 ArtifactService.extract_key_from_url()。
     """
-    from app.core.config import get_settings
+    from app.services.artifact_service import ArtifactService
 
-    if settings is None:
-        settings = get_settings()
-
-    # If it's already just a key (no slashes with bucket), return as-is
-    if not url.startswith('http') and not url.startswith('/'):
-        return url
-
-    from urllib.parse import unquote
-
-    extracted_key = None
-
-    # Try to extract key based on known patterns
-    # Pattern 1: Custom public URL
-    if settings.r2_public_url and url.startswith(settings.r2_public_url):
-        extracted_key = url[len(settings.r2_public_url):].lstrip('/')
-
-    # Pattern 2: R2 endpoint with bucket
-    if extracted_key is None and settings.r2_bucket_name:
-        suffix = f"{settings.r2_bucket_name}/"
-        if suffix in url:
-            parts = url.split(suffix)
-            if len(parts) == 2:
-                extracted_key = parts[1]
-
-    # Decode URL-encoded characters (e.g., %E9%93%A8%E5%AF%8C -> 魁宝)
-    if extracted_key:
-        return unquote(extracted_key)
-
-    return None
+    return ArtifactService.extract_key_from_url(url, settings)

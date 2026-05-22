@@ -64,8 +64,8 @@ export function ScheduleDialog({
   useEffect(() => {
     async function loadProjects() {
       try {
-        const data = await fetchManagedProjectsCached<Array<{id: number, project_name: string}>>()
-        setProjects(data.map((p) => ({ id: p.id, name: p.project_name })))
+        const data = await fetchManagedProjectsCached<Array<{id: number, name: string}>>()
+        setProjects(data.map((p) => ({ id: p.id, name: p.name })))
       } catch (e) {
         console.error('Failed to load projects', e)
       } finally {

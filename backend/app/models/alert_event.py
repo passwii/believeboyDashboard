@@ -26,6 +26,7 @@ class AlertEvent(Base):
     __table_args__ = (
         Index("idx_ae_project_severity", "project_id", "severity"),
         Index("idx_ae_status_triggered", "status", "triggered_at"),
+        Index("idx_ae_recon_dedup", "project_id", "metric", "report_month"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -49,5 +50,12 @@ class AlertEvent(Base):
     )
     acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     acknowledged_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+
+    # Reconciliation-specific fields
+    match_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    mismatched_items: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_diff: Mapped[float | None] = mapped_column(Float, nullable=True)
+    report_month: Mapped[str | None] = mapped_column(String(7), nullable=True)
+    report_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     rule: Mapped["AlertRule"] = relationship(back_populates="events")
