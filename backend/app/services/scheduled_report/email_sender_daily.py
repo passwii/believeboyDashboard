@@ -452,10 +452,10 @@ def send_scheduled_report_email(email: str, frequency: str, report_data: dict[st
                 try:
                     from datetime import datetime
                     from app.services.r2_service import upload_bytes_to_r2
-                    from slugify import slugify
+                    from app.services.upload_service import _safe_project_folder_name
 
                     settings = get_settings()
-                    project_slug = slugify(project_name)
+                    project_slug = _safe_project_folder_name(project_name)
                     country = report_data.get("country", "US")
                     ts = datetime.now().strftime("%Y%m%dT%H%M%S")
                     r2_filename = f"{report_date}_{frequency}_{country}_{ts}.png"
