@@ -13,24 +13,25 @@ logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """你是一位跨境电商运营专家。请根据用户提供的数据，为运营团队生成一段简洁的日报摘要。
 
-叙事要点：
-- 描述"今日"的单量和销售额（vs 前日）
-- 描述近7天的累计数据（vs 上周期）
-- 关注库存状态和广告效果
-- 提示任何需要关注的问题
+叙事要点（严格按此顺序）：
+- 首先描述"今日"的单量和销售额（对比对象永远是 vs 前一日，绝对不要和近7天数据混淆）
+- 然后描述近7天的累计数据（vs 上周期同天数）
+- 最后关注库存状态（缺货/告急）和广告效果（ROAS/ACOS）
 
 要求：
-1. 识别最重要的变化（增长/下降超过10%时标注出来）
-2. 指出需要关注的核心问题
-3. 总字数控制在 100-150 字
-4. 用中文回复，风格专业简洁
-5. 如果数据全为 0 或无有效数据，返回"暂无足够数据生成摘要"
-6. 不要输出任何"建议"或"建议措施"相关内容
+1. 使用 bullet point（以 - 开头）形式组织内容，每点独立一行
+2. 每条 bullet point 控制在 20-30 字，整体不超过 5 条
+3. 识别最重要的变化（增长/下降超过10%时明确标注百分比和方向）
+4. 指出需要关注的核心问题（缺货、广告ACOS过高、退货率异常等）
+5. 用中文回复，风格专业简洁
+6. 如果数据全为 0 或无有效数据，返回"暂无足够数据生成摘要"
+7. 不要输出任何"建议"或"建议措施"相关内容
 
 禁止输出：
 - 不要在正文中附带字数统计，如"(字数：100字)"
 - 不要输出标题、分隔线、签名等元信息
-- 只输出纯正文摘要段落，不要有多余格式
+- 不要用加粗、斜体等格式标注，只输出纯文本 bullet point
+- 只输出 bullet point 列表，不要有多余的前言或结语
 """
 
 
@@ -97,26 +98,50 @@ def _generate_fallback_summary(frequency: str, report_data: dict[str, Any]) -> s
     sales = report_data.get("sales", {})
     week_sales = report_data.get("week_sales", {})
     prev_week_sales = report_data.get("prev_week_sales", {})
-    
-    # 今日数据
+    inventory = report_data.get("inventory", {})
+    ads = report_data.get("ads", {})
+
     today_qty = sales.get("yesterday_qty", 0)
     today_amt = sales.get("yesterday_amount", 0.0)
     vs_prev = sales.get("change_pct", 0.0)
-    
-    # 7天累计数据
+
     p7d_qty = week_sales.get("week_qty", 0)
     p7d_amt = week_sales.get("week_amount", 0.0)
     prev_qty = prev_week_sales.get("week_qty", 0)
     prev_amt = prev_week_sales.get("week_amount", 0.0)
-    
-    # 计算变化率
+
     p7d_chg = ((p7d_qty - prev_qty) / prev_qty * 100) if prev_qty > 0 else 0
     p7d_amt_chg = ((p7d_amt - prev_amt) / prev_amt * 100) if prev_amt > 0 else 0
-    
-    # 日报叙事
+
+    oos_count = len(inventory.get("oos_skus", []))
+    low_count = len(inventory.get("low_stock_skus", []))
+
+    ad_roas = ads.get("roas", 0)
+    ad_acos = ads.get("acos", 0)
+
+    lines = []
+
     dir_icon = "↑" if vs_prev >= 0 else "↓"
-    return (
-        f"今日销售 {today_qty:,} 件（{dir_icon} {abs(vs_prev):.1f}% vs 前日）。"
-        f"近7天累计 {p7d_qty:,} 件，销售额 ${p7d_amt:,.2f}"
-        f"（{p7d_chg:+.1f}% vs 上周期）。"
-    )
+    lines.append(f"- 昨日销量 {today_qty:,} 件，{dir_icon} {abs(vs_prev):.1f}% vs 前日")
+    if today_amt > 0:
+        lines.append(f"- 昨日销售额 ${today_amt:,.2f}")
+
+    p7d_dir = "↑" if p7d_chg >= 0 else "↓"
+    amt_dir = "↑" if p7d_amt_chg >= 0 else "↓"
+    lines.append(f"- 近7天累计 {p7d_qty:,} 件（{p7d_dir} {abs(p7d_chg):.1f}% vs 上周期）")
+    if p7d_amt > 0:
+        lines.append(f"- 近7天销售额 ${p7d_amt:,.2f}（{amt_dir} {abs(p7d_amt_chg):.1f}% vs 上周期）")
+
+    if oos_count > 0 or low_count > 0:
+        alerts = []
+        if oos_count > 0:
+            alerts.append(f"{oos_count} 个 SKU 缺货")
+        if low_count > 0:
+            alerts.append(f"{low_count} 个 SKU 库存告急(≤10件)")
+        lines.append(f"- 库存风险：{'，'.join(alerts)}")
+
+    if ad_roas > 0 or ad_acos > 0:
+        roas_status = "良好" if ad_roas >= 2 else "偏低"
+        lines.append(f"- 广告 ROAS {ad_roas:.2f}（{roas_status}），ACOS {ad_acos:.1f}%")
+
+    return "\n".join(lines)

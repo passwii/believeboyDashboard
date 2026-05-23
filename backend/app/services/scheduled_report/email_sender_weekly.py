@@ -142,7 +142,7 @@ def _render_weekly_report_html(report_data: dict[str, Any]) -> str:
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: #F3F4F6; padding: 12px 0;">
   <tr><td>
     <table width="100%" cellpadding="0" cellspacing="0" border="0"
-           style="max-width: 680px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+           style="max-width: 680px; margin: 0 auto; background: white; border-radius: 50px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
 
       <!-- Header -->
       <tr>
@@ -163,9 +163,9 @@ def _render_weekly_report_html(report_data: dict[str, Any]) -> str:
 
       <!-- 报表总结 -->
       <tr>
-        <td style="padding: 16px; background: #EFF6FF; border-bottom: 1px solid #BFDBFE;">
-          <div style="font-size: 13px; font-weight: 700; color: #1D4ED8; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 5px;">🔍 报表总结</div>
-          <div style="font-size: 15px; color: #1E3A5F; line-height: 1.7;">{ai_summary}</div>
+        <td style="padding: 20px 16px 10px; background: #EFF6FF; border-bottom: 1px solid #BFDBFE;">
+          <div style="border-left: 4px solid #1D4ED8; padding-left: 10px; font-size: 17px; font-weight: 700; color: #111827; margin-bottom: 12px;">🔍 报表总结</div>
+          <div style="font-size: 15px; color: #1E3A5F; line-height: 1.7; padding-left: 14px;">{ai_summary}</div>
         </td>
       </tr>
 
