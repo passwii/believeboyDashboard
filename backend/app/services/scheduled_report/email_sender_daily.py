@@ -17,8 +17,13 @@ from app.services.scheduled_report.email_sender import (
 
 logger = logging.getLogger(__name__)
 
-def _render_daily_report_html(report_data: dict[str, Any]) -> str:
-    """构建每日报告 HTML 邮件（table-based 响应式，确保 Gmail App 移动端显示正常。"""
+def _render_daily_report_html(report_data: dict[str, Any], include_summary: bool = True) -> str:
+    """构建每日报告 HTML 邮件（table-based 响应式，确保 Gmail App 移动端显示正常。
+
+    Args:
+        report_data: 完整的日报数据字典
+        include_summary: 是否包含运营摘要区块。截图模式设为 False。
+    """
 
     # ── 提取数据 ──────────────────────────────────────
     sales     = report_data.get("sales", {})
@@ -239,13 +244,13 @@ def _render_daily_report_html(report_data: dict[str, Any]) -> str:
         </td>
       </tr>
 
-      <!-- 运营摘要 -->
-      <tr>
+      <!-- 运营摘要（截图模式下隐藏） -->
+      {f'''<tr>
         <td style="padding: 20px 16px 10px; background: #EFF6FF; border-bottom: 1px solid #BFDBFE;">
           <div style="border-left: 4px solid #1D4ED8; padding-left: 10px; font-size: 17px; font-weight: 700; color: #111827; margin-bottom: 12px;">📋 运营摘要</div>
           <div style="font-size: 15px; color: #1E3A5F; line-height: 1.7; padding-left: 14px;">{ai_summary}</div>
         </td>
-      </tr>
+      </tr>''' if include_summary else ''}
 
       <!-- Section: 📌 今日运营概况 -->
       <tr>
@@ -416,14 +421,10 @@ def send_scheduled_report_email(email: str, frequency: str, report_data: dict[st
     try:
         resend.api_key = settings.resend_api_key
 
-        # Build HTML based on frequency
-        if frequency == "daily":
-            html = _render_daily_report_html(report_data)
-        elif frequency == "weekly":
-            from app.services.scheduled_report.email_sender_weekly import _render_weekly_report_html
-            html = _render_weekly_report_html(report_data, include_summary=True)
-        else:
-            html = _render_daily_report_html(report_data)
+        # 邮件 HTML（含运营摘要）
+        email_html = _render_daily_report_html(report_data, include_summary=True)
+        # 截图 HTML（不含运营摘要）
+        screenshot_html = _render_daily_report_html(report_data, include_summary=False)
 
         project_name = report_data.get("project_name", "项目")
         report_date = report_data.get("report_date", "")
@@ -434,13 +435,13 @@ def send_scheduled_report_email(email: str, frequency: str, report_data: dict[st
             "from": settings.alert_from_email,
             "to": [email],
             "subject": subject,
-            "html": html,
+            "html": email_html,
         }
 
         # 生成截图附件并上传到 R2
         try:
             from app.services.scheduled_report.screenshot import html_to_png
-            png_bytes = html_to_png(html)
+            png_bytes = html_to_png(screenshot_html)
             if png_bytes:
                 import base64
                 freq_label = {"daily": "每日", "weekly": "每周", "monthly": "每月"}.get(frequency, frequency)
