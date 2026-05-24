@@ -29,7 +29,9 @@ from app.services.scheduled_report import (
     update_subscription,
 )
 from app.services.scheduled_report.email_sender_daily import send_scheduled_report_email, send_test_report_email
+from app.services.scheduled_report.email_sender_weekly import send_weekly_report_email
 from app.services.scheduled_report.report_builder_daily import build_report_email_data
+from app.services.scheduled_report.report_builder_weekly import build_weekly_report_data
 
 router = APIRouter(dependencies=[Depends(protected)])
 
@@ -136,13 +138,20 @@ def test_email(
 
     # Aggregate real data from the database
     try:
-        report_data = build_report_email_data(
-            db=db,
-            project_ids=project_ids,
-            country=data.country,
-            frequency=data.frequency,
-            ai_model=data.ai_model,
-        )
+        if data.frequency == "weekly":
+            report_data = build_weekly_report_data(
+                db=db,
+                project_ids=project_ids,
+                country=data.country,
+            )
+        else:
+            report_data = build_report_email_data(
+                db=db,
+                project_ids=project_ids,
+                country=data.country,
+                frequency=data.frequency,
+                ai_model=data.ai_model,
+            )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -150,7 +159,10 @@ def test_email(
         )
 
     # Send full report email with real data
-    success, error = send_scheduled_report_email(data.email, data.frequency, report_data)
+    if data.frequency == "weekly":
+        success, error = send_weekly_report_email(data.email, report_data)
+    else:
+        success, error = send_scheduled_report_email(data.email, data.frequency, report_data)
     if success:
         return TestEmailResponse(success=True, message=f"测试报告已发送到 {data.email}（含真实数据）", resend_id=error)
     return TestEmailResponse(success=False, message=f"发送失败: {error}")

@@ -88,12 +88,12 @@ class TestPaymentRecognitionSignals:
     def test_non_payment_csv_returns_none(self):
         """CSV that doesn't match any payment signal should return None."""
         content = (
-            "ASIN,Product Name,Units Ordered,Sales\n"
-            "B001,Product A,10,100.00\n"
+            "Column1,Column2,Column3,Column4\n"
+            "value1,value2,10,100.00\n"
         )
         path = self._write_csv(content)
         try:
-            result = recognize_file(path, country="US", original_filename="business_report.csv")
+            result = recognize_file(path, country="US", original_filename="unknown_file.csv")
             assert result is None
         finally:
             path.unlink()

@@ -60,6 +60,10 @@ def create_subscription(
         project_ids=data.project_ids,
         country=data.country,
         frequency=data.frequency,
+        dispatch_hour=data.dispatch_hour,
+        dispatch_minute=data.dispatch_minute,
+        dispatch_weekday=data.dispatch_weekday,
+        dispatch_day=data.dispatch_day,
         ai_model=data.ai_model,
         enabled=True,
     )
@@ -170,3 +174,31 @@ def mark_delivery_failed(db: Session, log_id: int, error_message: str) -> None:
         log.status = DeliveryStatus.FAILED.value
         log.error_message = error_message
         db.commit()
+
+
+def update_delivery_log_screenshot(
+    db: Session,
+    log_id: int,
+    screenshot_r2_key: str,
+    screenshot_r2_url: str,
+) -> None:
+    """更新推送日志的截图 R2 信息。"""
+    log = db.get(ScheduledReportDeliveryLog, log_id)
+    if log:
+        log.screenshot_r2_key = screenshot_r2_key
+        log.screenshot_r2_url = screenshot_r2_url
+        db.commit()
+        logger.info(f"Updated screenshot for delivery log id={log_id}")
+
+
+def update_delivery_log_ai_summary(
+    db: Session,
+    log_id: int,
+    ai_summary: str,
+) -> None:
+    """更新推送日志的 AI 报表总结文案。"""
+    log = db.get(ScheduledReportDeliveryLog, log_id)
+    if log:
+        log.ai_summary = ai_summary
+        db.commit()
+        logger.info(f"Updated ai_summary for delivery log id={log_id}")

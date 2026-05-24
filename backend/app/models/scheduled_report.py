@@ -99,6 +99,9 @@ class ScheduledReportDeliveryLog(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default=DeliveryStatus.PENDING.value)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    screenshot_r2_key: Mapped[str | None] = mapped_column(String(512), nullable=True, comment="R2 object key for screenshot")
+    screenshot_r2_url: Mapped[str | None] = mapped_column(String(1024), nullable=True, comment="Public URL for screenshot")
+    ai_summary: Mapped[str | None] = mapped_column(Text, nullable=True, comment="AI 报表总结文案（Markdown）")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

@@ -252,7 +252,7 @@ async def upload_exchange_rate_image(file: UploadFile = File(...)) -> ExchangeRa
     thumb_bytes = thumb_buffer.getvalue()
 
     # Upload original image to R2
-    upload_bytes_to_r2(
+    image_r2_result = upload_bytes_to_r2(
         settings,
         image_bytes,
         image_name,
@@ -262,7 +262,7 @@ async def upload_exchange_rate_image(file: UploadFile = File(...)) -> ExchangeRa
     )
 
     # Upload thumbnail to R2
-    upload_bytes_to_r2(
+    thumb_r2_result = upload_bytes_to_r2(
         settings,
         thumb_bytes,
         thumb_name,
@@ -275,8 +275,10 @@ async def upload_exchange_rate_image(file: UploadFile = File(...)) -> ExchangeRa
 
     return ExchangeRateUploadResponse(
         id=image_id,
-        url=_get_r2_image_url(image_name),
-        thumbnail_url=_get_r2_thumb_url(thumb_name),
+        url=image_r2_result['url'],
+        thumbnail_url=thumb_r2_result['url'],
+        r2_key=image_r2_result['key'],
+        thumbnail_key=thumb_r2_result['key'],
         filename=file.filename or image_name,
         content_type='image/webp',
         size=len(image_bytes),

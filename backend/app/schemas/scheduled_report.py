@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class SubscriptionCreate(BaseModel):
@@ -13,7 +13,24 @@ class SubscriptionCreate(BaseModel):
     project_ids: str = Field(default="*", max_length=500, description="项目 ID 列表，逗号分隔，* 表示全部")
     country: str = Field(default="US", max_length=10)
     frequency: str = Field(..., pattern="^(daily|weekly|monthly)$")
+    dispatch_hour: int = Field(default=15, ge=0, le=23, description="发送时间（小时，0-23，北京时间）")
+    dispatch_minute: int = Field(default=0, ge=0, le=59, description="发送时间（分钟，0-59）")
+    dispatch_weekday: Optional[int] = Field(default=None, ge=0, le=6, description="周报发送日（0=周一..6=周日）")
+    dispatch_day: Optional[int] = Field(default=None, ge=2, le=28, description="月报发送日（2-28）")
     ai_model: Optional[str] = Field(default=None, max_length=64, description="AI 摘要使用的模型，空则用默认模型")
+
+    @model_validator(mode="after")
+    def validate_frequency_fields(self) -> "SubscriptionCreate":
+        if self.frequency == "weekly":
+            if self.dispatch_weekday is None:
+                self.dispatch_weekday = 0  # 默认周一
+            # 周一 16:00 之前不允许
+            if self.dispatch_weekday == 0 and self.dispatch_hour < 16:
+                raise ValueError("周报最早可在周一 16:00 发送")
+        elif self.frequency == "monthly":
+            if self.dispatch_day is None:
+                self.dispatch_day = 2  # 默认 2 号
+        return self
 
 
 class SubscriptionUpdate(BaseModel):
@@ -21,8 +38,22 @@ class SubscriptionUpdate(BaseModel):
     project_ids: Optional[str] = Field(default=None, max_length=500)
     country: Optional[str] = Field(default=None, max_length=10)
     frequency: Optional[str] = Field(default=None, pattern="^(daily|weekly|monthly)$")
+    dispatch_hour: Optional[int] = Field(default=None, ge=0, le=23, description="发送时间（小时，0-23，北京时间）")
+    dispatch_minute: Optional[int] = Field(default=None, ge=0, le=59, description="发送时间（分钟，0-59）")
+    dispatch_weekday: Optional[int] = Field(default=None, ge=0, le=6, description="周报发送日（0=周一..6=周日）")
+    dispatch_day: Optional[int] = Field(default=None, ge=2, le=28, description="月报发送日（2-28）")
     ai_model: Optional[str] = Field(default=None, max_length=64)
     enabled: Optional[bool] = None
+
+    @model_validator(mode="after")
+    def validate_frequency_fields(self) -> "SubscriptionUpdate":
+        if self.frequency == "weekly" and self.dispatch_weekday is not None:
+            if self.dispatch_weekday == 0 and self.dispatch_hour is not None and self.dispatch_hour < 16:
+                raise ValueError("周报最早可在周一 16:00 发送")
+        if self.frequency == "monthly" and self.dispatch_day is not None:
+            if self.dispatch_day < 2:
+                raise ValueError("月报最早可在每月 2 号发送")
+        return self
 
 
 class SubscriptionItem(BaseModel):
@@ -32,6 +63,10 @@ class SubscriptionItem(BaseModel):
     project_ids: str
     country: str
     frequency: str
+    dispatch_hour: int = 15
+    dispatch_minute: int = 0
+    dispatch_weekday: Optional[int] = None
+    dispatch_day: Optional[int] = None
     ai_model: Optional[str] = None
     enabled: bool
     created_at: datetime
@@ -55,6 +90,9 @@ class DeliveryLogItem(BaseModel):
     status: str
     error_message: Optional[str]
     sent_at: Optional[datetime]
+    screenshot_r2_key: Optional[str] = None
+    screenshot_r2_url: Optional[str] = None
+    ai_summary: Optional[str] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
