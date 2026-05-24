@@ -241,3 +241,42 @@ def refresh_ledger(
         .offset(offset)
     ).scalars().all()
     return LedgerListResponse(items=[_to_item(row) for row in rows], total=total, summary=summary)
+
+
+def resend_ledger_entry(db: Session, *, ledger_key: str) -> tuple[bool, int | None, str, str]:
+    entry = db.execute(
+        select(ScheduledReportLedgerEntry).where(ScheduledReportLedgerEntry.ledger_key == ledger_key)
+    ).scalars().first()
+    if entry is None:
+        return False, None, "not_found", "台账记录不存在，请刷新后重试"
+    if entry.status == LedgerStatus.SENT.value:
+        return False, entry.latest_delivery_log_id, entry.status, "已成功发送的记录默认不允许重复发送"
+
+    subscription = db.get(ScheduledReportSubscription, entry.subscription_id)
+    if subscription is None:
+        return False, None, "not_found", "订阅不存在或已删除"
+
+    from app.services.scheduled_report.dispatcher import _dispatch_one
+
+    result = _dispatch_one(
+        subscription_id=subscription.id,
+        email=subscription.email,
+        project_ids=subscription.project_id_list or None,
+        country=subscription.country,
+        frequency=subscription.frequency,
+        ai_model=getattr(subscription, "ai_model", None),
+    )
+
+    refresh_ledger(
+        db,
+        start_date=entry.expected_date,
+        end_date=entry.expected_date,
+        frequency=entry.frequency,
+    )
+    refreshed = db.execute(
+        select(ScheduledReportLedgerEntry).where(ScheduledReportLedgerEntry.ledger_key == ledger_key)
+    ).scalars().first()
+    delivery_log_id = refreshed.latest_delivery_log_id if refreshed else None
+    status = refreshed.status if refreshed else (LedgerStatus.SENT.value if result.get("success") else LedgerStatus.FAILED.value)
+    message = "补发成功" if result.get("success") else f"补发失败: {result.get('error') or 'Unknown error'}"
+    return bool(result.get("success")), delivery_log_id, status, message
