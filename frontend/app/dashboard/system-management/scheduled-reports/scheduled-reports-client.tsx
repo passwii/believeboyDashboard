@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrig
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
-import { Loader2, Plus, Trash2, Mail, Calendar, ChevronUp, ChevronDown, ImageIcon, Copy, FileText } from 'lucide-react'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Loader2, Plus, Trash2, Mail, Calendar, ChevronUp, ChevronDown, ImageIcon, Copy, FileText, RotateCcw, AlertTriangle } from 'lucide-react'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import { cn } from '@/lib/utils'
@@ -46,6 +47,33 @@ type DeliveryLog = {
   screenshot_r2_url: string | null
   ai_summary: string | null
   created_at: string
+}
+
+type LedgerStatus = 'sent' | 'failed' | 'missing'
+type LedgerItem = {
+  id: number
+  ledger_key: string
+  expected_date: string
+  expected_at: string
+  frequency: Frequency
+  subscription_id: number
+  email: string
+  project_ids: string
+  project_names: string[]
+  country: string
+  status: LedgerStatus
+  latest_delivery_log_id: number | null
+  error_message: string | null
+  sent_at: string | null
+  can_resend: boolean
+  last_checked_at: string
+}
+type LedgerSummary = {
+  expected: number
+  sent: number
+  failed: number
+  missing: number
+  resendable: number
 }
 
 type AIModelConfig = {
@@ -133,6 +161,20 @@ export function ScheduledReportsClient() {
   const [previewSummary, setPreviewSummary] = useState<string | null>(null)
   const [filterFrequency, setFilterFrequency] = useState<string>('all')
   const [copiedId, setCopiedId] = useState<number | null>(null)
+
+  const today = new Date()
+  const thirtyDaysAgo = new Date(today)
+  thirtyDaysAgo.setDate(today.getDate() - 30)
+  const [ledgerItems, setLedgerItems] = useState<LedgerItem[]>([])
+  const [ledgerSummary, setLedgerSummary] = useState<LedgerSummary | null>(null)
+  const [ledgerLoading, setLedgerLoading] = useState(false)
+  const [ledgerError, setLedgerError] = useState<string | null>(null)
+  const [ledgerStartDate, setLedgerStartDate] = useState(thirtyDaysAgo.toISOString().slice(0, 10))
+  const [ledgerEndDate, setLedgerEndDate] = useState(today.toISOString().slice(0, 10))
+  const [ledgerFrequency, setLedgerFrequency] = useState<string>('all')
+  const [ledgerStatus, setLedgerStatus] = useState<string>('all')
+  const [ledgerEmail, setLedgerEmail] = useState('')
+  const [resendingKey, setResendingKey] = useState<string | null>(null)
 
   // Load model config on mount
   useEffect(() => {
@@ -244,6 +286,51 @@ export function ScheduledReportsClient() {
     }
   }
 
+  const loadLedger = async () => {
+    setLedgerLoading(true)
+    setLedgerError(null)
+    try {
+      const params = new URLSearchParams({
+        start_date: ledgerStartDate,
+        end_date: ledgerEndDate,
+        frequency: ledgerFrequency,
+        status_filter: ledgerStatus,
+        limit: '100',
+      })
+      if (ledgerEmail.trim()) params.set('email', ledgerEmail.trim())
+      const res = await fetch(resolveApiUrl(`/api/v1/scheduled-reports/ledger?${params.toString()}`), {
+        headers: authHeaders(),
+      })
+      if (!res.ok) throw new Error(await res.text())
+      const data = await res.json() as { items: LedgerItem[]; summary: LedgerSummary }
+      setLedgerItems(data.items || [])
+      setLedgerSummary(data.summary || null)
+    } catch (e) {
+      setLedgerError(normalizeErrorMessage(e, '加载台账失败'))
+    } finally {
+      setLedgerLoading(false)
+    }
+  }
+
+  const handleResendLedger = async (item: LedgerItem) => {
+    if (!item.can_resend) return
+    const actionLabel = item.status === 'failed' ? '重试' : '补发'
+    if (!confirm(`确认${actionLabel} ${item.expected_date} 的 ${FREQUENCY_LABELS[item.frequency]} 报告？`)) return
+    setResendingKey(item.ledger_key)
+    try {
+      const res = await fetch(resolveApiUrl(`/api/v1/scheduled-reports/ledger/${encodeURIComponent(item.ledger_key)}/resend`), {
+        method: 'POST',
+        headers: authHeaders(),
+      })
+      if (!res.ok) throw new Error(await res.text())
+      await loadLedger()
+    } catch (e) {
+      alert(normalizeErrorMessage(e, `${actionLabel}失败`))
+    } finally {
+      setResendingKey(null)
+    }
+  }
+
   const handleTestEmail = async () => {
     if (!formEmail.trim()) {
       setTestResult({ success: false, message: '请先填写测试邮箱地址' })
@@ -277,6 +364,7 @@ export function ScheduledReportsClient() {
           <TabsTrigger value="subscriptions">订阅管理</TabsTrigger>
           <TabsTrigger value="logs">推送日志</TabsTrigger>
           <TabsTrigger value="preview">报告预览</TabsTrigger>
+          <TabsTrigger value="ledger">台账补发</TabsTrigger>
         </TabsList>
 
         <TabsContent value="subscriptions">
@@ -660,6 +748,114 @@ export function ScheduledReportsClient() {
                       })}
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="ledger">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <h2 className="text-lg font-medium">台账补发</h2>
+                <p className="text-sm text-muted-foreground">按应发记录检查缺失和失败的定期报告，并支持补发/重试。</p>
+              </div>
+              <Button onClick={loadLedger} disabled={ledgerLoading}>
+                {ledgerLoading ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-1 h-4 w-4" />}
+                刷新台账
+              </Button>
+            </div>
+
+            <Card className="border-border/70 bg-[hsl(var(--surface-panel))]">
+              <CardContent className="p-4 space-y-4">
+                <div className="grid gap-3 md:grid-cols-5">
+                  <Input type="date" value={ledgerStartDate} onChange={e => setLedgerStartDate(e.target.value)} />
+                  <Input type="date" value={ledgerEndDate} onChange={e => setLedgerEndDate(e.target.value)} />
+                  <Select value={ledgerFrequency} onValueChange={setLedgerFrequency}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">全部频率</SelectItem>
+                      <SelectItem value="daily">每日</SelectItem>
+                      <SelectItem value="weekly">每周</SelectItem>
+                      <SelectItem value="monthly">每月</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={ledgerStatus} onValueChange={setLedgerStatus}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">全部状态</SelectItem>
+                      <SelectItem value="sent">成功</SelectItem>
+                      <SelectItem value="failed">失败</SelectItem>
+                      <SelectItem value="missing">缺失</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input placeholder="邮箱筛选" value={ledgerEmail} onChange={e => setLedgerEmail(e.target.value)} />
+                </div>
+
+                {ledgerSummary && (
+                  <div className="grid gap-3 md:grid-cols-5">
+                    <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">应发</div><div className="text-xl font-semibold">{ledgerSummary.expected}</div></div>
+                    <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">成功</div><div className="text-xl font-semibold text-emerald-600">{ledgerSummary.sent}</div></div>
+                    <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">失败</div><div className="text-xl font-semibold text-destructive">{ledgerSummary.failed}</div></div>
+                    <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">缺失</div><div className="text-xl font-semibold text-amber-600">{ledgerSummary.missing}</div></div>
+                    <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">可补发</div><div className="text-xl font-semibold">{ledgerSummary.resendable}</div></div>
+                  </div>
+                )}
+
+                {ledgerError && <p className="text-sm text-destructive">{ledgerError}</p>}
+              </CardContent>
+            </Card>
+
+            <Card className="border-border/70 bg-[hsl(var(--surface-panel))]">
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>应发时间</TableHead>
+                      <TableHead>频率</TableHead>
+                      <TableHead>项目</TableHead>
+                      <TableHead>国家</TableHead>
+                      <TableHead>邮箱</TableHead>
+                      <TableHead>状态</TableHead>
+                      <TableHead>记录</TableHead>
+                      <TableHead>错误信息</TableHead>
+                      <TableHead>操作</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {ledgerItems.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                          {ledgerLoading ? '台账加载中...' : '暂无台账记录，点击"刷新台账"生成'}
+                        </TableCell>
+                      </TableRow>
+                    ) : ledgerItems.map(item => {
+                      const projectLabel = item.project_names?.length ? item.project_names.join(', ') : item.project_ids
+                      return (
+                        <TableRow key={item.ledger_key}>
+                          <TableCell>{new Date(item.expected_at).toLocaleString('zh-CN')}</TableCell>
+                          <TableCell><Badge className={cn('text-xs', FREQUENCY_COLORS[item.frequency])}>{FREQUENCY_LABELS[item.frequency]}</Badge></TableCell>
+                          <TableCell><span className="text-muted-foreground truncate max-w-[140px] block" title={projectLabel}>{projectLabel}</span></TableCell>
+                          <TableCell className="text-muted-foreground">{item.country}</TableCell>
+                          <TableCell className="text-muted-foreground">{item.email}</TableCell>
+                          <TableCell>
+                            {item.status === 'sent' ? <span className="text-emerald-600">✓ 成功</span> : item.status === 'failed' ? <span className="text-destructive">✗ 失败</span> : <span className="text-amber-600 inline-flex items-center gap-1"><AlertTriangle className="h-3 w-3" />缺失</span>}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">{item.latest_delivery_log_id ? `#${item.latest_delivery_log_id}` : '—'}</TableCell>
+                          <TableCell className="text-muted-foreground text-xs max-w-[180px] truncate" title={item.error_message || ''}>{item.error_message || '—'}</TableCell>
+                          <TableCell>
+                            {item.can_resend ? (
+                              <Button size="sm" variant="outline" onClick={() => handleResendLedger(item)} disabled={resendingKey === item.ledger_key}>
+                                {resendingKey === item.ledger_key ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <RotateCcw className="mr-1 h-3 w-3" />}
+                                {item.status === 'failed' ? '重试' : '补发'}
+                              </Button>
+                            ) : <span className="text-xs text-muted-foreground">—</span>}
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
               </CardContent>
             </Card>
           </div>
