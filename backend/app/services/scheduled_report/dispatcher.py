@@ -32,10 +32,13 @@ from app.services.scheduled_report.report_builder_daily import build_report_emai
 from app.services.scheduled_report.report_builder_weekly import build_weekly_report_data
 from app.services.scheduled_report.subscription_service import (
     create_delivery_log,
+    create_delivery_log_with_stage,
     get_active_subscriptions,
     mark_delivery_failed,
     mark_delivery_success,
+    update_delivery_log_stage,
 )
+from app.models.scheduled_report import DeliveryStage
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +86,7 @@ def _build_report_data_with_timeout(
     Uses signal.SIGALRM on UNIX platforms (non-blocking per-call alarm).
     Falls back to direct call on Windows or if signals are unavailable.
     """
-    if AI_SUMMARY_TIMEOUT_SEC <= 0:
+    if AI_SUMMARY_TIMEOUT_SEC <= 0 or threading.current_thread() is not threading.main_thread():
         return _do_build_report(project_ids, country, frequency, ai_model=ai_model)
 
     try:
@@ -227,13 +230,14 @@ def _dispatch_one(
     db = SessionLocal()
     try:
         today_str = date.today().isoformat()
-        log = create_delivery_log(
+        log = create_delivery_log_with_stage(
             db=db,
             subscription_id=subscription_id,
             frequency=frequency,
             report_date=today_str,
             report_month=today_str[:7] if frequency == "monthly" else None,
             email=email,
+            initial_stage=DeliveryStage.PREPARING.value,
         )
         log_id = log.id
     except Exception as e:
@@ -243,10 +247,14 @@ def _dispatch_one(
         return result
 
     try:
+        # 阶段：构建报表
+        update_delivery_log_stage(db, log_id, DeliveryStage.BUILDING.value)
         report_data = _build_report_with_throttle(project_ids, country, frequency, ai_model=ai_model)
         # Pass log_id to report_data so email_sender can update screenshot info
         report_data["log_id"] = log_id
 
+        # 阶段：发送邮件
+        update_delivery_log_stage(db, log_id, DeliveryStage.SENDING.value)
         # 根据频率选择对应的邮件发送函数
         if frequency == "weekly":
             success, resend_id_or_error = send_weekly_report_email(email, report_data)
@@ -254,6 +262,7 @@ def _dispatch_one(
             success, resend_id_or_error = send_scheduled_report_email(email, frequency, report_data)
 
         if success:
+            update_delivery_log_stage(db, log_id, DeliveryStage.DONE.value)
             mark_delivery_success(db, log_id, resend_id_or_error)
             # 保存截图 R2 信息到 delivery log
             screenshot_key = report_data.get("screenshot_r2_key")
@@ -282,10 +291,12 @@ def _dispatch_one(
             result["success"] = True
             logger.info("Report sent: sub=%d email=%s", subscription_id, email)
         else:
+            update_delivery_log_stage(db, log_id, DeliveryStage.FAILED.value)
             mark_delivery_failed(db, log_id, resend_id_or_error or "Unknown error")
             result["error"] = resend_id_or_error
             logger.warning("Report send failed: sub=%d error=%s", subscription_id, resend_id_or_error)
     except Exception as e:
+        update_delivery_log_stage(db, log_id, DeliveryStage.FAILED.value)
         mark_delivery_failed(db, log_id, str(e))
         result["error"] = str(e)
         logger.error("Report dispatch error: sub=%d %s", subscription_id, e)
@@ -476,3 +487,83 @@ def dispatch_report_for_subscription(subscription_id: int) -> dict[str, Any]:
         frequency=sub.frequency,
         ai_model=getattr(sub, "ai_model", None),
     )
+
+
+def _dispatch_one_async(
+    subscription_id: int,
+    email: str,
+    project_ids: list[int] | None,
+    country: str,
+    frequency: str,
+    ai_model: str | None,
+    log_id: int,
+    ledger_key: str,
+    expected_date: str,
+    expected_frequency: str,
+) -> None:
+    """后台执行单个订阅的发送（跳过 delivery_log 创建，复用 _dispatch_one 的逻辑）。
+
+    由 resend_ledger_entry_async 启动，在后台线程中运行。
+    """
+    db = SessionLocal()
+    try:
+        # 阶段：构建报表
+        update_delivery_log_stage(db, log_id, DeliveryStage.BUILDING.value)
+        report_data = _build_report_with_throttle(project_ids, country, frequency, ai_model=ai_model)
+        report_data["log_id"] = log_id
+
+        # 阶段：发送邮件
+        update_delivery_log_stage(db, log_id, DeliveryStage.SENDING.value)
+        if frequency == "weekly":
+            success, resend_id_or_error = send_weekly_report_email(email, report_data)
+        else:
+            success, resend_id_or_error = send_scheduled_report_email(email, frequency, report_data)
+
+        if success:
+            update_delivery_log_stage(db, log_id, DeliveryStage.DONE.value)
+            mark_delivery_success(db, log_id, resend_id_or_error)
+            # 保存截图和 AI 摘要
+            screenshot_key = report_data.get("screenshot_r2_key")
+            screenshot_url = report_data.get("screenshot_r2_url")
+            if screenshot_key and screenshot_url:
+                try:
+                    from app.services.scheduled_report.subscription_service import update_delivery_log_screenshot
+                    update_delivery_log_screenshot(
+                        db=db,
+                        log_id=log_id,
+                        screenshot_r2_key=screenshot_key,
+                        screenshot_r2_url=screenshot_url,
+                    )
+                except Exception as update_err:
+                    logger.warning("更新 delivery log 截图信息失败: %s", update_err)
+
+            ai_summary = report_data.get("ai_summary")
+            if ai_summary:
+                try:
+                    from app.services.scheduled_report.subscription_service import update_delivery_log_ai_summary
+                    update_delivery_log_ai_summary(db=db, log_id=log_id, ai_summary=ai_summary)
+                except Exception as sum_err:
+                    logger.warning("更新 delivery log ai_summary 失败: %s", sum_err)
+
+            logger.info("Async report sent: sub=%d email=%s", subscription_id, email)
+        else:
+            update_delivery_log_stage(db, log_id, DeliveryStage.FAILED.value)
+            mark_delivery_failed(db, log_id, resend_id_or_error or "Unknown error")
+            logger.warning("Async report send failed: sub=%d error=%s", subscription_id, resend_id_or_error)
+    except Exception as e:
+        update_delivery_log_stage(db, log_id, DeliveryStage.FAILED.value)
+        mark_delivery_failed(db, log_id, str(e))
+        logger.error("Async dispatch error: sub=%d %s", subscription_id, e)
+    finally:
+        db.close()
+
+    # 更新 ledger entry
+    try:
+        from app.services.scheduled_report.ledger_service import refresh_ledger
+        refresh_db = SessionLocal()
+        try:
+            refresh_ledger(refresh_db, start_date=expected_date, end_date=expected_date, frequency=expected_frequency)
+        finally:
+            refresh_db.close()
+    except Exception as refresh_err:
+        logger.warning("Failed to refresh ledger after async dispatch: %s", refresh_err)

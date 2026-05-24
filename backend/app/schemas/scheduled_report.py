@@ -80,6 +80,10 @@ class SubscriptionListResponse(BaseModel):
     total: int
 
 
+DeliveryStageValue = Literal["pending", "preparing", "building", "sending", "done", "failed"]
+"""DeliveryLogItem stage 可选值: pending/preparing/building/sending/done/failed"""
+
+
 class DeliveryLogItem(BaseModel):
     id: int
     subscription_id: int
@@ -88,6 +92,7 @@ class DeliveryLogItem(BaseModel):
     report_month: Optional[str]
     email: str
     status: str
+    stage: DeliveryStageValue = "pending"
     error_message: Optional[str]
     sent_at: Optional[datetime]
     screenshot_r2_key: Optional[str] = None
@@ -153,6 +158,8 @@ class LedgerItem(BaseModel):
     sent_at: Optional[datetime] = None
     can_resend: bool
     last_checked_at: datetime
+    screenshot_r2_url: Optional[str] = None
+    ai_summary: Optional[str] = None
 
     model_config = {"from_attributes": True}
 

@@ -40,6 +40,24 @@ type Subscription = {
 }
 
 type LedgerStatus = 'sent' | 'failed' | 'missing'
+type ResendStage = 'preparing' | 'building' | 'sending' | 'done' | 'failed'
+
+const RESEND_STAGE_LABELS: Record<ResendStage, string> = {
+  preparing: '准备中',
+  building: '构建报表',
+  sending: '发送中',
+  done: '已完成',
+  failed: '失败',
+}
+
+const RESEND_STAGE_COLORS: Record<ResendStage, string> = {
+  preparing: 'text-amber-600 dark:text-amber-400',
+  building: 'text-blue-600 dark:text-blue-400',
+  sending: 'text-purple-600 dark:text-purple-400',
+  done: 'text-emerald-600 dark:text-emerald-400',
+  failed: 'text-destructive',
+}
+
 type LedgerItem = {
   id: number
   ledger_key: string
@@ -177,7 +195,49 @@ export function ScheduledReportsClient() {
   const [ledgerFrequency, setLedgerFrequency] = useState<string>('all')
   const [ledgerStatus, setLedgerStatus] = useState<string>('all')
   const [ledgerEmail, setLedgerEmail] = useState('')
-  const [resendingKey, setResendingKey] = useState<string | null>(null)
+  const [resendingStates, setResendingStates] = useState<Record<string, ResendStage>>({})
+
+  // 轮询 delivery_log 状态直到完成或失败
+  const pollDeliveryLogStatus = async (ledgerKey: string, deliveryLogId: number) => {
+    const poll = async () => {
+      try {
+        const res = await fetch(
+          resolveApiUrl(`/api/v1/scheduled-reports/delivery-logs?limit=1`),
+          { headers: authHeaders() }
+        )
+        if (!res.ok) return
+        const data = await res.json()
+        const log = data.items?.find((l: { id: number }) => l.id === deliveryLogId)
+        if (!log) return
+
+        const stage = log.stage as ResendStage
+        setResendingStates(prev => ({ ...prev, [ledgerKey]: stage }))
+
+        // 轮询直到完成或失败
+        if (stage === 'done' || stage === 'failed') {
+          // 刷新台账
+          await loadLedger()
+          // 清理状态
+          setTimeout(() => {
+            setResendingStates(prev => {
+              const next = { ...prev }
+              delete next[ledgerKey]
+              return next
+            })
+          }, 1500)
+          return
+        }
+
+        // 继续轮询（2秒间隔）
+        setTimeout(poll, 2000)
+      } catch (e) {
+        console.error('Poll error:', e)
+        // 失败时延长间隔
+        setTimeout(poll, 4000)
+      }
+    }
+    poll()
+  }
 
   // 动态计算小时可选范围（周报周一限制 16:00）
   const allowedHourOptions = (() => {
@@ -384,18 +444,38 @@ export function ScheduledReportsClient() {
     if (!item.can_resend) return
     const actionLabel = item.status === 'failed' ? '重试' : '补发'
     if (!confirm(`确认${actionLabel} ${item.expected_date} 的 ${FREQUENCY_LABELS[item.frequency]} 报告？`)) return
-    setResendingKey(item.ledger_key)
+
+    // 初始化状态为 preparing
+    setResendingStates(prev => ({ ...prev, [item.ledger_key]: 'preparing' }))
+
     try {
       const res = await fetch(resolveApiUrl(`/api/v1/scheduled-reports/ledger/${encodeURIComponent(item.ledger_key)}/resend`), {
         method: 'POST',
         headers: authHeaders(),
       })
       if (!res.ok) throw new Error(await res.text())
-      await loadLedger()
+
+      const data = await res.json()
+
+      // 如果返回了 delivery_log_id，开始轮询状态
+      if (data.delivery_log_id) {
+        pollDeliveryLogStatus(item.ledger_key, data.delivery_log_id)
+      } else {
+        // 旧版接口，直接刷新
+        setResendingStates(prev => {
+          const next = { ...prev }
+          delete next[item.ledger_key]
+          return next
+        })
+        await loadLedger()
+      }
     } catch (e) {
+      setResendingStates(prev => {
+        const next = { ...prev }
+        delete next[item.ledger_key]
+        return next
+      })
       alert(normalizeErrorMessage(e, `${actionLabel}失败`))
-    } finally {
-      setResendingKey(null)
     }
   }
 
@@ -851,10 +931,19 @@ export function ScheduledReportsClient() {
                           <TableCell className="text-muted-foreground text-xs max-w-[120px] truncate" title={item.error_message || ''}>{item.error_message || '—'}</TableCell>
                           <TableCell>
                             {item.can_resend ? (
-                              <Button size="sm" variant="outline" onClick={() => handleResendLedger(item)} disabled={resendingKey === item.ledger_key}>
-                                {resendingKey === item.ledger_key ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <RotateCcw className="mr-1 h-3 w-3" />}
-                                {item.status === 'failed' ? '重试' : '补发'}
-                              </Button>
+                              resendingStates[item.ledger_key] ? (
+                                <div className="flex items-center gap-2">
+                                  <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                                  <span className={cn("text-xs", RESEND_STAGE_COLORS[resendingStates[item.ledger_key]])}>
+                                    {RESEND_STAGE_LABELS[resendingStates[item.ledger_key]]}
+                                  </span>
+                                </div>
+                              ) : (
+                                <Button size="sm" variant="outline" onClick={() => handleResendLedger(item)}>
+                                  <RotateCcw className="mr-1 h-3 w-3" />
+                                  {item.status === 'failed' ? '重试' : '补发'}
+                                </Button>
+                              )
                             ) : <span className="text-xs text-muted-foreground">—</span>}
                           </TableCell>
                         </TableRow>

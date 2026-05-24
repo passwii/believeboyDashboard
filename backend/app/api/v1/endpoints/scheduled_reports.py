@@ -217,9 +217,9 @@ def resend_scheduled_report_ledger_entry(
     if not is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="仅管理员可执行补发")
 
-    from app.services.scheduled_report.ledger_service import resend_ledger_entry
+    from app.services.scheduled_report.ledger_service import resend_ledger_entry_async
 
-    success, delivery_log_id, new_status, message = resend_ledger_entry(db, ledger_key=ledger_key)
+    success, delivery_log_id, new_status, message = resend_ledger_entry_async(db, ledger_key=ledger_key)
     if new_status == "not_found":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=message)
     if not success and new_status == "sent":

@@ -1,3 +1,13 @@
+# Agent / AI tool directories
+.claude/
+.codegraph/
+.openclaude/
+.pi/
+.pytest_cache/
+.rpiv/
+.sisyphus/
+.superpowers/
+
 # Git worktrees
 .worktrees/
 .DS_Store
@@ -7,6 +17,16 @@
 .kilo/
 .kilocode/
 .kilo*
+
+# Common hidden directories (dot-folders)
+.cache/
+.tmp/
+.temp/
+.logs/
+.data/
+.backup/
+.sandbox/
+.staging/
 BusinessDev/
 productEnvAgent/
 

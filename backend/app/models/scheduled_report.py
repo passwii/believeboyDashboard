@@ -30,6 +30,15 @@ class DeliveryStatus(str, Enum):
     FAILED = "failed"
 
 
+class DeliveryStage(str, Enum):
+    PENDING = "pending"
+    PREPARING = "preparing"
+    BUILDING = "building"
+    SENDING = "sending"
+    DONE = "done"
+    FAILED = "failed"
+
+
 class LedgerStatus(str, Enum):
     SENT = "sent"
     FAILED = "failed"
@@ -102,6 +111,10 @@ class ScheduledReportDeliveryLog(Base):
     screenshot_r2_key: Mapped[str | None] = mapped_column(String(512), nullable=True, comment="R2 object key for screenshot")
     screenshot_r2_url: Mapped[str | None] = mapped_column(String(1024), nullable=True, comment="Public URL for screenshot")
     ai_summary: Mapped[str | None] = mapped_column(Text, nullable=True, comment="AI 报表总结文案（Markdown）")
+    stage: Mapped[str] = mapped_column(
+        String(20), nullable=False, default=DeliveryStage.PENDING.value, index=True,
+        comment="处理阶段: pending/preparing/building/sending/done/failed"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
