@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -83,4 +83,51 @@ class TriggerReportResponse(BaseModel):
     success: bool
     frequency: str
     subscriptions_affected: int
+    message: str
+
+
+LedgerStatusValue = Literal["sent", "failed", "missing"]
+LedgerFrequencyValue = Literal["daily", "weekly", "monthly"]
+
+
+class LedgerSummary(BaseModel):
+    expected: int
+    sent: int
+    failed: int
+    missing: int
+    resendable: int
+
+
+class LedgerItem(BaseModel):
+    id: int
+    ledger_key: str
+    expected_date: str
+    expected_at: datetime
+    frequency: LedgerFrequencyValue
+    subscription_id: int
+    email: str
+    project_ids: str
+    project_names: list[str] = Field(default_factory=list)
+    country: str
+    status: LedgerStatusValue
+    latest_delivery_log_id: Optional[int] = None
+    error_message: Optional[str] = None
+    sent_at: Optional[datetime] = None
+    can_resend: bool
+    last_checked_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class LedgerListResponse(BaseModel):
+    items: list[LedgerItem]
+    total: int
+    summary: LedgerSummary
+
+
+class LedgerResendResponse(BaseModel):
+    success: bool
+    ledger_key: str
+    delivery_log_id: Optional[int] = None
+    status: str
     message: str
