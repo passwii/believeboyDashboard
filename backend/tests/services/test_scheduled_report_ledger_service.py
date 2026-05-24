@@ -1,0 +1,138 @@
+from __future__ import annotations
+
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
+
+from app.db.session import Base
+from app.models.scheduled_report import (
+    DeliveryStatus,
+    LedgerStatus,
+    ScheduledReportDeliveryLog,
+    ScheduledReportLedgerEntry,
+    ScheduledReportSubscription,
+)
+
+
+@pytest.fixture()
+def db() -> Session:
+    engine = create_engine("sqlite:///:memory:", future=True)
+    Base.metadata.create_all(engine)
+    SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+    session = SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
+
+
+def add_subscription(
+    db: Session,
+    *,
+    frequency: str,
+    dispatch_hour: int = 15,
+    dispatch_minute: int = 0,
+    dispatch_weekday: int | None = None,
+    dispatch_day: int | None = None,
+    email: str = "ops@example.com",
+    project_ids: str = "15",
+) -> ScheduledReportSubscription:
+    sub = ScheduledReportSubscription(
+        user_id=1,
+        email=email,
+        project_ids=project_ids,
+        country="US",
+        frequency=frequency,
+        dispatch_hour=dispatch_hour,
+        dispatch_minute=dispatch_minute,
+        dispatch_weekday=dispatch_weekday,
+        dispatch_day=dispatch_day,
+        enabled=True,
+    )
+    db.add(sub)
+    db.commit()
+    db.refresh(sub)
+    return sub
+
+
+def test_refresh_ledger_creates_daily_missing_entries(db: Session):
+    from app.services.scheduled_report.ledger_service import refresh_ledger
+
+    sub = add_subscription(db, frequency="daily")
+
+    result = refresh_ledger(
+        db,
+        start_date="2026-05-22",
+        end_date="2026-05-24",
+    )
+
+    assert result.summary.expected == 3
+    assert result.summary.missing == 3
+    assert [item.expected_date for item in result.items] == ["2026-05-24", "2026-05-23", "2026-05-22"]
+    assert {item.ledger_key for item in result.items} == {
+        f"{sub.id}:2026-05-22",
+        f"{sub.id}:2026-05-23",
+        f"{sub.id}:2026-05-24",
+    }
+
+    rows = db.query(ScheduledReportLedgerEntry).all()
+    assert len(rows) == 3
+    assert all(row.status == LedgerStatus.MISSING.value for row in rows)
+
+
+def test_refresh_ledger_classifies_sent_and_failed(db: Session):
+    from app.services.scheduled_report.ledger_service import refresh_ledger
+
+    sub = add_subscription(db, frequency="daily")
+    sent_log = ScheduledReportDeliveryLog(
+        subscription_id=sub.id,
+        frequency="daily",
+        report_date="2026-05-23",
+        report_month=None,
+        email=sub.email,
+        status=DeliveryStatus.SENT.value,
+        sent_at=datetime(2026, 5, 23, 8, 0, tzinfo=ZoneInfo("UTC")),
+    )
+    failed_log = ScheduledReportDeliveryLog(
+        subscription_id=sub.id,
+        frequency="daily",
+        report_date="2026-05-24",
+        report_month=None,
+        email=sub.email,
+        status=DeliveryStatus.FAILED.value,
+        error_message="SMTP timeout",
+    )
+    db.add_all([sent_log, failed_log])
+    db.commit()
+
+    result = refresh_ledger(db, start_date="2026-05-23", end_date="2026-05-24")
+
+    by_date = {item.expected_date: item for item in result.items}
+    assert by_date["2026-05-23"].status == LedgerStatus.SENT.value
+    assert by_date["2026-05-23"].latest_delivery_log_id == sent_log.id
+    assert by_date["2026-05-23"].can_resend is False
+    assert by_date["2026-05-24"].status == LedgerStatus.FAILED.value
+    assert by_date["2026-05-24"].latest_delivery_log_id == failed_log.id
+    assert by_date["2026-05-24"].error_message == "SMTP timeout"
+    assert by_date["2026-05-24"].can_resend is True
+    assert result.summary.sent == 1
+    assert result.summary.failed == 1
+    assert result.summary.resendable == 1
+
+
+def test_refresh_ledger_respects_weekly_and_monthly_rules(db: Session):
+    from app.services.scheduled_report.ledger_service import refresh_ledger
+
+    add_subscription(db, frequency="weekly", dispatch_weekday=0, email="weekly@example.com")
+    add_subscription(db, frequency="monthly", dispatch_day=24, email="monthly@example.com")
+
+    # 2026-05-18 is Monday (weekday=0), 2026-05-24 is Saturday (day=24)
+    result = refresh_ledger(db, start_date="2026-05-18", end_date="2026-05-24")
+
+    rows = {(item.email, item.expected_date) for item in result.items}
+    assert ("weekly@example.com", "2026-05-18") in rows
+    assert ("monthly@example.com", "2026-05-24") in rows
+    assert result.summary.expected == 2
