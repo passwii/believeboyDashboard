@@ -436,10 +436,7 @@ export function ScheduledReportsClient() {
         <TabsContent value="subscriptions">
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-medium">订阅列表</h2>
-                <p className="text-sm text-muted-foreground">配置每日/每周/每月自动推送运营报告到邮箱</p>
-              </div>
+              <h2 className="text-lg font-medium">订阅列表</h2>
               <Button onClick={() => { setShowForm(!showForm); if (showForm) setEditingId(null) }} disabled={editingId !== null}>
                 <Plus className="mr-1 h-4 w-4" />新增订阅
               </Button>
@@ -738,10 +735,7 @@ export function ScheduledReportsClient() {
         <TabsContent value="ledger">
           <div className="space-y-4">
             <div className="flex items-center justify-between gap-4 flex-wrap">
-              <div>
-                <h2 className="text-lg font-medium">调度记录</h2>
-                <p className="text-sm text-muted-foreground">查看应发记录、发送状态，支持补发/重试。</p>
-              </div>
+              <h2 className="text-lg font-medium">调度记录</h2>
               <Button onClick={loadLedger} disabled={ledgerLoading}>
                 {ledgerLoading ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-1 h-4 w-4" />}
                 刷新台账
