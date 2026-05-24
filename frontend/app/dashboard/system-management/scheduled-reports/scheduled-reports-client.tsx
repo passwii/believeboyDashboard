@@ -2,12 +2,16 @@
 
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
+import Image from 'next/image'
+import ReactMarkdown from 'react-markdown'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { Loader2, Plus, Trash2, Mail, Calendar, ChevronUp, ChevronDown } from 'lucide-react'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { Loader2, Plus, Trash2, Mail, Calendar, ChevronUp, ChevronDown, ImageIcon, Copy, FileText } from 'lucide-react'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import { cn } from '@/lib/utils'
@@ -22,6 +26,7 @@ type Subscription = {
   project_ids: string
   country: string
   frequency: Frequency
+  dispatch_hour: number
   ai_model: string | null
   enabled: boolean
   created_at: string
@@ -37,6 +42,9 @@ type DeliveryLog = {
   status: string
   error_message: string | null
   sent_at: string | null
+  screenshot_r2_key: string | null
+  screenshot_r2_url: string | null
+  ai_summary: string | null
   created_at: string
 }
 
@@ -69,6 +77,39 @@ function resolveApiUrl(path: string) {
   return `${base}${path}`
 }
 
+/**
+ * 将 project_ids 字符串转换为项目名称列表。
+ * project_ids 格式: "15" | "*" | "15,4,8"
+ */
+function resolveProjectNames(projectIds: string, projects: Array<{ id?: number | null; name: string }>): string[] {
+  if (projectIds === '*') return ['全部项目']
+  const ids = projectIds.split(',').map(id => id.trim()).filter(Boolean)
+  return ids
+    .map(id => {
+      const idNum = parseInt(id, 10)
+      const found = projects.find(p => p.id === idNum)
+      return found ? found.name : `项目${id}`
+    })
+    .filter(name => name)
+}
+
+/**
+ * 格式化项目名称列表为截断字符串。
+ * 超过 maxNames 项时截断并显示 +N。
+ */
+function formatProjectNames(projectNames: string[], maxNames: number = 2): { display: string; full: string } {
+  if (projectNames.length === 0) return { display: '全部项目', full: '全部项目' }
+  if (projectNames.length <= maxNames) {
+    return { display: projectNames.join(', '), full: projectNames.join(', ') }
+  }
+  const shown = projectNames.slice(0, maxNames)
+  const hidden = projectNames.length - maxNames
+  return {
+    display: `${shown.join(', ')} +${hidden}`,
+    full: projectNames.join(', '),
+  }
+}
+
 export function ScheduledReportsClient() {
   const { data: session } = useSession()
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([])
@@ -79,6 +120,7 @@ export function ScheduledReportsClient() {
   const [formProjectIds, setFormProjectIds] = useState('*')
   const [formCountry, setFormCountry] = useState('US')
   const [formFrequency, setFormFrequency] = useState<Frequency>('daily')
+  const [formDispatchHour, setFormDispatchHour] = useState(15)
   const [formSubmitting, setFormSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [projects, setProjects] = useState<Array<{ id?: number | null; name: string }>>([])
@@ -87,6 +129,10 @@ export function ScheduledReportsClient() {
   const [modelConfig, setModelConfig] = useState<AIModelConfig | null>(null)
   const [isLoadingModelConfig, setIsLoadingModelConfig] = useState(false)
   const [formAiModel, setFormAiModel] = useState('')
+  const [previewScreenshotUrl, setPreviewScreenshotUrl] = useState<string | null>(null)
+  const [previewSummary, setPreviewSummary] = useState<string | null>(null)
+  const [filterFrequency, setFilterFrequency] = useState<string>('all')
+  const [copiedId, setCopiedId] = useState<number | null>(null)
 
   // Load model config on mount
   useEffect(() => {
@@ -145,7 +191,7 @@ export function ScheduledReportsClient() {
       const res = await fetch(resolveApiUrl('/api/v1/scheduled-reports/subscriptions'), {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: formEmail, project_ids: formProjectIds, country: formCountry, frequency: formFrequency, ai_model: formAiModel || null }),
+        body: JSON.stringify({ email: formEmail, project_ids: formProjectIds, country: formCountry, frequency: formFrequency, dispatch_hour: formDispatchHour, ai_model: formAiModel || null }),
       })
       if (!res.ok) {
         const err = await res.text()
@@ -158,6 +204,7 @@ export function ScheduledReportsClient() {
       setFormProjectIds('*')
       setFormCountry('US')
       setFormFrequency('daily')
+      setFormDispatchHour(15)
       setFormAiModel(modelConfig?.defaultModel || '')
     } catch (e) {
       setFormError(normalizeErrorMessage(e, '创建失败'))
@@ -224,215 +271,443 @@ export function ScheduledReportsClient() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">定时报告推送</h1>
-          <p className="text-sm text-muted-foreground mt-1">配置每日/每周/每月自动推送运营报告到邮箱</p>
-        </div>
-        <Button onClick={() => setShowForm(!showForm)}>
-          <Plus className="mr-1 h-4 w-4" />新增订阅
-        </Button>
-      </div>
+    <>
+    <Tabs defaultValue="subscriptions" className="w-full">
+        <TabsList className="mb-4">
+          <TabsTrigger value="subscriptions">订阅管理</TabsTrigger>
+          <TabsTrigger value="logs">推送日志</TabsTrigger>
+          <TabsTrigger value="preview">报告预览</TabsTrigger>
+        </TabsList>
 
-      {showForm && (
-        <Card className="border-border/70 bg-[hsl(var(--surface-panel))]">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-base">新增订阅</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <TabsContent value="subscriptions">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
               <div>
-                <label className="text-sm font-medium mb-1 block">邮箱地址</label>
-                <Input
-                  type="email"
-                  placeholder="ops@company.com"
-                  value={formEmail}
-                  onChange={e => setFormEmail(e.target.value)}
-                />
+                <h2 className="text-lg font-medium">订阅列表</h2>
+                <p className="text-sm text-muted-foreground">配置每日/每周/每月自动推送运营报告到邮箱</p>
               </div>
-              <div>
-                <label className="text-sm font-medium mb-1 block">推送频率</label>
-                <Select value={formFrequency} onValueChange={v => setFormFrequency(v as Frequency)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="daily">每日（每天下午 3 点）</SelectItem>
-                    <SelectItem value="weekly">每周（每周二上午 10 点）</SelectItem>
-                    <SelectItem value="monthly">每月（每月 4 日上午 10 点）</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <label className="text-sm font-medium mb-1 block">国家站点</label>
-                <Select value={formCountry} onValueChange={setFormCountry}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="US">美国 (US)</SelectItem>
-                    <SelectItem value="CA">加拿大 (CA)</SelectItem>
-                    <SelectItem value="UK">英国 (UK)</SelectItem>
-                    <SelectItem value="DE">德国 (DE)</SelectItem>
-                    <SelectItem value="JP">日本 (JP)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <label className="text-sm font-medium mb-1 block">项目范围</label>
-                <Select value={formProjectIds} onValueChange={setFormProjectIds}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="*">全部项目</SelectItem>
-                    {projects.map(p => (
-                      <SelectItem key={p.name} value={p.id?.toString() || p.name}>{p.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <label className="text-sm font-medium mb-1 block">AI 模型</label>
-                <Select
-                  value={formAiModel}
-                  onValueChange={setFormAiModel}
-                  disabled={isLoadingModelConfig || !modelConfig?.models.length}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={isLoadingModelConfig ? '加载模型中...' : '选择模型'} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(modelConfig?.premiumModels.length || 0) > 0 && (
-                      <SelectGroup>
-                        <SelectLabel>高级模型</SelectLabel>
-                        {modelConfig?.premiumModels.map((m) => (
-                          <SelectItem key={m} value={m}>{m}</SelectItem>
-                        ))}
-                      </SelectGroup>
-                    )}
-                    {(modelConfig?.basicModels.length || 0) > 0 && (
-                      <SelectGroup>
-                        <SelectLabel>基础模型</SelectLabel>
-                        {modelConfig?.basicModels.map((m) => (
-                          <SelectItem key={m} value={m}>{m}</SelectItem>
-                        ))}
-                      </SelectGroup>
-                    )}
-                    {modelConfig?.models
-                      .filter((m) => !modelConfig.premiumModels.includes(m) && !modelConfig.basicModels.includes(m))
-                      .map((m) => (
-                        <SelectItem key={m} value={m}>{m}</SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            {formError && <p className="text-sm text-destructive">{formError}</p>}
-            {testResult && (
-              <p className={cn('text-sm', testResult.success ? 'text-emerald-600' : 'text-destructive')}>
-                {testResult.message}
-              </p>
-            )}
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={handleTestEmail} disabled={testingEmail || !formEmail}>
-                {testingEmail ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Mail className="mr-1 h-4 w-4" />}
-                发送测试邮件
+              <Button onClick={() => setShowForm(!showForm)}>
+                <Plus className="mr-1 h-4 w-4" />新增订阅
               </Button>
-              <Button onClick={handleCreate} disabled={formSubmitting}>
-                {formSubmitting && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
-                确认创建
-              </Button>
-              <Button variant="ghost" onClick={() => setShowForm(false)}>取消</Button>
             </div>
-          </CardContent>
-        </Card>
-      )}
 
-      <Card className="border-border/70 bg-[hsl(var(--surface-panel))]">
-        <CardHeader>
-          <CardTitle className="text-base">订阅列表</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {subscriptions.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">暂无订阅配置，点击上方按钮添加</p>
-          ) : (
-            <div className="space-y-3">
-              {subscriptions.map(sub => (
-                <div key={sub.id} className="flex items-center gap-4 p-3 rounded-lg border border-border/60 bg-[hsl(var(--surface-subtle))]">
-                  <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm truncate">{sub.email}</span>
-                      <Badge className={cn('text-xs shrink-0', FREQUENCY_COLORS[sub.frequency])}>
-                        <Calendar className="mr-0.5 h-3 w-3" />
-                        {FREQUENCY_LABELS[sub.frequency]}
-                      </Badge>
-                      {sub.enabled ? (
-                        <Badge variant="outline" className="text-xs text-emerald-600 border-emerald-200 shrink-0">启用</Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-xs text-muted-foreground shrink-0">已暂停</Badge>
-                      )}
+            {showForm && (
+              <Card className="border-border/70 bg-[hsl(var(--surface-panel))]">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-base">新增订阅</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">邮箱地址</label>
+                      <Input
+                        type="email"
+                        placeholder="ops@company.com"
+                        value={formEmail}
+                        onChange={e => setFormEmail(e.target.value)}
+                      />
                     </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {sub.country} · {sub.project_ids === '*' ? '全部项目' : `项目: ${sub.project_ids}`}{sub.ai_model ? ` · 模型: ${sub.ai_model}` : ''} · 创建于 {new Date(sub.created_at).toLocaleDateString('zh-CN')}
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">推送频率</label>
+                      <Select value={formFrequency} onValueChange={v => setFormFrequency(v as Frequency)}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="daily">每日</SelectItem>
+                          <SelectItem value="weekly">每周</SelectItem>
+                          <SelectItem value="monthly">每月</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">发送时间（北京时间）</label>
+                      <Select value={String(formDispatchHour)} onValueChange={v => setFormDispatchHour(Number(v))}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent className="max-h-[240px]">
+                          {Array.from({ length: 24 }, (_, i) => (
+                            <SelectItem key={i} value={String(i)}>{i.toString().padStart(2, '0')}:00</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">国家站点</label>
+                      <Select value={formCountry} onValueChange={setFormCountry}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="US">美国 (US)</SelectItem>
+                          <SelectItem value="CA">加拿大 (CA)</SelectItem>
+                          <SelectItem value="UK">英国 (UK)</SelectItem>
+                          <SelectItem value="DE">德国 (DE)</SelectItem>
+                          <SelectItem value="JP">日本 (JP)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">项目范围</label>
+                      <Select value={formProjectIds} onValueChange={setFormProjectIds}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="*">全部项目</SelectItem>
+                          {projects.map(p => (
+                            <SelectItem key={p.name} value={p.id?.toString() || p.name}>{p.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">AI 模型</label>
+                      <Select
+                        value={formAiModel}
+                        onValueChange={setFormAiModel}
+                        disabled={isLoadingModelConfig || !modelConfig?.models.length}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={isLoadingModelConfig ? '加载模型中...' : '选择模型'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(modelConfig?.premiumModels.length || 0) > 0 && (
+                            <SelectGroup>
+                              <SelectLabel>高级模型</SelectLabel>
+                              {modelConfig?.premiumModels.map((m) => (
+                                <SelectItem key={m} value={m}>{m}</SelectItem>
+                              ))}
+                            </SelectGroup>
+                          )}
+                          {(modelConfig?.basicModels.length || 0) > 0 && (
+                            <SelectGroup>
+                              <SelectLabel>基础模型</SelectLabel>
+                              {modelConfig?.basicModels.map((m) => (
+                                <SelectItem key={m} value={m}>{m}</SelectItem>
+                              ))}
+                            </SelectGroup>
+                          )}
+                          {modelConfig?.models
+                            .filter((m) => !modelConfig.premiumModels.includes(m) && !modelConfig.basicModels.includes(m))
+                            .map((m) => (
+                              <SelectItem key={m} value={m}>{m}</SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  {formError && <p className="text-sm text-destructive">{formError}</p>}
+                  {testResult && (
+                    <p className={cn('text-sm', testResult.success ? 'text-emerald-600' : 'text-destructive')}>
+                      {testResult.message}
                     </p>
-                  </div>
-                  <div className="flex gap-1 shrink-0">
-                    <Button size="sm" variant="ghost" onClick={() => handleToggle(sub)}>
-                      {sub.enabled ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+                  )}
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={handleTestEmail} disabled={testingEmail || !formEmail}>
+                      {testingEmail ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Mail className="mr-1 h-4 w-4" />}
+                      发送测试邮件
                     </Button>
-                    <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => handleDelete(sub.id)}>
-                      <Trash2 className="h-4 w-4" />
+                    <Button onClick={handleCreate} disabled={formSubmitting}>
+                      {formSubmitting && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
+                      确认创建
                     </Button>
+                    <Button variant="ghost" onClick={() => setShowForm(false)}>取消</Button>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                </CardContent>
+              </Card>
+            )}
 
-      <Card className="border-border/70 bg-[hsl(var(--surface-panel))]">
-        <CardHeader>
-          <CardTitle className="text-base">推送日志</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {deliveryLogs.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">暂无推送记录</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border/60">
-                    <th className="text-left py-2 px-3 font-medium text-muted-foreground">时间</th>
-                    <th className="text-left py-2 px-3 font-medium text-muted-foreground">频率</th>
-                    <th className="text-left py-2 px-3 font-medium text-muted-foreground">邮箱</th>
-                    <th className="text-left py-2 px-3 font-medium text-muted-foreground">状态</th>
-                    <th className="text-left py-2 px-3 font-medium text-muted-foreground">错误信息</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {deliveryLogs.map(log => (
-                    <tr key={log.id} className="border-b border-border/30">
-                      <td className="py-2 px-3">{new Date(log.created_at).toLocaleString('zh-CN')}</td>
-                      <td className="py-2 px-3">
-                        <Badge className={cn('text-xs', FREQUENCY_COLORS[log.frequency])}>{FREQUENCY_LABELS[log.frequency]}</Badge>
-                      </td>
-                      <td className="py-2 px-3 text-muted-foreground">{log.email}</td>
-                      <td className="py-2 px-3">
-                        {log.status === 'sent' ? (
-                          <span className="text-emerald-600">✓ 成功</span>
-                        ) : log.status === 'failed' ? (
-                          <span className="text-destructive">✗ 失败</span>
-                        ) : (
-                          <span className="text-muted-foreground">⏳ 进行中</span>
-                        )}
-                      </td>
-                      <td className="py-2 px-3 text-muted-foreground text-xs">{log.error_message || '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <Card className="border-border/70 bg-[hsl(var(--surface-panel))]">
+              <CardContent className="p-0">
+                {subscriptions.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-8 text-center">暂无订阅配置，点击上方按钮添加</p>
+                ) : (
+                  <div className="space-y-3 p-4">
+                    {subscriptions.map(sub => (
+                      <div key={sub.id} className="flex items-center gap-4 p-3 rounded-lg border border-border/60 bg-[hsl(var(--surface-subtle))]">
+                        <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-sm truncate">{sub.email}</span>
+                              <Badge className={cn('text-xs shrink-0', FREQUENCY_COLORS[sub.frequency])}>
+                                <Calendar className="mr-0.5 h-3 w-3" />
+                                {FREQUENCY_LABELS[sub.frequency]} · {sub.dispatch_hour.toString().padStart(2, '0')}:00
+                              </Badge>
+                            {sub.enabled ? (
+                              <Badge variant="outline" className="text-xs text-emerald-600 border-emerald-200 shrink-0">启用</Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-xs text-muted-foreground shrink-0">已暂停</Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {(() => {
+                              const names = resolveProjectNames(sub.project_ids, projects)
+                              const { display, full } = formatProjectNames(names)
+                              return (
+                                <span title={full}>
+                                  {sub.country} · {display} · {sub.dispatch_hour.toString().padStart(2, '0')}:00 发送{sub.ai_model ? ` · 模型: ${sub.ai_model}` : ''} · 创建于 {new Date(sub.created_at).toLocaleDateString('zh-CN')}
+                                </span>
+                              )
+                            })()}
+                          </p>
+                        </div>
+                        <div className="flex gap-1 shrink-0">
+                          <Button size="sm" variant="ghost" onClick={() => handleToggle(sub)}>
+                            {sub.enabled ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+                          </Button>
+                          <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => handleDelete(sub.id)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="logs">
+          <div className="space-y-4">
+            <h2 className="text-lg font-medium">推送日志</h2>
+            <div className="flex items-center gap-4 mb-4">
+              <Select value={filterFrequency} onValueChange={setFilterFrequency}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="筛选频率" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部频率</SelectItem>
+                  <SelectItem value="daily">每日</SelectItem>
+                  <SelectItem value="weekly">每周</SelectItem>
+                  <SelectItem value="monthly">每月</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+
+            <Card className="border-border/70 bg-[hsl(var(--surface-panel))]">
+              <CardContent className="p-0">
+                {deliveryLogs.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-8 text-center">暂无推送记录</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border/60">
+                          <th className="text-left py-3 px-4 font-medium text-muted-foreground">时间</th>
+                          <th className="text-left py-3 px-4 font-medium text-muted-foreground">频率</th>
+                          <th className="text-left py-3 px-4 font-medium text-muted-foreground">国家</th>
+                          <th className="text-left py-3 px-4 font-medium text-muted-foreground">项目</th>
+                          <th className="text-left py-3 px-4 font-medium text-muted-foreground">邮箱</th>
+                          <th className="text-left py-3 px-4 font-medium text-muted-foreground">状态</th>
+                          <th className="text-left py-3 px-4 font-medium text-muted-foreground">截图</th>
+                          <th className="text-left py-3 px-4 font-medium text-muted-foreground">总结</th>
+                          <th className="text-left py-3 px-4 font-medium text-muted-foreground">错误信息</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {deliveryLogs
+                          .filter(log => filterFrequency === 'all' || log.frequency === filterFrequency)
+                          .map(log => {
+                            const sub = subscriptions.find(s => s.id === log.subscription_id)
+                            const subProjectNames = sub ? resolveProjectNames(sub.project_ids, projects) : []
+                            const { display: projectDisplay, full: projectFull } = formatProjectNames(subProjectNames)
+                            const country = sub?.country || '—'
+                            return (
+                            <tr key={log.id} className="border-b border-border/30">
+                              <td className="py-3 px-4">{new Date(log.created_at).toLocaleString('zh-CN')}</td>
+                              <td className="py-3 px-4">
+                                <Badge className={cn('text-xs', FREQUENCY_COLORS[log.frequency as Frequency])}>{FREQUENCY_LABELS[log.frequency as Frequency]}</Badge>
+                              </td>
+                              <td className="py-3 px-4 text-muted-foreground">{country}</td>
+                              <td className="py-3 px-4">
+                                {subProjectNames.length > 0 ? (
+                                  <span className="text-muted-foreground truncate max-w-[120px] block" title={projectFull}>
+                                    {projectDisplay}
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground">—</span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 text-muted-foreground">{log.email}</td>
+                              <td className="py-3 px-4">
+                                {log.status === 'sent' ? (
+                                  <span className="text-emerald-600">✓ 成功</span>
+                                ) : log.status === 'failed' ? (
+                                  <span className="text-destructive">✗ 失败</span>
+                                ) : (
+                                  <span className="text-muted-foreground">⏳ 进行中</span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4">
+                                {log.screenshot_r2_url ? (
+                                  <button
+                                    type="button"
+                                    className="relative h-10 w-10 overflow-hidden rounded border border-border/70 hover:ring-2 hover:ring-primary/50 transition-shadow"
+                                    onClick={() => setPreviewScreenshotUrl(log.screenshot_r2_url)}
+                                  >
+                                    <Image
+                                      src={log.screenshot_r2_url}
+                                      alt="报告截图"
+                                      fill
+                                      className="object-cover"
+                                      unoptimized
+                                    />
+                                  </button>
+                                ) : (
+                                  <span className="text-muted-foreground text-xs flex items-center gap-1">
+                                    <ImageIcon className="h-4 w-4" />
+                                    无截图
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4">
+                                {log.ai_summary ? (
+                                  <button
+                                    type="button"
+                                    className="flex items-center gap-1 text-xs text-[hsl(var(--chart-2))] hover:underline"
+                                    onClick={() => setPreviewSummary(log.ai_summary)}
+                                  >
+                                    <FileText className="h-4 w-4" />
+                                    查看文案
+                                  </button>
+                                ) : (
+                                  <span className="text-muted-foreground text-xs">—</span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 text-muted-foreground text-xs">{log.error_message || '—'}</td>
+                            </tr>
+                            )
+                          })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="preview">
+          <div className="space-y-4">
+            <h2 className="text-lg font-medium">报告预览</h2>
+            <p className="text-sm text-muted-foreground">查看已发送的报告截图与文案</p>
+
+            <Card className="border-border/70 bg-[hsl(var(--surface-panel))]">
+              <CardContent className="p-0">
+                {deliveryLogs.filter(log => log.screenshot_r2_url).length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-8 text-center">暂无报告截图</p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
+                    {deliveryLogs
+                      .filter(log => log.screenshot_r2_url)
+                      .map(log => {
+                        const sub = subscriptions.find(s => s.id === log.subscription_id)
+                        const subProjectNames = sub ? resolveProjectNames(sub.project_ids, projects) : []
+                        const { display: projectDisplay, full: projectFull } = formatProjectNames(subProjectNames)
+                        const country = sub?.country || '—'
+                        return (
+                        <div key={log.id} className="border border-border/60 rounded-lg overflow-hidden bg-[hsl(var(--surface-subtle))]">
+                          <button
+                            type="button"
+                            className="relative aspect-[4/3] w-full overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
+                            onClick={() => setPreviewScreenshotUrl(log.screenshot_r2_url)}
+                          >
+                            <Image
+                              src={log.screenshot_r2_url!}
+                              alt="报告截图"
+                              fill
+                              className="object-contain"
+                              unoptimized
+                            />
+                          </button>
+                          <div className="p-3 border-t border-border/30">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Badge className={cn('text-xs', FREQUENCY_COLORS[log.frequency as Frequency])}>
+                                {FREQUENCY_LABELS[log.frequency as Frequency]}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground">{log.report_date}</span>
+                            </div>
+
+                            <p className="text-xs text-muted-foreground truncate" title={projectFull}>
+                              {projectDisplay} · {country}
+                            </p>
+
+                            {log.ai_summary ? (
+                              <div className="mt-2 space-y-1.5">
+                                <div className="flex items-center gap-1.5 text-xs font-medium text-[hsl(var(--chart-2))]">
+                                  <FileText className="h-3.5 w-3.5" />
+                                  报表总结
+                                </div>
+                                <div className="text-xs text-muted-foreground leading-relaxed max-h-24 overflow-y-auto
+                                  prose prose-sm prose-neutral dark:prose-invert max-w-none
+                                  prose-headings:text-xs prose-p:text-xs prose-ul:text-xs prose-li:text-xs
+                                  [&_ul]:my-0.5 [&_p]:my-0.5 [&_strong]:font-semibold">
+                                  <ReactMarkdown>{log.ai_summary}</ReactMarkdown>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    navigator.clipboard.writeText(log.ai_summary || '')
+                                    setCopiedId(log.id)
+                                    setTimeout(() => setCopiedId(null), 2000)
+                                  }}
+                                  className="flex items-center gap-1 text-xs text-[hsl(var(--chart-2))] hover:underline"
+                                >
+                                  <Copy className="h-3 w-3" />
+                                  {copiedId === log.id ? '已复制' : '复制文案'}
+                                </button>
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                        )
+                      })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
+
+      {previewScreenshotUrl ? (
+        <Dialog open onOpenChange={() => setPreviewScreenshotUrl(null)}>
+          <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+            <div className="relative flex-1 min-h-0">
+              <Image
+                src={previewScreenshotUrl}
+                alt="报告截图"
+                fill
+                className="object-contain"
+                unoptimized
+              />
+            </div>
+          </DialogContent>
+        </Dialog>
+      ) : null}
+
+      {previewSummary ? (
+        <Dialog open onOpenChange={() => setPreviewSummary(null)}>
+          <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-base font-semibold text-[hsl(var(--chart-2))]">报表总结</h3>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(previewSummary)
+                  setPreviewSummary(null)
+                }}
+                className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md bg-[hsl(var(--chart-2))] text-white hover:opacity-90 transition-opacity"
+              >
+                <Copy className="h-4 w-4" />
+                复制文案
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto text-sm text-foreground leading-relaxed
+              prose prose-sm prose-neutral dark:prose-invert max-w-none
+              prose-headings:text-base prose-p:text-sm prose-ul:text-sm prose-li:text-sm
+              [&_ul]:my-1 [&_p]:my-1 [&_strong]:font-semibold [&_h2]:font-semibold [&_h2]:text-base">
+              <ReactMarkdown>{previewSummary}</ReactMarkdown>
+            </div>
+          </DialogContent>
+        </Dialog>
+      ) : null}
+    </>
   )
 }
