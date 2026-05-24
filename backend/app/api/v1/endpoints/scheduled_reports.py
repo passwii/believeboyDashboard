@@ -11,6 +11,8 @@ from app.api.deps import get_db_session, get_request_operator, protected
 from app.schemas.scheduled_report import (
     DeliveryLogItem,
     DeliveryLogListResponse,
+    LedgerListResponse,
+    LedgerResendResponse,
     SubscriptionCreate,
     SubscriptionItem,
     SubscriptionListResponse,
@@ -152,6 +154,71 @@ def test_email(
     if success:
         return TestEmailResponse(success=True, message=f"测试报告已发送到 {data.email}（含真实数据）", resend_id=error)
     return TestEmailResponse(success=False, message=f"发送失败: {error}")
+
+
+@router.get("/scheduled-reports/ledger", response_model=LedgerListResponse)
+def get_scheduled_report_ledger(
+    start_date: str,
+    end_date: str,
+    frequency: str = "all",
+    status_filter: str = "all",
+    project_id: int | None = None,
+    email: str | None = None,
+    limit: int = 100,
+    offset: int = 0,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
+):
+    if frequency not in ("all", "daily", "weekly", "monthly"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="frequency 参数无效")
+    if status_filter not in ("all", "sent", "failed", "missing"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="status_filter 参数无效")
+    if limit < 1 or limit > 500:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="limit 必须在 1-500 之间")
+
+    from app.services.scheduled_report.ledger_service import refresh_ledger
+
+    try:
+        return refresh_ledger(
+            db,
+            start_date=start_date,
+            end_date=end_date,
+            frequency=frequency,
+            status=status_filter,
+            project_id=project_id,
+            email=email,
+            limit=limit,
+            offset=offset,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
+
+@router.post("/scheduled-reports/ledger/{ledger_key}/resend", response_model=LedgerResendResponse)
+def resend_scheduled_report_ledger_entry(
+    ledger_key: str,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
+):
+    if not is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="仅管理员可执行补发")
+
+    from app.services.scheduled_report.ledger_service import resend_ledger_entry
+
+    success, delivery_log_id, new_status, message = resend_ledger_entry(db, ledger_key=ledger_key)
+    if new_status == "not_found":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=message)
+    if not success and new_status == "sent":
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=message)
+    return LedgerResendResponse(
+        success=success,
+        ledger_key=ledger_key,
+        delivery_log_id=delivery_log_id,
+        status=new_status,
+        message=message,
+    )
 
 
 @router.post("/scheduled-reports/trigger", response_model=TriggerReportResponse)
