@@ -192,7 +192,7 @@ def generate_weekly_attribution_analysis(
         llm_config = build_llm_config(
             settings=settings,
             model=use_model,
-            system_prompt="你是一位电商数据分析师。请分析以下 SKU 贡献数据，生成归因分析报告。输出 100-150 字，直接分析内容，不要其他说明。",
+            system_prompt="你是电商数据分析师。分析以下 SKU 贡献数据，用 bullet point 列出关键发现。要求：每条一句话，最多 5 条，直接输出要点，不要标题或多余说明。格式示例：\n• SKU-A 贡献最大（+40件，占比26%）\n• SKU-B 为新品首周，表现强劲",
             reasoning_effort=None,
         )
 

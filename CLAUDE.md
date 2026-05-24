@@ -2,6 +2,52 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+---
+
+## ⚡ CodeGraph 语义知识图谱（优先使用）
+
+本项目已初始化 **CodeGraph**，通过语义知识图谱实现代码库的即时查找，比文件扫描快 10-100 倍。
+
+### 核心规则
+
+**查找文件、符号、代码结构时，优先使用 CodeGraph 工具而非 Grep/Glob。**
+
+### 可用工具
+
+| 工具 | 用途 | 示例 |
+|------|------|------|
+| `codegraph_search` | 按名称搜索符号（函数、类、类型） | 搜索 `get_user` |
+| `codegraph_context` | 获取任务的关联代码上下文 | |
+| `codegraph_callers` | 查找谁调用了某个函数 | 追踪函数调用链 |
+| `codegraph_callees` | 查找某函数调用了哪些函数 | |
+| `codegraph_impact` | 查看更改符号会影响的范围 | 修改前评估影响 |
+| `codegraph_node` | 获取符号详情 + 源代码 | |
+| `codegraph_files` | 搜索包含特定内容的文件 | |
+| `codegraph_status` | 查看 CodeGraph 索引状态 | |
+
+### 调用方法
+
+使用 `mcp__codegraph__*` 前缀的工具，例如：
+
+```
+使用 codegraph_search 搜索 "ProductCost"
+使用 codegraph_callers 查找 "calculate_revenue" 的调用者
+使用 codegraph_callees 查找 "process_report" 调用的函数
+```
+
+### 何时使用
+
+- ✅ 查找函数/类/类型定义 → `codegraph_search`
+- ✅ 追踪调用链 → `codegraph_callers` / `codegraph_callees`
+- ✅ 修改代码前评估影响 → `codegraph_impact`
+- ✅ 理解符号上下文 → `codegraph_node`
+
+### 启动 Explore 代理时
+
+告诉 Explore 代理使用 CodeGraph 工具加速探索。
+
+---
+
 ## Project Overview
 
 BelieveBoy Dashboard is a cross-border e-commerce operations management platform. It has a **Next.js 14 frontend** and a **FastAPI backend**, both in a single monorepo under `frontend/` and `backend/`.

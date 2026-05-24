@@ -25,14 +25,125 @@ def _run_report_dispatch(frequency: str) -> None:
         logger.error("Scheduled %s report dispatch crashed: %s", frequency, e)
 
 
+def _run_minutely_scan() -> None:
+    """Scan all active subscriptions and dispatch those matching current Beijing time (hour + minute)."""
+    try:
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        now = datetime.now(ZoneInfo("Asia/Shanghai"))
+        current_hour = now.hour
+        current_minute = now.minute
+        current_weekday = now.weekday()  # 0=Monday, 6=Sunday
+        current_day = now.day
+
+        from app.db.session import SessionLocal
+        from app.models.scheduled_report import ScheduledReportSubscription
+        from sqlalchemy import select, and_
+
+        db = SessionLocal()
+        try:
+            query = (
+                select(ScheduledReportSubscription)
+                .where(
+                    and_(
+                        ScheduledReportSubscription.enabled == True,
+                        ScheduledReportSubscription.dispatch_hour == current_hour,
+                        ScheduledReportSubscription.dispatch_minute == current_minute,
+                    )
+                )
+            )
+            subscriptions = list(db.execute(query).scalars().all())
+        finally:
+            db.close()
+
+        if not subscriptions:
+            return
+
+        # Group by frequency, respecting day-of-week/month constraints
+        daily_subs = []
+        weekly_subs = []
+        monthly_subs = []
+
+        for sub in subscriptions:
+            if sub.frequency == "daily":
+                daily_subs.append(sub)
+            elif sub.frequency == "weekly":
+                # 匹配用户选择的发送星期
+                sub_weekday = sub.dispatch_weekday if sub.dispatch_weekday is not None else 0
+                if current_weekday == sub_weekday:
+                    weekly_subs.append(sub)
+            elif sub.frequency == "monthly":
+                # 匹配用户选择的发送日
+                sub_day = sub.dispatch_day if sub.dispatch_day is not None else 2
+                if current_day == sub_day:
+                    monthly_subs.append(sub)
+
+        if daily_subs:
+            logger.info(
+                "Minutely scan: dispatching %d daily subscription(s) at %02d:%02d",
+                len(daily_subs), current_hour, current_minute,
+            )
+            _dispatch_subscriptions("daily", daily_subs)
+
+        if weekly_subs:
+            logger.info(
+                "Minutely scan: dispatching %d weekly subscription(s) at weekday=%d %02d:%02d",
+                len(weekly_subs), current_weekday, current_hour, current_minute,
+            )
+            _dispatch_subscriptions("weekly", weekly_subs)
+
+        if monthly_subs:
+            logger.info(
+                "Minutely scan: dispatching %d monthly subscription(s) at day=%d %02d:%02d",
+                len(monthly_subs), current_day, current_hour, current_minute,
+            )
+            _dispatch_subscriptions("monthly", monthly_subs)
+
+    except Exception as e:
+        logger.error("Minutely dispatch scan crashed: %s", e)
+
+
+def _dispatch_subscriptions(frequency: str, subscriptions: list) -> None:
+    """Dispatch a pre-filtered list of subscriptions directly (bypass get_active_subscriptions query)."""
+    from app.services.scheduled_report.dispatcher import _dispatch_one
+
+    results: list[dict] = []
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    tasks = [
+        {
+            "subscription_id": sub.id,
+            "email": sub.email,
+            "project_ids": sub.project_id_list or None,
+            "country": sub.country,
+            "frequency": frequency,
+            "ai_model": getattr(sub, "ai_model", None),
+        }
+        for sub in subscriptions
+    ]
+
+    max_workers = min(len(tasks), 8)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(_dispatch_one, **task): task for task in tasks}
+        for future in as_completed(futures):
+            try:
+                results.append(future.result())
+            except Exception as e:
+                task = futures[future]
+                logger.error("Unexpected error dispatching sub %d: %s", task["subscription_id"], e)
+
+    sent = sum(1 for r in results if r.get("success"))
+    failed = len(results) - sent
+    logger.info("Hourly %s dispatch done: sent=%d failed=%d", frequency, sent, failed)
+
+
 def init_scheduler() -> None:
     """Initialize and start the background scheduler.
 
     Registers:
     - Insight schedules
-    - Daily report dispatch (15:00 CST = 07:00 UTC)
-    - Weekly report dispatch (Monday 15:00 CST)
-    - Monthly report dispatch (1st of month 15:00 CST)
+    - Minutely dispatch scanner (checks all subscriptions every minute, Beijing time)
     """
     global _scheduler
     if _scheduler is not None:
@@ -41,9 +152,9 @@ def init_scheduler() -> None:
     try:
         from apscheduler.schedulers.background import BackgroundScheduler
 
-        _scheduler = BackgroundScheduler()
+        _scheduler = BackgroundScheduler(timezone="Asia/Shanghai")
         _scheduler.start()
-        logger.info("Scheduler started")
+        logger.info("Scheduler started (tz=Asia/Shanghai)")
 
         # Load insight schedules into scheduler
         try:
@@ -55,39 +166,15 @@ def init_scheduler() -> None:
         except Exception as e:
             logger.error(f"Failed to load insight schedules: {e}")
 
-        # Daily report: 15:00 CST (UTC+8) = 07:00 UTC
+        # Minutely scan: every minute, check subscriptions matching current hour:minute
         _scheduler.add_job(
-            _run_report_dispatch,
+            _run_minutely_scan,
             "cron",
-            args=["daily"],
-            hour=7,
-            minute=0,
-            id="scheduled_report_daily",
+            minute="*",
+            id="scheduled_report_minutely_scan",
             replace_existing=True,
         )
-        # Weekly report: Monday 15:00 CST
-        _scheduler.add_job(
-            _run_report_dispatch,
-            "cron",
-            args=["weekly"],
-            day_of_week="mon",
-            hour=7,
-            minute=0,
-            id="scheduled_report_weekly",
-            replace_existing=True,
-        )
-        # Monthly report: 1st of month 15:00 CST
-        _scheduler.add_job(
-            _run_report_dispatch,
-            "cron",
-            args=["monthly"],
-            day=1,
-            hour=7,
-            minute=0,
-            id="scheduled_report_monthly",
-            replace_existing=True,
-        )
-        logger.info("Scheduled report jobs registered (daily/weekly/monthly at 15:00 CST)")
+        logger.info("Scheduled report minutely scan registered (fires every minute, Asia/Shanghai)")
 
     except ImportError:
         logger.warning("APScheduler not installed, scheduler disabled")

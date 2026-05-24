@@ -13,11 +13,13 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models import (
+    AnalysisAdProductRow,
     AnalysisReturnRow,
     AnalysisSalesOrderRow,
     AnalysisSourceFile,
     InventorySnapshotRow,
 )
+from app.models.project import Project
 from app.services.dashboard_overview_service import build_dashboard_overview
 from app.utils.country import get_today_for_country
 
@@ -74,27 +76,49 @@ def _format_date_range(start: date, end: date) -> str:
     return f"{start.month}月{start.day}日 - {end.month}月{end.day}日"
 
 
+def _resolve_project_name(db: Session, project_ids: list[int] | None) -> str:
+    """根据 project_ids 从数据库查询实际项目名称。
+
+    - project_ids 为 None 或空列表 → "全部项目"
+    - 单个/多个 → 逗号分隔的真实项目名
+    """
+    if not project_ids:
+        return "全部项目"
+    names = (
+        db.query(Project.project_name)
+        .filter(Project.id.in_(project_ids))
+        .order_by(Project.id)
+        .all()
+    )
+    if not names:
+        return "全部项目"
+    return ", ".join(n[0] for n in names)
+
+
 def build_weekly_report_data(
     db: Session,
     project_ids: list[int] | None,
     country: str,
-    project_name: str = "项目",
+    project_name: str | None = None,
 ) -> dict[str, Any]:
     """构建完整的周报告数据结构。
-    
+
     使用自然周计算：
     - 上周：上一个完整的自然周（周一到周日）
     - 上上周：再往前一周
-    
+
     Args:
         db: 数据库会话
         project_ids: 项目 ID 列表，None 表示全部项目
         country: 国家代码
-        project_name: 项目名称（用于邮件显示）
-    
+        project_name: 项目名称覆盖（不传则从数据库自动解析）
+
     Returns:
         完整的周报告数据字典
     """
+    # 自动解析项目名称
+    if project_name is None:
+        project_name = _resolve_project_name(db, project_ids)
     # 锚定日期
     anchor_date = _get_report_anchor_date(country)
     
@@ -139,9 +163,12 @@ def build_weekly_report_data(
         prev_prev_week_start, prev_prev_week_end,
     )
     
-    # 7. 退货数据
-    returns_data = _get_weekly_returns(db, project_ids, country, prev_week_start, prev_week_end)
-    
+    # 7. 退货数据（需要周总销量算退货率）
+    returns_data = _get_weekly_returns(db, project_ids, country, prev_week_start, prev_week_end, current_week.get("qty", 0))
+
+    # 7.5 上周每日销量趋势（周一到周日逐日拆分）
+    daily_trend = _get_daily_sales_trend(db, project_ids, country, prev_week_start, prev_week_end)
+
     # 8. 检测预警信号
     anomalies = detect_weekly_anomalies(
         current_week, prev_week, ads_comparison, returns_data
@@ -218,7 +245,10 @@ def build_weekly_report_data(
         
         # 退货数据
         "returns_data": returns_data,
-        
+
+        # 上周每日销量趋势
+        "daily_trend": daily_trend,
+
         # AI 生成内容
         "ai_summary": ai_summary,
         
@@ -504,13 +534,55 @@ def _get_ads_comparison(
     prev_start: date,
     prev_end: date,
 ) -> dict[str, Any]:
-    """获取广告数据对比。"""
-    # TODO: 根据实际广告数据模型实现
+    """获取广告数据对比（本周 vs 上周）。
+
+    查询 analysis_ad_product_rows 表，按 period_end_date 范围过滤。
+    """
+    def _aggregate_ads(start: date, end: date) -> dict[str, float]:
+        try:
+            query = (
+                db.query(
+                    func.coalesce(func.sum(AnalysisAdProductRow.spend), 0).label("spend"),
+                    func.coalesce(func.sum(AnalysisAdProductRow.sales_7d), 0).label("sales"),
+                    func.coalesce(func.sum(AnalysisAdProductRow.clicks), 0).label("clicks"),
+                    func.coalesce(func.sum(AnalysisAdProductRow.impressions), 0).label("impressions"),
+                    func.coalesce(func.sum(AnalysisAdProductRow.orders_7d), 0).label("orders"),
+                )
+                .join(AnalysisSourceFile, AnalysisSourceFile.id == AnalysisAdProductRow.source_file_id)
+                .filter(
+                    AnalysisSourceFile.country == country,
+                    AnalysisSourceFile.report_type == "ad_product_report",
+                    AnalysisSourceFile.is_current == True,
+                    AnalysisSourceFile.period_end_date >= start,
+                    AnalysisSourceFile.period_end_date <= end,
+                )
+            )
+            if project_ids:
+                query = query.filter(AnalysisSourceFile.project_id.in_(project_ids))
+
+            row = query.first()
+            spend = float(row.spend) if row and row.spend else 0.0
+            sales = float(row.sales) if row and row.sales else 0.0
+            clicks = int(row.clicks) if row and row.clicks else 0
+            impressions = int(row.impressions) if row and row.impressions else 0
+
+            roas = sales / spend if spend > 0 else 0.0
+            acos = (spend / sales * 100) if sales > 0 else 0.0
+            ctr = (clicks / impressions * 100) if impressions > 0 else 0.0
+
+            return {"spend": spend, "sales": sales, "roas": roas, "acos": acos, "ctr": ctr}
+        except Exception as e:
+            logger.warning(f"Failed to aggregate ads for {start}~{end}: {e}")
+            return {"spend": 0, "sales": 0, "roas": 0, "acos": 0, "ctr": 0}
+
+    curr = _aggregate_ads(curr_start, curr_end)
+    prev = _aggregate_ads(prev_start, prev_end)
+
     return {
-        "spend": {"current": 0, "prev": 0, "change": 0},
-        "roas": {"current": 0, "prev": 0, "change": 0},
-        "acos": {"current": 0, "prev": 0, "change": 0},
-        "ctr": {"current": 0, "prev": 0, "change": 0},
+        "spend": {"current": curr["spend"], "prev": prev["spend"], "change": _calc_change_pct(curr["spend"], prev["spend"])},
+        "roas": {"current": curr["roas"], "prev": prev["roas"], "change": _calc_change_pct(curr["roas"], prev["roas"])},
+        "acos": {"current": curr["acos"], "prev": prev["acos"], "change": _calc_change_pct(curr["acos"], prev["acos"])},
+        "ctr": {"current": curr["ctr"], "prev": prev["ctr"], "change": _calc_change_pct(curr["ctr"], prev["ctr"])},
     }
 
 
@@ -520,8 +592,9 @@ def _get_weekly_returns(
     country: str,
     start_date: date,
     end_date: date,
+    week_total_qty: int = 0,
 ) -> dict[str, Any]:
-    """获取本周退货数据。"""
+    """获取本周退货数据，退货率 = 退货数 / 周总销量。"""
     try:
         query = (
             db.query(
@@ -541,14 +614,76 @@ def _get_weekly_returns(
 
         row = query.first()
         qty = int(row.qty) if row and row.qty else 0
-        
+        rate = (qty / week_total_qty * 100) if week_total_qty > 0 else 0.0
+
         return {
             "qty": qty,
-            "rate": 0.0,
+            "rate": round(rate, 1),
         }
     except Exception as e:
         logger.warning(f"Failed to get weekly returns: {e}")
         return {"qty": 0, "rate": 0.0}
+
+
+def _get_daily_sales_trend(
+    db: Session,
+    project_ids: list[int] | None,
+    country: str,
+    start_date: date,
+    end_date: date,
+) -> list[dict[str, Any]]:
+    """获取日期范围内每天的销量，用于趋势柱状图。
+
+    返回格式: [{"date": "05-12", "qty": 10, "amount": 350.00}, ...]
+    """
+    try:
+        query = (
+            db.query(
+                AnalysisSalesOrderRow.purchase_date_pt.label("day"),
+                func.coalesce(func.sum(AnalysisSalesOrderRow.quantity), 0).label("qty"),
+                func.coalesce(func.sum(
+                    func.coalesce(AnalysisSalesOrderRow.item_price, 0)
+                    + func.coalesce(AnalysisSalesOrderRow.shipping_price, 0)
+                ), 0).label("amount"),
+            )
+            .join(AnalysisSourceFile, AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id)
+            .filter(
+                AnalysisSourceFile.country == country,
+                AnalysisSourceFile.report_type == "sales_report",
+                AnalysisSourceFile.is_current == True,
+                AnalysisSalesOrderRow.purchase_date_pt >= start_date,
+                AnalysisSalesOrderRow.purchase_date_pt <= end_date,
+            )
+        )
+        if project_ids:
+            query = query.filter(AnalysisSourceFile.project_id.in_(project_ids))
+
+        rows = (
+            query.group_by(AnalysisSalesOrderRow.purchase_date_pt)
+            .order_by(AnalysisSalesOrderRow.purchase_date_pt)
+            .all()
+        )
+
+        # 构建结果，补齐没有数据的日期
+        result_map = {r.day: {"qty": int(r.qty), "amount": float(r.amount)} for r in rows}
+        trend = []
+        current = start_date
+        weekday_names = ["一", "二", "三", "四", "五", "六", "日"]
+        while current <= end_date:
+            data = result_map.get(current, {"qty": 0, "amount": 0.0})
+            wd = weekday_names[current.weekday()]
+            trend.append({
+                "date": f"{current.month}/{current.day}",
+                "weekday": f"周{wd}",
+                "qty": data["qty"],
+                "amount": data["amount"],
+            })
+            current += timedelta(days=1)
+
+        return trend
+    except Exception as e:
+        logger.warning(f"Failed to get daily sales trend: {e}")
+        return []
 
 
 def _build_alerts_from_anomalies(anomalies: list[dict[str, Any]]) -> list[dict[str, Any]]:

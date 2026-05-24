@@ -92,10 +92,16 @@ def _normalize_note_image_record(item: object) -> dict[str, object] | None:
     if thumbnail_url and '/api/exchange-rates/images/thumbs%2F' in thumbnail_url:
         thumbnail_url = thumbnail_url.replace('/api/exchange-rates/images/thumbs%2F', '/api/exchange-rates/images/thumbs/')
 
+    # r2_key and thumbnail_key - store the R2 object keys
+    r2_key_raw = item.get('r2_key')
+    thumbnail_key_raw = item.get('thumbnail_key')
+
     return {
         'id': image_id,
         'url': url,
         'thumbnail_url': thumbnail_url,
+        'r2_key': str(r2_key_raw).strip() if r2_key_raw else None,
+        'thumbnail_key': str(thumbnail_key_raw).strip() if thumbnail_key_raw else None,
         'filename': filename,
         'content_type': str(content_type_raw or 'application/octet-stream').strip(),
         'size': max(size, 0),

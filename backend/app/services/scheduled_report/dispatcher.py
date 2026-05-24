@@ -27,7 +27,9 @@ from typing import Any
 
 from app.db.session import SessionLocal
 from app.services.scheduled_report.email_sender_daily import send_scheduled_report_email
+from app.services.scheduled_report.email_sender_weekly import send_weekly_report_email
 from app.services.scheduled_report.report_builder_daily import build_report_email_data
+from app.services.scheduled_report.report_builder_weekly import build_weekly_report_data
 from app.services.scheduled_report.subscription_service import (
     create_delivery_log,
     get_active_subscriptions,
@@ -113,6 +115,13 @@ def _do_build_report(
     """Build report data (no timeout protection — run inside semaphore)."""
     db = SessionLocal()
     try:
+        if frequency == "weekly":
+            # 周报使用专用 builder（自然周计算 + 归因分析）
+            return build_weekly_report_data(
+                db=db,
+                project_ids=project_ids,
+                country=country,
+            )
         return build_report_email_data(
             db=db,
             project_ids=project_ids,
@@ -132,6 +141,15 @@ def _fallback_report_data(
     """Return report with plain-text fallback summary when AI times out."""
     db = SessionLocal()
     try:
+        if frequency == "weekly":
+            data = build_weekly_report_data(
+                db=db,
+                project_ids=project_ids,
+                country=country,
+            )
+            data["ai_summary"] = "AI 摘要生成超时，请登录仪表板查看详情。"
+            return data
+
         data = build_report_email_data(
             db=db,
             project_ids=project_ids,
@@ -226,11 +244,41 @@ def _dispatch_one(
 
     try:
         report_data = _build_report_with_throttle(project_ids, country, frequency, ai_model=ai_model)
+        # Pass log_id to report_data so email_sender can update screenshot info
+        report_data["log_id"] = log_id
 
-        success, resend_id_or_error = send_scheduled_report_email(email, frequency, report_data)
+        # 根据频率选择对应的邮件发送函数
+        if frequency == "weekly":
+            success, resend_id_or_error = send_weekly_report_email(email, report_data)
+        else:
+            success, resend_id_or_error = send_scheduled_report_email(email, frequency, report_data)
 
         if success:
             mark_delivery_success(db, log_id, resend_id_or_error)
+            # 保存截图 R2 信息到 delivery log
+            screenshot_key = report_data.get("screenshot_r2_key")
+            screenshot_url = report_data.get("screenshot_r2_url")
+            if screenshot_key and screenshot_url:
+                try:
+                    from app.services.scheduled_report.subscription_service import update_delivery_log_screenshot
+                    update_delivery_log_screenshot(
+                        db=db,
+                        log_id=log_id,
+                        screenshot_r2_key=screenshot_key,
+                        screenshot_r2_url=screenshot_url,
+                    )
+                except Exception as update_err:
+                    logger.warning("更新 delivery log 截图信息失败: %s", update_err)
+
+            # 保存 AI 报表总结文案到 delivery log
+            ai_summary = report_data.get("ai_summary")
+            if ai_summary:
+                try:
+                    from app.services.scheduled_report.subscription_service import update_delivery_log_ai_summary
+                    update_delivery_log_ai_summary(db=db, log_id=log_id, ai_summary=ai_summary)
+                except Exception as sum_err:
+                    logger.warning("更新 delivery log ai_summary 失败: %s", sum_err)
+
             result["success"] = True
             logger.info("Report sent: sub=%d email=%s", subscription_id, email)
         else:

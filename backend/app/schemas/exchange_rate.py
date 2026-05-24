@@ -5,6 +5,8 @@ class ExchangeRateNoteImage(BaseModel):
     id: str = Field(min_length=1)
     url: str = Field(min_length=1)
     thumbnail_url: str | None = None
+    r2_key: str | None = None
+    thumbnail_key: str | None = None
     filename: str = Field(min_length=1)
     content_type: str = Field(min_length=1)
     size: int = Field(ge=0)
@@ -67,6 +69,8 @@ class ExchangeRateUploadResponse(BaseModel):
     id: str
     url: str
     thumbnail_url: str | None = None
+    r2_key: str
+    thumbnail_key: str
     filename: str
     content_type: str
     size: int
