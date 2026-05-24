@@ -30,6 +30,12 @@ class DeliveryStatus(str, Enum):
     FAILED = "failed"
 
 
+class LedgerStatus(str, Enum):
+    SENT = "sent"
+    FAILED = "failed"
+    MISSING = "missing"
+
+
 class ScheduledReportSubscription(Base):
     __tablename__ = "scheduled_report_subscriptions"
 
@@ -88,3 +94,42 @@ class ScheduledReportDeliveryLog(Base):
     subscription: Mapped["ScheduledReportSubscription"] = relationship(
         "ScheduledReportSubscription", back_populates="delivery_logs"
     )
+
+
+class ScheduledReportLedgerEntry(Base):
+    __tablename__ = "scheduled_report_ledger_entries"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ledger_key: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    subscription_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("scheduled_report_subscriptions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    frequency: Mapped[str] = mapped_column(String(20), nullable=False)
+    expected_date: Mapped[str] = mapped_column(String(20), nullable=False)
+    expected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    email: Mapped[str] = mapped_column(String(256), nullable=False)
+    project_ids: Mapped[str] = mapped_column(String(500), nullable=False, default="*")
+    country: Mapped[str] = mapped_column(String(10), nullable=False, default="US")
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default=LedgerStatus.MISSING.value, index=True)
+    latest_delivery_log_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("scheduled_report_delivery_logs.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_checked_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+    subscription: Mapped["ScheduledReportSubscription"] = relationship("ScheduledReportSubscription")
+    latest_delivery_log: Mapped["ScheduledReportDeliveryLog | None"] = relationship("ScheduledReportDeliveryLog")
