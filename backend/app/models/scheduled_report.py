@@ -46,6 +46,19 @@ class ScheduledReportSubscription(Base):
     country: Mapped[str] = mapped_column(String(10), nullable=False, default="US")
     frequency: Mapped[str] = mapped_column(String(20), nullable=False)
     ai_model: Mapped[str | None] = mapped_column(String(64), nullable=True, comment="AI 摘要使用的模型，空则用默认模型")
+    dispatch_hour: Mapped[int] = mapped_column(Integer, nullable=False, default=15, comment="发送时间（小时，0-23，北京时间）")
+    dispatch_minute: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0,
+        comment="发送时间（分钟，0-59）",
+    )
+    dispatch_weekday: Mapped[int | None] = mapped_column(
+        Integer, nullable=True,
+        comment="周报发送日（0=周一..6=周日），仅 weekly 使用",
+    )
+    dispatch_day: Mapped[int | None] = mapped_column(
+        Integer, nullable=True,
+        comment="月报发送日（2-28），仅 monthly 使用",
+    )
     enabled: Mapped[bool] = mapped_column(nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
