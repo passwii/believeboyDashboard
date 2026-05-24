@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Loader2, Plus, Trash2, Mail, Calendar, ChevronUp, ChevronDown, ImageIcon, Copy, FileText, RotateCcw, AlertTriangle } from 'lucide-react'
+import { Loader2, Plus, Trash2, Mail, Calendar, ChevronUp, ChevronDown, ImageIcon, Copy, FileText, RotateCcw, AlertTriangle, Pencil } from 'lucide-react'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import { cn } from '@/lib/utils'
@@ -157,6 +157,7 @@ export function ScheduledReportsClient() {
   const [modelConfig, setModelConfig] = useState<AIModelConfig | null>(null)
   const [isLoadingModelConfig, setIsLoadingModelConfig] = useState(false)
   const [formAiModel, setFormAiModel] = useState('')
+  const [editingId, setEditingId] = useState<number | null>(null)
   const [previewScreenshotUrl, setPreviewScreenshotUrl] = useState<string | null>(null)
   const [previewSummary, setPreviewSummary] = useState<string | null>(null)
   const [filterFrequency, setFilterFrequency] = useState<string>('all')
@@ -253,6 +254,54 @@ export function ScheduledReportsClient() {
     } finally {
       setFormSubmitting(false)
     }
+  }
+
+  const handleUpdate = async () => {
+    if (!formEmail.trim()) {
+      setFormError('请填写邮箱地址')
+      return
+    }
+    if (editingId === null) return
+    setFormSubmitting(true)
+    setFormError(null)
+    try {
+      const res = await fetch(resolveApiUrl(`/api/v1/scheduled-reports/subscriptions/${editingId}`), {
+        method: 'PUT',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: formEmail, project_ids: formProjectIds, country: formCountry, frequency: formFrequency, dispatch_hour: formDispatchHour, ai_model: formAiModel || null }),
+      })
+      if (!res.ok) {
+        const err = await res.text()
+        throw new Error(err || '更新失败')
+      }
+      const updated = await res.json()
+      setSubscriptions(prev => prev.map(s => s.id === editingId ? updated : s))
+      setShowForm(false)
+      setEditingId(null)
+      setFormEmail('')
+      setFormProjectIds('*')
+      setFormCountry('US')
+      setFormFrequency('daily')
+      setFormDispatchHour(15)
+      setFormAiModel(modelConfig?.defaultModel || '')
+    } catch (e) {
+      setFormError(normalizeErrorMessage(e, '更新失败'))
+    } finally {
+      setFormSubmitting(false)
+    }
+  }
+
+  const handleEdit = (sub: Subscription) => {
+    setEditingId(sub.id)
+    setFormEmail(sub.email)
+    setFormProjectIds(sub.project_ids)
+    setFormCountry(sub.country)
+    setFormFrequency(sub.frequency)
+    setFormDispatchHour(sub.dispatch_hour)
+    setFormAiModel(sub.ai_model || '')
+    setFormError(null)
+    setTestResult(null)
+    setShowForm(true)
   }
 
   const handleDelete = async (id: number) => {
@@ -374,7 +423,7 @@ export function ScheduledReportsClient() {
                 <h2 className="text-lg font-medium">订阅列表</h2>
                 <p className="text-sm text-muted-foreground">配置每日/每周/每月自动推送运营报告到邮箱</p>
               </div>
-              <Button onClick={() => setShowForm(!showForm)}>
+              <Button onClick={() => { setShowForm(!showForm); if (showForm) setEditingId(null) }} disabled={editingId !== null}>
                 <Plus className="mr-1 h-4 w-4" />新增订阅
               </Button>
             </div>
@@ -382,7 +431,7 @@ export function ScheduledReportsClient() {
             {showForm && (
               <Card className="border-border/70 bg-[hsl(var(--surface-panel))]">
                 <CardHeader className="pb-4">
-                  <CardTitle className="text-base">新增订阅</CardTitle>
+                  <CardTitle className="text-base">{editingId !== null ? '编辑订阅' : '新增订阅'}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -489,11 +538,32 @@ export function ScheduledReportsClient() {
                       {testingEmail ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Mail className="mr-1 h-4 w-4" />}
                       发送测试邮件
                     </Button>
-                    <Button onClick={handleCreate} disabled={formSubmitting}>
-                      {formSubmitting && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
-                      确认创建
-                    </Button>
-                    <Button variant="ghost" onClick={() => setShowForm(false)}>取消</Button>
+                    {editingId !== null ? (
+                      <>
+                        <Button onClick={handleUpdate} disabled={formSubmitting}>
+                          {formSubmitting && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
+                          保存修改
+                        </Button>
+                        <Button variant="ghost" onClick={() => {
+                          setShowForm(false)
+                          setEditingId(null)
+                          setFormEmail('')
+                          setFormProjectIds('*')
+                          setFormCountry('US')
+                          setFormFrequency('daily')
+                          setFormDispatchHour(15)
+                          setFormAiModel(modelConfig?.defaultModel || '')
+                        }}>取消</Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button onClick={handleCreate} disabled={formSubmitting}>
+                          {formSubmitting && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
+                          确认创建
+                        </Button>
+                        <Button variant="ghost" onClick={() => setShowForm(false)}>取消</Button>
+                      </>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -536,6 +606,9 @@ export function ScheduledReportsClient() {
                         <div className="flex gap-1 shrink-0">
                           <Button size="sm" variant="ghost" onClick={() => handleToggle(sub)}>
                             {sub.enabled ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => handleEdit(sub)}>
+                            <Pencil className="h-4 w-4" />
                           </Button>
                           <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => handleDelete(sub.id)}>
                             <Trash2 className="h-4 w-4" />

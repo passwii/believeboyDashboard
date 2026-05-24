@@ -15,6 +15,7 @@ from app.models.scheduled_report import (
     ScheduledReportLedgerEntry,
     ScheduledReportSubscription,
 )
+from app.models.project import Project
 
 
 @pytest.fixture()
@@ -136,3 +137,24 @@ def test_refresh_ledger_respects_weekly_and_monthly_rules(db: Session):
     assert ("weekly@example.com", "2026-05-18") in rows
     assert ("monthly@example.com", "2026-05-24") in rows
     assert result.summary.expected == 2
+
+
+def test_refresh_ledger_resolves_project_names_from_db(db: Session):
+    from app.services.scheduled_report.ledger_service import refresh_ledger
+
+    # Create two projects in the DB
+    p1 = Project(project_name="创酷", sort_order=1)
+    p2 = Project(project_name="玥涵", sort_order=2)
+    db.add_all([p1, p2])
+    db.commit()
+
+    sub = add_subscription(db, frequency="daily", project_ids=f"{p1.id},{p2.id}")
+
+    result = refresh_ledger(db, start_date="2026-05-23", end_date="2026-05-23")
+
+    assert len(result.items) == 1
+    item = result.items[0]
+    assert item.project_ids == f"{p1.id},{p2.id}"
+    assert "创酷" in item.project_names
+    assert "玥涵" in item.project_names
+    assert len(item.project_names) == 2
