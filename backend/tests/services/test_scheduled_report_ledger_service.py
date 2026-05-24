@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -158,3 +158,70 @@ def test_refresh_ledger_resolves_project_names_from_db(db: Session):
     assert "创酷" in item.project_names
     assert "玥涵" in item.project_names
     assert len(item.project_names) == 2
+
+
+def test_resend_async_refreshes_ledger_after_success(db: Session, monkeypatch: pytest.MonkeyPatch):
+    from app.models.scheduled_report import DeliveryStage
+    from app.services.scheduled_report.ledger_service import refresh_ledger, resend_ledger_entry_async
+    import app.services.scheduled_report.ledger_service as ledger_service
+    import app.services.scheduled_report.dispatcher as dispatcher
+
+    sub = add_subscription(db, frequency="daily")
+    ledger = refresh_ledger(db, start_date="2026-05-23", end_date="2026-05-23")
+    ledger_key = ledger.items[0].ledger_key
+
+    class FixedDate(date):
+        @classmethod
+        def today(cls):
+            return cls(2026, 5, 23)
+
+    monkeypatch.setattr(ledger_service, "date", FixedDate)
+    class CloseAwareSession:
+        def __init__(self, wrapped: Session):
+            self.wrapped = wrapped
+            self.closed = False
+
+        def close(self):
+            self.closed = True
+
+        def __getattr__(self, name: str):
+            if self.closed:
+                raise RuntimeError("session is closed")
+            return getattr(self.wrapped, name)
+
+    monkeypatch.setattr(dispatcher, "SessionLocal", lambda: CloseAwareSession(db))
+    monkeypatch.setattr(dispatcher, "_build_report_with_throttle", lambda *args, **kwargs: {"ai_summary": "ok"})
+    monkeypatch.setattr(dispatcher, "send_scheduled_report_email", lambda *args, **kwargs: (True, "resend-id"))
+
+    started = []
+
+    class ImmediateThread:
+        def __init__(self, target, args, daemon):
+            self.target = target
+            self.args = args
+            self.daemon = daemon
+
+        def start(self):
+            started.append(True)
+            self.target(*self.args)
+
+    import threading
+    monkeypatch.setattr(threading, "Thread", ImmediateThread)
+
+    success, delivery_log_id, new_status, message = resend_ledger_entry_async(db, ledger_key=ledger_key)
+
+    assert success is True
+    assert delivery_log_id is not None
+    assert new_status == "processing"
+    assert started == [True]
+
+    log = db.get(ScheduledReportDeliveryLog, delivery_log_id)
+    assert log is not None
+    assert log.status == DeliveryStatus.SENT.value
+    assert log.stage == DeliveryStage.DONE.value
+
+    refreshed_entry = db.query(ScheduledReportLedgerEntry).filter_by(ledger_key=ledger_key).one()
+    assert refreshed_entry.status == LedgerStatus.SENT.value
+    assert refreshed_entry.latest_delivery_log_id == delivery_log_id
+    assert refreshed_entry.sent_at is not None
+

@@ -9,7 +9,7 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
 from app.models import ScheduledReportSubscription, ScheduledReportDeliveryLog
-from app.models.scheduled_report import DeliveryStatus
+from app.models.scheduled_report import DeliveryStatus, DeliveryStage
 from app.schemas.scheduled_report import SubscriptionCreate, SubscriptionUpdate
 
 logger = logging.getLogger(__name__)
@@ -150,11 +150,45 @@ def create_delivery_log(
         report_month=report_month,
         email=email,
         status=DeliveryStatus.PENDING.value,
+        stage=DeliveryStage.PENDING.value,
     )
     db.add(log)
     db.commit()
     db.refresh(log)
     return log
+
+
+def create_delivery_log_with_stage(
+    db: Session,
+    subscription_id: int,
+    frequency: str,
+    report_date: str,
+    report_month: str | None,
+    email: str,
+    initial_stage: str = DeliveryStage.PENDING.value,
+) -> ScheduledReportDeliveryLog:
+    """创建推送日志记录（带指定初始阶段）。"""
+    log = ScheduledReportDeliveryLog(
+        subscription_id=subscription_id,
+        frequency=frequency,
+        report_date=report_date,
+        report_month=report_month,
+        email=email,
+        status=DeliveryStatus.PENDING.value,
+        stage=initial_stage,
+    )
+    db.add(log)
+    db.commit()
+    db.refresh(log)
+    return log
+
+
+def update_delivery_log_stage(db: Session, log_id: int, stage: str) -> None:
+    """更新推送日志的处理阶段。"""
+    log = db.get(ScheduledReportDeliveryLog, log_id)
+    if log:
+        log.stage = stage
+        db.commit()
 
 
 def mark_delivery_success(db: Session, log_id: int, resend_id: str | None = None) -> None:

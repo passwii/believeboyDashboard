@@ -10,6 +10,7 @@ from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
 from app.models.scheduled_report import (
+    DeliveryStage,
     DeliveryStatus,
     LedgerStatus,
     ScheduledReportDeliveryLog,
@@ -147,6 +148,14 @@ def _project_names_for(db: Session, project_ids: str) -> list[str]:
 
 
 def _to_item(db: Session, entry: ScheduledReportLedgerEntry) -> LedgerItem:
+    screenshot_r2_url = None
+    ai_summary = None
+    if entry.latest_delivery_log_id:
+        log = db.get(ScheduledReportDeliveryLog, entry.latest_delivery_log_id)
+        if log:
+            screenshot_r2_url = log.screenshot_r2_url
+            ai_summary = log.ai_summary
+
     return LedgerItem(
         id=entry.id,
         ledger_key=entry.ledger_key,
@@ -164,6 +173,8 @@ def _to_item(db: Session, entry: ScheduledReportLedgerEntry) -> LedgerItem:
         sent_at=entry.sent_at,
         can_resend=entry.status in (LedgerStatus.MISSING.value, LedgerStatus.FAILED.value),
         last_checked_at=entry.last_checked_at,
+        screenshot_r2_url=screenshot_r2_url,
+        ai_summary=ai_summary,
     )
 
 
@@ -258,7 +269,73 @@ def refresh_ledger(
     return LedgerListResponse(items=[_to_item(db, row) for row in rows], total=total, summary=summary)
 
 
+def resend_ledger_entry_async(db: Session, *, ledger_key: str) -> tuple[bool, int | None, str, str]:
+    """异步补发：立即创建 delivery_log 并在后台执行发送。
+
+    验证 ledger entry 后，创建 delivery_log（初始 stage = preparing），
+    然后启动后台线程执行实际发送。前端通过轮询 delivery_log 状态获取进度。
+    """
+    entry = db.execute(
+        select(ScheduledReportLedgerEntry).where(ScheduledReportLedgerEntry.ledger_key == ledger_key)
+    ).scalars().first()
+    if entry is None:
+        return False, None, "not_found", "台账记录不存在，请刷新后重试"
+    if entry.status == LedgerStatus.SENT.value:
+        return False, entry.latest_delivery_log_id, entry.status, "已成功发送的记录默认不允许重复发送"
+
+    subscription = db.get(ScheduledReportSubscription, entry.subscription_id)
+    if subscription is None:
+        return False, None, "not_found", "订阅不存在或已删除"
+
+    # 创建 delivery_log（初始 stage = preparing）
+    from app.services.scheduled_report.subscription_service import create_delivery_log_with_stage
+
+    today_str = date.today().isoformat()
+    log = create_delivery_log_with_stage(
+        db=db,
+        subscription_id=subscription.id,
+        frequency=subscription.frequency,
+        report_date=today_str,
+        report_month=today_str[:7] if subscription.frequency == "monthly" else None,
+        email=subscription.email,
+        initial_stage=DeliveryStage.PREPARING.value,
+    )
+
+    # 更新 ledger entry 指向新的 delivery_log
+    entry.latest_delivery_log_id = log.id
+    entry.status = LedgerStatus.MISSING.value
+    db.commit()
+
+    # 启动后台线程执行实际发送
+    import threading
+    from app.services.scheduled_report.dispatcher import _dispatch_one_async
+
+    thread = threading.Thread(
+        target=_dispatch_one_async,
+        args=(
+            subscription.id,
+            subscription.email,
+            subscription.project_id_list or None,
+            subscription.country,
+            subscription.frequency,
+            getattr(subscription, "ai_model", None),
+            log.id,
+            ledger_key,
+            entry.expected_date,
+            entry.frequency,
+        ),
+        daemon=True,
+    )
+    thread.start()
+
+    return True, log.id, "processing", "补发任务已启动，请在台账中查看进度"
+
+
 def resend_ledger_entry(db: Session, *, ledger_key: str) -> tuple[bool, int | None, str, str]:
+    """同步补发：直接执行发送并等待完成（保留兼容）。
+
+    仅用于需要立即知道结果的场景。
+    """
     entry = db.execute(
         select(ScheduledReportLedgerEntry).where(ScheduledReportLedgerEntry.ledger_key == ledger_key)
     ).scalars().first()
