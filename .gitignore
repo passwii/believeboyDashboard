@@ -1,4 +1,5 @@
-# Workspace
+# Git worktrees
+.worktrees/
 .DS_Store
 *.pem
 .idea/
