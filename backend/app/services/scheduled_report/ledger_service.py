@@ -16,6 +16,7 @@ from app.models.scheduled_report import (
     ScheduledReportLedgerEntry,
     ScheduledReportSubscription,
 )
+from app.models.project import Project
 from app.schemas.scheduled_report import LedgerItem, LedgerListResponse, LedgerSummary
 
 SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
@@ -125,13 +126,27 @@ def _upsert_entry(db: Session, occurrence: ExpectedOccurrence) -> ScheduledRepor
     return entry
 
 
-def _project_names_for(project_ids: str) -> list[str]:
+def _project_names_for(db: Session, project_ids: str) -> list[str]:
     if project_ids == "*":
         return ["全部项目"]
-    return [f"项目{pid.strip()}" for pid in project_ids.split(",") if pid.strip()]
+    ids = [pid.strip() for pid in project_ids.split(",") if pid.strip()]
+    if not ids:
+        return []
+    id_nums = [int(pid) for pid in ids]
+    rows = db.execute(
+        select(Project.id, Project.project_name)
+        .where(Project.id.in_(id_nums))
+        .order_by(Project.sort_order)
+    ).all()
+    name_by_id = {row.id: row.project_name for row in rows}
+    result: list[str] = []
+    for pid in ids:
+        name = name_by_id.get(int(pid))
+        result.append(name if name else f"项目{pid}")
+    return result
 
 
-def _to_item(entry: ScheduledReportLedgerEntry) -> LedgerItem:
+def _to_item(db: Session, entry: ScheduledReportLedgerEntry) -> LedgerItem:
     return LedgerItem(
         id=entry.id,
         ledger_key=entry.ledger_key,
@@ -141,7 +156,7 @@ def _to_item(entry: ScheduledReportLedgerEntry) -> LedgerItem:
         subscription_id=entry.subscription_id,
         email=entry.email,
         project_ids=entry.project_ids,
-        project_names=_project_names_for(entry.project_ids),
+        project_names=_project_names_for(db, entry.project_ids),
         country=entry.country,
         status=entry.status,
         latest_delivery_log_id=entry.latest_delivery_log_id,
@@ -240,7 +255,7 @@ def refresh_ledger(
         .limit(limit)
         .offset(offset)
     ).scalars().all()
-    return LedgerListResponse(items=[_to_item(row) for row in rows], total=total, summary=summary)
+    return LedgerListResponse(items=[_to_item(db, row) for row in rows], total=total, summary=summary)
 
 
 def resend_ledger_entry(db: Session, *, ledger_key: str) -> tuple[bool, int | None, str, str]:
