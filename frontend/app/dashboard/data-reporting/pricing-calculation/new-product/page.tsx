@@ -77,6 +77,7 @@ import {
 import { logClientOperation } from '@/lib/operation-audit'
 import { cn, formatLocalTimestampForFilename } from '@/lib/utils'
 import { useNotifications } from '@/components/notifications'
+import { useConfirm } from '@/hooks/use-confirm'
 import { applyBorder, applyHeaderBorder } from '@/lib/excel-styles'
 
 const API_BASE = '/api/backend'
@@ -1902,6 +1903,7 @@ async function exportStoreSkuTableToExcel(
 
 export default function PricingCalculationPage() {
   const { notify } = useNotifications()
+  const { confirm } = useConfirm()
   const [selectedCountry, setSelectedCountry] = useState<string>('US')
   const [form, setForm] = useState<FormState>(INITIAL_FORM)
   const [calculationMode, setCalculationMode] =
@@ -2406,7 +2408,7 @@ export default function PricingCalculationPage() {
   }
 
   async function handleDeleteRun(runId: number) {
-    const confirmed = window.confirm('确认删除这条测算记录吗？删除后不可恢复。')
+    const confirmed = await confirm({ title: '确认删除这条测算记录吗？删除后不可恢复。', variant: 'destructive' })
     if (!confirmed) {
       return
     }

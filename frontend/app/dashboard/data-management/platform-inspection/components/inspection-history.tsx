@@ -1,0 +1,430 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { Card, CardContent } from '@/components/ui/card'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
+import { ImagePreviewDialog } from '@/components/ui/image-preview-dialog'
+import { useNotifications } from '@/components/notifications'
+import {
+  fetchInspectionHistory,
+  fetchPeriods,
+  fetchReport,
+  type InspectionHistoryItem,
+  type InspectionReport,
+  type InspectionPeriod,
+} from '@/lib/inspection-api'
+import { normalizeErrorMessage } from '@/lib/error-utils'
+import { Loader2, Eye } from 'lucide-react'
+
+interface InspectionHistoryProps {
+  periodId: number
+}
+
+const STATUS_STYLES: Record<string, { badge: string; label: string }> = {
+  submitted: {
+    badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400',
+    label: '已提交',
+  },
+  draft: {
+    badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400',
+    label: '草稿',
+  },
+  overdue: {
+    badge: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-400',
+    label: '已逾期',
+  },
+}
+
+function formatDateTime(dateStr: string | undefined): string {
+  if (!dateStr) return '-'
+  const date = new Date(dateStr)
+  return date.toLocaleString('zh-CN', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function DetailSheet({
+  item,
+  report,
+  loading,
+  open,
+  onClose,
+}: {
+  item: InspectionHistoryItem | null
+  report: InspectionReport | null
+  loading: boolean
+  open: boolean
+  onClose: () => void
+}) {
+  const [previewImage, setPreviewImage] = useState<string | null>(null)
+
+  return (
+    <Sheet open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+      <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle>{item?.project_name || '报告详情'}</SheetTitle>
+        </SheetHeader>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : report ? (
+          <div className="mt-6 space-y-6">
+            {/* Period info */}
+            <div className="rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-4">
+              <div className="grid gap-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">周期</span>
+                  <span className="font-medium">
+                    {item?.week_start} - {item?.week_end}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">状态</span>
+                  <Badge className={STATUS_STYLES[item?.status || '']?.badge || ''}>
+                    {STATUS_STYLES[item?.status || '']?.label || item?.status}
+                  </Badge>
+                </div>
+                {item?.submitted_by && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">提交人</span>
+                    <span>{item.submitted_by}</span>
+                  </div>
+                )}
+                {item?.submitted_at && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">提交时间</span>
+                    <span>{formatDateTime(item.submitted_at)}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Health data */}
+            {report.health_data && Object.keys(report.health_data).length > 0 && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-foreground">账户健康指标</h3>
+                <div className="rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-4">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {report.health_data.account_health_rating && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">AHR</span>
+                        <Badge variant="outline">{report.health_data.account_health_rating}</Badge>
+                      </div>
+                    )}
+                    {report.health_data.odr !== undefined && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">ODR</span>
+                        <span>{report.health_data.odr}%</span>
+                      </div>
+                    )}
+                    {report.health_data.late_shipment_rate !== undefined && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">迟发率</span>
+                        <span>{report.health_data.late_shipment_rate}%</span>
+                      </div>
+                    )}
+                    {report.health_data.pre_fulfillment_cancel_rate !== undefined && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">预履行取消率</span>
+                        <span>{report.health_data.pre_fulfillment_cancel_rate}%</span>
+                      </div>
+                    )}
+                    {report.health_data.valid_tracking_rate !== undefined && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">有效追踪率</span>
+                        <span>{report.health_data.valid_tracking_rate}%</span>
+                      </div>
+                    )}
+                    {report.health_data.on_time_delivery_rate !== undefined && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">准时送达率</span>
+                        <span>{report.health_data.on_time_delivery_rate}%</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Compliance data */}
+            {report.compliance_data && Object.keys(report.compliance_data).length > 0 && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-foreground">政策合规</h3>
+                <div className="rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-4">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {report.compliance_data.policy_violations !== undefined && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">政策违规数</span>
+                        <span>{report.compliance_data.policy_violations}</span>
+                      </div>
+                    )}
+                    {report.compliance_data.ip_complaints !== undefined && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">IP投诉</span>
+                        <span>{report.compliance_data.ip_complaints}</span>
+                      </div>
+                    )}
+                    {report.compliance_data.restricted_product_warnings !== undefined && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">受限商品警告</span>
+                        <span>{report.compliance_data.restricted_product_warnings}</span>
+                      </div>
+                    )}
+                    {report.compliance_data.listing_suppressed_count !== undefined && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">被抑制Listing数</span>
+                        <span>{report.compliance_data.listing_suppressed_count}</span>
+                      </div>
+                    )}
+                    {report.compliance_data.account_deactivation_risk !== undefined && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">账户停用风险</span>
+                        <Badge variant={report.compliance_data.account_deactivation_risk ? 'destructive' : 'outline'}>
+                          {report.compliance_data.account_deactivation_risk ? '是' : '否'}
+                        </Badge>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Status summary */}
+            {report.status_summary && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-foreground">状态说明</h3>
+                <div className="rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-4">
+                  <p className="text-sm whitespace-pre-wrap">{report.status_summary}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Screenshots */}
+            {report.screenshots && report.screenshots.length > 0 && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-foreground">
+                  截图 ({report.screenshots.length})
+                </h3>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {report.screenshots.map((screenshot) => (
+                    <div
+                      key={screenshot.id}
+                      className="space-y-2 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-2"
+                    >
+                      <div
+                        className="relative h-32 cursor-pointer overflow-hidden rounded"
+                        onClick={() => setPreviewImage(screenshot.url)}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={screenshot.url}
+                          alt={screenshot.filename}
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                      {screenshot.caption && (
+                        <p className="text-xs text-muted-foreground">{screenshot.caption}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="py-8 text-center text-muted-foreground">暂无报告数据</p>
+        )}
+      </SheetContent>
+
+      {previewImage && (
+        <ImagePreviewDialog
+          open={!!previewImage}
+          onOpenChange={(open) => !open && setPreviewImage(null)}
+          src={previewImage}
+          alt="截图预览"
+        />
+      )}
+    </Sheet>
+  )
+}
+
+export default function InspectionHistory({ periodId }: InspectionHistoryProps) {
+  const { notify } = useNotifications()
+  const [history, setHistory] = useState<InspectionHistoryItem[]>([])
+  const [periods, setPeriods] = useState<InspectionPeriod[]>([])
+  const [selectedPeriodId, setSelectedPeriodId] = useState<number>(periodId)
+  const [loading, setLoading] = useState(true)
+  const [selectedItem, setSelectedItem] = useState<InspectionHistoryItem | null>(null)
+  const [detailReport, setDetailReport] = useState<InspectionReport | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [detailOpen, setDetailOpen] = useState(false)
+
+  // Load periods for selector
+  useEffect(() => {
+    async function loadPeriods() {
+      try {
+        const data = await fetchPeriods(100)
+        setPeriods(data.items)
+      } catch (e) {
+        console.error('Failed to load periods:', e)
+      }
+    }
+    void loadPeriods()
+  }, [])
+
+  // Load history when period changes
+  useEffect(() => {
+    async function loadHistory() {
+      setLoading(true)
+      try {
+        const data = await fetchInspectionHistory({
+          periodId: selectedPeriodId,
+          limit: 100,
+        })
+        setHistory(data.items)
+      } catch (e) {
+        notify({
+          type: 'error',
+          title: '加载失败',
+          message: normalizeErrorMessage(e, '获取历史记录失败'),
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
+    void loadHistory()
+  }, [selectedPeriodId, notify])
+
+  const handleViewDetail = async (item: InspectionHistoryItem) => {
+    setSelectedItem(item)
+    setDetailReport(null)
+    setDetailOpen(true)
+    setDetailLoading(true)
+
+    try {
+      const report = await fetchReport(item.period_id, item.project_id)
+      setDetailReport(report)
+    } catch (e) {
+      notify({
+        type: 'error',
+        title: '加载失败',
+        message: normalizeErrorMessage(e, '获取报告详情失败'),
+      })
+    } finally {
+      setDetailLoading(false)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Period selector */}
+      <div className="flex items-center gap-3">
+        <label className="text-sm font-medium text-muted-foreground">选择周期</label>
+        <select
+          value={selectedPeriodId}
+          onChange={(e) => setSelectedPeriodId(Number(e.target.value))}
+          className="h-9 rounded-md border border-border/70 bg-[hsl(var(--surface-soft))] px-3 text-sm"
+        >
+          {periods.map((period) => (
+            <option key={period.id} value={period.id}>
+              {period.week_start} - {period.week_end}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* History table */}
+      <Card className="dashboard-surface">
+        <CardContent className="p-0">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : history.length === 0 ? (
+            <p className="py-12 text-center text-muted-foreground">暂无历史记录</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>项目</TableHead>
+                  <TableHead>状态</TableHead>
+                  <TableHead>AHR</TableHead>
+                  <TableHead>ODR</TableHead>
+                  <TableHead>提交人</TableHead>
+                  <TableHead>提交时间</TableHead>
+                  <TableHead>操作</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {history.map((item) => {
+                  const style = STATUS_STYLES[item.status] || STATUS_STYLES.pending
+                  return (
+                    <TableRow key={item.id}>
+                      <TableCell className="font-medium">{item.project_name}</TableCell>
+                      <TableCell>
+                        <Badge className={style.badge}>{style.label}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        {item.account_health_rating ? (
+                          <Badge variant="outline" className="text-xs">
+                            {item.account_health_rating}
+                          </Badge>
+                        ) : (
+                          '-'
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {item.odr !== undefined ? `${item.odr}%` : '-'}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {item.submitted_by || '-'}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {formatDateTime(item.submitted_at)}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleViewDetail(item)}
+                        >
+                          <Eye className="mr-1 h-4 w-4" />
+                          查看
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Detail sheet */}
+      <DetailSheet
+        item={selectedItem}
+        report={detailReport}
+        loading={detailLoading}
+        open={detailOpen}
+        onClose={() => {
+          setDetailOpen(false)
+          setSelectedItem(null)
+        }}
+      />
+    </div>
+  )
+}

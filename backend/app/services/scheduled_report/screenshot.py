@@ -14,8 +14,8 @@ logger = logging.getLogger(__name__)
 # 邮件模板最大宽度 680px + 两侧 padding
 _VIEWPORT_WIDTH = 720
 _VIEWPORT_HEIGHT = 800  # 初始高度，full_page=True 会自动扩展
-# Retina 缩放因子：2x 保证手机端截图清晰（720 CSS px → 1440 物理 px）
-_DEVICE_SCALE_FACTOR = 2
+# Super Retina 缩放因子：3x 保证手机端截图超清晰（720 CSS px → 2160 物理 px）
+_DEVICE_SCALE_FACTOR = 3
 _ROUNDED_RADIUS = 100
 
 
@@ -47,7 +47,7 @@ def html_to_png(
     Args:
         html: 要渲染的完整 HTML 文档。
         width: CSS 视口宽度（默认 720px）。
-        scale: 设备缩放因子（默认 2x，生成 Retina 级别清晰度）。
+        scale: 设备缩放因子（默认 3x，生成 Super Retina 级别清晰度）。
 
     Returns:
         PNG 字节数据（含透明圆角），失败时返回 None（不阻断邮件发送）。

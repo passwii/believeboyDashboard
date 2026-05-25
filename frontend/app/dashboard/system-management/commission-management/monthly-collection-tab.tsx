@@ -30,10 +30,14 @@ function getYearMonths(year: string): string[] {
   return Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`)
 }
 
+// 容差常量，避免浮点数精度问题导致颜色判断错误
+// 例如 0.999999... 应该显示绿色（≥100%），而不是橙色（50%~100%）
+const RATE_EPSILON = 1e-9
+
 function getReceiveRateColor(rate: number): { bg: string; text: string } {
-  if (rate >= 1) return { bg: 'bg-green-100 dark:bg-green-500/20', text: 'text-green-700 dark:text-green-300' }
-  if (rate >= 0.5) return { bg: 'bg-orange-100 dark:bg-orange-500/20', text: 'text-orange-700 dark:text-orange-300' }
-  if (rate >= 0.2) return { bg: 'bg-yellow-100 dark:bg-yellow-500/20', text: 'text-yellow-700 dark:text-yellow-300' }
+  if (rate >= 1 - RATE_EPSILON) return { bg: 'bg-green-100 dark:bg-green-500/20', text: 'text-green-700 dark:text-green-300' }
+  if (rate >= 0.5 - RATE_EPSILON) return { bg: 'bg-orange-100 dark:bg-orange-500/20', text: 'text-orange-700 dark:text-orange-300' }
+  if (rate >= 0.2 - RATE_EPSILON) return { bg: 'bg-yellow-100 dark:bg-yellow-500/20', text: 'text-yellow-700 dark:text-yellow-300' }
   return { bg: 'bg-red-100 dark:bg-red-500/20', text: 'text-red-700 dark:text-red-300' }
 }
 

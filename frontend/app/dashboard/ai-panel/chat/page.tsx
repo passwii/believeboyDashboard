@@ -37,6 +37,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { parseResponseError } from '@/lib/error-utils'
 import { cn } from '@/lib/utils'
+import { useConfirm } from '@/hooks/use-confirm'
 
 type ConversationItem = {
   id: number
@@ -302,6 +303,7 @@ async function readNdjsonStream(response: Response, onEvent: (event: StreamEvent
 }
 
 export default function AIChatPage() {
+  const { confirm } = useConfirm()
   const [conversations, setConversations] = useState<ConversationItem[]>([])
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -562,7 +564,7 @@ export default function AIChatPage() {
       if (submitting) {
         return
       }
-      const confirmed = window.confirm('删除后该会话及消息不可恢复，确认继续吗？')
+      const confirmed = await confirm({ title: '删除后该会话及消息不可恢复，确认继续吗？', variant: 'destructive' })
       if (!confirmed) {
         return
       }

@@ -9,6 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Loader2, Database, Clock, CheckCircle, XCircle, AlertTriangle, RefreshCw, Shield, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useNotifications } from '@/components/notifications'
+import { useConfirm } from '@/hooks/use-confirm'
 
 const API_BASE = '/api/backend'
 
@@ -109,6 +111,8 @@ function formatDatetime(datetimeStr: string | null): string {
 
 export function BackupManagementClient() {
   const { data: session } = useSession()
+  const { notify } = useNotifications()
+  const { confirm } = useConfirm()
   const [records, setRecords] = useState<BackupRecord[]>([])
   const [statusSummary, setStatusSummary] = useState<BackupStatusSummary | null>(null)
   const [backupInfo, setBackupInfo] = useState<BackupInfo | null>(null)
@@ -165,24 +169,25 @@ export function BackupManagementClient() {
           setStatusSummary(await statusRes.json())
         }
       } else {
-        alert(`备份启动失败: ${data.detail || '未知错误'}`)
+        notify({ type: 'error', title: `备份启动失败: ${data.detail || '未知错误'}` })
       }
     } catch (e) {
       console.error('Failed to trigger backup:', e)
-      alert('备份启动失败')
+      notify({ type: 'error', title: '备份启动失败' })
     } finally {
       setTriggering(false)
     }
   }
 
   const handleVerifyBackups = async () => {
-    if (!confirm('确定要验证所有备份吗？')) return
+    const confirmed = await confirm({ title: '确定要验证所有备份吗？', variant: 'destructive' })
+    if (!confirmed) return
     try {
       const res = await fetch(`${API_BASE}/api/v1/backups/verify`, { method: 'POST' })
       const data = await res.json()
-      alert(data.message)
+      notify({ type: 'success', title: data.message || '验证完成' })
     } catch (e) {
-      alert('验证失败')
+      notify({ type: 'error', title: '验证失败' })
     }
   }
 

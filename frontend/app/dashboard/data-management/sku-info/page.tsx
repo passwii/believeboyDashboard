@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { HoverCard } from '@/components/ui/hover-card'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { useNotifications } from '@/components/notifications'
+import { useConfirm } from '@/hooks/use-confirm'
 import {
   DataCard,
   DataCardHeader,
@@ -286,6 +287,7 @@ function TableSkeletonRows({
 
 export default function SkuInfoPage() {
   const { notify } = useNotifications()
+  const { confirm } = useConfirm()
   const [activeTab, setActiveTab] = useState<ActiveTab>('cost')
   const [items, setItems] = useState<ProductCostItem[]>([])
   const [page, setPage] = useState(1)
@@ -701,7 +703,7 @@ export default function SkuInfoPage() {
   }
 
   const deleteRow = async (rowId: number) => {
-    if (!window.confirm('确定要删除该 SKU 记录吗？')) return
+    if (!await confirm({ title: '确定要删除该 SKU 记录吗？', variant: 'destructive' })) return
     try {
       const response = await fetch(`${API_BASE}/api/v1/sku-info/${rowId}`, {
         method: 'DELETE',

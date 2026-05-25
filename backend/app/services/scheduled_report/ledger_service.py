@@ -149,11 +149,13 @@ def _project_names_for(db: Session, project_ids: str) -> list[str]:
 
 def _to_item(db: Session, entry: ScheduledReportLedgerEntry) -> LedgerItem:
     screenshot_r2_url = None
+    screenshot_r2_thumb_url = None
     ai_summary = None
     if entry.latest_delivery_log_id:
         log = db.get(ScheduledReportDeliveryLog, entry.latest_delivery_log_id)
         if log:
             screenshot_r2_url = log.screenshot_r2_url
+            screenshot_r2_thumb_url = log.screenshot_r2_thumb_url
             ai_summary = log.ai_summary
 
     return LedgerItem(
@@ -174,6 +176,7 @@ def _to_item(db: Session, entry: ScheduledReportLedgerEntry) -> LedgerItem:
         can_resend=entry.status in (LedgerStatus.MISSING.value, LedgerStatus.FAILED.value),
         last_checked_at=entry.last_checked_at,
         screenshot_r2_url=screenshot_r2_url,
+        screenshot_r2_thumb_url=screenshot_r2_thumb_url,
         ai_summary=ai_summary,
     )
 
@@ -290,13 +293,14 @@ def resend_ledger_entry_async(db: Session, *, ledger_key: str) -> tuple[bool, in
     # 创建 delivery_log（初始 stage = preparing）
     from app.services.scheduled_report.subscription_service import create_delivery_log_with_stage
 
-    today_str = date.today().isoformat()
+    # 使用原始预期日期，确保 refresh_ledger 能通过 report_date 匹配到这条 log
+    report_date = entry.expected_date
     log = create_delivery_log_with_stage(
         db=db,
         subscription_id=subscription.id,
         frequency=subscription.frequency,
-        report_date=today_str,
-        report_month=today_str[:7] if subscription.frequency == "monthly" else None,
+        report_date=report_date,
+        report_month=report_date[:7] if subscription.frequency == "monthly" else None,
         email=subscription.email,
         initial_stage=DeliveryStage.PREPARING.value,
     )

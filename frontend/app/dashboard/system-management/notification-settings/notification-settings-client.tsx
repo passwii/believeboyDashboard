@@ -11,6 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Loader2, Plus, Trash2, Mail, Calendar, ChevronUp, ChevronDown, Pencil, Bell, Zap } from 'lucide-react'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+import { useNotifications } from '@/components/notifications'
+import { useConfirm } from '@/hooks/use-confirm'
 import { cn } from '@/lib/utils'
 
 const API_BASE = '/api/backend'
@@ -105,6 +107,8 @@ const SEVERITY_LABELS: Record<string, string> = {
 
 export function NotificationSettingsClient() {
   const { data: session } = useSession()
+  const { notify } = useNotifications()
+  const { confirm } = useConfirm()
   const [projects, setProjects] = useState<Array<{ id: number; name: string }>>([])
   const [selectedProject, setSelectedProject] = useState<number | null>(null)
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([])
@@ -231,7 +235,8 @@ export function NotificationSettingsClient() {
   }
 
   const handleDelete = async (id: number) => {
-    if (!confirm('确定删除此规则？')) return
+    const confirmed = await confirm({ title: '确定删除此规则？', variant: 'destructive' })
+    if (!confirmed) return
     try {
       const res = await fetch(`${API_BASE}/api/v1/notification-settings/subscriptions/${id}`, { method: 'DELETE' })
       if (res.ok) {
@@ -252,9 +257,9 @@ export function NotificationSettingsClient() {
         body: JSON.stringify({ test_recipients: email ? [email] : null }),
       })
       const data = await res.json()
-      alert(data.message)
+      notify({ type: 'success', title: data.message })
     } catch (e) {
-      alert('发送失败')
+      notify({ type: 'error', title: '发送失败' })
     }
   }
 
@@ -292,11 +297,11 @@ export function NotificationSettingsClient() {
         resetAlertForm()
       } else {
         const err = await res.json()
-        alert(`创建失败: ${err.detail || '未知错误'}`)
+        notify({ type: 'error', title: `创建失败: ${err.detail || '未知错误'}` })
       }
     } catch (e) {
       console.error(e)
-      alert('创建失败')
+      notify({ type: 'error', title: '创建失败' })
     }
   }
 
@@ -322,11 +327,11 @@ export function NotificationSettingsClient() {
         resetAlertForm()
       } else {
         const err = await res.json()
-        alert(`更新失败: ${err.detail || '未知错误'}`)
+        notify({ type: 'error', title: `更新失败: ${err.detail || '未知错误'}` })
       }
     } catch (e) {
       console.error(e)
-      alert('更新失败')
+      notify({ type: 'error', title: '更新失败' })
     }
   }
 
@@ -347,30 +352,32 @@ export function NotificationSettingsClient() {
   }
 
   const handleDeleteAlertRule = async (ruleId: number) => {
-    if (!confirm('确定删除此告警规则？')) return
+    const confirmed = await confirm({ title: '确定删除此告警规则？', variant: 'destructive' })
+    if (!confirmed) return
     try {
       const res = await fetch(`${API_BASE}/api/v1/alerts/rules/${ruleId}`, { method: 'DELETE' })
       if (res.ok) {
         setAlertRules(prev => prev.filter(r => r.id !== ruleId))
       } else {
         const err = await res.json()
-        alert(`删除失败: ${err.detail || '未知错误'}`)
+        notify({ type: 'error', title: `删除失败: ${err.detail || '未知错误'}` })
       }
     } catch (e) {
       console.error(e)
-      alert('删除失败')
+      notify({ type: 'error', title: '删除失败' })
     }
   }
 
   const handleTestAlert = async (rule: AlertRule) => {
-    if (!confirm(`测试告警规则"${rule.metric}"？这将根据当前数据立即触发检测。`)) return
+    const confirmed = await confirm({ title: `测试告警规则"${rule.metric}"？这将根据当前数据立即触发检测。`, variant: 'destructive' })
+    if (!confirmed) return
     try {
       const res = await fetch(`${API_BASE}/api/v1/alerts/detect`, {
         method: 'POST',
       })
       const data = await res.json()
       if (res.ok) {
-        alert(`检测完成：评估了 ${data.rules_evaluated} 条规则，创建了 ${data.events_created} 个事件，发送了 ${data.messages_sent} 条通知。`)
+        notify({ type: 'success', title: `检测完成：评估了 ${data.rules_evaluated} 条规则，创建了 ${data.events_created} 个事件，发送了 ${data.messages_sent} 条通知。` })
         // Reload events
         if (selectedProject) {
           const eventsRes = await fetch(`${API_BASE}/api/v1/alerts/events?project_id=${selectedProject}&page_size=10`)
@@ -378,11 +385,11 @@ export function NotificationSettingsClient() {
           setAlertEvents(eventsData.items || [])
         }
       } else {
-        alert(`测试失败: ${data.detail || '未知错误'}`)
+        notify({ type: 'error', title: `测试失败: ${data.detail || '未知错误'}` })
       }
     } catch (e) {
       console.error(e)
-      alert('测试失败')
+      notify({ type: 'error', title: '测试失败' })
     }
   }
 

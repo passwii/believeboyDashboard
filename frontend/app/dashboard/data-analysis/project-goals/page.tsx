@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { COUNTRY_TIMEZONE_MAP, getTodayInTimezone } from '@/components/ui/date-picker'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useNotifications } from '@/components/notifications'
+import { useConfirm } from '@/hooks/use-confirm'
 import { cn } from '@/lib/utils'
 
 const API_BASE = '/api/backend/api/v1'
@@ -148,6 +149,7 @@ function ProgressBar({ value, className, isPastIncomplete }: { value: number; cl
 export default function ProjectGoalsPage() {
   const { data: session } = useSession()
   const { notify } = useNotifications()
+  const { confirm } = useConfirm()
   const searchParams = useSearchParams()
 
   const [projects, setProjects] = useState<ProjectOption[]>([])
@@ -316,7 +318,7 @@ export default function ProjectGoalsPage() {
   }
 
   async function handleDelete(goal: ProjectGoalItem) {
-    if (!confirm(`确定删除 ${goal.goal_type === 'monthly' ? `${goal.period_month}月` : '年度'} 目标？`)) return
+    if (!await confirm({ title: `确定删除 ${goal.goal_type === 'monthly' ? `${goal.period_month}月` : '年度'} 目标？`, variant: 'destructive' })) return
     const res = await fetch(`${API_BASE}/project-goals/${goal.id}`, { method: 'DELETE' })
     if (!res.ok) {
       notify({ type: 'error', title: '删除失败' })

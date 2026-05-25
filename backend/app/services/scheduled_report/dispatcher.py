@@ -22,7 +22,7 @@ import logging
 import signal
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 from app.db.session import SessionLocal
@@ -80,6 +80,7 @@ def _build_report_data_with_timeout(
     frequency: str,
     date_str: str,
     ai_model: str | None = None,
+    reference_date: "date | None" = None,
 ) -> dict[str, Any]:
     """Build report data inside the semaphore, with optional per-call timeout.
 
@@ -87,26 +88,26 @@ def _build_report_data_with_timeout(
     Falls back to direct call on Windows or if signals are unavailable.
     """
     if AI_SUMMARY_TIMEOUT_SEC <= 0 or threading.current_thread() is not threading.main_thread():
-        return _do_build_report(project_ids, country, frequency, ai_model=ai_model)
+        return _do_build_report(project_ids, country, frequency, ai_model=ai_model, reference_date=reference_date)
 
     try:
         old_handler = signal.signal(signal.SIGALRM, _raise_timeout)
         signal.alarm(AI_SUMMARY_TIMEOUT_SEC)
         try:
-            result = _do_build_report(project_ids, country, frequency, ai_model=ai_model)
+            result = _do_build_report(project_ids, country, frequency, ai_model=ai_model, reference_date=reference_date)
         finally:
             signal.alarm(0)
             signal.signal(signal.SIGALRM, old_handler)
         return result
     except (AttributeError, OSError):
         # signal.SIGALRM not available on Windows — call without timeout
-        return _do_build_report(project_ids, country, frequency, ai_model=ai_model)
+        return _do_build_report(project_ids, country, frequency, ai_model=ai_model, reference_date=reference_date)
     except TimeoutError:
         logger.warning(
             "AI summary timed out for project=%s country=%s date=%s — using fallback",
             project_ids, country, date_str,
         )
-        return _fallback_report_data(project_ids, country, frequency)
+        return _fallback_report_data(project_ids, country, frequency, reference_date=reference_date)
 
 
 def _do_build_report(
@@ -114,16 +115,17 @@ def _do_build_report(
     country: str,
     frequency: str,
     ai_model: str | None = None,
+    reference_date: "date | None" = None,
 ) -> dict[str, Any]:
     """Build report data (no timeout protection — run inside semaphore)."""
     db = SessionLocal()
     try:
         if frequency == "weekly":
-            # 周报使用专用 builder（自然周计算 + 归因分析）
             return build_weekly_report_data(
                 db=db,
                 project_ids=project_ids,
                 country=country,
+                reference_date=reference_date,
             )
         return build_report_email_data(
             db=db,
@@ -131,6 +133,7 @@ def _do_build_report(
             country=country,
             frequency=frequency,
             ai_model=ai_model,
+            reference_date=reference_date,
         )
     finally:
         db.close()
@@ -140,6 +143,7 @@ def _fallback_report_data(
     project_ids: list[int] | None,
     country: str,
     frequency: str,
+    reference_date: "date | None" = None,
 ) -> dict[str, Any]:
     """Return report with plain-text fallback summary when AI times out."""
     db = SessionLocal()
@@ -149,6 +153,7 @@ def _fallback_report_data(
                 db=db,
                 project_ids=project_ids,
                 country=country,
+                reference_date=reference_date,
             )
             data["ai_summary"] = "AI 摘要生成超时，请登录仪表板查看详情。"
             return data
@@ -158,6 +163,7 @@ def _fallback_report_data(
             project_ids=project_ids,
             country=country,
             frequency=frequency,
+            reference_date=reference_date,
         )
         # Replace AI summary with fallback text (no AI call)
         from app.services.scheduled_report.report_builder_daily import _generate_summary
@@ -173,6 +179,7 @@ def _build_report_with_throttle(
     country: str,
     frequency: str,
     ai_model: str | None = None,
+    reference_date: "date | None" = None,
 ) -> dict[str, Any]:
     """Build report data, throttling AI summary generation via semaphore.
 
@@ -182,7 +189,8 @@ def _build_report_with_throttle(
     If the AI call exceeds AI_SUMMARY_TIMEOUT_SEC, it is cancelled and a
     fallback summary is used instead — the semaphore slot is always released.
     """
-    date_str = _dispatch_date_str
+    # 补发时使用历史日期作为缓存键，避免与当天调度的缓存混淆
+    date_str = reference_date.isoformat() if reference_date else _dispatch_date_str
     key = _cache_key(project_ids, country, date_str)
 
     # ── fast path: cache hit (no semaphore needed) ──────────────────────────
@@ -200,7 +208,8 @@ def _build_report_with_throttle(
                 return _summary_cache[key]
 
         report_data = _build_report_data_with_timeout(
-            project_ids, country, frequency, date_str, ai_model=ai_model
+            project_ids, country, frequency, date_str, ai_model=ai_model,
+            reference_date=reference_date,
         )
 
         with _cache_lock:
@@ -267,6 +276,8 @@ def _dispatch_one(
             # 保存截图 R2 信息到 delivery log
             screenshot_key = report_data.get("screenshot_r2_key")
             screenshot_url = report_data.get("screenshot_r2_url")
+            screenshot_thumb_key = report_data.get("screenshot_r2_thumb_key")
+            screenshot_thumb_url = report_data.get("screenshot_r2_thumb_url")
             if screenshot_key and screenshot_url:
                 try:
                     from app.services.scheduled_report.subscription_service import update_delivery_log_screenshot
@@ -275,6 +286,8 @@ def _dispatch_one(
                         log_id=log_id,
                         screenshot_r2_key=screenshot_key,
                         screenshot_r2_url=screenshot_url,
+                        screenshot_r2_thumb_key=screenshot_thumb_key,
+                        screenshot_r2_thumb_url=screenshot_thumb_url,
                     )
                 except Exception as update_err:
                     logger.warning("更新 delivery log 截图信息失败: %s", update_err)
@@ -509,7 +522,14 @@ def _dispatch_one_async(
     try:
         # 阶段：构建报表
         update_delivery_log_stage(db, log_id, DeliveryStage.BUILDING.value)
-        report_data = _build_report_with_throttle(project_ids, country, frequency, ai_model=ai_model)
+        # 补发时使用历史日期作为数据锚定，而非当天
+        # 日报/月报：数据锚定 = expected_date - 1（与正常调度的 _get_report_anchor_date 逻辑一致）
+        # 周报：数据锚定 = expected_date 本身（_get_previous_natural_week 内部会计算上一个自然周）
+        if frequency == "weekly":
+            ref_date = date.fromisoformat(expected_date)
+        else:
+            ref_date = date.fromisoformat(expected_date) - timedelta(days=1)
+        report_data = _build_report_with_throttle(project_ids, country, frequency, ai_model=ai_model, reference_date=ref_date)
         report_data["log_id"] = log_id
 
         # 阶段：发送邮件
@@ -525,6 +545,8 @@ def _dispatch_one_async(
             # 保存截图和 AI 摘要
             screenshot_key = report_data.get("screenshot_r2_key")
             screenshot_url = report_data.get("screenshot_r2_url")
+            screenshot_thumb_key = report_data.get("screenshot_r2_thumb_key")
+            screenshot_thumb_url = report_data.get("screenshot_r2_thumb_url")
             if screenshot_key and screenshot_url:
                 try:
                     from app.services.scheduled_report.subscription_service import update_delivery_log_screenshot
@@ -533,6 +555,8 @@ def _dispatch_one_async(
                         log_id=log_id,
                         screenshot_r2_key=screenshot_key,
                         screenshot_r2_url=screenshot_url,
+                        screenshot_r2_thumb_key=screenshot_thumb_key,
+                        screenshot_r2_thumb_url=screenshot_thumb_url,
                     )
                 except Exception as update_err:
                     logger.warning("更新 delivery log 截图信息失败: %s", update_err)

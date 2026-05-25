@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { useNotifications } from '@/components/notifications'
+import { useConfirm } from '@/hooks/use-confirm'
 import {
   Sheet,
   SheetContent,
@@ -57,6 +58,7 @@ export default function BatchFactoryInfoSheet({
   onSaved,
 }: BatchFactoryInfoSheetProps) {
   const { notify } = useNotifications()
+  const { confirm } = useConfirm()
   const [description, setDescription] = useState('')
   const [parsedInfo, setParsedInfo] = useState<ParsedFactoryInfo | null>(null)
   const [parsing, setParsing] = useState(false)
@@ -158,7 +160,7 @@ export default function BatchFactoryInfoSheet({
   }
 
   const handleClear = async () => {
-    if (!window.confirm('确定要清除所有选中 SKU 的产品属性吗？')) return
+    if (!await confirm({ title: '确定要清除所有选中 SKU 的产品属性吗？', variant: 'destructive' })) return
 
     const skuIds = selectedSkus.map((sku) => sku.id)
 

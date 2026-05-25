@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Camera, ChevronDown, Clock, Loader2, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useNotifications } from '@/components/notifications'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -87,6 +88,7 @@ export function SnapshotSelector({
   isAdmin = false,
   onDeleteSnapshot,
 }: SnapshotSelectorProps) {
+  const { notify } = useNotifications()
   const [snapshots, setSnapshots] = useState<SnapshotOption[]>([])
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false)
@@ -151,7 +153,7 @@ export function SnapshotSelector({
       onDeleteSnapshot?.(snapshotId)
     } catch (err) {
       console.error('Failed to delete snapshot:', err)
-      alert(err instanceof Error ? err.message : '删除失败')
+      notify({ type: 'error', title: err instanceof Error ? err.message : '删除失败' })
     } finally {
       setDeletingId(null)
     }

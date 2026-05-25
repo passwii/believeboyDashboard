@@ -110,6 +110,8 @@ class ScheduledReportDeliveryLog(Base):
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     screenshot_r2_key: Mapped[str | None] = mapped_column(String(512), nullable=True, comment="R2 object key for screenshot")
     screenshot_r2_url: Mapped[str | None] = mapped_column(String(1024), nullable=True, comment="Public URL for screenshot")
+    screenshot_r2_thumb_key: Mapped[str | None] = mapped_column(String(512), nullable=True, comment="R2 thumb object key for screenshot")
+    screenshot_r2_thumb_url: Mapped[str | None] = mapped_column(String(1024), nullable=True, comment="Public URL for thumb")
     ai_summary: Mapped[str | None] = mapped_column(Text, nullable=True, comment="AI 报表总结文案（Markdown）")
     stage: Mapped[str] = mapped_column(
         String(20), nullable=False, default=DeliveryStage.PENDING.value, index=True,

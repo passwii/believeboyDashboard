@@ -77,6 +77,8 @@ import {
 } from '@/components/ui/table'
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart'
 import { parseResponseError } from '@/lib/error-utils'
+import { useNotifications } from '@/components/notifications'
+import { useConfirm } from '@/hooks/use-confirm'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { cn } from '@/lib/utils'
 
@@ -1344,6 +1346,8 @@ const MarkdownContent = ({ content, collectChartSvgs, autoScroll = true }: { con
 
 export default function AIInsightsPage() {
   const { data: session } = useSession()
+  const { notify } = useNotifications()
+  const { confirm } = useConfirm()
   const searchParams = useSearchParams()
 
   const [projects, setProjects] = useState<ProjectOption[]>([])
@@ -1658,14 +1662,14 @@ export default function AIInsightsPage() {
       }
     } catch (e) {
       console.error('Failed to load insight detail', e)
-      alert(`加载失败: ${e instanceof Error ? e.message : String(e)}`)
+      notify({ type: 'error', title: '加载失败', message: e instanceof Error ? e.message : String(e) })
       setViewDialogOpen(false)
       setIsLoadingDetail(false)
     }
-  }, [_attachViewSse])
+  }, [_attachViewSse, notify])
 
   const handleRetryInsight = useCallback(async (insightId: number) => {
-    if (!confirm('确定要重试生成这条洞察吗？当前内容将被替换。')) return
+    if (!await confirm({ title: '确定要重试生成这条洞察吗？当前内容将被替换。' })) return
     setViewLiveRefreshing(true)
     setViewLiveContent('')
     setViewLivePreviewContent('')
@@ -1683,11 +1687,11 @@ export default function AIInsightsPage() {
       void loadInsights()
     } catch (e) {
       console.error('Failed to retry insight', e)
-      alert(`重试失败: ${e instanceof Error ? e.message : String(e)}`)
+      notify({ type: 'error', title: '重试失败', message: e instanceof Error ? e.message : String(e) })
       setViewLiveRefreshing(false)
       setIsLoadingDetail(false)
     }
-  }, [_attachViewSse, loadInsights])
+  }, [_attachViewSse, loadInsights, confirm, notify])
 
   const handleStartEditingDetail = useCallback(() => {
     setEditingContent(viewingInsight?.content || '')
@@ -1704,7 +1708,7 @@ export default function AIInsightsPage() {
 
     const nextContent = editingContent.trim()
     if (!nextContent) {
-      alert('报告内容不能为空')
+      notify({ type: 'warning', title: '报告内容不能为空' })
       return
     }
 
@@ -1736,11 +1740,11 @@ export default function AIInsightsPage() {
       )
     } catch (e) {
       console.error('Failed to save insight detail', e)
-      alert(`保存失败: ${e instanceof Error ? e.message : String(e)}`)
+      notify({ type: 'error', title: '保存失败', message: e instanceof Error ? e.message : String(e) })
     } finally {
       setIsSavingDetail(false)
     }
-  }, [editingContent, viewingInsight])
+  }, [editingContent, viewingInsight, notify])
 
   // Phase 1: charts register SVG data URLs; Phase 2: we capture PNG.
   // Using a state machine so React batches the render before toPng fires.
@@ -1771,7 +1775,7 @@ export default function AIInsightsPage() {
           })
           .catch((err) => {
             console.error('Failed to export PNG', err)
-            alert('导出失败，请重试')
+            notify({ type: 'error', title: '导出失败，请重试' })
           })
           .finally(() => {
             setCollectChartSvgs(false)
@@ -1779,7 +1783,7 @@ export default function AIInsightsPage() {
           })
       })
     })
-  }, [collectChartSvgs, viewingInsight])
+  }, [collectChartSvgs, viewingInsight, notify])
 
   const handleExportPng = useCallback(() => {
     if (!document.getElementById('ai-insight-export-root')) return
@@ -1835,7 +1839,7 @@ export default function AIInsightsPage() {
           }
           
           if (event.status === 'failed') {
-            alert(`生成失败: ${event.error_message || '生成任务失败'}`)
+            notify({ type: 'error', title: '生成失败', message: event.error_message || '生成任务失败' })
             _closeSse()
             setInsightDialogOpen(false)
             setInsights((prev) => prev.filter((i) => i.id !== sid))
@@ -1866,7 +1870,7 @@ export default function AIInsightsPage() {
         } else if (event.type === 'done') {
           const sid = event.insight_id ?? currentInsightId.current
           if (event.status === 'failed') {
-            alert(`生成失败: ${event.error_message || '生成任务失败'}`)
+            notify({ type: 'error', title: '生成失败', message: event.error_message || '生成任务失败' })
             setInsights((prev) => prev.filter((i) => i.id !== sid))
           }
           // content 只从 done 事件获取，不再从 status 中途获取
@@ -1881,7 +1885,7 @@ export default function AIInsightsPage() {
           void loadInsights()
         } else if (event.type === 'error') {
           const sid = event.insight_id ?? currentInsightId.current
-          alert(`生成失败: ${event.error}`)
+          notify({ type: 'error', title: '生成失败', message: event.error })
           _closeSse()
           setInsightDialogOpen(false)
           setCurrentSubStatus(null)
@@ -1895,7 +1899,7 @@ export default function AIInsightsPage() {
     const onError = () => {
       _closeSse()
       setInsightDialogOpen(false)
-      alert('SSE 连接中断，生成任务可能仍在后台运行，请稍后在列表中查看结果')
+      notify({ type: 'error', title: 'SSE 连接中断', message: '生成任务可能仍在后台运行，请稍后在列表中查看结果' })
       void loadInsights()
     }
 
@@ -1907,7 +1911,7 @@ export default function AIInsightsPage() {
       es.onerror = null
       attachedEses.delete(es)
     }
-  }, [_closeSse, loadInsights, eventSourceKey])
+  }, [_closeSse, loadInsights, eventSourceKey, notify])
 
   // Polling fallback: refresh processing insights every 10s in case SSE missed the done event
   useEffect(() => {
@@ -1996,7 +2000,7 @@ export default function AIInsightsPage() {
 
     } catch (e) {
       console.error('Failed to start insight generation', e)
-      alert(`启动失败: ${e instanceof Error ? e.message : String(e)}`)
+      notify({ type: 'error', title: '启动失败', message: e instanceof Error ? e.message : String(e) })
       setInsightDialogOpen(false)
     } finally {
       setIsGenerating(false)
@@ -2011,7 +2015,7 @@ export default function AIInsightsPage() {
   }, [_closeSse])
 
   const handleDelete = async (insightId: number) => {
-    if (!confirm('确定要删除这条洞察吗？')) return
+    if (!await confirm({ title: '确定要删除这条洞察吗？', variant: 'destructive' })) return
     try {
       const res = await fetch(`/api/backend/v1/ai-insights/${insightId}`, {
         method: 'DELETE',
@@ -2020,7 +2024,7 @@ export default function AIInsightsPage() {
       await loadInsights()
     } catch (e) {
       console.error('Failed to delete insight', e)
-      alert(`删除失败: ${e instanceof Error ? e.message : String(e)}`)
+      notify({ type: 'error', title: '删除失败', message: e instanceof Error ? e.message : String(e) })
     }
   }
 

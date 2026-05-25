@@ -5,6 +5,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useNotifications } from '@/components/notifications'
+import { useConfirm } from '@/hooks/use-confirm'
 import { useGlobalLoading } from '@/components/global-loading-provider'
 import { fetchProjectContext, updateProjectContext, type ProjectContextResponse } from '@/lib/project-context'
 import { AiParseContextSheet } from './ai-parse-context-sheet'
@@ -26,6 +27,7 @@ export function ProjectContextDrawer({
   onSuccess,
 }: ProjectContextDrawerProps) {
   const { notify } = useNotifications()
+  const { confirm } = useConfirm()
   const { startGlobalLoading, endGlobalLoading } = useGlobalLoading()
 
   const [loading, setLoading] = useState(false)
@@ -95,9 +97,9 @@ export function ProjectContextDrawer({
     }
   }
 
-  const handleOpenChange = (newOpen: boolean) => {
+  const handleOpenChange = async (newOpen: boolean) => {
     if (!newOpen && hasChanges) {
-      const confirmed = window.confirm('有未保存的更改，确定要关闭吗？')
+      const confirmed = await confirm({ title: '有未保存的更改，确定要关闭吗？', variant: 'destructive' })
       if (!confirmed) return
     }
     setHasChanges(false)

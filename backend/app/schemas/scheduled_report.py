@@ -97,6 +97,8 @@ class DeliveryLogItem(BaseModel):
     sent_at: Optional[datetime]
     screenshot_r2_key: Optional[str] = None
     screenshot_r2_url: Optional[str] = None
+    screenshot_r2_thumb_key: Optional[str] = None
+    screenshot_r2_thumb_url: Optional[str] = None
     ai_summary: Optional[str] = None
     created_at: datetime
 
@@ -159,6 +161,7 @@ class LedgerItem(BaseModel):
     can_resend: bool
     last_checked_at: datetime
     screenshot_r2_url: Optional[str] = None
+    screenshot_r2_thumb_url: Optional[str] = None
     ai_summary: Optional[str] = None
 
     model_config = {"from_attributes": True}
