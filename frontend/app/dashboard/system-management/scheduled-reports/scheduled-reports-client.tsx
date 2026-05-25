@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrig
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { ImagePreviewDialog } from '@/components/ui/image-preview-dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Loader2, Plus, Trash2, Mail, Calendar, ChevronUp, ChevronDown, ImageIcon, Copy, FileText, RotateCcw, AlertTriangle, Pencil } from 'lucide-react'
 import { DateRangePicker, parseDateRangeInputValue } from '@/components/ui/date-picker'
@@ -957,21 +958,16 @@ export function ScheduledReportsClient() {
         </TabsContent>
       </Tabs>
 
-      {previewScreenshotUrl ? (
-        <Dialog open onOpenChange={() => setPreviewScreenshotUrl(null)}>
-          <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
-            <div className="relative flex-1 min-h-0">
-              <Image
-                src={previewScreenshotUrl}
-                alt="报告截图"
-                fill
-                className="object-contain"
-                unoptimized
-              />
-            </div>
-          </DialogContent>
-        </Dialog>
-      ) : null}
+      {previewScreenshotUrl && (
+        <ImagePreviewDialog
+          open
+          onOpenChange={(open) => !open && setPreviewScreenshotUrl(null)}
+          src={previewScreenshotUrl}
+          alt="报告截图"
+          className="max-w-4xl max-h-[90vh] flex flex-col"
+          imageContainerClassName="relative flex-1 min-h-[200px]"
+        />
+      )}
 
       {previewSummary ? (
         <Dialog open onOpenChange={() => setPreviewSummary(null)}>

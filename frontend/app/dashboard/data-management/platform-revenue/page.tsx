@@ -30,6 +30,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { ImagePreviewDialog } from '@/components/ui/image-preview-dialog'
 import { EmptyTableState } from '@/components/ui/empty-state'
 import { DataCard, DataCardHeader, DataCardContent } from '@/components/ui/data-card'
 import { Badge } from '@/components/ui/badge'
@@ -1431,48 +1432,26 @@ export default function PlatformRevenuePage() {
       </Dialog>
 
       {/* 图片预览弹窗 */}
-      <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
-        <DialogContent aria-describedby="image-preview-dialog-description" className="max-w-3xl dark:border-border/90 dark:bg-[hsl(var(--surface-panel))]">
-          <span id="image-preview-dialog-description" className="sr-only">图片预览</span>
-          <DialogHeader>
-            <DialogTitle>图片预览</DialogTitle>
-            <DialogDescription>{previewImage?.filename}</DialogDescription>
-          </DialogHeader>
-          {previewImage && (
-            <div className="relative aspect-video w-full overflow-hidden rounded-md border border-border/70 bg-[hsl(var(--surface-subtle))]">
-              <Image
-                src={previewImage.url}
-                alt={previewImage.filename}
-                fill
-                className="object-contain"
-                unoptimized
-              />
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <ImagePreviewDialog
+        open={!!previewImage}
+        onOpenChange={(open) => !open && setPreviewImage(null)}
+        src={previewImage?.url ?? ''}
+        alt={previewImage?.filename ?? '图片预览'}
+        title="图片预览"
+        description={previewImage?.filename}
+        className="max-w-3xl dark:border-border/90 dark:bg-[hsl(var(--surface-panel))]"
+      />
 
       {/* 回款截图预览弹窗 */}
-      <Dialog open={!!previewScreenshotUrl} onOpenChange={(open) => !open && setPreviewScreenshotUrl(null)}>
-        <DialogContent aria-describedby="screenshot-preview-dialog-description" className="max-w-3xl dark:border-border/90 dark:bg-[hsl(var(--surface-panel))]">
-          <span id="screenshot-preview-dialog-description" className="sr-only">回款截图预览</span>
-          <DialogHeader>
-            <DialogTitle>回款截图</DialogTitle>
-            <DialogDescription>回款截图预览</DialogDescription>
-          </DialogHeader>
-          {previewScreenshotUrl && (
-            <div className="relative aspect-video w-full overflow-hidden rounded-md border border-border/70 bg-[hsl(var(--surface-subtle))]">
-              <Image
-                src={previewScreenshotUrl}
-                alt="回款截图"
-                fill
-                className="object-contain"
-                unoptimized
-              />
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <ImagePreviewDialog
+        open={!!previewScreenshotUrl}
+        onOpenChange={(open) => !open && setPreviewScreenshotUrl(null)}
+        src={previewScreenshotUrl ?? ''}
+        alt="回款截图"
+        title="回款截图"
+        description="回款截图预览"
+        className="max-w-3xl dark:border-border/90 dark:bg-[hsl(var(--surface-panel))]"
+      />
     </div>
   )
 }
