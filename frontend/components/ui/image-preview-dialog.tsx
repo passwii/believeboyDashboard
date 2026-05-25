@@ -30,7 +30,7 @@ export function ImagePreviewDialog({
   title,
   description,
   className,
-  imageContainerClassName = "relative aspect-video w-full overflow-hidden rounded-md border border-border/70 bg-[hsl(var(--surface-subtle))]",
+  imageContainerClassName = "relative aspect-auto w-full overflow-hidden rounded-md border border-border/70 bg-[hsl(var(--surface-subtle))]",
   children,
 }: ImagePreviewDialogProps) {
   return (
