@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useNotifications } from '@/components/notifications'
+import { useConfirm } from '@/hooks/use-confirm'
 import {
   Sheet,
   SheetContent,
@@ -47,6 +48,7 @@ export default function FactoryInfoSheet({
   onSaved: (saved: boolean) => void
 }) {
   const { notify } = useNotifications()
+  const { confirm } = useConfirm()
   const [pairs, setPairs] = useState<FactoryPair[]>([])
   const [jsonMode, setJsonMode] = useState(false)
   const [jsonText, setJsonText] = useState('')
@@ -154,7 +156,7 @@ export default function FactoryInfoSheet({
   }
 
   const handleClear = async () => {
-    if (!window.confirm('确定要清除该 SKU 的产品属性吗？')) return
+    if (!await confirm({ title: '确定要清除该 SKU 的产品属性吗？', variant: 'destructive' })) return
     setSaving(true)
     try {
       const response = await fetch(`${API_BASE}/api/v1/sku-info/${productCostId}`, {

@@ -10,7 +10,6 @@ from sqlalchemy.orm import Session
 
 from app.models.commission_project_month import CommissionProjectMonth
 from app.models.commission_record import CommissionRecord
-from app.models.exchange_rate import ExchangeRate
 from app.models.monthly_report import MonthlyReport, MonthlyReportPT4Calculation
 from app.models.project import Project
 from app.models.project_role_assignment import ProjectRoleAssignment
@@ -26,6 +25,7 @@ from app.services.system_management.commission._commission_calculator import (
     _resolve_factory_commission,
 )
 from app.services.system_management.shared import _to_decimal, _dedupe_names, _split_role_names
+from app.services import exchange_rate_service
 
 
 # 国家代码到源货币的映射
@@ -64,12 +64,25 @@ def _recompute_single_country(
     project_map = {int(project.id): project for project in projects}
 
     source_currency = COUNTRY_CURRENCY_MAP[country]
-    exchange_rate = db.execute(
-        select(ExchangeRate).where(ExchangeRate.currency == source_currency, ExchangeRate.year_month == report_month)
-    ).scalars().first()
-    if exchange_rate is None:
-        raise ValueError(f"{source_currency} exchange rate for {report_month} not found")
-    usd_to_rmb_rate: Decimal = Decimal(str(exchange_rate.rate))
+
+    # 获取源货币→CNY 汇率（支持回退到最近历史）
+    source_rate = exchange_rate_service.get_exchange_rate_by_currency_month_with_fallback(
+        db, currency=source_currency, year_month=report_month
+    )
+    # 获取 USD→CNY 汇率（支持回退到最近历史）
+    usd_rate = exchange_rate_service.get_exchange_rate_by_currency_month_with_fallback(
+        db, currency="USD", year_month=report_month
+    )
+
+    if source_rate is None:
+        raise ValueError(f"{source_currency} exchange rate for {report_month} not found (no fallback available)")
+    if usd_rate is None:
+        raise ValueError(f"USD exchange rate for {report_month} not found (no fallback available)")
+
+    source_to_cny: Decimal = Decimal(str(source_rate.rate))
+    usd_to_cny: Decimal = Decimal(str(usd_rate.rate))
+    # 计算源货币→USD 的转换因子（用于将原始货币转为 USD 统一显示）
+    source_to_usd_factor: Decimal = source_to_cny / usd_to_cny
 
     role_rows = db.execute(
         select(ProjectRoleAssignment).where(
@@ -112,13 +125,19 @@ def _recompute_single_country(
         if project is None:
             continue
 
-        income_total_usd = _to_decimal(pt4.income_total, "0.01")
-        amazon_pay_back = _to_decimal(pt4.amazon_pay_back, "0.01")
+        # 将原始货币收入转换为 USD（使用源货币→CNY ÷ USD→CNY 转换因子）
+        original_income = _to_decimal(pt4.income_total, "0.01")
+        income_total_usd = _to_decimal(original_income * source_to_usd_factor, "0.01")
+        # 将原始货币回款转换为 USD
+        original_payback = _to_decimal(pt4.amazon_pay_back, "0.01")
+        amazon_pay_back_usd = _to_decimal(original_payback * source_to_usd_factor, "0.01")
+
         factory_commission_rate, _, factory_commission_usd = _resolve_factory_commission(
-            project.commission_basis, project.commission_rate, income_total_usd, amazon_pay_back,
+            project.commission_basis, project.commission_rate, income_total_usd, amazon_pay_back_usd,
         )
+        # 工厂佣金 RMB = 工厂佣金 USD × USD→CNY 汇率
         factory_commission_rmb = _to_decimal(
-            Decimal(str(factory_commission_usd)) * usd_to_rmb_rate, "0.01"
+            Decimal(str(factory_commission_usd)) * usd_to_cny, "0.01"
         )
 
         pm_row = project_month_map.get(int(project.id))
@@ -136,7 +155,8 @@ def _recompute_single_country(
         pm_row.project_name = project.project_name
         pm_row.income_total_usd = income_total_usd
         pm_row.factory_commission_rate = _to_decimal(factory_commission_rate, "0.000001")
-        pm_row.usd_to_rmb_rate = _to_decimal(usd_to_rmb_rate, "0.00000001")
+        # 存储 USD→CNY 汇率（用于 RMB 计算）
+        pm_row.usd_to_rmb_rate = _to_decimal(usd_to_cny, "0.00000001")
         pm_row.factory_commission_usd = factory_commission_usd
         pm_row.factory_commission_rmb = factory_commission_rmb
         pm_row.computed_at = now
@@ -177,9 +197,9 @@ def _recompute_single_country(
             row.factory_commission_rate = _to_decimal(factory_commission_rate, "0.000001")
             row.operator_bonus_ratio = _to_decimal(ratio_value, "0.000001")
             row.bonus_amount_usd = bonus_amount_usd
-            row.usd_to_rmb_rate = _to_decimal(usd_to_rmb_rate, "0.00000001")
+            row.usd_to_rmb_rate = _to_decimal(usd_to_cny, "0.00000001")
             row.bonus_amount_rmb = _to_decimal(
-                Decimal(str(bonus_amount_usd)) * usd_to_rmb_rate, "0.01"
+                Decimal(str(bonus_amount_usd)) * usd_to_cny, "0.01"
             )
             row.bonus_ratio_source = ratio_source.value
             row.manual_bonus_ratio = _to_decimal(manual_ratio, "0.000001") if manual_ratio is not None else None

@@ -100,6 +100,7 @@ def build_weekly_report_data(
     project_ids: list[int] | None,
     country: str,
     project_name: str | None = None,
+    reference_date: date | None = None,
 ) -> dict[str, Any]:
     """构建完整的周报告数据结构。
 
@@ -112,6 +113,7 @@ def build_weekly_report_data(
         project_ids: 项目 ID 列表，None 表示全部项目
         country: 国家代码
         project_name: 项目名称覆盖（不传则从数据库自动解析）
+        reference_date: 补发时指定的数据锚定日期。为 None 时自动计算。
 
     Returns:
         完整的周报告数据字典
@@ -119,8 +121,8 @@ def build_weekly_report_data(
     # 自动解析项目名称
     if project_name is None:
         project_name = _resolve_project_name(db, project_ids)
-    # 锚定日期
-    anchor_date = _get_report_anchor_date(country)
+    # 锚定日期：补发时使用指定的历史日期，正常调度时自动计算
+    anchor_date = reference_date if reference_date is not None else _get_report_anchor_date(country)
     
     # 使用自然周（上一完整周 vs 上上一完整周）
     prev_week_start, prev_week_end = _get_previous_natural_week(anchor_date)

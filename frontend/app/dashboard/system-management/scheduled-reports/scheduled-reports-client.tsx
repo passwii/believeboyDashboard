@@ -10,15 +10,512 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
-import { ImagePreviewDialog } from '@/components/ui/image-preview-dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog'
+import { ImagePreviewDialog, PortraitScreenshotDialog } from '@/components/ui/image-preview-dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Loader2, Plus, Trash2, Mail, Calendar, ChevronUp, ChevronDown, ImageIcon, Copy, FileText, RotateCcw, AlertTriangle, Pencil } from 'lucide-react'
+import { Loader2, Plus, Trash2, Mail, Calendar, ImageIcon, Copy, FileText, RotateCcw, AlertTriangle, Pencil, Power } from 'lucide-react'
 import { DateRangePicker, parseDateRangeInputValue } from '@/components/ui/date-picker'
 import type { DateRange } from 'react-day-picker'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { normalizeErrorMessage } from '@/lib/error-utils'
+import { useNotifications } from '@/components/notifications'
+import { useConfirm } from '@/hooks/use-confirm'
 import { cn } from '@/lib/utils'
+
+// 内部表单组件：抽取为子组件，便于在 Dialog 中复用
+interface SubscriptionFormProps {
+  mode: 'create' | 'edit'
+  editingSub?: Subscription | null
+  formEmail: string
+  setFormEmail: (v: string) => void
+  formProjectIds: string
+  setFormProjectIds: (v: string) => void
+  formCountry: string
+  setFormCountry: (v: string) => void
+  formFrequency: Frequency
+  setFormFrequency: (v: Frequency) => void
+  formDispatchHour: number
+  setFormDispatchHour: (v: number) => void
+  formDispatchMinute: number
+  setFormDispatchMinute: (v: number) => void
+  formDispatchWeekday: number
+  setFormDispatchWeekday: (v: number) => void
+  formDispatchDay: number
+  setFormDispatchDay: (v: number) => void
+  formAiModel: string
+  setFormAiModel: (v: string) => void
+  projects: Array<{ id?: number | null; name: string }>
+  modelConfig: AIModelConfig | null
+  isLoadingModelConfig: boolean
+  formError: string | null
+  testResult: { success: boolean; message: string } | null
+  formSubmitting: boolean
+  testingEmail: boolean
+  onTestEmail: () => void
+  onSubmit: () => void
+  onCancel: () => void
+  allowedHourOptions: number[]
+  isMondayRestricted: boolean
+}
+
+function SubscriptionForm({
+  mode,
+  formEmail, setFormEmail,
+  formProjectIds, setFormProjectIds,
+  formCountry, setFormCountry,
+  formFrequency, setFormFrequency,
+  formDispatchHour, setFormDispatchHour,
+  formDispatchMinute, setFormDispatchMinute,
+  formDispatchWeekday, setFormDispatchWeekday,
+  formDispatchDay, setFormDispatchDay,
+  formAiModel, setFormAiModel,
+  projects,
+  modelConfig,
+  isLoadingModelConfig,
+  formError,
+  testResult,
+  formSubmitting,
+  testingEmail,
+  onTestEmail,
+  onSubmit,
+  onCancel,
+  allowedHourOptions,
+  isMondayRestricted,
+}: SubscriptionFormProps) {
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>{mode === 'create' ? '新增订阅' : '编辑订阅'}</DialogTitle>
+        <DialogDescription>
+          {mode === 'create' ? '创建新的报告订阅配置' : '修改订阅配置'}
+        </DialogDescription>
+      </DialogHeader>
+      <div className="space-y-4 py-2 max-h-[70vh] overflow-y-auto pr-2">
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <label className="text-sm font-medium mb-1 block">邮箱地址</label>
+            <Input
+              type="email"
+              placeholder="ops@company.com"
+              value={formEmail}
+              onChange={e => setFormEmail(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium mb-1 block">推送频率</label>
+            <Select value={formFrequency} onValueChange={v => {
+              const newFreq = v as Frequency
+              setFormFrequency(newFreq)
+              if (newFreq === 'weekly' && formDispatchWeekday === 0 && formDispatchHour < MIN_HOUR_FOR_MONDAY) {
+                setFormDispatchHour(MIN_HOUR_FOR_MONDAY)
+              }
+            }}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="daily">每日</SelectItem>
+                <SelectItem value="weekly">每周</SelectItem>
+                <SelectItem value="monthly">每月</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="text-sm font-medium mb-1 block">
+              发送时间（北京时间）
+              {isMondayRestricted && (
+                <span className="ml-1.5 text-xs text-amber-600 font-normal">（周一限制 ≥ 16:00）</span>
+              )}
+            </label>
+            <div className="flex gap-1.5 items-center">
+              <Select value={String(formDispatchHour)} onValueChange={v => setFormDispatchHour(Number(v))}>
+                <SelectTrigger className="w-[80px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {allowedHourOptions.map(h => (
+                    <SelectItem key={h} value={String(h)}>{h.toString().padStart(2, '0')}:00{isMondayRestricted && h === MIN_HOUR_FOR_MONDAY ? ' 起' : ''}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <span className="text-muted-foreground">:</span>
+              <Select value={String(formDispatchMinute)} onValueChange={v => setFormDispatchMinute(Number(v))}>
+                <SelectTrigger className="w-[80px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 12 }, (_, i) => (
+                    <SelectItem key={i * 5} value={String(i * 5)}>{(i * 5).toString().padStart(2, '0')}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium mb-1 block">国家站点</label>
+            <Select value={formCountry} onValueChange={setFormCountry}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="US">美国 (US)</SelectItem>
+                <SelectItem value="CA">加拿大 (CA)</SelectItem>
+                <SelectItem value="UK">英国 (UK)</SelectItem>
+                <SelectItem value="DE">德国 (DE)</SelectItem>
+                <SelectItem value="JP">日本 (JP)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {formFrequency === 'weekly' && (
+            <div>
+              <label className="text-sm font-medium mb-1 block">发送星期</label>
+              <Select value={String(formDispatchWeekday)} onValueChange={v => {
+                const newWeekday = Number(v)
+                setFormDispatchWeekday(newWeekday)
+                if (newWeekday === 0 && formDispatchHour < MIN_HOUR_FOR_MONDAY) {
+                  setFormDispatchHour(MIN_HOUR_FOR_MONDAY)
+                }
+              }}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {WEEKDAY_LABELS.map((label, i) => (
+                    <SelectItem key={i} value={String(i)}>{i === 0 ? `${label}（最早 16:00）` : label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          {formFrequency === 'monthly' && (
+            <div>
+              <label className="text-sm font-medium mb-1 block">发送日期</label>
+              <Select value={String(formDispatchDay)} onValueChange={v => setFormDispatchDay(Number(v))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent className="max-h-[240px]">
+                  {Array.from({ length: 27 }, (_, i) => (
+                    <SelectItem key={i + 2} value={String(i + 2)}>{i + 2} 日</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <div>
+            <label className="text-sm font-medium mb-1 block">项目范围</label>
+            <Select value={formProjectIds} onValueChange={setFormProjectIds}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="*">全部项目</SelectItem>
+                {projects.map(p => (
+                  <SelectItem key={p.name} value={p.id?.toString() || p.name}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="text-sm font-medium mb-1 block">AI 模型</label>
+            <Select
+              value={formAiModel}
+              onValueChange={setFormAiModel}
+              disabled={isLoadingModelConfig || !modelConfig?.models.length}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={isLoadingModelConfig ? '加载模型中...' : '选择模型'} />
+              </SelectTrigger>
+              <SelectContent>
+                {(modelConfig?.premiumModels.length || 0) > 0 && (
+                  <SelectGroup>
+                    <SelectLabel>高级模型</SelectLabel>
+                    {modelConfig?.premiumModels.map(m => (
+                      <SelectItem key={m} value={m}>{m}</SelectItem>
+                    ))}
+                  </SelectGroup>
+                )}
+                {(modelConfig?.basicModels.length || 0) > 0 && (
+                  <SelectGroup>
+                    <SelectLabel>基础模型</SelectLabel>
+                    {modelConfig?.basicModels.map(m => (
+                      <SelectItem key={m} value={m}>{m}</SelectItem>
+                    ))}
+                  </SelectGroup>
+                )}
+                {modelConfig?.models
+                  .filter(m => !modelConfig.premiumModels.includes(m) && !modelConfig.basicModels.includes(m))
+                  .map(m => (
+                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {formError && <p className="text-sm text-destructive">{formError}</p>}
+        {testResult && (
+          <p className={cn('text-sm', testResult.success ? 'text-emerald-600' : 'text-destructive')}>
+            {testResult.message}
+          </p>
+        )}
+
+        <div className="flex gap-2 pt-2">
+          <Button variant="outline" onClick={onTestEmail} disabled={testingEmail || !formEmail}>
+            {testingEmail ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Mail className="mr-1 h-4 w-4" />}
+            发送测试邮件
+          </Button>
+          <Button onClick={onSubmit} disabled={formSubmitting}>
+            {formSubmitting && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
+            {mode === 'create' ? '确认创建' : '保存修改'}
+          </Button>
+          <Button variant="ghost" onClick={onCancel}>取消</Button>
+        </div>
+      </div>
+    </>
+  )
+}
+
+// 新增订阅 Dialog
+function CreateSubscriptionDialog({
+  open,
+  onOpenChange,
+  projects,
+  modelConfig,
+  isLoadingModelConfig,
+  allowedHourOptions,
+  isMondayRestricted,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  projects: Array<{ id?: number | null; name: string }>
+  modelConfig: AIModelConfig | null
+  isLoadingModelConfig: boolean
+  allowedHourOptions: number[]
+  isMondayRestricted: boolean
+}) {
+  const [formEmail, setFormEmail] = useState('')
+  const [formProjectIds, setFormProjectIds] = useState('*')
+  const [formCountry, setFormCountry] = useState('US')
+  const [formFrequency, setFormFrequency] = useState<Frequency>('daily')
+  const [formDispatchHour, setFormDispatchHour] = useState(15)
+  const [formDispatchMinute, setFormDispatchMinute] = useState(0)
+  const [formDispatchWeekday, setFormDispatchWeekday] = useState(0)
+  const [formDispatchDay, setFormDispatchDay] = useState(2)
+  const [formAiModel, setFormAiModel] = useState('')
+  const [formError, setFormError] = useState<string | null>(null)
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
+  const [formSubmitting, setFormSubmitting] = useState(false)
+  const [testingEmail, setTestingEmail] = useState(false)
+
+  const session = useSession().data
+
+  useEffect(() => {
+    if (open && modelConfig?.defaultModel) {
+      setFormAiModel(modelConfig.defaultModel)
+    }
+  }, [open, modelConfig?.defaultModel])
+
+  const handleTestEmail = async () => {
+    if (!formEmail.trim()) {
+      setTestResult({ success: false, message: '请先填写测试邮箱地址' })
+      return
+    }
+    setTestingEmail(true)
+    setTestResult(null)
+    try {
+      const res = await fetch(resolveApiUrl('/api/v1/scheduled-reports/test-email'), {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: formEmail, frequency: formFrequency, project_ids: formProjectIds, country: formCountry, ai_model: formAiModel || null }),
+      })
+      const data = await res.json()
+      setTestResult({ success: data.success, message: data.message })
+    } catch (e) {
+      setTestResult({ success: false, message: normalizeErrorMessage(e, '发送失败') })
+    } finally {
+      setTestingEmail(false)
+    }
+  }
+
+  const handleSubmit = async () => {
+    if (!formEmail.trim()) {
+      setFormError('请填写邮箱地址')
+      return
+    }
+    setFormSubmitting(true)
+    setFormError(null)
+    try {
+      const res = await fetch(resolveApiUrl('/api/v1/scheduled-reports/subscriptions'), {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: formEmail, project_ids: formProjectIds, country: formCountry, frequency: formFrequency, dispatch_hour: formDispatchHour, dispatch_minute: formDispatchMinute, dispatch_weekday: formFrequency === 'weekly' ? formDispatchWeekday : null, dispatch_day: formFrequency === 'monthly' ? formDispatchDay : null, ai_model: formAiModel || null }),
+      })
+      if (!res.ok) {
+        const err = await res.text()
+        throw new Error(err || '创建失败')
+      }
+      onOpenChange(false)
+      // 触发父组件刷新
+      window.location.reload()
+    } catch (e) {
+      setFormError(normalizeErrorMessage(e, '创建失败'))
+    } finally {
+      setFormSubmitting(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
+        <SubscriptionForm
+          mode="create"
+          formEmail={formEmail} setFormEmail={setFormEmail}
+          formProjectIds={formProjectIds} setFormProjectIds={setFormProjectIds}
+          formCountry={formCountry} setFormCountry={setFormCountry}
+          formFrequency={formFrequency} setFormFrequency={setFormFrequency}
+          formDispatchHour={formDispatchHour} setFormDispatchHour={setFormDispatchHour}
+          formDispatchMinute={formDispatchMinute} setFormDispatchMinute={setFormDispatchMinute}
+          formDispatchWeekday={formDispatchWeekday} setFormDispatchWeekday={setFormDispatchWeekday}
+          formDispatchDay={formDispatchDay} setFormDispatchDay={setFormDispatchDay}
+          formAiModel={formAiModel} setFormAiModel={setFormAiModel}
+          projects={projects}
+          modelConfig={modelConfig}
+          isLoadingModelConfig={isLoadingModelConfig}
+          formError={formError}
+          testResult={testResult}
+          formSubmitting={formSubmitting}
+          testingEmail={testingEmail}
+          onTestEmail={handleTestEmail}
+          onSubmit={handleSubmit}
+          onCancel={() => onOpenChange(false)}
+          allowedHourOptions={allowedHourOptions}
+          isMondayRestricted={isMondayRestricted}
+        />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// 编辑订阅 Dialog
+function EditSubscriptionDialog({
+  subscription,
+  open,
+  onOpenChange,
+  projects,
+  modelConfig,
+  isLoadingModelConfig,
+  allowedHourOptions,
+  isMondayRestricted,
+}: {
+  subscription: Subscription | null
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  projects: Array<{ id?: number | null; name: string }>
+  modelConfig: AIModelConfig | null
+  isLoadingModelConfig: boolean
+  allowedHourOptions: number[]
+  isMondayRestricted: boolean
+}) {
+  const [formEmail, setFormEmail] = useState('')
+  const [formProjectIds, setFormProjectIds] = useState('*')
+  const [formCountry, setFormCountry] = useState('US')
+  const [formFrequency, setFormFrequency] = useState<Frequency>('daily')
+  const [formDispatchHour, setFormDispatchHour] = useState(15)
+  const [formDispatchMinute, setFormDispatchMinute] = useState(0)
+  const [formDispatchWeekday, setFormDispatchWeekday] = useState(0)
+  const [formDispatchDay, setFormDispatchDay] = useState(2)
+  const [formAiModel, setFormAiModel] = useState('')
+  const [formError, setFormError] = useState<string | null>(null)
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
+  const [formSubmitting, setFormSubmitting] = useState(false)
+  const [testingEmail, setTestingEmail] = useState(false)
+
+  useEffect(() => {
+    if (subscription) {
+      setFormEmail(subscription.email)
+      setFormProjectIds(subscription.project_ids)
+      setFormCountry(subscription.country)
+      setFormFrequency(subscription.frequency)
+      setFormDispatchHour(subscription.dispatch_hour)
+      setFormDispatchMinute(subscription.dispatch_minute ?? 0)
+      setFormDispatchWeekday(subscription.dispatch_weekday ?? 0)
+      setFormDispatchDay(subscription.dispatch_day ?? 2)
+      setFormAiModel(subscription.ai_model || modelConfig?.defaultModel || '')
+      setFormError(null)
+      setTestResult(null)
+    }
+  }, [subscription, modelConfig?.defaultModel])
+
+  const handleTestEmail = async () => {
+    if (!formEmail.trim()) {
+      setTestResult({ success: false, message: '请先填写测试邮箱地址' })
+      return
+    }
+    setTestingEmail(true)
+    setTestResult(null)
+    try {
+      const res = await fetch(resolveApiUrl('/api/v1/scheduled-reports/test-email'), {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: formEmail, frequency: formFrequency, project_ids: formProjectIds, country: formCountry, ai_model: formAiModel || null }),
+      })
+      const data = await res.json()
+      setTestResult({ success: data.success, message: data.message })
+    } catch (e) {
+      setTestResult({ success: false, message: normalizeErrorMessage(e, '发送失败') })
+    } finally {
+      setTestingEmail(false)
+    }
+  }
+
+  const handleSubmit = async () => {
+    if (!formEmail.trim()) {
+      setFormError('请填写邮箱地址')
+      return
+    }
+    if (!subscription) return
+    setFormSubmitting(true)
+    setFormError(null)
+    try {
+      const res = await fetch(resolveApiUrl(`/api/v1/scheduled-reports/subscriptions/${subscription.id}`), {
+        method: 'PUT',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: formEmail, project_ids: formProjectIds, country: formCountry, frequency: formFrequency, dispatch_hour: formDispatchHour, dispatch_minute: formDispatchMinute, dispatch_weekday: formFrequency === 'weekly' ? formDispatchWeekday : null, dispatch_day: formFrequency === 'monthly' ? formDispatchDay : null, ai_model: formAiModel || null }),
+      })
+      if (!res.ok) {
+        const err = await res.text()
+        throw new Error(err || '更新失败')
+      }
+      onOpenChange(false)
+      window.location.reload()
+    } catch (e) {
+      setFormError(normalizeErrorMessage(e, '更新失败'))
+    } finally {
+      setFormSubmitting(false)
+    }
+  }
+
+  if (!subscription) return null
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
+        <SubscriptionForm
+          mode="edit"
+          editingSub={subscription}
+          formEmail={formEmail} setFormEmail={setFormEmail}
+          formProjectIds={formProjectIds} setFormProjectIds={setFormProjectIds}
+          formCountry={formCountry} setFormCountry={setFormCountry}
+          formFrequency={formFrequency} setFormFrequency={setFormFrequency}
+          formDispatchHour={formDispatchHour} setFormDispatchHour={setFormDispatchHour}
+          formDispatchMinute={formDispatchMinute} setFormDispatchMinute={setFormDispatchMinute}
+          formDispatchWeekday={formDispatchWeekday} setFormDispatchWeekday={setFormDispatchWeekday}
+          formDispatchDay={formDispatchDay} setFormDispatchDay={setFormDispatchDay}
+          formAiModel={formAiModel} setFormAiModel={setFormAiModel}
+          projects={projects}
+          modelConfig={modelConfig}
+          isLoadingModelConfig={isLoadingModelConfig}
+          formError={formError}
+          testResult={testResult}
+          formSubmitting={formSubmitting}
+          testingEmail={testingEmail}
+          onTestEmail={handleTestEmail}
+          onSubmit={handleSubmit}
+          onCancel={() => onOpenChange(false)}
+          allowedHourOptions={allowedHourOptions}
+          isMondayRestricted={isMondayRestricted}
+        />
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 const API_BASE = '/api/backend'
 
@@ -77,6 +574,7 @@ type LedgerItem = {
   can_resend: boolean
   last_checked_at: string
   screenshot_r2_url: string | null
+  screenshot_r2_thumb_url: string | null
   ai_summary: string | null
 }
 type LedgerSummary = {
@@ -155,9 +653,19 @@ function formatProjectNames(projectNames: string[], maxNames: number = 2): { dis
 
 export function ScheduledReportsClient() {
   const { data: session } = useSession()
+  const { notify } = useNotifications()
+  const { confirm } = useConfirm()
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [editingSub, setEditingSub] = useState<Subscription | null>(null)
+  const [showEditDialog, setShowEditDialog] = useState(false)
+  const [filterFrequency, setFilterFrequency] = useState<string>('all')
+  const [filterProject, setFilterProject] = useState<string>('all')
+  const [filterEmail, setFilterEmail] = useState<string>('')
+  const [filterCountry, setFilterCountry] = useState<string>('all')
+  const [filterStatus, setFilterStatus] = useState<string>('all')
   const [formEmail, setFormEmail] = useState('')
   const [formProjectIds, setFormProjectIds] = useState('*')
   const [formCountry, setFormCountry] = useState('US')
@@ -294,6 +802,11 @@ export function ScheduledReportsClient() {
     void loadData()
   }, [session])
 
+  useEffect(() => {
+    void loadLedger()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const handleCreate = async () => {
     if (!formEmail.trim()) {
       setFormError('请填写邮箱地址')
@@ -368,24 +881,30 @@ export function ScheduledReportsClient() {
     }
   }
 
+  // 过滤后的订阅列表
+  const filteredSubscriptions = subscriptions.filter(sub => {
+    if (filterFrequency !== 'all' && sub.frequency !== filterFrequency) return false
+    if (filterProject !== 'all') {
+      const ids = sub.project_ids === '*' ? [] : sub.project_ids.split(',').map(id => id.trim())
+      if (!ids.includes(filterProject)) return false
+    }
+    if (filterEmail.trim() && !sub.email.toLowerCase().includes(filterEmail.toLowerCase())) return false
+    if (filterCountry !== 'all' && sub.country !== filterCountry) return false
+    if (filterStatus !== 'all') {
+      const isEnabled = sub.enabled
+      if (filterStatus === 'enabled' && !isEnabled) return false
+      if (filterStatus === 'disabled' && isEnabled) return false
+    }
+    return true
+  })
+
   const handleEdit = (sub: Subscription) => {
-    setEditingId(sub.id)
-    setFormEmail(sub.email)
-    setFormProjectIds(sub.project_ids)
-    setFormCountry(sub.country)
-    setFormFrequency(sub.frequency)
-    setFormDispatchHour(sub.dispatch_hour)
-    setFormDispatchMinute(sub.dispatch_minute ?? 0)
-    setFormDispatchWeekday(sub.dispatch_weekday ?? 0)
-    setFormDispatchDay(sub.dispatch_day ?? 2)
-    setFormAiModel(sub.ai_model || '')
-    setFormError(null)
-    setTestResult(null)
-    setShowForm(true)
+    setEditingSub(sub)
+    setShowEditDialog(true)
   }
 
   const handleDelete = async (id: number) => {
-    if (!confirm('确定删除此订阅？')) return
+    if (!await confirm({ title: '确定删除此订阅？', variant: 'destructive' })) return
     try {
       const res = await fetch(resolveApiUrl(`/api/v1/scheduled-reports/subscriptions/${id}`), {
         method: 'DELETE',
@@ -444,7 +963,7 @@ export function ScheduledReportsClient() {
   const handleResendLedger = async (item: LedgerItem) => {
     if (!item.can_resend) return
     const actionLabel = item.status === 'failed' ? '重试' : '补发'
-    if (!confirm(`确认${actionLabel} ${item.expected_date} 的 ${FREQUENCY_LABELS[item.frequency]} 报告？`)) return
+    if (!await confirm({ title: `确认${actionLabel} ${item.expected_date} 的 ${FREQUENCY_LABELS[item.frequency]} 报告？` })) return
 
     // 初始化状态为 preparing
     setResendingStates(prev => ({ ...prev, [item.ledger_key]: 'preparing' }))
@@ -476,7 +995,7 @@ export function ScheduledReportsClient() {
         delete next[item.ledger_key]
         return next
       })
-      alert(normalizeErrorMessage(e, `${actionLabel}失败`))
+      notify({ type: 'error', title: `${actionLabel}失败`, message: normalizeErrorMessage(e) })
     }
   }
 
@@ -516,224 +1035,60 @@ export function ScheduledReportsClient() {
 
         <TabsContent value="subscriptions">
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-medium">订阅列表</h2>
-              <Button onClick={() => { setShowForm(!showForm); if (showForm) setEditingId(null) }} disabled={editingId !== null}>
-                <Plus className="mr-1 h-4 w-4" />新增订阅
-              </Button>
-            </div>
-
-            {showForm && (
-              <Card className="border-border/70 bg-[hsl(var(--surface-panel))]">
-                <CardHeader className="pb-4">
-                  <CardTitle className="text-base">{editingId !== null ? '编辑订阅' : '新增订阅'}</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    <div>
-                      <label className="text-sm font-medium mb-1 block">邮箱地址</label>
-                      <Input
-                        type="email"
-                        placeholder="ops@company.com"
-                        value={formEmail}
-                        onChange={e => setFormEmail(e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium mb-1 block">推送频率</label>
-                      <Select value={formFrequency} onValueChange={v => {
-                        const newFreq = v as Frequency
-                        setFormFrequency(newFreq)
-                        // 切换频率时：如果切到周报+周一，自动把小时调到合规值
-                        if (newFreq === 'weekly' && formDispatchWeekday === 0 && formDispatchHour < MIN_HOUR_FOR_MONDAY) {
-                          setFormDispatchHour(MIN_HOUR_FOR_MONDAY)
-                        }
-                      }}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="daily">每日</SelectItem>
-                          <SelectItem value="weekly">每周</SelectItem>
-                          <SelectItem value="monthly">每月</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium mb-1 block">
-                        发送时间（北京时间）
-                        {isMondayRestricted && (
-                          <span className="ml-1.5 text-xs text-amber-600 font-normal">（周一限制 ≥ 16:00）</span>
-                        )}
-                      </label>
-                      <div className="flex gap-1.5 items-center">
-                        <Select
-                          value={String(formDispatchHour)}
-                          onValueChange={v => setFormDispatchHour(Number(v))}
-                        >
-                          <SelectTrigger className="w-[80px]"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {allowedHourOptions.map(h => {
-                              const label = `${h.toString().padStart(2, '0')}:00${isMondayRestricted && h === MIN_HOUR_FOR_MONDAY ? ' 起' : ''}`
-                              return (
-                                <SelectItem key={h} value={String(h)}>{label}</SelectItem>
-                              )
-                            })}
-                          </SelectContent>
-                        </Select>
-                        <span className="text-muted-foreground">:</span>
-                        <Select value={String(formDispatchMinute)} onValueChange={v => setFormDispatchMinute(Number(v))}>
-                          <SelectTrigger className="w-[80px]"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {Array.from({ length: 12 }, (_, i) => (
-                              <SelectItem key={i * 5} value={String(i * 5)}>{(i * 5).toString().padStart(2, '0')}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    {formFrequency === 'weekly' && (
-                      <div>
-                        <label className="text-sm font-medium mb-1 block">发送星期</label>
-                        <Select value={String(formDispatchWeekday)} onValueChange={v => {
-                          const newWeekday = Number(v)
-                          setFormDispatchWeekday(newWeekday)
-                          // 选周一时如果当前小时不合规，自动调到 16:00
-                          if (newWeekday === 0 && formDispatchHour < MIN_HOUR_FOR_MONDAY) {
-                            setFormDispatchHour(MIN_HOUR_FOR_MONDAY)
-                          }
-                        }}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {WEEKDAY_LABELS.map((label, i) => {
-                              const displayLabel = i === 0 ? `${label}（最早 16:00）` : label
-                              return (
-                                <SelectItem key={i} value={String(i)}>{displayLabel}</SelectItem>
-                              )
-                            })}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-                    {formFrequency === 'monthly' && (
-                      <div>
-                        <label className="text-sm font-medium mb-1 block">发送日期</label>
-                        <Select value={String(formDispatchDay)} onValueChange={v => setFormDispatchDay(Number(v))}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent className="max-h-[240px]">
-                            {Array.from({ length: 27 }, (_, i) => (
-                              <SelectItem key={i + 2} value={String(i + 2)}>{i + 2} 日</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-                    <div>
-                      <label className="text-sm font-medium mb-1 block">国家站点</label>
-                      <Select value={formCountry} onValueChange={setFormCountry}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="US">美国 (US)</SelectItem>
-                          <SelectItem value="CA">加拿大 (CA)</SelectItem>
-                          <SelectItem value="UK">英国 (UK)</SelectItem>
-                          <SelectItem value="DE">德国 (DE)</SelectItem>
-                          <SelectItem value="JP">日本 (JP)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium mb-1 block">项目范围</label>
-                      <Select value={formProjectIds} onValueChange={setFormProjectIds}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="*">全部项目</SelectItem>
-                          {projects.map(p => (
-                            <SelectItem key={p.name} value={p.id?.toString() || p.name}>{p.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium mb-1 block">AI 模型</label>
-                      <Select
-                        value={formAiModel}
-                        onValueChange={setFormAiModel}
-                        disabled={isLoadingModelConfig || !modelConfig?.models.length}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder={isLoadingModelConfig ? '加载模型中...' : '选择模型'} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(modelConfig?.premiumModels.length || 0) > 0 && (
-                            <SelectGroup>
-                              <SelectLabel>高级模型</SelectLabel>
-                              {modelConfig?.premiumModels.map((m) => (
-                                <SelectItem key={m} value={m}>{m}</SelectItem>
-                              ))}
-                            </SelectGroup>
-                          )}
-                          {(modelConfig?.basicModels.length || 0) > 0 && (
-                            <SelectGroup>
-                              <SelectLabel>基础模型</SelectLabel>
-                              {modelConfig?.basicModels.map((m) => (
-                                <SelectItem key={m} value={m}>{m}</SelectItem>
-                              ))}
-                            </SelectGroup>
-                          )}
-                          {modelConfig?.models
-                            .filter((m) => !modelConfig.premiumModels.includes(m) && !modelConfig.basicModels.includes(m))
-                            .map((m) => (
-                              <SelectItem key={m} value={m}>{m}</SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  {formError && <p className="text-sm text-destructive">{formError}</p>}
-                  {testResult && (
-                    <p className={cn('text-sm', testResult.success ? 'text-emerald-600' : 'text-destructive')}>
-                      {testResult.message}
-                    </p>
-                  )}
-                  <div className="flex gap-2">
-                    <Button variant="outline" onClick={handleTestEmail} disabled={testingEmail || !formEmail}>
-                      {testingEmail ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Mail className="mr-1 h-4 w-4" />}
-                      发送测试邮件
-                    </Button>
-                    {editingId !== null ? (
-                      <>
-                        <Button onClick={handleUpdate} disabled={formSubmitting}>
-                          {formSubmitting && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
-                          保存修改
-                        </Button>
-                        <Button variant="ghost" onClick={() => {
-                          setShowForm(false)
-                          setEditingId(null)
-                          setFormEmail('')
-                          setFormProjectIds('*')
-                          setFormCountry('US')
-                          setFormFrequency('daily')
-                          setFormDispatchHour(15)
-                          setFormDispatchMinute(0)
-                          setFormDispatchWeekday(0)
-                          setFormDispatchDay(2)
-                          setFormAiModel(modelConfig?.defaultModel || '')
-                        }}>取消</Button>
-                      </>
-                    ) : (
-                      <>
-                        <Button onClick={handleCreate} disabled={formSubmitting}>
-                          {formSubmitting && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
-                          确认创建
-                        </Button>
-                        <Button variant="ghost" onClick={() => setShowForm(false)}>取消</Button>
-                      </>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
             <Card className="border-border/70 bg-[hsl(var(--surface-panel))]">
               <CardContent className="p-0">
+                <div className="p-4 border-b border-border/60">
+                  <div className="flex gap-3 flex-wrap">
+                    <Select value={filterFrequency} onValueChange={setFilterFrequency}>
+                      <SelectTrigger className="w-[120px] h-9"><SelectValue placeholder="频率" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">全部频率</SelectItem>
+                        <SelectItem value="daily">每日</SelectItem>
+                        <SelectItem value="weekly">每周</SelectItem>
+                        <SelectItem value="monthly">每月</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={filterProject} onValueChange={setFilterProject}>
+                      <SelectTrigger className="w-[160px] h-9"><SelectValue placeholder="项目" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">全部项目</SelectItem>
+                        {projects.map(p => (
+                          <SelectItem key={p.id?.toString() || p.name} value={p.id?.toString() || ''}>{p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select value={filterCountry} onValueChange={setFilterCountry}>
+                      <SelectTrigger className="w-[120px] h-9"><SelectValue placeholder="国家" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">全部国家</SelectItem>
+                        <SelectItem value="US">美国</SelectItem>
+                        <SelectItem value="CA">加拿大</SelectItem>
+                        <SelectItem value="UK">英国</SelectItem>
+                        <SelectItem value="DE">德国</SelectItem>
+                        <SelectItem value="JP">日本</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={filterStatus} onValueChange={setFilterStatus}>
+                      <SelectTrigger className="w-[120px] h-9"><SelectValue placeholder="状态" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">全部状态</SelectItem>
+                        <SelectItem value="enabled">启用</SelectItem>
+                        <SelectItem value="disabled">已暂停</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      placeholder="筛选邮箱"
+                      value={filterEmail}
+                      onChange={e => setFilterEmail(e.target.value)}
+                      className="w-[200px] h-9"
+                    />
+                    <div className="ml-auto flex gap-2">
+                      <Button size="sm" onClick={() => setShowCreateDialog(true)}>
+                        <Plus className="mr-1 h-4 w-4" />新增订阅
+                      </Button>
+                    </div>
+                  </div>
+                </div>
                 {subscriptions.length === 0 ? (
                   <p className="text-sm text-muted-foreground py-8 text-center">暂无订阅配置，点击上方按钮添加</p>
                 ) : (
@@ -752,7 +1107,7 @@ export function ScheduledReportsClient() {
                         </tr>
                       </thead>
                       <tbody>
-                        {subscriptions.map(sub => {
+                        {filteredSubscriptions.map(sub => {
                           const names = resolveProjectNames(sub.project_ids, projects)
                           const { display, full } = formatProjectNames(names)
                           const weekdayLabel = sub.frequency === 'weekly' ? ` 周${['一','二','三','四','五','六','日'][sub.dispatch_weekday ?? 0]}` : ''
@@ -790,8 +1145,8 @@ export function ScheduledReportsClient() {
                               </TableCell>
                               <TableCell className="text-right">
                                 <div className="flex gap-1 justify-end">
-                                  <Button size="sm" variant="ghost" onClick={() => handleToggle(sub)}>
-                                    {sub.enabled ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+                                  <Button size="sm" variant="ghost" onClick={() => handleToggle(sub)} title={sub.enabled ? '暂停' : '启用'}>
+                                    <Power className="h-4 w-4" />
                                   </Button>
                                   <Button size="sm" variant="ghost" onClick={() => handleEdit(sub)}>
                                     <Pencil className="h-4 w-4" />
@@ -815,24 +1170,16 @@ export function ScheduledReportsClient() {
 
         <TabsContent value="ledger">
           <div className="space-y-4">
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              <h2 className="text-lg font-medium">调度记录</h2>
-              <Button onClick={loadLedger} disabled={ledgerLoading}>
-                {ledgerLoading ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-1 h-4 w-4" />}
-                刷新台账
-              </Button>
-            </div>
-
             <Card className="border-border/70 bg-[hsl(var(--surface-panel))]">
               <CardContent className="p-4 space-y-4">
-                <div className="grid gap-3 md:grid-cols-4">
+                <div className="flex gap-3 flex-wrap">
                   <DateRangePicker
                     value={parseDateRangeInputValue(ledgerStartDate, ledgerEndDate)}
                     onChange={handleLedgerDateRangeChange}
-                    className="h-10 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none"
+                    className="h-9 w-[280px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none"
                   />
                   <Select value={ledgerFrequency} onValueChange={setLedgerFrequency}>
-                    <SelectTrigger><SelectValue placeholder="频率" /></SelectTrigger>
+                    <SelectTrigger className="w-[120px] h-9"><SelectValue placeholder="频率" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">全部频率</SelectItem>
                       <SelectItem value="daily">每日</SelectItem>
@@ -841,7 +1188,7 @@ export function ScheduledReportsClient() {
                     </SelectContent>
                   </Select>
                   <Select value={ledgerStatus} onValueChange={setLedgerStatus}>
-                    <SelectTrigger><SelectValue placeholder="状态" /></SelectTrigger>
+                    <SelectTrigger className="w-[120px] h-9"><SelectValue placeholder="状态" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">全部状态</SelectItem>
                       <SelectItem value="sent">成功</SelectItem>
@@ -849,7 +1196,13 @@ export function ScheduledReportsClient() {
                       <SelectItem value="missing">缺失</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Input placeholder="邮箱筛选" value={ledgerEmail} onChange={e => setLedgerEmail(e.target.value)} />
+                  <Input placeholder="邮箱筛选" value={ledgerEmail} onChange={e => setLedgerEmail(e.target.value)} className="w-[200px] h-9" />
+                  <div className="ml-auto flex gap-2">
+                    <Button size="sm" onClick={loadLedger} disabled={ledgerLoading}>
+                      {ledgerLoading ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-1 h-4 w-4" />}
+                      刷新台账
+                    </Button>
+                  </div>
                 </div>
 
                 {ledgerSummary && (
@@ -903,13 +1256,14 @@ export function ScheduledReportsClient() {
                             {item.status === 'sent' ? <span className="text-emerald-600">✓ 成功</span> : item.status === 'failed' ? <span className="text-destructive">✗ 失败</span> : <span className="text-amber-600 inline-flex items-center gap-1"><AlertTriangle className="h-3 w-3" />缺失</span>}
                           </TableCell>
                           <TableCell>
-                            {item.screenshot_r2_url ? (
+                            {item.screenshot_r2_thumb_url ? (
                               <button
                                 type="button"
                                 className="relative h-10 w-10 overflow-hidden rounded border border-border/70 hover:ring-2 hover:ring-primary/50 transition-shadow"
                                 onClick={() => setPreviewScreenshotUrl(item.screenshot_r2_url)}
+                                title="点击查看完整图"
                               >
-                                <Image src={item.screenshot_r2_url} alt="报告截图" fill className="object-cover" unoptimized />
+                                <Image src={item.screenshot_r2_thumb_url} alt="报告截图" fill className="object-cover" unoptimized />
                               </button>
                             ) : (
                               <span className="text-muted-foreground text-xs flex items-center gap-1"><ImageIcon className="h-4 w-4" />无</span>
@@ -959,13 +1313,11 @@ export function ScheduledReportsClient() {
       </Tabs>
 
       {previewScreenshotUrl && (
-        <ImagePreviewDialog
+        <PortraitScreenshotDialog
           open
           onOpenChange={(open) => !open && setPreviewScreenshotUrl(null)}
           src={previewScreenshotUrl}
           alt="报告截图"
-          className="max-w-4xl max-h-[90vh] flex flex-col"
-          imageContainerClassName="relative flex-1 min-h-[200px]"
         />
       )}
 
@@ -995,6 +1347,29 @@ export function ScheduledReportsClient() {
           </DialogContent>
         </Dialog>
       ) : null}
+
+      {/* 新增订阅 Dialog */}
+      <CreateSubscriptionDialog
+        open={showCreateDialog}
+        onOpenChange={setShowCreateDialog}
+        projects={projects}
+        modelConfig={modelConfig}
+        isLoadingModelConfig={isLoadingModelConfig}
+        allowedHourOptions={allowedHourOptions}
+        isMondayRestricted={isMondayRestricted}
+      />
+
+      {/* 编辑订阅 Dialog */}
+      <EditSubscriptionDialog
+        subscription={editingSub}
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        projects={projects}
+        modelConfig={modelConfig}
+        isLoadingModelConfig={isLoadingModelConfig}
+        allowedHourOptions={allowedHourOptions}
+        isMondayRestricted={isMondayRestricted}
+      />
     </>
   )
 }

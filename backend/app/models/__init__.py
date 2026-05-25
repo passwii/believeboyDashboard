@@ -96,6 +96,7 @@ from app.models.scheduled_report import (
 )
 from app.models.insight_schedule import InsightSchedule
 from app.models.platform_revenue import PlatformRevenue
+from app.models.inspection import InspectionPeriod, InspectionReport, InspectionScreenshot
 
 __all__ = [
     'SkuRecord',
@@ -189,4 +190,7 @@ __all__ = [
     'LedgerStatus',
     'InsightSchedule',
     'PlatformRevenue',
+    'InspectionPeriod',
+    'InspectionReport',
+    'InspectionScreenshot',
 ]

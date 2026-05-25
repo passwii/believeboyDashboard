@@ -11,6 +11,7 @@ import { DataTableCard, DataTableCardBody, DataTableCardHeader, DataTableCardSta
 import { EmptyTableState } from '@/components/ui/empty-state'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useNotifications } from '@/components/notifications'
+import { useConfirm } from '@/hooks/use-confirm'
 import { buildBackendHeaders } from '@/lib/backend-auth'
 import { cn } from '@/lib/utils'
 
@@ -121,6 +122,7 @@ function hasSummary(value: unknown): value is { summary: DataManagementOverview[
 export default function SystemDataManagementPage() {
   const { data: session, status } = useSession()
   const { notify } = useNotifications()
+  const { confirm } = useConfirm()
   const [overview, setOverview] = useState<DataManagementOverview | null>(null)
   const [statusOverview, setStatusOverview] = useState<DataManagementStatusPayload | null>(null)
   const [loading, setLoading] = useState(false)
@@ -198,7 +200,7 @@ export default function SystemDataManagementPage() {
   }, [loadOverview, loadStatus])
 
   const onClearCache = useCallback(async () => {
-    if (!confirm('确定要清理所有 Redis 缓存吗？')) return
+    if (!await confirm({ title: '确定要清理所有 Redis 缓存吗？', variant: 'destructive' })) return
 
     setClearingCache(true)
 

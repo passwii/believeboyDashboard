@@ -35,6 +35,7 @@ def build_report_email_data(
     country: str,
     frequency: str = "daily",
     ai_model: str | None = None,
+    reference_date: date | None = None,
 ) -> dict[str, Any]:
     """
     Aggregate real data and transform it into the format expected by
@@ -42,11 +43,13 @@ def build_report_email_data(
 
     This is the single entry point for building report email payloads,
     used by both the test-email endpoint and the future scheduler.
+
+    Args:
+        reference_date: 补发时指定的数据锚定日期。为 None 时自动计算（当天最近完整日期）。
     """
     # 锚定日期 = 最近一个数据完整的日期
-    # 中国上午 → 美国还在昨天 → 直接用美国日期
-    # 中国下午 → 美国也到了今天(凌晨) → 回退到昨天，避免拉到空数据
-    today = _get_report_anchor_date(country)
+    # 补发时使用指定的历史日期，正常调度时自动计算
+    today = reference_date if reference_date is not None else _get_report_anchor_date(country)
     days = 7
 
     # 1. Get overview KPIs（传入锚定日期，确保查询窗口正确）

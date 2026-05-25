@@ -452,7 +452,7 @@ def send_scheduled_report_email(email: str, frequency: str, report_data: dict[st
                     "content_type": "image/png",
                 }]
 
-                # 上传截图到 R2（不影响邮件发送）
+                # 上传截图到 R2（full 目录，完整 3x 图）
                 try:
                     from datetime import datetime
                     from app.services.r2_service import upload_bytes_to_r2
@@ -464,19 +464,43 @@ def send_scheduled_report_email(email: str, frequency: str, report_data: dict[st
                     ts = datetime.now().strftime("%Y%m%dT%H%M%S")
                     r2_filename = f"{report_date}_{frequency}_{country}_{ts}.png"
 
-                    r2_result = upload_bytes_to_r2(
+                    full_result = upload_bytes_to_r2(
                         settings=settings,
                         data=png_bytes,
                         filename=r2_filename,
                         project_slug=project_slug,
-                        file_type="scheduled-reports",
+                        file_type="scheduled-reports/full",
                         content_type="image/png",
                     )
-                    logger.info("截图已上传到 R2: key=%s url=%s", r2_result["key"], r2_result["url"])
+                    logger.info("完整截图已上传到 R2: key=%s url=%s", full_result["key"], full_result["url"])
+
+                    # 生成缩略图：缩小至 1x (720px 宽)
+                    from PIL import Image as PILImage
+                    import io
+                    img = PILImage.open(io.BytesIO(png_bytes)).convert("RGBA")
+                    w, h = img.size
+                    thumb_w, thumb_h = w // 3, h // 3
+                    thumb_img = img.resize((thumb_w, thumb_h), PILImage.LANCZOS)
+                    thumb_bytes = io.BytesIO()
+                    thumb_img.save(thumb_bytes, format="PNG")
+                    thumb_bytes = thumb_bytes.getvalue()
+
+                    thumb_filename = f"{report_date}_{frequency}_{country}_{ts}_thumb.png"
+                    thumb_result = upload_bytes_to_r2(
+                        settings=settings,
+                        data=thumb_bytes,
+                        filename=thumb_filename,
+                        project_slug=project_slug,
+                        file_type="scheduled-reports/thumb",
+                        content_type="image/png",
+                    )
+                    logger.info("缩略图已上传到 R2: key=%s url=%s", thumb_result["key"], thumb_result["url"])
 
                     # 将截图信息存储到 report_data，供外部更新 delivery log
-                    report_data["screenshot_r2_key"] = r2_result["key"]
-                    report_data["screenshot_r2_url"] = r2_result["url"]
+                    report_data["screenshot_r2_key"] = full_result["key"]
+                    report_data["screenshot_r2_url"] = full_result["url"]
+                    report_data["screenshot_r2_thumb_key"] = thumb_result["key"]
+                    report_data["screenshot_r2_thumb_url"] = thumb_result["url"]
                 except Exception as r2_err:
                     logger.warning("截图上传到 R2 失败（邮件已发送）: %s", r2_err)
         except Exception as e:

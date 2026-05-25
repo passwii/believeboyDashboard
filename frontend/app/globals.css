@@ -144,6 +144,7 @@
     font-size: 17px;
     scroll-behavior: smooth;
     -webkit-text-size-adjust: 100%;
+    scrollbar-gutter: stable;
   }
 
   body {

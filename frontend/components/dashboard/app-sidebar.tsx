@@ -153,6 +153,7 @@ const primaryGroups: NavGroup[] = [
         title: '报表核对',
         url: '/dashboard/data-management/report-reconciliation',
       },
+      { title: '平台巡检', url: '/dashboard/data-management/platform-inspection' },
       { title: '汇率信息', url: '/dashboard/data-management/exchange-rate' },
       { title: '平台回款', url: '/dashboard/data-management/platform-revenue' },
       { title: '报表自动化', url: '/dashboard/data-management/auto-upload' },

@@ -215,12 +215,16 @@ def update_delivery_log_screenshot(
     log_id: int,
     screenshot_r2_key: str,
     screenshot_r2_url: str,
+    screenshot_r2_thumb_key: str | None = None,
+    screenshot_r2_thumb_url: str | None = None,
 ) -> None:
-    """更新推送日志的截图 R2 信息。"""
+    """更新推送日志的截图 R2 信息（含缩略图）。"""
     log = db.get(ScheduledReportDeliveryLog, log_id)
     if log:
         log.screenshot_r2_key = screenshot_r2_key
         log.screenshot_r2_url = screenshot_r2_url
+        log.screenshot_r2_thumb_key = screenshot_r2_thumb_key
+        log.screenshot_r2_thumb_url = screenshot_r2_thumb_url
         db.commit()
         logger.info(f"Updated screenshot for delivery log id={log_id}")
 
