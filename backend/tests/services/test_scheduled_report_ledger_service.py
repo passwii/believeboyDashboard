@@ -40,6 +40,7 @@ def add_subscription(
     dispatch_day: int | None = None,
     email: str = "ops@example.com",
     project_ids: str = "15",
+    created_at: datetime | None = None,
 ) -> ScheduledReportSubscription:
     sub = ScheduledReportSubscription(
         user_id=1,
@@ -52,6 +53,7 @@ def add_subscription(
         dispatch_weekday=dispatch_weekday,
         dispatch_day=dispatch_day,
         enabled=True,
+        created_at=created_at or datetime(2026, 1, 1, tzinfo=ZoneInfo("Asia/Shanghai")),
     )
     db.add(sub)
     db.commit()
