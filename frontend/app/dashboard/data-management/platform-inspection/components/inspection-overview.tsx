@@ -7,7 +7,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useNotifications } from '@/components/notifications'
 import { fetchPeriodOverview, type InspectionOverview as InspectionOverviewType } from '@/lib/inspection-api'
 import { normalizeErrorMessage } from '@/lib/error-utils'
-import { AlertTriangle, ChevronDown, ChevronUp, ImageIcon } from 'lucide-react'
+import { AlertTriangle, FileText, ImageIcon } from 'lucide-react'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { PortraitScreenshotDialog } from '@/components/ui/image-preview-dialog'
 
 interface InspectionOverviewProps {
@@ -85,6 +86,33 @@ const SEVERITY_STYLES: Record<Severity, { bg: string; text: string }> = {
   critical: { bg: 'bg-rose-50 dark:bg-rose-950/40', text: 'text-rose-700 dark:text-rose-400' },
 }
 
+// ── Card-level severity ──
+
+type CardSeverity = 'normal' | 'warning' | 'critical'
+
+function getCardSeverity(item: InspectionOverviewType['items'][number]): CardSeverity {
+  if (item.account_health_rating === 'Critical') return 'critical'
+  if (item.account_deactivation_risk === true) return 'critical'
+  if (getMetricSeverity(item.odr, THRESHOLDS.odr) === 'critical') return 'critical'
+  if (getMetricSeverity(item.late_shipment_rate, THRESHOLDS.late_shipment_rate) === 'critical') return 'critical'
+  if (getMetricSeverity(item.valid_tracking_rate, THRESHOLDS.valid_tracking_rate) === 'critical') return 'critical'
+  if (getMetricSeverity(item.policy_violations, THRESHOLDS.policy_violations) === 'critical') return 'critical'
+
+  if (item.account_health_rating === 'At Risk') return 'warning'
+  if (getMetricSeverity(item.odr, THRESHOLDS.odr) === 'warning') return 'warning'
+  if (getMetricSeverity(item.late_shipment_rate, THRESHOLDS.late_shipment_rate) === 'warning') return 'warning'
+  if (getMetricSeverity(item.valid_tracking_rate, THRESHOLDS.valid_tracking_rate) === 'warning') return 'warning'
+  if (getMetricSeverity(item.policy_violations, THRESHOLDS.policy_violations) === 'warning') return 'warning'
+
+  return 'normal'
+}
+
+const CARD_SEVERITY_STYLES: Record<CardSeverity, string> = {
+  normal: '',
+  warning: 'border-l-[3px] border-l-amber-400 dark:border-l-amber-500',
+  critical: 'border-l-[3px] border-l-rose-400 dark:border-l-rose-500',
+}
+
 // MetricBadge — renders a single metric with semantic color
 interface MetricBadgeProps {
   label: string
@@ -121,93 +149,47 @@ function MetricBadge({ label, value, unit = '%', threshold }: MetricBadgeProps) 
   )
 }
 
-// ── Collapsible notes ──
+// ── Status summary popover ──
 
-interface CollapsibleNotesProps {
-  content: string | undefined
-  maxLines?: number
-}
-
-function CollapsibleNotes({ content, maxLines = 2 }: CollapsibleNotesProps) {
-  const [expanded, setExpanded] = useState(false)
-
-  if (!content) {
-    return (
-      <p className="text-xs italic text-muted-foreground/50">暂无状态说明</p>
-    )
-  }
-
-  const lineHeight = 20
-  const maxHeight = maxLines * lineHeight
+function StatusSummaryIndicator({ content }: { content: string | undefined }) {
+  if (!content) return null
 
   return (
-    <div className="relative">
-      <div
-        className="text-sm text-muted-foreground"
-        style={{
-          maxHeight: expanded ? 'none' : maxHeight,
-          overflow: 'hidden',
-        }}
-      >
-        {content}
-      </div>
-      {content.length > 100 && (
+    <Popover>
+      <PopoverTrigger asChild>
         <button
           type="button"
-          onClick={(e) => { e.stopPropagation(); setExpanded(!expanded) }}
-          className="mt-1 flex items-center gap-1 text-xs text-primary hover:underline"
+          onClick={(e) => e.stopPropagation()}
+          className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground"
+          aria-label="查看状态说明"
         >
-          {expanded ? (
-            <><ChevronUp className="h-3 w-3" /> 收起</>
-          ) : (
-            <><ChevronDown className="h-3 w-3" /> 查看更多</>
-          )}
+          <FileText className="h-3.5 w-3.5" />
         </button>
-      )}
-    </div>
+      </PopoverTrigger>
+      <PopoverContent
+        className="max-w-[280px] p-3 text-sm text-muted-foreground"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className="whitespace-pre-wrap">{content}</p>
+      </PopoverContent>
+    </Popover>
   )
 }
 
-// ── Screenshot thumbnails ──
+// ── Screenshot count chip ──
 
-interface ScreenshotThumbnailsProps {
-  screenshots: { id: number; url: string; thumbnail_url?: string; caption?: string }[]
-  onPreview: (url: string) => void
-}
-
-function ScreenshotThumbnails({ screenshots, onPreview }: ScreenshotThumbnailsProps) {
-  if (screenshots.length === 0) {
-    return (
-      <div className="flex items-center gap-1.5 text-xs text-muted-foreground/50">
-        <ImageIcon className="h-3.5 w-3.5" />
-        <span>暂无截图</span>
-      </div>
-    )
-  }
+function ScreenshotCount({ count, onPreview }: { count: number; onPreview: () => void }) {
+  if (count === 0) return null
 
   return (
-    <div className="flex gap-2 overflow-x-auto">
-      {screenshots.slice(0, 4).map((screenshot) => (
-        <button
-          key={screenshot.id}
-          type="button"
-          onClick={(e) => { e.stopPropagation(); onPreview(screenshot.url) }}
-          className="relative h-16 w-24 flex-shrink-0 overflow-hidden rounded-md border border-border/70 transition-opacity hover:opacity-80"
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={screenshot.thumbnail_url || screenshot.url}
-            alt={screenshot.caption || '截图'}
-            className="h-full w-full object-cover"
-          />
-        </button>
-      ))}
-      {screenshots.length > 4 && (
-        <div className="flex h-16 w-24 flex-shrink-0 items-center justify-center rounded-md border border-border/70 bg-muted/50 text-xs text-muted-foreground">
-          +{screenshots.length - 4}
-        </div>
-      )}
-    </div>
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); onPreview() }}
+      className="inline-flex items-center gap-1 rounded-md bg-[hsl(var(--surface-subtle))] px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+    >
+      <ImageIcon className="h-3 w-3" />
+      {count}张截图
+    </button>
   )
 }
 
@@ -224,10 +206,12 @@ function ProjectCard({ item, onClick, onPreviewScreenshot }: ProjectCardProps) {
   const ahrStyle = item.account_health_rating
     ? AHR_STYLES[item.account_health_rating]
     : null
+  const cardSeverity = getCardSeverity(item)
+  const screenshotCount = item.screenshots?.length ?? 0
 
   return (
     <Card
-      className="cursor-pointer border-border/70 transition-colors hover:border-primary/30"
+      className={`cursor-pointer border-border/70 transition-colors hover:border-primary/30 ${CARD_SEVERITY_STYLES[cardSeverity]}`}
       onClick={onClick}
     >
       {/* HEAD */}
@@ -238,77 +222,73 @@ function ProjectCard({ item, onClick, onPreviewScreenshot }: ProjectCardProps) {
 
       {/* BODY */}
       <CardContent className="space-y-3 pt-0">
-        {/* AHR + ODR row */}
-        <div className="flex flex-wrap items-center gap-2">
-          {item.account_health_rating ? (
-            <div className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${ahrStyle!.bg} ${ahrStyle!.border}`}>
-              <span className="text-xs font-medium text-muted-foreground">AHR</span>
-              <span className={`text-sm font-semibold ${ahrStyle!.text}`}>
-                {item.account_health_rating}
-              </span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1.5 rounded-full border border-dashed border-border/70 px-2.5 py-1">
-              <span className="text-xs text-muted-foreground/50">AHR --</span>
-            </div>
-          )}
-          <MetricBadge
-            label="ODR"
-            value={item.odr}
-            threshold={THRESHOLDS.odr}
-          />
-        </div>
-
-        {/* Metrics grid */}
-        <div className="grid grid-cols-2 gap-1.5">
-          <MetricBadge
-            label="迟发率"
-            value={item.late_shipment_rate}
-            threshold={THRESHOLDS.late_shipment_rate}
-          />
-          <MetricBadge
-            label="有效追踪"
-            value={item.valid_tracking_rate}
-            threshold={THRESHOLDS.valid_tracking_rate}
-          />
-          <MetricBadge
-            label="政策违规"
-            value={item.policy_violations}
-            unit=""
-            threshold={THRESHOLDS.policy_violations}
-          />
-          {/* Deactivation risk */}
-          <div className={`flex items-center justify-between rounded-md px-2.5 py-1.5 ${
-            item.account_deactivation_risk === true
-              ? 'bg-rose-50 dark:bg-rose-950/40'
-              : 'bg-[hsl(var(--surface-subtle))]'
-          }`}>
-            <span className="text-xs text-muted-foreground">停用风险</span>
-            {item.account_deactivation_risk === true ? (
-              <div className="flex items-center gap-1">
-                <AlertTriangle className="h-3 w-3 text-rose-600 dark:text-rose-400" />
-                <span className="text-xs font-semibold text-rose-700 dark:text-rose-400">是</span>
+        {/* Section: 账号健康 */}
+        <div className="space-y-1.5">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground/60">账号健康</span>
+          <div className="flex flex-wrap items-center gap-2">
+            {item.account_health_rating ? (
+              <div className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${ahrStyle!.bg} ${ahrStyle!.border}`}>
+                <span className="text-xs font-medium text-muted-foreground">AHR</span>
+                <span className={`text-sm font-semibold ${ahrStyle!.text}`}>
+                  {item.account_health_rating}
+                </span>
               </div>
-            ) : item.account_deactivation_risk === false ? (
-              <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">否</span>
             ) : (
-              <span className="text-xs text-muted-foreground/60">--</span>
+              <div className="flex items-center gap-1.5 rounded-full border border-dashed border-border/70 px-2.5 py-1">
+                <span className="text-xs text-muted-foreground/50">AHR --</span>
+              </div>
             )}
+            <MetricBadge
+              label="ODR"
+              value={item.odr}
+              threshold={THRESHOLDS.odr}
+            />
           </div>
         </div>
 
-        {/* Screenshots */}
-        <ScreenshotThumbnails
-          screenshots={item.screenshots || []}
-          onPreview={onPreviewScreenshot}
-        />
-
-        {/* Status summary */}
-        <CollapsibleNotes content={item.status_summary} />
+        {/* Section: 合规指标 */}
+        <div className="space-y-1.5">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground/60">合规指标</span>
+          <div className="grid grid-cols-2 gap-1.5">
+            <MetricBadge
+              label="迟发率"
+              value={item.late_shipment_rate}
+              threshold={THRESHOLDS.late_shipment_rate}
+            />
+            <MetricBadge
+              label="有效追踪"
+              value={item.valid_tracking_rate}
+              threshold={THRESHOLDS.valid_tracking_rate}
+            />
+            <MetricBadge
+              label="政策违规"
+              value={item.policy_violations}
+              unit=""
+              threshold={THRESHOLDS.policy_violations}
+            />
+            <div className={`flex items-center justify-between rounded-md px-2.5 py-1.5 ${
+              item.account_deactivation_risk === true
+                ? 'bg-rose-50 dark:bg-rose-950/40'
+                : 'bg-[hsl(var(--surface-subtle))]'
+            }`}>
+              <span className="text-xs text-muted-foreground">停用风险</span>
+              {item.account_deactivation_risk === true ? (
+                <div className="flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3 text-rose-600 dark:text-rose-400" />
+                  <span className="text-xs font-semibold text-rose-700 dark:text-rose-400">是</span>
+                </div>
+              ) : item.account_deactivation_risk === false ? (
+                <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">否</span>
+              ) : (
+                <span className="text-xs text-muted-foreground/60">--</span>
+              )}
+            </div>
+          </div>
+        </div>
       </CardContent>
 
       {/* FOOTER */}
-      <CardFooter className="border-t border-border/50 pt-3">
+      <CardFooter className="flex items-center justify-between border-t border-border/50 pt-3">
         <p className="text-xs text-muted-foreground">
           {item.submitted_by ? (
             <>
@@ -319,6 +299,16 @@ function ProjectCard({ item, onClick, onPreviewScreenshot }: ProjectCardProps) {
             <span className="italic text-muted-foreground/50">未提交</span>
           )}
         </p>
+        <div className="flex items-center gap-1">
+          <ScreenshotCount
+            count={screenshotCount}
+            onPreview={() => {
+              const firstUrl = item.screenshots?.[0]?.url
+              if (firstUrl) onPreviewScreenshot(firstUrl)
+            }}
+          />
+          <StatusSummaryIndicator content={item.status_summary} />
+        </div>
       </CardFooter>
     </Card>
   )
@@ -332,17 +322,19 @@ function ProjectCardSkeleton() {
           <Skeleton className="h-5 w-32" />
           <Skeleton className="h-5 w-16" />
         </div>
-        <div className="space-y-2">
-          <Skeleton className="h-8 w-full" />
-          <div className="grid grid-cols-2 gap-1.5">
-            <Skeleton className="h-7 w-full" />
-            <Skeleton className="h-7 w-full" />
-            <Skeleton className="h-7 w-full" />
-            <Skeleton className="h-7 w-full" />
-          </div>
-          <Skeleton className="h-16 w-24" />
+        <Skeleton className="h-3 w-12" />
+        <Skeleton className="h-8 w-full" />
+        <Skeleton className="h-3 w-12" />
+        <div className="grid grid-cols-2 gap-1.5">
+          <Skeleton className="h-7 w-full" />
+          <Skeleton className="h-7 w-full" />
+          <Skeleton className="h-7 w-full" />
+          <Skeleton className="h-7 w-full" />
         </div>
-        <Skeleton className="h-4 w-24" />
+        <div className="flex items-center justify-between border-t border-border/50 pt-3">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-5 w-14" />
+        </div>
       </div>
     </Card>
   )
