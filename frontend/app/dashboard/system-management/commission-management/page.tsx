@@ -426,7 +426,7 @@ export default function CommissionManagementPage() {
                 disabled={recomputing}
               />
 
-              {activeTab === 'detail' ? (
+              {activeTab === 'detail' || activeTab === 'monthly' || activeTab === 'projectSummary' || activeTab === 'monthlyCollection' ? (
                 <Select
                   value={countryFilter}
                   onValueChange={(value) => setCountryFilter(value as SiteCode | 'all')}

@@ -73,18 +73,17 @@ def get_commission_project_yearly_summary(
     year: str,
     country: str | None = None,
 ) -> list[dict]:
-    """获取按项目汇总的佣金数据（跨站点求和）。
+    """获取按项目汇总的佣金数据。
 
     Args:
         db: 数据库会话
         year: 年份
-        country: 国家代码，US/UK/DE。当前实现忽略此参数，汇总所有站点的数据。
+        country: 国家代码，US/UK/DE。如果为 None 则查询所有国家并汇总。
 
     Returns list of dicts with project_id, project_name, months dict, etc.
     """
     month_start = f"{year}-01"
     month_end = f"{year}-12"
-    # 按 (project_id, report_month) 分组，对所有数值字段求和
     stmt = select(
         CommissionProjectMonth.project_id,
         CommissionProjectMonth.report_month,
@@ -95,14 +94,18 @@ def get_commission_project_yearly_summary(
     ).where(
         CommissionProjectMonth.report_month >= month_start,
         CommissionProjectMonth.report_month <= month_end,
-    ).group_by(
-        CommissionProjectMonth.project_id,
-        CommissionProjectMonth.report_month,
-    ).order_by(
-        CommissionProjectMonth.project_id.asc(),
-        CommissionProjectMonth.report_month.asc(),
     )
-    rows = db.execute(stmt).all()
+    if country:
+        stmt = stmt.where(CommissionProjectMonth.country == country)
+    rows = db.execute(
+        stmt.group_by(
+            CommissionProjectMonth.project_id,
+            CommissionProjectMonth.report_month,
+        ).order_by(
+            CommissionProjectMonth.project_id.asc(),
+            CommissionProjectMonth.report_month.asc(),
+        )
+    ).all()
 
     project_map: dict[int, dict] = {}
     for row in rows:
