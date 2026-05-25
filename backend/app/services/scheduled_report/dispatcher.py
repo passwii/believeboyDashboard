@@ -43,7 +43,7 @@ from app.models.scheduled_report import DeliveryStage
 logger = logging.getLogger(__name__)
 
 # ── AI concurrency & timeout control ─────────────────────────────────────────
-AI_CONCURRENCY_LIMIT = 2
+AI_CONCURRENCY_LIMIT = 4  # 每轮最多 4 个 AI 调用并发（15 项目分 2 轮，每轮 8+7=15）
 # Timeout per AI call (seconds). If exceeded, fall back to text summary
 # and release the semaphore slot so the queue keeps moving.
 AI_SUMMARY_TIMEOUT_SEC = 90
