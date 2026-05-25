@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, time, timezone
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, delete, func, select
 from sqlalchemy.orm import Session
 
 from app.models.scheduled_report import (
@@ -249,9 +249,20 @@ def refresh_ledger(
     subscriptions = list(db.execute(sub_query).scalars().all())
 
     for sub in subscriptions:
-        for day in _iter_dates(start, end):
+        sub_created_date = sub.created_at.astimezone(SHANGHAI_TZ).date()
+        sub_start = max(start, sub_created_date)
+        for day in _iter_dates(sub_start, end):
             if _subscription_matches_date(sub, day):
                 _upsert_entry(db, ExpectedOccurrence(sub, day, _build_expected_at(sub, day)))
+        # 清理订阅创建之前的虚假 ledger 条目
+        if sub_created_date > start:
+            db.execute(
+                delete(ScheduledReportLedgerEntry)
+                .where(
+                    ScheduledReportLedgerEntry.subscription_id == sub.id,
+                    ScheduledReportLedgerEntry.expected_date < sub_created_date.isoformat(),
+                )
+            )
     db.commit()
 
     query = _base_query(
