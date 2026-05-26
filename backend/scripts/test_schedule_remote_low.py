@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """
-远程数据库低并发验证测试
-策略：20并发，connect_timeout=30，避免连接风暴
+远程数据库低并发联通性验证测试（纯数据查询）
+策略：20/30 并发，connect_timeout=30，验证连通性和基本性能
 """
-
 from __future__ import annotations
 
 import concurrent.futures
@@ -19,9 +18,6 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(message)s", date
 logger = logging.getLogger("remote_low")
 
 REMOTE_URL = "postgresql+psycopg://damon:jrway2012@145.79.143.98:5432/BLF"
-AI_CONCURRENCY_LIMIT = 2
-_ai_semaphore = threading.Semaphore(AI_CONCURRENCY_LIMIT)
-AI_BUILD_DELAY = 3.0
 
 
 def _create_engine():
@@ -50,7 +46,7 @@ def get_pool_status(engine):
     }
 
 
-def _run_queries(db):
+def run_queries(db):
     from sqlalchemy import func
     from app.models import (
         AnalysisAdProductRow,
@@ -169,12 +165,12 @@ def _run_queries(db):
     }
 
 
-def test_agg(sid, engine, SessionLocal):
+def execute_agg(sid, engine, SessionLocal):
     start = time.time()
     try:
         db = SessionLocal()
         try:
-            _run_queries(db)
+            run_queries(db)
         finally:
             db.close()
         return {"sid": sid, "success": True, "elapsed": time.time() - start}
@@ -183,47 +179,11 @@ def test_agg(sid, engine, SessionLocal):
         return {"sid": sid, "success": False, "error": str(e), "elapsed": time.time() - start}
 
 
-def test_pipe(sid, engine, SessionLocal):
-    start = time.time()
-    sem_wait = 0.0
-    try:
-        db1 = SessionLocal()
-        try:
-            time.sleep(0.01)
-        finally:
-            db1.close()
-
-        sem_start = time.time()
-        _ai_semaphore.acquire()
-        sem_wait = time.time() - sem_start
-
-        try:
-            db2 = SessionLocal()
-            try:
-                _run_queries(db2)
-                time.sleep(AI_BUILD_DELAY)
-            finally:
-                db2.close()
-        finally:
-            _ai_semaphore.release()
-
-        db3 = SessionLocal()
-        try:
-            time.sleep(0.01)
-        finally:
-            db3.close()
-
-        return {"sid": sid, "success": True, "elapsed": time.time() - start, "semaphore_wait": sem_wait}
-    except Exception as e:
-        logger.error(f"[Pipe-{sid}] FAILED: {e}")
-        return {"sid": sid, "success": False, "error": str(e), "elapsed": time.time() - start}
-
-
-def run_test(name, func, count, workers, engine, SessionLocal):
+def run_test(label, count, workers, engine, SessionLocal):
     logger.info("")
     logger.info("=" * 60)
-    logger.info(f"🧪 {name}")
-    logger.info(f"   订阅: {count}, Worker: {workers}")
+    logger.info(f"🧪 {label}")
+    logger.info(f"   并发: {count}, Worker: {workers}")
     logger.info("=" * 60)
 
     s = get_pool_status(engine)
@@ -236,7 +196,7 @@ def run_test(name, func, count, workers, engine, SessionLocal):
 
     def wrapped(sid):
         nonlocal peak_conn
-        r = func(sid, engine, SessionLocal)
+        r = execute_agg(sid, engine, SessionLocal)
         s = get_pool_status(engine)
         with lock:
             peak_conn = max(peak_conn, s["checked_out"])
@@ -260,32 +220,27 @@ def run_test(name, func, count, workers, engine, SessionLocal):
     avg_time = sum(elapsed_list) / len(elapsed_list) if elapsed_list else 0
     p95 = sorted(elapsed_list)[int(len(elapsed_list) * 0.95)] if elapsed_list else 0
 
-    waits = [r.get("semaphore_wait", 0) for r in results if r.get("success")]
-    avg_wait = sum(waits) / len(waits) if waits else 0
-
     logger.info("-" * 60)
-    logger.info(f"📊 {name}:")
+    logger.info(f"📊 {label}:")
     logger.info(f"   总耗时:     {total_time:.2f}s")
     logger.info(f"   成功/失败:  {success}/{failed}")
     logger.info(f"   平均:       {avg_time:.2f}s")
     logger.info(f"   P95:        {p95:.2f}s")
     logger.info(f"   吞吐量:     {len(results)/total_time:.2f}/s")
     logger.info(f"   峰值连接:   {peak_conn}")
-    if waits:
-        logger.info(f"   AI等待:     {avg_wait:.2f}s")
     logger.info("=" * 60)
 
     return {
-        "name": name, "total": count, "success": success, "failed": failed,
+        "label": label, "count": count, "success": success, "failed": failed,
         "total_time": total_time, "avg_time": avg_time, "p95_time": p95,
         "throughput": len(results)/total_time if total_time > 0 else 0,
-        "peak_conn": peak_conn, "avg_wait": avg_wait,
+        "peak_conn": peak_conn,
     }
 
 
 def main():
-    logger.info("🚀 远程数据库低并发验证 (20并发)")
-    logger.info(f"   网络延迟: ~227ms RTT, 丢包 33%")
+    logger.info("🚀 远程数据库低并发联通性验证（纯数据查询）")
+    logger.info(f"   目标: {REMOTE_URL.replace('jrway2012', '***')}")
     logger.info(f"   策略: connect_timeout=30, pool_size=20, max_overflow=20")
     logger.info("")
 
@@ -294,32 +249,24 @@ def main():
 
     results = []
 
-    # 20 聚合
-    results.append(run_test("远程 20 聚合测试", test_agg, 20, 8, engine, SessionLocal))
+    results.append(run_test("20 并发聚合查询", 20, 8, engine, SessionLocal))
     time.sleep(2)
+    results.append(run_test("30 并发聚合查询", 30, 10, engine, SessionLocal))
 
-    # 20 管线
-    results.append(run_test("远程 20 管线测试", test_pipe, 20, 8, engine, SessionLocal))
-
-    # 30 聚合
-    time.sleep(2)
-    results.append(run_test("远程 30 聚合测试", test_agg, 30, 10, engine, SessionLocal))
-
-    # 汇总
     logger.info("")
-    logger.info("📋 远程低并发测试结果")
+    logger.info("📋 低并发测试结果")
     logger.info("-" * 80)
-    logger.info(f"{'测试':<25} {'总':>5} {'成':>4} {'败':>4} {'耗时':>8} {'平均':>7} {'P95':>7} {'峰值连接':>8}")
+    logger.info(f"{'测试':<25} {'并发':>5} {'成功':>4} {'失败':>4} {'耗时':>8} {'平均':>7} {'P95':>7} {'峰值连接':>8}")
     logger.info("-" * 80)
     for r in results:
         logger.info(
-            f"{r['name']:<25} {r['total']:>5} {r['success']:>4} {r['failed']:>4} "
+            f"{r['label']:<25} {r['count']:>5} {r['success']:>4} {r['failed']:>4} "
             f"{r['total_time']:>7.1f}s {r['avg_time']:>6.2f}s {r['p95_time']:>6.2f}s {r['peak_conn']:>8}"
         )
     logger.info("-" * 80)
 
     engine.dispose()
-    logger.info("✅ 测试完成")
+    logger.info("✅ 低并发测试完成")
 
 
 if __name__ == "__main__":
