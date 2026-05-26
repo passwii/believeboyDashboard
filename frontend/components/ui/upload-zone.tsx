@@ -14,6 +14,8 @@ interface UploadZoneProps {
   className?: string
   /** 上传中的状态描述 */
   uploadingText?: string
+  /** 是否显示内置预览区域（父组件自行管理预览时设为 false） */
+  showPreview?: boolean
 }
 
 export function UploadZone({
@@ -23,6 +25,7 @@ export function UploadZone({
   disabled = false,
   className,
   uploadingText = '上传中...',
+  showPreview = true,
 }: UploadZoneProps) {
   const [isDragActive, setIsDragActive] = useState(false)
   const [isPasteActive, setIsPasteActive] = useState(false)
@@ -45,16 +48,18 @@ export function UploadZone({
       }
 
       // 生成预览
-      if (file.type.startsWith('image/')) {
-        const url = URL.createObjectURL(file)
-        setPreview(url)
-        setPreviewType('image')
-      } else if (file.type === 'application/pdf') {
-        setPreview(file.name)
-        setPreviewType('pdf')
-      } else {
-        setPreview(file.name)
-        setPreviewType('other')
+      if (showPreview) {
+        if (file.type.startsWith('image/')) {
+          const url = URL.createObjectURL(file)
+          setPreview(url)
+          setPreviewType('image')
+        } else if (file.type === 'application/pdf') {
+          setPreview(file.name)
+          setPreviewType('pdf')
+        } else {
+          setPreview(file.name)
+          setPreviewType('other')
+        }
       }
 
       // 上传
@@ -213,7 +218,7 @@ export function UploadZone({
       ) : null}
 
       {/* 预览区域 */}
-      {preview ? (
+      {showPreview && preview ? (
         <div className="relative rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-3">
           <button
             type="button"

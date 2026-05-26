@@ -571,6 +571,7 @@ export default function InspectionForm({
                 accept="image/*"
                 maxSize={10}
                 onUpload={handleUploadScreenshot}
+                showPreview={false}
               />
 
               {screenshots.length > 0 && (
