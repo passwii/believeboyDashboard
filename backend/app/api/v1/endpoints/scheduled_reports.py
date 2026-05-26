@@ -210,6 +210,7 @@ def get_scheduled_report_ledger(
 @router.post("/scheduled-reports/ledger/{ledger_key}/resend", response_model=LedgerResendResponse)
 def resend_scheduled_report_ledger_entry(
     ledger_key: str,
+    force: bool = False,
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
@@ -219,7 +220,9 @@ def resend_scheduled_report_ledger_entry(
 
     from app.services.scheduled_report.ledger_service import resend_ledger_entry_async
 
-    success, delivery_log_id, new_status, message = resend_ledger_entry_async(db, ledger_key=ledger_key)
+    success, delivery_log_id, new_status, message = resend_ledger_entry_async(
+        db, ledger_key=ledger_key, ignore_status=force
+    )
     if new_status == "not_found":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=message)
     if not success and new_status == "sent":

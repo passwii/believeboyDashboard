@@ -10,7 +10,7 @@ from decimal import Decimal
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.models import AnalysisSalesOrderRow, AnalysisSourceFile
+from app.models import AnalysisSalesOrderRow, AnalysisSourceFile, SkuRecord
 from app.services import digital_display_service
 from app.services import project_service
 from app.utils.math_utils import round_money
@@ -204,6 +204,9 @@ def build_dashboard_overview(
         except Exception as e:
             logger.warning("Ad snapshot failed for project %s: %s", pid, e)
 
+    # SKU 销售明细（使用完整时间范围）
+    sku_detail = _build_sku_sales_detail(db, valid_ids, normalized_country, period_start, today)
+
     # 4. 计算派生指标（单日环比：今日 vs 昨日）
     qty_change_pct, qty_change_type = _safe_pct_change(
         float(total_today_qty), float(total_yesterday_qty)
@@ -275,6 +278,7 @@ def build_dashboard_overview(
             "period_clicks": total_ad_clicks,
             "period_orders": total_ad_orders,
         },
+        "sku_sales_detail": sku_detail,
     }
 
 
@@ -329,4 +333,89 @@ def _empty_response(country: str, days: int) -> dict:
             "period_clicks": 0,
             "period_orders": 0,
         },
+        "sku_sales_detail": [],
     }
+
+
+# ─── SKU sales detail ──────────────────────────────────────────────────────────
+
+def _build_sku_sales_detail(
+    db: Session,
+    project_ids: list[int],
+    country: str,
+    start_date: date,
+    end_date: date,
+) -> list[dict]:
+    """查询指定日期范围内各 SKU 的销售数量和金额，过滤销售额为0"""
+    if not project_ids:
+        return []
+
+    # 查询日期范围内各 SKU 的销售汇总
+    sku_sales_rows = (
+        db.query(
+            AnalysisSalesOrderRow.sku,
+            func.sum(AnalysisSalesOrderRow.quantity).label("total_qty"),
+            func.sum(
+                func.coalesce(AnalysisSalesOrderRow.item_price, 0) +
+                func.coalesce(AnalysisSalesOrderRow.shipping_price, 0)
+            ).label("total_amount"),
+        )
+        .join(
+            AnalysisSourceFile,
+            AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id,
+        )
+        .filter(
+            AnalysisSourceFile.project_id.in_(project_ids),
+            AnalysisSourceFile.country == country,
+            AnalysisSourceFile.report_type == "sales_report",
+            AnalysisSourceFile.is_current == True,
+            AnalysisSalesOrderRow.is_counted_sales == True,
+            AnalysisSalesOrderRow.purchase_date_pt >= start_date,
+            AnalysisSalesOrderRow.purchase_date_pt <= end_date,
+            AnalysisSalesOrderRow.sku.isnot(None),
+            AnalysisSalesOrderRow.sku != "",
+        )
+        .group_by(AnalysisSalesOrderRow.sku)
+        .having(func.sum(
+            func.coalesce(AnalysisSalesOrderRow.item_price, 0) +
+            func.coalesce(AnalysisSalesOrderRow.shipping_price, 0)
+        ) > 0)
+        .order_by(func.sum(
+            func.coalesce(AnalysisSalesOrderRow.item_price, 0) +
+            func.coalesce(AnalysisSalesOrderRow.shipping_price, 0)
+        ).desc())
+        .limit(50)  # 限制最多50条
+        .all()
+    )
+
+    if not sku_sales_rows:
+        return []
+
+    # 收集所有 SKU
+    sku_list = [row.sku for row in sku_sales_rows]
+    project_id = project_ids[0]  # 取第一个项目作为查询基准
+
+    # 查询 product_costs 获取品名
+    product_name_map: dict[str, str | None] = {}
+    name_rows = (
+        db.query(SkuRecord.sku, SkuRecord.product_name)
+        .filter(
+            SkuRecord.project_id.in_(project_ids),
+            SkuRecord.sku.in_(sku_list),
+            SkuRecord.country == country,
+        )
+        .all()
+    )
+    for row in name_rows:
+        product_name_map[row.sku] = row.product_name
+
+    result = []
+    for row in sku_sales_rows:
+        result.append({
+            "sku": row.sku,
+            "product_name": product_name_map.get(row.sku),
+            "quantity": int(row.total_qty or 0),
+            "sales_amount": round_money(Decimal(str(row.total_amount or 0))),
+        })
+
+    return result

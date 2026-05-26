@@ -20,6 +20,7 @@ from app.models import (
     InventorySnapshotRow,
 )
 from app.models.project import Project
+from app.models.sku_info import SkuRecord
 from app.services.dashboard_overview_service import build_dashboard_overview
 from app.utils.country import get_today_for_country
 
@@ -171,6 +172,9 @@ def build_weekly_report_data(
     # 7.5 上周每日销量趋势（周一到周日逐日拆分）
     daily_trend = _get_daily_sales_trend(db, project_ids, country, prev_week_start, prev_week_end)
 
+    # 7.6 SKU 销售明细（本周期，含品名）
+    sku_sales_detail = _query_sku_sales_detail(db, project_ids, country, prev_week_start, prev_week_end)
+
     # 8. 检测预警信号
     anomalies = detect_weekly_anomalies(
         current_week, prev_week, ads_comparison, returns_data
@@ -250,6 +254,9 @@ def build_weekly_report_data(
 
         # 上周每日销量趋势
         "daily_trend": daily_trend,
+
+        # SKU 销售明细
+        "sku_sales_detail": sku_sales_detail,
 
         # AI 生成内容
         "ai_summary": ai_summary,
@@ -754,7 +761,7 @@ def _build_positive_signals(
 ) -> list[dict[str, Any]]:
     """检测积极信号。"""
     signals = []
-    
+
     new_skus = [s for s in top_skus if s.get("new") and s.get("current", 0) > 50]
     if new_skus:
         signals.append({
@@ -764,7 +771,7 @@ def _build_positive_signals(
             "action": "考虑加大投放",
             "category": "growth",
         })
-    
+
     roas_change = ads_comparison.get("roas", {}).get("change", 0)
     if roas_change > 10:
         signals.append({
@@ -774,5 +781,85 @@ def _build_positive_signals(
             "action": "保持当前投放策略",
             "category": "ads",
         })
-    
+
     return signals
+
+
+def _query_sku_sales_detail(
+    db: Session,
+    project_ids: list[int] | None,
+    country: str,
+    start_date: date,
+    end_date: date,
+) -> list[dict[str, Any]]:
+    """查询指定日期范围的 SKU 销售明细（含品名）。
+
+    按销量降序排列，过滤掉数量和销售额都为 0 的 SKU。
+    """
+    try:
+        # 1) 聚合每个 SKU 的销售数据
+        query = (
+            db.query(
+                AnalysisSalesOrderRow.sku,
+                func.sum(AnalysisSalesOrderRow.quantity).label("total_qty"),
+                func.sum(
+                    func.coalesce(AnalysisSalesOrderRow.item_price, 0)
+                    + func.coalesce(AnalysisSalesOrderRow.shipping_price, 0)
+                ).label("total_amount"),
+            )
+            .join(AnalysisSourceFile, AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id)
+            .filter(
+                AnalysisSourceFile.country == country,
+                AnalysisSourceFile.report_type == "sales_report",
+                AnalysisSourceFile.is_current == True,  # noqa: E712
+                AnalysisSalesOrderRow.purchase_date_pt >= start_date,
+                AnalysisSalesOrderRow.purchase_date_pt <= end_date,
+            )
+        )
+        if project_ids:
+            query = query.filter(AnalysisSourceFile.project_id.in_(project_ids))
+
+        results = (
+            query
+            .group_by(AnalysisSalesOrderRow.sku)
+            .order_by(func.sum(AnalysisSalesOrderRow.quantity).desc())
+            .all()
+        )
+
+        # 2) 批量获取品名映射 (sku -> product_name)
+        sku_names: dict[str, str] = {}
+        sku_list = [r.sku for r in results if r.sku]
+        if sku_list:
+            name_query = (
+                db.query(SkuRecord.sku, SkuRecord.product_name)
+                .filter(
+                    SkuRecord.sku.in_(sku_list),
+                    SkuRecord.country == country,
+                    SkuRecord.is_active == True,  # noqa: E712
+                )
+            )
+            if project_ids:
+                name_query = name_query.filter(SkuRecord.project_id.in_(project_ids))
+
+            for row in name_query.all():
+                if row.sku and row.product_name:
+                    sku_names[row.sku] = row.product_name
+
+        # 3) 组装结果，过滤掉数量和销售额都为 0 的行
+        detail: list[dict[str, Any]] = []
+        for r in results:
+            qty = int(r.total_qty or 0)
+            amount = float(r.total_amount or 0)
+            if qty == 0 and amount == 0:
+                continue
+            detail.append({
+                "sku": r.sku or "Unknown",
+                "product_name": sku_names.get(r.sku, "—"),
+                "qty": qty,
+                "amount": amount,
+            })
+
+        return detail
+    except Exception as e:
+        logger.warning("Failed to query SKU sales detail: %s", e)
+        return []

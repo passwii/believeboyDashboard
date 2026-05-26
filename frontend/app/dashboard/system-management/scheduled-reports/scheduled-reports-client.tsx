@@ -973,8 +973,11 @@ export function ScheduledReportsClient() {
     // 初始化状态为 preparing
     setResendingStates(prev => ({ ...prev, [item.ledger_key]: 'preparing' }))
 
+    // 管理员强制补发，无视原状态
+    const forceParam = isAdmin ? '&force=true' : ''
+
     try {
-      const res = await fetch(resolveApiUrl(`/api/v1/scheduled-reports/ledger/${encodeURIComponent(item.ledger_key)}/resend`), {
+      const res = await fetch(resolveApiUrl(`/api/v1/scheduled-reports/ledger/${encodeURIComponent(item.ledger_key)}/resend?${forceParam.slice(1)}`), {
         method: 'POST',
         headers: authHeadersWithAdmin(),
       })

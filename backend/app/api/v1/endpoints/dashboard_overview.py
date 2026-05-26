@@ -15,7 +15,7 @@ router = APIRouter(dependencies=[Depends(protected)])
 @router.get("/dashboard/overview", response_model=DashboardOverviewResponse)
 def get_dashboard_overview(
     country: str = Query(default="US"),
-    days: Annotated[int, Query(ge=3, le=30)] = 7,
+    days: Annotated[int, Query(ge=1, le=30)] = 7,
     project_ids: Annotated[str | None, Query(description="comma-separated project IDs")] = None,
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
