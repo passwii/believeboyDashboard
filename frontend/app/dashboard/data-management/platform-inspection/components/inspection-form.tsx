@@ -13,7 +13,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { Switch } from '@/components/ui/switch'
 import {
   Dialog,
   DialogContent,
@@ -39,7 +38,6 @@ import {
   fetchInspectionTemplate,
   type HealthData,
   type ComplianceData,
-  type InspectionScreenshot,
   type InspectionTemplateField,
 } from '@/lib/inspection-api'
 import { normalizeErrorMessage } from '@/lib/error-utils'
@@ -83,12 +81,14 @@ function MetricInput({
   onChange,
   unit = '',
   placeholder = '0',
+  step = '1',
 }: {
   label: string
   value: string
   onChange: (v: string) => void
   unit?: string
   placeholder?: string
+  step?: string
 }) {
   return (
     <div className="space-y-1.5">
@@ -96,9 +96,8 @@ function MetricInput({
       <div className="flex items-center gap-2">
         <Input
           type="number"
-          step="0.01"
+          step={step}
           min="0"
-          max="100"
           placeholder={placeholder}
           value={value}
           onChange={(e) => onChange(e.target.value)}
@@ -110,28 +109,71 @@ function MetricInput({
   )
 }
 
-function MetricsRow({ children }: { children: React.ReactNode }) {
+function MetricsGrid({ children }: { children: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-5">
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
       {children}
     </div>
   )
 }
 
 const DEFAULT_HEALTH: HealthData = {
-  odr: 0,
+  negative_feedback: 0,
+  a2z_claims: 0,
+  chargeback_claims: 0,
   late_shipment_rate: 0,
   pre_fulfillment_cancel_rate: 0,
-  valid_tracking_rate: 0,
-  on_time_delivery_rate: 0,
+  valid_tracking_rate: 100,
+  on_time_delivery_rate: 100,
 }
 
 const DEFAULT_COMPLIANCE: ComplianceData = {
-  policy_violations: 0,
+  ip_infringement: 0,
   ip_complaints: 0,
-  restricted_product_warnings: 0,
-  listing_suppressed_count: 0,
-  account_deactivation_risk: false,
+  product_authenticity_complaints: 0,
+  product_condition_complaints: 0,
+  food_product_safety: 0,
+  listing_policy_violations: 0,
+  restricted_product_violations: 0,
+  review_policy_violations: 0,
+  other_policy_violations: 0,
+  regulatory_compliance: 0,
+}
+
+type TemplateData = {
+  health_fields: InspectionTemplateField[]
+  service_performance_fields: InspectionTemplateField[]
+  shipping_performance_fields: InspectionTemplateField[]
+  compliance_fields: InspectionTemplateField[]
+}
+
+function checkFieldWarnings(
+  fields: InspectionTemplateField[],
+  data: Record<string, unknown>,
+): ThresholdWarning[] {
+  const warnings: ThresholdWarning[] = []
+  for (const field of fields) {
+    const value = data[field.key]
+    if (typeof value !== 'number' || field.threshold_warning === undefined) continue
+
+    let triggered = false
+    if (field.threshold_direction === 'above' && value >= field.threshold_warning) triggered = true
+    if (field.threshold_direction === 'below' && value <= field.threshold_warning) triggered = true
+
+    if (triggered) {
+      warnings.push({
+        metric: field.label,
+        value,
+        threshold: field.threshold_warning,
+        severity: field.threshold_critical !== undefined &&
+          ((field.threshold_direction === 'above' && value >= field.threshold_critical) ||
+           (field.threshold_direction === 'below' && value <= field.threshold_critical))
+          ? 'critical' : 'warning',
+        message: `${field.label}: ${value}${field.unit || ''}`,
+      })
+    }
+  }
+  return warnings
 }
 
 export default function InspectionForm({
@@ -142,12 +184,8 @@ export default function InspectionForm({
   onSubmitSuccess,
 }: InspectionFormProps) {
   const { notify } = useNotifications()
-  const [template, setTemplate] = useState<{
-    health_fields: InspectionTemplateField[]
-    compliance_fields: InspectionTemplateField[]
-  } | null>(null)
+  const [template, setTemplate] = useState<TemplateData | null>(null)
 
-  // Form data
   const [formData, setFormData] = useState<{
     health_data: HealthData
     compliance_data: ComplianceData
@@ -158,35 +196,27 @@ export default function InspectionForm({
     status_summary: '',
   })
 
-  // Screenshots
   const [screenshots, setScreenshots] = useState<ScreenshotItem[]>([])
   const [reportId, setReportId] = useState<number | null>(null)
 
-  // UI states
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [saving, setSaving] = useState(false)
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [warnings, setWarnings] = useState<ThresholdWarning[]>([])
 
-  // Load template
   useEffect(() => {
     async function loadTemplate() {
       try {
         const data = await fetchInspectionTemplate()
         setTemplate(data)
       } catch (e) {
-        notify({
-          type: 'error',
-          title: '加载失败',
-          message: normalizeErrorMessage(e, '获取表单模板失败'),
-        })
+        notify({ type: 'error', title: '加载失败', message: normalizeErrorMessage(e, '获取表单模板失败') })
       }
     }
     void loadTemplate()
   }, [notify])
 
-  // Load existing report when projectId or dialog open changes
   useEffect(() => {
     if (!open || !projectId) return
 
@@ -203,26 +233,17 @@ export default function InspectionForm({
           })
           setScreenshots(
             report.screenshots.map((s) => ({
-              id: s.id,
-              url: s.url,
-              filename: s.filename,
-              caption: s.caption || '',
-              isUploading: false,
-              isNew: false,
+              id: s.id, url: s.url, filename: s.filename,
+              caption: s.caption || '', isUploading: false, isNew: false,
             }))
           )
         } else {
-          // Reset for new report
           setReportId(null)
           setFormData({ health_data: { ...DEFAULT_HEALTH }, compliance_data: { ...DEFAULT_COMPLIANCE }, status_summary: '' })
           setScreenshots([])
         }
       } catch (e) {
-        notify({
-          type: 'error',
-          title: '加载失败',
-          message: normalizeErrorMessage(e, '获取报告失败'),
-        })
+        notify({ type: 'error', title: '加载失败', message: normalizeErrorMessage(e, '获取报告失败') })
       } finally {
         setLoading(false)
       }
@@ -230,45 +251,22 @@ export default function InspectionForm({
     void loadReportData()
   }, [periodId, projectId, open, notify])
 
-  // Calculate threshold warnings when form data changes
   useEffect(() => {
     if (!template) return
-
-    const newWarnings: ThresholdWarning[] = []
-
-    // Check health fields thresholds
-    template.health_fields.forEach((field) => {
-      const value = formData.health_data[field.key as keyof HealthData]
-      if (typeof value === 'number' && field.threshold_warning !== undefined) {
-        if (field.threshold_direction === 'higher_is_worse') {
-          if (value > field.threshold_warning) {
-            newWarnings.push({
-              metric: field.label,
-              value,
-              threshold: field.threshold_warning,
-              severity: 'warning',
-              message: `${field.label} 超过阈值 ${field.threshold_warning}${field.unit || ''}`,
-            })
-          }
-        }
-      }
-    })
-
-    setWarnings(newWarnings)
+    const w: ThresholdWarning[] = [
+      ...checkFieldWarnings(template.service_performance_fields, formData.health_data as unknown as Record<string, unknown>),
+      ...checkFieldWarnings(template.shipping_performance_fields, formData.health_data as unknown as Record<string, unknown>),
+      ...checkFieldWarnings(template.compliance_fields, formData.compliance_data as unknown as Record<string, unknown>),
+    ]
+    setWarnings(w)
   }, [formData, template])
 
-  const handleHealthChange = (key: keyof HealthData, value: string | number | boolean) => {
-    setFormData((prev) => ({
-      ...prev,
-      health_data: { ...prev.health_data, [key]: value },
-    }))
+  const handleHealthChange = (key: keyof HealthData, value: string | number) => {
+    setFormData((prev) => ({ ...prev, health_data: { ...prev.health_data, [key]: value } }))
   }
 
-  const handleComplianceChange = (key: keyof ComplianceData, value: string | number | boolean) => {
-    setFormData((prev) => ({
-      ...prev,
-      compliance_data: { ...prev.compliance_data, [key]: value },
-    }))
+  const handleComplianceChange = (key: keyof ComplianceData, value: number) => {
+    setFormData((prev) => ({ ...prev, compliance_data: { ...prev.compliance_data, [key]: value } }))
   }
 
   const handleSaveDraft = async () => {
@@ -284,38 +282,28 @@ export default function InspectionForm({
       notify({ type: 'success', title: '草稿已保存' })
       onSubmitSuccess()
     } catch (e) {
-      notify({
-        type: 'error',
-        title: '保存失败',
-        message: normalizeErrorMessage(e, '保存草稿失败'),
-      })
+      notify({ type: 'error', title: '保存失败', message: normalizeErrorMessage(e, '保存草稿失败') })
     } finally {
       setSaving(false)
     }
   }
 
   const handleSubmit = async () => {
-    // Save first if no report exists
-    if (!reportId) {
-      setSaving(true)
-      try {
-        const result = await saveReport(periodId, projectId, {
-          health_data: formData.health_data,
-          compliance_data: formData.compliance_data,
-          status_summary: formData.status_summary || undefined,
-        })
-        setReportId(result.id)
-      } catch (e) {
-        notify({
-          type: 'error',
-          title: '保存失败',
-          message: normalizeErrorMessage(e, '保存报告失败'),
-        })
-        setSaving(false)
-        return
-      }
+    setSaving(true)
+    try {
+      const result = await saveReport(periodId, projectId, {
+        health_data: formData.health_data,
+        compliance_data: formData.compliance_data,
+        status_summary: formData.status_summary || undefined,
+        screenshot_ids: screenshots.filter((s) => s.id).map((s) => s.id!),
+      })
+      setReportId(result.id)
+    } catch (e) {
+      notify({ type: 'error', title: '保存失败', message: normalizeErrorMessage(e, '保存报告失败') })
       setSaving(false)
+      return
     }
+    setSaving(false)
 
     setSubmitting(true)
     try {
@@ -323,11 +311,7 @@ export default function InspectionForm({
       notify({ type: 'success', title: '报告已提交' })
       onSubmitSuccess()
     } catch (e) {
-      notify({
-        type: 'error',
-        title: '提交失败',
-        message: normalizeErrorMessage(e, '提交报告失败'),
-      })
+      notify({ type: 'error', title: '提交失败', message: normalizeErrorMessage(e, '提交报告失败') })
     } finally {
       setSubmitting(false)
     }
@@ -336,7 +320,6 @@ export default function InspectionForm({
   const handleUploadScreenshot = useCallback(async (file: File) => {
     let targetReportId: number | null = reportId
 
-    // Need a report ID to attach screenshot — save draft first if needed
     if (!targetReportId) {
       try {
         const result = await saveReport(periodId, projectId, {
@@ -347,18 +330,13 @@ export default function InspectionForm({
         targetReportId = result.id
         setReportId(result.id)
       } catch (e) {
-        notify({
-          type: 'error',
-          title: '保存失败',
-          message: normalizeErrorMessage(e, '保存报告失败'),
-        })
+        notify({ type: 'error', title: '保存失败', message: normalizeErrorMessage(e, '保存报告失败') })
         return
       }
     }
 
     const previewUrl = URL.createObjectURL(file)
-    const tempEntry = { url: previewUrl, filename: file.name, caption: '', isUploading: true, isNew: true }
-    setScreenshots((prev) => [...prev, tempEntry])
+    setScreenshots((prev) => [...prev, { url: previewUrl, filename: file.name, caption: '', isUploading: true, isNew: true }])
 
     try {
       const uploaded = await uploadScreenshot(file, targetReportId)
@@ -371,11 +349,7 @@ export default function InspectionForm({
       )
     } catch (e) {
       setScreenshots((prev) => prev.filter((s) => s.url !== previewUrl))
-      notify({
-        type: 'error',
-        title: '上传失败',
-        message: normalizeErrorMessage(e, '上传截图失败'),
-      })
+      notify({ type: 'error', title: '上传失败', message: normalizeErrorMessage(e, '上传截图失败') })
     }
   }, [reportId, projectId, periodId, formData, notify])
 
@@ -383,16 +357,11 @@ export default function InspectionForm({
     const screenshot = screenshots[index]
     if (!screenshot) return
 
-    // If it's an existing screenshot, delete from server
     if (screenshot.id && !screenshot.isNew) {
       try {
         await deleteScreenshot(screenshot.id)
       } catch (e) {
-        notify({
-          type: 'error',
-          title: '删除失败',
-          message: normalizeErrorMessage(e, '删除截图失败'),
-        })
+        notify({ type: 'error', title: '删除失败', message: normalizeErrorMessage(e, '删除截图失败') })
         return
       }
     }
@@ -401,14 +370,12 @@ export default function InspectionForm({
   }, [screenshots, notify])
 
   const handleCaptionChange = useCallback((index: number, caption: string) => {
-    setScreenshots((prev) =>
-      prev.map((s, i) => (i === index ? { ...s, caption } : s))
-    )
+    setScreenshots((prev) => prev.map((s, i) => (i === index ? { ...s, caption } : s)))
   }, [])
 
   if (loading) {
     return (
-      <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
+      <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
         <DialogContent className="max-w-2xl">
           <div className="space-y-4 py-8">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -426,7 +393,7 @@ export default function InspectionForm({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl max-h-[calc(100vh-3rem)] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>巡检报告</DialogTitle>
@@ -438,27 +405,24 @@ export default function InspectionForm({
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20">
               <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
                 <AlertTriangle className="h-5 w-5" />
-                <span className="font-medium">
-                  检测到 {warnings.length} 个指标异常
-                </span>
+                <span className="font-medium">检测到 {warnings.length} 个指标异常</span>
               </div>
               <div className="mt-2 space-y-1">
                 {warnings.map((w, i) => (
                   <p key={i} className="text-sm text-amber-600 dark:text-amber-500">
-                    {w.metric}: {w.value}
-                    {w.threshold !== undefined && ` (阈值: ${w.threshold})`}
+                    {w.message} (阈值: {w.threshold})
                   </p>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Account Health Card */}
+          {/* 1. 账户健康评级 */}
           <Card className="dashboard-surface">
             <CardHeader>
               <CardTitle className="text-base">账户健康指标</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent>
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium text-muted-foreground">
                   Account Health Rating (账户健康评级)
@@ -479,85 +443,134 @@ export default function InspectionForm({
                   </SelectContent>
                 </Select>
               </div>
-
-              <MetricsRow>
-                <MetricInput
-                  label="ODR (订单缺陷率)"
-                  value={formData.health_data.odr?.toString() || ''}
-                  onChange={(v) => handleHealthChange('odr', parseFloat(v) || 0)}
-                  unit="%"
-                />
-                <MetricInput
-                  label="迟发率"
-                  value={formData.health_data.late_shipment_rate?.toString() || ''}
-                  onChange={(v) => handleHealthChange('late_shipment_rate', parseFloat(v) || 0)}
-                  unit="%"
-                />
-                <MetricInput
-                  label="预履行取消率"
-                  value={formData.health_data.pre_fulfillment_cancel_rate?.toString() || ''}
-                  onChange={(v) => handleHealthChange('pre_fulfillment_cancel_rate', parseFloat(v) || 0)}
-                  unit="%"
-                />
-                <MetricInput
-                  label="有效追踪率"
-                  value={formData.health_data.valid_tracking_rate?.toString() || ''}
-                  onChange={(v) => handleHealthChange('valid_tracking_rate', parseFloat(v) || 0)}
-                  unit="%"
-                />
-                <MetricInput
-                  label="准时送达率"
-                  value={formData.health_data.on_time_delivery_rate?.toString() || ''}
-                  onChange={(v) => handleHealthChange('on_time_delivery_rate', parseFloat(v) || 0)}
-                  unit="%"
-                />
-              </MetricsRow>
             </CardContent>
           </Card>
 
-          {/* Compliance Card */}
+          {/* 2. 客户服务绩效 */}
           <Card className="dashboard-surface">
             <CardHeader>
-              <CardTitle className="text-base">政策合规</CardTitle>
+              <CardTitle className="text-base">客户服务绩效</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <MetricsRow>
+            <CardContent>
+              <MetricsGrid>
                 <MetricInput
-                  label="政策违规数"
-                  value={formData.compliance_data.policy_violations?.toString() || ''}
-                  onChange={(v) => handleComplianceChange('policy_violations', parseInt(v) || 0)}
+                  label="负面反馈"
+                  value={formData.health_data.negative_feedback?.toString() ?? '0'}
+                  onChange={(v) => handleHealthChange('negative_feedback', parseInt(v) || 0)}
                 />
                 <MetricInput
-                  label="IP投诉"
-                  value={formData.compliance_data.ip_complaints?.toString() || ''}
+                  label="亚马逊 A-to-Z"
+                  value={formData.health_data.a2z_claims?.toString() ?? '0'}
+                  onChange={(v) => handleHealthChange('a2z_claims', parseInt(v) || 0)}
+                />
+                <MetricInput
+                  label="信用卡拒付"
+                  value={formData.health_data.chargeback_claims?.toString() ?? '0'}
+                  onChange={(v) => handleHealthChange('chargeback_claims', parseInt(v) || 0)}
+                />
+              </MetricsGrid>
+            </CardContent>
+          </Card>
+
+          {/* 3. 配送绩效 */}
+          <Card className="dashboard-surface">
+            <CardHeader>
+              <CardTitle className="text-base">配送绩效</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <MetricsGrid>
+                <MetricInput
+                  label="迟发率"
+                  value={formData.health_data.late_shipment_rate?.toString() ?? '0'}
+                  onChange={(v) => handleHealthChange('late_shipment_rate', parseFloat(v) || 0)}
+                  unit="%"
+                  step="0.01"
+                />
+                <MetricInput
+                  label="配送前取消率"
+                  value={formData.health_data.pre_fulfillment_cancel_rate?.toString() ?? '0'}
+                  onChange={(v) => handleHealthChange('pre_fulfillment_cancel_rate', parseFloat(v) || 0)}
+                  unit="%"
+                  step="0.01"
+                />
+                <MetricInput
+                  label="有效追踪率"
+                  value={formData.health_data.valid_tracking_rate?.toString() ?? '100'}
+                  onChange={(v) => handleHealthChange('valid_tracking_rate', parseFloat(v) || 0)}
+                  unit="%"
+                  step="0.01"
+                  placeholder="100"
+                />
+                <MetricInput
+                  label="准时交付率"
+                  value={formData.health_data.on_time_delivery_rate?.toString() ?? '100'}
+                  onChange={(v) => handleHealthChange('on_time_delivery_rate', parseFloat(v) || 0)}
+                  unit="%"
+                  step="0.01"
+                  placeholder="100"
+                />
+              </MetricsGrid>
+            </CardContent>
+          </Card>
+
+          {/* 4. 政策与合规 */}
+          <Card className="dashboard-surface">
+            <CardHeader>
+              <CardTitle className="text-base">政策与合规</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <MetricsGrid>
+                <MetricInput
+                  label="涉嫌侵犯知识产权"
+                  value={formData.compliance_data.ip_infringement?.toString() ?? '0'}
+                  onChange={(v) => handleComplianceChange('ip_infringement', parseInt(v) || 0)}
+                />
+                <MetricInput
+                  label="知识产权投诉"
+                  value={formData.compliance_data.ip_complaints?.toString() ?? '0'}
                   onChange={(v) => handleComplianceChange('ip_complaints', parseInt(v) || 0)}
                 />
                 <MetricInput
-                  label="受限商品警告"
-                  value={formData.compliance_data.restricted_product_warnings?.toString() || ''}
-                  onChange={(v) => handleComplianceChange('restricted_product_warnings', parseInt(v) || 0)}
+                  label="商品真实性买家投诉"
+                  value={formData.compliance_data.product_authenticity_complaints?.toString() ?? '0'}
+                  onChange={(v) => handleComplianceChange('product_authenticity_complaints', parseInt(v) || 0)}
                 />
                 <MetricInput
-                  label="被抑制Listing数"
-                  value={formData.compliance_data.listing_suppressed_count?.toString() || ''}
-                  onChange={(v) => handleComplianceChange('listing_suppressed_count', parseInt(v) || 0)}
+                  label="商品状况买家投诉"
+                  value={formData.compliance_data.product_condition_complaints?.toString() ?? '0'}
+                  onChange={(v) => handleComplianceChange('product_condition_complaints', parseInt(v) || 0)}
                 />
-              </MetricsRow>
-
-              <div className="flex items-center gap-3 rounded-lg border border-border/70 p-4">
-                <div className="flex-1">
-                  <Label className="text-sm font-medium">账户停用风险</Label>
-                  <p className="text-xs text-muted-foreground">
-                    是否存在导致账户可能被停用的严重问题
-                  </p>
-                </div>
-                <Switch
-                  checked={formData.compliance_data.account_deactivation_risk || false}
-                  onCheckedChange={(checked) =>
-                    handleComplianceChange('account_deactivation_risk', checked)
-                  }
+                <MetricInput
+                  label="食品和商品安全问题"
+                  value={formData.compliance_data.food_product_safety?.toString() ?? '0'}
+                  onChange={(v) => handleComplianceChange('food_product_safety', parseInt(v) || 0)}
                 />
-              </div>
+                <MetricInput
+                  label="上架政策违规"
+                  value={formData.compliance_data.listing_policy_violations?.toString() ?? '0'}
+                  onChange={(v) => handleComplianceChange('listing_policy_violations', parseInt(v) || 0)}
+                />
+                <MetricInput
+                  label="违反受限商品政策"
+                  value={formData.compliance_data.restricted_product_violations?.toString() ?? '0'}
+                  onChange={(v) => handleComplianceChange('restricted_product_violations', parseInt(v) || 0)}
+                />
+                <MetricInput
+                  label="违反买家商品评论政策"
+                  value={formData.compliance_data.review_policy_violations?.toString() ?? '0'}
+                  onChange={(v) => handleComplianceChange('review_policy_violations', parseInt(v) || 0)}
+                />
+                <MetricInput
+                  label="其他违反政策"
+                  value={formData.compliance_data.other_policy_violations?.toString() ?? '0'}
+                  onChange={(v) => handleComplianceChange('other_policy_violations', parseInt(v) || 0)}
+                />
+                <MetricInput
+                  label="监管合规性"
+                  value={formData.compliance_data.regulatory_compliance?.toString() ?? '0'}
+                  onChange={(v) => handleComplianceChange('regulatory_compliance', parseInt(v) || 0)}
+                />
+              </MetricsGrid>
             </CardContent>
           </Card>
 
@@ -631,10 +644,7 @@ export default function InspectionForm({
                 rows={4}
                 value={formData.status_summary}
                 onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    status_summary: e.target.value,
-                  }))
+                  setFormData((prev) => ({ ...prev, status_summary: e.target.value }))
                 }
               />
             </CardContent>
@@ -642,11 +652,7 @@ export default function InspectionForm({
         </div>
 
         <DialogFooter className="sticky bottom-0 border-t bg-background pt-4">
-          <Button
-            variant="outline"
-            onClick={handleSaveDraft}
-            disabled={saving || submitting}
-          >
+          <Button variant="outline" onClick={handleSaveDraft} disabled={saving || submitting}>
             {saving ? (
               <div className="mr-1 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             ) : (
@@ -654,10 +660,7 @@ export default function InspectionForm({
             )}
             保存草稿
           </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={saving || submitting}
-          >
+          <Button onClick={handleSubmit} disabled={saving || submitting}>
             {submitting ? (
               <div className="mr-1 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             ) : (
@@ -667,11 +670,10 @@ export default function InspectionForm({
           </Button>
         </DialogFooter>
 
-        {/* Image preview dialog */}
         {previewImage && (
           <PortraitScreenshotDialog
             open={!!previewImage}
-            onOpenChange={(open) => !open && setPreviewImage(null)}
+            onOpenChange={(o) => !o && setPreviewImage(null)}
             src={previewImage}
             alt="截图预览"
           />

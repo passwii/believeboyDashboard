@@ -124,10 +124,22 @@ function DetailSheet({
                         <Badge variant="outline">{report.health_data.account_health_rating}</Badge>
                       </div>
                     )}
-                    {report.health_data.odr !== undefined && (
+                    {report.health_data.negative_feedback !== undefined && (
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">ODR</span>
-                        <span>{report.health_data.odr}%</span>
+                        <span className="text-muted-foreground">负面反馈</span>
+                        <span>{report.health_data.negative_feedback}</span>
+                      </div>
+                    )}
+                    {report.health_data.a2z_claims !== undefined && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">亚马逊 A-to-Z</span>
+                        <span>{report.health_data.a2z_claims}</span>
+                      </div>
+                    )}
+                    {report.health_data.chargeback_claims !== undefined && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">信用卡拒付</span>
+                        <span>{report.health_data.chargeback_claims}</span>
                       </div>
                     )}
                     {report.health_data.late_shipment_rate !== undefined && (
@@ -138,7 +150,7 @@ function DetailSheet({
                     )}
                     {report.health_data.pre_fulfillment_cancel_rate !== undefined && (
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">预履行取消率</span>
+                        <span className="text-muted-foreground">配送前取消率</span>
                         <span>{report.health_data.pre_fulfillment_cancel_rate}%</span>
                       </div>
                     )}
@@ -150,7 +162,7 @@ function DetailSheet({
                     )}
                     {report.health_data.on_time_delivery_rate !== undefined && (
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">准时送达率</span>
+                        <span className="text-muted-foreground">准时交付率</span>
                         <span>{report.health_data.on_time_delivery_rate}%</span>
                       </div>
                     )}
@@ -162,39 +174,67 @@ function DetailSheet({
             {/* Compliance data */}
             {report.compliance_data && Object.keys(report.compliance_data).length > 0 && (
               <div className="space-y-3">
-                <h3 className="text-sm font-semibold text-foreground">政策合规</h3>
+                <h3 className="text-sm font-semibold text-foreground">政策与合规</h3>
                 <div className="rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-4">
                   <div className="grid gap-3 sm:grid-cols-2">
-                    {report.compliance_data.policy_violations !== undefined && (
+                    {report.compliance_data.ip_infringement !== undefined && (
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">政策违规数</span>
-                        <span>{report.compliance_data.policy_violations}</span>
+                        <span className="text-muted-foreground">涉嫌侵犯知识产权</span>
+                        <span>{report.compliance_data.ip_infringement}</span>
                       </div>
                     )}
                     {report.compliance_data.ip_complaints !== undefined && (
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">IP投诉</span>
+                        <span className="text-muted-foreground">知识产权投诉</span>
                         <span>{report.compliance_data.ip_complaints}</span>
                       </div>
                     )}
-                    {report.compliance_data.restricted_product_warnings !== undefined && (
+                    {report.compliance_data.product_authenticity_complaints !== undefined && (
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">受限商品警告</span>
-                        <span>{report.compliance_data.restricted_product_warnings}</span>
+                        <span className="text-muted-foreground">商品真实性买家投诉</span>
+                        <span>{report.compliance_data.product_authenticity_complaints}</span>
                       </div>
                     )}
-                    {report.compliance_data.listing_suppressed_count !== undefined && (
+                    {report.compliance_data.product_condition_complaints !== undefined && (
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">被抑制Listing数</span>
-                        <span>{report.compliance_data.listing_suppressed_count}</span>
+                        <span className="text-muted-foreground">商品状况买家投诉</span>
+                        <span>{report.compliance_data.product_condition_complaints}</span>
                       </div>
                     )}
-                    {report.compliance_data.account_deactivation_risk !== undefined && (
+                    {report.compliance_data.food_product_safety !== undefined && (
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">账户停用风险</span>
-                        <Badge variant={report.compliance_data.account_deactivation_risk ? 'destructive' : 'outline'}>
-                          {report.compliance_data.account_deactivation_risk ? '是' : '否'}
-                        </Badge>
+                        <span className="text-muted-foreground">食品和商品安全问题</span>
+                        <span>{report.compliance_data.food_product_safety}</span>
+                      </div>
+                    )}
+                    {report.compliance_data.listing_policy_violations !== undefined && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">上架政策违规</span>
+                        <span>{report.compliance_data.listing_policy_violations}</span>
+                      </div>
+                    )}
+                    {report.compliance_data.restricted_product_violations !== undefined && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">违反受限商品政策</span>
+                        <span>{report.compliance_data.restricted_product_violations}</span>
+                      </div>
+                    )}
+                    {report.compliance_data.review_policy_violations !== undefined && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">违反买家商品评论政策</span>
+                        <span>{report.compliance_data.review_policy_violations}</span>
+                      </div>
+                    )}
+                    {report.compliance_data.other_policy_violations !== undefined && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">其他违反政策</span>
+                        <span>{report.compliance_data.other_policy_violations}</span>
+                      </div>
+                    )}
+                    {report.compliance_data.regulatory_compliance !== undefined && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">监管合规性</span>
+                        <span>{report.compliance_data.regulatory_compliance}</span>
                       </div>
                     )}
                   </div>
@@ -362,7 +402,7 @@ export default function InspectionHistory({ periodId }: InspectionHistoryProps) 
                   <TableHead>项目</TableHead>
                   <TableHead>状态</TableHead>
                   <TableHead>AHR</TableHead>
-                  <TableHead>ODR</TableHead>
+                  <TableHead>合规问题</TableHead>
                   <TableHead>提交人</TableHead>
                   <TableHead>提交时间</TableHead>
                   <TableHead>操作</TableHead>
@@ -387,7 +427,9 @@ export default function InspectionHistory({ periodId }: InspectionHistoryProps) 
                         )}
                       </TableCell>
                       <TableCell>
-                        {item.odr !== undefined ? `${item.odr}%` : '-'}
+                        {item.compliance_total !== undefined && item.compliance_total !== null
+                          ? item.compliance_total
+                          : '-'}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {item.submitted_by || '-'}

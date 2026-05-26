@@ -17,7 +17,6 @@ interface InspectionOverviewProps {
   onSelectProject: (projectId: number) => void
 }
 
-// AHR color styles
 const AHR_STYLES: Record<string, { bg: string; text: string; border: string }> = {
   Healthy: { bg: 'bg-emerald-50 dark:bg-emerald-950/40', text: 'text-emerald-700 dark:text-emerald-400', border: 'border-emerald-200 dark:border-emerald-800' },
   Good: { bg: 'bg-blue-50 dark:bg-blue-950/40', text: 'text-blue-700 dark:text-blue-400', border: 'border-blue-200 dark:border-blue-800' },
@@ -25,7 +24,6 @@ const AHR_STYLES: Record<string, { bg: string; text: string; border: string }> =
   Critical: { bg: 'bg-rose-50 dark:bg-rose-950/40', text: 'text-rose-700 dark:text-rose-400', border: 'border-rose-200 dark:border-rose-800' },
 }
 
-// Status badge styles
 const STATUS_STYLES: Record<string, { badge: string; label: string }> = {
   submitted: { badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400', label: '已提交' },
   draft: { badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400', label: '草稿' },
@@ -33,12 +31,10 @@ const STATUS_STYLES: Record<string, { badge: string; label: string }> = {
   pending: { badge: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400', label: '待填写' },
 }
 
-// Anomaly thresholds
-const THRESHOLDS = {
-  odr: { warning: 0.5, critical: 1.0 },
+const SHIPPING_THRESHOLDS = {
   late_shipment_rate: { warning: 2, critical: 4 },
   valid_tracking_rate: { warning: 97, critical: 95, inverted: true },
-  policy_violations: { warning: 1, critical: 3 },
+  on_time_delivery_rate: { warning: 97, critical: 95, inverted: true },
 }
 
 function formatDate(dateStr: string): string {
@@ -60,8 +56,6 @@ function formatDeadline(deadlineStr: string): { text: string; isOverdue: boolean
   })
   return { text, isOverdue }
 }
-
-// ── Metric severity ──
 
 type Severity = 'normal' | 'warning' | 'critical'
 
@@ -86,23 +80,23 @@ const SEVERITY_STYLES: Record<Severity, { bg: string; text: string }> = {
   critical: { bg: 'bg-rose-50 dark:bg-rose-950/40', text: 'text-rose-700 dark:text-rose-400' },
 }
 
-// ── Card-level severity ──
-
 type CardSeverity = 'normal' | 'warning' | 'critical'
 
 function getCardSeverity(item: InspectionOverviewType['items'][number]): CardSeverity {
   if (item.account_health_rating === 'Critical') return 'critical'
-  if (item.account_deactivation_risk === true) return 'critical'
-  if (getMetricSeverity(item.odr, THRESHOLDS.odr) === 'critical') return 'critical'
-  if (getMetricSeverity(item.late_shipment_rate, THRESHOLDS.late_shipment_rate) === 'critical') return 'critical'
-  if (getMetricSeverity(item.valid_tracking_rate, THRESHOLDS.valid_tracking_rate) === 'critical') return 'critical'
-  if (getMetricSeverity(item.policy_violations, THRESHOLDS.policy_violations) === 'critical') return 'critical'
+  if ((item.compliance_total ?? 0) >= 3) return 'critical'
+  if (getMetricSeverity(item.late_shipment_rate, SHIPPING_THRESHOLDS.late_shipment_rate) === 'critical') return 'critical'
+  if (getMetricSeverity(item.valid_tracking_rate, SHIPPING_THRESHOLDS.valid_tracking_rate) === 'critical') return 'critical'
+  if (getMetricSeverity(item.on_time_delivery_rate, SHIPPING_THRESHOLDS.on_time_delivery_rate) === 'critical') return 'critical'
 
   if (item.account_health_rating === 'At Risk') return 'warning'
-  if (getMetricSeverity(item.odr, THRESHOLDS.odr) === 'warning') return 'warning'
-  if (getMetricSeverity(item.late_shipment_rate, THRESHOLDS.late_shipment_rate) === 'warning') return 'warning'
-  if (getMetricSeverity(item.valid_tracking_rate, THRESHOLDS.valid_tracking_rate) === 'warning') return 'warning'
-  if (getMetricSeverity(item.policy_violations, THRESHOLDS.policy_violations) === 'warning') return 'warning'
+  if ((item.compliance_total ?? 0) >= 1) return 'warning'
+  if (getMetricSeverity(item.late_shipment_rate, SHIPPING_THRESHOLDS.late_shipment_rate) === 'warning') return 'warning'
+  if (getMetricSeverity(item.valid_tracking_rate, SHIPPING_THRESHOLDS.valid_tracking_rate) === 'warning') return 'warning'
+  if (getMetricSeverity(item.on_time_delivery_rate, SHIPPING_THRESHOLDS.on_time_delivery_rate) === 'warning') return 'warning'
+
+  // 客户服务: any non-zero is a warning signal
+  if ((item.negative_feedback ?? 0) > 0 || (item.a2z_claims ?? 0) > 0 || (item.chargeback_claims ?? 0) > 0) return 'warning'
 
   return 'normal'
 }
@@ -113,7 +107,6 @@ const CARD_SEVERITY_STYLES: Record<CardSeverity, string> = {
   critical: 'border-l-[3px] border-l-rose-400 dark:border-l-rose-500',
 }
 
-// MetricBadge — renders a single metric with semantic color
 interface MetricBadgeProps {
   label: string
   value: number | undefined | null
@@ -149,8 +142,6 @@ function MetricBadge({ label, value, unit = '%', threshold }: MetricBadgeProps) 
   )
 }
 
-// ── Status summary popover ──
-
 function StatusSummaryIndicator({ content }: { content: string | undefined }) {
   if (!content) return null
 
@@ -176,8 +167,6 @@ function StatusSummaryIndicator({ content }: { content: string | undefined }) {
   )
 }
 
-// ── Screenshot count chip ──
-
 function ScreenshotCount({ count, onPreview }: { count: number; onPreview: () => void }) {
   if (count === 0) return null
 
@@ -193,8 +182,6 @@ function ScreenshotCount({ count, onPreview }: { count: number; onPreview: () =>
   )
 }
 
-// ── ProjectCard: three-section layout ──
-
 interface ProjectCardProps {
   item: InspectionOverviewType['items'][number]
   onClick: () => void
@@ -208,6 +195,7 @@ function ProjectCard({ item, onClick, onPreviewScreenshot }: ProjectCardProps) {
     : null
   const cardSeverity = getCardSeverity(item)
   const screenshotCount = item.screenshots?.length ?? 0
+  const serviceTotal = (item.negative_feedback ?? 0) + (item.a2z_claims ?? 0) + (item.chargeback_claims ?? 0)
 
   return (
     <Card
@@ -222,7 +210,7 @@ function ProjectCard({ item, onClick, onPreviewScreenshot }: ProjectCardProps) {
 
       {/* BODY */}
       <CardContent className="space-y-3 pt-0">
-        {/* Section: 账号健康 */}
+        {/* Section: 账号健康 + 客户服务 */}
         <div className="space-y-1.5">
           <span className="text-[10px] uppercase tracking-wider text-muted-foreground/60">账号健康</span>
           <div className="flex flex-wrap items-center gap-2">
@@ -238,47 +226,63 @@ function ProjectCard({ item, onClick, onPreviewScreenshot }: ProjectCardProps) {
                 <span className="text-xs text-muted-foreground/50">AHR --</span>
               </div>
             )}
-            <MetricBadge
-              label="ODR"
-              value={item.odr}
-              threshold={THRESHOLDS.odr}
-            />
+            <div className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${
+              serviceTotal > 0
+                ? 'border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40'
+                : 'border-border/70 bg-[hsl(var(--surface-subtle))]'
+            }`}>
+              <span className="text-xs text-muted-foreground">客服</span>
+              {serviceTotal > 0 ? (
+                <span className="text-xs font-semibold text-amber-700 dark:text-amber-400">{serviceTotal}</span>
+              ) : (
+                <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">0</span>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Section: 合规指标 */}
+        {/* Section: 配送绩效 + 合规 */}
         <div className="space-y-1.5">
-          <span className="text-[10px] uppercase tracking-wider text-muted-foreground/60">合规指标</span>
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground/60">配送 &amp; 合规</span>
           <div className="grid grid-cols-2 gap-1.5">
             <MetricBadge
               label="迟发率"
               value={item.late_shipment_rate}
-              threshold={THRESHOLDS.late_shipment_rate}
+              threshold={SHIPPING_THRESHOLDS.late_shipment_rate}
             />
             <MetricBadge
               label="有效追踪"
               value={item.valid_tracking_rate}
-              threshold={THRESHOLDS.valid_tracking_rate}
+              threshold={SHIPPING_THRESHOLDS.valid_tracking_rate}
             />
             <MetricBadge
-              label="政策违规"
-              value={item.policy_violations}
-              unit=""
-              threshold={THRESHOLDS.policy_violations}
+              label="准时交付"
+              value={item.on_time_delivery_rate}
+              threshold={SHIPPING_THRESHOLDS.on_time_delivery_rate}
             />
             <div className={`flex items-center justify-between rounded-md px-2.5 py-1.5 ${
-              item.account_deactivation_risk === true
+              (item.compliance_total ?? 0) >= 3
                 ? 'bg-rose-50 dark:bg-rose-950/40'
-                : 'bg-[hsl(var(--surface-subtle))]'
+                : (item.compliance_total ?? 0) >= 1
+                  ? 'bg-amber-50 dark:bg-amber-950/40'
+                  : 'bg-[hsl(var(--surface-subtle))]'
             }`}>
-              <span className="text-xs text-muted-foreground">停用风险</span>
-              {item.account_deactivation_risk === true ? (
+              <span className="text-xs text-muted-foreground">合规问题</span>
+              {(item.compliance_total ?? 0) > 0 ? (
                 <div className="flex items-center gap-1">
-                  <AlertTriangle className="h-3 w-3 text-rose-600 dark:text-rose-400" />
-                  <span className="text-xs font-semibold text-rose-700 dark:text-rose-400">是</span>
+                  <AlertTriangle className={`h-3 w-3 ${
+                    (item.compliance_total ?? 0) >= 3
+                      ? 'text-rose-600 dark:text-rose-400'
+                      : 'text-amber-600 dark:text-amber-400'
+                  }`} />
+                  <span className={`text-xs font-semibold ${
+                    (item.compliance_total ?? 0) >= 3
+                      ? 'text-rose-700 dark:text-rose-400'
+                      : 'text-amber-700 dark:text-amber-400'
+                  }`}>{item.compliance_total}</span>
                 </div>
-              ) : item.account_deactivation_risk === false ? (
-                <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">否</span>
+              ) : item.compliance_total !== undefined && item.compliance_total !== null ? (
+                <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">0</span>
               ) : (
                 <span className="text-xs text-muted-foreground/60">--</span>
               )}
@@ -340,8 +344,6 @@ function ProjectCardSkeleton() {
   )
 }
 
-// ── Main overview component ──
-
 export default function InspectionOverview({
   periodId,
   onSelectProject,
@@ -374,7 +376,6 @@ export default function InspectionOverview({
   if (loading) {
     return (
       <div className="space-y-4">
-        {/* Header skeleton */}
         <div className="rounded-lg border border-border/70 bg-[hsl(var(--surface-panel))] p-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="space-y-2">
@@ -389,7 +390,6 @@ export default function InspectionOverview({
           </div>
         </div>
 
-        {/* Grid skeleton */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <ProjectCardSkeleton key={i} />
@@ -415,7 +415,6 @@ export default function InspectionOverview({
   return (
     <>
       <div className="space-y-4">
-        {/* Period header */}
         <div className="rounded-lg border border-border/70 bg-[hsl(var(--surface-panel))] p-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="space-y-1">
@@ -434,7 +433,6 @@ export default function InspectionOverview({
             </Badge>
           </div>
 
-          {/* Progress bar */}
           <div className="mt-4 space-y-2">
             <div className="h-2 w-full overflow-hidden rounded-full bg-[hsl(var(--surface-subtle))]">
               <div
@@ -452,7 +450,6 @@ export default function InspectionOverview({
           </div>
         </div>
 
-        {/* Project grid */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {overview.items.map((item) => (
             <ProjectCard
@@ -465,7 +462,6 @@ export default function InspectionOverview({
         </div>
       </div>
 
-      {/* Image preview dialog */}
       {previewImage && (
         <PortraitScreenshotDialog
           open={!!previewImage}

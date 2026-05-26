@@ -22,11 +22,22 @@ from app.services.upload_service import _safe_project_folder_name
 _TZ_CN = timezone(timedelta(hours=8))
 
 THRESHOLDS: list[dict[str, Any]] = [
-    {"metric": "inspection_odr", "key": "odr", "source": "health_data", "direction": "above", "warning": 0.5, "critical": 1.0},
+    {"metric": "inspection_negative_feedback", "key": "negative_feedback", "source": "health_data", "direction": "above", "warning": 1, "critical": 3},
+    {"metric": "inspection_a2z_claims", "key": "a2z_claims", "source": "health_data", "direction": "above", "warning": 1, "critical": 3},
+    {"metric": "inspection_chargeback_claims", "key": "chargeback_claims", "source": "health_data", "direction": "above", "warning": 1, "critical": 3},
     {"metric": "inspection_late_shipment", "key": "late_shipment_rate", "source": "health_data", "direction": "above", "warning": 2.0, "critical": 4.0},
     {"metric": "inspection_vtr", "key": "valid_tracking_rate", "source": "health_data", "direction": "below", "warning": 97.0, "critical": 95.0},
-    {"metric": "inspection_policy_violation", "key": "policy_violations", "source": "compliance_data", "direction": "above", "warning": 1, "critical": 3},
-    {"metric": "inspection_deactivation_risk", "key": "account_deactivation_risk", "source": "compliance_data", "direction": "equals", "warning": True, "critical": True},
+    {"metric": "inspection_on_time_delivery", "key": "on_time_delivery_rate", "source": "health_data", "direction": "below", "warning": 97.0, "critical": 95.0},
+    {"metric": "inspection_ip_infringement", "key": "ip_infringement", "source": "compliance_data", "direction": "above", "warning": 1, "critical": 3},
+    {"metric": "inspection_ip_complaints", "key": "ip_complaints", "source": "compliance_data", "direction": "above", "warning": 1, "critical": 3},
+    {"metric": "inspection_product_authenticity", "key": "product_authenticity_complaints", "source": "compliance_data", "direction": "above", "warning": 1, "critical": 3},
+    {"metric": "inspection_product_condition", "key": "product_condition_complaints", "source": "compliance_data", "direction": "above", "warning": 1, "critical": 3},
+    {"metric": "inspection_food_safety", "key": "food_product_safety", "source": "compliance_data", "direction": "above", "warning": 1, "critical": 3},
+    {"metric": "inspection_listing_violations", "key": "listing_policy_violations", "source": "compliance_data", "direction": "above", "warning": 1, "critical": 3},
+    {"metric": "inspection_restricted_product", "key": "restricted_product_violations", "source": "compliance_data", "direction": "above", "warning": 1, "critical": 3},
+    {"metric": "inspection_review_violations", "key": "review_policy_violations", "source": "compliance_data", "direction": "above", "warning": 1, "critical": 3},
+    {"metric": "inspection_other_violations", "key": "other_policy_violations", "source": "compliance_data", "direction": "above", "warning": 1, "critical": 3},
+    {"metric": "inspection_regulatory", "key": "regulatory_compliance", "source": "compliance_data", "direction": "above", "warning": 1, "critical": 3},
 ]
 
 _ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
@@ -141,11 +152,21 @@ def get_overview(
             "project_name": proj.project_name,
             "status": status,
             "account_health_rating": health.get("account_health_rating"),
-            "odr": health.get("odr"),
+            "negative_feedback": health.get("negative_feedback"),
+            "a2z_claims": health.get("a2z_claims"),
+            "chargeback_claims": health.get("chargeback_claims"),
             "late_shipment_rate": health.get("late_shipment_rate"),
             "valid_tracking_rate": health.get("valid_tracking_rate"),
-            "policy_violations": compliance.get("policy_violations"),
-            "account_deactivation_risk": compliance.get("account_deactivation_risk"),
+            "on_time_delivery_rate": health.get("on_time_delivery_rate"),
+            "compliance_total": sum(
+                compliance.get(k, 0) or 0
+                for k in (
+                    "ip_infringement", "ip_complaints", "product_authenticity_complaints",
+                    "product_condition_complaints", "food_product_safety",
+                    "listing_policy_violations", "restricted_product_violations",
+                    "review_policy_violations", "other_policy_violations", "regulatory_compliance",
+                )
+            ) if compliance else None,
             "status_summary": report.status_summary if report else None,
             "submitted_by": report.submitted_by if report else None,
             "submitted_at": report.submitted_at if report and report.submitted_at else None,
