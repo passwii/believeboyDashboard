@@ -146,13 +146,12 @@ def build_report_email_data(
         }
 
     # 9. Returns（从 AnalysisReturnRow 直接查询近7天数据）
-    top_returns = _query_top_return_reasons(db, project_ids, country, period_start, today)
-    # 直接查询近7天退货总量
+    # 注意：退货报表是累积的，同一退货事件可能出现在多个 source_file 中
+    # 必须按 (order_id, sku, return_date, license_plate_number) 去重
     try:
-        ret_query = (
-            db.query(
-                func.coalesce(func.sum(AnalysisReturnRow.quantity), 0).label("qty"),
-            )
+        # 先查询所有匹配的退货记录
+        ret_base_query = (
+            db.query(AnalysisReturnRow)
             .join(AnalysisSourceFile, AnalysisSourceFile.id == AnalysisReturnRow.source_file_id)
             .filter(
                 AnalysisSourceFile.country == country,
@@ -163,12 +162,36 @@ def build_report_email_data(
             )
         )
         if project_ids:
-            ret_query = ret_query.filter(AnalysisSourceFile.project_id.in_(project_ids))
-        ret_row = ret_query.first()
-        ret_qty = int(ret_row.qty) if ret_row and ret_row.qty else 0
+            ret_base_query = ret_base_query.filter(AnalysisSourceFile.project_id.in_(project_ids))
+
+        all_return_records = ret_base_query.all()
+
+        # Python 层去重：按 (order_id, sku, return_date, license_plate_number) 分组
+        # 只保留 source_file_id 最大的那条记录
+        seen: dict[tuple, tuple[int, AnalysisReturnRow]] = {}
+        for r in all_return_records:
+            key = (r.order_id, r.sku, r.return_date, r.license_plate_number or "")
+            if key not in seen or r.source_file_id > seen[key][0]:
+                seen[key] = (r.source_file_id, r)
+
+        deduped_records = list(seen.values())
+        ret_qty = sum(r.quantity for _, r in deduped_records)
+
+        # Top return reasons 也用去重后的数据
+        reason_counts: dict[str, tuple[int, int]] = {}  # reason -> (qty, count)
+        for _, r in deduped_records:
+            if r.reason:
+                current = reason_counts.get(r.reason, (0, 0))
+                reason_counts[r.reason] = (current[0] + r.quantity, current[1] + 1)
+
+        top_returns = [
+            {"reason": reason, "qty": qty}
+            for reason, (qty, _) in sorted(reason_counts.items(), key=lambda x: x[1][0], reverse=True)[:3]
+        ]
     except Exception as e:
-        logger.warning("Failed to query return qty: %s", e)
+        logger.warning("Failed to query return data: %s", e)
         ret_qty = 0
+        top_returns = []
     
     # 计算退货率（基于7天销售）
     p7d_sales_qty = sum(t.get("order_qty", 0) for t in ov_trend)
