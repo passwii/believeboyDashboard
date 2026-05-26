@@ -44,6 +44,11 @@ def _markdown_to_email_html(md_text: str) -> str:
     if not md_text or not md_text.strip():
         return md_text
 
+    # 预处理：将 Unicode bullet（•）转为标准 markdown 列表语法（- ）
+    # AI 模型常返回 • 开头的 bullet point，但 mistune 不识别为列表项
+    import re as _re
+    md_text = _re.sub(r"^[•·●]\s*", "- ", md_text, flags=_re.MULTILINE)
+
     try:
         import mistune
         html = mistune.html(md_text)
@@ -101,7 +106,7 @@ def _basic_markdown_to_html(md_text: str) -> str:
             html_lines.append(f"<h1>{_safe_html(stripped[2:])}</h1>")
             continue
 
-        if re.match(r"^[-*]\s", stripped):
+        if re.match(r"^[-*•·●]\s", stripped):
             if not in_list:
                 html_lines.append("<ul>")
                 in_list = True

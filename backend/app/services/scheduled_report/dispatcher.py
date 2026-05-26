@@ -25,6 +25,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, timedelta
 from typing import Any
 
+from sqlalchemy import select as sa_select
+
 from app.db.session import SessionLocal
 from app.services.scheduled_report.email_sender_daily import send_scheduled_report_email
 from app.services.scheduled_report.email_sender_weekly import send_weekly_report_email
@@ -38,7 +40,12 @@ from app.services.scheduled_report.subscription_service import (
     mark_delivery_success,
     update_delivery_log_stage,
 )
-from app.models.scheduled_report import DeliveryStage
+from app.models.scheduled_report import (
+    DeliveryStage,
+    LedgerStatus,
+    ScheduledReportDeliveryLog,
+    ScheduledReportLedgerEntry,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -540,9 +547,12 @@ def _dispatch_one_async(
             success, resend_id_or_error = send_scheduled_report_email(email, frequency, report_data)
 
         if success:
-            update_delivery_log_stage(db, log_id, DeliveryStage.DONE.value)
+            # 先更新 delivery_log 的 status='sent'（在 stage='done' 之前！）
+            # 避免竞态：前端轮询看到 stage='done' 后立即刷新台账，
+            # 此时 _classify_log 需要看到 status='sent' 才能正确分类
             mark_delivery_success(db, log_id, resend_id_or_error)
-            # 保存截图和 AI 摘要
+
+            # 保存截图和 AI 摘要（在 stage='done' 之前完成）
             screenshot_key = report_data.get("screenshot_r2_key")
             screenshot_url = report_data.get("screenshot_r2_url")
             screenshot_thumb_key = report_data.get("screenshot_r2_thumb_key")
@@ -569,19 +579,50 @@ def _dispatch_one_async(
                 except Exception as sum_err:
                     logger.warning("更新 delivery log ai_summary 失败: %s", sum_err)
 
+            # 直接更新 ledger entry 状态（不依赖后续的 refresh_ledger）
+            try:
+                ledger_entry = db.execute(
+                    sa_select(ScheduledReportLedgerEntry)
+                    .where(ScheduledReportLedgerEntry.ledger_key == ledger_key)
+                ).scalars().first()
+                if ledger_entry:
+                    log_obj = db.get(ScheduledReportDeliveryLog, log_id)
+                    ledger_entry.status = LedgerStatus.SENT.value
+                    ledger_entry.sent_at = log_obj.sent_at if log_obj else None
+                    ledger_entry.error_message = None
+                    db.commit()
+            except Exception as le_err:
+                logger.warning("直接更新 ledger entry 状态失败: %s", le_err)
+
+            # 最后设置 stage='done'（前端轮询的触发点）
+            # 此时 status='sent' + 截图 + AI摘要 + ledger entry 都已就绪
+            update_delivery_log_stage(db, log_id, DeliveryStage.DONE.value)
+
             logger.info("Async report sent: sub=%d email=%s", subscription_id, email)
         else:
-            update_delivery_log_stage(db, log_id, DeliveryStage.FAILED.value)
+            # 失败时也先更新 ledger entry 再设 stage
             mark_delivery_failed(db, log_id, resend_id_or_error or "Unknown error")
+            try:
+                ledger_entry = db.execute(
+                    sa_select(ScheduledReportLedgerEntry)
+                    .where(ScheduledReportLedgerEntry.ledger_key == ledger_key)
+                ).scalars().first()
+                if ledger_entry:
+                    ledger_entry.status = LedgerStatus.FAILED.value
+                    ledger_entry.error_message = resend_id_or_error or "Unknown error"
+                    db.commit()
+            except Exception as le_err:
+                logger.warning("直接更新 ledger entry 失败状态失败: %s", le_err)
+            update_delivery_log_stage(db, log_id, DeliveryStage.FAILED.value)
             logger.warning("Async report send failed: sub=%d error=%s", subscription_id, resend_id_or_error)
     except Exception as e:
-        update_delivery_log_stage(db, log_id, DeliveryStage.FAILED.value)
         mark_delivery_failed(db, log_id, str(e))
+        update_delivery_log_stage(db, log_id, DeliveryStage.FAILED.value)
         logger.error("Async dispatch error: sub=%d %s", subscription_id, e)
     finally:
         db.close()
 
-    # 更新 ledger entry
+    # 更新 ledger entry（作为兜底，确保 refresh_ledger 也能正确同步）
     try:
         from app.services.scheduled_report.ledger_service import refresh_ledger
         refresh_db = SessionLocal()

@@ -151,12 +151,22 @@ def _to_item(db: Session, entry: ScheduledReportLedgerEntry) -> LedgerItem:
     screenshot_r2_url = None
     screenshot_r2_thumb_url = None
     ai_summary = None
+    effective_status = entry.status
     if entry.latest_delivery_log_id:
         log = db.get(ScheduledReportDeliveryLog, entry.latest_delivery_log_id)
         if log:
             screenshot_r2_url = log.screenshot_r2_url
             screenshot_r2_thumb_url = log.screenshot_r2_thumb_url
             ai_summary = log.ai_summary
+            # 自愈逻辑：当 delivery_log 状态与 ledger entry 状态不一致时，
+            # 以 delivery_log 为准（delivery_log 是实际执行结果的权威来源）
+            live_status = _classify_log(log)
+            if live_status != entry.status:
+                entry.status = live_status
+                entry.sent_at = log.sent_at
+                if live_status == LedgerStatus.SENT.value:
+                    entry.error_message = None
+                effective_status = live_status
 
     return LedgerItem(
         id=entry.id,
@@ -169,11 +179,11 @@ def _to_item(db: Session, entry: ScheduledReportLedgerEntry) -> LedgerItem:
         project_ids=entry.project_ids,
         project_names=_project_names_for(db, entry.project_ids),
         country=entry.country,
-        status=entry.status,
+        status=effective_status,
         latest_delivery_log_id=entry.latest_delivery_log_id,
         error_message=entry.error_message,
         sent_at=entry.sent_at,
-        can_resend=entry.status in (LedgerStatus.MISSING.value, LedgerStatus.FAILED.value),
+        can_resend=effective_status in (LedgerStatus.MISSING.value, LedgerStatus.FAILED.value),
         last_checked_at=entry.last_checked_at,
         screenshot_r2_url=screenshot_r2_url,
         screenshot_r2_thumb_url=screenshot_r2_thumb_url,
