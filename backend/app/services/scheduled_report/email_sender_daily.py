@@ -269,8 +269,11 @@ def _render_daily_report_html(report_data: dict[str, Any], include_summary: bool
         <td style="background: linear-gradient(135deg, #1F2937, #374151); padding: 24px 20px 22px;">
           <table width="100%" cellpadding="0" cellspacing="0" border="0">
             <tr>
+              <td width="52" style="vertical-align: middle; padding-right: 14px;">
+                <img src="https://dash.believeboy.com/logo-email.png" width="52" height="52" alt="BelieveBoy" style="border-radius: 50%; display: block;" onerror="this.style.display='none'">
+              </td>
               <td style="vertical-align: middle;">
-                <div style="font-size: 22px; font-weight: 700; color: white;">📊 每日运营报告</div>
+                <div style="font-size: 22px; font-weight: 700; color: white;">每日运营报告</div>
                 <div style="font-size: 14px; color: #9CA3AF; margin-top: 5px;">{project_name} · {country} · {report_date}</div>
               </td>
               <td width="90" align="right" style="vertical-align: middle;">
@@ -468,7 +471,7 @@ def send_scheduled_report_email(email: str, frequency: str, report_data: dict[st
         project_name = report_data.get("project_name", "项目")
         report_date = report_data.get("report_date", "")
 
-        subject = f"📊 {project_name} · {'每日' if frequency == 'daily' else '每周' if frequency == 'weekly' else '每月'}运营报告 · {report_date}"
+        subject = f"BelieveBoy | {project_name} · {'每日' if frequency == 'daily' else '每周' if frequency == 'weekly' else '每月'}运营报告 · {report_date}"
 
         params: dict[str, Any] = {
             "from": settings.alert_from_email,

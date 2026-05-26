@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """
-Schedule Report 远程数据库压力测试
+远程数据库聚合查询压力测试 — 纯数据查询，不含AI管线
 目标: 145.79.143.98:5432/BLF (Xeon Platinum + 2G RAM)
-并发: 100 订阅 × 16 Worker
-包含聚合数据测试 + 管线测试
+逐步递增并发: 20 → 50 → 100，验证数据库连接池是否被打满
 """
-
 from __future__ import annotations
 
 import concurrent.futures
@@ -18,12 +16,9 @@ from datetime import date, timedelta
 sys.path.insert(0, "/Users/damon/DamonProjects/believeboyDashboard/backend")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(message)s", datefmt="%H:%M:%S")
-logger = logging.getLogger("remote_stress")
+logger = logging.getLogger("remote_agg")
 
 REMOTE_DATABASE_URL = "postgresql+psycopg://damon:jrway2012@145.79.143.98:5432/BLF"
-AI_CONCURRENCY_LIMIT = 2
-_ai_semaphore = threading.Semaphore(AI_CONCURRENCY_LIMIT)
-AI_BUILD_DELAY = 3.0
 
 
 def _create_remote_engine():
@@ -34,10 +29,10 @@ def _create_remote_engine():
         REMOTE_DATABASE_URL,
         pool_pre_ping=True,
         pool_size=20,
-        max_overflow=20,
+        max_overflow=30,
         pool_recycle=1800,
-        pool_timeout=10,
-        connect_args={"connect_timeout": 10},
+        pool_timeout=30,
+        connect_args={"connect_timeout": 30},
     )
     SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     return engine, SessionLocal
@@ -58,7 +53,7 @@ def log_pool_status(engine, label=""):
     logger.info(f"[POOL {label}] size={s['pool_size']} in_use={s['checked_out']} available={avail} overflow={s['overflow']}")
 
 
-def _run_aggregate_queries(db):
+def run_aggregate_queries(db):
     from sqlalchemy import func
     from app.models import (
         AnalysisAdProductRow,
@@ -180,65 +175,26 @@ def _run_aggregate_queries(db):
     return results
 
 
-def test_aggregate_only(sid, engine, SessionLocal):
+def execute_aggregate(sid, engine, SessionLocal):
     start = time.time()
     try:
         db = SessionLocal()
         try:
-            _run_aggregate_queries(db)
+            run_aggregate_queries(db)
         finally:
             db.close()
-        return {"sid": sid, "success": True, "elapsed": time.time() - start}
+        elapsed = time.time() - start
+        return {"sid": sid, "success": True, "elapsed": elapsed}
     except Exception as e:
         logger.error(f"[Agg-{sid}] FAILED: {e}")
         return {"sid": sid, "success": False, "error": str(e), "elapsed": time.time() - start}
 
 
-def test_dispatch_pipeline(sid, engine, SessionLocal):
-    start = time.time()
-    try:
-        db1 = SessionLocal()
-        try:
-            time.sleep(0.01)
-        finally:
-            db1.close()
-
-        sem_start = time.time()
-        _ai_semaphore.acquire()
-        sem_wait = time.time() - sem_start
-
-        try:
-            db2 = SessionLocal()
-            try:
-                _run_aggregate_queries(db2)
-                time.sleep(AI_BUILD_DELAY)
-            finally:
-                db2.close()
-        finally:
-            _ai_semaphore.release()
-
-        db3 = SessionLocal()
-        try:
-            time.sleep(0.01)
-        finally:
-            db3.close()
-
-        return {
-            "sid": sid,
-            "success": True,
-            "elapsed": time.time() - start,
-            "semaphore_wait": sem_wait,
-        }
-    except Exception as e:
-        logger.error(f"[Pipe-{sid}] FAILED: {e}")
-        return {"sid": sid, "success": False, "error": str(e), "elapsed": time.time() - start}
-
-
-def run_benchmark(name, test_func, count, workers, engine, SessionLocal):
+def run_benchmark(label, count, workers, engine, SessionLocal):
     logger.info("")
     logger.info("=" * 60)
-    logger.info(f"🧪 {name}")
-    logger.info(f"   订阅数: {count}, Worker: {workers}")
+    logger.info(f"🧪 {label}")
+    logger.info(f"   并发数: {count}, Worker: {workers}")
     logger.info("=" * 60)
 
     log_pool_status(engine, "BEFORE")
@@ -246,10 +202,14 @@ def run_benchmark(name, test_func, count, workers, engine, SessionLocal):
     results = []
     lock = threading.Lock()
     peak_conn = 0
+    start_times = {}
+    end_times = {}
 
     def wrapped(sid):
         nonlocal peak_conn
-        r = test_func(sid, engine, SessionLocal)
+        start_times[sid] = time.time()
+        r = execute_aggregate(sid, engine, SessionLocal)
+        end_times[sid] = time.time()
         s = get_pool_status(engine)
         with lock:
             peak_conn = max(peak_conn, s["checked_out"])
@@ -271,46 +231,50 @@ def run_benchmark(name, test_func, count, workers, engine, SessionLocal):
     elapsed_list = [r.get("elapsed", 0) for r in results]
     avg_time = sum(elapsed_list) / len(elapsed_list) if elapsed_list else 0
     max_time = max(elapsed_list) if elapsed_list else 0
+    min_time = min(elapsed_list) if elapsed_list else 0
     p95 = sorted(elapsed_list)[int(len(elapsed_list) * 0.95)] if elapsed_list else 0
+    p99 = sorted(elapsed_list)[int(len(elapsed_list) * 0.99)] if elapsed_list else 0
 
-    waits = [r.get("semaphore_wait", 0) for r in results if r.get("success")]
-    avg_wait = sum(waits) / len(waits) if waits else 0
-    max_wait = max(waits) if waits else 0
+    all_starts = sorted(start_times.values())
+    all_ends = sorted(end_times.values())
+    if all_starts and all_ends:
+        window = max(all_ends) - min(all_starts)
+    else:
+        window = total_time
 
     logger.info("-" * 60)
-    logger.info(f"📊 {name} 统计:")
+    logger.info(f"📊 {label} 统计:")
+    logger.info(f"   并发窗口:     {window:.2f}s （从第1个开始到最后1个结束）")
     logger.info(f"   总耗时:       {total_time:.2f}s")
     logger.info(f"   成功/失败:    {success_count}/{failed_count}")
     logger.info(f"   平均耗时:     {avg_time:.2f}s")
-    logger.info(f"   P95 耗时:     {p95:.2f}s")
-    logger.info(f"   吞吐量:       {len(results)/total_time:.2f} 订阅/秒")
-    logger.info(f"   峰值连接:     {peak_conn}")
-    if waits:
-        logger.info(f"   AI等待(avg):  {avg_wait:.2f}s")
-        logger.info(f"   AI等待(max):  {max_wait:.2f}s")
+    logger.info(f"   最快/最慢:    {min_time:.2f}s / {max_time:.2f}s")
+    logger.info(f"   P95/P99:      {p95:.2f}s / {p99:.2f}s")
+    logger.info(f"   峰值连接:     {peak_conn} (pool={get_pool_status(engine)['pool_size']}+overflow={get_pool_status(engine)['overflow']})")
     logger.info("=" * 60)
 
     return {
-        "name": name,
-        "total": count,
+        "label": label,
+        "count": count,
+        "workers": workers,
         "success": success_count,
         "failed": failed_count,
         "total_time": total_time,
         "avg_time": avg_time,
+        "min_time": min_time,
         "max_time": max_time,
         "p95_time": p95,
-        "throughput": len(results) / total_time if total_time > 0 else 0,
+        "p99_time": p99,
         "peak_connections": peak_conn,
-        "avg_semaphore_wait": avg_wait,
-        "max_semaphore_wait": max_wait,
+        "window": window,
     }
 
 
 def main():
-    logger.info("🚀 远程数据库压力测试")
+    logger.info("🚀 远程数据库聚合查询压力测试（纯数据查询）")
     logger.info(f"   目标: {REMOTE_DATABASE_URL.replace('jrway2012', '***')}")
     logger.info(f"   硬件: Xeon Platinum + 2G RAM")
-    logger.info(f"   AI Semaphore: {AI_CONCURRENCY_LIMIT}, AI 延迟: {AI_BUILD_DELAY}s")
+    logger.info(f"   Pool: size=20, overflow=30 (max=50)")
     logger.info("")
 
     engine, SessionLocal = _create_remote_engine()
@@ -318,38 +282,37 @@ def main():
 
     results = []
 
-    # 聚合数据测试 (100 × 16)
-    results.append(run_benchmark(
-        "远程 100 聚合数据测试",
-        test_aggregate_only,
-        100, 16,
-        engine, SessionLocal,
-    ))
-    time.sleep(2)
+    results.append(run_benchmark("20 并发聚合查询", 20, 10, engine, SessionLocal))
+    time.sleep(3)
 
-    # 管线测试 (100 × 16)
-    results.append(run_benchmark(
-        "远程 100 管线测试",
-        test_dispatch_pipeline,
-        100, 16,
-        engine, SessionLocal,
-    ))
+    results.append(run_benchmark("50 并发聚合查询", 50, 20, engine, SessionLocal))
+    time.sleep(3)
 
-    # 汇总
+    results.append(run_benchmark("100 并发聚合查询", 100, 30, engine, SessionLocal))
+
     logger.info("")
     logger.info("📋 远程数据库测试结果汇总")
-    logger.info("-" * 90)
-    logger.info(f"{'测试名称':<25} {'总':>5} {'成':>4} {'败':>4} {'总耗时':>8} {'平均':>7} {'P95':>7} {'峰值连接':>8}")
-    logger.info("-" * 90)
+    logger.info("-" * 120)
+    logger.info(f"{'测试场景':<25} {'并发':>5} {'成功':>4} {'失败':>4} {'窗口':>8} {'平均':>7} {'P95':>7} {'P99':>7} {'峰值连接':>8}")
+    logger.info("-" * 120)
     for r in results:
         logger.info(
-            f"{r['name']:<25} {r['total']:>5} {r['success']:>4} {r['failed']:>4} "
-            f"{r['total_time']:>7.1f}s {r['avg_time']:>6.2f}s {r['p95_time']:>6.2f}s {r['peak_connections']:>8}"
+            f"{r['label']:<25} {r['count']:>5} {r['success']:>4} {r['failed']:>4} "
+            f"{r['window']:>7.1f}s {r['avg_time']:>6.2f}s {r['p95_time']:>6.2f}s {r['p99_time']:>6.2f}s {r['peak_connections']:>8}"
         )
-    logger.info("-" * 90)
+    logger.info("-" * 120)
+
+    peak = max(r["peak_connections"] for r in results)
+    logger.info("")
+    if peak >= 45:
+        logger.info(f"⚠️ 峰值连接 {peak}/50 — 连接池接近打满，数据库或网络已成为瓶颈")
+    elif peak >= 30:
+        logger.info(f"⚡ 峰值连接 {peak}/50 — 数据库压力较大，但尚未打满")
+    else:
+        logger.info(f"✅ 峰值连接 {peak}/50 — 数据库仍有较大余量")
 
     engine.dispose()
-    logger.info("✅ 远程数据库测试完成，连接池已释放")
+    logger.info("✅ 测试完成，连接池已释放")
 
 
 if __name__ == "__main__":

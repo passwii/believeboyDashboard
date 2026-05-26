@@ -506,8 +506,11 @@ def _render_weekly_report_html(report_data: dict[str, Any], include_summary: boo
         <td style="background: linear-gradient(135deg, #1F2937, #374151); padding: 24px 20px 22px;">
           <table width="100%" cellpadding="0" cellspacing="0" border="0">
             <tr>
+              <td width="52" style="vertical-align: middle; padding-right: 14px;">
+                <img src="https://dash.believeboy.com/logo-email.png" width="52" height="52" alt="BelieveBoy" style="border-radius: 50%; display: block;" onerror="this.style.display='none'">
+              </td>
               <td style="vertical-align: middle;">
-                <div style="font-size: 22px; font-weight: 700; color: white;">📊 每周运营报告</div>
+                <div style="font-size: 22px; font-weight: 700; color: white;">每周运营报告</div>
                 <div style="font-size: 14px; color: #9CA3AF; margin-top: 5px;">{project_name} · {country} · Week {week_number} · {date_range}</div>
               </td>
               <td width="90" align="right" style="vertical-align: middle;">
@@ -643,7 +646,7 @@ def send_weekly_report_email(email: str, report_data: dict[str, Any]) -> tuple[b
         project_name = report_data.get("project_name", "项目")
         week_number = report_data.get("week_number", "")
 
-        subject = f"📊 {project_name} · Week {week_number} 周报"
+        subject = f"BelieveBoy | {project_name} · Week {week_number} 周报"
 
         params: dict[str, Any] = {
             "from": settings.alert_from_email,
