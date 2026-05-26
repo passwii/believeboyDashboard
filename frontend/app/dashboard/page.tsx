@@ -1,6 +1,8 @@
 'use client'
 
+import { useState, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
+import { Calendar, CalendarDays } from 'lucide-react'
 
 import { DashboardSalesChart } from '@/components/dashboard/dashboard-sales-chart'
 import { DashboardPageLoading } from '@/components/dashboard/dashboard-page-loading'
@@ -9,9 +11,14 @@ import { DashboardAlertWidget } from '@/components/dashboard/dashboard-alert-wid
 import { MetricCards } from '@/components/dashboard/metric-cards'
 import type { MetricCardProps } from '@/components/dashboard/metric-cards'
 import { DashboardStatusCards } from '@/components/dashboard/dashboard-status-cards'
+import { SkuSalesDetailTable } from '@/components/dashboard/sku-sales-detail-table'
 import { useDashboardOverview } from '@/hooks/use-dashboard-overview'
+import type { DashboardOverviewResponse } from '@/hooks/use-dashboard-overview'
+import { cn } from '@/lib/utils'
 
-function buildMetricProps(data: import('@/hooks/use-dashboard-overview').DashboardOverviewResponse) {
+type ViewMode = 'today' | 'weekly'
+
+function buildMetricProps(data: DashboardOverviewResponse, mode: ViewMode) {
   const fmtMoney = (v: number) =>
     v >= 10000 ? `$${(v / 1000).toFixed(0)}k` : v >= 1000 ? `$${(v / 1000).toFixed(1)}k` : `$${v.toFixed(2)}`
   const fmtNum = (v: number) => (v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v))
@@ -61,8 +68,12 @@ export default function DashboardPage() {
   const roleType = session?.user?.roleType as string | undefined
   const operatorName = session?.user?.operatorNameZh ?? session?.user?.name ?? undefined
 
+  const [viewMode, setViewMode] = useState<ViewMode>('today')
+  const days = viewMode === 'today' ? 1 : 7
+
   const { data: overviewData, loading: overviewLoading } = useDashboardOverview({
     enabled: status === 'authenticated' && roleType !== 'factory',
+    days,
   })
 
   if (status === 'loading') {
@@ -73,11 +84,21 @@ export default function DashboardPage() {
     return <FactoryDashboard operatorName={operatorName} />
   }
 
-  const metrics = overviewData ? buildMetricProps(overviewData) : undefined
+  const metrics = overviewData ? buildMetricProps(overviewData, viewMode) : undefined
 
   return (
     <div className="space-y-6">
+      {/* 视图切换 */}
+      <div className="flex items-center gap-2">
+        <ViewModeToggle mode={viewMode} onChange={setViewMode} />
+      </div>
+
       <MetricCards metrics={metrics} loading={overviewLoading} />
+      <SkuSalesDetailTable
+        data={overviewData?.sku_sales_detail}
+        loading={overviewLoading}
+        mode={viewMode}
+      />
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_22rem]">
         <DashboardSalesChart session={session} />
         <div className="space-y-4">
@@ -85,6 +106,43 @@ export default function DashboardPage() {
           <DashboardAlertWidget />
         </div>
       </section>
+    </div>
+  )
+}
+
+function ViewModeToggle({
+  mode,
+  onChange,
+}: {
+  mode: ViewMode
+  onChange: (mode: ViewMode) => void
+}) {
+  return (
+    <div className="inline-flex items-center rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-1">
+      <button
+        onClick={() => onChange('today')}
+        className={cn(
+          'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all duration-200',
+          mode === 'today'
+            ? 'bg-background text-foreground shadow-sm'
+            : 'text-muted-foreground hover:text-foreground'
+        )}
+      >
+        <Calendar className="h-3.5 w-3.5" />
+        今日销售概况
+      </button>
+      <button
+        onClick={() => onChange('weekly')}
+        className={cn(
+          'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all duration-200',
+          mode === 'weekly'
+            ? 'bg-background text-foreground shadow-sm'
+            : 'text-muted-foreground hover:text-foreground'
+        )}
+      >
+        <CalendarDays className="h-3.5 w-3.5" />
+        每周销售概况
+      </button>
     </div>
   )
 }

@@ -10,6 +10,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models import AnalysisAdProductRow, AnalysisReturnRow, AnalysisSalesOrderRow, AnalysisSourceFile, InventorySnapshotRow
+from app.models.sku_info import SkuRecord
 from app.services.dashboard_overview_service import build_dashboard_overview
 from app.utils.country import get_today_for_country
 
@@ -98,6 +99,9 @@ def build_report_email_data(
         d = t.get("date", "")
         short_date = d[5:] if len(d) >= 10 else d  # "2026-05-16" -> "05-16"
         trend_days.append({"date": short_date, "qty": t.get("order_qty", 0)})
+
+    # 5b. SKU sales detail for single day (anchor date)
+    sku_sales_detail = _query_sku_sales_detail(db, project_ids, country, today, today)
 
     # 6. Top SKUs (query DB directly)
     top_skus = _query_top_skus(db, project_ids, country, period_start, today, limit=5)
@@ -292,6 +296,7 @@ def build_report_email_data(
         "prev_period_end": prev_period_end.isoformat(),
         "trend_days": trend_days,
         "top_skus": top_skus,
+        "sku_sales_detail": sku_sales_detail,
         "inventory": inventory,
         "alert_rows": alert_rows,
         "ads": ads,
@@ -547,7 +552,7 @@ def _query_ads_single_day(
     target_date: date,
 ) -> dict[str, Any]:
     """查询指定单日的广告数据（用于日报）。
-    
+
     广告报告通常以 period_end_date 为基准，所以 target_date 会被作为 period_end_date 过滤。
     """
     try:
@@ -603,3 +608,83 @@ def _query_ads_single_day(
             "ctr": 0.0,
             "orders": 0,
         }
+
+
+def _query_sku_sales_detail(
+    db: Session,
+    project_ids: list[int] | None,
+    country: str,
+    start_date: date,
+    end_date: date,
+) -> list[dict[str, Any]]:
+    """查询指定日期范围的 SKU 销售明细（含品名）。
+
+    按销量降序排列，过滤掉数量和销售额都为 0 的 SKU。
+    """
+    try:
+        # 1) 聚合每个 SKU 的销售数据
+        query = (
+            db.query(
+                AnalysisSalesOrderRow.sku,
+                func.sum(AnalysisSalesOrderRow.quantity).label("total_qty"),
+                func.sum(
+                    func.coalesce(AnalysisSalesOrderRow.item_price, 0)
+                    + func.coalesce(AnalysisSalesOrderRow.shipping_price, 0)
+                ).label("total_amount"),
+            )
+            .join(AnalysisSourceFile, AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id)
+            .filter(
+                AnalysisSourceFile.country == country,
+                AnalysisSourceFile.report_type == "sales_report",
+                AnalysisSourceFile.is_current == True,  # noqa: E712
+                AnalysisSalesOrderRow.purchase_date_pt >= start_date,
+                AnalysisSalesOrderRow.purchase_date_pt <= end_date,
+            )
+        )
+        if project_ids:
+            query = query.filter(AnalysisSourceFile.project_id.in_(project_ids))
+
+        results = (
+            query
+            .group_by(AnalysisSalesOrderRow.sku)
+            .order_by(func.sum(AnalysisSalesOrderRow.quantity).desc())
+            .all()
+        )
+
+        # 2) 批量获取品名映射 (sku -> product_name)
+        sku_names: dict[str, str] = {}
+        sku_list = [r.sku for r in results if r.sku]
+        if sku_list:
+            name_query = (
+                db.query(SkuRecord.sku, SkuRecord.product_name)
+                .filter(
+                    SkuRecord.sku.in_(sku_list),
+                    SkuRecord.country == country,
+                    SkuRecord.is_active == True,  # noqa: E712
+                )
+            )
+            if project_ids:
+                name_query = name_query.filter(SkuRecord.project_id.in_(project_ids))
+
+            for row in name_query.all():
+                if row.sku and row.product_name:
+                    sku_names[row.sku] = row.product_name
+
+        # 3) 组装结果，过滤掉数量和销售额都为 0 的行
+        detail: list[dict[str, Any]] = []
+        for r in results:
+            qty = int(r.total_qty or 0)
+            amount = float(r.total_amount or 0)
+            if qty == 0 and amount == 0:
+                continue
+            detail.append({
+                "sku": r.sku or "Unknown",
+                "product_name": sku_names.get(r.sku, "—"),
+                "qty": qty,
+                "amount": amount,
+            })
+
+        return detail
+    except Exception as e:
+        logger.warning("Failed to query SKU sales detail: %s", e)
+        return []

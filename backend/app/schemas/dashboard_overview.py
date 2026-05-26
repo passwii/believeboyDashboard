@@ -49,6 +49,13 @@ class DashboardOverviewAds(BaseModel):
     period_orders: int = 0
 
 
+class SkuSalesDetailItem(BaseModel):
+    sku: str
+    product_name: str | None = None
+    quantity: int = 0
+    sales_amount: float = 0.0
+
+
 class DashboardOverviewResponse(BaseModel):
     project_ids: list[int] = []
     project_names: list[str] = []
@@ -61,3 +68,4 @@ class DashboardOverviewResponse(BaseModel):
     shipments: DashboardOverviewShipments = DashboardOverviewShipments()
     returns: DashboardOverviewReturns = DashboardOverviewReturns()
     ads: DashboardOverviewAds = DashboardOverviewAds()
+    sku_sales_detail: list[SkuSalesDetailItem] = []

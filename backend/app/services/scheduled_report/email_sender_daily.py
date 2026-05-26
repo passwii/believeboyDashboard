@@ -34,6 +34,7 @@ def _render_daily_report_html(report_data: dict[str, Any], include_summary: bool
     ads      = report_data.get("ads", {})
     returns  = report_data.get("returns", {})
     alert_rows = report_data.get("alert_rows", [])
+    sku_sales_detail = report_data.get("sku_sales_detail", [])
 
     ai_summary   = _markdown_to_email_html(report_data.get("ai_summary", "暂无运营摘要"))
     project_name = report_data.get("project_name", "项目")
@@ -211,6 +212,42 @@ def _render_daily_report_html(report_data: dict[str, Any], include_summary: bool
           <td width="25%" style="width: 25%; padding: 12px; font-size: 15px; text-align: right; font-weight: 600; color: #059669; background: {bg}; border-bottom: 1px solid #F3F4F6; vertical-align: middle;">{amt_s}</td>
         </tr>"""
 
+    # ── 销售 SKU 明细表格 ─────────────────────────────
+    sku_detail_section = ""
+    if sku_sales_detail:
+        detail_rows = ""
+        for idx, item in enumerate(sku_sales_detail):
+            bg = "#FFFFFF" if idx % 2 == 0 else "#FAFAFA"
+            s_sku = _safe_html(item.get("sku", "—"))
+            s_name = _safe_html(item.get("product_name", "—"))
+            s_qty = item.get("qty", 0)
+            s_amt = _fmt_currency(item.get("amount", 0.0))
+            detail_rows += f"""<tr>
+              <td style="padding: 10px 12px; font-size: 13px; color: #374151; font-weight: 600; background: {bg}; border-bottom: 1px solid #F3F4F6; vertical-align: middle; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px;">{s_sku}</td>
+              <td style="padding: 10px 12px; font-size: 12px; color: #6B7280; background: {bg}; border-bottom: 1px solid #F3F4F6; vertical-align: middle; overflow: hidden; text-overflow: ellipsis; max-width: 160px;">{s_name}</td>
+              <td style="padding: 10px 12px; font-size: 17px; font-weight: 800; color: #1D4ED8; text-align: right; background: {bg}; border-bottom: 1px solid #F3F4F6; vertical-align: middle; white-space: nowrap;">{s_qty}</td>
+              <td style="padding: 10px 12px; font-size: 16px; font-weight: 700; color: #059669; text-align: right; background: {bg}; border-bottom: 1px solid #F3F4F6; vertical-align: middle; white-space: nowrap;">{s_amt}</td>
+            </tr>"""
+
+        sku_detail_section = f"""
+      <!-- 昨日销售 SKU 明细 -->
+      <tr>
+        <td style="padding: 6px 16px 12px;">
+          <div style="font-size: 14px; font-weight: 600; color: #6B7280; margin-bottom: 6px;">📋 昨日销售 SKU 明细</div>
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="width: 100%; border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden; border-collapse: collapse; table-layout: fixed;">
+            <thead>
+              <tr style="background: #F9FAFB;">
+                <th style="padding: 10px 12px; font-size: 12px; color: #6B7280; text-align: left; font-weight: 600; border-bottom: 1px solid #E5E7EB; width: 28%;">SKU</th>
+                <th style="padding: 10px 12px; font-size: 12px; color: #6B7280; text-align: left; font-weight: 600; border-bottom: 1px solid #E5E7EB; width: 32%;">品名</th>
+                <th style="padding: 10px 12px; font-size: 12px; color: #6B7280; text-align: right; font-weight: 600; border-bottom: 1px solid #E5E7EB; width: 15%;">数量</th>
+                <th style="padding: 10px 12px; font-size: 12px; color: #6B7280; text-align: right; font-weight: 600; border-bottom: 1px solid #E5E7EB; width: 25%;">销售额</th>
+              </tr>
+            </thead>
+            <tbody>{detail_rows}</tbody>
+          </table>
+        </td>
+      </tr>"""
+
     # ── 完整 HTML ────────────────────────────────────
     return f"""<!DOCTYPE html>
 <html lang="zh-CN">
@@ -266,6 +303,8 @@ def _render_daily_report_html(report_data: dict[str, Any], include_summary: bool
           </table>
         </td>
       </tr>
+
+      {sku_detail_section}
 
       <!-- Section: 📈 近7天概况 -->
       <tr>

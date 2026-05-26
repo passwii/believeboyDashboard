@@ -283,28 +283,31 @@ def refresh_ledger(
     return LedgerListResponse(items=[_to_item(db, row) for row in rows], total=total, summary=summary)
 
 
-def resend_ledger_entry_async(db: Session, *, ledger_key: str) -> tuple[bool, int | None, str, str]:
-    """异步补发：立即创建 delivery_log 并在后台执行发送。
+def resend_ledger_entry_async(db: Session, *, ledger_key: str, ignore_status: bool = False) -> tuple[bool, int | None, str, str]:
+    """异步补发:立即创建 delivery_log 并在后台执行发送.
 
-    验证 ledger entry 后，创建 delivery_log（初始 stage = preparing），
-    然后启动后台线程执行实际发送。前端通过轮询 delivery_log 状态获取进度。
+    验证 ledger entry 后,创建 delivery_log(初始 stage = preparing),
+    然后启动后台线程执行实际发送.前端通过轮询 delivery_log 状态获取进度.
+
+    Args:
+        ignore_status: 为 True 时跳过状态检查,强制补发(管理员强制补发)
     """
     entry = db.execute(
         select(ScheduledReportLedgerEntry).where(ScheduledReportLedgerEntry.ledger_key == ledger_key)
     ).scalars().first()
     if entry is None:
-        return False, None, "not_found", "台账记录不存在，请刷新后重试"
-    if entry.status == LedgerStatus.SENT.value:
+        return False, None, "not_found", "台账记录不存在,请刷新后重试"
+    if entry.status == LedgerStatus.SENT.value and not ignore_status:
         return False, entry.latest_delivery_log_id, entry.status, "已成功发送的记录默认不允许重复发送"
 
     subscription = db.get(ScheduledReportSubscription, entry.subscription_id)
     if subscription is None:
         return False, None, "not_found", "订阅不存在或已删除"
 
-    # 创建 delivery_log（初始 stage = preparing）
+    # 创建 delivery_log(初始 stage = preparing)
     from app.services.scheduled_report.subscription_service import create_delivery_log_with_stage
 
-    # 使用原始预期日期，确保 refresh_ledger 能通过 report_date 匹配到这条 log
+    # 使用原始预期日期,确保 refresh_ledger 能通过 report_date 匹配到这条 log
     report_date = entry.expected_date
     log = create_delivery_log_with_stage(
         db=db,
@@ -343,19 +346,19 @@ def resend_ledger_entry_async(db: Session, *, ledger_key: str) -> tuple[bool, in
     )
     thread.start()
 
-    return True, log.id, "processing", "补发任务已启动，请在台账中查看进度"
+    return True, log.id, "processing", "补发任务已启动,请在台账中查看进度"
 
 
 def resend_ledger_entry(db: Session, *, ledger_key: str) -> tuple[bool, int | None, str, str]:
-    """同步补发：直接执行发送并等待完成（保留兼容）。
+    """同步补发:直接执行发送并等待完成(保留兼容).
 
-    仅用于需要立即知道结果的场景。
+    仅用于需要立即知道结果的场景.
     """
     entry = db.execute(
         select(ScheduledReportLedgerEntry).where(ScheduledReportLedgerEntry.ledger_key == ledger_key)
     ).scalars().first()
     if entry is None:
-        return False, None, "not_found", "台账记录不存在，请刷新后重试"
+        return False, None, "not_found", "台账记录不存在,请刷新后重试"
     if entry.status == LedgerStatus.SENT.value:
         return False, entry.latest_delivery_log_id, entry.status, "已成功发送的记录默认不允许重复发送"
 

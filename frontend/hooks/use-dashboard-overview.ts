@@ -50,6 +50,13 @@ export interface DashboardOverviewAds {
   period_orders: number
 }
 
+export interface SkuSalesDetailItem {
+  sku: string
+  product_name: string | null
+  quantity: number
+  sales_amount: number
+}
+
 export interface DashboardOverviewResponse {
   project_ids: number[]
   project_names: string[]
@@ -62,6 +69,7 @@ export interface DashboardOverviewResponse {
   shipments: DashboardOverviewShipments
   returns: DashboardOverviewReturns
   ads: DashboardOverviewAds
+  sku_sales_detail: SkuSalesDetailItem[]
 }
 
 interface UseDashboardOverviewOptions {
