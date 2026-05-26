@@ -1365,7 +1365,7 @@ export function ScheduledReportsClient() {
               prose prose-sm prose-neutral dark:prose-invert max-w-none
               prose-headings:text-base prose-p:text-sm prose-ul:text-sm prose-li:text-sm
               [&_ul]:my-1 [&_p]:my-1 [&_strong]:font-semibold [&_h2]:font-semibold [&_h2]:text-base">
-              <ReactMarkdown>{previewSummary}</ReactMarkdown>
+              <ReactMarkdown>{previewSummary.replace(/^[•·●]\s*/gm, '- ')}</ReactMarkdown>
             </div>
           </DialogContent>
         </Dialog>
