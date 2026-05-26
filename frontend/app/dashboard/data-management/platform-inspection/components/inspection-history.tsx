@@ -11,18 +11,19 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import { ImagePreviewDialog } from '@/components/ui/image-preview-dialog'
+import { PortraitScreenshotDialog } from '@/components/ui/image-preview-dialog'
 import { useNotifications } from '@/components/notifications'
 import {
   fetchInspectionHistory,
   fetchPeriods,
   fetchReport,
   type InspectionHistoryItem,
+  type InspectionHistoryScreenshot,
   type InspectionReport,
   type InspectionPeriod,
 } from '@/lib/inspection-api'
 import { normalizeErrorMessage } from '@/lib/error-utils'
-import { Loader2, Eye } from 'lucide-react'
+import { Loader2, Eye, ImageIcon } from 'lucide-react'
 
 interface InspectionHistoryProps {
   periodId: number
@@ -265,14 +266,15 @@ function DetailSheet({
                       className="space-y-2 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-2"
                     >
                       <div
-                        className="relative h-32 cursor-pointer overflow-hidden rounded"
+                        className="cursor-pointer overflow-hidden rounded"
                         onClick={() => setPreviewImage(screenshot.url)}
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={screenshot.url}
                           alt={screenshot.filename}
-                          className="h-full w-full object-cover"
+                          className="w-full object-contain"
+                          style={{ maxHeight: '400px' }}
                         />
                       </div>
                       {screenshot.caption && (
@@ -290,7 +292,7 @@ function DetailSheet({
       </SheetContent>
 
       {previewImage && (
-        <ImagePreviewDialog
+        <PortraitScreenshotDialog
           open={!!previewImage}
           onOpenChange={(open) => !open && setPreviewImage(null)}
           src={previewImage}
@@ -311,6 +313,7 @@ export default function InspectionHistory({ periodId }: InspectionHistoryProps) 
   const [detailReport, setDetailReport] = useState<InspectionReport | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailOpen, setDetailOpen] = useState(false)
+  const [tablePreviewImage, setTablePreviewImage] = useState<string | null>(null)
 
   // Load periods for selector
   useEffect(() => {
@@ -403,6 +406,7 @@ export default function InspectionHistory({ periodId }: InspectionHistoryProps) 
                   <TableHead>状态</TableHead>
                   <TableHead>AHR</TableHead>
                   <TableHead>合规问题</TableHead>
+                  <TableHead>截图</TableHead>
                   <TableHead>提交人</TableHead>
                   <TableHead>提交时间</TableHead>
                   <TableHead>操作</TableHead>
@@ -430,6 +434,35 @@ export default function InspectionHistory({ periodId }: InspectionHistoryProps) 
                         {item.compliance_total !== undefined && item.compliance_total !== null
                           ? item.compliance_total
                           : '-'}
+                      </TableCell>
+                      <TableCell>
+                        {item.screenshots && item.screenshots.length > 0 ? (
+                          <div className="flex flex-wrap gap-1.5">
+                            {item.screenshots.slice(0, 4).map((s) => (
+                              <button
+                                key={s.id}
+                                type="button"
+                                className="relative h-10 w-10 overflow-hidden rounded border border-border/70 transition-opacity hover:opacity-80"
+                                onClick={(e) => { e.stopPropagation(); setTablePreviewImage(s.url) }}
+                                title={s.caption || '查看截图'}
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={s.thumbnail_url || s.url}
+                                  alt={s.caption || '截图'}
+                                  className="h-full w-full object-cover"
+                                />
+                              </button>
+                            ))}
+                            {item.screenshots.length > 4 && (
+                              <div className="flex h-10 w-10 items-center justify-center rounded border border-border/70 text-xs text-muted-foreground">
+                                +{item.screenshots.length - 4}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {item.submitted_by || '-'}
@@ -467,6 +500,16 @@ export default function InspectionHistory({ periodId }: InspectionHistoryProps) 
           setSelectedItem(null)
         }}
       />
+
+      {/* Table-level screenshot preview */}
+      {tablePreviewImage && (
+        <PortraitScreenshotDialog
+          open={!!tablePreviewImage}
+          onOpenChange={(open) => !open && setTablePreviewImage(null)}
+          src={tablePreviewImage}
+          alt="截图预览"
+        />
+      )}
     </div>
   )
 }

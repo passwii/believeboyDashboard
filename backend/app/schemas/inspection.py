@@ -141,6 +141,13 @@ class InspectionPeriodListResponse(BaseModel):
     total: int
 
 
+class InspectionHistoryScreenshot(BaseModel):
+    id: int
+    url: str
+    thumbnail_url: str | None = None
+    caption: str | None = None
+
+
 class InspectionHistoryItem(BaseModel):
     id: int
     period_id: int
@@ -153,6 +160,7 @@ class InspectionHistoryItem(BaseModel):
     compliance_total: int | None = None
     submitted_by: str | None = None
     submitted_at: datetime | None = None
+    screenshots: list[InspectionHistoryScreenshot] = []
 
 
 class InspectionHistoryResponse(BaseModel):
