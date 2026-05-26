@@ -336,10 +336,12 @@ def get_history(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db_session),
+    settings: Settings = Depends(get_settings),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ):
     from sqlalchemy import select, func
+    from sqlalchemy.orm import selectinload
     from app.models.inspection import InspectionReport, InspectionPeriod
     from app.models.project import Project
 
@@ -351,6 +353,7 @@ def get_history(
         select(InspectionReport, InspectionPeriod, Project)
         .join(InspectionPeriod, InspectionReport.period_id == InspectionPeriod.id)
         .join(Project, InspectionReport.project_id == Project.id)
+        .options(selectinload(InspectionReport.screenshots))
     )
 
     # Filter by accessible projects for non-admin users
@@ -385,6 +388,16 @@ def get_history(
                 "review_policy_violations", "other_policy_violations", "regulatory_compliance",
             )
         ) if compliance else None
+
+        screenshots_data: list[dict] = []
+        for s in (report.screenshots or [])[:4]:
+            screenshots_data.append({
+                "id": s.id,
+                "url": generate_presigned_url(settings, s.r2_key),
+                "thumbnail_url": generate_presigned_url(settings, s.thumbnail_key) if s.thumbnail_key else None,
+                "caption": s.caption,
+            })
+
         items.append(InspectionHistoryItem(
             id=report.id,
             period_id=period.id,
@@ -397,6 +410,7 @@ def get_history(
             compliance_total=compliance_total,
             submitted_by=report.submitted_by,
             submitted_at=report.submitted_at,
+            screenshots=screenshots_data,
         ))
 
     return InspectionHistoryResponse(items=items, total=total)

@@ -121,6 +121,13 @@ export interface InspectionOverview {
   overdue_count: number
 }
 
+export interface InspectionHistoryScreenshot {
+  id: number
+  url: string
+  thumbnail_url?: string | null
+  caption?: string | null
+}
+
 export interface InspectionHistoryItem {
   id: number
   period_id: number
@@ -133,6 +140,7 @@ export interface InspectionHistoryItem {
   compliance_total?: number
   submitted_by?: string
   submitted_at?: string
+  screenshots?: InspectionHistoryScreenshot[]
 }
 
 export interface InspectionHistoryResponse {
