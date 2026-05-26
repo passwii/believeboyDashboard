@@ -596,12 +596,16 @@ def _get_weekly_returns(
     end_date: date,
     week_total_qty: int = 0,
 ) -> dict[str, Any]:
-    """获取本周退货数据，退货率 = 退货数 / 周总销量。"""
+    """获取本周退货数据，退货率 = 退货数 / 周总销量。
+
+    注意：退货报表是累积的，同一退货事件可能出现在多个 source_file 中。
+    必须按 (order_id, sku, return_date, license_plate_number) 去重，
+    只保留 source_file_id 最大的那条记录，避免重复计算。
+    """
     try:
+        # 查询所有匹配的退货记录
         query = (
-            db.query(
-                func.coalesce(func.sum(AnalysisReturnRow.quantity), 0).label("qty"),
-            )
+            db.query(AnalysisReturnRow)
             .join(AnalysisSourceFile, AnalysisSourceFile.id == AnalysisReturnRow.source_file_id)
             .filter(
                 AnalysisSourceFile.country == country,
@@ -614,8 +618,17 @@ def _get_weekly_returns(
         if project_ids:
             query = query.filter(AnalysisSourceFile.project_id.in_(project_ids))
 
-        row = query.first()
-        qty = int(row.qty) if row and row.qty else 0
+        records = query.all()
+
+        # Python 层面去重：按 (order_id, sku, return_date, license_plate_number) 分组
+        # 只保留 source_file_id 最大的那条记录
+        seen: dict[tuple, tuple[int, AnalysisReturnRow]] = {}
+        for r in records:
+            key = (r.order_id, r.sku, r.return_date, r.license_plate_number or "")
+            if key not in seen or r.source_file_id > seen[key][0]:
+                seen[key] = (r.source_file_id, r)
+
+        qty = sum(r.quantity for _, r in seen.values())
         rate = (qty / week_total_qty * 100) if week_total_qty > 0 else 0.0
 
         return {
