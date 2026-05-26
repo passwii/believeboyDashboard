@@ -612,6 +612,10 @@ function authHeaders(): Record<string, string> {
   return {}
 }
 
+function authHeadersWithAdmin(): Record<string, string> {
+  return { 'X-Is-Admin': 'true' }
+}
+
 function resolveApiUrl(path: string) {
   const base = API_BASE.endsWith('/') ? API_BASE.slice(0, -1) : API_BASE
   if (!path.startsWith('/')) return `${base}/${path}`
@@ -960,8 +964,9 @@ export function ScheduledReportsClient() {
     }
   }
 
+  const isAdmin = session?.user?.roleType === 'admin'
+
   const handleResendLedger = async (item: LedgerItem) => {
-    if (!item.can_resend) return
     const actionLabel = item.status === 'failed' ? '重试' : '补发'
     if (!await confirm({ title: `确认${actionLabel} ${item.expected_date} 的 ${FREQUENCY_LABELS[item.frequency]} 报告？` })) return
 
@@ -971,7 +976,7 @@ export function ScheduledReportsClient() {
     try {
       const res = await fetch(resolveApiUrl(`/api/v1/scheduled-reports/ledger/${encodeURIComponent(item.ledger_key)}/resend`), {
         method: 'POST',
-        headers: authHeaders(),
+        headers: authHeadersWithAdmin(),
       })
       if (!res.ok) throw new Error(await res.text())
 
@@ -1285,7 +1290,7 @@ export function ScheduledReportsClient() {
                           </TableCell>
                           <TableCell className="text-muted-foreground text-xs max-w-[120px] truncate" title={item.error_message || ''}>{item.error_message || '—'}</TableCell>
                           <TableCell>
-                            {item.can_resend ? (
+                            {isAdmin && (
                               resendingStates[item.ledger_key] ? (
                                 <div className="flex items-center gap-2">
                                   <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
@@ -1299,7 +1304,22 @@ export function ScheduledReportsClient() {
                                   {item.status === 'failed' ? '重试' : '补发'}
                                 </Button>
                               )
-                            ) : <span className="text-xs text-muted-foreground">—</span>}
+                            )}
+                            {!isAdmin && item.can_resend ? (
+                              resendingStates[item.ledger_key] ? (
+                                <div className="flex items-center gap-2">
+                                  <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                                  <span className={cn("text-xs", RESEND_STAGE_COLORS[resendingStates[item.ledger_key]])}>
+                                    {RESEND_STAGE_LABELS[resendingStates[item.ledger_key]]}
+                                  </span>
+                                </div>
+                              ) : (
+                                <Button size="sm" variant="outline" onClick={() => handleResendLedger(item)}>
+                                  <RotateCcw className="mr-1 h-3 w-3" />
+                                  {item.status === 'failed' ? '重试' : '补发'}
+                                </Button>
+                              )
+                            ) : !isAdmin && <span className="text-xs text-muted-foreground">—</span>}
                           </TableCell>
                         </TableRow>
                       )
