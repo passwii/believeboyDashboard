@@ -479,69 +479,19 @@ def send_scheduled_report_email(email: str, frequency: str, report_data: dict[st
 
         # 生成截图附件并上传到 R2
         try:
-            from app.services.scheduled_report.screenshot import html_to_png
-            png_bytes = html_to_png(screenshot_html)
-            if png_bytes:
-                import base64
-                freq_label = {"daily": "每日", "weekly": "每周", "monthly": "每月"}.get(frequency, frequency)
-                filename = f"{freq_label}报告_{project_name}_{report_date}.png"
-                params["attachments"] = [{
-                    "filename": filename,
-                    "content": base64.b64encode(png_bytes).decode("ascii"),
-                    "content_type": "image/png",
-                }]
-
-                # 上传截图到 R2（full 目录，完整 3x 图）
-                try:
-                    from datetime import datetime
-                    from app.services.r2_service import upload_bytes_to_r2
-                    from app.services.upload_service import _safe_project_folder_name
-
-                    settings = get_settings()
-                    project_slug = _safe_project_folder_name(project_name)
-                    country = report_data.get("country", "US")
-                    ts = datetime.now().strftime("%Y%m%dT%H%M%S")
-                    r2_filename = f"{report_date}_{frequency}_{country}_{ts}.png"
-
-                    full_result = upload_bytes_to_r2(
-                        settings=settings,
-                        data=png_bytes,
-                        filename=r2_filename,
-                        project_slug=project_slug,
-                        file_type="scheduled-reports/full",
-                        content_type="image/png",
-                    )
-                    logger.info("完整截图已上传到 R2: key=%s url=%s", full_result["key"], full_result["url"])
-
-                    # 生成缩略图：缩小至 1x (720px 宽)
-                    from PIL import Image as PILImage
-                    import io
-                    img = PILImage.open(io.BytesIO(png_bytes)).convert("RGBA")
-                    w, h = img.size
-                    thumb_w, thumb_h = w // 3, h // 3
-                    thumb_img = img.resize((thumb_w, thumb_h), PILImage.LANCZOS)
-                    thumb_bytes = io.BytesIO()
-                    thumb_img.save(thumb_bytes, format="PNG")
-                    thumb_bytes = thumb_bytes.getvalue()
-
-                    thumb_filename = f"{report_date}_{frequency}_{country}_{ts}_thumb.png"
-                    thumb_result = upload_bytes_to_r2(
-                        settings=settings,
-                        data=thumb_bytes,
-                        filename=thumb_filename,
-                        project_slug=project_slug,
-                        file_type="scheduled-reports/thumb",
-                        content_type="image/png",
-                    )
-                    logger.info("缩略图已上传到 R2: key=%s url=%s", thumb_result["key"], thumb_result["url"])
-
-                    # 将截图信息存储到 report_data，供外部更新 delivery log
-                    report_data["screenshot_r2_key"] = full_result["key"]
-                    report_data["screenshot_r2_url"] = full_result["url"]
-                    report_data["screenshot_r2_thumb_key"] = thumb_result["key"]
-                    report_data["screenshot_r2_thumb_url"] = thumb_result["url"]
-                except Exception as r2_err:
-                    logger.warning("截图上传到 R2 失败（邮件已发送）: %s", r2_err)
+            from app.services.scheduled_report.screenshot import process_screenshot_and_upload
+            freq_label = {"daily": "每日", "weekly": "每周", "monthly": "每月"}.get(frequency, frequency)
+            country = report_data.get("country", "US")
+            email_attachment_name = f"{freq_label}报告_{project_name}_{report_date}.png"
+            process_screenshot_and_upload(
+                screenshot_html,
+                report_data,
+                params,
+                project_name=project_name,
+                email_attachment_name=email_attachment_name,
+                frequency=frequency,
+                country=country,
+            )
         except Exception as e:
             logger.warning("截图生成跳过: %s", e)
 

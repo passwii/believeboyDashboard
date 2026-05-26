@@ -83,3 +83,96 @@ def html_to_png(
         logger.warning("圆角蒙版生成失败（截图仍将发送）: %s", e)
 
     return png_bytes
+
+
+def process_screenshot_and_upload(
+    screenshot_html: str,
+    report_data: dict,
+    email_params: dict,
+    *,
+    project_name: str,
+    email_attachment_name: str,
+    frequency: str,
+    country: str = "US",
+) -> None:
+    """HTML 截图 → 邮件附件 → R2 full + thumb → 回写 report_data。
+
+    封装完整管道：html_to_png → base64 邮件附件 →
+    R2 完整尺寸上传 → 缩略图生成 → R2 缩略图上传 →
+    将截图 URL 回写到 report_data，供 dispatcher 更新 delivery log。
+
+    所有异常内部捕获并 warning 日志——失败不阻断邮件发送。
+
+    Args:
+        screenshot_html: 待截图的完整 HTML（不含摘要，纯数据展示版本）。
+        report_data:   报告数据 dict，回写 screenshot_r2_url 等字段到此对象。
+        email_params:  Resend 邮件参数字典，attachments 字段会被原地修改。
+        project_name:  项目名称，用于 R2 文件夹划分。
+        email_attachment_name: 邮件附件的文件名（含后缀，如 "每日报告_项目A_2025-01-15.png"）。
+        frequency:     推送频率 "daily" | "weekly" | "monthly"，用于 R2 文件名前缀。
+        country:       国家站点代码，默认 "US"。
+    """
+    import base64
+    import io as _io
+    from datetime import datetime
+    from app.core.config import get_settings
+    from app.services.r2_service import upload_bytes_to_r2
+    from app.services.upload_service import _safe_project_folder_name
+    from PIL import Image as PILImage
+
+    png_bytes = html_to_png(screenshot_html)
+    if not png_bytes:
+        return
+
+    try:
+        # ── 邮件附件 ──────────────────────────────────────
+        email_params["attachments"] = [{
+            "filename": email_attachment_name,
+            "content": base64.b64encode(png_bytes).decode("ascii"),
+            "content_type": "image/png",
+        }]
+
+        # ── R2 上传（完整尺寸 3x 图）───────────────────────
+        settings = get_settings()
+        project_slug = _safe_project_folder_name(project_name)
+        report_date = report_data.get("report_date", "")
+        ts = datetime.now().strftime("%Y%m%dT%H%M%S")
+        r2_filename = f"{report_date}_{frequency}_{country}_{ts}.png"
+
+        full_result = upload_bytes_to_r2(
+            settings=settings,
+            data=png_bytes,
+            filename=r2_filename,
+            project_slug=project_slug,
+            file_type="scheduled-reports/full",
+            content_type="image/png",
+        )
+        logger.info("完整截图已上传到 R2: key=%s url=%s", full_result["key"], full_result["url"])
+
+        # ── 缩略图（缩小至 1x：720px 宽）───────────────────
+        img = PILImage.open(_io.BytesIO(png_bytes)).convert("RGBA")
+        w, h = img.size
+        thumb_w, thumb_h = w // 3, h // 3
+        thumb_img = img.resize((thumb_w, thumb_h), PILImage.LANCZOS)
+        thumb_buffer = _io.BytesIO()
+        thumb_img.save(thumb_buffer, format="PNG")
+        thumb_bytes = thumb_buffer.getvalue()
+
+        thumb_filename = f"{report_date}_{frequency}_{country}_{ts}_thumb.png"
+        thumb_result = upload_bytes_to_r2(
+            settings=settings,
+            data=thumb_bytes,
+            filename=thumb_filename,
+            project_slug=project_slug,
+            file_type="scheduled-reports/thumb",
+            content_type="image/png",
+        )
+        logger.info("缩略图已上传到 R2: key=%s url=%s", thumb_result["key"], thumb_result["url"])
+
+        # ── 回写 report_data，供 dispatcher 同步到 delivery log ─
+        report_data["screenshot_r2_key"] = full_result["key"]
+        report_data["screenshot_r2_url"] = full_result["url"]
+        report_data["screenshot_r2_thumb_key"] = thumb_result["key"]
+        report_data["screenshot_r2_thumb_url"] = thumb_result["url"]
+    except Exception as e:
+        logger.warning("截图上传到 R2 失败（邮件已发送）: %s", e)
