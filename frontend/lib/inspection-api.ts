@@ -11,7 +11,11 @@ function resolveApiUrl(path: string) {
 
 export interface HealthData {
   account_health_rating?: string
-  odr?: number
+  // 客户服务绩效
+  negative_feedback?: number
+  a2z_claims?: number
+  chargeback_claims?: number
+  // 配送绩效
   late_shipment_rate?: number
   pre_fulfillment_cancel_rate?: number
   valid_tracking_rate?: number
@@ -19,11 +23,16 @@ export interface HealthData {
 }
 
 export interface ComplianceData {
-  policy_violations?: number
+  ip_infringement?: number
   ip_complaints?: number
-  restricted_product_warnings?: number
-  listing_suppressed_count?: number
-  account_deactivation_risk?: boolean
+  product_authenticity_complaints?: number
+  product_condition_complaints?: number
+  food_product_safety?: number
+  listing_policy_violations?: number
+  restricted_product_violations?: number
+  review_policy_violations?: number
+  other_policy_violations?: number
+  regulatory_compliance?: number
 }
 
 export interface InspectionTemplateField {
@@ -40,6 +49,8 @@ export interface InspectionTemplateField {
 
 export interface InspectionTemplate {
   health_fields: InspectionTemplateField[]
+  service_performance_fields: InspectionTemplateField[]
+  shipping_performance_fields: InspectionTemplateField[]
   compliance_fields: InspectionTemplateField[]
 }
 
@@ -84,11 +95,13 @@ export interface InspectionOverviewItem {
   project_name: string
   status: 'submitted' | 'draft' | 'overdue' | 'pending'
   account_health_rating?: string
-  odr?: number
+  negative_feedback?: number
+  a2z_claims?: number
+  chargeback_claims?: number
   late_shipment_rate?: number
   valid_tracking_rate?: number
-  policy_violations?: number
-  account_deactivation_risk?: boolean
+  on_time_delivery_rate?: number
+  compliance_total?: number
   status_summary?: string
   submitted_by?: string
   submitted_at?: string
@@ -117,7 +130,7 @@ export interface InspectionHistoryItem {
   project_name: string
   status: string
   account_health_rating?: string
-  odr?: number
+  compliance_total?: number
   submitted_by?: string
   submitted_at?: string
 }

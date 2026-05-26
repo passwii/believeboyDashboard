@@ -6,8 +6,13 @@ from pydantic import BaseModel, ConfigDict
 
 
 class HealthData(BaseModel):
+    # 账户健康评级
     account_health_rating: str | None = None
-    odr: float | None = None
+    # 客户服务绩效
+    negative_feedback: int | None = None
+    a2z_claims: int | None = None
+    chargeback_claims: int | None = None
+    # 配送绩效
     late_shipment_rate: float | None = None
     pre_fulfillment_cancel_rate: float | None = None
     valid_tracking_rate: float | None = None
@@ -15,11 +20,16 @@ class HealthData(BaseModel):
 
 
 class ComplianceData(BaseModel):
-    policy_violations: int | None = None
+    ip_infringement: int | None = None
     ip_complaints: int | None = None
-    restricted_product_warnings: int | None = None
-    listing_suppressed_count: int | None = None
-    account_deactivation_risk: bool | None = None
+    product_authenticity_complaints: int | None = None
+    product_condition_complaints: int | None = None
+    food_product_safety: int | None = None
+    listing_policy_violations: int | None = None
+    restricted_product_violations: int | None = None
+    review_policy_violations: int | None = None
+    other_policy_violations: int | None = None
+    regulatory_compliance: int | None = None
 
 
 class InspectionTemplateField(BaseModel):
@@ -36,6 +46,8 @@ class InspectionTemplateField(BaseModel):
 
 class InspectionTemplateResponse(BaseModel):
     health_fields: list[InspectionTemplateField]
+    service_performance_fields: list[InspectionTemplateField]
+    shipping_performance_fields: list[InspectionTemplateField]
     compliance_fields: list[InspectionTemplateField]
 
 
@@ -100,11 +112,16 @@ class InspectionOverviewItem(BaseModel):
     project_name: str
     status: str
     account_health_rating: str | None = None
-    odr: float | None = None
+    # 客户服务绩效
+    negative_feedback: int | None = None
+    a2z_claims: int | None = None
+    chargeback_claims: int | None = None
+    # 配送绩效
     late_shipment_rate: float | None = None
     valid_tracking_rate: float | None = None
-    policy_violations: int | None = None
-    account_deactivation_risk: bool | None = None
+    on_time_delivery_rate: float | None = None
+    # 合规汇总
+    compliance_total: int | None = None
     status_summary: str | None = None
     submitted_by: str | None = None
     submitted_at: datetime | None = None
@@ -133,7 +150,7 @@ class InspectionHistoryItem(BaseModel):
     project_name: str
     status: str
     account_health_rating: str | None = None
-    odr: float | None = None
+    compliance_total: int | None = None
     submitted_by: str | None = None
     submitted_at: datetime | None = None
 

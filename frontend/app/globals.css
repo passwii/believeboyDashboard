@@ -3,6 +3,18 @@
 @tailwind utilities;
 
 @layer base {
+  /* 隐藏所有 number 类型输入框的原生上下箭头按钮，防止滚动时误触 */
+  input[type='number'] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+  input[type='number']::-webkit-inner-spin-button,
+  input[type='number']::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    appearance: none;
+    margin: 0;
+  }
+
   :root {
     --background: 210 28% 97%;
     --foreground: 214 18% 16%;
