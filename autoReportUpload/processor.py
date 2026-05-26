@@ -142,6 +142,71 @@ def _write_upload_log(
     db.add(log)
 
 
+def _write_dedup_upload_log(
+    db: Session,
+    filename: str,
+    project_name: str,
+    report_type: str,
+    country: str,
+    duplicates: list[dict],
+) -> None:
+    """Write today's upload log when a file is skipped (duplicate or conflict).
+
+    Even though the file content hasn't changed or data already exists,
+    the autoReportUpload service DID process it — this ensures the RPA
+    status grid shows green for today.
+    """
+    try:
+        project = _get_project_by_name(db, project_name)
+    except ValueError:
+        return  # Project not found, skip
+
+    now = datetime.now()
+    upload_date = _resolve_upload_date(now)
+
+    # Idempotency: skip if a log already exists for today
+    existing = db.execute(
+        select(ReportUploadLog).where(
+            ReportUploadLog.project_id == project.id,
+            ReportUploadLog.report_type == report_type,
+            ReportUploadLog.country == country,
+            ReportUploadLog.upload_date == upload_date,
+        )
+    ).scalars().first()
+    if existing is not None:
+        return
+
+    # Find the duplicate that matches this project + report type
+    matching_dup = None
+    for d in duplicates:
+        if d["project_id"] == project.id and d["report_type"] == report_type:
+            matching_dup = d
+            break
+
+    if matching_dup:
+        has_real_data = matching_dup["row_count_total"] > 0
+        row_count = matching_dup["row_count_total"]
+        source_file_id = matching_dup["source_id"]
+    else:
+        # No exact match — still write a log to mark today as processed
+        has_real_data = False
+        row_count = 0
+        source_file_id = None
+
+    _write_upload_log(
+        db,
+        project_id=project.id,
+        report_type=report_type,
+        country=country,
+        upload_date=upload_date,
+        has_real_data=has_real_data,
+        row_count=row_count,
+        source_file_id=source_file_id,
+        original_filename=filename,
+    )
+    db.commit()
+
+
 # ─── Result dataclass ─────────────────────────────────────────────────────────
 
 
@@ -246,6 +311,11 @@ def process_file(
             file_path.name,
             dup_info,
         )
+        # Write today's upload log so RPA status grid shows green
+        _write_dedup_upload_log(
+            db, file_path.name, project_name,
+            result.report_type, result.country or "US", duplicates,
+        )
         if not IS_LOCAL:
             _move_to_processed(file_path)
         return ProcessResult(
@@ -275,6 +345,12 @@ def process_file(
             or "uq_return_record_key" in error_msg
         )
         if is_duplicate:
+            # Write today's upload log — service DID process this file
+            _write_dedup_upload_log(
+                db, file_path.name, project_name,
+                result.report_type, result.country or "US",
+                _find_sha256_duplicates(db, file_sha256),
+            )
             if not IS_LOCAL:
                 _move_to_processed(file_path)
             return ProcessResult(
@@ -1057,7 +1133,7 @@ def _parse_payment_period_from_filename(value: str | None) -> tuple[date, date] 
 def _find_sha256_duplicates(db: Session, file_sha256: str) -> list[dict]:
     """Find existing records with same SHA-256 (autoReportUpload version).
 
-    Returns list of dicts with project_id, report_type, country.
+    Returns list of dicts with project_id, report_type, country, source_id, row_count_total.
     """
     rows = db.execute(
         select(AnalysisSourceFile).where(
@@ -1070,6 +1146,8 @@ def _find_sha256_duplicates(db: Session, file_sha256: str) -> list[dict]:
             "project_id": row.project_id,
             "report_type": row.report_type,
             "country": row.country,
+            "source_id": row.id,
+            "row_count_total": row.row_count_total,
         }
         for row in rows
     ]
