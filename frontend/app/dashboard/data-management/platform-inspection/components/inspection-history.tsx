@@ -390,7 +390,7 @@ export default function InspectionHistory({ periodId }: InspectionHistoryProps) 
       </div>
 
       {/* History table */}
-      <Card className="dashboard-surface">
+      <Card className="dashboard-surface animate-fade-slide-up">
         <CardContent className="p-0">
           {loading ? (
             <div className="flex items-center justify-center py-12">

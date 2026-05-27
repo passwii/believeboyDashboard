@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useNotifications } from '@/components/notifications'
 import { useConfirm } from '@/hooks/use-confirm'
@@ -10,6 +11,7 @@ import { useGlobalLoading } from '@/components/global-loading-provider'
 import { fetchProjectContext, updateProjectContext, type ProjectContextResponse } from '@/lib/project-context'
 import { AiParseContextSheet } from './ai-parse-context-sheet'
 import { DynamicContextCard } from './dynamic-context-card'
+import { Loader2, Check } from 'lucide-react'
 
 type ProjectContextDrawerProps = {
   projectId: number
@@ -32,6 +34,7 @@ export function ProjectContextDrawer({
 
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'success' | 'error'>('idle')
   const [context, setContext] = useState<ProjectContextResponse | null>(null)
   const [draftContext, setDraftContext] = useState<Record<string, string>>({})
   const [hasChanges, setHasChanges] = useState(false)
@@ -63,22 +66,32 @@ export function ProjectContextDrawer({
   useEffect(() => {
     if (!context) return
     const original = (context.project_context as Record<string, string>) || {}
-    // 比较是否有变化
+    // 正确的值比较
     const originalKeys = Object.keys(original).sort()
     const draftKeys = Object.keys(draftContext).sort()
-    const hasChanged = 
+    const hasChanged =
       originalKeys.length !== draftKeys.length ||
-      originalKeys.some((k, i) => k !== draftKeys[i] || original[k] !== draftContext[draftKeys[i]])
+      originalKeys.some((k) => original[k] !== draftContext[k])
     setHasChanges(hasChanged)
   }, [context, draftContext])
 
+  // 保存成功后短暂显示成功状态
+  useEffect(() => {
+    if (saveState === 'success') {
+      const timer = setTimeout(() => setSaveState('idle'), 2000)
+      return () => clearTimeout(timer)
+    }
+  }, [saveState])
+
   const handleSave = async () => {
     setSubmitting(true)
+    setSaveState('saving')
     startGlobalLoading('blocking')
     try {
       const result = await updateProjectContext(projectId, { project_context: draftContext }, null)
       setContext(result)
       setHasChanges(false)
+      setSaveState('success')
       notify({
         type: 'success',
         title: '保存成功',
@@ -86,6 +99,7 @@ export function ProjectContextDrawer({
       })
       onSuccess?.()
     } catch (err) {
+      setSaveState('error')
       notify({
         type: 'error',
         title: '保存失败',
@@ -123,17 +137,25 @@ export function ProjectContextDrawer({
   return (
     <>
       <Sheet open={open} onOpenChange={handleOpenChange}>
-        <SheetContent className="w-[500px] max-w-full sm:max-w-[500px] flex flex-col">
+        <SheetContent className="w-[90vw] max-w-[640px] lg:max-w-[720px] flex flex-col">
           <SheetHeader>
             <div className="flex items-center justify-between pr-8">
-              <SheetTitle>项目背景配置</SheetTitle>
+              <div className="flex items-center gap-3">
+                <SheetTitle>项目背景配置</SheetTitle>
+                {hasChanges && (
+                  <Badge variant="secondary" className="text-[10px]">
+                    有未保存更改
+                  </Badge>
+                )}
+              </div>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setAiSheetOpen(true)}
-                className="text-xs"
+                className="text-xs gap-1"
               >
-                🤖 AI 辅助
+                <span>🤖</span>
+                AI 辅助
               </Button>
             </div>
             <SheetDescription>项目：{projectName}</SheetDescription>
@@ -162,8 +184,21 @@ export function ProjectContextDrawer({
             <Button
               onClick={() => void handleSave()}
               disabled={submitting || !hasChanges}
+              className="min-w-[100px]"
             >
-              {submitting ? '保存中...' : '保存配置'}
+              {saveState === 'saving' ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  保存中...
+                </>
+              ) : saveState === 'success' ? (
+                <>
+                  <Check className="mr-2 h-4 w-4" />
+                  已保存
+                </>
+              ) : (
+                '保存配置'
+              )}
             </Button>
           </div>
         </SheetContent>

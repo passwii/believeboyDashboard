@@ -85,7 +85,7 @@ const navItems: SearchItem[] = [
   { title: '更新日志', url: '/dashboard/changelog', icon: <BookOpen className='h-4 w-4' />, category: '支持入口' },
 ]
 
-const CATEGORIES = ['运营导航', 'AI 面板', '运营核算', '数据分析', '工具集', '数字员工', '数据管理', '系统管理', '支持入口'] as const
+const CATEGORIES = ['运营导航', 'AI 面板', '运营核算', '数据分析', '数据管理', '系统管理', '招商管理', '数字员工', '支持入口'] as const
 
 export function SearchCommand() {
   const [open, setOpen] = React.useState(false)

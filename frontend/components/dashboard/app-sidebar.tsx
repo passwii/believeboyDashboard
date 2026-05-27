@@ -73,6 +73,7 @@ const primaryGroups: NavGroup[] = [
     activeIconAccent: 'rgba(255,255,255,0.95)',
     items: [
       { title: 'AI 聊天', url: '/dashboard/ai-panel/chat' },
+      { title: 'AI 聊天 V2', url: '/dashboard/ai-panel/chat-v2' },
       { title: 'AI 洞察', url: '/dashboard/ai-insights' },
     ],
   },
@@ -308,7 +309,7 @@ export function AppSidebar({
   const { data: session } = useSession()
   const pathname = usePathname()
   const user = session?.user
-  const isAiChatPage = aiChatMode || pathname === '/dashboard/ai-panel/chat'
+  const isAiChatPage = aiChatMode || pathname === '/dashboard/ai-panel/chat' || pathname === '/dashboard/ai-panel/chat-v2'
   const { sidebarState } = useDashboardAISidebar()
 
   const displayUser = {
@@ -348,16 +349,16 @@ export function AppSidebar({
             ))}
 
             {displayUser.roleType === 'admin' ? (
-              <SidebarGroupBlock group={digitalEmployeesGroup} />
-            ) : null}
-
-            {displayUser.roleType === 'admin' ? (
               <SidebarGroupBlock group={adminGroup} />
             ) : null}
 
             {displayUser.roleType === 'businessdev' ||
             displayUser.roleType === 'admin' ? (
               <SidebarGroupBlock group={businessDevGroup} />
+            ) : null}
+
+            {displayUser.roleType === 'admin' ? (
+              <SidebarGroupBlock group={digitalEmployeesGroup} />
             ) : null}
 
             <SidebarGroup className='mt-auto px-2 py-0'>

@@ -2,20 +2,24 @@
 
 import * as React from 'react'
 import {
+  Banknote,
   BarChart3,
   Bot,
   Calculator,
   ChartColumnBig,
   Check,
+  ClipboardCheck,
   ClipboardList,
   DollarSign,
   Edit3,
   FileText,
   LayoutDashboard,
+  Layers,
   Package,
   Repeat2,
   RotateCcw,
   Search,
+  Shield,
   Shell,
   ShoppingCart,
   Store,
@@ -30,7 +34,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils'
 
 const STORAGE_KEY = 'believeboy-sidebar-pinned-v1'
-export const MAX_PINNED = 5
+export const MAX_PINNED = 10
 
 export function useLongPress(duration = 500) {
   const [active, setActive] = React.useState(false)
@@ -164,6 +168,11 @@ export const ALL_ITEMS: PinnedItem[] = [
     icon: <RotateCcw className='h-4 w-4' />,
   },
   {
+    title: '组合分析',
+    url: '/dashboard/data-analysis/portfolio-overview',
+    icon: <Layers className='h-4 w-4' />,
+  },
+  {
     title: '项目目标',
     url: '/dashboard/data-analysis/project-goals',
     icon: <TrendingUp className='h-4 w-4' />,
@@ -185,9 +194,24 @@ export const ALL_ITEMS: PinnedItem[] = [
     icon: <FileText className='h-4 w-4' />,
   },
   {
+    title: '报表核对',
+    url: '/dashboard/data-management/report-reconciliation',
+    icon: <ClipboardCheck className='h-4 w-4' />,
+  },
+  {
+    title: '平台巡检',
+    url: '/dashboard/data-management/platform-inspection',
+    icon: <Shield className='h-4 w-4' />,
+  },
+  {
     title: '汇率信息',
     url: '/dashboard/data-management/exchange-rate',
     icon: <DollarSign className='h-4 w-4' />,
+  },
+  {
+    title: '平台回款',
+    url: '/dashboard/data-management/platform-revenue',
+    icon: <Banknote className='h-4 w-4' />,
   },
   {
     title: '报表自动化',
@@ -205,6 +229,13 @@ export const ALL_ITEMS: PinnedItem[] = [
     title: '数字员工',
     url: '/dashboard/digital-employees',
     icon: <Bot className='h-4 w-4' />,
+    roles: ['admin'],
+  },
+  // 系统管理 (admin only)
+  {
+    title: '定时报告',
+    url: '/dashboard/system-management/scheduled-reports',
+    icon: <Zap className='h-4 w-4' />,
     roles: ['admin'],
   },
 ]

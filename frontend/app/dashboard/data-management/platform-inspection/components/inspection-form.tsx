@@ -399,7 +399,7 @@ export default function InspectionForm({
           <DialogTitle>巡检报告</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="space-y-4 py-4 animate-fade-slide-up">
           {/* Threshold warnings */}
           {warnings.length > 0 && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20">

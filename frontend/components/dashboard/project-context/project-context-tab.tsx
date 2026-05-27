@@ -1,16 +1,14 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { FileText, Edit3, RefreshCw } from 'lucide-react'
 
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
 import { useNotifications } from '@/components/notifications'
 import { useGlobalLoading } from '@/components/global-loading-provider'
-import { ProjectContextDrawer } from './project-context-drawer'
+import { ProjectContextDialog } from './project-context-dialog'
 import { fetchProjectContext } from '@/lib/project-context'
 
 type ProjectWithContext = {
@@ -55,61 +53,70 @@ function ContextPreview({ context }: { context: Record<string, string> | null })
   }
 
   const entries = Object.entries(context)
+
   return (
-    <div className="space-y-1.5">
-      {entries.slice(0, 4).map(([key, value]) => (
-        <div key={key} className="flex gap-2 text-sm">
-          <span className="text-muted-foreground shrink-0">{key}:</span>
-          <span className="text-foreground line-clamp-2 break-words">{value || '-'}</span>
+    <div className="space-y-2">
+      {entries.slice(0, 5).map(([key, value]) => (
+        <div key={key} className="flex items-baseline gap-2 text-sm">
+          <span className="text-muted-foreground shrink-0 w-24 truncate text-left">{key}</span>
+          <span className="text-foreground flex-1 line-clamp-1 break-words">{value || '-'}</span>
         </div>
       ))}
-      {entries.length > 4 && (
-        <span className="text-xs text-muted-foreground">+{entries.length - 4} 更多...</span>
-      )}
     </div>
   )
 }
 
 function ProjectContextCard({
   project,
-  onEdit,
+  onOpen,
 }: {
   project: ProjectWithContext
-  onEdit: (project: ProjectWithContext) => void
+  onOpen: (project: ProjectWithContext) => void
 }) {
   const hasContext = project.project_context && Object.keys(project.project_context).length > 0
+  const dimensionCount = hasContext ? Object.keys(project.project_context!).length : 0
 
   return (
-    <Card className="group hover:border-primary/30 transition-colors">
-      <CardHeader className="pb-3">
+    <Card
+      className="group hover:border-primary/40 hover:shadow-sm transition-all cursor-pointer min-h-[220px] flex flex-col"
+      onClick={() => onOpen(project)}
+    >
+      <CardHeader className="pb-3 flex-shrink-0">
         <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-3 min-w-0">
             <span
               className={cn(
-                'h-2 w-2 shrink-0 rounded-full',
-                hasContext ? 'bg-green-500' : 'bg-muted-foreground/30'
+                'h-3 w-3 shrink-0 rounded-full ring-2 ring-offset-2',
+                hasContext ? 'bg-green-500 ring-green-200' : 'bg-amber-400 ring-amber-100'
               )}
             />
-            <h3 className="font-medium text-foreground truncate">{project.name}</h3>
-            {project.brand_name && (
-              <Badge variant="secondary" className="text-xs shrink-0">
-                {project.brand_name}
-              </Badge>
-            )}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-semibold text-foreground truncate text-base">{project.name}</h3>
+                {project.brand_name && (
+                  <Badge variant="secondary" className="text-[10px] shrink-0">
+                    {project.brand_name}
+                  </Badge>
+                )}
+              </div>
+            </div>
           </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => onEdit(project)}
-            className="opacity-0 group-hover:opacity-100 transition-opacity h-8 px-2"
-          >
-            <Edit3 className="h-3.5 w-3.5" />
-          </Button>
         </div>
       </CardHeader>
-      <CardContent className="pt-0">
-        <ContextPreview context={project.project_context} />
+      <CardContent className="pt-0 flex-1 flex flex-col">
+        <div className="flex-1">
+          <ContextPreview context={project.project_context} />
+        </div>
+        {hasContext && (
+          <div className="flex items-center justify-between mt-3 pt-2 border-t border-border/30">
+            <span className="text-xs text-muted-foreground">
+              {dimensionCount > 5 && `+${dimensionCount - 5} 更多...`}
+            </span>
+            <Badge variant="outline" className="text-[10px]">
+              {dimensionCount} 维度
+            </Badge>
+          </div>
+        )}
       </CardContent>
     </Card>
   )
@@ -118,8 +125,10 @@ function ProjectContextCard({
 export function ProjectContextTab() {
   const [loading, setLoading] = useState(true)
   const [projects, setProjects] = useState<ProjectWithContext[]>([])
-  const [editingProject, setEditingProject] = useState<ProjectWithContext | null>(null)
-  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [selectedProject, setSelectedProject] = useState<ProjectWithContext | null>(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [searchQuery] = useState('')
+  const [filterHasContext] = useState<string>('all')
   const { notify } = useNotifications()
   const { startGlobalLoading, endGlobalLoading } = useGlobalLoading()
 
@@ -145,76 +154,80 @@ export function ProjectContextTab() {
     void loadData()
   }, [loadData])
 
-  const handleEdit = (project: ProjectWithContext) => {
-    setEditingProject(project)
-    setDrawerOpen(true)
+  const handleOpenDialog = (project: ProjectWithContext) => {
+    setSelectedProject(project)
+    setDialogOpen(true)
   }
 
   const handleSuccess = () => {
     void loadData()
   }
 
+  // 过滤逻辑
+  const filteredProjects = projects.filter((project) => {
+    const matchSearch = project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (project.brand_name && project.brand_name.toLowerCase().includes(searchQuery.toLowerCase()))
+
+    const hasContext = project.project_context && Object.keys(project.project_context).length > 0
+    let matchFilter = true
+    if (filterHasContext === 'configured') matchFilter = !!hasContext
+    if (filterHasContext === 'not_configured') matchFilter = !hasContext
+
+    return matchSearch && matchFilter
+  })
+
   return (
-    <div className="w-full md:h-[calc(100vh-8.5rem)] md:overflow-hidden">
-      <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
-        <div className="flex min-w-0 flex-col gap-1">
-          <Badge variant="outline" className="w-fit rounded-md">项目背景</Badge>
-          <p className="text-sm text-muted-foreground">维护各项目的背景信息，便于查阅和编辑。</p>
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => void loadData()}
-          disabled={loading}
-        >
-          <RefreshCw className={cn('mr-2 h-4 w-4', loading && 'animate-spin')} />
-          {loading ? '加载中...' : '刷新数据'}
-        </Button>
+    <div className="w-full">
+      {/* 内容区 */}
+      <div>
+        {loading ? (
+          <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Card key={i} className="min-h-[180px]">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="h-3 w-3 rounded-full" />
+                    <div className="space-y-2 flex-1">
+                      <Skeleton className="h-5 w-32" />
+                      <Skeleton className="h-4 w-20" />
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-4 w-full mb-2" />
+                  <Skeleton className="h-4 w-3/4" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : filteredProjects.length === 0 ? (
+          <EmptyState
+            message={searchQuery || filterHasContext !== 'all' ? '没有匹配的项目' : '暂无项目数据'}
+            className="py-12"
+          />
+        ) : (
+          <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+            {filteredProjects.map((project) => (
+              <ProjectContextCard
+                key={project.id}
+                project={project}
+                onOpen={handleOpenDialog}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
-      {loading ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Card key={i}>
-              <CardHeader className="pb-3">
-                <div className="flex items-center gap-2">
-                  <Skeleton className="h-2 w-2 rounded-full" />
-                  <Skeleton className="h-5 w-32" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <Skeleton className="h-4 w-full mb-2" />
-                <Skeleton className="h-4 w-3/4" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ) : projects.length === 0 ? (
-        <EmptyState
-          message="暂无项目数据"
-          className="py-12"
-        />
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {projects.map((project) => (
-            <ProjectContextCard
-              key={project.id}
-              project={project}
-              onEdit={handleEdit}
-            />
-          ))}
-        </div>
-      )}
-
-      {editingProject && (
-        <ProjectContextDrawer
-          projectId={editingProject.id}
-          projectName={editingProject.name}
-          open={drawerOpen}
+      {selectedProject && (
+        <ProjectContextDialog
+          projectId={selectedProject.id}
+          projectName={selectedProject.name}
+          projectBrand={selectedProject.brand_name}
+          open={dialogOpen}
           onOpenChange={(open) => {
-            setDrawerOpen(open)
+            setDialogOpen(open)
             if (!open) {
-              setEditingProject(null)
+              setSelectedProject(null)
             }
           }}
           onSuccess={handleSuccess}
