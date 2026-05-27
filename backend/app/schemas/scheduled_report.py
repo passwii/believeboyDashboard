@@ -80,8 +80,11 @@ class SubscriptionListResponse(BaseModel):
     total: int
 
 
-DeliveryStageValue = Literal["pending", "preparing", "building", "sending", "done", "failed"]
-"""DeliveryLogItem stage 可选值: pending/preparing/building/sending/done/failed"""
+DeliveryStageValue = Literal[
+    "pending", "preparing", "fetching_data", "generating_summary",
+    "rendering_html", "capturing_screenshot", "sending", "done", "failed",
+]
+"""DeliveryLogItem stage 可选值: pending/preparing/fetching_data/generating_summary/rendering_html/capturing_screenshot/sending/done/failed"""
 
 
 class DeliveryLogItem(BaseModel):

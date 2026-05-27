@@ -33,7 +33,10 @@ class DeliveryStatus(str, Enum):
 class DeliveryStage(str, Enum):
     PENDING = "pending"
     PREPARING = "preparing"
-    BUILDING = "building"
+    FETCHING_DATA = "fetching_data"
+    GENERATING_SUMMARY = "generating_summary"
+    RENDERING_HTML = "rendering_html"
+    CAPTURING_SCREENSHOT = "capturing_screenshot"
     SENDING = "sending"
     DONE = "done"
     FAILED = "failed"
@@ -115,7 +118,7 @@ class ScheduledReportDeliveryLog(Base):
     ai_summary: Mapped[str | None] = mapped_column(Text, nullable=True, comment="AI 报表总结文案（Markdown）")
     stage: Mapped[str] = mapped_column(
         String(20), nullable=False, default=DeliveryStage.PENDING.value, index=True,
-        comment="处理阶段: pending/preparing/building/sending/done/failed"
+        comment="处理阶段: pending/preparing/fetching_data/generating_summary/rendering_html/capturing_screenshot/sending/done/failed"
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

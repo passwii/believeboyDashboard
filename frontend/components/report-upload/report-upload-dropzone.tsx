@@ -18,8 +18,6 @@ function getReportTypeLabel(type: UploadQueueItem['reportType']): string {
       return '业务报告'
     case 'ad_product_report':
       return '广告 - 已推广商品'
-    case 'ad_search_term_report':
-      return '广告搜索词报告'
     case 'sales_report':
       return '销售报表 - 所有订单'
     case 'payment_report':

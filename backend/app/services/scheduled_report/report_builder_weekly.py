@@ -22,6 +22,10 @@ from app.models import (
 from app.models.project import Project
 from app.models.sku_info import SkuRecord
 from app.services.dashboard_overview_service import build_dashboard_overview
+from app.services.scheduled_report.context_helpers import (
+    fetch_and_format_sku_factory_info,
+    fetch_multi_project_context,
+)
 from app.utils.country import get_today_for_country
 
 from .ai_enhancer_weekly import (
@@ -102,6 +106,7 @@ def build_weekly_report_data(
     country: str,
     project_name: str | None = None,
     reference_date: date | None = None,
+    stage_callback=None,
 ) -> dict[str, Any]:
     """构建完整的周报告数据结构。
 
@@ -175,6 +180,13 @@ def build_weekly_report_data(
     # 7.6 SKU 销售明细（本周期，含品名）
     sku_sales_detail = _query_sku_sales_detail(db, project_ids, country, prev_week_start, prev_week_end)
 
+    # 7.7 获取项目背景和 SKU 工厂信息
+    project_context, sku_context = fetch_multi_project_context(db, project_ids)
+    top_sku_names = [s.get("sku") for s in top_skus_comparison[:8] if s.get("sku")]
+    alert_sku_names = [a.get("sku") for a in inventory_alerts[:5] if a.get("sku")]
+    relevant_skus = list(dict.fromkeys(top_sku_names + alert_sku_names))
+    sku_factory_info_text = fetch_and_format_sku_factory_info(db, relevant_skus, country, project_ids)
+
     # 8. 检测预警信号
     anomalies = detect_weekly_anomalies(
         current_week, prev_week, ads_comparison, returns_data
@@ -186,6 +198,11 @@ def build_weekly_report_data(
     alerts.extend(_build_positive_signals(top_skus_comparison, ads_comparison))
     
     # 10. 生成 AI 摘要和归因分析
+    # 通知调度器：数据获取完成，开始生成 AI 摘要
+    if stage_callback:
+        from app.models.scheduled_report import DeliveryStage
+        stage_callback(DeliveryStage.GENERATING_SUMMARY.value)
+
     ai_summary = generate_weekly_ai_summary({
         "current_week": current_week,
         "prev_week": prev_week,
@@ -196,6 +213,9 @@ def build_weekly_report_data(
         "ads_comparison": ads_comparison,
         "inventory_alerts": inventory_alerts,
         "returns_data": returns_data,
+        "project_context": project_context,
+        "sku_context": sku_context,
+        "sku_factory_info_text": sku_factory_info_text,
     })
     
     attribution_summary = generate_weekly_attribution_analysis({
@@ -257,6 +277,10 @@ def build_weekly_report_data(
 
         # SKU 销售明细
         "sku_sales_detail": sku_sales_detail,
+
+        # 项目背景（供邮件模板未来使用）
+        "project_context": project_context,
+        "sku_context": sku_context,
 
         # AI 生成内容
         "ai_summary": ai_summary,

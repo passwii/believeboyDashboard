@@ -307,16 +307,25 @@ class AnalysisReturnRow(Base):
     __tablename__ = 'analysis_return_rows'
     __table_args__ = (
         UniqueConstraint('source_file_id', 'source_row_no', name='analysis_return_rows_source_row_key'),
+        UniqueConstraint('project_id', 'country', 'order_id', 'sku', 'return_date', 'license_plate_number', name='uq_return_event'),
         Index('idx_analysis_return_source_id', 'source_file_id'),
         Index('idx_analysis_return_source_date', 'source_file_id', 'return_date'),
         Index('idx_analysis_return_sku', 'sku'),
         Index('idx_analysis_return_order_id', 'order_id'),
+        Index('idx_return_rows_project_date', 'project_id', 'return_date'),
+        Index('idx_return_rows_project_sku', 'project_id', 'sku'),
     )
 
     id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         primary_key=True,
         autoincrement=True,
     )
+    project_id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"),
+        ForeignKey('projects.id', ondelete='CASCADE'),
+        nullable=False,
+    )
+    country: Mapped[str] = mapped_column(String(2), nullable=False)
     source_file_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
         ForeignKey('analysis_source_files.id', ondelete='CASCADE'),
         nullable=False,
@@ -333,7 +342,7 @@ class AnalysisReturnRow(Base):
     detailed_disposition: Mapped[str] = mapped_column(String(50), nullable=False)
     reason: Mapped[str] = mapped_column(String(100), nullable=False)
     status: Mapped[str] = mapped_column(String(100), nullable=False)
-    license_plate_number: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    license_plate_number: Mapped[str] = mapped_column(String(30), nullable=False, server_default='')
     original_return_datetime: Mapped[str] = mapped_column(String(30), nullable=False)
     customer_comments: Mapped[str | None] = mapped_column(Text, nullable=True)
     raw_row: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)

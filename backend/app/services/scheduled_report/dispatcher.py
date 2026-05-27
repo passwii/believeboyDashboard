@@ -21,6 +21,7 @@ from __future__ import annotations
 import logging
 import signal
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, timedelta
 from typing import Any
@@ -81,6 +82,33 @@ def _raise_timeout(*args):
     raise TimeoutError("AI summary timed out")
 
 
+# ── Minimum stage display duration ───────────────────────────────────────────
+# Ensures fast stages remain visible long enough for the user to notice them.
+_STAGE_MIN_SEC = 1.5
+
+
+def _report_stage(
+    db,
+    log_id: int,
+    stage: str,
+    *,
+    _stage_started: list[float] | None = None,
+) -> None:
+    """Update delivery log stage, enforcing a minimum display duration.
+
+    `_stage_started` is a mutable ``[timestamp]`` list used as a
+    single-element accumulator so the caller can track when the
+    *current* stage began without passing a non-primitive around.
+    """
+    if _stage_started is not None:
+        elapsed = time.monotonic() - _stage_started[0]
+        if elapsed < _STAGE_MIN_SEC:
+            time.sleep(_STAGE_MIN_SEC - elapsed)
+    update_delivery_log_stage(db, log_id, stage)
+    if _stage_started is not None:
+        _stage_started[0] = time.monotonic()
+
+
 def _build_report_data_with_timeout(
     project_ids: list[int] | None,
     country: str,
@@ -88,6 +116,7 @@ def _build_report_data_with_timeout(
     date_str: str,
     ai_model: str | None = None,
     reference_date: "date | None" = None,
+    stage_callback: Any = None,
 ) -> dict[str, Any]:
     """Build report data inside the semaphore, with optional per-call timeout.
 
@@ -95,20 +124,20 @@ def _build_report_data_with_timeout(
     Falls back to direct call on Windows or if signals are unavailable.
     """
     if AI_SUMMARY_TIMEOUT_SEC <= 0 or threading.current_thread() is not threading.main_thread():
-        return _do_build_report(project_ids, country, frequency, ai_model=ai_model, reference_date=reference_date)
+        return _do_build_report(project_ids, country, frequency, ai_model=ai_model, reference_date=reference_date, stage_callback=stage_callback)
 
     try:
         old_handler = signal.signal(signal.SIGALRM, _raise_timeout)
         signal.alarm(AI_SUMMARY_TIMEOUT_SEC)
         try:
-            result = _do_build_report(project_ids, country, frequency, ai_model=ai_model, reference_date=reference_date)
+            result = _do_build_report(project_ids, country, frequency, ai_model=ai_model, reference_date=reference_date, stage_callback=stage_callback)
         finally:
             signal.alarm(0)
             signal.signal(signal.SIGALRM, old_handler)
         return result
     except (AttributeError, OSError):
         # signal.SIGALRM not available on Windows — call without timeout
-        return _do_build_report(project_ids, country, frequency, ai_model=ai_model, reference_date=reference_date)
+        return _do_build_report(project_ids, country, frequency, ai_model=ai_model, reference_date=reference_date, stage_callback=stage_callback)
     except TimeoutError:
         logger.warning(
             "AI summary timed out for project=%s country=%s date=%s — using fallback",
@@ -123,6 +152,7 @@ def _do_build_report(
     frequency: str,
     ai_model: str | None = None,
     reference_date: "date | None" = None,
+    stage_callback: Any = None,
 ) -> dict[str, Any]:
     """Build report data (no timeout protection — run inside semaphore)."""
     db = SessionLocal()
@@ -133,6 +163,7 @@ def _do_build_report(
                 project_ids=project_ids,
                 country=country,
                 reference_date=reference_date,
+                stage_callback=stage_callback,
             )
         return build_report_email_data(
             db=db,
@@ -141,6 +172,7 @@ def _do_build_report(
             frequency=frequency,
             ai_model=ai_model,
             reference_date=reference_date,
+            stage_callback=stage_callback,
         )
     finally:
         db.close()
@@ -187,6 +219,7 @@ def _build_report_with_throttle(
     frequency: str,
     ai_model: str | None = None,
     reference_date: "date | None" = None,
+    stage_callback: Any = None,
 ) -> dict[str, Any]:
     """Build report data, throttling AI summary generation via semaphore.
 
@@ -216,7 +249,7 @@ def _build_report_with_throttle(
 
         report_data = _build_report_data_with_timeout(
             project_ids, country, frequency, date_str, ai_model=ai_model,
-            reference_date=reference_date,
+            reference_date=reference_date, stage_callback=stage_callback,
         )
 
         with _cache_lock:
@@ -263,19 +296,23 @@ def _dispatch_one(
         return result
 
     try:
-        # 阶段：构建报表
-        update_delivery_log_stage(db, log_id, DeliveryStage.BUILDING.value)
-        report_data = _build_report_with_throttle(project_ids, country, frequency, ai_model=ai_model)
+        # 阶段：获取数据 → AI 摘要（由 builder 内部回调）
+        _stage_clock = [time.monotonic()]
+        _report_stage(db, log_id, DeliveryStage.FETCHING_DATA.value, _stage_started=_stage_clock)
+
+        def _on_stage(stage_name: str) -> None:
+            _report_stage(db, log_id, stage_name, _stage_started=_stage_clock)
+
+        report_data = _build_report_with_throttle(project_ids, country, frequency, ai_model=ai_model, stage_callback=_on_stage)
         # Pass log_id to report_data so email_sender can update screenshot info
         report_data["log_id"] = log_id
 
-        # 阶段：发送邮件
-        update_delivery_log_stage(db, log_id, DeliveryStage.SENDING.value)
-        # 根据频率选择对应的邮件发送函数
+        # 阶段：渲染 HTML → 截图 → 发送（由 email sender 内部回调推进）
+        _report_stage(db, log_id, DeliveryStage.RENDERING_HTML.value, _stage_started=_stage_clock)
         if frequency == "weekly":
-            success, resend_id_or_error = send_weekly_report_email(email, report_data)
+            success, resend_id_or_error = send_weekly_report_email(email, report_data, stage_callback=_on_stage)
         else:
-            success, resend_id_or_error = send_scheduled_report_email(email, frequency, report_data)
+            success, resend_id_or_error = send_scheduled_report_email(email, frequency, report_data, stage_callback=_on_stage)
 
         if success:
             update_delivery_log_stage(db, log_id, DeliveryStage.DONE.value)
@@ -527,8 +564,13 @@ def _dispatch_one_async(
     """
     db = SessionLocal()
     try:
-        # 阶段：构建报表
-        update_delivery_log_stage(db, log_id, DeliveryStage.BUILDING.value)
+        # 阶段：获取数据 → AI 摘要（由 builder 内部回调）
+        _stage_clock = [time.monotonic()]
+        _report_stage(db, log_id, DeliveryStage.FETCHING_DATA.value, _stage_started=_stage_clock)
+
+        def _on_stage(stage_name: str) -> None:
+            _report_stage(db, log_id, stage_name, _stage_started=_stage_clock)
+
         # 补发时使用历史日期作为数据锚定，而非当天
         # 日报/月报：数据锚定 = expected_date - 1（与正常调度的 _get_report_anchor_date 逻辑一致）
         # 周报：数据锚定 = expected_date 本身（_get_previous_natural_week 内部会计算上一个自然周）
@@ -536,15 +578,15 @@ def _dispatch_one_async(
             ref_date = date.fromisoformat(expected_date)
         else:
             ref_date = date.fromisoformat(expected_date) - timedelta(days=1)
-        report_data = _build_report_with_throttle(project_ids, country, frequency, ai_model=ai_model, reference_date=ref_date)
+        report_data = _build_report_with_throttle(project_ids, country, frequency, ai_model=ai_model, reference_date=ref_date, stage_callback=_on_stage)
         report_data["log_id"] = log_id
 
-        # 阶段：发送邮件
-        update_delivery_log_stage(db, log_id, DeliveryStage.SENDING.value)
+        # 阶段：渲染 HTML → 截图 → 发送（由 email sender 内部回调推进）
+        _report_stage(db, log_id, DeliveryStage.RENDERING_HTML.value, _stage_started=_stage_clock)
         if frequency == "weekly":
-            success, resend_id_or_error = send_weekly_report_email(email, report_data)
+            success, resend_id_or_error = send_weekly_report_email(email, report_data, stage_callback=_on_stage)
         else:
-            success, resend_id_or_error = send_scheduled_report_email(email, frequency, report_data)
+            success, resend_id_or_error = send_scheduled_report_email(email, frequency, report_data, stage_callback=_on_stage)
 
         if success:
             # 先更新 delivery_log 的 status='sent'（在 stage='done' 之前！）

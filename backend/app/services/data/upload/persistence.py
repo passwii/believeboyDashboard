@@ -16,6 +16,8 @@ from app.models import ReportUploadStatus
 from app.services.data.upload.recognition import recognize_saved_report_upload
 from app.services.product.persistence import (
     _get_project_by_name,
+    _load_project_product_mapping,
+    _persist_one_source_file,
     persist_single_analysis_source,
 )
 from app.services.product.sales import persist_sales_report_by_purchase_date
@@ -27,6 +29,7 @@ from app.utils.constants import SUPPORTED_REPORT_TYPES
 from app.utils.country import normalize_country as _normalize_country
 from app.utils.date_utils import parse_yyyy_mm_dd as _parse_yyyy_mm_dd
 from app.services.data.upload.dedup import find_sha256_duplicates
+from app.utils.persist_helpers import write_report_upload_log
 from app.utils.utils import sha256_file as _sha256_file
 
 
@@ -233,60 +236,122 @@ def commit_report_upload(
         project = _get_project_by_name(db, project_name)
         _invalidate_daily_analysis_cache(project.id)
     elif report_type == "business_report":
-        report_date = (payload.report_date or "").strip()
-        if not report_date:
-            raise HTTPException(status_code=422, detail="report_date is required")
-        outcome = persist_single_analysis_source(
-            db,
-            project_name=project_name,
-            report_type="business_report",
-            country=country,
-            upload_file_id=file_meta["file_id"],
-            upload_file_path=file_meta["file_path"],
-            report_date=report_date,
-            report_start_date=report_date,
-            report_end_date=report_date,
-            created_by=operator,
-        )
-        if not outcome.success:
-            raise HTTPException(
-                status_code=400, detail=outcome.error_message or "业务报表入库失败"
+        if payload.use_period_dates:
+            start = (payload.report_start_date or "").strip()
+            end = (payload.report_end_date or "").strip()
+            if not start or not end:
+                raise HTTPException(status_code=422, detail="report_start_date and report_end_date are required")
+            project = _get_project_by_name(db, project_name)
+            known_skus, known_asins = _load_project_product_mapping(db, project.project_name, country)
+            start_d = _parse_yyyy_mm_dd(start, 'report_start_date')
+            end_d = _parse_yyyy_mm_dd(end, 'report_end_date')
+            outcome = _persist_one_source_file(
+                db,
+                project=project,
+                report_type="business_report",
+                country=country,
+                report_date=None,
+                period_start_date=start_d,
+                period_end_date=end_d,
+                upload_file_id=file_meta["file_id"],
+                upload_file_path=file_meta["file_path"],
+                known_skus=known_skus,
+                known_asins=known_asins,
+                created_by=operator,
             )
-        persisted_source_id = outcome.source_id
-        persisted_table = "analysis_source_files"
-        response_status = "persisted"
-        message = "业务报表已保存并写入业务源数据"
-        project = _get_project_by_name(db, project_name)
-        _invalidate_daily_analysis_cache(project.id)
+            if not outcome.success:
+                raise HTTPException(status_code=400, detail=outcome.error_message or "业务报表入库失败")
+            persisted_source_id = outcome.source_id
+            persisted_table = "analysis_source_files"
+            response_status = "persisted"
+            message = "业务报表已按周期保存并写入业务源数据"
+            _invalidate_daily_analysis_cache(project.id)
+        else:
+            report_date = (payload.report_date or "").strip()
+            if not report_date:
+                raise HTTPException(status_code=422, detail="report_date is required")
+            outcome = persist_single_analysis_source(
+                db,
+                project_name=project_name,
+                report_type="business_report",
+                country=country,
+                upload_file_id=file_meta["file_id"],
+                upload_file_path=file_meta["file_path"],
+                report_date=report_date,
+                report_start_date=report_date,
+                report_end_date=report_date,
+                created_by=operator,
+            )
+            if not outcome.success:
+                raise HTTPException(
+                    status_code=400, detail=outcome.error_message or "业务报表入库失败"
+                )
+            persisted_source_id = outcome.source_id
+            persisted_table = "analysis_source_files"
+            response_status = "persisted"
+            message = "业务报表已保存并写入业务源数据"
+            project = _get_project_by_name(db, project_name)
+            _invalidate_daily_analysis_cache(project.id)
     elif report_type == AD_PRODUCT_REPORT:
-        report_date = (payload.report_date or "").strip()
-        if not report_date:
-            if recognition and recognition.detected_date:
-                report_date = recognition.detected_date
-        if not report_date:
-            raise HTTPException(status_code=422, detail="report_date is required")
-        outcome = persist_single_analysis_source(
-            db,
-            project_name=project_name,
-            report_type=AD_PRODUCT_REPORT,
-            country=country,
-            upload_file_id=file_meta["file_id"],
-            upload_file_path=file_meta["file_path"],
-            report_date=report_date,
-            report_start_date=report_date,
-            report_end_date=report_date,
-            created_by=operator,
-        )
-        if not outcome.success:
-            raise HTTPException(
-                status_code=400, detail=outcome.error_message or "广告报表入库失败"
+        if payload.use_period_dates:
+            start = (payload.report_start_date or "").strip()
+            end = (payload.report_end_date or "").strip()
+            if not start or not end:
+                raise HTTPException(status_code=422, detail="report_start_date and report_end_date are required")
+            project = _get_project_by_name(db, project_name)
+            known_skus, known_asins = _load_project_product_mapping(db, project.project_name, country)
+            start_d = _parse_yyyy_mm_dd(start, 'report_start_date')
+            end_d = _parse_yyyy_mm_dd(end, 'report_end_date')
+            outcome = _persist_one_source_file(
+                db,
+                project=project,
+                report_type=AD_PRODUCT_REPORT,
+                country=country,
+                report_date=None,
+                period_start_date=start_d,
+                period_end_date=end_d,
+                upload_file_id=file_meta["file_id"],
+                upload_file_path=file_meta["file_path"],
+                known_skus=known_skus,
+                known_asins=known_asins,
+                created_by=operator,
             )
-        persisted_source_id = outcome.source_id
-        persisted_table = "analysis_source_files"
-        response_status = "persisted"
-        message = "广告报表已保存并写入分析广告源数据"
-        project = _get_project_by_name(db, project_name)
-        _invalidate_daily_analysis_cache(project.id)
+            if not outcome.success:
+                raise HTTPException(status_code=400, detail=outcome.error_message or "广告报表入库失败")
+            persisted_source_id = outcome.source_id
+            persisted_table = "analysis_source_files"
+            response_status = "persisted"
+            message = "广告报表已按周期保存并写入分析广告源数据"
+            _invalidate_daily_analysis_cache(project.id)
+        else:
+            report_date = (payload.report_date or "").strip()
+            if not report_date:
+                if recognition and recognition.detected_date:
+                    report_date = recognition.detected_date
+            if not report_date:
+                raise HTTPException(status_code=422, detail="report_date is required")
+            outcome = persist_single_analysis_source(
+                db,
+                project_name=project_name,
+                report_type=AD_PRODUCT_REPORT,
+                country=country,
+                upload_file_id=file_meta["file_id"],
+                upload_file_path=file_meta["file_path"],
+                report_date=report_date,
+                report_start_date=report_date,
+                report_end_date=report_date,
+                created_by=operator,
+            )
+            if not outcome.success:
+                raise HTTPException(
+                    status_code=400, detail=outcome.error_message or "广告报表入库失败"
+                )
+            persisted_source_id = outcome.source_id
+            persisted_table = "analysis_source_files"
+            response_status = "persisted"
+            message = "广告报表已保存并写入分析广告源数据"
+            project = _get_project_by_name(db, project_name)
+            _invalidate_daily_analysis_cache(project.id)
     elif report_type == "sales_report":
         outcome = persist_sales_report_by_purchase_date(
             db,
@@ -319,27 +384,54 @@ def commit_report_upload(
                 status_code=422,
                 detail="report_start_date and report_end_date are required",
             )
-        outcome = persist_single_analysis_source(
-            db,
-            project_name=project_name,
-            report_type="payment_report",
-            country=country,
-            upload_file_id=file_meta["file_id"],
-            upload_file_path=file_meta["file_path"],
-            report_start_date=start_date,
-            report_end_date=end_date,
-            created_by=operator,
-        )
-        if not outcome.success:
-            raise HTTPException(
-                status_code=400, detail=outcome.error_message or "付款报告入库失败"
+        if payload.use_period_dates:
+            project = _get_project_by_name(db, project_name)
+            known_skus, known_asins = _load_project_product_mapping(db, project.project_name, country)
+            start_d = _parse_yyyy_mm_dd(start_date, 'report_start_date')
+            end_d = _parse_yyyy_mm_dd(end_date, 'report_end_date')
+            outcome = _persist_one_source_file(
+                db,
+                project=project,
+                report_type="payment_report",
+                country=country,
+                report_date=None,
+                period_start_date=start_d,
+                period_end_date=end_d,
+                upload_file_id=file_meta["file_id"],
+                upload_file_path=file_meta["file_path"],
+                known_skus=known_skus,
+                known_asins=known_asins,
+                created_by=operator,
             )
-        persisted_source_id = outcome.source_id
-        persisted_table = "analysis_source_files"
-        response_status = "persisted"
-        message = "付款报告已保存并写入付款源数据"
-        project = _get_project_by_name(db, project_name)
-        _invalidate_daily_analysis_cache(project.id)
+            if not outcome.success:
+                raise HTTPException(status_code=400, detail=outcome.error_message or "付款报告入库失败")
+            persisted_source_id = outcome.source_id
+            persisted_table = "analysis_source_files"
+            response_status = "persisted"
+            message = "付款报告已按周期保存并写入付款源数据"
+            _invalidate_daily_analysis_cache(project.id)
+        else:
+            outcome = persist_single_analysis_source(
+                db,
+                project_name=project_name,
+                report_type="payment_report",
+                country=country,
+                upload_file_id=file_meta["file_id"],
+                upload_file_path=file_meta["file_path"],
+                report_start_date=start_date,
+                report_end_date=end_date,
+                created_by=operator,
+            )
+            if not outcome.success:
+                raise HTTPException(
+                    status_code=400, detail=outcome.error_message or "付款报告入库失败"
+                )
+            persisted_source_id = outcome.source_id
+            persisted_table = "analysis_source_files"
+            response_status = "persisted"
+            message = "付款报告已保存并写入付款源数据"
+            project = _get_project_by_name(db, project_name)
+            _invalidate_daily_analysis_cache(project.id)
     elif report_type == "ad_search_term_report":
         report_date = (payload.report_date or "").strip()
         if not report_date:
@@ -373,11 +465,35 @@ def commit_report_upload(
                 detail=str(outcome.get("error_message") or "退货报表入库失败"),
             )
         persisted_source_id = outcome.get("source_id")
-        persisted_table = "return_analysis_records"
+        persisted_table = "analysis_return_rows"
         response_status = "persisted"
         payload.report_start_date = outcome.get("report_start_date")
         payload.report_end_date = outcome.get("report_end_date")
         message = outcome.get("message") or "退货报表已保存并写入退货数据"
+
+    # Write upload log for single-day reports only.
+    # Multi-day / periodic reports (sales_report, payment_report) are skipped
+    # to avoid false "complete" markers on the RPA status grid — their coverage
+    # is detected by date-range fallback queries against analysis_source_files.
+    # Period-mode uploads (use_period_dates=True) are also skipped since they
+    # represent periodic data, not daily uploads.
+    _is_period_mode = getattr(payload, 'use_period_dates', False)
+    if response_status == "persisted" and report_type in {
+        "inventory_report",
+        "business_report",
+        "ad_product_report",
+        "return_report",
+    } and not _is_period_mode:
+        project = _get_project_by_name(db, project_name)
+        write_report_upload_log(
+            db,
+            project_id=project.id,
+            country=country,
+            report_type=report_type,
+            source_file_id=persisted_source_id,
+            has_real_data=True,
+            original_filename=original_filename,
+        )
 
     return ReportCommitResponse(
         report_type=report_type,

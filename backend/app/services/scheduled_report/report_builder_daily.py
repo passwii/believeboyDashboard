@@ -12,6 +12,10 @@ from sqlalchemy.orm import Session
 from app.models import AnalysisAdProductRow, AnalysisReturnRow, AnalysisSalesOrderRow, AnalysisSourceFile, InventorySnapshotRow
 from app.models.sku_info import SkuRecord
 from app.services.dashboard_overview_service import build_dashboard_overview
+from app.services.scheduled_report.context_helpers import (
+    fetch_and_format_sku_factory_info,
+    fetch_multi_project_context,
+)
 from app.utils.country import get_today_for_country
 
 logger = logging.getLogger(__name__)
@@ -37,6 +41,7 @@ def build_report_email_data(
     frequency: str = "daily",
     ai_model: str | None = None,
     reference_date: date | None = None,
+    stage_callback=None,
 ) -> dict[str, Any]:
     """
     Aggregate real data and transform it into the format expected by
@@ -170,15 +175,9 @@ def build_report_email_data(
 
         all_return_records = ret_base_query.all()
 
-        # Python 层去重：按 (order_id, sku, return_date, license_plate_number) 分组
-        # 只保留 source_file_id 最大的那条记录
-        seen: dict[tuple, tuple[int, AnalysisReturnRow]] = {}
-        for r in all_return_records:
-            key = (r.order_id, r.sku, r.return_date, r.license_plate_number or "")
-            if key not in seen or r.source_file_id > seen[key][0]:
-                seen[key] = (r.source_file_id, r)
-
-        deduped_records = list(seen.values())
+        # Dec 2026-05-26: Database-level unique constraint (uq_return_event)
+        # guarantees dedup at write time. No Python-level dedup needed.
+        deduped_records = [(r.source_file_id, r) for r in all_return_records]
         ret_qty = sum(r.quantity for _, r in deduped_records)
 
         # Top return reasons 也用去重后的数据
@@ -227,6 +226,22 @@ def build_report_email_data(
         "report_date": today.isoformat(),
         "date_range": date_range,
     }
+
+    # 12b. Fetch project context & SKU factory info for AI enrichment
+    project_context, sku_context = fetch_multi_project_context(db, project_ids)
+    top_sku_names = [s.get("sku") for s in top_skus if s.get("sku")]
+    alert_sku_names = [s.get("sku") for s in oos_skus[:3]] + [s.get("sku") for s in low_stock_skus[:3]]
+    relevant_skus = list(dict.fromkeys(top_sku_names + alert_sku_names))
+    sku_factory_info_text = fetch_and_format_sku_factory_info(db, relevant_skus, country, project_ids)
+    report_data["project_context"] = project_context
+    report_data["sku_context"] = sku_context
+    report_data["sku_factory_info_text"] = sku_factory_info_text
+
+    # 通知调度器：数据获取完成，开始生成 AI 摘要
+    if stage_callback:
+        from app.models.scheduled_report import DeliveryStage
+        stage_callback(DeliveryStage.GENERATING_SUMMARY.value)
+
     ai_summary = _generate_summary(frequency, report_data, ai_model)
 
     # 13. Build weekly report data format for email renderer

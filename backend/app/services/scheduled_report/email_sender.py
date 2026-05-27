@@ -26,6 +26,22 @@ def _arrow_delta(positive: bool) -> str:
     return "↑" if positive else "↓"
 
 
+# ── Country code → Chinese name ──────────────────────────────────────────────
+_COUNTRY_CN: dict[str, str] = {
+    "US": "美国", "UK": "英国", "GB": "英国",
+    "DE": "德国", "FR": "法国", "IT": "意大利", "ES": "西班牙",
+    "NL": "荷兰", "SE": "瑞典", "PL": "波兰", "BE": "比利时",
+    "CA": "加拿大", "AU": "澳大利亚", "JP": "日本", "MX": "墨西哥",
+    "EU": "欧洲",
+}
+
+
+def _country_label(country: str) -> str:
+    """将国家代码转换为 'XX站' 格式，未知代码直接返回原值 + '站'。"""
+    name = _COUNTRY_CN.get(country.upper(), country.upper())
+    return f"{name}站"
+
+
 def _safe_html(text: str) -> str:
     return (text
         .replace("&", "&amp;")
@@ -64,9 +80,9 @@ def _markdown_to_email_html(md_text: str) -> str:
         "<p>": '<p style="margin: 0 0 8px; line-height: 1.7;">',
         "<strong>": '<strong style="font-weight: 700; color: #111827;">',
         "<em>": '<em style="font-style: italic;">',
-        "<ul>": '<ul style="margin: 4px 0 8px; padding-left: 20px; list-style-type: disc;">',
+        "<ul>": '<ul style="margin: 4px 0 8px; padding-left: 20px; list-style: none;">',
         "<ol>": '<ol style="margin: 4px 0 8px; padding-left: 20px; list-style-type: decimal;">',
-        "<li>": '<li style="margin-bottom: 6px; line-height: 1.6; display: list-item;">',
+        "<li>": '<li style="margin-bottom: 6px; line-height: 1.6; display: list-item;"><span style="color: #2563EB; margin-right: 6px;">◉</span>',
         "<h1>": '<h1 style="font-size: 16px; font-weight: 700; color: #111827; margin: 0 0 6px;">',
         "<h2>": '<h2 style="font-size: 14px; font-weight: 700; color: #111827; margin: 0 0 6px;">',
         "<h3>": '<h3 style="font-size: 13px; font-weight: 700; color: #374151; margin: 0 0 4px;">',

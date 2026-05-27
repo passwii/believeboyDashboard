@@ -43,6 +43,14 @@ SYSTEM_PROMPT_WEEKLY = """你是一位专业的跨境电商运营分析师。
 5. 保持专业简洁的运营报告风格
 6. 如果数据全为 0 或无有效数据，返回"暂无足够数据生成周度分析"
 7. 只输出分析内容，不要输出其他说明
+
+## 项目背景信息使用规则
+生成分析时必须结合运营人员提供的背景信息进行综合分析：
+- 如果某 SKU 正在"清仓"或做"促销/秒杀"，销量变化应归因于促销而非自然趋势
+- 淡旺季数据应作为正常季节性表现，不作为运营加分项
+- 结合备货周期和产能信息评估库存策略
+- 结合项目状态调整评价标准（新项目看推进度，成熟期看绝对业绩）
+- 发现数据与背景矛盾时，明确指出
 """
 
 # Simplified system prompt for fallback scenarios
@@ -93,7 +101,41 @@ def generate_weekly_ai_summary(
             reasoning_effort=None,
         )
 
-        user_content = json.dumps(report_data, ensure_ascii=False, indent=2)
+        from app.services.scheduled_report.context_helpers import (
+            format_project_context_for_prompt,
+            format_sku_context_for_prompt,
+        )
+
+        # Separate context fields from data for structured prompt
+        ctx_project = report_data.get("project_context")
+        ctx_sku = report_data.get("sku_context")
+        ctx_factory = report_data.get("sku_factory_info_text", "")
+
+        display_data = {
+            k: v for k, v in report_data.items()
+            if k not in ("project_context", "sku_context", "sku_factory_info_text")
+        }
+        data_str = json.dumps(display_data, ensure_ascii=False, indent=2)
+
+        project_context_text = format_project_context_for_prompt(ctx_project)
+        sku_context_text = format_sku_context_for_prompt(ctx_sku)
+
+        user_content = f"""请根据以下周报数据生成深度运营分析：
+
+```json
+{data_str}
+```
+
+## 项目背景信息（由运营人员填写）
+
+### 项目背景
+{project_context_text}
+
+### SKU 特殊状态
+{sku_context_text}
+
+### 产品属性（Top/预警 SKU）
+{ctx_factory}"""
         result = generate_assistant_content(
             llm_config=llm_config,
             messages=[],

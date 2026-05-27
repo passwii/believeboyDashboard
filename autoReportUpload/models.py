@@ -2,10 +2,10 @@
 SQLAlchemy models for the auto-report-upload service.
 
 Analysis models (AnalysisSourceFile, Analysis*Row, InventorySnapshotRow) are
-imported from ``backend/app/utils/models.py`` — the single source of truth.
-Local models (Project, ProductCost, ReportUploadLog, ReturnCustomerComment)
-remain here because they are either RPA-specific or have backend-only features
-(constraints, relationships) that don't belong in the shared module.
+imported from ``backend/app/models/`` — the Alembic-managed single source of
+truth.  Local models (Project, ProductCost, ReportUploadLog,
+ReturnCustomerComment) remain here because they are RPA-specific convenience
+models that are NOT used by the upload pipeline (which writes analysis rows).
 """
 
 from __future__ import annotations
@@ -30,15 +30,18 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column
 
-# ── Import shared analysis models ────────────────────────────────────────────
-# Add backend to path so we can reach app.utils.models
+# ── Add backend to path so we can import app.models / app.db.session ──────
 _BACKEND_PATH = Path(__file__).resolve().parent.parent / "backend"
 if str(_BACKEND_PATH) not in sys.path:
     sys.path.insert(0, str(_BACKEND_PATH))
 
-from app.utils.models import (  # noqa: E402
+# Use backend's Base so all ORM models share one Alembic-tracked metadata
+from app.db.session import Base  # noqa: E402
+
+# Import shared analysis models from the canonical source (Alembic-managed)
+from app.models import (  # noqa: E402
     AnalysisAdProductRow,
     AnalysisBusinessRow,
     AnalysisPaymentRow,
@@ -46,13 +49,7 @@ from app.utils.models import (  # noqa: E402
     AnalysisSalesOrderRow,
     AnalysisSourceFile,
     InventorySnapshotRow,
-    SharedBase,
 )
-
-# ── Local models (RPA-specific / not shared) ─────────────────────────────────
-
-# Use SharedBase so all ORM models share one metadata
-Base = SharedBase
 
 
 # ─── projects ────────────────────────────────────────────────────────────────

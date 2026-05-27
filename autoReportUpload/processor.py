@@ -16,6 +16,7 @@ from typing import Any
 import pandas as pd
 from dotenv import load_dotenv
 from sqlalchemy import insert, select, update as sa_update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 # Load autoReportUpload .env before importing backend modules
@@ -486,6 +487,14 @@ def _persist_single_source(
     import time
     t0 = time.time()
 
+    # Fallback: 空文件无法提取日期时，用当天日期作为 period
+    # 避免 _build_storage_key 因 period=None 抛出 ValueError
+    if period_start is None and period_end is None:
+        upload_fallback_date = now.date()
+        period_start = period_end = upload_fallback_date
+        if report_date is None:
+            report_date = upload_fallback_date
+
     version = _next_version(
         db, project_id=project.id, report_type=report_type, country=country,
         period_start_date=period_start, period_end_date=period_end,
@@ -660,7 +669,7 @@ def _persist_return_report(
         license_plate = (
             str(row.get("license-plate-number", ""))
             if pd.notna(row.get("license-plate-number"))
-            else None
+            else ""
         )
         customer_comments = (
             str(row.get("customer-comments", ""))
@@ -668,17 +677,17 @@ def _persist_return_report(
             else ""
         )
 
+        # In-file dedup — key matches DB uq_return_event constraint (6 fields)
         dedupe_key = (
-            project.id, country, order_id, sku, asin, fnsku,
-            product_name, quantity, fulfillment_center_id,
-            detailed_disposition, reason, status, license_plate,
-            original_dt_str, customer_comments,
+            project.id, country, order_id, sku, return_date_str, license_plate,
         )
         if dedupe_key in seen_keys:
             continue
         seen_keys.add(dedupe_key)
 
         rows.append({
+            "project_id": project.id,
+            "country": country,
             "source_file_id": source.id,
             "source_row_no": idx + 1,
             "return_date": us_date,
@@ -698,9 +707,29 @@ def _persist_return_report(
             "raw_row": _to_raw_row(row.to_dict()),
         })
 
-    # Insert rows
     if rows:
-        db.execute(insert(AnalysisReturnRow), rows)
+        stmt = pg_insert(AnalysisReturnRow).values(rows)
+        stmt = stmt.on_conflict_do_update(
+            constraint="uq_return_event",
+            set_={
+                "return_date": stmt.excluded.return_date,
+                "license_plate_number": stmt.excluded.license_plate_number,
+                "status": stmt.excluded.status,
+                "reason": stmt.excluded.reason,
+                "detailed_disposition": stmt.excluded.detailed_disposition,
+                "source_file_id": stmt.excluded.source_file_id,
+                "source_row_no": stmt.excluded.source_row_no,
+                "asin": stmt.excluded.asin,
+                "fnsku": stmt.excluded.fnsku,
+                "product_name": stmt.excluded.product_name,
+                "quantity": stmt.excluded.quantity,
+                "fulfillment_center_id": stmt.excluded.fulfillment_center_id,
+                "original_return_datetime": stmt.excluded.original_return_datetime,
+                "customer_comments": stmt.excluded.customer_comments,
+                "raw_row": stmt.excluded.raw_row,
+            },
+        )
+        db.execute(stmt)
 
     source.row_count_total = len(rows)
     source.row_count_included = len(rows)

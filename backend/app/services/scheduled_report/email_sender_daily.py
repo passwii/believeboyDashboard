@@ -12,7 +12,7 @@ from typing import Any
 from app.services.scheduled_report.email_sender import (
     _fmt_currency, _safe_html, _markdown_to_email_html,
     _color_delta, _arrow_delta, _color_positive,
-    _basic_markdown_to_html, _inline_markdown,
+    _basic_markdown_to_html, _inline_markdown, _country_label,
 )
 
 logger = logging.getLogger(__name__)
@@ -274,7 +274,7 @@ def _render_daily_report_html(report_data: dict[str, Any], include_summary: bool
               </td>
               <td style="vertical-align: middle;">
                 <div style="font-size: 22px; font-weight: 700; color: white;">每日运营报告</div>
-                <div style="font-size: 14px; color: #9CA3AF; margin-top: 5px;">{project_name} · {country} · {report_date}</div>
+                <div style="font-size: 14px; color: #9CA3AF; margin-top: 5px;">{project_name} · {_country_label(country)} · {report_date}</div>
               </td>
               <td width="90" align="right" style="vertical-align: middle;">
                 <span style="display: inline-block; background: #2563EB; color: white; font-size: 13px; font-weight: 700; padding: 5px 14px; border-radius: 20px; white-space: nowrap;">每日报告</span>
@@ -448,7 +448,7 @@ def _render_daily_report_html(report_data: dict[str, Any], include_summary: bool
 # ── Missing functions (required by scheduler.py and scheduled_reports.py) ──
 
 
-def send_scheduled_report_email(email: str, frequency: str, report_data: dict[str, Any]) -> tuple[bool, str | None]:
+def send_scheduled_report_email(email: str, frequency: str, report_data: dict[str, Any], stage_callback=None) -> tuple[bool, str | None]:
     """
     Send scheduled report email via Resend.
     Returns (success, resend_id_or_error_message).
@@ -483,6 +483,9 @@ def send_scheduled_report_email(email: str, frequency: str, report_data: dict[st
         # 生成截图附件并上传到 R2
         try:
             from app.services.scheduled_report.screenshot import process_screenshot_and_upload
+            if stage_callback:
+                from app.models.scheduled_report import DeliveryStage
+                stage_callback(DeliveryStage.CAPTURING_SCREENSHOT.value)
             freq_label = {"daily": "每日", "weekly": "每周", "monthly": "每月"}.get(frequency, frequency)
             country = report_data.get("country", "US")
             email_attachment_name = f"{freq_label}报告_{project_name}_{report_date}.png"
@@ -498,6 +501,9 @@ def send_scheduled_report_email(email: str, frequency: str, report_data: dict[st
         except Exception as e:
             logger.warning("截图生成跳过: %s", e)
 
+        if stage_callback:
+            from app.models.scheduled_report import DeliveryStage
+            stage_callback(DeliveryStage.SENDING.value)
         resp = resend.Emails.send(params)  # type: ignore[assignment]
         rid = resp.get("id", "")
         return True, rid

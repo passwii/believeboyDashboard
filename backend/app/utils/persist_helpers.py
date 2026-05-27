@@ -13,7 +13,7 @@ from typing import Any
 from sqlalchemy import func, select, update as sa_update
 from sqlalchemy.orm import Session
 
-from app.utils.models import AnalysisSourceFile
+from app.models import AnalysisSourceFile
 
 from app.utils.constants import PERIODIC_REPORT_TYPES
 

@@ -14,8 +14,6 @@ from app.models import (
     AnalysisSourceFile,
     SkuRecord,
     Project,
-    ReturnAnalysisRecord,
-    ReturnCustomerComment,
 )
 
 
@@ -565,41 +563,16 @@ def build_return_analysis(
         new_records_query = new_records_query.filter(AnalysisReturnRow.sku == sku)
 
     raw_records: list = new_records_query.all()
-    is_new_source = bool(raw_records)
 
-    # Amazon return reports are cumulative: each daily snapshot contains ALL
-    # active returns, not just new ones for that day.  When multiple daily
-    # source files are stored (all is_current=True), the same return event
-    # (order_id, sku, return_date, license_plate_number) appears in every
-    # file that covers it.  We must keep only the row from the **latest**
-    # source file to avoid inflating quantities.
-    if raw_records:
-        seen: dict[tuple, AnalysisReturnRow] = {}
-        for r in raw_records:
-            key = (r.order_id, r.sku, str(r.return_date), r.license_plate_number or "")
-            if key not in seen or r.source_file_id > seen[key].source_file_id:
-                seen[key] = r
-        records = list(seen.values())
-    else:
-        records = []
+    # DB uq_return_event (6-field) guarantees no duplicate rows per business key.
+    # Read-time Python dedup on (order_id, sku) is still needed below: the same
+    # order+SKU can appear in multiple rows (different return_date / license_plate)
+    # but counts as ONE return event for "return_count" metrics.
+    records = raw_records
 
-    if not records:
-        # Fall back to legacy ReturnAnalysisRecord
-        query = db.query(ReturnAnalysisRecord).filter(
-            ReturnAnalysisRecord.project_id == project_id,
-            ReturnAnalysisRecord.country == country,
-            ReturnAnalysisRecord.is_current == True,
-            ReturnAnalysisRecord.return_date >= start_date,
-            ReturnAnalysisRecord.return_date <= end_date,
-        )
-        if sku:
-            query = query.filter(ReturnAnalysisRecord.sku == sku)
-        records = list(query.all())
-
-    # Normalize return_date to string regardless of source
-    if records and isinstance(records[0].return_date, date):
-        for r in records:
-            r.return_date = r.return_date.isoformat()
+    # Normalize return_date to string for downstream formatting
+    for r in records:
+        r.return_date = r.return_date.isoformat()
 
     sku_sales, date_sales = _build_sales_aggregates(
         db, project_id, country, start_date, end_date
@@ -812,47 +785,21 @@ def build_return_analysis(
     )
 
     feedback_rows: list[CustomerFeedbackItem] = []
-    if is_new_source:
-        # AnalysisReturnRow stores comments inline (pipe-delimited)
-        for r in records:
-            if not r.customer_comments:
-                continue
-            parts = [c.strip() for c in r.customer_comments.split("|") if c.strip()]
-            for comment in parts:
-                feedback_rows.append(
-                    CustomerFeedbackItem(
-                        sku=r.sku,
-                        order_id=r.order_id,
-                        reason=r.reason,
-                        reason_display=translate_return_field("reason", r.reason),
-                        customer_comment=comment,
-                        return_date=r.return_date,
-                    )
+    for r in records:
+        if not r.customer_comments:
+            continue
+        parts = [c.strip() for c in r.customer_comments.split("|") if c.strip()]
+        for comment in parts:
+            feedback_rows.append(
+                CustomerFeedbackItem(
+                    sku=r.sku,
+                    order_id=r.order_id,
+                    reason=r.reason,
+                    reason_display=translate_return_field("reason", r.reason),
+                    customer_comment=comment,
+                    return_date=r.return_date,
                 )
-    else:
-        # Legacy: ReturnCustomerComment table
-        record_ids = [r.id for r in records]
-        if record_ids:
-            comments = (
-                db.query(ReturnCustomerComment)
-                .filter(ReturnCustomerComment.return_record_id.in_(record_ids))
-                .all()
             )
-            record_map = {r.id: r for r in records}
-
-            for c in comments:
-                if c.return_record_id in record_map:
-                    r = record_map[c.return_record_id]
-                    feedback_rows.append(
-                        CustomerFeedbackItem(
-                            sku=r.sku,
-                            order_id=r.order_id,
-                            reason=r.reason,
-                            reason_display=translate_return_field("reason", r.reason),
-                            customer_comment=c.customer_comment,
-                            return_date=r.return_date,
-                        )
-                    )
 
     # ── weekday-level unique return counts ───────────────────────────────────
     from collections import Counter

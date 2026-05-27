@@ -15,11 +15,11 @@ from app.models import (
     AdUploadCampaignRow,
     AnalysisAdProductRow,
     AnalysisBusinessRow,
+    AnalysisReturnRow,
     AnalysisSourceFile,
     AnalysisSalesOrderRow,
     InventorySnapshotRow,
     Project,
-    ReturnAnalysisRecord,
     ShipmentSchedule,
     ShipmentScheduleItem,
 )
@@ -269,45 +269,31 @@ def _build_return_snapshot(
     end_date: date,
 ) -> dict:
     """最近N天退货概况：总退货数、退货率、top退货原因"""
-    total_returns = (
-        db.query(func.count(ReturnAnalysisRecord.id))
+    ret_base = (
+        db.query(AnalysisReturnRow)
+        .join(AnalysisSourceFile, AnalysisSourceFile.id == AnalysisReturnRow.source_file_id)
         .filter(
-            ReturnAnalysisRecord.project_id == project_id,
-            ReturnAnalysisRecord.country == normalize_country(country),
-            ReturnAnalysisRecord.is_current == True,
-            ReturnAnalysisRecord.return_date >= start_date.isoformat(),
-            ReturnAnalysisRecord.return_date <= end_date.isoformat(),
+            AnalysisSourceFile.project_id == project_id,
+            AnalysisSourceFile.country == normalize_country(country),
+            AnalysisSourceFile.report_type == "return_report",
+            AnalysisSourceFile.is_current == True,
+            AnalysisReturnRow.return_date >= start_date,
+            AnalysisReturnRow.return_date <= end_date,
         )
-        .scalar() or 0
     )
 
-    total_quantity = (
-        db.query(func.coalesce(func.sum(ReturnAnalysisRecord.quantity), 0))
-        .filter(
-            ReturnAnalysisRecord.project_id == project_id,
-            ReturnAnalysisRecord.country == normalize_country(country),
-            ReturnAnalysisRecord.is_current == True,
-            ReturnAnalysisRecord.return_date >= start_date.isoformat(),
-            ReturnAnalysisRecord.return_date <= end_date.isoformat(),
-        )
-        .scalar() or 0
-    )
+    total_returns = ret_base.with_entities(func.count(AnalysisReturnRow.id)).scalar() or 0
+
+    total_quantity = ret_base.with_entities(func.coalesce(func.sum(AnalysisReturnRow.quantity), 0)).scalar() or 0
 
     # top reason
     reason_row = (
-        db.query(
-            ReturnAnalysisRecord.reason,
-            func.count(ReturnAnalysisRecord.id).label("cnt"),
+        ret_base.with_entities(
+            AnalysisReturnRow.reason,
+            func.count(AnalysisReturnRow.id).label("cnt"),
         )
-        .filter(
-            ReturnAnalysisRecord.project_id == project_id,
-            ReturnAnalysisRecord.country == normalize_country(country),
-            ReturnAnalysisRecord.is_current == True,
-            ReturnAnalysisRecord.return_date >= start_date.isoformat(),
-            ReturnAnalysisRecord.return_date <= end_date.isoformat(),
-        )
-        .group_by(ReturnAnalysisRecord.reason)
-        .order_by(func.count(ReturnAnalysisRecord.id).desc())
+        .group_by(AnalysisReturnRow.reason)
+        .order_by(func.count(AnalysisReturnRow.id).desc())
         .first()
     )
 

@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.utils.models import AnalysisSourceFile
+from app.models import AnalysisSourceFile
 
 
 @dataclass

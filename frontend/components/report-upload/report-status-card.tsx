@@ -19,6 +19,12 @@ type Props = {
   onDateChange: (field: 'reportDate' | 'reportStartDate' | 'reportEndDate', value: string) => void
   onCommit: () => void
   canCommit: boolean
+  /** Lock project selector to pre-set value (disable change) */
+  projectLocked?: boolean
+  /** Hide date picker and show static period text instead */
+  datesLocked?: boolean
+  /** Static period label shown when datesLocked=true */
+  periodLabel?: string
 }
 
 function statusBadge(state: ReportCardState) {
@@ -78,6 +84,9 @@ export function ReportStatusCard({
   onDateChange,
   onCommit,
   canCommit,
+  projectLocked = false,
+  datesLocked = false,
+  periodLabel,
 }: Props) {
   const recognition = state.recognition
   const projectWarning = needsProjectAttention(state)
@@ -144,7 +153,7 @@ export function ReportStatusCard({
               <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border/60 bg-[hsl(var(--surface-soft))]">
                 <PackageSearch className={cn('h-4 w-4 text-slate-400 dark:text-slate-500', projectWarning && 'text-slate-500 dark:text-slate-400')} />
               </div>
-              <Select value={state.selectedProject || undefined} onValueChange={onProjectChange}>
+              <Select value={state.selectedProject || undefined} onValueChange={onProjectChange} disabled={projectLocked}>
                 <SelectTrigger
                   className={cn(
                     'rounded-md border-border/70 bg-[hsl(var(--surface-soft))] dark:border-border/95',
@@ -168,7 +177,11 @@ export function ReportStatusCard({
               <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border/60 bg-[hsl(var(--surface-soft))]">
                 <CalendarDays className={cn('h-4 w-4 text-slate-400 dark:text-slate-500', dateWarning && 'text-slate-500 dark:text-slate-400')} />
               </div>
-              {useRangePicker ? (
+              {datesLocked ? (
+                <div className="rounded-xl border border-border/60 bg-[hsl(var(--surface-soft))] px-3 py-2 text-sm text-foreground">
+                  {periodLabel || '使用核算参数中的日期范围'}
+                </div>
+              ) : useRangePicker ? (
                 <DateRangePicker
                   value={parseDateRangeInputValue(state.reportStartDate, state.reportEndDate)}
                   className={cn(
