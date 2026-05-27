@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/card'
+import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useNotifications } from '@/components/notifications'
@@ -20,8 +21,8 @@ interface InspectionOverviewProps {
 const AHR_STYLES: Record<string, { bg: string; text: string; border: string }> = {
   Healthy: { bg: 'bg-emerald-50 dark:bg-emerald-950/40', text: 'text-emerald-700 dark:text-emerald-400', border: 'border-emerald-200 dark:border-emerald-800' },
   Good: { bg: 'bg-blue-50 dark:bg-blue-950/40', text: 'text-blue-700 dark:text-blue-400', border: 'border-blue-200 dark:border-blue-800' },
-  'At Risk': { bg: 'bg-amber-50 dark:bg-amber-950/40', text: 'text-amber-700 dark:text-amber-400', border: 'border-amber-200 dark:border-amber-800' },
-  Critical: { bg: 'bg-rose-50 dark:bg-rose-950/40', text: 'text-rose-700 dark:text-rose-400', border: 'border-rose-200 dark:border-rose-800' },
+  'At Risk': { bg: 'bg-amber-500/[0.07] dark:bg-amber-500/10', text: 'text-amber-700 dark:text-amber-400', border: 'border-amber-500/30 dark:border-amber-500/30' },
+  Critical: { bg: 'bg-rose-500/[0.07] dark:bg-rose-500/10', text: 'text-rose-700 dark:text-rose-400', border: 'border-rose-500/30 dark:border-rose-500/30' },
 }
 
 const STATUS_STYLES: Record<string, { badge: string; label: string }> = {
@@ -76,8 +77,8 @@ function getMetricSeverity(
 
 const SEVERITY_STYLES: Record<Severity, { bg: string; text: string }> = {
   normal: { bg: '', text: 'text-foreground' },
-  warning: { bg: 'bg-amber-50 dark:bg-amber-950/40', text: 'text-amber-700 dark:text-amber-400' },
-  critical: { bg: 'bg-rose-50 dark:bg-rose-950/40', text: 'text-rose-700 dark:text-rose-400' },
+  warning: { bg: 'bg-amber-500/[0.07] dark:bg-amber-500/10', text: 'text-amber-700 dark:text-amber-400' },
+  critical: { bg: 'bg-rose-500/[0.07] dark:bg-rose-500/10', text: 'text-rose-700 dark:text-rose-400' },
 }
 
 type CardSeverity = 'normal' | 'warning' | 'critical'
@@ -103,8 +104,8 @@ function getCardSeverity(item: InspectionOverviewType['items'][number]): CardSev
 
 const CARD_SEVERITY_STYLES: Record<CardSeverity, string> = {
   normal: '',
-  warning: 'border-l-[3px] border-l-amber-400 dark:border-l-amber-500',
-  critical: 'border-l-[3px] border-l-rose-400 dark:border-l-rose-500',
+  warning: 'border-l-[4px] border-l-amber-500 dark:border-l-amber-400',
+  critical: 'border-l-[4px] border-l-rose-500 dark:border-l-rose-400',
 }
 
 interface MetricBadgeProps {
@@ -199,7 +200,7 @@ function ProjectCard({ item, onClick, onPreviewScreenshot }: ProjectCardProps) {
 
   return (
     <Card
-      className={`cursor-pointer border-border/70 transition-colors hover:border-primary/30 ${CARD_SEVERITY_STYLES[cardSeverity]}`}
+      className={`cursor-pointer border-border/70 hover-lift hover:border-primary/30 ${CARD_SEVERITY_STYLES[cardSeverity]}`}
       onClick={onClick}
     >
       {/* HEAD */}
@@ -228,7 +229,7 @@ function ProjectCard({ item, onClick, onPreviewScreenshot }: ProjectCardProps) {
             )}
             <div className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${
               serviceTotal > 0
-                ? 'border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40'
+                ? 'border-amber-500/30 bg-amber-500/[0.07] dark:border-amber-500/30 dark:bg-amber-500/10'
                 : 'border-border/70 bg-[hsl(var(--surface-subtle))]'
             }`}>
               <span className="text-xs text-muted-foreground">客服</span>
@@ -262,9 +263,9 @@ function ProjectCard({ item, onClick, onPreviewScreenshot }: ProjectCardProps) {
             />
             <div className={`flex items-center justify-between rounded-md px-2.5 py-1.5 ${
               (item.compliance_total ?? 0) >= 3
-                ? 'bg-rose-50 dark:bg-rose-950/40'
+                ? 'bg-rose-500/[0.07] dark:bg-rose-500/10'
                 : (item.compliance_total ?? 0) >= 1
-                  ? 'bg-amber-50 dark:bg-amber-950/40'
+                  ? 'bg-amber-500/[0.07] dark:bg-amber-500/10'
                   : 'bg-[hsl(var(--surface-subtle))]'
             }`}>
               <span className="text-xs text-muted-foreground">合规问题</span>
@@ -292,7 +293,7 @@ function ProjectCard({ item, onClick, onPreviewScreenshot }: ProjectCardProps) {
       </CardContent>
 
       {/* FOOTER */}
-      <CardFooter className="flex items-center justify-between border-t border-border/50 pt-3">
+      <CardFooter className="flex items-center justify-between border-t border-border/50 px-6 pt-5 pb-4 md:px-7 md:pt-5 md:pb-4">
         <p className="text-xs text-muted-foreground">
           {item.submitted_by ? (
             <>
@@ -411,11 +412,17 @@ export default function InspectionOverview({
   const progressPercent = overview.total_projects > 0
     ? (overview.submitted_count / overview.total_projects) * 100
     : 0
+  const warningCount = overview.items.filter(i => getCardSeverity(i) === 'warning').length
+  const criticalCount = overview.items.filter(i => getCardSeverity(i) === 'critical').length
+  const hasAlerts = overview.overdue_count > 0 || criticalCount > 0 || warningCount > 0
 
   return (
     <>
       <div className="space-y-4">
-        <div className="rounded-lg border border-border/70 bg-[hsl(var(--surface-panel))] p-4">
+        <div className={cn(
+          'dashboard-surface p-5',
+          isOverdue && 'border-t-[3px] border-t-rose-500 dark:border-t-rose-400'
+        )}>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="space-y-1">
               <h2 className="text-lg font-semibold">
@@ -440,24 +447,37 @@ export default function InspectionOverview({
                 style={{ width: `${progressPercent}%` }}
               />
             </div>
-            <p className="text-xs text-muted-foreground">
-              {overview.overdue_count > 0 && (
-                <span className="text-rose-600 dark:text-rose-400">
-                  {overview.overdue_count} 个项目已逾期
-                </span>
-              )}
-            </p>
           </div>
         </div>
 
+        {hasAlerts && (
+          <div className="flex items-center gap-3 rounded-lg border border-amber-500/20 bg-amber-500/[0.05] px-4 py-2.5 dark:border-amber-500/20 dark:bg-amber-500/[0.06]">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+            <p className="text-sm">
+              {overview.overdue_count > 0 && (
+                <span className="text-amber-800 dark:text-amber-300">{overview.overdue_count} 个项目已逾期</span>
+              )}
+              {overview.overdue_count > 0 && criticalCount > 0 && <span className="mx-1.5 text-muted-foreground">·</span>}
+              {criticalCount > 0 && (
+                <span className="font-medium text-rose-600 dark:text-rose-400">{criticalCount} 个项目严重异常</span>
+              )}
+              {criticalCount > 0 && warningCount > 0 && <span className="mx-1.5 text-muted-foreground">·</span>}
+              {warningCount > 0 && (
+                <span className="text-amber-700 dark:text-amber-400">{warningCount} 个项目存在风险</span>
+              )}
+            </p>
+          </div>
+        )}
+
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {overview.items.map((item) => (
-            <ProjectCard
-              key={item.project_id}
-              item={item}
-              onClick={() => onSelectProject(item.project_id)}
-              onPreviewScreenshot={setPreviewImage}
-            />
+            <div key={item.project_id} className="stagger-item">
+              <ProjectCard
+                item={item}
+                onClick={() => onSelectProject(item.project_id)}
+                onPreviewScreenshot={setPreviewImage}
+              />
+            </div>
           ))}
         </div>
       </div>

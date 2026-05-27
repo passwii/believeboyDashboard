@@ -258,8 +258,8 @@ function DashboardLayoutInner({
 }) {
   const pathname = usePathname()
   const { isNavigationLoading } = useGlobalLoading()
-  const isAiChatPage = pathname === '/dashboard/ai-panel/chat'
-  const isAiChatRoute = pathname === '/dashboard/ai-panel/chat'
+  const isAiChatPage = pathname === '/dashboard/ai-panel/chat' || pathname === '/dashboard/ai-panel/chat-v2'
+  const isAiChatRoute = pathname === '/dashboard/ai-panel/chat' || pathname === '/dashboard/ai-panel/chat-v2'
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [iconsExpanded, setIconsExpanded] = useState(false)
   const pageTitle = useMemo(() => getDashboardPageTitle(pathname), [pathname])

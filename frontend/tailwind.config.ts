@@ -93,11 +93,18 @@ const config: Config = {
   				}
   			},
   		'dialog-in': {
-  			from: {
+  			'0%': {
   				opacity: '0',
-  				transform: 'translate(-50%, -50%) scale(0.95)'
+  				transform: 'translate(-50%, -48%) scale(0.96)'
   			},
-  			to: {
+  			'60%': {
+  				opacity: '1',
+  				transform: 'translate(-50%, -50.4%) scale(1.012)'
+  			},
+  			'80%': {
+  				transform: 'translate(-50%, -49.8%) scale(0.998)'
+  			},
+  			'100%': {
   				opacity: '1',
   				transform: 'translate(-50%, -50%) scale(1)'
   			}
@@ -109,8 +116,54 @@ const config: Config = {
   			},
   			to: {
   				opacity: '0',
-  				transform: 'translate(-50%, -50%) scale(0.95)'
+  				transform: 'translate(-50%, -48%) scale(0.96)'
   			}
+  		},
+  		/* ── Dropdown / generic popup spring ── */
+  		'popup-in': {
+  			'0%': { opacity: '0', transform: 'scale(0.95) translateY(-2px)' },
+  			'60%': { opacity: '1', transform: 'scale(1.012) translateY(0.5px)' },
+  			'80%': { transform: 'scale(0.997) translateY(0)' },
+  			'100%': { opacity: '1', transform: 'scale(1) translateY(0)' }
+  		},
+  		/* ── Tooltip micro-spring (shorter, tighter) ── */
+  		'tooltip-in': {
+  			'0%': { opacity: '0', transform: 'scale(0.95)' },
+  			'50%': { opacity: '1', transform: 'scale(1.008)' },
+  			'75%': { transform: 'scale(0.998)' },
+  			'100%': { opacity: '1', transform: 'scale(1)' }
+  		},
+  		/* ── Sheet directional overshoots ── */
+  		'sheet-in-from-right': {
+  			'0%': { transform: 'translateX(100%)' },
+  			'70%': { transform: 'translateX(-1.5%)' },
+  			'85%': { transform: 'translateX(0.4%)' },
+  			'100%': { transform: 'translateX(0)' }
+  		},
+  		'sheet-in-from-left': {
+  			'0%': { transform: 'translateX(-100%)' },
+  			'70%': { transform: 'translateX(1.5%)' },
+  			'85%': { transform: 'translateX(-0.4%)' },
+  			'100%': { transform: 'translateX(0)' }
+  		},
+  		'sheet-in-from-top': {
+  			'0%': { transform: 'translateY(-100%)' },
+  			'70%': { transform: 'translateY(1.5%)' },
+  			'85%': { transform: 'translateY(-0.4%)' },
+  			'100%': { transform: 'translateY(0)' }
+  		},
+  		'sheet-in-from-bottom': {
+  			'0%': { transform: 'translateY(100%)' },
+  			'70%': { transform: 'translateY(-1.5%)' },
+  			'85%': { transform: 'translateY(0.4%)' },
+  			'100%': { transform: 'translateY(0)' }
+  		},
+  		/* ── Switch thumb overshoot ── */
+  		'switch-snap': {
+  			'0%': { transform: 'translateX(var(--switch-from))' },
+  			'60%': { transform: 'translateX(calc(var(--switch-to) + 3px))' },
+  			'80%': { transform: 'translateX(calc(var(--switch-to) - 0.5px))' },
+  			'100%': { transform: 'translateX(var(--switch-to))' }
   		}
   		},
   		animation: {
@@ -118,8 +171,15 @@ const config: Config = {
   			'accordion-up': 'accordion-up 0.2s ease-out',
   			'collapsible-down': 'collapsible-down 260ms cubic-bezier(0.22, 1, 0.36, 1)',
   			'collapsible-up': 'collapsible-up 220ms cubic-bezier(0.4, 0, 0.2, 1)',
-  			'dialog-in': 'dialog-in 200ms cubic-bezier(0.22, 1, 0.36, 1)',
-  			'dialog-out': 'dialog-out 180ms cubic-bezier(0.4, 0, 0.2, 1)'
+  			'dialog-in': 'dialog-in 340ms ease-out',
+  			'dialog-out': 'dialog-out 200ms cubic-bezier(0.4, 0, 1, 1)',
+  			'popup-in': 'popup-in 260ms ease-out',
+  			'tooltip-in': 'tooltip-in 160ms ease-out',
+  			'sheet-in-from-right': 'sheet-in-from-right 400ms ease-out',
+  			'sheet-in-from-left': 'sheet-in-from-left 400ms ease-out',
+  			'sheet-in-from-top': 'sheet-in-from-top 400ms ease-out',
+  			'sheet-in-from-bottom': 'sheet-in-from-bottom 400ms ease-out',
+  			'switch-snap': 'switch-snap 280ms ease-out'
   		},
   		colors: {
   			background: 'hsl(var(--background))',
