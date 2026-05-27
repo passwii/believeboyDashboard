@@ -598,3 +598,105 @@ def parse_sales_rows(
             }
         )
     return payloads, len(payloads), included
+
+
+# ─── Return report parsing ─────────────────────────────────────────────────
+
+
+def parse_return_rows(
+    df: pd.DataFrame,
+) -> tuple[list[dict[str, Any]], list[datetime]]:
+    """Parse a return-report TSV/DataFrame into row dicts.
+
+    This is the **single source of truth** for return-report row parsing,
+    shared by the web upload pipeline (``return_analysis.persistence``) and
+    the RPA pipeline (``autoReportUpload.processor``).
+
+    Args:
+        df: DataFrame already read from the return-report TSV file.
+            Columns are expected to be stripped of whitespace.
+
+    Returns:
+        ``(rows, raw_datetimes)`` where *rows* is a list of dicts suitable
+        for bulk insert (without ``source_file_id`` / ``source_row_no``,
+        which are caller-specific), and *raw_datetimes* is the list of
+        parsed UTC datetimes for date-range calculation.
+
+    Raises:
+        ValueError: if required columns (``return-date``, ``sku``) are missing.
+    """
+    required = ["return-date", "sku"]
+    missing = [c for c in required if c not in df.columns]
+    if missing:
+        raise ValueError(f"缺少必要字段: {missing}")
+
+    seen_keys: set[tuple] = set()
+    rows: list[dict[str, Any]] = []
+    raw_datetimes: list[datetime] = []
+
+    for idx, row in df.iterrows():
+        original_dt_str = str(row.get("return-date", "")).strip()
+        if not original_dt_str or pd.isna(row.get("return-date")):
+            continue
+        parsed = pd.to_datetime(original_dt_str, errors="coerce", utc=True)
+        if parsed is None or pd.isna(parsed):
+            continue
+        original_dt = parsed.to_pydatetime()
+        raw_datetimes.append(original_dt)
+
+        order_id = str(row.get("order-id", "")).strip()
+        sku = str(row.get("sku", "")).strip()
+        asin = str(row.get("asin", "")) if pd.notna(row.get("asin")) else None
+        fnsku = str(row.get("fnsku", "")) if pd.notna(row.get("fnsku")) else None
+        product_name = (
+            str(row.get("product-name", "")) if pd.notna(row.get("product-name")) else None
+        )
+        quantity = int(row.get("quantity", 1)) if pd.notna(row.get("quantity")) else 1
+        fulfillment_center_id = (
+            str(row.get("fulfillment-center-id", ""))
+            if pd.notna(row.get("fulfillment-center-id"))
+            else None
+        )
+        detailed_disposition = str(row.get("detailed-disposition", "")).strip()
+        reason = str(row.get("reason", "")).strip()
+        status = str(row.get("status", "")).strip()
+        license_plate = (
+            str(row.get("license-plate-number", ""))
+            if pd.notna(row.get("license-plate-number"))
+            else ""
+        )
+        customer_comments = (
+            str(row.get("customer-comments", ""))
+            if pd.notna(row.get("customer-comments"))
+            else ""
+        )
+
+        # In-file dedup on file-level subset of uq_return_event columns.
+        # project_id and country are added by the caller.
+        # Use UTC date here; the DB constraint uses local date which may
+        # differ at timezone boundaries.  Being conservative (not deduping
+        # borderline cases) is safe — the DB UPSERT handles the rest.
+        dedupe_key = (order_id, sku, original_dt.date(), license_plate)
+        if dedupe_key in seen_keys:
+            continue
+        seen_keys.add(dedupe_key)
+
+        rows.append({
+            "return_date_raw": original_dt,  # caller converts to local date
+            "order_id": order_id,
+            "sku": sku,
+            "asin": asin,
+            "fnsku": fnsku,
+            "product_name": product_name,
+            "quantity": quantity,
+            "fulfillment_center_id": fulfillment_center_id,
+            "detailed_disposition": detailed_disposition,
+            "reason": reason,
+            "status": status,
+            "license_plate_number": license_plate,
+            "original_return_datetime": original_dt_str,
+            "customer_comments": customer_comments if customer_comments else None,
+            "raw_row": _to_raw_row(row.to_dict()),
+        })
+
+    return rows, raw_datetimes

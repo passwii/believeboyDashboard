@@ -1,3 +1,8 @@
+"""Ad upload recognition pipeline.
+
+Uses ``REPORT_SPECS`` from ``specs.py`` (intentionally independent from
+``app.utils.recognition`` — see specs.py for architecture rationale).
+"""
 from __future__ import annotations
 
 from pathlib import Path

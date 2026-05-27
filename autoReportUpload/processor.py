@@ -77,6 +77,7 @@ from app.utils.parsers import (
     parse_ad_rows as _parse_ad_rows,
     parse_inventory_rows as _parse_inventory_rows,
     parse_sales_rows as _parse_sales_rows,
+    parse_return_rows as _parse_return_rows,
     validate_inventory_rows_against_project_mapping as _validate_inventory,
     parse_transaction_at as _parse_transaction_at,
 )
@@ -627,85 +628,39 @@ def _persist_return_report(
     db.add(source)
     db.flush()
 
-    # Parse return rows
+    # Parse return rows — delegates to shared parser (single source of truth)
     df = _recog_csv(file_path, sep="\t")
     df.columns = [str(c).strip() for c in df.columns]
 
-    required = ["return-date", "sku"]
-    missing = [c for c in required if c not in df.columns]
-    if missing:
+    try:
+        parsed_rows, raw_datetimes = _parse_return_rows(df)
+    except ValueError as exc:
         source.ingestion_status = "failed"
-        source.ingestion_error = f"缺少必要字段: {missing}"
+        source.ingestion_error = str(exc)
         db.commit()
-        return {"success": False, "error": f"缺少必要字段: {missing}"}
+        return {"success": False, "error": str(exc)}
 
-    seen_keys: set[tuple] = set()
     rows: list[dict] = []
     all_us_dates: list[date] = []
 
-    for idx, row in df.iterrows():
-        original_dt_str = str(row.get("return-date", "")).strip()
-        original_dt = _parse_iso_datetime(original_dt_str)
-        if original_dt is None:
-            continue
-
-        return_date_str = _convert_to_us_date(original_dt)
+    for idx, parsed in enumerate(parsed_rows):
+        raw_dt = parsed["return_date_raw"]
+        return_date_str = _convert_to_us_date(raw_dt)
         us_date = _parse_yyyy_mm_dd(return_date_str)
         all_us_dates.append(us_date)
-        order_id = str(row.get("order-id", "")).strip()
-        sku = str(row.get("sku", "")).strip()
-        asin = str(row.get("asin", "")) if pd.notna(row.get("asin")) else None
-        fnsku = str(row.get("fnsku", "")) if pd.notna(row.get("fnsku")) else None
-        product_name = str(row.get("product-name", "")) if pd.notna(row.get("product-name")) else None
-        quantity = int(row.get("quantity", 1)) if pd.notna(row.get("quantity")) else 1
-        fulfillment_center_id = (
-            str(row.get("fulfillment-center-id", ""))
-            if pd.notna(row.get("fulfillment-center-id"))
-            else None
-        )
-        detailed_disposition = str(row.get("detailed-disposition", "")).strip()
-        reason = str(row.get("reason", "")).strip()
-        status = str(row.get("status", "")).strip()
-        license_plate = (
-            str(row.get("license-plate-number", ""))
-            if pd.notna(row.get("license-plate-number"))
-            else ""
-        )
-        customer_comments = (
-            str(row.get("customer-comments", ""))
-            if pd.notna(row.get("customer-comments"))
-            else ""
-        )
 
-        # In-file dedup — key matches DB uq_return_event constraint (6 fields)
-        dedupe_key = (
-            project.id, country, order_id, sku, return_date_str, license_plate,
-        )
-        if dedupe_key in seen_keys:
-            continue
-        seen_keys.add(dedupe_key)
-
-        rows.append({
+        row_dict = {
             "project_id": project.id,
             "country": country,
             "source_file_id": source.id,
             "source_row_no": idx + 1,
             "return_date": us_date,
-            "order_id": order_id,
-            "sku": sku,
-            "asin": asin,
-            "fnsku": fnsku,
-            "product_name": product_name,
-            "quantity": quantity,
-            "fulfillment_center_id": fulfillment_center_id,
-            "detailed_disposition": detailed_disposition,
-            "reason": reason,
-            "status": status,
-            "license_plate_number": license_plate,
-            "original_return_datetime": original_dt_str,
-            "customer_comments": customer_comments if customer_comments else None,
-            "raw_row": _to_raw_row(row.to_dict()),
-        })
+        }
+        # Copy all fields except the raw datetime placeholder
+        for k, v in parsed.items():
+            if k != "return_date_raw":
+                row_dict[k] = v
+        rows.append(row_dict)
 
     if rows:
         stmt = pg_insert(AnalysisReturnRow).values(rows)
@@ -765,28 +720,12 @@ def _persist_return_report(
     }
 
 
-def _parse_iso_datetime(date_str: str):
-    if not date_str or pd.isna(date_str):
-        return None
-    parsed = pd.to_datetime(date_str, errors="coerce", utc=True)
-    if parsed is None or pd.isna(parsed):
-        return None
-    return parsed.to_pydatetime()
-
-
 def _convert_to_us_date(iso_datetime) -> str:
     """Convert a UTC-aware datetime to PT date string (先转时区再取日期)."""
     if iso_datetime.tzinfo is None:
         iso_datetime = iso_datetime.replace(tzinfo=UTC)
     us_dt = iso_datetime.astimezone(PT_TIMEZONE)
     return us_dt.strftime("%Y-%m-%d")
-
-
-def _split_customer_comments(comment: str) -> list[str]:
-    if not comment or pd.isna(comment):
-        return []
-    cleaned = str(comment).replace("&#39;", "'").replace("&amp;", "&")
-    return [p.strip() for p in cleaned.split("|") if p.strip()]
 
 
 # ─── Sales report ─────────────────────────────────────────────────────────────
