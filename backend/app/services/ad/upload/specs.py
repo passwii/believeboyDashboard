@@ -1,3 +1,26 @@
+"""Ad-specific report specs (10 subtypes).
+
+This module defines recognition specs for Amazon advertising reports that are
+NOT handled by the shared ``backend/app/utils/recognition/`` engine.
+
+Architecture note — why a separate recognition system?
+────────────────────────────────────────────────────────
+The core recognition engine (``app.utils.recognition.recognizers``) handles 7
+general report types (inventory, sales, business, payment, ad_product,
+ad_search_term, return).  It was designed for daily operational reports with
+simple column signatures.
+
+Amazon's advertising console exports 10+ report subtypes with overlapping but
+distinct Chinese column headers (e.g. 广告活动名称, 广告SKU, 广告ASIN).  These
+reports use superset matching on Chinese columns, which is incompatible with the
+core engine's lowercase-normalized English matching.
+
+Therefore, ad upload recognition lives here — intentionally independent.
+If you add a new ad report subtype, add a ``ReportSpec`` entry below.
+Do NOT merge this into ``app.utils.recognition`` — the column normalization
+strategies differ (this module preserves Chinese columns as-is; the core
+engine lowercases everything).
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass

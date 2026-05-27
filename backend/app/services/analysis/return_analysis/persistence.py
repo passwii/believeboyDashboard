@@ -4,6 +4,9 @@ Writes to ``analysis_return_rows`` via ``INSERT ON CONFLICT DO UPDATE``
 on the ``uq_return_event`` unique constraint, matching the autoReportUpload
 pipeline.  The old ``return_analysis_records`` table is no longer used for
 new writes.
+
+Row parsing is delegated to ``app.utils.parsers.parse_return_rows`` — the
+single source of truth shared with ``autoReportUpload.processor``.
 """
 from __future__ import annotations
 
@@ -19,9 +22,9 @@ from sqlalchemy.orm import Session
 from app.models import AnalysisReturnRow, AnalysisSourceFile, Project
 from app.services.analysis.return_analysis.models import _convert_to_us_date
 from app.services.analysis.return_analysis.parsers import (
-    _parse_iso_datetime_with_timezone,
     _read_csv_with_encoding_fallback,
 )
+from app.utils.parsers import parse_return_rows
 from app.utils.persist_helpers import (
     next_version,
     replace_current_pointer,
@@ -103,77 +106,31 @@ def persist_return_report(
         db.add(source)
         db.flush()
 
-        # -- Parse CSV rows -----------------------------------------------------
+        # -- Parse CSV rows (delegated to shared parser) ----------------------
+        try:
+            parsed_rows, raw_datetimes = parse_return_rows(df)
+        except ValueError as exc:
+            return {"success": False, "error_message": str(exc)}
+
         all_us_dates: list[date] = []
-        seen_keys: set[tuple] = set()
         rows: list[dict] = []
 
-        for idx, row in df.iterrows():
-            original_dt_str = str(row.get("return-date", "")).strip()
-            original_dt = _parse_iso_datetime_with_timezone(original_dt_str)
-            if original_dt is None:
-                continue
-
-            us_date = _convert_to_us_date(original_dt)
+        for idx, parsed in enumerate(parsed_rows):
+            raw_dt = parsed["return_date_raw"]
+            us_date = _convert_to_us_date(raw_dt)
             all_us_dates.append(us_date)
 
-            order_id = str(row.get("order-id", "")).strip()
-            sku = str(row.get("sku", "")).strip()
-            asin = str(row.get("asin", "")) if pd.notna(row.get("asin")) else None
-            fnsku = str(row.get("fnsku", "")) if pd.notna(row.get("fnsku")) else None
-            product_name = (
-                str(row.get("product-name", "")) if pd.notna(row.get("product-name")) else None
-            )
-            quantity = int(row.get("quantity", 1)) if pd.notna(row.get("quantity")) else 1
-            fulfillment_center_id = (
-                str(row.get("fulfillment-center-id", ""))
-                if pd.notna(row.get("fulfillment-center-id"))
-                else None
-            )
-            detailed_disposition = str(row.get("detailed-disposition", "")).strip()
-            reason = str(row.get("reason", "")).strip()
-            status = str(row.get("status", "")).strip()
-            license_plate = (
-                str(row.get("license-plate-number", ""))
-                if pd.notna(row.get("license-plate-number"))
-                else ""
-            )
-            customer_comments = (
-                str(row.get("customer-comments", ""))
-                if pd.notna(row.get("customer-comments"))
-                else ""
-            )
-
-            # In-file dedup — key matches DB uq_return_event constraint (6 fields)
-            dedupe_key = (
-                project_id, country, order_id, sku, us_date, license_plate,
-            )
-            if dedupe_key in seen_keys:
-                continue
-            seen_keys.add(dedupe_key)
-
-            rows.append({
+            row_dict = {
                 "project_id": project_id,
                 "country": country,
                 "source_file_id": source.id,
                 "source_row_no": idx + 1,
                 "return_date": us_date,
-                "order_id": order_id,
-                "sku": sku,
-                "asin": asin,
-                "fnsku": fnsku,
-                "product_name": product_name,
-                "quantity": quantity,
-                "fulfillment_center_id": fulfillment_center_id,
-                "detailed_disposition": detailed_disposition,
-                "reason": reason,
-                "status": status,
-                "license_plate_number": license_plate,
-                "original_return_datetime": original_dt_str,
-                "customer_comments": customer_comments if customer_comments else None,
-                "raw_row": {k: (str(v) if not isinstance(v, (dict, list, int, float, bool, type(None))) else v)
-                            for k, v in row.to_dict().items()},
-            })
+            }
+            for k, v in parsed.items():
+                if k != "return_date_raw":
+                    row_dict[k] = v
+            rows.append(row_dict)
 
         # -- Upsert with ON CONFLICT DO UPDATE ----------------------------------
         if rows:
