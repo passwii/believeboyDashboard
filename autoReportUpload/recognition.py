@@ -204,8 +204,8 @@ def _add_project_match(result: RecognitionResult, db: Session, path: Path, count
                 "message": "文件中未找到可用于匹配项目的标识",
             }
 
-        # 如果 payment_report 无法通过 SKU/ASIN 匹配，回退到目录名匹配
-        if result.project_match["status"] == "unmatched" and result.report_type == "payment_report":
+        # 如果无法通过 SKU/ASIN 匹配（例如文件内容为空），回退到目录名匹配
+        if result.project_match["status"] == "unmatched":
             from models import Project
             from sqlalchemy import select
             folder_name = path.parent.name
@@ -217,7 +217,7 @@ def _add_project_match(result: RecognitionResult, db: Session, path: Path, count
                     "status": "matched",
                     "project_name": project.project_name,
                     "matched_by": "folder_name",
-                    "message": f"根据目录名 [{folder_name}] 匹配项目（SKU 匹配失败）",
+                    "message": f"根据目录名 [{folder_name}] 匹配项目（内容匹配失败）",
                 }
             else:
                 result.project_match["message"] = (

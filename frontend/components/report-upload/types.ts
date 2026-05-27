@@ -2,7 +2,6 @@ export type ReportType =
   | 'inventory_report'
   | 'business_report'
   | 'ad_product_report'
-  | 'ad_search_term_report'
   | 'sales_report'
   | 'payment_report'
   | 'return_report'
@@ -94,7 +93,6 @@ export const DATE_REQUIRED_REPORT_TYPES: ReportType[] = [
   'business_report',
   'inventory_report',
   'ad_product_report',
-  'ad_search_term_report',
   'payment_report',
   'return_report',
 ]

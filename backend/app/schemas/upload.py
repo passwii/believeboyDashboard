@@ -64,6 +64,7 @@ class ReportCommitRequest(BaseModel):
     report_start_date: str | None = None
     report_end_date: str | None = None
     country: str = 'US'
+    use_period_dates: bool = False
 
 
 class ReportCommitResponse(BaseModel):

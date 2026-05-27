@@ -10,7 +10,7 @@ from typing import Any
 
 from app.services.scheduled_report.email_sender import (
     _fmt_currency, _safe_html, _markdown_to_email_html,
-    _color_delta, _arrow_delta, _color_positive,
+    _color_delta, _arrow_delta, _color_positive, _country_label,
 )
 
 logger = logging.getLogger(__name__)
@@ -313,6 +313,7 @@ def _render_weekly_report_html(report_data: dict[str, Any], include_summary: boo
     country = report_data.get("country", "US")
     week_number = report_data.get("week_number", "")
     date_range = report_data.get("date_range", "")
+    report_date = report_data.get("report_date", "")
     prev_week_range = report_data.get("prev_week_range", "")
     dash_url = report_data.get("dash_url", "https://dash.believeboy.com/dashboard")
 
@@ -511,7 +512,7 @@ def _render_weekly_report_html(report_data: dict[str, Any], include_summary: boo
               </td>
               <td style="vertical-align: middle;">
                 <div style="font-size: 22px; font-weight: 700; color: white;">每周运营报告</div>
-                <div style="font-size: 14px; color: #9CA3AF; margin-top: 5px;">{project_name} · {country} · Week {week_number} · {date_range}</div>
+                <div style="font-size: 14px; color: #9CA3AF; margin-top: 5px;">{project_name} · {_country_label(country)} · {report_date[:4]} 第 {week_number} 周（{date_range}）</div>
               </td>
               <td width="90" align="right" style="vertical-align: middle;">
                 <span style="display: inline-block; background: #059669; color: white; font-size: 13px; font-weight: 700; padding: 5px 14px; border-radius: 20px; white-space: nowrap;">每周报告</span>
@@ -618,7 +619,7 @@ def _render_weekly_report_html(report_data: dict[str, Any], include_summary: boo
              style="display: inline-block; background: #2563EB; color: white; text-decoration: none; padding: 13px 32px; border-radius: 8px; font-size: 16px; font-weight: 700;">
             查看完整仪表板 →
           </a>
-          <div style="margin-top: 12px; font-size: 13px; color: #9CA3AF;">BelieveBoy Dashboard · Week {week_number}</div>
+          <div style="margin-top: 12px; font-size: 13px; color: #9CA3AF;">BelieveBoy Dashboard · {report_date[:4]} 第 {week_number} 周</div>
         </td>
       </tr>
 
@@ -629,7 +630,7 @@ def _render_weekly_report_html(report_data: dict[str, Any], include_summary: boo
 </html>"""
 
 
-def send_weekly_report_email(email: str, report_data: dict[str, Any]) -> tuple[bool, str | None]:
+def send_weekly_report_email(email: str, report_data: dict[str, Any], stage_callback=None) -> tuple[bool, str | None]:
     """发送周报邮件。"""
     from app.core.config import get_settings
 
@@ -645,8 +646,9 @@ def send_weekly_report_email(email: str, report_data: dict[str, Any]) -> tuple[b
         html = _render_weekly_report_html(report_data, include_summary=True)
         project_name = report_data.get("project_name", "项目")
         week_number = report_data.get("week_number", "")
+        report_date = report_data.get("report_date", "")
 
-        subject = f"BelieveBoy | {project_name} · Week {week_number} 周报"
+        subject = f"BelieveBoy | {project_name} · {report_date[:4]} 第 {week_number} 周 周报"
 
         params: dict[str, Any] = {
             "from": settings.alert_from_email,
@@ -658,6 +660,9 @@ def send_weekly_report_email(email: str, report_data: dict[str, Any]) -> tuple[b
         # 生成截图附件（不含报表总结，纯数据结构展示）
         try:
             from app.services.scheduled_report.screenshot import process_screenshot_and_upload
+            if stage_callback:
+                from app.models.scheduled_report import DeliveryStage
+                stage_callback(DeliveryStage.CAPTURING_SCREENSHOT.value)
             screenshot_html = _render_weekly_report_html(report_data, include_summary=False)
             country = report_data.get("country", "US")
             email_attachment_name = f"周报_{project_name}_{week_number}.png"
@@ -673,6 +678,9 @@ def send_weekly_report_email(email: str, report_data: dict[str, Any]) -> tuple[b
         except Exception as e:
             logger.warning("截图生成跳过: %s", e)
 
+        if stage_callback:
+            from app.models.scheduled_report import DeliveryStage
+            stage_callback(DeliveryStage.SENDING.value)
         resp = resend.Emails.send(params)
         rid = resp.get("id", "")
         return True, rid

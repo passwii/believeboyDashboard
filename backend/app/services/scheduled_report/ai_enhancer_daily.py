@@ -32,6 +32,14 @@ SYSTEM_PROMPT = """你是一位跨境电商运营专家。请根据用户提供�
 - 不要输出标题、分隔线、签名等元信息
 - 不要用加粗、斜体等格式标注，只输出纯文本 bullet point
 - 只输出 bullet point 列表，不要有多余的前言或结语
+
+## 项目背景信息使用规则
+生成摘要时必须结合运营人员提供的背景信息进行综合分析：
+- 如果某 SKU 正在"清仓"或做"促销/秒杀"活动，其销量增长应归因于促销活动而非自然增长
+- 如果背景中标注了高峰期和淡季，应将其作为正常季节性表现，不要作为运营加分项
+- 结合备货周期和产能信息判断库存水位是否合理
+- 结合项目状态（新项目/爬坡期/成熟期）调整评价标准
+- 如果数据与背景信息矛盾，应明确指出
 """
 
 
@@ -77,7 +85,41 @@ def generate_ai_summary(
             reasoning_effort=None,
         )
 
-        user_content = json.dumps(report_data, ensure_ascii=False, indent=2)
+        from app.services.scheduled_report.context_helpers import (
+            format_project_context_for_prompt,
+            format_sku_context_for_prompt,
+        )
+
+        # Separate context fields from data for structured prompt
+        ctx_project = report_data.get("project_context")
+        ctx_sku = report_data.get("sku_context")
+        ctx_factory = report_data.get("sku_factory_info_text", "")
+
+        display_data = {
+            k: v for k, v in report_data.items()
+            if k not in ("project_context", "sku_context", "sku_factory_info_text")
+        }
+        data_str = json.dumps(display_data, ensure_ascii=False, indent=2)
+
+        project_context_text = format_project_context_for_prompt(ctx_project)
+        sku_context_text = format_sku_context_for_prompt(ctx_sku)
+
+        user_content = f"""请根据以下数据生成日报摘要：
+
+```json
+{data_str}
+```
+
+## 项目背景信息（由运营人员填写）
+
+### 项目背景
+{project_context_text}
+
+### SKU 特殊状态
+{sku_context_text}
+
+### 产品属性（Top/预警 SKU）
+{ctx_factory}"""
         result = generate_assistant_content(
             llm_config=llm_config,
             messages=[],

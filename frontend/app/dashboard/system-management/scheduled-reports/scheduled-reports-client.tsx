@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import Image from 'next/image'
 import ReactMarkdown from 'react-markdown'
@@ -538,19 +538,25 @@ type Subscription = {
 }
 
 type LedgerStatus = 'sent' | 'failed' | 'missing'
-type ResendStage = 'preparing' | 'building' | 'sending' | 'done' | 'failed'
+type ResendStage = 'preparing' | 'fetching_data' | 'generating_summary' | 'rendering_html' | 'capturing_screenshot' | 'sending' | 'done' | 'failed'
 
 const RESEND_STAGE_LABELS: Record<ResendStage, string> = {
   preparing: '准备中',
-  building: '构建报表',
-  sending: '发送中',
+  fetching_data: '获取数据',
+  generating_summary: '生成 AI 摘要',
+  rendering_html: '渲染报告',
+  capturing_screenshot: '生成截图',
+  sending: '发送邮件',
   done: '已完成',
   failed: '失败',
 }
 
 const RESEND_STAGE_COLORS: Record<ResendStage, string> = {
   preparing: 'text-amber-600 dark:text-amber-400',
-  building: 'text-blue-600 dark:text-blue-400',
+  fetching_data: 'text-sky-600 dark:text-sky-400',
+  generating_summary: 'text-violet-600 dark:text-violet-400',
+  rendering_html: 'text-blue-600 dark:text-blue-400',
+  capturing_screenshot: 'text-orange-600 dark:text-orange-400',
   sending: 'text-purple-600 dark:text-purple-400',
   done: 'text-emerald-600 dark:text-emerald-400',
   failed: 'text-destructive',
@@ -689,6 +695,12 @@ export function ScheduledReportsClient() {
   const [editingId, setEditingId] = useState<number | null>(null)
   const [previewScreenshotUrl, setPreviewScreenshotUrl] = useState<string | null>(null)
   const [previewSummary, setPreviewSummary] = useState<string | null>(null)
+
+  /** 复制到剪贴板的文案：将 - 前缀替换为 ◉ */
+  const previewCopyText = useMemo(() => {
+    if (!previewSummary) return ''
+    return previewSummary.replace(/^[-•·●]\s*/gm, '◉ ')
+  }, [previewSummary])
 
   const today = new Date()
   const thirtyDaysAgo = new Date(today)
@@ -1297,7 +1309,7 @@ export function ScheduledReportsClient() {
                               resendingStates[item.ledger_key] ? (
                                 <div className="flex items-center gap-2">
                                   <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-                                  <span className={cn("text-xs", RESEND_STAGE_COLORS[resendingStates[item.ledger_key]])}>
+                                  <span className={cn("text-sm", RESEND_STAGE_COLORS[resendingStates[item.ledger_key]])}>
                                     {RESEND_STAGE_LABELS[resendingStates[item.ledger_key]]}
                                   </span>
                                 </div>
@@ -1312,7 +1324,7 @@ export function ScheduledReportsClient() {
                               resendingStates[item.ledger_key] ? (
                                 <div className="flex items-center gap-2">
                                   <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-                                  <span className={cn("text-xs", RESEND_STAGE_COLORS[resendingStates[item.ledger_key]])}>
+                                  <span className={cn("text-sm", RESEND_STAGE_COLORS[resendingStates[item.ledger_key]])}>
                                     {RESEND_STAGE_LABELS[resendingStates[item.ledger_key]]}
                                   </span>
                                 </div>
@@ -1352,7 +1364,7 @@ export function ScheduledReportsClient() {
               <button
                 type="button"
                 onClick={() => {
-                  navigator.clipboard.writeText(previewSummary)
+                  navigator.clipboard.writeText(previewCopyText)
                   setPreviewSummary(null)
                 }}
                 className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md bg-[hsl(var(--chart-2))] text-white hover:opacity-90 transition-opacity"

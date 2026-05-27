@@ -8,7 +8,7 @@ import {
   RefreshCcw,
 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
-import { Bar, CartesianGrid, Cell, ComposedChart, Line, PieChart, XAxis, YAxis } from 'recharts'
+import { Bar, CartesianGrid, Cell, ComposedChart, Line, Pie, PieChart, XAxis, YAxis } from 'recharts'
 import type { Worksheet } from 'exceljs'
 
 import { Badge } from '@/components/ui/badge'
@@ -818,7 +818,7 @@ export default function ReturnAnalysisPage() {
                         <div className="rounded-lg border border-border/60 bg-[hsl(var(--surface-soft))] p-4">
                           <ChartContainer config={chartConfig} className="h-[300px] w-full">
                             <PieChart>
-                              <PieChart
+                              <Pie
                                 data={data.reason_rows.slice(0, 5).map((r, i) => ({
                                   name: r.reason_display,
                                   value: r.return_count,
@@ -832,7 +832,7 @@ export default function ReturnAnalysisPage() {
                                 {data.reason_rows.slice(0, 5).map((_, i) => (
                                   <Cell key={i} fill={REASON_COLORS[i % REASON_COLORS.length]} />
                                 ))}
-                              </PieChart>
+                              </Pie>
                               <ChartTooltip
                                 content={<ChartTooltipContent nameKey="name" />}
                               />

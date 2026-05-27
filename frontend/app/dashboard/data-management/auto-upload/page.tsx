@@ -54,13 +54,37 @@ import {
 
 const API_BASE = '/api/backend'
 
-// ── RPA Status types ──────────────────────────────────────────────────────────
+// ── Shared constants ─────────────────────────────────────────────────────────
 
 const COUNTRY_OPTIONS = [
   { value: 'US', label: '美国站' },
   { value: 'DE', label: '德国站' },
   { value: 'UK', label: '英国站' },
 ]
+
+const REPORT_UPLOAD_REPORT_TYPE_LABELS: Record<string, string> = {
+  inventory_report: '亚马逊物流库存',
+  business_report: '业务报告',
+  ad_product_report: '广告 - 已推广商品',
+  sales_report: '销售报表 - 所有订单',
+  payment_report: '付款报告',
+  return_report: '退货报告',
+}
+
+function getUploadReportTypeLabel(type: UploadQueueItem['reportType']): string {
+  if (!type || type === 'unknown') return '未识别'
+  return REPORT_UPLOAD_REPORT_TYPE_LABELS[type] ?? type
+}
+
+function getMultiCountryDisplay(countries: string[]): string {
+  if (!countries || countries.length === 0) return '未识别'
+  if (countries.length === 1) {
+    return getReportUploadCountryLabel(countries[0], true)
+  }
+  return countries.map(c => getReportUploadCountryLabel(c, true)).join(' + ')
+}
+
+// ── RPA Status types ──────────────────────────────────────────────────────────
 
 function getTodayLocal(): Date {
   return new Date()
@@ -120,25 +144,9 @@ const REPORT_TYPES = [
 const TABLE_HEADER_HEIGHT_CLASS = 'h-[clamp(3.5rem,3.8vh,4.25rem)] min-h-14 max-h-[4.25rem]'
 const TABLE_ROW_HEIGHT_CLASS = 'h-[clamp(2.8rem,3.2vh,3.5rem)] min-h-[2.8rem] max-h-[3.5rem]'
 
-// ── Auto Upload types ─────────────────────────────────────────────────────────
-
-const REPORT_TYPE_LABELS: Record<string, string> = {
-  inventory_report: '亚马逊物流库存',
-  business_report: '业务报告',
-  ad_product_report: '广告 - 已推广商品',
-  sales_report: '销售报表 - 所有订单',
-  payment_report: '付款报告',
-  return_report: '退货报告',
-}
-
-function getReportTypeLabel(type: UploadQueueItem['reportType']): string {
-  if (!type || type === 'unknown') return '未识别'
-  return REPORT_TYPE_LABELS[type] ?? type
-}
-
 // ── RPA Status Grid ──────────────────────────────────────────────────────────
 
-function RpaStatusGrid() {
+function RpaStatusGrid({ country, onCountryChange }: { country: string; onCountryChange: (v: string) => void }) {
   const { data: session } = useSession()
   const [projects, setProjects] = useState<string[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
@@ -149,13 +157,7 @@ function RpaStatusGrid() {
   const [statusError, setStatusError] = useState<string | null>(null)
   const { showSkeleton, isRefreshing } = useSmoothRefresh({ loading: statusLoading, hasData: statusRows.length > 0 })
 
-  const [country, setCountry] = useState('US')
   const [statusDate, setStatusDate] = useState(() => toLocalDateInputValue())
-
-  useEffect(() => {
-    // 切换站点时，日期保持不变（不再根据站点时区重新计算）
-    // 用户始终以本地时间查看状态
-  }, [country])
 
   useEffect(() => {
     const loadProjects = async () => {
@@ -266,7 +268,7 @@ function RpaStatusGrid() {
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              <Select value={country} onValueChange={(value) => setCountry(value)}>
+              <Select value={country} onValueChange={onCountryChange}>
                 <SelectTrigger className='h-9 w-full rounded-md border-border/70 bg-background dark:bg-[hsl(var(--surface-soft))] sm:h-10 sm:w-[140px]'>
                   <SelectValue placeholder='选择站点' />
                 </SelectTrigger>
@@ -421,38 +423,13 @@ function RpaStatusGrid() {
 
 // ── Auto Upload Content ──────────────────────────────────────────────────────
 
-const REPORT_UPLOAD_REPORT_TYPE_LABELS: Record<string, string> = {
-  inventory_report: '亚马逊物流库存',
-  business_report: '业务报告',
-  ad_product_report: '广告 - 已推广商品',
-  sales_report: '销售报表 - 所有订单',
-  payment_report: '付款报告',
-  return_report: '退货报告',
-}
-
-function getUploadReportTypeLabel(type: UploadQueueItem['reportType']): string {
-  if (!type || type === 'unknown') return '未识别'
-  return REPORT_UPLOAD_REPORT_TYPE_LABELS[type] ?? type
-}
-
-function getMultiCountryDisplay(countries: string[]): string {
-  if (!countries || countries.length === 0) return '未识别'
-  if (countries.length === 1) {
-    return getReportUploadCountryLabel(countries[0], true)
-  }
-  return countries.map(c => getReportUploadCountryLabel(c, true)).join(' + ')
-}
-
-function AutoUploadContent() {
+function AutoUploadContent({ country, onCountryChange }: { country: ReportUploadCountry; onCountryChange: (v: ReportUploadCountry) => void }) {
   const { data: session } = useSession()
   const [dragActive, setDragActive] = useState(false)
   const [recognizing, setRecognizing] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [queueItems, setQueueItems] = useState<UploadQueueItem[]>([])
   const [recognitionMap, setRecognitionMap] = useState<Record<string, RecognitionResponse>>({})
-  const [country, setCountry] = useState<ReportUploadCountry>(
-    REPORT_UPLOAD_COUNTRY_OPTIONS[0].value,
-  )
   // 项目列表（用于手动选择）
   const [availableProjects, setAvailableProjects] = useState<string[]>([])
 
@@ -607,12 +584,6 @@ function AutoUploadContent() {
         continue
       }
 
-      // Multi-country file: show info but allow processing
-      if (isMultiCountrySalesReport) {
-        const countries = recognition.detected_countries.join(', ')
-        // Update detectedCountry to show multi-country info (optional enhancement)
-      }
-
       // 检查项目匹配状态
       const autoMatchedProject = recognition.project_match.status === 'matched'
         ? recognition.project_match.project_name ?? null
@@ -669,12 +640,6 @@ function AutoUploadContent() {
           )
           continue
         }
-      }
-
-      // 多站点文件：跳过国家验证，后端会自动拆分
-      if (isMultiCountrySalesReport) {
-        const countries = recognition.detected_countries.join(', ')
-        // 后端会根据检测到的国家自动拆分为多个 source_file
       }
 
       setQueueItems((prev) =>
@@ -760,7 +725,7 @@ function AutoUploadContent() {
     <div className='flex flex-1 flex-col gap-4'>
       {/* Top controls */}
       <div className='flex shrink-0 items-center gap-3'>
-        <Select value={country} onValueChange={(v) => setCountry(v as ReportUploadCountry)}>
+        <Select value={country} onValueChange={(v) => onCountryChange(v as ReportUploadCountry)}>
           <SelectTrigger className='h-10 w-[160px] rounded-md border-border/70 bg-[hsl(var(--surface-overlay))]'>
             <SelectValue placeholder='选择站点' />
           </SelectTrigger>
@@ -1147,6 +1112,7 @@ function AutoUploadContent() {
 
 export default function AutoUploadPage() {
   const [activeTab, setActiveTab] = useState<'upload' | 'status'>('status')
+  const [country, setCountry] = useState('US')
 
   return (
     <div className='flex min-h-[calc(100vh-8rem)] flex-col gap-4 overflow-auto pb-2 sm:gap-6 sm:overflow-hidden lg:min-h-[calc(100vh-8rem)]'>
@@ -1159,10 +1125,13 @@ export default function AutoUploadPage() {
 
         {/* Tab content */}
         <TabsContent value='upload' className='mt-4'>
-          <AutoUploadContent />
+          <AutoUploadContent
+            country={country as ReportUploadCountry}
+            onCountryChange={setCountry}
+          />
         </TabsContent>
         <TabsContent value='status' className='mt-4'>
-          <RpaStatusGrid />
+          <RpaStatusGrid country={country} onCountryChange={setCountry} />
         </TabsContent>
       </Tabs>
     </div>
