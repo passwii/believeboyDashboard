@@ -47,6 +47,7 @@ class AvailableReportItem(BaseModel):
     country: str
     report_month: str
     has_summary_pdf: bool
+    pdf_url: str | None = None
     pdf_uploaded_at: datetime | None
     pt3_calculation_complete: bool
     pt4_calculation_complete: bool
