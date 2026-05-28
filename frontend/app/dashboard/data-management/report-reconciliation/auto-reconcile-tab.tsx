@@ -9,17 +9,24 @@ import {
   FileText,
   RefreshCw,
   Minus,
-  X,
   FileX,
   Upload,
   FileUp,
   File,
   Check,
+  Table,
+  Download,
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { UploadZone } from '@/components/ui/upload-zone'
 import { useNotifications } from '@/components/notifications'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import {
   DataCard,
   DataCardHeader,
@@ -370,6 +377,66 @@ function PDFUploadPanel({
 // Error types for reconciliation
 type ReconcileErrorType = 'pdf_download_failed' | 'extraction_failed' | 'unknown' | null
 
+async function handleDownloadPT3Excel(reportId: number, notify: ReturnType<typeof useNotifications>['notify']) {
+  try {
+    const response = await fetch(
+      `/api/backend/api/v1/report-reconciliation/reports/${reportId}/export-pt3`
+    )
+    if (!response.ok) {
+      throw new Error('下载失败')
+    }
+    const blob = await response.blob()
+    const disposition = response.headers.get('Content-Disposition') || ''
+    const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i)
+    const filename = utf8Match?.[1]
+      ? decodeURIComponent(utf8Match[1])
+      : 'pt3-data.xlsx'
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  } catch (error) {
+    notify({
+      type: 'error',
+      title: '下载失败',
+      message: error instanceof Error ? error.message : '未知错误',
+    })
+  }
+}
+
+async function handleDownloadPDF(reportId: number, notify: ReturnType<typeof useNotifications>['notify']) {
+  try {
+    const response = await fetch(
+      `/api/backend/api/v1/report-reconciliation/reports/${reportId}/download-pdf`
+    )
+    if (!response.ok) throw new Error('下载失败')
+    const blob = await response.blob()
+    const disposition = response.headers.get('Content-Disposition') || ''
+    const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i)
+    const filename = utf8Match?.[1]
+      ? decodeURIComponent(utf8Match[1])
+      : 'summary.pdf'
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  } catch (error) {
+    notify({
+      type: 'error',
+      title: '下载失败',
+      message: error instanceof Error ? error.message : '未知错误',
+    })
+  }
+}
+
 function DetailPanel({
   report,
   result,
@@ -432,22 +499,17 @@ function DetailPanel({
   }
 
   return (
-    <div className='fixed inset-y-0 right-0 z-50 w-full max-w-2xl border-l bg-background shadow-xl animate-in slide-in-from-right duration-300'>
-      {/* Header */}
-      <div className='flex items-center justify-between border-b px-6 py-4'>
-        <div>
-          <h2 className='text-lg font-semibold'>
+    <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogContent className='max-w-3xl max-h-[85vh] overflow-hidden flex flex-col p-0'>
+        <DialogHeader className='border-b px-6 py-4'>
+          <DialogTitle>
             {formatMonth(report.report_month)} - {COUNTRY_LABELS[country] || country}
-          </h2>
+          </DialogTitle>
           <p className='text-sm text-muted-foreground'>{report.project_name}</p>
-        </div>
-        <Button variant='ghost' size='sm' onClick={onClose}>
-          <X className='h-5 w-5' />
-        </Button>
-      </div>
+        </DialogHeader>
 
-      {/* Content */}
-      <div className='h-[calc(100vh-80px)] overflow-y-auto p-6'>
+        {/* Content */}
+        <div className='flex-1 overflow-y-auto p-6'>
         {/* Show upload panel if needs upload or file is missing or has error */}
         {showUploadPanel ? (
           <PDFUploadPanel
@@ -605,6 +667,50 @@ function DetailPanel({
               </table>
             </div>
 
+            {/* Download Section */}
+            <div className='mt-6 rounded-lg border'>
+              <div className='border-b px-4 py-3'>
+                <span className='text-sm font-medium text-muted-foreground'>下载数据</span>
+              </div>
+              <div className='divide-y'>
+                {/* PT3 Excel Download */}
+                <button
+                  className='flex w-full items-center gap-3 px-4 py-3 transition-colors hover:bg-[hsl(var(--surface-subtle))]'
+                  onClick={() => handleDownloadPT3Excel(report.report_id, notify)}
+                >
+                  <Table className='h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400' />
+                  <div className='text-left'>
+                    <div className='text-sm font-medium'>数据库数据</div>
+                    <div className='text-xs text-muted-foreground'>PT3 核算数据 (.xlsx)</div>
+                  </div>
+                  <Download className='ml-auto h-4 w-4 text-muted-foreground' />
+                </button>
+
+                {/* PDF Download */}
+                {report.has_summary_pdf && !report.pdf_file_missing ? (
+                  <button
+                    className='flex w-full items-center gap-3 px-4 py-3 transition-colors hover:bg-[hsl(var(--surface-subtle))]'
+                    onClick={() => handleDownloadPDF(report.report_id, notify)}
+                  >
+                    <FileText className='h-5 w-5 shrink-0 text-blue-600 dark:text-blue-400' />
+                    <div className='text-left'>
+                      <div className='text-sm font-medium'>PDF 原文</div>
+                      <div className='text-xs text-muted-foreground'>结算汇总 PDF</div>
+                    </div>
+                    <Download className='ml-auto h-4 w-4 text-muted-foreground' />
+                  </button>
+                ) : (
+                  <div className='flex w-full items-center gap-3 px-4 py-3 opacity-50'>
+                    <FileText className='h-5 w-5 shrink-0 text-muted-foreground' />
+                    <div className='text-left'>
+                      <div className='text-sm font-medium'>PDF 原文</div>
+                      <div className='text-xs text-muted-foreground'>PDF 文件不可用</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Re-upload PDF Button - Always visible */}
             <div className='mt-6 flex justify-center gap-3'>
               <Button
@@ -633,7 +739,8 @@ function DetailPanel({
           </div>
         )}
       </div>
-    </div>
+    </DialogContent>
+  </Dialog>
   )
 }
 
@@ -1125,26 +1232,17 @@ export default function AutoReconcileTab() {
 
       {/* Detail Panel */}
       {selectedReport && (
-        <>
-          {/* Backdrop */}
-          <div
-            className='fixed inset-0 z-40 bg-black/20'
-            onClick={handlePanelClose}
-          />
-
-          {/* Panel */}
-          <DetailPanel
-            report={selectedReport}
-            result={currentResult}
-            reconciling={reconciling === selectedReport.report_id}
-            onClose={handlePanelClose}
-            onUploadSuccess={handleUploadSuccess}
-            onReconcile={handleReconcile}
-            errorType={currentError}
-            onClearError={handleClearError}
-            onShowUpload={handleShowUploadPanel}
-          />
-        </>
+        <DetailPanel
+          report={selectedReport}
+          result={currentResult}
+          reconciling={reconciling === selectedReport.report_id}
+          onClose={handlePanelClose}
+          onUploadSuccess={handleUploadSuccess}
+          onReconcile={handleReconcile}
+          errorType={currentError}
+          onClearError={handleClearError}
+          onShowUpload={handleShowUploadPanel}
+        />
       )}
     </div>
   )

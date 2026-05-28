@@ -11,9 +11,10 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrig
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { ImagePreviewDialog, PortraitScreenshotDialog } from '@/components/ui/image-preview-dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Loader2, Plus, Trash2, Mail, Calendar, ImageIcon, Copy, FileText, RotateCcw, AlertTriangle, Pencil, Power } from 'lucide-react'
+import { Loader2, Plus, Trash2, Mail, Calendar, ImageIcon, Copy, FileText, RotateCcw, AlertTriangle, Pencil, Power, Check, ChevronsUpDown } from 'lucide-react'
 import { DateRangePicker, parseDateRangeInputValue } from '@/components/ui/date-picker'
 import type { DateRange } from 'react-day-picker'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
@@ -21,6 +22,7 @@ import { normalizeErrorMessage } from '@/lib/error-utils'
 import { useNotifications } from '@/components/notifications'
 import { useConfirm } from '@/hooks/use-confirm'
 import { cn } from '@/lib/utils'
+import { getCountryLabel, getCountryDisplay, COUNTRY_OPTIONS } from '@/lib/country'
 
 // 内部表单组件：抽取为子组件，便于在 Dialog 中复用
 interface SubscriptionFormProps {
@@ -30,8 +32,8 @@ interface SubscriptionFormProps {
   setFormEmail: (v: string) => void
   formProjectIds: string
   setFormProjectIds: (v: string) => void
-  formCountry: string
-  setFormCountry: (v: string) => void
+  formCountries: string[]
+  setFormCountries: (v: string[]) => void
   formFrequency: Frequency
   setFormFrequency: (v: Frequency) => void
   formDispatchHour: number
@@ -62,7 +64,7 @@ function SubscriptionForm({
   mode,
   formEmail, setFormEmail,
   formProjectIds, setFormProjectIds,
-  formCountry, setFormCountry,
+  formCountries, setFormCountries,
   formFrequency, setFormFrequency,
   formDispatchHour, setFormDispatchHour,
   formDispatchMinute, setFormDispatchMinute,
@@ -146,17 +148,59 @@ function SubscriptionForm({
             </div>
           </div>
           <div>
-            <label className="text-sm font-medium mb-1 block">国家站点</label>
-            <Select value={formCountry} onValueChange={setFormCountry}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="US">美国 (US)</SelectItem>
-                <SelectItem value="CA">加拿大 (CA)</SelectItem>
-                <SelectItem value="UK">英国 (UK)</SelectItem>
-                <SelectItem value="DE">德国 (DE)</SelectItem>
-                <SelectItem value="JP">日本 (JP)</SelectItem>
-              </SelectContent>
-            </Select>
+            <label className="text-sm font-medium mb-1 block">
+              国家站点
+              {formCountries.length > 1 && (
+                <span className="ml-1.5 text-xs text-blue-600 font-normal">（{formCountries.length} 个站点合并报告）</span>
+              )}
+            </label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <span className="truncate">
+                    {formCountries.length === 0
+                      ? '选择国家...'
+                      : formCountries.map(c => getCountryLabel(c)).join(', ')}
+                  </span>
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[260px] p-2" align="start">
+                <div className="space-y-1">
+                  {COUNTRY_OPTIONS.map(opt => {
+                    const selected = formCountries.includes(opt.value)
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        className={cn(
+                          'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent transition-colors',
+                          selected && 'bg-accent',
+                        )}
+                        onClick={() => {
+                          if (selected) {
+                            setFormCountries(formCountries.filter(c => c !== opt.value))
+                          } else {
+                            setFormCountries([...formCountries, opt.value])
+                          }
+                        }}
+                      >
+                        <div className={cn(
+                          'flex h-4 w-4 items-center justify-center rounded-sm border',
+                          selected ? 'bg-primary border-primary text-primary-foreground' : 'border-input',
+                        )}>
+                          {selected && <Check className="h-3 w-3" />}
+                        </div>
+                        <span>{opt.label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
           {formFrequency === 'weekly' && (
             <div>
@@ -282,7 +326,7 @@ function CreateSubscriptionDialog({
 }) {
   const [formEmail, setFormEmail] = useState('')
   const [formProjectIds, setFormProjectIds] = useState('*')
-  const [formCountry, setFormCountry] = useState('US')
+  const [formCountries, setFormCountries] = useState<string[]>(['US'])
   const [formFrequency, setFormFrequency] = useState<Frequency>('daily')
   const [formDispatchHour, setFormDispatchHour] = useState(15)
   const [formDispatchMinute, setFormDispatchMinute] = useState(0)
@@ -313,7 +357,7 @@ function CreateSubscriptionDialog({
       const res = await fetch(resolveApiUrl('/api/v1/scheduled-reports/test-email'), {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: formEmail, frequency: formFrequency, project_ids: formProjectIds, country: formCountry, ai_model: formAiModel || null }),
+        body: JSON.stringify({ email: formEmail, frequency: formFrequency, project_ids: formProjectIds, country: formCountries[0] || 'US', ai_model: formAiModel || null }),
       })
       const data = await res.json()
       setTestResult({ success: data.success, message: data.message })
@@ -335,7 +379,7 @@ function CreateSubscriptionDialog({
       const res = await fetch(resolveApiUrl('/api/v1/scheduled-reports/subscriptions'), {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: formEmail, project_ids: formProjectIds, country: formCountry, frequency: formFrequency, dispatch_hour: formDispatchHour, dispatch_minute: formDispatchMinute, dispatch_weekday: formFrequency === 'weekly' ? formDispatchWeekday : null, dispatch_day: formFrequency === 'monthly' ? formDispatchDay : null, ai_model: formAiModel || null }),
+        body: JSON.stringify({ email: formEmail, project_ids: formProjectIds, country: formCountries.join(','), frequency: formFrequency, dispatch_hour: formDispatchHour, dispatch_minute: formDispatchMinute, dispatch_weekday: formFrequency === 'weekly' ? formDispatchWeekday : null, dispatch_day: formFrequency === 'monthly' ? formDispatchDay : null, ai_model: formAiModel || null }),
       })
       if (!res.ok) {
         const err = await res.text()
@@ -358,7 +402,7 @@ function CreateSubscriptionDialog({
           mode="create"
           formEmail={formEmail} setFormEmail={setFormEmail}
           formProjectIds={formProjectIds} setFormProjectIds={setFormProjectIds}
-          formCountry={formCountry} setFormCountry={setFormCountry}
+          formCountries={formCountries} setFormCountries={setFormCountries}
           formFrequency={formFrequency} setFormFrequency={setFormFrequency}
           formDispatchHour={formDispatchHour} setFormDispatchHour={setFormDispatchHour}
           formDispatchMinute={formDispatchMinute} setFormDispatchMinute={setFormDispatchMinute}
@@ -405,7 +449,7 @@ function EditSubscriptionDialog({
 }) {
   const [formEmail, setFormEmail] = useState('')
   const [formProjectIds, setFormProjectIds] = useState('*')
-  const [formCountry, setFormCountry] = useState('US')
+  const [formCountries, setFormCountries] = useState<string[]>(['US'])
   const [formFrequency, setFormFrequency] = useState<Frequency>('daily')
   const [formDispatchHour, setFormDispatchHour] = useState(15)
   const [formDispatchMinute, setFormDispatchMinute] = useState(0)
@@ -421,7 +465,7 @@ function EditSubscriptionDialog({
     if (subscription) {
       setFormEmail(subscription.email)
       setFormProjectIds(subscription.project_ids)
-      setFormCountry(subscription.country)
+      setFormCountries(subscription.country.split(',').map(c => c.trim()).filter(Boolean))
       setFormFrequency(subscription.frequency)
       setFormDispatchHour(subscription.dispatch_hour)
       setFormDispatchMinute(subscription.dispatch_minute ?? 0)
@@ -444,7 +488,7 @@ function EditSubscriptionDialog({
       const res = await fetch(resolveApiUrl('/api/v1/scheduled-reports/test-email'), {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: formEmail, frequency: formFrequency, project_ids: formProjectIds, country: formCountry, ai_model: formAiModel || null }),
+        body: JSON.stringify({ email: formEmail, frequency: formFrequency, project_ids: formProjectIds, country: formCountries[0] || 'US', ai_model: formAiModel || null }),
       })
       const data = await res.json()
       setTestResult({ success: data.success, message: data.message })
@@ -467,7 +511,7 @@ function EditSubscriptionDialog({
       const res = await fetch(resolveApiUrl(`/api/v1/scheduled-reports/subscriptions/${subscription.id}`), {
         method: 'PUT',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: formEmail, project_ids: formProjectIds, country: formCountry, frequency: formFrequency, dispatch_hour: formDispatchHour, dispatch_minute: formDispatchMinute, dispatch_weekday: formFrequency === 'weekly' ? formDispatchWeekday : null, dispatch_day: formFrequency === 'monthly' ? formDispatchDay : null, ai_model: formAiModel || null }),
+        body: JSON.stringify({ email: formEmail, project_ids: formProjectIds, country: formCountries.join(','), frequency: formFrequency, dispatch_hour: formDispatchHour, dispatch_minute: formDispatchMinute, dispatch_weekday: formFrequency === 'weekly' ? formDispatchWeekday : null, dispatch_day: formFrequency === 'monthly' ? formDispatchDay : null, ai_model: formAiModel || null }),
       })
       if (!res.ok) {
         const err = await res.text()
@@ -492,7 +536,7 @@ function EditSubscriptionDialog({
           editingSub={subscription}
           formEmail={formEmail} setFormEmail={setFormEmail}
           formProjectIds={formProjectIds} setFormProjectIds={setFormProjectIds}
-          formCountry={formCountry} setFormCountry={setFormCountry}
+          formCountries={formCountries} setFormCountries={setFormCountries}
           formFrequency={formFrequency} setFormFrequency={setFormFrequency}
           formDispatchHour={formDispatchHour} setFormDispatchHour={setFormDispatchHour}
           formDispatchMinute={formDispatchMinute} setFormDispatchMinute={setFormDispatchMinute}
@@ -678,7 +722,7 @@ export function ScheduledReportsClient() {
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [formEmail, setFormEmail] = useState('')
   const [formProjectIds, setFormProjectIds] = useState('*')
-  const [formCountry, setFormCountry] = useState('US')
+  const [formCountries, setFormCountries] = useState<string[]>(['US'])
   const [formFrequency, setFormFrequency] = useState<Frequency>('daily')
   const [formDispatchHour, setFormDispatchHour] = useState(15)
   const [formDispatchMinute, setFormDispatchMinute] = useState(0)
@@ -834,7 +878,7 @@ export function ScheduledReportsClient() {
       const res = await fetch(resolveApiUrl('/api/v1/scheduled-reports/subscriptions'), {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: formEmail, project_ids: formProjectIds, country: formCountry, frequency: formFrequency, dispatch_hour: formDispatchHour, dispatch_minute: formDispatchMinute, dispatch_weekday: formFrequency === 'weekly' ? formDispatchWeekday : null, dispatch_day: formFrequency === 'monthly' ? formDispatchDay : null, ai_model: formAiModel || null }),
+        body: JSON.stringify({ email: formEmail, project_ids: formProjectIds, country: formCountries.join(','), frequency: formFrequency, dispatch_hour: formDispatchHour, dispatch_minute: formDispatchMinute, dispatch_weekday: formFrequency === 'weekly' ? formDispatchWeekday : null, dispatch_day: formFrequency === 'monthly' ? formDispatchDay : null, ai_model: formAiModel || null }),
       })
       if (!res.ok) {
         const err = await res.text()
@@ -845,7 +889,7 @@ export function ScheduledReportsClient() {
       setShowForm(false)
       setFormEmail('')
       setFormProjectIds('*')
-      setFormCountry('US')
+      setFormCountries(['US'])
       setFormFrequency('daily')
       setFormDispatchHour(15)
       setFormDispatchMinute(0)
@@ -871,7 +915,7 @@ export function ScheduledReportsClient() {
       const res = await fetch(resolveApiUrl(`/api/v1/scheduled-reports/subscriptions/${editingId}`), {
         method: 'PUT',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: formEmail, project_ids: formProjectIds, country: formCountry, frequency: formFrequency, dispatch_hour: formDispatchHour, dispatch_minute: formDispatchMinute, dispatch_weekday: formFrequency === 'weekly' ? formDispatchWeekday : null, dispatch_day: formFrequency === 'monthly' ? formDispatchDay : null, ai_model: formAiModel || null }),
+        body: JSON.stringify({ email: formEmail, project_ids: formProjectIds, country: formCountries.join(','), frequency: formFrequency, dispatch_hour: formDispatchHour, dispatch_minute: formDispatchMinute, dispatch_weekday: formFrequency === 'weekly' ? formDispatchWeekday : null, dispatch_day: formFrequency === 'monthly' ? formDispatchDay : null, ai_model: formAiModel || null }),
       })
       if (!res.ok) {
         const err = await res.text()
@@ -883,7 +927,7 @@ export function ScheduledReportsClient() {
       setEditingId(null)
       setFormEmail('')
       setFormProjectIds('*')
-      setFormCountry('US')
+      setFormCountries(['US'])
       setFormFrequency('daily')
       setFormDispatchHour(15)
       setFormDispatchMinute(0)
@@ -905,7 +949,10 @@ export function ScheduledReportsClient() {
       if (!ids.includes(filterProject)) return false
     }
     if (filterEmail.trim() && !sub.email.toLowerCase().includes(filterEmail.toLowerCase())) return false
-    if (filterCountry !== 'all' && sub.country !== filterCountry) return false
+    if (filterCountry !== 'all') {
+      const subCountries = sub.country.split(',').map(c => c.trim().toUpperCase())
+      if (!subCountries.includes(filterCountry.toUpperCase())) return false
+    }
     if (filterStatus !== 'all') {
       const isEnabled = sub.enabled
       if (filterStatus === 'enabled' && !isEnabled) return false
@@ -1030,7 +1077,7 @@ export function ScheduledReportsClient() {
       const res = await fetch(resolveApiUrl('/api/v1/scheduled-reports/test-email'), {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: formEmail, frequency: formFrequency, project_ids: formProjectIds, country: formCountry, ai_model: formAiModel || null }),
+        body: JSON.stringify({ email: formEmail, frequency: formFrequency, project_ids: formProjectIds, country: formCountries[0] || 'US', ai_model: formAiModel || null }),
       })
       const data = await res.json()
       setTestResult({ success: data.success, message: data.message })
@@ -1081,11 +1128,9 @@ export function ScheduledReportsClient() {
                       <SelectTrigger className="w-[120px] h-9"><SelectValue placeholder="国家" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">全部国家</SelectItem>
-                        <SelectItem value="US">美国</SelectItem>
-                        <SelectItem value="CA">加拿大</SelectItem>
-                        <SelectItem value="UK">英国</SelectItem>
-                        <SelectItem value="DE">德国</SelectItem>
-                        <SelectItem value="JP">日本</SelectItem>
+                        {COUNTRY_OPTIONS.map(opt => (
+                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     <Select value={filterStatus} onValueChange={setFilterStatus}>
@@ -1139,7 +1184,13 @@ export function ScheduledReportsClient() {
                                   {display}
                                 </span>
                               </TableCell>
-                              <TableCell className="text-muted-foreground">{sub.country}</TableCell>
+                              <TableCell>
+                                <div className="flex flex-wrap gap-1">
+                                  {sub.country.split(',').map(c => c.trim()).filter(Boolean).map(c => (
+                                    <Badge key={c} variant="secondary" className="text-xs">{getCountryLabel(c)}</Badge>
+                                  ))}
+                                </div>
+                              </TableCell>
                               <TableCell>
                                 <Badge className={cn('text-xs', FREQUENCY_COLORS[sub.frequency])}>
                                   {FREQUENCY_LABELS[sub.frequency]}
@@ -1270,7 +1321,13 @@ export function ScheduledReportsClient() {
                           <TableCell>{new Date(item.expected_at).toLocaleString('zh-CN')}</TableCell>
                           <TableCell><Badge className={cn('text-xs', FREQUENCY_COLORS[item.frequency])}>{FREQUENCY_LABELS[item.frequency]}</Badge></TableCell>
                           <TableCell><span className="text-muted-foreground truncate max-w-[120px] block" title={projectLabel}>{projectLabel}</span></TableCell>
-                          <TableCell className="text-muted-foreground">{item.country}</TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap gap-1">
+                              {item.country.split(',').map(c => c.trim()).filter(Boolean).map(c => (
+                                <Badge key={c} variant="secondary" className="text-xs">{getCountryLabel(c)}</Badge>
+                              ))}
+                            </div>
+                          </TableCell>
                           <TableCell><span className="text-muted-foreground truncate max-w-[140px] block" title={item.email}>{item.email}</span></TableCell>
                           <TableCell>
                             {item.status === 'sent' ? <span className="text-emerald-600">✓ 成功</span> : item.status === 'failed' ? <span className="text-destructive">✗ 失败</span> : <span className="text-amber-600 inline-flex items-center gap-1"><AlertTriangle className="h-3 w-3" />缺失</span>}
