@@ -637,6 +637,19 @@ def _persist_return_report(
     except ValueError as exc:
         source.ingestion_status = "failed"
         source.ingestion_error = str(exc)
+        # 解析失败时仍然写 upload log，确保 RPA 状态格子显示"已处理（无数据）"
+        log_date = _resolve_upload_date(now)
+        _write_upload_log(
+            db,
+            project_id=project.id,
+            report_type="return_report",
+            country=country,
+            upload_date=log_date,
+            has_real_data=False,
+            row_count=0,
+            source_file_id=source.id,
+            original_filename=file_path.name,
+        )
         db.commit()
         return {"success": False, "error": str(exc)}
 
