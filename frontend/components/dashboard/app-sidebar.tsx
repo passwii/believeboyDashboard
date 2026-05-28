@@ -39,6 +39,8 @@ type NavLink = {
   title: string
   url: string
   matchPrefixes?: string[]
+  target?: string
+  rel?: string
 }
 
 type NavGroup = {
@@ -288,7 +290,7 @@ function SidebarGroupBlock({ group }: { group: NavGroup }) {
                 isActive={isLinkActive(pathname, item)}
                 className='h-11 rounded-[0.9rem] border border-transparent px-3 text-[0.96rem] font-medium text-sidebar-foreground/78 shadow-none hover:bg-[hsl(var(--sidebar-foreground)/0.03)] data-[active=true]:border-[hsl(var(--sidebar-foreground)/0.06)] data-[active=true]:bg-[hsl(var(--sidebar-foreground)/0.05)] data-[active=true]:text-sidebar-foreground'
               >
-                <RouteLoadingLink href={item.url}>
+                <RouteLoadingLink href={item.url} target={item.target} rel={item.rel}>
                   <span className='min-w-0 flex-1 truncate whitespace-nowrap'>
                     {item.title}
                   </span>
