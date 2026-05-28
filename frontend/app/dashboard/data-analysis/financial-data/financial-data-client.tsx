@@ -764,6 +764,8 @@ export default function FinancialDataClient({
   const [exporting, setExporting] = useState(false)
   const [recalculating, setRecalculating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // 重算后触发核算明细刷新的计数器
+  const [accountingRefreshKey, setAccountingRefreshKey] = useState(0)
   const [exchangeRateByMonth, setExchangeRateByMonth] = useState<
     Record<string, number>
   >(initialExchangeRateByMonth)
@@ -982,13 +984,18 @@ export default function FinancialDataClient({
         endMonth,
       )
       setClientCache(cacheKey, payload)
+
+      // 重算完成后，如果当前在核算明细 tab，触发明细刷新
+      if (activeTab === 'accounting') {
+        setAccountingRefreshKey((k) => k + 1)
+      }
     } catch (loadError) {
       setData(null)
       setError(loadError instanceof Error ? loadError.message : '重新核算失败')
     } finally {
       setRecalculating(false)
     }
-  }, [projectId, country, startMonth, endMonth])
+  }, [projectId, country, startMonth, endMonth, activeTab])
 
   const accountingMonthOptions = useMemo(() => {
     const rows = data?.rows ?? []
@@ -1046,7 +1053,7 @@ export default function FinancialDataClient({
   useEffect(() => {
     if (activeTab !== 'accounting' || !accountingMonth) return
     void loadAccountingDetail()
-  }, [activeTab, accountingMonth, loadAccountingDetail])
+  }, [activeTab, accountingMonth, loadAccountingDetail, accountingRefreshKey])
 
   const exportAccountingDetail = useCallback(async () => {
     const parsedProjectId = Number(projectId)
