@@ -9,8 +9,33 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
-def _fmt_currency(val: float) -> str:
-    return f"${val:,.2f}"
+CURRENCY_SYMBOLS: dict[str, str] = {
+    "US": "$", "USD": "$",
+    "DE": "€", "EUR": "€",
+    "UK": "£", "GBP": "£",
+}
+
+CURRENCY_CODES: dict[str, str] = {
+    "US": "USD", "USD": "USD",
+    "DE": "EUR", "EUR": "EUR",
+    "UK": "GBP", "GBP": "GBP",
+}
+
+
+def _fmt_currency(val: float, country: str = "US") -> str:
+    """格式化货币金额，根据国家/站点自动选择符号。
+
+    Args:
+        val: 金额数值
+        country: 国家代码（US/DE/UK）或货币代码（USD/EUR/GBP）
+    """
+    symbol = CURRENCY_SYMBOLS.get(country, "$")
+    return f"{symbol}{val:,.2f}"
+
+
+def _currency_code(country: str = "US") -> str:
+    """返回货币代码（USD/EUR/GBP）。"""
+    return CURRENCY_CODES.get(country, "USD")
 
 
 def _color_positive(val: float, good_threshold: float = 0) -> str:
@@ -40,6 +65,28 @@ def _country_label(country: str) -> str:
     """将国家代码转换为 'XX站' 格式，未知代码直接返回原值 + '站'。"""
     name = _COUNTRY_CN.get(country.upper(), country.upper())
     return f"{name}站"
+
+
+_COUNTRY_FLAGS: dict[str, str] = {
+    "US": "🇺🇸", "UK": "🇬🇧", "GB": "🇬🇧", "DE": "🇩🇪", "FR": "🇫🇷",
+    "IT": "🇮🇹", "ES": "🇪🇸", "JP": "🇯🇵", "CA": "🇨🇦", "MX": "🇲🇽",
+    "AU": "🇦🇺", "IN": "🇮🇳", "BR": "🇧🇷", "NL": "🇳🇱", "SE": "🇸🇪",
+    "PL": "🇵🇱", "TR": "🇹🇷", "SG": "🇸🇬", "AE": "🇦🇪", "BE": "🇧🇪",
+    "SA": "🇸🇦", "EU": "🇪🇺",
+}
+
+
+def _render_country_sub_header(country: str) -> str:
+    """渲染国家子标题 Badge 行（板块优先布局用）。"""
+    label = _country_label(country)
+    flag = _COUNTRY_FLAGS.get(country.upper(), "🌐")
+    return f"""<tr>
+      <td style="padding: 8px 16px 4px;">
+        <table cellpadding="0" cellspacing="0" border="0">
+          <tr><td style="background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 4px; padding: 4px 10px; font-size: 13px; font-weight: 600; color: #1D4ED8;">{flag} {label}</td></tr>
+        </table>
+      </td>
+    </tr>"""
 
 
 def _safe_html(text: str) -> str:

@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field, model_validator
 class SubscriptionCreate(BaseModel):
     email: str = Field(..., max_length=256, description="接收报告的邮箱地址")
     project_ids: str = Field(default="*", max_length=500, description="项目 ID 列表，逗号分隔，* 表示全部")
-    country: str = Field(default="US", max_length=10)
+    country: str = Field(default="US", max_length=256)
     frequency: str = Field(..., pattern="^(daily|weekly|monthly)$")
     dispatch_hour: int = Field(default=15, ge=0, le=23, description="发送时间（小时，0-23，北京时间）")
     dispatch_minute: int = Field(default=0, ge=0, le=59, description="发送时间（分钟，0-59）")
@@ -36,7 +36,7 @@ class SubscriptionCreate(BaseModel):
 class SubscriptionUpdate(BaseModel):
     email: Optional[str] = Field(default=None, max_length=256)
     project_ids: Optional[str] = Field(default=None, max_length=500)
-    country: Optional[str] = Field(default=None, max_length=10)
+    country: Optional[str] = Field(default=None, max_length=256)
     frequency: Optional[str] = Field(default=None, pattern="^(daily|weekly|monthly)$")
     dispatch_hour: Optional[int] = Field(default=None, ge=0, le=23, description="发送时间（小时，0-23，北京时间）")
     dispatch_minute: Optional[int] = Field(default=None, ge=0, le=59, description="发送时间（分钟，0-59）")
@@ -117,7 +117,7 @@ class TestEmailRequest(BaseModel):
     email: str = Field(..., max_length=256)
     frequency: str = Field(default="daily", pattern="^(daily|weekly|monthly)$")
     project_ids: str = Field(default="*", max_length=500, description="项目 ID 列表，逗号分隔，* 表示全部")
-    country: str = Field(default="US", max_length=10)
+    country: str = Field(default="US", max_length=256)
     ai_model: Optional[str] = Field(default=None, max_length=64, description="AI 摘要使用的模型，空则用默认模型")
 
 

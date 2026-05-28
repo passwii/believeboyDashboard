@@ -260,6 +260,119 @@ def _build_report_with_throttle(
         _ai_semaphore.release()
 
 
+def _build_multi_country_report(
+    project_ids: list[int] | None,
+    country_list: list[str],
+    frequency: str,
+    ai_model: str | None = None,
+    reference_date: "date | None" = None,
+    stage_callback: Any = None,
+) -> dict[str, Any]:
+    """Build report data for multiple countries, each fetched independently.
+
+    Returns a combined dict with ``is_multi_country=True`` and a
+    ``country_data`` mapping from country code to its individual report_data.
+    """
+    from app.services.scheduled_report.email_sender import _country_label
+
+    country_data: dict[str, dict[str, Any]] = {}
+    for country in country_list:
+        try:
+            data = _build_report_with_throttle(
+                project_ids, country, frequency,
+                ai_model=ai_model, reference_date=reference_date,
+                stage_callback=stage_callback,
+            )
+            country_data[country] = data
+        except Exception as e:
+            logger.warning("Failed to build report for country=%s: %s", country, e)
+            country_data[country] = {
+                "sales": {}, "week_sales": {}, "prev_week_sales": {},
+                "trend_days": [], "top_skus": [], "sku_sales_detail": [],
+                "inventory": {}, "alert_rows": [], "ads": {},
+                "returns": {"qty": 0, "rate": 0, "top_returns": []},
+                "country": country,
+                "report_date": (reference_date or date.today()).isoformat(),
+                "date_range": "",
+                "ai_summary": f"暂无 {_country_label(country)} 数据",
+            }
+
+    # Use first country's data for shared shell fields
+    first = country_data[country_list[0]]
+
+    # Build a unified AI summary covering all countries
+    ai_summary = _generate_multi_country_summary(
+        frequency, country_data, ai_model=ai_model,
+    )
+
+    return {
+        "is_multi_country": True,
+        "countries": country_list,
+        "country_data": country_data,
+        "project_name": first.get("project_name", "项目"),
+        "country": ",".join(country_list),
+        "report_date": first.get("report_date", date.today().isoformat()),
+        "date_range": first.get("date_range", ""),
+        "ai_summary": ai_summary,
+        # Shell fields from first country (used by email sender outer wrapper)
+        "sales": first.get("sales", {}),
+        "week_sales": first.get("week_sales", {}),
+        "prev_week_sales": first.get("prev_week_sales", {}),
+        "period7d_change_pct": first.get("period7d_change_pct", 0),
+        "period7d_amount_change_pct": first.get("period7d_amount_change_pct", 0),
+        "trend_days": first.get("trend_days", []),
+        "top_skus": first.get("top_skus", []),
+        "sku_sales_detail": first.get("sku_sales_detail", []),
+        "inventory": first.get("inventory", {}),
+        "alert_rows": first.get("alert_rows", []),
+        "ads": first.get("ads", {}),
+        "returns": first.get("returns", {}),
+    }
+
+
+def _generate_multi_country_summary(
+    frequency: str,
+    country_data: dict[str, dict[str, Any]],
+    ai_model: str | None = None,
+) -> str:
+    """Generate a single AI summary covering all countries.
+
+    Falls back to per-country bullet points if AI call fails.
+    """
+    from app.services.scheduled_report.email_sender import _fmt_currency, _country_label
+
+    try:
+        from app.services.scheduled_report.ai_enhancer_daily import generate_ai_summary
+
+        # Build a combined overview for the AI prompt
+        combined: dict[str, Any] = {
+            "multi_country": True,
+            "countries": {},
+        }
+        for country, data in country_data.items():
+            combined["countries"][country] = {
+                "country_label": _country_label(country),
+                "sales": data.get("sales", {}),
+                "week_sales": data.get("week_sales", {}),
+                "inventory": data.get("inventory", {}),
+                "ads": data.get("ads", {}),
+                "returns": data.get("returns", {}),
+                "top_skus": data.get("top_skus", []),
+            }
+
+        return generate_ai_summary(frequency, combined, model=ai_model)
+    except Exception as e:
+        logger.warning("Multi-country AI summary failed, using fallback: %s", e)
+        parts: list[str] = []
+        for country, data in country_data.items():
+            label = _country_label(country)
+            sales = data.get("sales", {})
+            qty = sales.get("yesterday_qty", 0)
+            amt = sales.get("yesterday_amount", 0)
+            parts.append(f"- {label}：昨日 {qty} 单，销售额 {_fmt_currency(amt, country)}")
+        return "\n".join(parts)
+
+
 def _dispatch_one(
     subscription_id: int,
     email: str,
@@ -303,7 +416,19 @@ def _dispatch_one(
         def _on_stage(stage_name: str) -> None:
             _report_stage(db, log_id, stage_name, _stage_started=_stage_clock)
 
-        report_data = _build_report_with_throttle(project_ids, country, frequency, ai_model=ai_model, stage_callback=_on_stage)
+        # Parse country list — support multi-country subscriptions
+        parsed_countries = [c.strip().upper() for c in country.split(",") if c.strip()]
+        if len(parsed_countries) > 1:
+            report_data = _build_multi_country_report(
+                project_ids, parsed_countries, frequency,
+                ai_model=ai_model, stage_callback=_on_stage,
+            )
+        else:
+            single_country = parsed_countries[0] if parsed_countries else "US"
+            report_data = _build_report_with_throttle(
+                project_ids, single_country, frequency,
+                ai_model=ai_model, stage_callback=_on_stage,
+            )
         # Pass log_id to report_data so email_sender can update screenshot info
         report_data["log_id"] = log_id
 
@@ -409,8 +534,9 @@ def dispatch_reports(frequency: str) -> dict[str, Any]:
     # ── pre-warm cache for duplicate project+country combos ───────────────────
     combo_counts: dict[tuple[str, str, str], int] = {}
     for sub in subscriptions:
-        key = _cache_key(sub.project_id_list or None, sub.country, _dispatch_date_str)
-        combo_counts[key] = combo_counts.get(key, 0) + 1
+        for c in sub.country_list:
+            key = _cache_key(sub.project_id_list or None, c, _dispatch_date_str)
+            combo_counts[key] = combo_counts.get(key, 0) + 1
 
     dupes_exist = any(c > 1 for c in combo_counts.values())
     if dupes_exist:
@@ -500,10 +626,10 @@ def prewarm_cache_for_frequency(frequency: str) -> dict[str, Any]:
     if not subscriptions:
         return {"frequency": frequency, "warmed": 0}
 
-    combo_keys = {
-        _cache_key(sub.project_id_list or None, sub.country, _dispatch_date_str)
-        for sub in subscriptions
-    }
+    combo_keys = set()
+    for sub in subscriptions:
+        for c in sub.country_list:
+            combo_keys.add(_cache_key(sub.project_id_list or None, c, _dispatch_date_str))
 
     _pre_warm_cache(list(combo_keys), frequency)
 
@@ -578,7 +704,20 @@ def _dispatch_one_async(
             ref_date = date.fromisoformat(expected_date)
         else:
             ref_date = date.fromisoformat(expected_date) - timedelta(days=1)
-        report_data = _build_report_with_throttle(project_ids, country, frequency, ai_model=ai_model, reference_date=ref_date, stage_callback=_on_stage)
+
+        # Parse country list — support multi-country subscriptions
+        parsed_countries = [c.strip().upper() for c in country.split(",") if c.strip()]
+        if len(parsed_countries) > 1:
+            report_data = _build_multi_country_report(
+                project_ids, parsed_countries, frequency,
+                ai_model=ai_model, reference_date=ref_date, stage_callback=_on_stage,
+            )
+        else:
+            single_country = parsed_countries[0] if parsed_countries else "US"
+            report_data = _build_report_with_throttle(
+                project_ids, single_country, frequency,
+                ai_model=ai_model, reference_date=ref_date, stage_callback=_on_stage,
+            )
         report_data["log_id"] = log_id
 
         # 阶段：渲染 HTML → 截图 → 发送（由 email sender 内部回调推进）

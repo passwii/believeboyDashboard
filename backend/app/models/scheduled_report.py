@@ -55,7 +55,7 @@ class ScheduledReportSubscription(Base):
     user_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     email: Mapped[str] = mapped_column(String(256), nullable=False)
     project_ids: Mapped[str] = mapped_column(String(500), nullable=False, default="*")
-    country: Mapped[str] = mapped_column(String(10), nullable=False, default="US")
+    country: Mapped[str] = mapped_column(String(256), nullable=False, default="US")
     frequency: Mapped[str] = mapped_column(String(20), nullable=False)
     ai_model: Mapped[str | None] = mapped_column(String(64), nullable=True, comment="AI 摘要使用的模型，空则用默认模型")
     dispatch_hour: Mapped[int] = mapped_column(Integer, nullable=False, default=15, comment="发送时间（小时，0-23，北京时间）")
@@ -95,6 +95,11 @@ class ScheduledReportSubscription(Base):
             return [int(x.strip()) for x in self.project_ids.split(",") if x.strip()]
         except ValueError:
             return []
+
+    @property
+    def country_list(self) -> list[str]:
+        """Parse comma-separated country field into a list."""
+        return [c.strip().upper() for c in self.country.split(",") if c.strip()]
 
 
 class ScheduledReportDeliveryLog(Base):
@@ -146,7 +151,7 @@ class ScheduledReportLedgerEntry(Base):
     expected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     email: Mapped[str] = mapped_column(String(256), nullable=False)
     project_ids: Mapped[str] = mapped_column(String(500), nullable=False, default="*")
-    country: Mapped[str] = mapped_column(String(10), nullable=False, default="US")
+    country: Mapped[str] = mapped_column(String(256), nullable=False, default="US")
     status: Mapped[str] = mapped_column(String(20), nullable=False, default=LedgerStatus.MISSING.value, index=True)
     latest_delivery_log_id: Mapped[int | None] = mapped_column(
         Integer,
