@@ -367,13 +367,17 @@ def _classify_monthly_rows(
         if row_type == "FBA Transaction fees":
             classified["fba_transaction_fees"].append(row)
             continue
+        if row_type == "Amazon Fees - Reversal":
+            if description not in ad_excluded_descriptions:
+                classified["amazon_fees_and_service_fee_without_ad"].append(row)
+            continue
         if row_type == "Adjustment":
             if description in adjustment_expense_descriptions:
                 classified["adjustment_expense"].append(row)
             else:
                 classified["adjustment_income"].append(row)
             continue
-        if row_type == "Amazon Fees" or row_type == "Service Fee":
+        if row_type in ("Amazon Fees", "Amazon Fees - Correction", "Service Fee"):
             if description not in ad_excluded_descriptions:
                 classified["amazon_fees_and_service_fee_without_ad"].append(row)
             if row_type == "Service Fee" and description == "Cost of Advertising":

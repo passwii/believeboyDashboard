@@ -26,6 +26,7 @@ from app.utils.country import normalize_country
 from app.services.report.export import export_financial_accounting_detail_workbook
 from app.services.report.pt3 import (
     _build_transaction_payloads,
+    _load_transaction_raw_rows,
     _normalize_pt3_payload,
 )
 from app.services.report.pt4 import (
@@ -50,9 +51,13 @@ from app.services.report.utils import (
 )
 
 try:
-    from app.services.infra import invalidate_financial_series_cache
+    from app.services.infra import (
+        invalidate_financial_series_cache,
+        set_financial_series_cache,
+    )
 except ImportError:
     invalidate_financial_series_cache = None
+    set_financial_series_cache = None
 
 
 def parse_report_month(value: str) -> str:
@@ -669,7 +674,130 @@ def resolve_result_path(report: MonthlyReport) -> Path | None:
 
 
 # Re-export from payment submodule
-from app.services.payment import validate_payment_report_project_match
+from app.services.payment import classify_rows, compute_metrics, validate_payment_report_project_match
+
+
+def rebuild_pt3_pt4_for_report(db: Session, report_id: int) -> bool:
+    """Rebuild PT3 and PT4 calculations from stored raw transactions.
+
+    Loads the raw transaction rows already saved in the database,
+    re-classifies them with the current classifier, recomputes PT3/PT4,
+    and replaces the old records.
+
+    Args:
+        db: Database session
+        report_id: Monthly report ID
+
+    Returns:
+        True if rebuild succeeded, False if no transactions found
+    """
+    report = db.get(MonthlyReport, report_id)
+    if report is None:
+        return False
+
+    rows = _load_transaction_raw_rows(db, report_id=report_id)
+    if not rows:
+        return False
+
+    classified = classify_rows(rows)
+    result = compute_metrics(classified)
+
+    pt3 = result["pt3"]
+    pt4 = result["pt4"]
+
+    with db.begin_nested():
+        # Delete old PT3 and PT4 (keep transactions intact)
+        db.execute(
+            delete(MonthlyReportPT3Calculation)
+            .where(MonthlyReportPT3Calculation.report_id == report_id)
+        )
+        db.execute(
+            delete(MonthlyReportPT4Calculation)
+            .where(MonthlyReportPT4Calculation.report_id == report_id)
+        )
+
+        db.add(
+            MonthlyReportPT3Calculation(
+                report_id=report_id,
+                project_name=report.project_name,
+                report_month=report.report_month,
+                calculation_version=1,
+                computed_at=datetime.now(UTC),
+                **_normalize_pt3_payload(pt3),
+            )
+        )
+        db.add(
+            MonthlyReportPT4Calculation(
+                report_id=report_id,
+                project_name=report.project_name,
+                report_month=report.report_month,
+                calculation_version=1,
+                computed_at=datetime.now(UTC),
+                **_normalize_pt4_payload(pt4),
+            )
+        )
+
+    return True
+
+
+def rebuild_and_refresh_financial_series(
+    db: Session,
+    *,
+    project_id: int,
+    country: str,
+    start_month: str | None = None,
+    end_month: str | None = None,
+) -> dict[str, Any]:
+    """Rebuild PT3/PT4 for all current reports of a project, then return fresh financial series.
+
+    1. Finds all current reports for the project/country
+    2. Rebuilds PT3+PT4 from raw transactions for each report
+    3. Invalidates Redis cache
+    4. Returns fresh financial series data
+
+    Args:
+        db: Database session
+        project_id: Project ID
+        country: Country code
+        start_month: Optional start month filter
+        end_month: Optional end month filter
+
+    Returns:
+        Financial series dict (same structure as get_financial_series)
+    """
+    stmt = (
+        select(MonthlyReport)
+        .where(
+            MonthlyReport.project_id == project_id,
+            MonthlyReport.country == country,
+            MonthlyReport.is_current.is_(True),
+        )
+        .order_by(MonthlyReport.report_month.asc())
+    )
+    reports = list(db.execute(stmt).scalars().all())
+
+    rebuilt = 0
+    for report in reports:
+        if rebuild_pt3_pt4_for_report(db, report.id):
+            rebuilt += 1
+
+    if rebuilt > 0:
+        db.flush()
+
+    if invalidate_financial_series_cache is not None:
+        invalidate_financial_series_cache(project_id)
+
+    payload = get_financial_series(
+        db,
+        project_id=project_id,
+        country=country,
+        start_month=start_month,
+        end_month=end_month,
+    )
+
+    set_financial_series_cache(project_id, country, start_month, end_month, payload)
+
+    return payload
 
 __all__ = [
     # Core functions
@@ -679,6 +807,9 @@ __all__ = [
     "mark_report_running",
     "mark_report_failed",
     "persist_monthly_report_result",
+    # Rebuild functions
+    "rebuild_pt3_pt4_for_report",
+    "rebuild_and_refresh_financial_series",
     # Query functions
     "list_reports",
     "get_report_or_404",
