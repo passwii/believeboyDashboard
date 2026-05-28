@@ -101,11 +101,6 @@ export const ALL_ITEMS: PinnedItem[] = [
   },
   // AI 面板
   {
-    title: 'AI 聊天',
-    url: '/dashboard/ai-panel/chat',
-    icon: <Bot className='h-4 w-4' />,
-  },
-  {
     title: 'AI 洞察',
     url: '/dashboard/ai-insights',
     icon: <Bot className='h-4 w-4' />,
@@ -243,7 +238,6 @@ export const ALL_ITEMS: PinnedItem[] = [
 const DEFAULT_PINNED_URLS = [
   '/dashboard/data-management/shipment-management',
   '/dashboard/data-analysis/daily-analysis',
-  '/dashboard/ai-panel/chat',
 ]
 
 function loadPinnedUrls(): string[] {
