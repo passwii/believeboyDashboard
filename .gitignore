@@ -18,7 +18,17 @@
 .kilocode/
 .kilo*
 
-# Common hidden directories (dot-folders)
+# Helmor workspace
+events.jsonl
+views.json
+config.json
+labels/
+sessions/
+skills/
+sources/
+statuses/
+.claude-plugin/
+.pytest_cache/
 .cache/
 .tmp/
 .temp/
@@ -110,3 +120,8 @@ autoReportUpload/__pycache__/
 # Docs
 /Docs/*
 !/Docs/定价核算页面说明.md
+
+# Local scripts and reports
+backend/scripts/test_db_capacity.py
+DB_CAPACITY_REPORT.md
+db_capacity_results.json
