@@ -61,7 +61,7 @@ type ProductCostItem = {
   country: string
   sort_order: number
   is_active: boolean
-  sku_factory_info: Record<string, string> | null
+  sku_factory_info: Record<string, unknown> | null
   sku_factory_info_updated_at: string | null
   sku_factory_info_updated_by: string | null
   historical_first_leg_cost_rmb?: number | null
@@ -1625,7 +1625,7 @@ export default function SkuInfoPage() {
                                       {Object.entries(row.sku_factory_info).slice(0, 5).map(([key, value]) => (
                                         <div key={key} className='text-xs'>
                                           <span className='font-medium'>{key}: </span>
-                                          <span className='text-muted-foreground'>{value}</span>
+                                          <span className='text-muted-foreground'>{typeof value === 'string' ? value : JSON.stringify(value)}</span>
                                         </div>
                                       ))}
                                       {Object.keys(row.sku_factory_info).length > 5 && (

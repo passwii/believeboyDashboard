@@ -27,9 +27,12 @@ function pairsToJson(pairs: FactoryPair[]): Record<string, string> {
   return obj
 }
 
-function jsonToPairs(json: Record<string, string> | null | undefined): FactoryPair[] {
+function jsonToPairs(json: Record<string, unknown> | null | undefined): FactoryPair[] {
   if (!json) return []
-  return Object.entries(json).map(([key, value]) => ({ key, value }))
+  return Object.entries(json).map(([key, value]) => ({
+    key,
+    value: typeof value === 'string' ? value : JSON.stringify(value),
+  }))
 }
 
 export default function FactoryInfoSheet({
@@ -43,7 +46,7 @@ export default function FactoryInfoSheet({
   open: boolean
   productCostId: number
   skuLabel: string
-  factoryInfo: Record<string, string> | null
+  factoryInfo: Record<string, unknown> | null
   onClose: () => void
   onSaved: (saved: boolean) => void
 }) {
