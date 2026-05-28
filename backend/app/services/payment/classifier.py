@@ -94,6 +94,13 @@ def classify_rows(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]
             continue
         if row_type == "Amazon Fees - Reversal":
             classified["amazon_fees_reversal"].append(row)
+            if description not in ad_excluded_descriptions:
+                classified["amazon_fees_and_service_fee_without_ad"].append(row)
+            continue
+        if row_type == "Amazon Fees - Correction":
+            classified["amazon_fees"].append(row)
+            if description not in ad_excluded_descriptions:
+                classified["amazon_fees_and_service_fee_without_ad"].append(row)
             continue
         if row_type == "Chargeback Refund":
             classified["chargeback_refund"].append(row)

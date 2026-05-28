@@ -245,30 +245,8 @@ def run(input_path: str, output_dir: str, params: dict) -> dict:
     shipping_label_refunds = Decimal("0")
     carrier_shipping_label_adjustments = Decimal("0")
 
-    coupon_performance_base_fee = _sum_field(amazon_fees_reversal, "total")
-    coupon_fee = _sum_field(amazon_fees, "total")
-    lightning_deal_fee = _sum_field(deal_fee, "total")
-    service_price_discount = _sum_field(price_discount, "total")
-    service_fees_without_ads = _sum_field(
-        [
-            row
-            for row in service_fee
-            if str(row.get("description", ""))
-            not in {
-                "Cost of Advertising",
-                "Refund for Advertiser",
-                "FBA International Freight Shipping Charge",
-                "FBA International Freight Duties and Taxes Charge",
-            }
-        ],
-        "total",
-    )
     service_fees = _round2(
-        coupon_fee
-        + service_fees_without_ads
-        + lightning_deal_fee
-        + service_price_discount
-        + coupon_performance_base_fee
+        _sum_field(amazon_fees_and_service_fee_without_ad, "total")
     )
 
     refund_administration_fees = Decimal("0")
