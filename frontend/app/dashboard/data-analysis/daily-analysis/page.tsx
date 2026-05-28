@@ -1773,8 +1773,8 @@ export default function DailyAnalysisPage() {
           titleClassName='text-2xl tracking-tight'
         />
         <div className='space-y-0'>
-          {/* 筛选区 */}
-          <div className='dashboard-toolbar border-0 flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-4 md:px-6 md:py-5'>
+          {/* 筛选区 — 桌面端横向排列 */}
+          <div className='dashboard-toolbar hidden md:flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-4 lg:px-6 lg:py-5'>
             <FilterField label="项目">
               <Select value={projectId} onValueChange={setProjectId}>
                 <SelectTrigger className="h-9 w-[160px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none [&>span]:truncate dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
@@ -1827,7 +1827,6 @@ export default function DailyAnalysisPage() {
                   timezone={COUNTRY_TIMEZONE_MAP[country]}
                   onApply={() => void loadData()}
                 />
-
               </div>
             </div>
 
@@ -1841,7 +1840,73 @@ export default function DailyAnalysisPage() {
                 className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
               />
             </FilterField>
-        </div>
+          </div>
+          {/* 筛选区 — 手机端 2 列网格 */}
+          <div className='dashboard-toolbar md:hidden space-y-3 px-4 py-4'>
+            <div className='grid grid-cols-2 gap-2'>
+              <FilterField label="项目">
+                <Select value={projectId} onValueChange={setProjectId}>
+                  <SelectTrigger className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
+                    <SelectValue placeholder="选择项目" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem key="all" value="all">全部项目</SelectItem>
+                    {projects.map((item) => (
+                      <SelectItem key={item.id} value={String(item.id)}>{item.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FilterField>
+              <FilterField label="国家站点">
+                <CountrySelect
+                  value={country}
+                  onChange={(value) => setCountry(value as CountryOption)}
+                  triggerClassName="h-9"
+                />
+              </FilterField>
+            </div>
+            <FilterField label="SKU">
+              <SearchableSkuField
+                value={selectedSku}
+                options={skuOptions}
+                loading={skuLoading}
+                onChange={(value) => {
+                  selectedSkuRef.current = value
+                  setSelectedSku(value)
+                  setActiveTab('summary')
+                  void loadData()
+                }}
+              />
+            </FilterField>
+            <FilterField label="日期范围">
+              <DateRangePicker
+                value={dateRange}
+                onChange={setDateRange}
+                className='h-9 w-full'
+                timezone={COUNTRY_TIMEZONE_MAP[country]}
+                onApply={() => void loadData()}
+              />
+            </FilterField>
+            <div className='flex gap-2'>
+              <RefreshButton
+                onClick={() => void loadData(undefined, true)}
+                loading={loading || projectsLoading}
+                label="刷新"
+                size="sm"
+                variant="outline"
+                className="flex-1 h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
+              />
+              <Button
+                type='button'
+                variant='outline'
+                size='sm'
+                onClick={() => void handleQuickRange(lastSevenDaysRange(country))}
+                className='h-9 flex-1 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85'
+              >
+                近7天
+              </Button>
+            </div>
+          </div>
 
         {goalProgress && goalProgress.target_amount > 0 && (
             <div className='dashboard-toolbar flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border/50 px-4 py-4 md:px-6'>
@@ -1946,16 +2011,16 @@ export default function DailyAnalysisPage() {
                           type='button'
                           onClick={() => setActiveChartMetric(metric.key)}
                           className={cn(
-                            'rounded-lg border px-3 py-3 text-left transition-all duration-200',
+                            'rounded-lg border px-2.5 py-2.5 md:px-3 md:py-3 text-left transition-all duration-200',
                             isActive
                               ? 'border-primary/45 bg-primary text-primary-foreground shadow-[0_16px_34px_-24px_hsl(var(--primary)/0.72)]'
                               : 'border-border/70 bg-[hsl(var(--surface-soft))]/86 text-foreground hover:-translate-y-0.5 hover:border-border hover:bg-background',
                           )}
                         >
-                          <div className='flex items-start justify-between gap-2'>
+                          <div className='flex items-start justify-between gap-1.5 md:gap-2'>
                             <div
                               className={cn(
-                                'text-xs font-semibold tracking-tight',
+                                'text-[10px] md:text-xs font-semibold tracking-tight',
                                 isActive
                                   ? 'text-primary-foreground/88'
                                   : 'text-muted-foreground',
@@ -1966,7 +2031,7 @@ export default function DailyAnalysisPage() {
                             {metric.showComparisonBadge ? (
                               <div
                                 className={cn(
-                                  'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold backdrop-blur-sm',
+                                  'inline-flex items-center gap-0.5 md:gap-1 rounded-full border px-1.5 py-0.5 text-[10px] md:text-xs font-semibold backdrop-blur-sm',
                                   isActive
                                     ? usePositiveColor
                                       ? 'border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(220,252,231,0.92))] text-[hsl(var(--success))] shadow-[0_10px_24px_-14px_rgba(255,255,255,0.9)]'
@@ -1977,23 +2042,23 @@ export default function DailyAnalysisPage() {
                                 )}
                               >
                                 {showIncrease ? (
-                                  <ArrowUp className='h-3.5 w-3.5' />
+                                  <ArrowUp className='h-2.5 w-2.5 md:h-3.5 md:w-3.5' />
                                 ) : (
-                                  <ArrowDown className='h-3.5 w-3.5' />
+                                  <ArrowDown className='h-2.5 w-2.5 md:h-3.5 md:w-3.5' />
                                 )}
                                 {metric.percentChange === null
                                   ? '--'
                                   : `${Math.abs(metric.percentChange).toFixed(1)}%`}
                               </div>
                             ) : (
-                              <div className='h-[28px] w-[60px]' />
+                              <div className='h-[20px] w-[44px] md:h-[28px] md:w-[60px]' />
                             )}
                           </div>
 
-                          <div className='mt-3 space-y-0.5'>
+                          <div className='mt-2 md:mt-3 space-y-0.5'>
                             <div
                               className={cn(
-                                'text-[1.25rem] font-semibold tracking-tight',
+                                'text-[1rem] md:text-[1.25rem] font-semibold tracking-tight',
                                 isActive
                                   ? 'text-primary-foreground'
                                   : 'text-foreground',
@@ -2007,7 +2072,7 @@ export default function DailyAnalysisPage() {
                             {metric.hasComparison ? (
                               <div
                                 className={cn(
-                                  'text-xs',
+                                  'text-[10px] md:text-xs',
                                   isActive
                                     ? 'text-primary-foreground/72'
                                     : 'text-muted-foreground',
@@ -2022,7 +2087,7 @@ export default function DailyAnalysisPage() {
                             ) : (
                               <div
                                 className={cn(
-                                  'text-xs',
+                                  'text-[10px] md:text-xs',
                                   isActive
                                     ? 'text-primary-foreground/72'
                                     : 'text-muted-foreground',
@@ -2134,9 +2199,9 @@ export default function DailyAnalysisPage() {
       >
         <div className="sticky top-0 z-30">
         <DataTableCard>
-          <DataTableCardHeader className='flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between pb-4'>
+          <DataTableCardHeader className='flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-center lg:justify-between pb-3 sm:pb-4 px-4 md:px-6'>
             <div>
-              <div className='text-base font-semibold text-foreground'>
+              <div className='text-sm sm:text-base font-semibold text-foreground'>
                 销售数据工作区
               </div>
             </div>
@@ -2147,14 +2212,14 @@ export default function DailyAnalysisPage() {
                 size='sm'
                 onClick={() => void handleExportExcel()}
                 disabled={exporting || !data}
-                className='h-10 px-4'
+                className='h-9 px-3 sm:px-4 w-full sm:w-auto'
               >
                 {exporting ? (
-                  <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                  <Loader2 className='mr-1.5 sm:mr-2 h-4 w-4 animate-spin' />
                 ) : (
-                  <FileDown className='mr-2 h-4 w-4' />
+                  <FileDown className='mr-1.5 sm:mr-2 h-4 w-4' />
                 )}
-                导出 Excel
+                导出
               </Button>
               <TabsMotionGroup id='daily-analysis-tabs'>
                 <TabsList className='grid h-auto w-full grid-cols-2 border border-border/70 bg-[hsl(var(--surface-soft))]/90 p-1 sm:w-[260px] dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]'>
@@ -2162,7 +2227,7 @@ export default function DailyAnalysisPage() {
                     value='summary'
                     activeValue={activeTab}
                     layoutId='daily-analysis-tab-indicator'
-                    className='py-2.5'
+                    className='py-2'
                   >
                     每日汇总
                   </SlidingTabsTrigger>
@@ -2170,7 +2235,7 @@ export default function DailyAnalysisPage() {
                     value='details'
                     activeValue={activeTab}
                     layoutId='daily-analysis-tab-indicator'
-                    className='py-2.5'
+                    className='py-2'
                   >
                     SKU 明细
                   </SlidingTabsTrigger>
