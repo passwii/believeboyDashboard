@@ -783,6 +783,7 @@ def rebuild_and_refresh_financial_series(
 
     if rebuilt > 0:
         db.flush()
+        db.commit()
 
     if invalidate_financial_series_cache is not None:
         invalidate_financial_series_cache(project_id)
