@@ -103,6 +103,23 @@ def _normalize_commission_rate(value: float | Decimal | None) -> Decimal | None:
     return rate
 
 
+ALLOWED_PROJECT_TIERS = {"T1", "T2", "T3", "T4"}
+
+
+def _normalize_project_tier(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip().upper()
+    if not normalized:
+        return None
+    if normalized not in ALLOWED_PROJECT_TIERS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"project_tier must be one of {', '.join(sorted(ALLOWED_PROJECT_TIERS))}",
+        )
+    return normalized
+
+
 def _sync_projects_id_sequence(db: Session) -> None:
     if db.bind is None or db.bind.dialect.name != "postgresql":
         return
@@ -270,6 +287,7 @@ def _serialize_project_for_cache(row: Project) -> dict:
         "is_active": row.is_active,
         "source_file": row.source_file,
         "has_context": bool(row.project_context or row.sku_context),
+        "project_tier": row.project_tier,
     }
 
 
@@ -448,6 +466,7 @@ def create_single_project(
     commission_basis: str | None = None,
     commission_rate: float | Decimal | None = None,
     source_file: str | None = None,
+    project_tier: str | None = None,
 ) -> Project:
     project_name = name.strip()
     if not project_name:
@@ -475,6 +494,7 @@ def create_single_project(
     normalized_commission_basis = _normalize_commission_basis(commission_basis)
     normalized_commission_rate = _normalize_commission_rate(commission_rate)
     normalized_source_file = (source_file or "").strip() or "manual_single_add"
+    normalized_project_tier = _normalize_project_tier(project_tier)
 
     def _build_row() -> Project:
         max_sort_order = db.execute(
@@ -490,6 +510,7 @@ def create_single_project(
             commission_rate=normalized_commission_rate,
             sort_order=int(max_sort_order) + 1,
             source_file=normalized_source_file,
+            project_tier=normalized_project_tier,
         )
 
     row = _build_row()
@@ -533,6 +554,7 @@ def update_project(
     commission_basis: str | None = None,
     commission_rate: float | Decimal | None = None,
     is_active: bool | None = True,
+    project_tier: str | None = None,
 ) -> Project:
     project_name = name.strip()
     if not project_name:
@@ -566,6 +588,7 @@ def update_project(
     row.commission_basis = _normalize_commission_basis(commission_basis)
     row.commission_rate = _normalize_commission_rate(commission_rate)
     row.is_active = is_active if is_active is not None else True
+    row.project_tier = _normalize_project_tier(project_tier)
     db.flush()
     db.refresh(row)
     invalidate_projects_cache()

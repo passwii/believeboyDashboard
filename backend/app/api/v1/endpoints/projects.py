@@ -24,6 +24,7 @@ def _serialize_project_item(row) -> dict[str, object | None]:
         'is_active': row.is_active,
         'source_file': row.source_file,
         'has_context': bool(row.project_context or row.sku_context),
+        'project_tier': row.project_tier,
     }
 
 
@@ -103,6 +104,7 @@ def list_projects_manage(
             is_active=row.is_active,
             source_file=row.source_file,
             has_context=bool(row.project_context or row.sku_context),
+            project_tier=row.project_tier,
         )
         for row in rows
     ]
@@ -131,6 +133,7 @@ def create_project(
         payload.assistant_operator,
         payload.commission_basis,
         payload.commission_rate,
+        project_tier=payload.project_tier,
     )
     after = _serialize_project_item(row)
     append_operation_audit_log(
@@ -169,6 +172,7 @@ def update_project(
         payload.commission_basis,
         payload.commission_rate,
         payload.is_active,
+        project_tier=payload.project_tier,
     )
     after = _serialize_project_item(row)
     append_operation_audit_log(

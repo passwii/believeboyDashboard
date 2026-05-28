@@ -58,6 +58,7 @@ type ProjectItem = {
   is_active: boolean
   source_file: string | null
   has_context: boolean
+  project_tier: string | null
 }
 
 type CommissionBasisOption = {
@@ -77,6 +78,22 @@ const COMMISSION_BASIS_LABEL: Record<string, string> = {
   profit_margin: '利润率',
 }
 const OPERATOR_SPLIT_RE = /[、,，;\n]+/
+
+const TIER_OPTIONS = [
+  { label: 'T1', value: 'T1' },
+  { label: 'T2', value: 'T2' },
+  { label: 'T3', value: 'T3' },
+  { label: 'T4', value: 'T4' },
+]
+
+const TIER_LABEL: Record<string, string> = { T1: 'T1', T2: 'T2', T3: 'T3', T4: 'T4' }
+
+const TIER_BADGE_CLASS: Record<string, string> = {
+  T1: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-400 border-red-200 dark:border-red-800',
+  T2: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-400 border-blue-200 dark:border-blue-800',
+  T3: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-400 border-amber-200 dark:border-amber-800',
+  T4: 'bg-slate-100 text-slate-800 dark:bg-slate-900/40 dark:text-slate-400 border-slate-200 dark:border-slate-800',
+}
 
 function parseOperatorNames(value: string | null): string[] {
   if (!value) {
@@ -242,6 +259,7 @@ export default function StoreInfoPage() {
   const [addAssistantOperators, setAddAssistantOperators] = useState<string[]>([])
   const [addCommissionMode, setAddCommissionMode] = useState('')
   const [addCommissionRate, setAddCommissionRate] = useState('')
+  const [addProjectTier, setAddProjectTier] = useState('')
 
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<ProjectItem | null>(null)
@@ -253,6 +271,7 @@ export default function StoreInfoPage() {
   const [editCommissionMode, setEditCommissionMode] = useState('')
   const [editCommissionRate, setEditCommissionRate] = useState('')
   const [editIsActive, setEditIsActive] = useState(true)
+  const [editProjectTier, setEditProjectTier] = useState('')
 
   const [contextDrawerOpen, setContextDrawerOpen] = useState(false)
   const [contextProjectId, setContextProjectId] = useState<number | null>(null)
@@ -361,6 +380,7 @@ const loadOperatorOptions = useCallback(async () => {
           assistant_operator: serializeOperatorNames(addAssistantOperators),
           commission_basis: addCommissionMode.trim() || null,
           commission_rate: isAddCashReceivedCommission ? null : (addCommissionRate ? parseFloat(addCommissionRate) : null),
+          project_tier: addProjectTier || null,
         }),
       })
       if (!response.ok) {
@@ -373,6 +393,7 @@ const loadOperatorOptions = useCallback(async () => {
       setAddAssistantOperators([])
       setAddCommissionMode('')
       setAddCommissionRate('')
+      setAddProjectTier('')
       setAddDialogOpen(false)
       clearProjectClientCaches()
       notify({ type: 'success', title: '项目已新增', message: normalizedName })
@@ -396,6 +417,7 @@ const loadOperatorOptions = useCallback(async () => {
     const points = toCommissionPoints(item.commission_rate)
     setEditCommissionRate(points?.toString() ?? '')
     setEditIsActive(item.is_active)
+    setEditProjectTier(item.project_tier ?? '')
     setEditDialogOpen(true)
   }
 
@@ -428,6 +450,7 @@ const loadOperatorOptions = useCallback(async () => {
           commission_basis: editCommissionMode.trim() || null,
           commission_rate: isEditCashReceivedCommission ? null : (editCommissionRate ? parseFloat(editCommissionRate) : null),
           is_active: editIsActive,
+          project_tier: editProjectTier || null,
         }),
       })
       if (!response.ok) {
@@ -441,6 +464,7 @@ const loadOperatorOptions = useCallback(async () => {
       setEditAssistantOperators([])
       setEditCommissionMode('')
       setEditCommissionRate('')
+      setEditProjectTier('')
       clearProjectClientCaches()
       notify({ type: 'success', title: '项目已更新', message: normalizedName })
       await loadProjects()
@@ -455,7 +479,7 @@ const loadOperatorOptions = useCallback(async () => {
 
   return (
     <div className="w-full h-full">
-      <Tabs defaultValue="basic" className="h-full flex flex-col">
+      <Tabs defaultValue="context" className="h-full flex flex-col">
         <div className="mb-4">
           <TabsList>
             <TabsTrigger value="basic">
@@ -464,7 +488,7 @@ const loadOperatorOptions = useCallback(async () => {
             </TabsTrigger>
             <TabsTrigger value="context">
               <Settings className="mr-2 h-4 w-4" />
-              项目背景
+              项目明细
             </TabsTrigger>
           </TabsList>
         </div>
@@ -608,6 +632,21 @@ const loadOperatorOptions = useCallback(async () => {
                     placeholder="例如：https://www.amazon.com/..."
                     disabled={submitting}
                   />
+                  <label htmlFor="project-add-tier" className="text-sm font-medium text-foreground">
+                    项目等级
+                  </label>
+                  <Select value={addProjectTier} onValueChange={setAddProjectTier} disabled={submitting}>
+                    <SelectTrigger id="project-add-tier">
+                      <SelectValue placeholder="选择项目等级（可选）" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TIER_OPTIONS.map((option) => (
+                        <SelectItem key={`tier-add-${option.value}`} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <DialogFooter>
                   <Button type="button" variant="outline" onClick={() => setAddDialogOpen(false)} disabled={submitting}>
@@ -636,6 +675,7 @@ const loadOperatorOptions = useCallback(async () => {
                   <th className="sticky top-0 z-20 h-12 border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">佣金点数</th>
                   <th className="sticky top-0 z-20 h-12 w-[120px] border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">店铺地址</th>
                   <th className="sticky top-0 z-20 h-12 w-[80px] border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">状态</th>
+                  <th className="sticky top-0 z-20 h-12 w-[80px] border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">项目等级</th>
                   <th className="sticky top-0 z-20 h-12 w-[140px] border-b border-border/60 bg-background px-4 text-center align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">排序</th>
                   <th className="sticky top-0 z-20 h-12 w-[100px] border-b border-border/60 bg-background px-4 text-right align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">操作</th>
                 </tr>
@@ -644,13 +684,13 @@ const loadOperatorOptions = useCallback(async () => {
               {showSkeleton ? (
                 Array.from({ length: 6 }).map((_, index) => (
                   <tr key={`skeleton-${index}`} className="border-b transition-colors hover:bg-muted/50 dark:hover:bg-[hsl(var(--surface-strong)/0.35)]">
-                    <td colSpan={12} className="p-4 align-middle">
+                    <td colSpan={13} className="p-4 align-middle">
                       <Skeleton className="h-6 w-full" />
                     </td>
                   </tr>
                 ))
               ) : items.length === 0 ? (
-                <EmptyState colSpan={12} message="暂无项目数据，请先新增一个项目。" />
+                <EmptyState colSpan={13} message="暂无项目数据，请先新增一个项目。" />
               ) : (
                   items.map((item) => (
                     <tr key={item.id} className="border-b transition-colors hover:bg-muted/50 dark:hover:bg-[hsl(var(--surface-strong)/0.35)]">
@@ -686,6 +726,18 @@ const loadOperatorOptions = useCallback(async () => {
                         >
                           {item.is_active ? '启用' : '停用'}
                         </Badge>
+                      </td>
+                      <td className="border-b border-r border-border/60 p-4 align-middle">
+                        {item.project_tier ? (
+                          <Badge
+                            variant="outline"
+                            className={cn('text-xs font-medium', TIER_BADGE_CLASS[item.project_tier] || 'bg-muted text-muted-foreground')}
+                          >
+                            {TIER_LABEL[item.project_tier] || item.project_tier}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        )}
                       </td>
                       <td className="border-b border-r border-border/60 p-4 align-middle">
                         <div className="flex items-center justify-center gap-1">
@@ -879,6 +931,21 @@ const loadOperatorOptions = useCallback(async () => {
               placeholder="输入店铺地址"
               disabled={submitting}
             />
+            <label htmlFor="project-edit-tier" className="text-sm font-medium text-foreground">
+              项目等级
+            </label>
+            <Select value={editProjectTier} onValueChange={setEditProjectTier} disabled={submitting}>
+              <SelectTrigger id="project-edit-tier">
+                <SelectValue placeholder="选择项目等级（可选）" />
+              </SelectTrigger>
+              <SelectContent>
+                {TIER_OPTIONS.map((option) => (
+                  <SelectItem key={`tier-edit-${option.value}`} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <div className="flex items-center gap-3 pt-2">
               <Switch
                 id="project-edit-is-active"

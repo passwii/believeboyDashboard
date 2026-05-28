@@ -9,7 +9,6 @@ import { RecentPagesDropdown } from '@/components/dashboard/recent-pages-dropdow
 import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
 import { NotificationPanel, useNotifications } from '@/components/notifications'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
-import { DashboardAISidebarProvider } from '@/components/dashboard/ai-sidebar-bridge'
 import { AppSidebar } from '@/components/dashboard/app-sidebar'
 import {
   ALL_ITEMS,
@@ -17,7 +16,6 @@ import {
   useSidebarPinnedItems,
   useVisiblePinnedUrls,
   PinSettingsPopover,
-  MAX_PINNED,
 } from '@/components/dashboard/sidebar-pin-settings'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/theme-toggle'
@@ -248,18 +246,8 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  return <DashboardLayoutInner>{children}</DashboardLayoutInner>
-}
-
-function DashboardLayoutInner({
-  children,
-}: {
-  children: React.ReactNode
-}) {
   const pathname = usePathname()
   const { isNavigationLoading } = useGlobalLoading()
-  const isAiChatPage = pathname === '/dashboard/ai-panel/chat' || pathname === '/dashboard/ai-panel/chat-v2'
-  const isAiChatRoute = pathname === '/dashboard/ai-panel/chat' || pathname === '/dashboard/ai-panel/chat-v2'
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [iconsExpanded, setIconsExpanded] = useState(false)
   const pageTitle = useMemo(() => getDashboardPageTitle(pathname), [pathname])
@@ -281,85 +269,39 @@ function DashboardLayoutInner({
   }, [pathname, pageTitle, pushPage])
 
   return (
-    <DashboardAISidebarProvider>
-      <SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpen}>
-        <AppSidebar variant="sidebar" aiChatMode={isAiChatRoute} />
-        <SidebarInset className="min-h-screen min-w-0 overflow-x-clip overflow-y-auto bg-[hsl(var(--surface-low))]">
-          <header className="sticky top-0 z-20 border-b border-border/70 bg-[hsl(var(--surface-overlay)/0.82)] backdrop-blur-xl">
-            <div className="flex min-h-[4.5rem] items-center gap-2 px-2 sm:gap-3 md:px-5 lg:px-6 xl:gap-4 xl:px-8">
-              <SidebarTrigger className="h-9 w-9 shrink-0 rounded-xl border border-border/65 bg-[hsl(var(--surface-overlay)/0.65)] text-secondary shadow-none hover:bg-[hsl(var(--surface-subtle))] sm:h-10 sm:w-10" />
-              <div className="min-w-0 flex-1">
-                <nav className="flex items-center gap-1.5 overflow-hidden text-[1rem] font-medium text-muted-foreground md:text-[1.08rem]">
-                  {breadcrumbLabel.split(' > ').map((segment, index, items) => (
-                    <span key={`${segment}-${index}`} className="inline-flex min-w-0 items-center gap-1.5">
-                      {index > 0 ? <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/70" /> : null}
-                      <span
-                        className={
-                          index === items.length - 1
-                            ? 'truncate text-[1.22rem] font-semibold tracking-tight text-foreground md:text-[1.4rem]'
-                            : 'truncate text-[1.02rem] font-medium text-foreground/72 md:text-[1.08rem]'
-                        }
-                      >
-                        {segment}
-                      </span>
+    <SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpen}>
+      <AppSidebar variant="sidebar" />
+      <SidebarInset className="min-h-screen min-w-0 overflow-x-clip overflow-y-auto bg-[hsl(var(--surface-low))]">
+        <header className="sticky top-0 z-20 border-b border-border/70 bg-[hsl(var(--surface-overlay)/0.82)] backdrop-blur-xl">
+          <div className="flex min-h-[4.5rem] items-center gap-2 px-2 sm:gap-3 md:px-5 lg:px-6 xl:gap-4 xl:px-8">
+            <SidebarTrigger className="h-9 w-9 shrink-0 rounded-xl border border-border/65 bg-[hsl(var(--surface-overlay)/0.65)] text-secondary shadow-none hover:bg-[hsl(var(--surface-subtle))] sm:h-10 sm:w-10" />
+            <div className="min-w-0 flex-1">
+              <nav className="flex items-center gap-1.5 overflow-hidden text-[1rem] font-medium text-muted-foreground md:text-[1.08rem]">
+                {breadcrumbLabel.split(' > ').map((segment, index, items) => (
+                  <span key={`${segment}-${index}`} className="inline-flex min-w-0 items-center gap-1.5">
+                    {index > 0 ? <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/70" /> : null}
+                    <span
+                      className={
+                        index === items.length - 1
+                          ? 'truncate text-[1.22rem] font-semibold tracking-tight text-foreground md:text-[1.4rem]'
+                          : 'truncate text-[1.02rem] font-medium text-foreground/72 md:text-[1.08rem]'
+                      }
+                    >
+                      {segment}
                     </span>
-                  ))}
-                </nav>
-              </div>
-
-              {/* Desktop icons toolbar — shows on lg (iPad) and above */}
-              <div className="hidden items-center justify-end gap-2 lg:flex">
-                <DesktopPinnedItems />
-                <LivePresence />
-                <div className="flex items-center justify-end gap-2">
-                  <ThemeToggle />
-                  <NotificationBell />
-                  <RecentPagesDropdown />
-                  <Button
-                    asChild
-                    variant="ghost"
-                    size="icon"
-                    className="h-10 w-10 rounded-xl border border-transparent bg-transparent text-secondary hover:bg-[hsl(var(--surface-subtle))]"
-                  >
-                    <RouteLoadingLink href="/dashboard/changelog" aria-label="帮助与功能说明">
-                      <BookOpen className="h-4 w-4" />
-                      <span className="sr-only">Help</span>
-                    </RouteLoadingLink>
-                  </Button>
-                </div>
-              </div>
-
-              {/* Mobile: only on screens smaller than lg (iPad) */}
-              <div className="flex items-center justify-end gap-1.5 lg:hidden">
-                <MobilePinnedItems />
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-9 w-9 shrink-0 rounded-xl border-border/65 bg-[hsl(var(--surface-subtle))] shadow-none sm:h-10 sm:w-10"
-                  onClick={() => setIconsExpanded((v) => !v)}
-                  aria-label={iconsExpanded ? '收起工具栏' : '展开工具栏'}
-                >
-                  {iconsExpanded ? (
-                    <ChevronDown className="h-4 w-4" />
-                  ) : (
-                    <MoreHorizontal className="h-4 w-4" />
-                  )}
-                </Button>
-                <RecentPagesDropdown />
-              </div>
+                  </span>
+                ))}
+              </nav>
             </div>
 
-            {/* Mobile expanded icons toolbar — only on screens smaller than lg (iPad) */}
-            <div
-              className={`lg:hidden overflow-hidden border-t border-border/60 bg-[hsl(var(--surface-overlay)/0.92)] backdrop-blur-xl transition-all duration-200 ease-out ${
-                iconsExpanded
-                  ? 'max-h-24 opacity-100'
-                  : 'max-h-0 opacity-0'
-              }`}
-            >
-              <div className="flex items-center justify-end gap-2 px-2 py-2.5">
+            {/* Desktop icons toolbar — shows on lg (iPad) and above */}
+            <div className="hidden items-center justify-end gap-2 lg:flex">
+              <DesktopPinnedItems />
+              <LivePresence />
+              <div className="flex items-center justify-end gap-2">
                 <ThemeToggle />
                 <NotificationBell />
+                <RecentPagesDropdown />
                 <Button
                   asChild
                   variant="ghost"
@@ -368,32 +310,66 @@ function DashboardLayoutInner({
                 >
                   <RouteLoadingLink href="/dashboard/changelog" aria-label="帮助与功能说明">
                     <BookOpen className="h-4 w-4" />
-                    <span className="sr-only">帮助</span>
+                    <span className="sr-only">Help</span>
                   </RouteLoadingLink>
                 </Button>
               </div>
             </div>
-          </header>
-          <main
-            id="main-content"
-            className={
-              isAiChatPage
-                ? 'dashboard-full-width relative min-w-0 flex-1 overflow-x-clip overflow-y-auto px-0 pb-0 pt-0'
-                : 'dashboard-full-width relative min-w-0 flex-1 overflow-x-clip overflow-y-auto px-1 pb-6 pt-4 md:px-2 md:pb-8 lg:px-3 xl:px-4'
-            }
-          >
-            <div
-              className={
-                isAiChatPage
-                  ? 'dashboard-page-shell h-[calc(100vh-4.5rem)] min-h-0 px-0 py-0'
-                  : 'dashboard-page-shell min-h-0 md:min-h-[calc(100vh-8.5rem)] px-0 py-1'
-              }
-            >
-              {isNavigationLoading ? <DashboardPageLoading /> : children}
+
+            {/* Mobile: only on screens smaller than lg (iPad) */}
+            <div className="flex items-center justify-end gap-1.5 lg:hidden">
+              <MobilePinnedItems />
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-9 w-9 shrink-0 rounded-xl border-border/65 bg-[hsl(var(--surface-subtle))] shadow-none sm:h-10 sm:w-10"
+                onClick={() => setIconsExpanded((v) => !v)}
+                aria-label={iconsExpanded ? '收起工具栏' : '展开工具栏'}
+              >
+                {iconsExpanded ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <MoreHorizontal className="h-4 w-4" />
+                )}
+              </Button>
+              <RecentPagesDropdown />
             </div>
-          </main>
-        </SidebarInset>
-      </SidebarProvider>
-    </DashboardAISidebarProvider>
+          </div>
+
+          {/* Mobile expanded icons toolbar — only on screens smaller than lg (iPad) */}
+          <div
+            className={`lg:hidden overflow-hidden border-t border-border/60 bg-[hsl(var(--surface-overlay)/0.92)] backdrop-blur-xl transition-all duration-200 ease-out ${
+              iconsExpanded
+                ? 'max-h-24 opacity-100'
+                : 'max-h-0 opacity-0'
+            }`}
+          >
+            <div className="flex items-center justify-end gap-2 px-2 py-2.5">
+              <ThemeToggle />
+              <NotificationBell />
+              <Button
+                asChild
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 rounded-xl border border-transparent bg-transparent text-secondary hover:bg-[hsl(var(--surface-subtle))]"
+              >
+                <RouteLoadingLink href="/dashboard/changelog" aria-label="帮助与功能说明">
+                  <BookOpen className="h-4 w-4" />
+                  <span className="sr-only">帮助</span>
+                </RouteLoadingLink>
+              </Button>
+            </div>
+          </div>
+        </header>
+        <main
+          id="main-content"
+          className="dashboard-full-width relative min-w-0 flex-1 overflow-x-clip overflow-y-auto px-1 pb-6 pt-4 md:px-2 md:pb-8 lg:px-3 xl:px-4"
+        >
+          <div className="dashboard-page-shell min-h-0 md:min-h-[calc(100vh-8.5rem)] px-0 py-1">
+            {isNavigationLoading ? <DashboardPageLoading /> : children}
+          </div>
+        </main>
+      </SidebarInset>
+    </SidebarProvider>
   )
 }
