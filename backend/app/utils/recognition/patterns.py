@@ -143,7 +143,10 @@ def _detect_country_from_sales_channel(df: pd.DataFrame) -> str | None:
     col_candidates = [c for c in df.columns if "sales" in c.lower() and "channel" in c.lower()]
     if not col_candidates:
         return None
-    val = str(df[col_candidates[0]].dropna().iloc[0]).strip().lower()
+    non_null = df[col_candidates[0]].dropna()
+    if non_null.empty:
+        return None
+    val = str(non_null.iloc[0]).strip().lower()
     if "amazon.de" in val:
         return "DE"
     if "amazon.com" in val:
@@ -158,7 +161,10 @@ def _detect_country_from_currency(df: pd.DataFrame) -> str | None:
     col_candidates = [c for c in df.columns if "currency" in c.lower() or "币种" in c]
     if not col_candidates:
         return None
-    val = str(df[col_candidates[0]].dropna().iloc[0]).strip().upper()
+    non_null = df[col_candidates[0]].dropna()
+    if non_null.empty:
+        return None
+    val = str(non_null.iloc[0]).strip().upper()
     if val in {"USD", "US"}:
         return "US"
     if val in {"EUR", "EURO"}:
@@ -173,7 +179,10 @@ def _detect_country_from_marketplace(df: pd.DataFrame) -> str | None:
     col_candidates = [c for c in df.columns if "marketplace" in c.lower()]
     if not col_candidates:
         return None
-    val = str(df[col_candidates[0]].dropna().iloc[0]).strip().upper()
+    non_null = df[col_candidates[0]].dropna()
+    if non_null.empty:
+        return None
+    val = str(non_null.iloc[0]).strip().upper()
     if val in {"DE", "GERMANY"}:
         return "DE"
     if val in {"UK", "GB", "UNITED KINGDOM"}:
