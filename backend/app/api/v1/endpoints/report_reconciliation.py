@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi.responses import Response
 
 from app.api.deps import get_db_session, get_request_operator, protected
 from app.core.config import get_settings
@@ -21,12 +22,30 @@ from app.services.reconciliation_service import (
     get_reconciliation_history,
 )
 from app.services.report_reconciliation_service import reconcile_to_dict
-from app.models import ReconciliationRecord, MonthlyReport
+from app.models import ReconciliationRecord, MonthlyReport, MonthlyReportPT3Calculation
+from app.services.artifact_service import ArtifactService
 from app.services.upload_service import save_upload_file
 from decimal import Decimal
+from io import BytesIO
+from openpyxl import Workbook
+from openpyxl.styles import Font
+from urllib.parse import quote as url_quote
 import re
 
 router = APIRouter(dependencies=[Depends(protected)])
+
+# PT3 database column names → Chinese display labels
+PT3_FIELD_LABELS = {
+    "income_fba_product_sales": "FBA 销售额",
+    "income_fba_product_sale_refunds": "FBA 销售额退款",
+    "income_total": "合计收入",
+    "expense_fba_selling_fees": "FBA 销售佣金",
+    "expense_fba_transaction_fees": "FBA 派送费",
+    "expense_fba_inventory_and_inbound_services_fees": "FBA 库存和入库服务费",
+    "expense_service_fees": "服务费",
+    "expense_cost_of_advertising": "广告成本",
+    "expense_total": "合计费用",
+}
 
 
 @router.get("/report-reconciliation/available-reports", response_model=AvailableReportsResponse)
@@ -252,3 +271,110 @@ def upload_summary_pdf(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save PDF: {str(e)}")
+
+
+@router.get("/report-reconciliation/reports/{report_id}/export-pt3")
+def export_pt3_data(
+    report_id: int,
+    db=Depends(get_db_session),
+):
+    """Export PT3 calculation data as Excel for offline comparison."""
+    report = db.query(MonthlyReport).filter(MonthlyReport.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail=f"Report {report_id} not found")
+
+    pt3 = db.query(MonthlyReportPT3Calculation).filter(
+        MonthlyReportPT3Calculation.report_id == report_id
+    ).first()
+    if not pt3:
+        raise HTTPException(status_code=404, detail="PT3 calculation not found")
+
+    # Build workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "数据库数据"
+
+    # Header row
+    header_font = Font(bold=True)
+    ws.append(["字段名称", "数据库值"])
+    for cell in ws[1]:
+        cell.font = header_font
+
+    # Data rows - income fields
+    ws.append(["── 收入 ──", ""])
+    for field, label in PT3_FIELD_LABELS.items():
+        if field.startswith("income_"):
+            val = getattr(pt3, field, None)
+            ws.append([label, float(val) if val is not None else None])
+
+    # Data rows - expense fields
+    ws.append(["── 支出 ──", ""])
+    for field, label in PT3_FIELD_LABELS.items():
+        if field.startswith("expense_"):
+            val = getattr(pt3, field, None)
+            ws.append([label, float(val) if val is not None else None])
+
+    # Column widths
+    ws.column_dimensions["A"].width = 28
+    ws.column_dimensions["B"].width = 18
+
+    out = BytesIO()
+    wb.save(out)
+
+    # Build filename
+    safe_project = re.sub(r'[\\/:*?"<>|]', "_", report.project_name)
+    ym = report.report_month.split("-")
+    filename = f"{safe_project}-数据库数据-{ym[0]}年{int(ym[1])}月.xlsx"
+
+    encoded_filename = url_quote(filename)
+    content_disposition = (
+        f'attachment; filename="pt3-data.xlsx"; '
+        f"filename*=UTF-8''{encoded_filename}"
+    )
+
+    return Response(
+        content=out.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": content_disposition},
+    )
+
+
+@router.get("/report-reconciliation/reports/{report_id}/download-pdf")
+def download_reconciliation_pdf(
+    report_id: int,
+    db=Depends(get_db_session),
+):
+    """Download the summary PDF for a reconciliation report via R2 proxy."""
+    report = db.query(MonthlyReport).filter(MonthlyReport.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    pdf_key = report.summary_pdf_r2_key
+    if not pdf_key and report.summary_pdf_r2_url:
+        pdf_key = ArtifactService.extract_key_from_url(report.summary_pdf_r2_url)
+    if not pdf_key:
+        raise HTTPException(status_code=404, detail="PDF not found in R2")
+
+    try:
+        with ArtifactService.download_to_temp(pdf_key, suffix=".pdf") as pdf_path:
+            pdf_bytes = pdf_path.read_bytes()
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="PDF file missing from R2")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to download PDF: {str(e)}")
+
+    safe_project = re.sub(r'[\\/:*?"<>|]', "_", report.project_name)
+    ym = report.report_month.split("-")
+    filename = f"{safe_project}-结算汇总-{ym[0]}年{int(ym[1])}月.pdf"
+
+    encoded_filename = url_quote(filename)
+    content_disposition = (
+        f'attachment; filename="summary.pdf"; '
+        f"filename*=UTF-8''{encoded_filename}"
+    )
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": content_disposition},
+    )

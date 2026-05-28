@@ -31,7 +31,6 @@ from app.services import (
 from app.services.payment import validate_payment_report_project_match
 from app.services.infra import (
     get_financial_series_cache,
-    invalidate_financial_series_cache,
     set_financial_series_cache,
 )
 from app.services.report.export import export_financial_accounting_detail_workbook
@@ -42,6 +41,7 @@ from app.services.report.monthly import (
     get_report_or_404,
     list_reports,
     parse_report_month,
+    rebuild_and_refresh_financial_series,
     resolve_result_path,
 )
 
@@ -307,7 +307,7 @@ def recalculate_monthly_financial_series(
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> MonthlyFinancialSeriesResponse:
-    """重新核算月度财务数据：清除缓存后重新计算"""
+    """重新核算月度财务数据：从原始交易重建 PT3/PT4 后返回最新数据"""
     project_service.ensure_project_access(
         db,
         project_id,
@@ -320,18 +320,13 @@ def recalculate_monthly_financial_series(
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
-    invalidate_financial_series_cache(project_id)
-
-    payload = get_financial_series(
+    payload = rebuild_and_refresh_financial_series(
         db,
         project_id=project_id,
         country=normalized_country,
         start_month=start_month,
         end_month=end_month,
-        fill_missing=fill_missing,
     )
-
-    set_financial_series_cache(project_id, normalized_country, start_month, end_month, payload)
 
     return MonthlyFinancialSeriesResponse(**payload)
 
