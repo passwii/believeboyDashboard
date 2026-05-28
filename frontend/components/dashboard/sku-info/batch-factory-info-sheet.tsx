@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/sheet'
 import { Badge } from '@/components/ui/badge'
 
-type ParsedFactoryInfo = Record<string, string>
+type ParsedFactoryInfo = Record<string, unknown>
 
 const API_BASE = '/api/backend'
 
@@ -39,7 +39,7 @@ export interface SkuRecordItem {
   country: string
   sort_order: number
   is_active: boolean
-  sku_factory_info: Record<string, string> | null
+  sku_factory_info: Record<string, unknown> | null
   sku_factory_info_updated_at: string | null
   sku_factory_info_updated_by: string | null
 }
@@ -237,7 +237,9 @@ export default function BatchFactoryInfoSheet({
                       className='rounded-md border border-border/40 bg-background p-2'
                     >
                       <div className='text-xs text-muted-foreground'>{key}</div>
-                      <div className='font-medium'>{value}</div>
+                      <div className='font-medium break-all'>
+                        {typeof value === 'string' ? value : JSON.stringify(value)}
+                      </div>
                     </div>
                   ))}
                 </div>
