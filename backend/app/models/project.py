@@ -22,6 +22,10 @@ class Project(Base):
             'commission_rate is null or (commission_rate >= 0 and commission_rate <= 1)',
             name='projects_commission_rate_check',
         ),
+        CheckConstraint(
+            "project_tier is null or project_tier in ('T1','T2','T3','T4')",
+            name='projects_project_tier_check',
+        ),
     )
 
     id: Mapped[int] = mapped_column(
@@ -38,6 +42,7 @@ class Project(Base):
     commission_rate: Mapped[Decimal | None] = mapped_column(Numeric(7, 4), nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    project_tier: Mapped[str | None] = mapped_column(String(8), nullable=True)
     source_file: Mapped[str | None] = mapped_column(String, nullable=True)
     project_context: Mapped[dict | None] = mapped_column(JSON, nullable=True, default=dict)
     sku_context: Mapped[dict | None] = mapped_column(JSON, nullable=True, default=dict)

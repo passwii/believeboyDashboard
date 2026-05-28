@@ -20,6 +20,7 @@ class ProjectItem(BaseModel):
     is_active: bool = True
     source_file: str | None = None
     has_context: bool = False
+    project_tier: str | None = None
 
     @field_validator('is_active', mode='before')
     @classmethod
@@ -36,6 +37,7 @@ class ProjectCreate(BaseModel):
     assistant_operator: str | None = Field(default=None, max_length=4000)
     commission_basis: str | None = Field(default=None, max_length=32)
     commission_rate: float | None = Field(default=None, ge=0, le=100)
+    project_tier: str | None = Field(default=None, max_length=8)
 
 
 class ProjectUpdate(BaseModel):
@@ -47,6 +49,7 @@ class ProjectUpdate(BaseModel):
     commission_basis: str | None = Field(default=None, max_length=32)
     commission_rate: float | None = Field(default=None, ge=0, le=100)
     is_active: bool | None = Field(default=None)
+    project_tier: str | None = Field(default=None, max_length=8)
 
 
 class ProjectContextResponse(BaseModel):
