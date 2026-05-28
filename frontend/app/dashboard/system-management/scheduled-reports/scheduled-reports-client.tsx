@@ -93,7 +93,7 @@ function SubscriptionForm({
         </DialogDescription>
       </DialogHeader>
       <div className="space-y-4 py-2 max-h-[70vh] overflow-y-auto pr-2">
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
           <div>
             <label className="text-sm font-medium mb-1 block">邮箱地址</label>
             <Input
@@ -290,16 +290,16 @@ function SubscriptionForm({
           </p>
         )}
 
-        <div className="flex gap-2 pt-2">
-          <Button variant="outline" onClick={onTestEmail} disabled={testingEmail || !formEmail}>
+        <div className="flex flex-col sm:flex-row gap-2 pt-2">
+          <Button variant="outline" onClick={onTestEmail} disabled={testingEmail || !formEmail} className="flex-1 sm:flex-none">
             {testingEmail ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Mail className="mr-1 h-4 w-4" />}
             发送测试邮件
           </Button>
-          <Button onClick={onSubmit} disabled={formSubmitting}>
+          <Button onClick={onSubmit} disabled={formSubmitting} className="flex-1 sm:flex-none">
             {formSubmitting && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
             {mode === 'create' ? '确认创建' : '保存修改'}
           </Button>
-          <Button variant="ghost" onClick={onCancel}>取消</Button>
+          <Button variant="ghost" onClick={onCancel} className="flex-1 sm:flex-none">取消</Button>
         </div>
       </div>
     </>
@@ -397,7 +397,7 @@ function CreateSubscriptionDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
+      <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-[540px] md:max-w-2xl max-h-[90vh] flex flex-col dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
         <SubscriptionForm
           mode="create"
           formEmail={formEmail} setFormEmail={setFormEmail}
@@ -530,7 +530,7 @@ function EditSubscriptionDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
+      <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-[540px] md:max-w-2xl max-h-[90vh] flex flex-col dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
         <SubscriptionForm
           mode="edit"
           editingSub={subscription}
@@ -1105,7 +1105,8 @@ export function ScheduledReportsClient() {
             <Card className="border-border/70 bg-[hsl(var(--surface-panel))]">
               <CardContent className="p-0">
                 <div className="p-4 border-b border-border/60">
-                  <div className="flex gap-3 flex-wrap">
+                  {/* 桌面端工具栏 */}
+                  <div className="hidden md:flex gap-3 flex-wrap items-center">
                     <Select value={filterFrequency} onValueChange={setFilterFrequency}>
                       <SelectTrigger className="w-[120px] h-9"><SelectValue placeholder="频率" /></SelectTrigger>
                       <SelectContent>
@@ -1147,8 +1148,57 @@ export function ScheduledReportsClient() {
                       onChange={e => setFilterEmail(e.target.value)}
                       className="w-[200px] h-9"
                     />
-                    <div className="ml-auto flex gap-2">
+                    <div className="ml-auto">
                       <Button size="sm" onClick={() => setShowCreateDialog(true)}>
+                        <Plus className="mr-1 h-4 w-4" />新增订阅
+                      </Button>
+                    </div>
+                  </div>
+                  {/* 手机端工具栏：2 列网格 */}
+                  <div className="md:hidden grid grid-cols-2 gap-2">
+                    <Select value={filterFrequency} onValueChange={setFilterFrequency}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="频率" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">全部</SelectItem>
+                        <SelectItem value="daily">每日</SelectItem>
+                        <SelectItem value="weekly">每周</SelectItem>
+                        <SelectItem value="monthly">每月</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={filterProject} onValueChange={setFilterProject}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="项目" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">全部项目</SelectItem>
+                        {projects.map(p => (
+                          <SelectItem key={p.id?.toString() || p.name} value={p.id?.toString() || ''}>{p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select value={filterCountry} onValueChange={setFilterCountry}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="国家" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">全部国家</SelectItem>
+                        {COUNTRY_OPTIONS.map(opt => (
+                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select value={filterStatus} onValueChange={setFilterStatus}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="状态" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">全部状态</SelectItem>
+                        <SelectItem value="enabled">启用</SelectItem>
+                        <SelectItem value="disabled">已暂停</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      placeholder="筛选邮箱"
+                      value={filterEmail}
+                      onChange={e => setFilterEmail(e.target.value)}
+                      className="col-span-2 h-9"
+                    />
+                    <div className="col-span-2">
+                      <Button size="sm" className="w-full" onClick={() => setShowCreateDialog(true)}>
                         <Plus className="mr-1 h-4 w-4" />新增订阅
                       </Button>
                     </div>
@@ -1157,82 +1207,134 @@ export function ScheduledReportsClient() {
                 {subscriptions.length === 0 ? (
                   <p className="text-sm text-muted-foreground py-8 text-center">暂无订阅配置，点击上方按钮添加</p>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-border/60">
-                          <TableHead>项目</TableHead>
-                          <TableHead>国家</TableHead>
-                          <TableHead>频率</TableHead>
-                          <TableHead>发送时间</TableHead>
-                          <TableHead>邮箱</TableHead>
-                          <TableHead>状态</TableHead>
-                          <TableHead>AI 模型</TableHead>
-                          <TableHead className="text-right">操作</TableHead>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredSubscriptions.map(sub => {
-                          const names = resolveProjectNames(sub.project_ids, projects)
-                          const { display, full } = formatProjectNames(names)
-                          const weekdayLabel = sub.frequency === 'weekly' ? ` 周${['一','二','三','四','五','六','日'][sub.dispatch_weekday ?? 0]}` : ''
-                          const dayLabel = sub.frequency === 'monthly' ? ` ${sub.dispatch_day ?? 2}日` : ''
-                          return (
-                            <TableRow key={sub.id}>
-                              <TableCell>
-                                <span className="font-medium truncate max-w-[140px] block" title={full}>
-                                  {display}
-                                </span>
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex flex-wrap gap-1">
-                                  {sub.country.split(',').map(c => c.trim()).filter(Boolean).map(c => (
-                                    <Badge key={c} variant="secondary" className="text-xs">{getCountryLabel(c)}</Badge>
-                                  ))}
+                  <>
+                    {/* 桌面端表格 */}
+                    <div className="hidden md:block overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-border/60">
+                            <TableHead>项目</TableHead>
+                            <TableHead>国家</TableHead>
+                            <TableHead>频率</TableHead>
+                            <TableHead>发送时间</TableHead>
+                            <TableHead>邮箱</TableHead>
+                            <TableHead>状态</TableHead>
+                            <TableHead>AI 模型</TableHead>
+                            <TableHead className="text-right">操作</TableHead>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredSubscriptions.map(sub => {
+                            const names = resolveProjectNames(sub.project_ids, projects)
+                            const { display, full } = formatProjectNames(names)
+                            const weekdayLabel = sub.frequency === 'weekly' ? ` 周${['一','二','三','四','五','六','日'][sub.dispatch_weekday ?? 0]}` : ''
+                            const dayLabel = sub.frequency === 'monthly' ? ` ${sub.dispatch_day ?? 2}日` : ''
+                            return (
+                              <TableRow key={sub.id}>
+                                <TableCell>
+                                  <span className="font-medium truncate max-w-[140px] block" title={full}>
+                                    {display}
+                                  </span>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex flex-wrap gap-1">
+                                    {sub.country.split(',').map(c => c.trim()).filter(Boolean).map(c => (
+                                      <Badge key={c} variant="secondary" className="text-xs">{getCountryLabel(c)}</Badge>
+                                    ))}
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <Badge className={cn('text-xs', FREQUENCY_COLORS[sub.frequency])}>
+                                    {FREQUENCY_LABELS[sub.frequency]}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-muted-foreground">
+                                  {sub.dispatch_hour.toString().padStart(2, '0')}:{sub.dispatch_minute.toString().padStart(2, '0')}{weekdayLabel}{dayLabel}
+                                </TableCell>
+                                <TableCell>
+                                  <span className="text-muted-foreground truncate max-w-[160px] block" title={sub.email}>
+                                    {sub.email}
+                                  </span>
+                                </TableCell>
+                                <TableCell>
+                                  {sub.enabled ? (
+                                    <Badge variant="outline" className="text-xs text-emerald-600 border-emerald-200">启用</Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="text-xs text-muted-foreground">已暂停</Badge>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-muted-foreground text-xs">
+                                  {sub.ai_model || '—'}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <div className="flex gap-1 justify-end">
+                                    <Button size="sm" variant="ghost" onClick={() => handleToggle(sub)} title={sub.enabled ? '暂停' : '启用'}>
+                                      <Power className="h-4 w-4" />
+                                    </Button>
+                                    <Button size="sm" variant="ghost" onClick={() => handleEdit(sub)}>
+                                      <Pencil className="h-4 w-4" />
+                                    </Button>
+                                    <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => handleDelete(sub.id)}>
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    {/* 手机端卡片列表 */}
+                    <div className="md:hidden divide-y divide-border/60">
+                      {filteredSubscriptions.map(sub => {
+                        const names = resolveProjectNames(sub.project_ids, projects)
+                        const { display, full } = formatProjectNames(names)
+                        const weekdayLabel = sub.frequency === 'weekly' ? ` 周${['一','二','三','四','五','六','日'][sub.dispatch_weekday ?? 0]}` : ''
+                        const dayLabel = sub.frequency === 'monthly' ? ` ${sub.dispatch_day ?? 2}日` : ''
+                        return (
+                          <div key={sub.id} className="p-4">
+                            <div className="flex items-start justify-between gap-2 mb-3">
+                              <div className="min-w-0">
+                                <div className="font-medium text-sm truncate" title={full}>{display}</div>
+                                <div className="text-xs text-muted-foreground mt-0.5">
+                                  {sub.dispatch_hour.toString().padStart(2, '0')}:{sub.dispatch_minute.toString().padStart(2, '0')}{weekdayLabel}{dayLabel}
                                 </div>
-                              </TableCell>
-                              <TableCell>
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
                                 <Badge className={cn('text-xs', FREQUENCY_COLORS[sub.frequency])}>
                                   {FREQUENCY_LABELS[sub.frequency]}
                                 </Badge>
-                              </TableCell>
-                              <TableCell className="text-muted-foreground">
-                                {sub.dispatch_hour.toString().padStart(2, '0')}:{sub.dispatch_minute.toString().padStart(2, '0')}{weekdayLabel}{dayLabel}
-                              </TableCell>
-                              <TableCell>
-                                <span className="text-muted-foreground truncate max-w-[160px] block" title={sub.email}>
-                                  {sub.email}
-                                </span>
-                              </TableCell>
-                              <TableCell>
                                 {sub.enabled ? (
                                   <Badge variant="outline" className="text-xs text-emerald-600 border-emerald-200">启用</Badge>
                                 ) : (
                                   <Badge variant="outline" className="text-xs text-muted-foreground">已暂停</Badge>
                                 )}
-                              </TableCell>
-                              <TableCell className="text-muted-foreground text-xs">
-                                {sub.ai_model || '—'}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <div className="flex gap-1 justify-end">
-                                  <Button size="sm" variant="ghost" onClick={() => handleToggle(sub)} title={sub.enabled ? '暂停' : '启用'}>
-                                    <Power className="h-4 w-4" />
-                                  </Button>
-                                  <Button size="sm" variant="ghost" onClick={() => handleEdit(sub)}>
-                                    <Pencil className="h-4 w-4" />
-                                  </Button>
-                                  <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => handleDelete(sub.id)}>
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap gap-1 mb-3">
+                              {sub.country.split(',').map(c => c.trim()).filter(Boolean).map(c => (
+                                <Badge key={c} variant="secondary" className="text-xs">{getCountryLabel(c)}</Badge>
+                              ))}
+                            </div>
+                            <div className="text-xs text-muted-foreground mb-3 truncate" title={sub.email}>{sub.email}</div>
+                            {sub.ai_model && <div className="text-xs text-muted-foreground mb-3 truncate">AI: {sub.ai_model}</div>}
+                            <div className="flex gap-2">
+                              <Button size="sm" variant="outline" className="flex-1" onClick={() => handleToggle(sub)}>
+                                <Power className="h-4 w-4 mr-1" />{sub.enabled ? '暂停' : '启用'}
+                              </Button>
+                              <Button size="sm" variant="outline" className="flex-1" onClick={() => handleEdit(sub)}>
+                                <Pencil className="h-4 w-4 mr-1" />编辑
+                              </Button>
+                              <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive min-w-[44px]" onClick={() => handleDelete(sub.id)}>
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </>
                 )}
               </CardContent>
             </Card>
@@ -1243,7 +1345,8 @@ export function ScheduledReportsClient() {
           <div className="space-y-4">
             <Card className="border-border/70 bg-[hsl(var(--surface-panel))]">
               <CardContent className="p-4 space-y-4">
-                <div className="flex gap-3 flex-wrap">
+                {/* 桌面端工具栏 */}
+                <div className="hidden md:flex gap-3 flex-wrap items-center">
                   <DateRangePicker
                     value={parseDateRangeInputValue(ledgerStartDate, ledgerEndDate)}
                     onChange={handleLedgerDateRangeChange}
@@ -1268,8 +1371,43 @@ export function ScheduledReportsClient() {
                     </SelectContent>
                   </Select>
                   <Input placeholder="邮箱筛选" value={ledgerEmail} onChange={e => setLedgerEmail(e.target.value)} className="w-[200px] h-9" />
-                  <div className="ml-auto flex gap-2">
+                  <div className="ml-auto">
                     <Button size="sm" onClick={loadLedger} disabled={ledgerLoading}>
+                      {ledgerLoading ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-1 h-4 w-4" />}
+                      刷新台账
+                    </Button>
+                  </div>
+                </div>
+                {/* 手机端工具栏：2 列网格 */}
+                <div className="md:hidden space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <DateRangePicker
+                      value={parseDateRangeInputValue(ledgerStartDate, ledgerEndDate)}
+                      onChange={handleLedgerDateRangeChange}
+                      className="col-span-2 h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none text-xs"
+                    />
+                    <Select value={ledgerFrequency} onValueChange={setLedgerFrequency}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="频率" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">全部</SelectItem>
+                        <SelectItem value="daily">每日</SelectItem>
+                        <SelectItem value="weekly">每周</SelectItem>
+                        <SelectItem value="monthly">每月</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={ledgerStatus} onValueChange={setLedgerStatus}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="状态" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">全部</SelectItem>
+                        <SelectItem value="sent">成功</SelectItem>
+                        <SelectItem value="failed">失败</SelectItem>
+                        <SelectItem value="missing">缺失</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Input placeholder="邮箱筛选" value={ledgerEmail} onChange={e => setLedgerEmail(e.target.value)} className="h-9" />
+                  <div>
+                    <Button size="sm" className="w-full" onClick={loadLedger} disabled={ledgerLoading}>
                       {ledgerLoading ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-1 h-4 w-4" />}
                       刷新台账
                     </Button>
@@ -1277,12 +1415,27 @@ export function ScheduledReportsClient() {
                 </div>
 
                 {ledgerSummary && (
-                  <div className="grid gap-3 md:grid-cols-5">
-                    <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">应发</div><div className="text-xl font-semibold">{ledgerSummary.expected}</div></div>
-                    <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">成功</div><div className="text-xl font-semibold text-emerald-600">{ledgerSummary.sent}</div></div>
-                    <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">失败</div><div className="text-xl font-semibold text-destructive">{ledgerSummary.failed}</div></div>
-                    <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">缺失</div><div className="text-xl font-semibold text-amber-600">{ledgerSummary.missing}</div></div>
-                    <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">可补发</div><div className="text-xl font-semibold">{ledgerSummary.resendable}</div></div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 md:gap-3">
+                    <div className="dashboard-surface p-3 text-center">
+                      <div className="text-xs text-muted-foreground mb-1">应发</div>
+                      <div className="text-xl font-semibold">{ledgerSummary.expected}</div>
+                    </div>
+                    <div className="dashboard-surface p-3 text-center">
+                      <div className="text-xs text-muted-foreground mb-1">成功</div>
+                      <div className="text-xl font-semibold text-emerald-600">{ledgerSummary.sent}</div>
+                    </div>
+                    <div className="dashboard-surface p-3 text-center">
+                      <div className="text-xs text-muted-foreground mb-1">失败</div>
+                      <div className="text-xl font-semibold text-destructive">{ledgerSummary.failed}</div>
+                    </div>
+                    <div className="dashboard-surface p-3 text-center">
+                      <div className="text-xs text-muted-foreground mb-1">缺失</div>
+                      <div className="text-xl font-semibold text-amber-600">{ledgerSummary.missing}</div>
+                    </div>
+                    <div className="dashboard-surface p-3 text-center col-span-2 sm:col-span-1">
+                      <div className="text-xs text-muted-foreground mb-1">可补发</div>
+                      <div className="text-xl font-semibold">{ledgerSummary.resendable}</div>
+                    </div>
                   </div>
                 )}
 
@@ -1292,112 +1445,197 @@ export function ScheduledReportsClient() {
 
             <Card className="border-border/70 bg-[hsl(var(--surface-panel))]">
               <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>应发时间</TableHead>
-                      <TableHead>频率</TableHead>
-                      <TableHead>项目</TableHead>
-                      <TableHead>国家</TableHead>
-                      <TableHead>邮箱</TableHead>
-                      <TableHead>状态</TableHead>
-                      <TableHead>截图</TableHead>
-                      <TableHead>AI 文案</TableHead>
-                      <TableHead>错误信息</TableHead>
-                      <TableHead>操作</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {ledgerItems.length === 0 ? (
+                {/* 桌面端表格 */}
+                <div className="hidden md:block overflow-x-auto">
+                  <Table>
+                    <TableHeader>
                       <TableRow>
-                        <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
-                          {ledgerLoading ? '台账加载中...' : '暂无台账记录，点击"刷新台账"生成'}
-                        </TableCell>
+                        <TableHead>应发时间</TableHead>
+                        <TableHead>频率</TableHead>
+                        <TableHead>项目</TableHead>
+                        <TableHead>国家</TableHead>
+                        <TableHead>邮箱</TableHead>
+                        <TableHead>状态</TableHead>
+                        <TableHead>截图</TableHead>
+                        <TableHead>AI 文案</TableHead>
+                        <TableHead>错误信息</TableHead>
+                        <TableHead>操作</TableHead>
                       </TableRow>
-                    ) : ledgerItems.map(item => {
-                      const projectLabel = item.project_names?.length ? item.project_names.join(', ') : item.project_ids
-                      return (
-                        <TableRow key={item.ledger_key}>
-                          <TableCell>{new Date(item.expected_at).toLocaleString('zh-CN')}</TableCell>
-                          <TableCell><Badge className={cn('text-xs', FREQUENCY_COLORS[item.frequency])}>{FREQUENCY_LABELS[item.frequency]}</Badge></TableCell>
-                          <TableCell><span className="text-muted-foreground truncate max-w-[120px] block" title={projectLabel}>{projectLabel}</span></TableCell>
-                          <TableCell>
-                            <div className="flex flex-wrap gap-1">
-                              {item.country.split(',').map(c => c.trim()).filter(Boolean).map(c => (
-                                <Badge key={c} variant="secondary" className="text-xs">{getCountryLabel(c)}</Badge>
-                              ))}
-                            </div>
-                          </TableCell>
-                          <TableCell><span className="text-muted-foreground truncate max-w-[140px] block" title={item.email}>{item.email}</span></TableCell>
-                          <TableCell>
-                            {item.status === 'sent' ? <span className="text-emerald-600">✓ 成功</span> : item.status === 'failed' ? <span className="text-destructive">✗ 失败</span> : <span className="text-amber-600 inline-flex items-center gap-1"><AlertTriangle className="h-3 w-3" />缺失</span>}
-                          </TableCell>
-                          <TableCell>
-                            {item.screenshot_r2_thumb_url ? (
-                              <button
-                                type="button"
-                                className="relative h-10 w-10 overflow-hidden rounded border border-border/70 hover:ring-2 hover:ring-primary/50 transition-shadow"
-                                onClick={() => setPreviewScreenshotUrl(item.screenshot_r2_url)}
-                                title="点击查看完整图"
-                              >
-                                <Image src={item.screenshot_r2_thumb_url} alt="报告截图" fill className="object-cover" unoptimized />
-                              </button>
-                            ) : (
-                              <span className="text-muted-foreground text-xs flex items-center gap-1"><ImageIcon className="h-4 w-4" />无</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {item.ai_summary ? (
-                              <button
-                                type="button"
-                                className="flex items-center gap-1 text-xs text-[hsl(var(--chart-2))] hover:underline"
-                                onClick={() => setPreviewSummary(item.ai_summary)}
-                              >
-                                <FileText className="h-4 w-4" />
-                                查看
-                              </button>
-                            ) : (
-                              <span className="text-muted-foreground text-xs">—</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-muted-foreground text-xs max-w-[120px] truncate" title={item.error_message || ''}>{item.error_message || '—'}</TableCell>
-                          <TableCell>
-                            {isAdmin && (
-                              resendingStates[item.ledger_key] ? (
-                                <div className="flex items-center gap-2">
-                                  <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-                                  <span className={cn("text-sm", RESEND_STAGE_COLORS[resendingStates[item.ledger_key]])}>
-                                    {RESEND_STAGE_LABELS[resendingStates[item.ledger_key]]}
-                                  </span>
-                                </div>
-                              ) : (
-                                <Button size="sm" variant="outline" onClick={() => handleResendLedger(item)}>
-                                  <RotateCcw className="mr-1 h-3 w-3" />
-                                  {item.status === 'failed' ? '重试' : '补发'}
-                                </Button>
-                              )
-                            )}
-                            {!isAdmin && item.can_resend ? (
-                              resendingStates[item.ledger_key] ? (
-                                <div className="flex items-center gap-2">
-                                  <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-                                  <span className={cn("text-sm", RESEND_STAGE_COLORS[resendingStates[item.ledger_key]])}>
-                                    {RESEND_STAGE_LABELS[resendingStates[item.ledger_key]]}
-                                  </span>
-                                </div>
-                              ) : (
-                                <Button size="sm" variant="outline" onClick={() => handleResendLedger(item)}>
-                                  <RotateCcw className="mr-1 h-3 w-3" />
-                                  {item.status === 'failed' ? '重试' : '补发'}
-                                </Button>
-                              )
-                            ) : !isAdmin && <span className="text-xs text-muted-foreground">—</span>}
+                    </TableHeader>
+                    <TableBody>
+                      {ledgerItems.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                            {ledgerLoading ? '台账加载中...' : '暂无台账记录，点击"刷新台账"生成'}
                           </TableCell>
                         </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
+                      ) : ledgerItems.map(item => {
+                        const projectLabel = item.project_names?.length ? item.project_names.join(', ') : item.project_ids
+                        return (
+                          <TableRow key={item.ledger_key}>
+                            <TableCell>{new Date(item.expected_at).toLocaleString('zh-CN')}</TableCell>
+                            <TableCell><Badge className={cn('text-xs', FREQUENCY_COLORS[item.frequency])}>{FREQUENCY_LABELS[item.frequency]}</Badge></TableCell>
+                            <TableCell><span className="text-muted-foreground truncate max-w-[120px] block" title={projectLabel}>{projectLabel}</span></TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap gap-1">
+                                {item.country.split(',').map(c => c.trim()).filter(Boolean).map(c => (
+                                  <Badge key={c} variant="secondary" className="text-xs">{getCountryLabel(c)}</Badge>
+                                ))}
+                              </div>
+                            </TableCell>
+                            <TableCell><span className="text-muted-foreground truncate max-w-[140px] block" title={item.email}>{item.email}</span></TableCell>
+                            <TableCell>
+                              {item.status === 'sent' ? <span className="text-emerald-600">✓ 成功</span> : item.status === 'failed' ? <span className="text-destructive">✗ 失败</span> : <span className="text-amber-600 inline-flex items-center gap-1"><AlertTriangle className="h-3 w-3" />缺失</span>}
+                            </TableCell>
+                            <TableCell>
+                              {item.screenshot_r2_thumb_url ? (
+                                <button
+                                  type="button"
+                                  className="relative h-10 w-10 overflow-hidden rounded border border-border/70 hover:ring-2 hover:ring-primary/50 transition-shadow"
+                                  onClick={() => setPreviewScreenshotUrl(item.screenshot_r2_url)}
+                                  title="点击查看完整图"
+                                >
+                                  <Image src={item.screenshot_r2_thumb_url} alt="报告截图" fill className="object-cover" unoptimized />
+                                </button>
+                              ) : (
+                                <span className="text-muted-foreground text-xs flex items-center gap-1"><ImageIcon className="h-4 w-4" />无</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {item.ai_summary ? (
+                                <button
+                                  type="button"
+                                  className="flex items-center gap-1 text-xs text-[hsl(var(--chart-2))] hover:underline"
+                                  onClick={() => setPreviewSummary(item.ai_summary)}
+                                >
+                                  <FileText className="h-4 w-4" />
+                                  查看
+                                </button>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground text-xs max-w-[120px] truncate" title={item.error_message || ''}>{item.error_message || '—'}</TableCell>
+                            <TableCell>
+                              {isAdmin && (
+                                resendingStates[item.ledger_key] ? (
+                                  <div className="flex items-center gap-2">
+                                    <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                                    <span className={cn("text-sm", RESEND_STAGE_COLORS[resendingStates[item.ledger_key]])}>
+                                      {RESEND_STAGE_LABELS[resendingStates[item.ledger_key]]}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <Button size="sm" variant="outline" onClick={() => handleResendLedger(item)}>
+                                    <RotateCcw className="mr-1 h-3 w-3" />
+                                    {item.status === 'failed' ? '重试' : '补发'}
+                                  </Button>
+                                )
+                              )}
+                              {!isAdmin && item.can_resend ? (
+                                resendingStates[item.ledger_key] ? (
+                                  <div className="flex items-center gap-2">
+                                    <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                                    <span className={cn("text-sm", RESEND_STAGE_COLORS[resendingStates[item.ledger_key]])}>
+                                      {RESEND_STAGE_LABELS[resendingStates[item.ledger_key]]}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <Button size="sm" variant="outline" onClick={() => handleResendLedger(item)}>
+                                    <RotateCcw className="mr-1 h-3 w-3" />
+                                    {item.status === 'failed' ? '重试' : '补发'}
+                                  </Button>
+                                )
+                              ) : !isAdmin && <span className="text-xs text-muted-foreground">—</span>}
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+                {/* 手机端卡片列表 */}
+                <div className="md:hidden divide-y divide-border/60">
+                  {ledgerItems.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      {ledgerLoading ? (
+                        <><Loader2 className="h-6 w-6 animate-spin text-muted-foreground mb-2" /><p className="text-sm text-muted-foreground">台账加载中...</p></>
+                      ) : (
+                        <><RotateCcw className="h-6 w-6 text-muted-foreground/40 mb-2" /><p className="text-sm text-muted-foreground">暂无台账记录</p></>
+                      )}
+                    </div>
+                  ) : ledgerItems.map(item => {
+                    const projectLabel = item.project_names?.length ? item.project_names.join(', ') : item.project_ids
+                    return (
+                      <div key={item.ledger_key} className="p-4">
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div>
+                            <div className="text-xs text-muted-foreground">{new Date(item.expected_at).toLocaleString('zh-CN')}</div>
+                            <div className="text-sm font-medium mt-0.5 truncate max-w-[180px]" title={projectLabel}>{projectLabel}</div>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <Badge className={cn('text-xs', FREQUENCY_COLORS[item.frequency])}>{FREQUENCY_LABELS[item.frequency]}</Badge>
+                            {item.status === 'sent' ? (
+                              <span className="text-emerald-600 text-xs">✓</span>
+                            ) : item.status === 'failed' ? (
+                              <span className="text-destructive text-xs">✗</span>
+                            ) : (
+                              <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-1 mb-2">
+                          {item.country.split(',').map(c => c.trim()).filter(Boolean).map(c => (
+                            <Badge key={c} variant="secondary" className="text-xs">{getCountryLabel(c)}</Badge>
+                          ))}
+                        </div>
+                        <div className="text-xs text-muted-foreground mb-2 truncate" title={item.email}>{item.email}</div>
+                        {(item.error_message || item.ai_summary) && (
+                          <div className="text-xs text-muted-foreground mb-2 line-clamp-2">
+                            {item.error_message ? `错误: ${item.error_message}` : item.ai_summary?.slice(0, 80)}
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2">
+                          {item.screenshot_r2_thumb_url && (
+                            <button
+                              type="button"
+                              className="relative h-12 w-12 overflow-hidden rounded border border-border/70 hover:ring-2 hover:ring-primary/50 transition-shadow shrink-0"
+                              onClick={() => setPreviewScreenshotUrl(item.screenshot_r2_url)}
+                              title="点击查看完整图"
+                            >
+                              <Image src={item.screenshot_r2_thumb_url} alt="报告截图" fill className="object-cover" unoptimized />
+                            </button>
+                          )}
+                          {item.ai_summary && (
+                            <button
+                              type="button"
+                              className="flex items-center gap-1 text-xs px-2 py-1.5 rounded border border-[hsl(var(--chart-2))] text-[hsl(var(--chart-2))] hover:bg-[hsl(var(--chart-2))/10] transition-colors"
+                              onClick={() => setPreviewSummary(item.ai_summary)}
+                            >
+                              <FileText className="h-3.5 w-3.5" />
+                              AI 文案
+                            </button>
+                          )}
+                          <div className="ml-auto">
+                            {resendingStates[item.ledger_key] ? (
+                              <div className="flex items-center gap-1.5">
+                                <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                                <span className={cn("text-xs", RESEND_STAGE_COLORS[resendingStates[item.ledger_key]])}>
+                                  {RESEND_STAGE_LABELS[resendingStates[item.ledger_key]]}
+                                </span>
+                              </div>
+                            ) : isAdmin || item.can_resend ? (
+                              <Button size="sm" variant="outline" onClick={() => handleResendLedger(item)} className="text-xs">
+                                <RotateCcw className="h-3 w-3 mr-1" />
+                                {item.status === 'failed' ? '重试' : '补发'}
+                              </Button>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -1415,8 +1653,8 @@ export function ScheduledReportsClient() {
 
       {previewSummary ? (
         <Dialog open onOpenChange={() => setPreviewSummary(null)}>
-          <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
-            <div className="flex items-center justify-between mb-2">
+          <DialogContent className="max-w-2xl max-w-[calc(100%-2rem)] sm:max-w-[540px] max-h-[80vh] flex flex-col">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
               <h3 className="text-base font-semibold text-[hsl(var(--chart-2))]">报表总结</h3>
               <button
                 type="button"
@@ -1424,7 +1662,7 @@ export function ScheduledReportsClient() {
                   navigator.clipboard.writeText(previewCopyText)
                   setPreviewSummary(null)
                 }}
-                className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md bg-[hsl(var(--chart-2))] text-white hover:opacity-90 transition-opacity"
+                className="flex items-center justify-center gap-1.5 text-sm px-3 py-1.5 rounded-md bg-[hsl(var(--chart-2))] text-white hover:opacity-90 transition-opacity w-full sm:w-auto"
               >
                 <Copy className="h-4 w-4" />
                 复制文案
