@@ -1781,185 +1781,85 @@ export default function DailyAnalysisPage() {
                   <SelectValue placeholder="选择项目" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem key="all" value="all">
-                    全部项目
-                  </SelectItem>
+                  <SelectItem key="all" value="all">全部项目</SelectItem>
                   {projects.map((item) => (
-                    <SelectItem key={item.id} value={String(item.id)}>
-                      {item.name}
-                    </SelectItem>
+                    <SelectItem key={item.id} value={String(item.id)}>{item.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </FilterField>
 
             <FilterField label="国家站点">
-            <CountrySelect
-              value={country}
-              onChange={(value) => setCountry(value as CountryOption)}
-              triggerClassName="h-9 w-[140px]"
-            />
-          </FilterField>
+              <CountrySelect value={country} onChange={(value) => setCountry(value as CountryOption)} triggerClassName="h-9 w-[140px]" />
+            </FilterField>
 
             <FilterField label="SKU">
-              <SearchableSkuField
-                value={selectedSku}
-                options={skuOptions}
-                loading={skuLoading}
-                onChange={(value) => {
-                  selectedSkuRef.current = value
-                  setSelectedSku(value)
-                  setActiveTab('summary')
-                  void loadData()
-                }}
-              />
+              <SearchableSkuField value={selectedSku} options={skuOptions} loading={skuLoading} onChange={(value) => { selectedSkuRef.current = value; setSelectedSku(value); setActiveTab('summary'); void loadData() }} />
             </FilterField>
 
             <div className='flex flex-col gap-1.5'>
-              <div className='text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground'>
-                日期范围
-              </div>
-              <div className='flex items-center gap-1.5'>
-                <DateRangePicker
-                  value={dateRange}
-                  onChange={setDateRange}
-                  className='h-9 w-[240px]'
-                  timezone={COUNTRY_TIMEZONE_MAP[country]}
-                  onApply={() => void loadData()}
-                />
-              </div>
+              <div className='text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground'>日期范围</div>
+              <DateRangePicker value={dateRange} onChange={setDateRange} className='h-9 w-[240px]' timezone={COUNTRY_TIMEZONE_MAP[country]} onApply={() => void loadData()} />
             </div>
 
             <FilterField label="操作">
-              <RefreshButton
-                onClick={() => void loadData(undefined, true)}
-                loading={loading || projectsLoading}
-                label="刷新数据"
-                size="default"
-                variant="outline"
-                className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
-              />
+              <RefreshButton onClick={() => void loadData(undefined, true)} loading={loading || projectsLoading} label="刷新数据" size="default" variant="outline" className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]" />
             </FilterField>
           </div>
           {/* 筛选区 — 手机端 2 列网格 */}
-          <div className='dashboard-toolbar md:hidden space-y-3 px-4 py-4'>
+          <div className='dashboard-toolbar md:hidden px-4 py-3'>
             <div className='grid grid-cols-2 gap-2'>
-              <FilterField label="项目">
+              {/* 项目 */}
+              <div className='space-y-1.5'>
+                <div className='text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground'>项目</div>
                 <Select value={projectId} onValueChange={setProjectId}>
                   <SelectTrigger className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
                     <SelectValue placeholder="选择项目" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem key="all" value="all">全部项目</SelectItem>
+                    <SelectItem value="all">全部项目</SelectItem>
                     {projects.map((item) => (
                       <SelectItem key={item.id} value={String(item.id)}>{item.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-              </FilterField>
-              <FilterField label="国家站点">
-                <CountrySelect
-                  value={country}
-                  onChange={(value) => setCountry(value as CountryOption)}
-                  triggerClassName="h-9"
-                />
-              </FilterField>
+              </div>
+              {/* 国家站点 */}
+              <div className='space-y-1.5'>
+                <div className='text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground'>国家</div>
+                <CountrySelect value={country} onChange={(value) => setCountry(value as CountryOption)} triggerClassName="h-9" />
+              </div>
             </div>
-            <FilterField label="SKU">
-              <SearchableSkuField
-                value={selectedSku}
-                options={skuOptions}
-                loading={skuLoading}
-                onChange={(value) => {
-                  selectedSkuRef.current = value
-                  setSelectedSku(value)
-                  setActiveTab('summary')
-                  void loadData()
-                }}
-              />
-            </FilterField>
-            <FilterField label="日期范围">
-              <DateRangePicker
-                value={dateRange}
-                onChange={setDateRange}
-                className='h-9 w-full'
-                timezone={COUNTRY_TIMEZONE_MAP[country]}
-                onApply={() => void loadData()}
-              />
-            </FilterField>
-            <div className='flex gap-2'>
-              <RefreshButton
-                onClick={() => void loadData(undefined, true)}
-                loading={loading || projectsLoading}
-                label="刷新"
-                size="sm"
-                variant="outline"
-                className="flex-1 h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
-              />
-              <Button
-                type='button'
-                variant='outline'
-                size='sm'
-                onClick={() => void handleQuickRange(lastSevenDaysRange(country))}
-                className='h-9 flex-1 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85'
-              >
-                近7天
-              </Button>
+            {/* SKU */}
+            <div className='space-y-1.5 mt-3'>
+              <div className='text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground'>SKU</div>
+              <SearchableSkuField value={selectedSku} options={skuOptions} loading={skuLoading} onChange={(value) => { selectedSkuRef.current = value; setSelectedSku(value); setActiveTab('summary'); void loadData() }} />
+            </div>
+            {/* 日期范围 */}
+            <div className='space-y-1.5 mt-3'>
+              <div className='text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground'>日期范围</div>
+              <DateRangePicker value={dateRange} onChange={setDateRange} className='h-9 w-full' timezone={COUNTRY_TIMEZONE_MAP[country]} onApply={() => void loadData()} />
+            </div>
+            {/* 操作按钮 */}
+            <div className='flex gap-2 mt-3'>
+              <RefreshButton onClick={() => void loadData(undefined, true)} loading={loading || projectsLoading} label="刷新" size="sm" variant="outline" className="flex-1 h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]" />
+              <Button type='button' variant='outline' size='sm' onClick={() => void handleQuickRange(lastSevenDaysRange(country))} className='flex-1 h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85'>近7天</Button>
             </div>
           </div>
-
-        {goalProgress && goalProgress.target_amount > 0 && (
-            <div className='dashboard-toolbar flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border/50 px-4 py-4 md:px-6'>
+          {goalProgress && goalProgress.target_amount > 0 && (
+            <div className='dashboard-toolbar flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border/50 px-4 py-3 md:px-6'>
               <Target className='h-4 w-4 shrink-0 text-blue-500' />
-              <div className='text-xs font-medium text-foreground shrink-0'>
-                {new Date().getMonth() + 1}月目标
-                <span className='ml-1.5 text-muted-foreground'>
-                  {goalProgress.today_day}/{goalProgress.days_in_month}日
-                </span>
+              <div className='text-xs font-medium text-foreground shrink-0'>{new Date().getMonth() + 1}月目标<span className='ml-1.5 text-muted-foreground'>{goalProgress.today_day}/{goalProgress.days_in_month}日</span></div>
+              <div className='flex items-center gap-1.5 shrink-0'>
+                <div className='w-20 md:w-24 rounded-full bg-muted/70 h-1'><div className='h-full rounded-full transition-all' style={{ width: `${Math.min(goalProgress.completion_vs_monthly * 100, 100)}%`, background: goalProgress.completion_vs_monthly >= 1 ? '#22c55e' : '#3b82f6' }} /></div>
+                <span className='text-xs font-semibold tabular-nums'>{(goalProgress.completion_vs_monthly * 100).toFixed(1)}%</span>
               </div>
               <div className='flex items-center gap-1.5 shrink-0'>
-                <div className='w-24 rounded-full bg-muted/70 h-1'>
-                  <div
-                    className='h-full rounded-full transition-all'
-                    style={{
-                      width: `${Math.min(goalProgress.completion_vs_monthly * 100, 100)}%`,
-                      background:
-                        goalProgress.completion_vs_monthly >= 1
-                          ? '#22c55e'
-                          : '#3b82f6',
-                    }}
-                  />
-                </div>
-                <span className='text-xs font-semibold tabular-nums'>
-                  {(goalProgress.completion_vs_monthly * 100).toFixed(1)}%
-                </span>
+                <div className='w-20 md:w-24 rounded-full bg-muted/70 h-1'><div className='h-full rounded-full transition-all' style={{ width: `${Math.min(goalProgress.completion_vs_daily * 100, 100)}%`, background: goalProgress.completion_vs_daily >= 1 ? '#22c55e' : '#8b5cf6' }} /></div>
+                <span className='text-xs font-semibold tabular-nums'>{(goalProgress.completion_vs_daily * 100).toFixed(1)}%</span>
               </div>
-              <div className='flex items-center gap-1.5 shrink-0'>
-                <div className='w-24 rounded-full bg-muted/70 h-1'>
-                  <div
-                    className='h-full rounded-full transition-all'
-                    style={{
-                      width: `${Math.min(goalProgress.completion_vs_daily * 100, 100)}%`,
-                      background:
-                        goalProgress.completion_vs_daily >= 1
-                          ? '#22c55e'
-                          : '#8b5cf6',
-                    }}
-                  />
-                </div>
-                <span className='text-xs font-semibold tabular-nums'>
-                  {(goalProgress.completion_vs_daily * 100).toFixed(1)}%
-                </span>
-              </div>
-              <span className='text-xs text-muted-foreground truncate'>
-                {goalProgress.currency}{goalProgress.achieved_amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / {goalProgress.currency}{goalProgress.target_amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </span>
-              <Link
-                href={`/dashboard/data-analysis/project-goals?project=${projectId}&country=${country}`}
-                className='shrink-0 text-xs text-blue-500 hover:text-blue-600 hover:underline'
-              >
-                目标详情 →
-              </Link>
+              <span className='text-xs text-muted-foreground truncate'>{goalProgress.currency}{goalProgress.achieved_amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / {goalProgress.currency}{goalProgress.target_amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              <Link href={`/dashboard/data-analysis/project-goals?project=${projectId}&country=${country}`} className='shrink-0 text-xs text-blue-500 hover:text-blue-600 hover:underline'>目标详情 →</Link>
             </div>
           )}
         </div>
@@ -1979,7 +1879,8 @@ export default function DailyAnalysisPage() {
           )}
           {(summaryRows.length || (selectedSku && filteredDetailRows.length)) ? (
             <>
-              <div className='flex items-center gap-2'>
+              {/* 桌面端：左右箭头 + 网格 */}
+              <div className='hidden sm:flex items-center gap-2'>
                 <button
                   type='button'
                   onClick={() => setMetricCardPage((p) => Math.max(0, p - 1))}
@@ -1990,112 +1891,50 @@ export default function DailyAnalysisPage() {
                 </button>
                 <DataTableCardMetrics className='grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 flex-1'>
                   {metricCards
-                    .slice(
-                      metricCardPage * METRICS_PER_PAGE,
-                      (metricCardPage + 1) * METRICS_PER_PAGE,
-                    )
+                    .slice(metricCardPage * METRICS_PER_PAGE, (metricCardPage + 1) * METRICS_PER_PAGE)
                     .map((metric) => {
                       const isActive = metric.key === activeChartMetric
-                      const showIncrease =
-                        metric.percentChange === null
-                          ? true
-                          : metric.percentChange >= 0
-                      const usePositiveColor =
-                        metric.percentChange === null
-                          ? true
-                          : metric.isPositiveDirection
-
+                      const showIncrease = metric.percentChange === null ? true : metric.percentChange >= 0
+                      const usePositiveColor = metric.percentChange === null ? true : metric.isPositiveDirection
                       return (
                         <button
                           key={metric.key}
                           type='button'
                           onClick={() => setActiveChartMetric(metric.key)}
                           className={cn(
-                            'rounded-lg border px-2.5 py-2.5 md:px-3 md:py-3 text-left transition-all duration-200',
+                            'rounded-lg border px-3 py-3 text-left transition-all duration-200',
                             isActive
                               ? 'border-primary/45 bg-primary text-primary-foreground shadow-[0_16px_34px_-24px_hsl(var(--primary)/0.72)]'
                               : 'border-border/70 bg-[hsl(var(--surface-soft))]/86 text-foreground hover:-translate-y-0.5 hover:border-border hover:bg-background',
                           )}
                         >
-                          <div className='flex items-start justify-between gap-1.5 md:gap-2'>
-                            <div
-                              className={cn(
-                                'text-[10px] md:text-xs font-semibold tracking-tight',
-                                isActive
-                                  ? 'text-primary-foreground/88'
-                                  : 'text-muted-foreground',
-                              )}
-                            >
+                          <div className='flex items-start justify-between gap-2'>
+                            <div className={cn('text-xs font-semibold tracking-tight', isActive ? 'text-primary-foreground/88' : 'text-muted-foreground')}>
                               {metric.label}
                             </div>
                             {metric.showComparisonBadge ? (
-                              <div
-                                className={cn(
-                                  'inline-flex items-center gap-0.5 md:gap-1 rounded-full border px-1.5 py-0.5 text-[10px] md:text-xs font-semibold backdrop-blur-sm',
-                                  isActive
-                                    ? usePositiveColor
-                                      ? 'border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(220,252,231,0.92))] text-[hsl(var(--success))] shadow-[0_10px_24px_-14px_rgba(255,255,255,0.9)]'
-                                      : 'border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(254,226,226,0.92))] text-[hsl(var(--destructive))] shadow-[0_10px_24px_-14px_rgba(255,255,255,0.9)]'
-                                    : usePositiveColor
-                                      ? 'border-[hsl(var(--success))/0.28] bg-[hsl(var(--success))/0.12] text-[hsl(var(--success))]'
-                                      : 'border-destructive/25 bg-destructive/12 text-destructive',
-                                )}
-                              >
-                                {showIncrease ? (
-                                  <ArrowUp className='h-2.5 w-2.5 md:h-3.5 md:w-3.5' />
-                                ) : (
-                                  <ArrowDown className='h-2.5 w-2.5 md:h-3.5 md:w-3.5' />
-                                )}
-                                {metric.percentChange === null
-                                  ? '--'
-                                  : `${Math.abs(metric.percentChange).toFixed(1)}%`}
-                              </div>
-                            ) : (
-                              <div className='h-[20px] w-[44px] md:h-[28px] md:w-[60px]' />
-                            )}
-                          </div>
-
-                          <div className='mt-2 md:mt-3 space-y-0.5'>
-                            <div
-                              className={cn(
-                                'text-[1rem] md:text-[1.25rem] font-semibold tracking-tight',
+                              <div className={cn(
+                                'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold backdrop-blur-sm',
                                 isActive
-                                  ? 'text-primary-foreground'
-                                  : 'text-foreground',
-                              )}
-                            >
-                              {formatMetricCardValue(
-                                metric.key,
-                                metric.currentValue,
-                              )}
+                                  ? usePositiveColor
+                                    ? 'border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(220,252,231,0.92))] text-[hsl(var(--success))] shadow-[0_10px_24px_-14px_rgba(255,255,255,0.9)]'
+                                    : 'border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(254,226,226,0.92))] text-[hsl(var(--destructive))] shadow-[0_10px_24px_-14px_rgba(255,255,255,0.9)]'
+                                  : usePositiveColor
+                                    ? 'border-[hsl(var(--success))/0.28] bg-[hsl(var(--success))/0.12] text-[hsl(var(--success))]'
+                                    : 'border-destructive/25 bg-destructive/12 text-destructive',
+                              )}>
+                                {showIncrease ? <ArrowUp className='h-3 w-3' /> : <ArrowDown className='h-3 w-3' />}
+                                {metric.percentChange === null ? '--' : `${Math.abs(metric.percentChange).toFixed(1)}%`}
+                              </div>
+                            ) : <div className='h-[28px] w-[60px]' />}
+                          </div>
+                          <div className='mt-3 space-y-0.5'>
+                            <div className={cn('text-[1.25rem] font-semibold tracking-tight', isActive ? 'text-primary-foreground' : 'text-foreground')}>
+                              {formatMetricCardValue(metric.key, metric.currentValue)}
                             </div>
-                            {metric.hasComparison ? (
-                              <div
-                                className={cn(
-                                  'text-[10px] md:text-xs',
-                                  isActive
-                                    ? 'text-primary-foreground/72'
-                                    : 'text-muted-foreground',
-                                )}
-                              >
-                                对比{' '}
-                                {formatMetricCardValue(
-                                  metric.key,
-                                  metric.previousValue,
-                                )}
-                              </div>
-                            ) : (
-                              <div
-                                className={cn(
-                                  'text-[10px] md:text-xs',
-                                  isActive
-                                    ? 'text-primary-foreground/72'
-                                    : 'text-muted-foreground',
-                                )}
-                              >
-                                {selectedSku ? 'SKU 明细' : '暂无对比'}
-                              </div>
-                            )}
+                            <div className={cn('text-xs', isActive ? 'text-primary-foreground/72' : 'text-muted-foreground')}>
+                              {metric.hasComparison ? `对比 ${formatMetricCardValue(metric.key, metric.previousValue)}` : (selectedSku ? 'SKU 明细' : '暂无对比')}
+                            </div>
                           </div>
                         </button>
                       )
@@ -2103,39 +1942,87 @@ export default function DailyAnalysisPage() {
                 </DataTableCardMetrics>
                 <button
                   type='button'
-                  onClick={() =>
-                    setMetricCardPage((p) =>
-                      Math.min(
-                        Math.ceil(metricCards.length / METRICS_PER_PAGE) - 1,
-                        p + 1,
-                      ),
-                    )
-                  }
-                  disabled={
-                    metricCardPage >=
-                    Math.ceil(metricCards.length / METRICS_PER_PAGE) - 1
-                  }
+                  onClick={() => setMetricCardPage((p) => Math.min(Math.ceil(metricCards.length / METRICS_PER_PAGE) - 1, p + 1))}
+                  disabled={metricCardPage >= Math.ceil(metricCards.length / METRICS_PER_PAGE) - 1}
                   className='flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-background text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-30'
                 >
                   <ChevronRight className='h-4 w-4' />
                 </button>
               </div>
-              <div className='flex justify-center gap-1.5'>
-                {Array.from({
-                  length: Math.ceil(metricCards.length / METRICS_PER_PAGE),
-                }).map((_, i) => (
-                  <button
-                    key={i}
-                    type='button'
-                    onClick={() => setMetricCardPage(i)}
-                    className={cn(
-                      'h-1.5 rounded-full transition-all',
-                      i === metricCardPage
-                        ? 'w-4 bg-primary'
-                        : 'w-1.5 bg-muted-foreground/30 hover:bg-muted-foreground/50',
-                    )}
-                  />
-                ))}
+              {/* 手机端：左右滑动 + 指示点 */}
+              <div className='sm:hidden'>
+                {/* 可滑动容器 */}
+                <div
+                  className='flex gap-2 overflow-x-auto snap-x snap-mandatory pb-2 -mx-1 px-1 scrollbar-hide'
+                  style={{ WebkitOverflowScrolling: 'touch' }}
+                >
+                  {metricCards.map((metric) => {
+                    const isActive = metric.key === activeChartMetric
+                    const showIncrease = metric.percentChange === null ? true : metric.percentChange >= 0
+                    const usePositiveColor = metric.percentChange === null ? true : metric.isPositiveDirection
+                    return (
+                      <button
+                        key={metric.key}
+                        type='button'
+                        onClick={() => setActiveChartMetric(metric.key)}
+                        className={cn(
+                          'flex-none snap-start rounded-lg border px-3 py-2.5 text-left transition-all duration-200 w-[calc(50%-0.25rem)]',
+                          isActive
+                            ? 'border-primary/45 bg-primary text-primary-foreground shadow-[0_16px_34px_-24px_hsl(var(--primary)/0.72)]'
+                            : 'border-border/70 bg-[hsl(var(--surface-soft))]/86 text-foreground',
+                        )}
+                      >
+                        <div className='flex items-start justify-between gap-1.5'>
+                          <div className={cn('text-[10px] font-semibold tracking-tight', isActive ? 'text-primary-foreground/88' : 'text-muted-foreground')}>
+                            {metric.label}
+                          </div>
+                          {metric.showComparisonBadge ? (
+                            <div className={cn(
+                              'flex-none inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold backdrop-blur-sm',
+                              isActive
+                                ? usePositiveColor
+                                  ? 'border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(220,252,231,0.92))] text-[hsl(var(--success))]'
+                                  : 'border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(254,226,226,0.92))] text-[hsl(var(--destructive))]'
+                                : usePositiveColor
+                                  ? 'border-[hsl(var(--success))/0.28] bg-[hsl(var(--success))/0.12] text-[hsl(var(--success))]'
+                                  : 'border-destructive/25 bg-destructive/12 text-destructive',
+                            )}>
+                              {showIncrease ? <ArrowUp className='h-2.5 w-2.5' /> : <ArrowDown className='h-2.5 w-2.5' />}
+                              {metric.percentChange === null ? '--' : `${Math.abs(metric.percentChange).toFixed(1)}%`}
+                            </div>
+                          ) : null}
+                        </div>
+                        <div className='mt-2 space-y-0.5'>
+                          <div className={cn('text-[1.1rem] font-semibold tracking-tight', isActive ? 'text-primary-foreground' : 'text-foreground')}>
+                            {formatMetricCardValue(metric.key, metric.currentValue)}
+                          </div>
+                          <div className={cn('text-[10px]', isActive ? 'text-primary-foreground/72' : 'text-muted-foreground')}>
+                            {metric.hasComparison ? `对比 ${formatMetricCardValue(metric.key, metric.previousValue)}` : (selectedSku ? 'SKU 明细' : '暂无对比')}
+                          </div>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+                {/* 指示点（当前激活的卡片的对应点高亮） */}
+                <div className='flex justify-center gap-1.5 mt-1'>
+                  {Array.from({ length: Math.ceil(metricCards.length / METRICS_PER_PAGE) }).map((_, i) => {
+                    const startIdx = i * METRICS_PER_PAGE
+                    const endIdx = startIdx + METRICS_PER_PAGE
+                    const isActiveGroup = metricCards.slice(startIdx, endIdx).some(m => m.key === activeChartMetric)
+                    return (
+                      <button
+                        key={i}
+                        type='button'
+                        onClick={() => setMetricCardPage(i)}
+                        className={cn(
+                          'h-1.5 rounded-full transition-all',
+                          isActiveGroup ? 'w-4 bg-primary' : 'w-1.5 bg-muted-foreground/30 hover:bg-muted-foreground/50',
+                        )}
+                      />
+                    )
+                  })}
+                </div>
               </div>
 
               <div className='rounded-lg bg-[hsl(var(--surface-soft))]/82 p-4 md:p-5'>

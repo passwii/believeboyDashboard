@@ -187,6 +187,113 @@
 
 ---
 
+### 规则 7：指标卡 → 水平滑动（Horizontal Scroll）
+
+**问题**：大量指标卡（≥6 个）在手机端用左右箭头翻页时，两侧箭头占据固定空间，中间卡片被严重压缩，触控体验差。
+
+**解决方案**：手机端改用 `overflow-x-auto` + `snap-x snap-mandatory` 实现真正的水平滑动，平板/桌面保持网格布局 + 箭头翻页。
+
+**实现模式**：
+
+```tsx
+// 桌面端：左右箭头 + 自适应网格
+<div className='hidden sm:flex items-center gap-2'>
+  <button>←</button>
+  <div className='flex-1 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6'>
+    {cards}
+  </div>
+  <button>→</button>
+</div>
+
+// 手机端：水平滑动 + 指示点
+<div className='sm:hidden'>
+  <div
+    className='flex gap-2 overflow-x-auto snap-x snap-mandatory pb-2 -mx-1 px-1'
+    style={{ WebkitOverflowScrolling: 'touch' }}
+  >
+    {cards.map(card => (
+      <button
+        key={card.key}
+        className='flex-none snap-start w-[calc(50%-0.25rem)]'
+      >
+        {card.content}
+      </button>
+    ))}
+  </div>
+  {/* 指示点：活跃页面对应点高亮 */}
+  <div className='flex justify-center gap-1.5 mt-1'>
+    {groups.map((_, i) => (
+      <button
+        key={i}
+        className={cn(
+          'h-1.5 rounded-full transition-all',
+          isActiveGroup(i) ? 'w-4 bg-primary' : 'w-1.5 bg-muted-foreground/30'
+        )}
+      />
+    ))}
+  </div>
+</div>
+```
+
+**关键 CSS**：
+- `overflow-x-auto`：允许水平滚动
+- `snap-x snap-mandatory`：吸附到最近的卡片
+- `snap-start`：对齐到容器起点
+- `w-[calc(50%-0.25rem)]`：每屏显示 2 张卡片（配合 gap-2）
+- `scrollbar-hide`：隐藏滚动条（配合 `::-webkit-scrollbar { display: none }`）
+
+**适用场景**：指标卡数量 ≥4，且需要快速浏览对比的场景（如 Dashboard KPI 卡片、数据分析指标卡）
+
+---
+
+### 规则 8：筛选项标签对齐
+
+**问题**：使用 `FilterField` 组件包裹筛选项时，手机端每个筛选项独立一行导致标签和控件间距不一致、视觉不整齐。
+
+**解决方案**：手机端直接内联布局标签，不使用 `FilterField`，保持标签 `text-[0.65rem]`、`gap-1.5` 与控件紧密贴合。
+
+**实现模式**：
+
+```tsx
+// 桌面端：使用 FilterField 横向排列
+<div className='hidden md:flex items-center gap-4'>
+  <FilterField label="项目">
+    <Select>...</Select>
+  </FilterField>
+  <FilterField label="国家站点">
+    <Select>...</Select>
+  </FilterField>
+</div>
+
+// 手机端：内联标签 + 2 列网格
+<div className='md:hidden px-4 py-3'>
+  <div className='grid grid-cols-2 gap-2'>
+    {/* 项目 */}
+    <div className='space-y-1.5'>
+      <div className='text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground'>项目</div>
+      <Select>...</Select>
+    </div>
+    {/* 国家站点 */}
+    <div className='space-y-1.5'>
+      <div className='text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground'>国家</div>
+      <CountrySelect />
+    </div>
+  </div>
+  {/* 其他全宽项 */}
+  <div className='space-y-1.5 mt-3'>
+    <div className='text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground'>SKU</div>
+    <SearchableSkuField className='w-full' />
+  </div>
+</div>
+```
+
+**标签样式规则**：
+- 桌面端：`text-[0.72rem]`、`tracking-[0.18em]`
+- 手机端：`text-[0.65rem]`、`tracking-[0.16em]`（更紧凑）
+- 标签与控件间距：`space-y-1.5`（约 6px）
+
+---
+
 ## 定时报告页面适配记录
 
 ### 订阅管理 Tab
@@ -208,6 +315,20 @@
 | 重发状态显示 | 行内进度条 | 保持现状（已足够紧凑） |
 | 截图预览 | 小图难点击 | 点击后全屏预览（已有 PortraitScreenshotDialog） |
 | AI 文案弹窗 | 内容宽度 | DialogContent 响应式调整 |
+
+### 每日分析页面
+
+| 元素 | 问题 | 适配方案 |
+|------|------|----------|
+| 控制台工具栏 | 桌面横向 → 手机换行混乱 | 桌面端横向排列；手机端 2 列网格，标签内联 |
+| 项目/国家站点 | 并列显示但对齐差 | 2 列网格并排，标签 `text-[0.65rem]` |
+| SKU + 日期范围 | 全宽显示 | 各自独立一行 |
+| 操作按钮 | 双按钮堆叠 | 双按钮横排 `flex-1` 各占一半 |
+| 指标卡（11个） | 手机端左右箭头占位导致卡片被压缩 | 桌面端箭头+网格；手机端水平滑动 `overflow-x-auto` + `snap-x`，每屏 2 张 |
+| Tab 切换 + 导出 | 导出按钮宽度不适配 | 桌面端 `w-auto`；手机端 `w-full` |
+| 图表区域 | — | 保持现状（`h-[360px]` 足够高） |
+
+---
 
 ---
 
