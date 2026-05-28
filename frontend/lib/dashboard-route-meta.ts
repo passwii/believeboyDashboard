@@ -29,8 +29,6 @@ export const DASHBOARD_PAGE_TITLES: Array<{ match: string; title: string }> = [
   { match: '/data-management/platform-inspection', title: '平台巡检' },
   { match: '/operations/site-navigation', title: '跨境平台书签导航' },
   { match: '/operations/store-navigation', title: '店铺导航' },
-  { match: '/ai-panel/chat', title: 'AI 聊天面板' },
-  { match: '/ai-panel/chat-v2', title: 'AI 聊天 V2' },
   { match: '/ai-insights', title: 'AI 洞察' },
   { match: '/tools/research-analysis', title: '调研分析' },
   { match: '/change-password', title: '修改密码' },

@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import {
   BarChart3,
   BookOpen,
-  Bot,
   Calculator,
   ChevronRight,
   Coins,
@@ -47,7 +46,6 @@ const navItems: SearchItem[] = [
   { title: '站点导航', url: '/dashboard/operations/site-navigation', icon: <LayoutDashboard className='h-4 w-4' />, category: '运营导航' },
   { title: '店铺导航', url: '/dashboard/operations/store-navigation', icon: <Store className='h-4 w-4' />, category: '运营导航' },
   // AI 面板
-  { title: 'AI 聊天', url: '/dashboard/ai-panel/chat', icon: <Bot className='h-4 w-4' />, category: 'AI 面板' },
   { title: 'AI 洞察', url: '/dashboard/ai-insights', icon: <TrendingUp className='h-4 w-4' />, category: 'AI 面板' },
   // 运营核算
   { title: '财务月报', url: '/dashboard/data-reporting/monthly-report', icon: <FileBarChart className='h-4 w-4' />, category: '运营核算' },

@@ -16,8 +16,6 @@ import Link from 'next/link'
 import { signOut, useSession } from 'next-auth/react'
 import { usePathname } from 'next/navigation'
 
-import { AIChatSidebar } from '@/components/dashboard/ai-chat-sidebar'
-import { useDashboardAISidebar } from '@/components/dashboard/ai-sidebar-bridge'
 import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
 import { NavUser } from '@/components/dashboard/nav-user'
 import {
@@ -74,8 +72,6 @@ const primaryGroups: NavGroup[] = [
     iconAccent: '#888888',
     activeIconAccent: 'rgba(255,255,255,0.95)',
     items: [
-      { title: 'AI 聊天', url: '/dashboard/ai-panel/chat' },
-      { title: 'AI 聊天 V2', url: '/dashboard/ai-panel/chat-v2' },
       { title: 'AI 洞察', url: '/dashboard/ai-insights' },
     ],
   },
@@ -305,14 +301,11 @@ function SidebarGroupBlock({ group }: { group: NavGroup }) {
 }
 
 export function AppSidebar({
-  aiChatMode = false,
   ...props
-}: React.ComponentProps<typeof Sidebar> & { aiChatMode?: boolean }) {
+}: React.ComponentProps<typeof Sidebar>) {
   const { data: session } = useSession()
   const pathname = usePathname()
   const user = session?.user
-  const isAiChatPage = aiChatMode || pathname === '/dashboard/ai-panel/chat' || pathname === '/dashboard/ai-panel/chat-v2'
-  const { sidebarState } = useDashboardAISidebar()
 
   const displayUser = {
     name: user?.name || 'User',
@@ -323,12 +316,7 @@ export function AppSidebar({
 
   return (
     <Sidebar collapsible='offcanvas' {...props}>
-      {isAiChatPage && sidebarState ? (
-        <div className='flex min-h-0 flex-1 flex-col animate-in slide-in-from-right-6 duration-300'>
-          <AIChatSidebar {...sidebarState} />
-        </div>
-      ) : (
-        <div className='flex min-h-0 flex-1 flex-col'>
+      <div className='flex min-h-0 flex-1 flex-col'>
           <SidebarHeader className='px-3 py-4'>
             <Link
               href='/dashboard'
@@ -402,9 +390,7 @@ export function AppSidebar({
             />
           </SidebarFooter>
         </div>
-      )}
-
-      {!isAiChatPage ? <SidebarRail /> : null}
+      <SidebarRail />
     </Sidebar>
   )
 }
