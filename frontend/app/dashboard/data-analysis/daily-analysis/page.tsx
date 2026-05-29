@@ -995,13 +995,13 @@ function DailyMetricChart({
   }
 
   return (
-    <div className='h-[360px] w-full md:h-[420px]'>
+    <div className='h-[300px] w-full md:h-[420px]'>
       <ResponsiveContainer width='100%' height='100%'>
         {isBar ? (
           <BarChart
             data={rows}
-            margin={{ top: 28, right: 24, left: 8, bottom: 18 }}
-            barGap={10}
+            margin={{ top: 20, right: 8, left: 0, bottom: 12 }}
+            barGap={8}
           >
             <defs>
               <linearGradient id={currentGradientId} x1='0' y1='0' x2='0' y2='1'>
@@ -1048,8 +1048,8 @@ function DailyMetricChart({
                 dataKey='compareMetricValue'
                 name='上一个周期'
                 fill={`url(#${compareGradientId})`}
-                radius={[10, 10, 0, 0]}
-                barSize={16}
+                radius={[8, 8, 0, 0]}
+                barSize={12}
                 isAnimationActive
                 animationDuration={320}
                 animationEasing='ease-out'
@@ -1065,9 +1065,9 @@ function DailyMetricChart({
               dataKey={metric}
               name={SINGLE_METRIC_CHART_CONFIG[metric].label}
               fill={`url(#${currentGradientId})`}
-              radius={[10, 10, 0, 0]}
+              radius={[8, 8, 0, 0]}
               minPointSize={rows.some((row) => Number(row[metric] ?? 0) > 0) ? 2 : 0}
-              barSize={16}
+              barSize={12}
               isAnimationActive
               animationDuration={360}
               animationEasing='ease-out'
@@ -1075,14 +1075,14 @@ function DailyMetricChart({
                 fill: color,
                 fillOpacity: 1,
                 stroke: '#fff',
-                strokeWidth: 2.5,
+                strokeWidth: 2,
               }}
             />
           </BarChart>
         ) : (
           <LineChart
             data={rows}
-            margin={{ top: 28, right: 24, left: 8, bottom: 18 }}
+            margin={{ top: 20, right: 8, left: 0, bottom: 12 }}
           >
             <defs>
               <filter id={lineGlowId} x='-20%' y='-20%' width='140%' height='140%'>
@@ -1111,8 +1111,8 @@ function DailyMetricChart({
               dataKey='date'
               axisLine={false}
               tickLine={false}
-              tickMargin={18}
-              tick={{ fontSize: 12, fill: '#71717a' }}
+              tickMargin={12}
+              tick={{ fontSize: 11, fill: '#71717a' }}
               tickFormatter={(value) => {
                 const [, month, day] = String(value).split('-')
                 return `${month}月${day}日`
@@ -1121,8 +1121,8 @@ function DailyMetricChart({
             <YAxis
               axisLine={false}
               tickLine={false}
-              tickMargin={16}
-              tick={{ fontSize: 12, fill: '#71717a' }}
+              tickMargin={10}
+              tick={{ fontSize: 11, fill: '#71717a' }}
               domain={[0, 'auto']}
               tickFormatter={(value) =>
                 formatAxisValue(metric, Number(value))
@@ -1151,14 +1151,14 @@ function DailyMetricChart({
               dataKey={metric}
               name={SINGLE_METRIC_CHART_CONFIG[metric].label}
               stroke={color}
-              strokeWidth={4}
+              strokeWidth={3}
               style={{ filter: `url(#${lineGlowId})` }}
               dot={false}
               isAnimationActive
               animationDuration={360}
               animationEasing='ease-out'
               activeDot={{
-                r: 6,
+                r: 5,
                 fill: color,
                 stroke: '#fff',
                 strokeWidth: 2,
@@ -1808,10 +1808,10 @@ export default function DailyAnalysisPage() {
               <CountrySelect value={country} onChange={(value) => setCountry(value as CountryOption)} triggerClassName="h-9" />
             </div>
             <div className='mt-2'>
-              <SearchableSkuField value={selectedSku} options={skuOptions} loading={skuLoading} onChange={(value) => { selectedSkuRef.current = value; setSelectedSku(value); setActiveTab('summary'); void loadData() }} />
-            </div>
-            <div className='mt-2'>
-              <DateRangePicker value={dateRange} onChange={setDateRange} className='h-9 w-full' timezone={COUNTRY_TIMEZONE_MAP[country]} onApply={() => void loadData()} />
+              <div className='grid grid-cols-2 gap-2'>
+                <SearchableSkuField value={selectedSku} options={skuOptions} loading={skuLoading} onChange={(value) => { selectedSkuRef.current = value; setSelectedSku(value); setActiveTab('summary'); void loadData() }} />
+                <DateRangePicker value={dateRange} onChange={setDateRange} className='h-9 w-full' timezone={COUNTRY_TIMEZONE_MAP[country]} onApply={() => void loadData()} />
+              </div>
             </div>
             <div className='flex gap-2 mt-2'>
               <RefreshButton onClick={() => void loadData(undefined, true)} loading={loading || projectsLoading} label="刷新" size="sm" variant="outline" className="flex-1 h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]" />

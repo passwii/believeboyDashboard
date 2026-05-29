@@ -370,8 +370,37 @@
 |------|------|----------|
 | 控制台工具栏 | 桌面横向 → 手机换行混乱 | 桌面端横向排列；手机端 2 列网格 |
 | 项目/国家站点 | 并列显示但对齐差 | 去除小标题标签，2 列网格紧贴 |
-| SKU + 日期范围 | 全宽显示 | 各自独立一行，无标签 |
+| SKU + 日期范围 | 各占一行利用不充分 | SKU 与日期范围并列一行（2 列网格） |
 | 操作按钮 | 双按钮堆叠 | 双按钮横排 `flex-1` 各占一半 |
+| 图表区域 | 手机端左右留白大 | 缩减 margin（right/left），减小 barSize/strokeWidth |
+
+---
+
+### 图表区域手机端优化
+
+**问题**：图表在手机端左右留白大，有效数据区域被压缩。
+
+**解决方案**：
+1. **减小 margin**：`margin={{ top: 20, right: 8, left: 0, bottom: 12 }}`
+2. **减小柱宽/线宽**：`barSize={12}`、`strokeWidth={3}`
+3. **减小圆角**：`radius={[8, 8, 0, 0]}`
+4. **减小刻度字号**：`fontSize: 11`
+5. **图表容器高度**：手机端 `h-[300px]`，桌面端保持 `h-[420px]`
+
+```tsx
+<ResponsiveContainer width="100%" height="100%">
+  <BarChart
+    data={rows}
+    margin={{ top: 20, right: 8, left: 0, bottom: 12 }}
+    barSize={12}
+  >
+    <XAxis tickMargin={12} tick={{ fontSize: 11 }} />
+    <YAxis tickMargin={10} tick={{ fontSize: 11 }} />
+  </BarChart>
+</ResponsiveContainer>
+```
+
+**注意**：桌面端可保持原有 margin 值，仅在手机端收缩
 | 指标卡（11个） | 手机端左右箭头占位导致卡片被压缩 | 桌面端箭头+网格；手机端水平滑动 `overflow-x-auto` + `snap-x`，每屏 2 张 |
 | Tab 切换 + 导出 | 导出按钮宽度不适配 | 桌面端 `w-auto`；手机端 `w-full` |
 | 图表区域 | — | 保持现状（`h-[360px]` 足够高） |
