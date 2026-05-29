@@ -798,8 +798,8 @@ export default function SkuInfoPage() {
     <div className='w-full space-y-6 text-foreground'>
       <DataCard className='overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90'>
         <DataCardHeader title='筛选条件' />
-        <DataCardContent className='p-6'>
-          <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 xl:items-end'>
+        <DataCardContent className='p-4 lg:p-6'>
+          <div className='grid grid-cols-2 gap-2 lg:grid-cols-4 xl:grid-cols-6 xl:items-end lg:gap-4'>
             {projectsLoading ? (
               <div className='col-span-1'>
                 <FilterFieldSkeleton />
