@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, useCallback, useRef, useId } from 'react'
+import { useEffect, useMemo, useState, useCallback, useRef, useId, useSyncExternalStore } from 'react'
 import { DateRange } from 'react-day-picker'
 import {
   ArrowDown,
@@ -77,7 +77,6 @@ import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useNotifications } from '@/components/notifications'
 import { cn } from '@/lib/utils'
-import { formatLocalTimestampForFilename } from '@/lib/utils'
 import { applyBorder, applyHeaderBorder } from '@/lib/excel-styles'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TableSkeletonRows } from '@/components/ui/table-skeleton'
@@ -413,6 +412,17 @@ function isBarMetric(metric: ChartMetricKey) {
   )
 }
 
+/** Subscribe to window resize, return true when viewport < 640px (mobile). */
+function useMobile(breakpoint = 640) {
+  const subscribe = useCallback(() => () => {}, [])
+  const getSnapshot = useCallback(
+    () => typeof window !== 'undefined' && window.innerWidth < breakpoint,
+    [breakpoint],
+  )
+  const getServerSnapshot = useCallback(() => false, [])
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
+}
+
 function aggregateMetric(rows: DailyAnalysisRow[], metric: ChartMetricKey) {
   if (!rows.length) return 0
   if (metric === 'cpc') {
@@ -450,7 +460,8 @@ async function exportDailyAnalysisToExcel(
   workbook.created = new Date()
 
   const exportedAt = new Date().toLocaleString('zh-CN', { hour12: false })
-  const safeTimestamp = formatLocalTimestampForFilename(new Date())
+  const now = new Date()
+  const safeDate = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`
 
   // Sheet 1: 汇总
   const summarySheet = workbook.addWorksheet('日报汇总', {
@@ -773,7 +784,7 @@ async function exportDailyAnalysisToExcel(
   const url = window.URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = `销售数据-${projectName}-${country}-${safeTimestamp}.xlsx`
+  link.download = `销售数据-${projectName}-${country}-${safeDate}.xlsx`
   link.click()
   window.URL.revokeObjectURL(url)
 }
@@ -925,12 +936,14 @@ function DailyMetricChart({
   isBar,
   color,
   showComparison,
+  isMobile,
 }: {
   rows: DailyChartRow[]
   metric: ChartMetricKey
   isBar: boolean
   color: string
   showComparison: boolean
+  isMobile?: boolean
 }) {
   const chartId = useId().replace(/:/g, '')
   const currentGradientId = `${chartId}-${metric}-current`
@@ -994,13 +1007,22 @@ function DailyMetricChart({
     )
   }
 
+  const mobileChartMargin = isBar
+    ? { top: 12, right: 4, left: -12, bottom: 8 }
+    : { top: 12, right: 4, left: -12, bottom: 8 }
+  const desktopChartMargin = { top: 20, right: 8, left: 0, bottom: 12 }
+  const chartMargin = isMobile ? mobileChartMargin : desktopChartMargin
+  const tickFontSize = isMobile ? 10 : 12
+  const lineStrokeWidth = isMobile ? 2 : 3
+  const barRadius = isMobile ? [4, 4, 0, 0] as [number, number, number, number] : [8, 8, 0, 0] as [number, number, number, number]
+
   return (
     <div className='h-[300px] w-full md:h-[420px]'>
       <ResponsiveContainer width='100%' height='100%'>
         {isBar ? (
           <BarChart
             data={rows}
-            margin={{ top: 20, right: 8, left: 0, bottom: 12 }}
+            margin={chartMargin}
             barGap={8}
           >
             <defs>
@@ -1022,23 +1044,25 @@ function DailyMetricChart({
               dataKey='date'
               axisLine={false}
               tickLine={false}
-              tickMargin={18}
-              tick={{ fontSize: 12, fill: '#71717a' }}
+              tickMargin={isMobile ? 8 : 18}
+              tick={{ fontSize: tickFontSize, fill: '#71717a' }}
               tickFormatter={(value) => {
                 const [, month, day] = String(value).split('-')
-                return `${month}月${day}日`
+                return isMobile ? `${month}/${day}` : `${month}月${day}日`
               }}
             />
-            <YAxis
-              axisLine={false}
-              tickLine={false}
-              tickMargin={16}
-              tick={{ fontSize: 12, fill: '#71717a' }}
-              domain={[0, 'auto']}
-              tickFormatter={(value) =>
-                formatAxisValue(metric, Number(value))
-              }
-            />
+            {!isMobile && (
+              <YAxis
+                axisLine={false}
+                tickLine={false}
+                tickMargin={16}
+                tick={{ fontSize: 12, fill: '#71717a' }}
+                domain={[0, 'auto']}
+                tickFormatter={(value) =>
+                  formatAxisValue(metric, Number(value))
+                }
+              />
+            )}
             <Tooltip
               cursor={false}
               content={tooltipContent}
@@ -1048,7 +1072,7 @@ function DailyMetricChart({
                 dataKey='compareMetricValue'
                 name='上一个周期'
                 fill={`url(#${compareGradientId})`}
-                radius={[8, 8, 0, 0]}
+                radius={barRadius}
                 barSize={12}
                 isAnimationActive
                 animationDuration={320}
@@ -1065,7 +1089,7 @@ function DailyMetricChart({
               dataKey={metric}
               name={SINGLE_METRIC_CHART_CONFIG[metric].label}
               fill={`url(#${currentGradientId})`}
-              radius={[8, 8, 0, 0]}
+              radius={barRadius}
               minPointSize={rows.some((row) => Number(row[metric] ?? 0) > 0) ? 2 : 0}
               barSize={12}
               isAnimationActive
@@ -1082,7 +1106,7 @@ function DailyMetricChart({
         ) : (
           <LineChart
             data={rows}
-            margin={{ top: 20, right: 8, left: 0, bottom: 12 }}
+            margin={chartMargin}
           >
             <defs>
               <filter id={lineGlowId} x='-20%' y='-20%' width='140%' height='140%'>
@@ -1111,23 +1135,25 @@ function DailyMetricChart({
               dataKey='date'
               axisLine={false}
               tickLine={false}
-              tickMargin={12}
-              tick={{ fontSize: 11, fill: '#71717a' }}
+              tickMargin={isMobile ? 6 : 12}
+              tick={{ fontSize: isMobile ? 10 : 11, fill: '#71717a' }}
               tickFormatter={(value) => {
                 const [, month, day] = String(value).split('-')
-                return `${month}月${day}日`
+                return isMobile ? `${month}/${day}` : `${month}月${day}日`
               }}
             />
-            <YAxis
-              axisLine={false}
-              tickLine={false}
-              tickMargin={10}
-              tick={{ fontSize: 11, fill: '#71717a' }}
-              domain={[0, 'auto']}
-              tickFormatter={(value) =>
-                formatAxisValue(metric, Number(value))
-              }
-            />
+            {!isMobile && (
+              <YAxis
+                axisLine={false}
+                tickLine={false}
+                tickMargin={10}
+                tick={{ fontSize: 11, fill: '#71717a' }}
+                domain={[0, 'auto']}
+                tickFormatter={(value) =>
+                  formatAxisValue(metric, Number(value))
+                }
+              />
+            )}
             <Tooltip
               cursor={false}
               content={tooltipContent}
@@ -1138,7 +1164,7 @@ function DailyMetricChart({
                 dataKey='compareMetricValue'
                 name='上一个周期'
                 stroke='rgba(148,163,184,0.9)'
-                strokeWidth={2.5}
+                strokeWidth={isMobile ? 2 : 2.5}
                 strokeDasharray='6 6'
                 dot={false}
                 isAnimationActive
@@ -1151,7 +1177,7 @@ function DailyMetricChart({
               dataKey={metric}
               name={SINGLE_METRIC_CHART_CONFIG[metric].label}
               stroke={color}
-              strokeWidth={3}
+              strokeWidth={lineStrokeWidth}
               style={{ filter: `url(#${lineGlowId})` }}
               dot={false}
               isAnimationActive
@@ -1174,6 +1200,7 @@ function DailyMetricChart({
 export default function DailyAnalysisPage() {
   const { notify } = useNotifications()
   const { data: session } = useSession()
+  const isMobile = useMobile()
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
   const [projectId, setProjectId] = useState<string>('all')
@@ -1997,9 +2024,9 @@ export default function DailyAnalysisPage() {
                 </div>
               </div>
 
-              <div className='rounded-lg bg-[hsl(var(--surface-soft))]/82 p-4 md:p-5'>
-                <div className='mb-4 flex flex-wrap items-center gap-4 text-xs text-muted-foreground'>
-                  <div className='inline-flex items-center gap-2 rounded-full bg-background/72 px-3 py-1.5'>
+              <div className={cn('rounded-lg bg-[hsl(var(--surface-soft))]/82', isMobile ? 'px-1 pt-2 pb-0' : 'p-4 md:p-5')}>
+                <div className={cn('mb-4 flex flex-wrap items-center gap-4 text-xs text-muted-foreground', isMobile && 'mb-2 gap-2 px-1')}>
+                  <div className={cn('inline-flex items-center gap-2 rounded-full bg-background/72 px-3 py-1.5', isMobile && 'px-2 py-1 text-[10px]')}>
                     <span
                       className='h-2.5 w-2.5 rounded-full'
                       style={{
@@ -2033,6 +2060,7 @@ export default function DailyAnalysisPage() {
                   isBar={isBarMetric(activeChartMetric)}
                   color={getChartColor(activeChartMetric)}
                   showComparison={hasComparisonData}
+                  isMobile={isMobile}
                 />
               </div>
             </>

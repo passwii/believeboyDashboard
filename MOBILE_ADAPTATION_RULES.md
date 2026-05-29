@@ -4,6 +4,57 @@
 
 ---
 
+## 前置条件：页面优化检查清单
+
+> 每次开始一个新的页面优化前，必须先完成以下检查，形成**问题分析报告**，再进入实施阶段。
+
+### 检查清单（每次必做）
+
+#### 1. 收集页面结构信息
+- [ ] 读取页面完整代码，了解组件层级
+- [ ] 识别所有 `Card` / `DataCard` / `DataTableCard` 容器
+- [ ] 识别所有 `Grid` / `flex` 布局区域
+- [ ] 识别所有 `Table` 表格（尤其是 ≥5 列的多列表格）
+- [ ] 识别所有 `Dialog` / `Popover` 弹窗
+- [ ] 识别所有 `Pagination` 分页组件
+- [ ] 识别所有表单输入区域（`Input` / `Select` / `Tabs`）
+- [ ] 识别所有 `Button` 交互元素
+
+#### 2. 分析问题（输出问题分析报告）
+
+| 区域 | 问题类型 | 具体描述 |
+|------|----------|----------|
+| 工具栏/筛选项 | 换行混乱 / 溢出 | 描述具体问题 |
+| 表格 | 水平溢出 / 列过多 | 描述列数和溢出情况 |
+| 图表区域 | 留白过多 | 描述左右/上下留白 |
+| 卡片/KPI | 挤成一团 / 被压缩 | 描述卡片被压缩情况 |
+| Dialog/Popover | 宽度不适配 | 描述宽度问题 |
+| 表单 | 字段换行混乱 | 描述字段布局问题 |
+| Pagination | 按钮溢出 | 描述分页按钮问题 |
+| 触控目标 | 太小难点击 | 描述触摸问题 |
+
+#### 3. 匹配规则并制定方案
+
+根据"规则清单"匹配适用规则，制定具体实施计划：
+
+| 问题 | 适用规则 | 实施方案 |
+|------|----------|----------|
+| 表格溢出 | 规则1 | 桌面表格 → 手机卡片列表 |
+| 筛选项换行 | 规则2 / 规则9 | 2列网格 / 去除标签 |
+| 图表留白 | 规则（图表优化） | 隐藏Y轴 + 负margin |
+| 指标卡压缩 | 规则7 | 水平滑动 |
+| Dialog适配 | 规则3 | 响应式 DialogContent |
+| 触控目标 | 规则5 | 最小 44×44px |
+| 空状态 | 规则6 | 居中带图标 |
+| 筛选项标签 | 规则8 / 规则9 | 内联标签 / 去除标签 |
+
+#### 4. 实施三步骤
+1. **评判当前极端适配的页面存在哪些问题**（详细说明）
+2. **说明如何调整优化，并给出对应的方法**（匹配规则）
+3. **实施和 build 补充**（编码实现 + 验证）
+
+---
+
 ## 核心原则
 
 1. **数据优先**：手机端显示的核心是数据本身，而非表格容器
@@ -381,31 +432,198 @@
 **问题**：图表在手机端左右留白大，有效数据区域被压缩。
 
 **解决方案**：
-1. **减小 margin**：`margin={{ top: 20, right: 8, left: 0, bottom: 12 }}`
-2. **减小柱宽/线宽**：`barSize={12}`、`strokeWidth={3}`
-3. **减小圆角**：`radius={[8, 8, 0, 0]}`
-4. **减小刻度字号**：`fontSize: 11`
-5. **图表容器高度**：手机端 `h-[300px]`，桌面端保持 `h-[420px]`
+1. **隐藏 Y 轴**：手机端不渲染 `<YAxis>`，消除左侧标签区域的留白
+2. **负 margin 补偿**：`margin={{ left: -12 }}` 把图表区域往左推，贴边填充
+3. **缩短日期格式**：`05月28日` → `05/28`，减少 X 轴文字占用
+4. **缩减刻度/线条**：`fontSize: 10`、`strokeWidth: 2`、`radius: [4,4,0,0]`
+5. **容器 padding 缩减**：手机端 `px-1 pt-2 pb-0` 替代 `p-4`
+6. **使用 `useMobile` hook**（SSR 安全的 `useSyncExternalStore`）判断视口宽度
 
 ```tsx
-<ResponsiveContainer width="100%" height="100%">
-  <BarChart
-    data={rows}
-    margin={{ top: 20, right: 8, left: 0, bottom: 12 }}
-    barSize={12}
-  >
-    <XAxis tickMargin={12} tick={{ fontSize: 11 }} />
-    <YAxis tickMargin={10} tick={{ fontSize: 11 }} />
-  </BarChart>
-</ResponsiveContainer>
+// 手机端：隐藏 Y 轴 + 负 margin 贴边
+{!isMobile && (
+  <YAxis tickMargin={16} tick={{ fontSize: 12, fill: '#71717a' }} />
+)}
+<BarChart
+  margin={isMobile
+    ? { top: 12, right: 4, left: -12, bottom: 8 }
+    : { top: 20, right: 8, left: 0, bottom: 12 }
+  }
+/>
+
+// 手机端日期格式缩短
+tickFormatter={(value) => {
+  const [, month, day] = String(value).split('-')
+  return isMobile ? `${month}/${day}` : `${month}月${day}日`
+}}
 ```
 
+**关键 CSS**：
+- `left: -12`（负 margin 向左推进图表区域）
+- 手机端容器：`px-1 pt-2 pb-0`（极小 padding，最大化图表宽度）
+- `useMobile` hook 用 `useSyncExternalStore` 实现 SSR 安全
+
 **注意**：桌面端可保持原有 margin 值，仅在手机端收缩
+
 | 指标卡（11个） | 手机端左右箭头占位导致卡片被压缩 | 桌面端箭头+网格；手机端水平滑动 `overflow-x-auto` + `snap-x`，每屏 2 张 |
 | Tab 切换 + 导出 | 导出按钮宽度不适配 | 桌面端 `w-auto`；手机端 `w-full` |
 | 图表区域 | — | 保持现状（`h-[360px]` 足够高） |
 
 ---
+
+### 新品定价测算页面
+
+| 元素 | 问题 | 适配方案 |
+|------|------|----------|
+| 主布局 Grid | 手机端单列未声明 | 添加 `grid-cols-1` 显式声明 |
+| Tab 切换（4项） | 手机端 4 列太挤 | 手机端 `grid-cols-2`，平板+ `grid-cols-4` |
+| 长/宽/高/重量 | 手机端 4 列溢出 | 手机端 `grid-cols-2`，平板+ `grid-cols-4` |
+| 控制台筛选项 | 桌面端 flex 横向 → 手机换行混乱 | 手机端 2 列网格；平板+ 横向排列 |
+| 测算结果 Popover | 按钮文字"下拉选择测算结果"过长 | 手机端简化为"下拉选择"，按钮 w-full |
+| 清空选择按钮 | 手机端与其他筛选项同处一行不整齐 | 独立一行，按钮 h-9 |
+
+**关键改动**：
+- 控制台筛选项手机端 2 列网格 (`grid-cols-1 sm:grid-cols-[140px_1fr_auto] md:flex`)
+- `sm:grid-cols-2` 让尺寸行（长宽高重）在手机端变成 2×2 网格
+- Tabs 手机端 2 列，平板+ 4 列横向
+
+---
+
+### 店铺 SKU 测算页面
+
+| 元素 | 问题 | 适配方案 |
+|------|------|----------|
+| 主布局 Grid | 手机端未声明列数 | 添加 `grid-cols-1` 显式声明 |
+| 控制台筛选项 | 项目/SKU/导出带标签，手机换行混乱 | 手机端隐藏标签（`hidden sm:block`），2 列网格 `gap-3` |
+| 站点切换器 | 宽度 `sm:w-48` 固定 | 手机端 `w-full`，平板+ `sm:w-48` |
+| 空状态 | 固定高度 `h-48` 在手机端利用不充分 | 改为 `py-8`，自适应高度 |
+| 错误状态 | `m-4` 在手机端 margin 过大 | 改为无固定 margin，p-4 改为 `px-4` |
+
+**关键改动**：
+- 筛选项手机端 `hidden sm:block` 隐藏标签，`grid-cols-1 sm:grid-cols-2`
+- 站点切换器手机端 `w-full`，平板+ `sm:w-48`
+- 空状态容器：`py-8` 替代固定 `h-48`
+
+---
+
+### 库存分析页面
+
+| 元素 | 问题 | 适配方案 |
+|------|------|----------|
+| 主控制台 | DataCard + FilterField 结构复杂，手机端布局错乱 | 重构为 `dashboard-surface` 直接承载筛选项 + 统计条，移除 DataCard 包裹 |
+| 筛选项 | FilterField 包裹导致换行混乱 | 去除 FilterField，手机 2 列网格 `grid-cols-2`，平板+ 横向 `md:flex` |
+| 筛选项标签 | 桌面端显示标签，手机端多余 | `hidden md:block` 手机隐藏，桌面 `text-[0.72rem]` |
+| 统计条 | DataTableCardStatBar 手机端 4 项溢出 | 手工实现 stats，手机 `flex-col divide-y` 纵向，桌面 `sm:flex-row sm:divide-x` 横向 |
+| 导出按钮 | 宽度不适配 | 手机 `w-full`，平板+ `sm:w-auto` |
+
+**关键重构**：
+- 移除 `DataCard` / `DataCardHeader` / `DataCardContent` 包裹，直接使用 `dashboard-surface`
+- 移除 `FilterField` 组件，筛选项直接用 `div.space-y-1.5` + `Select` / `CountrySelect`
+- 统计条手工实现：手机 `grid grid-cols-2 gap-2` 2×2 网格，桌面 `sm:flex-row` 横向
+- 业务日期显示手机端 `hidden sm:inline` 隐藏标签文字
+
+**高度陷阱（SelectTrigger 的 min-h-touch）**：
+- `SelectTrigger` 组件内部有 `min-h-touch`（44px），即使传入 `h-9`（36px）也会被覆盖
+- 非 Select 的自定义显示元素（如业务日期框）必须同步使用 `min-h-[44px]` 才能与 Select 保持一致
+- 圆角样式必须与 SelectTrigger 一致（`rounded-lg` 而非 `rounded-md`）
+- 边框样式必须与 SelectTrigger 一致（`border-border/70` 或 `border-input`）
+
+```tsx
+// ❌ 错误：高度不一致
+<div className="h-9 w-full border border-border/70 rounded-md">...</div>
+
+// ✅ 正确：与 SelectTrigger 一致
+<div className="h-9 min-h-[44px] w-full border border-border/70 rounded-lg">...</div>
+```
+
+---
+
+### 补货分析页面
+
+| 元素 | 问题 | 适配方案 |
+|------|------|----------|
+| 控制台整体 | DataCard + FilterField 结构，手机端布局错乱 | 重构为 `dashboard-surface` 直接承载，去除 DataCard / DataCardHeader / DataCardContent / FilterField |
+| 筛选项（4项） | FilterField 包裹导致标签冗余、换行混乱 | 去除 FilterField，手机 `grid-cols-2` 2×2 网格，桌面 `lg:flex` 横向排列 |
+| 统计条（7项） | DataTableCardStatBar 7 列横排手机端严重挤压 | 手机 `grid-cols-2` 2×2 网格带 border，桌面 `lg:flex` + `divide-x` 横排 |
+| 标题行 | 仅桌面横向排列 | 手机 `flex-col` 堆叠，桌面 `sm:flex-row` 横向 |
+| 表格（22列） | `min-w-[2050px]` 完全无法在手机端使用 | 桌面保留完整表格（`hidden md:block`）；手机卡片列表（`md:hidden`）|
+| 手机卡片列表 | 22 列数据需要精简展示 | 核心信息：SKU + 国家 + 风险状态 + 4 核心数据 + 日期 + 可编辑字段 + 操作按钮 |
+| 可编辑字段 | 生产交货/运输时间/加权系数需要在手机端保留编辑能力 | 3 列网格 `grid-cols-3`，Input 缩小为 `h-8 text-xs` |
+| 导出按钮 | 导出 Excel 按钮宽度不适配 | 手机 `w-full`，桌面 `sm:w-auto`，移到 Tabs 头部 |
+| Tabs + 导出 | 导出按钮原在 DataTableCardHeader 内 | 移到 Tabs 行，手机端 `flex-col` 堆叠 |
+
+**关键重构**：
+- 移除 `DataCard` / `DataCardHeader` / `DataCardContent` / `DataTableCardStatBar` / `FilterField` 导入
+- 控制台三层结构：标题行 → 筛选项 → 统计条，各自独立 border-t 分隔
+- 统计条手机端：`grid grid-cols-2 gap-2`，每项带 `rounded-lg border border-border/70`
+- 统计条桌面端：`lg:flex lg:divide-x lg:divide-border/60`，去除圆角和边框
+- 手机卡片列表：每个 SKU 卡片包含完整编辑功能（保存按钮 + 查看发货按钮）
+- 操作按钮：`h-9 min-h-[44px]` 确保触摸友好（`flex-1` 等分宽度）
+
+---
+
+### 调研分析页面
+
+| 元素 | 问题 | 适配方案 |
+|------|------|----------|
+| MetricGridCard | DataCard + DataCardHeader + DataCardContent 嵌套 | 重构为 `div.dashboard-surface` + 内联 header/content，`grid-cols-2 lg:grid-cols-3` |
+| InsightChartCard | 同上 | 重构为 `div.dashboard-surface`，标题行内联 |
+| ContextSummaryStrip | `grid-cols-3` 手机端布局不均 | 改为 `grid-cols-2` |
+| 调研工作台 | DataCard 包裹，grid `md:grid-cols-2` | 重构为 `dashboard-surface`，`grid-cols-2 lg:grid-cols-5`，SelectTrigger 添加样式 |
+| 核心过程 | DataCard 包裹 | 重构为 `dashboard-surface`，`grid-cols-2 lg:grid-cols-4` |
+| 分析工作台 | DataCard 包裹，SelectTrigger 无样式 | 重构为 `dashboard-surface`，添加 SelectTrigger 样式 `h-9 w-full rounded-lg` |
+| 骨架屏 | `md:grid-cols-2 lg:grid-cols-4` | 改为 `grid-cols-2 lg:grid-cols-4` |
+
+**关键改动**：
+- MetricGridCard / InsightChartCard 组件重构为内联实现，去除 DataCard 嵌套
+- SelectTrigger 添加统一样式：`h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]`
+- ContextSummaryStrip：`md:grid-cols-3` → `grid-cols-2`（手机端先适配）
+- 各 section 的 grid 从 `md:` 改为直接在 `lg:` 断点生效，手机端用更紧凑的布局
+
+---
+
+### 目标管理页面
+
+| 元素 | 问题 | 适配方案 |
+|------|------|----------|
+| 控制台 Hero | Card + CardHeader 结构，手机端堆叠不紧凑 | 重构为 `dashboard-surface` 直接承载 |
+| 标题行 | `CardTitle text-2xl md:text-[2rem]` | 改为 `h2 text-2xl lg:text-[2rem]` |
+| 描述行 | `CardDescription` | 改为 `p` 元素 |
+| 筛选项（3项+刷新） | 固定宽度 `w-56`/`w-36`/`w-28`，无包裹 | 改为 `grid-cols-2 sm:grid-cols-3 lg:flex` 响应式布局，SelectTrigger `w-full` |
+| 刷新按钮 | 固定宽度 | 手机 `w-full`，桌面 `lg:w-auto` |
+| 本月进度 StatCard | `grid-cols-2 gap-4` 间距大 | 改为 `grid-cols-2 gap-2 sm:grid-cols-4` |
+| 骨架屏 | 固定 `h-36`/`h-64` | 改为 `h-28 rounded-xl sm:h-36` / `h-48 sm:h-64` |
+| 空状态 | 无包裹 | 添加 `dashboard-surface` 包裹 |
+
+**关键改动**：
+- 控制台 Hero：`Card` → `div.dashboard-surface`，`CardHeader` → `div.px-4.py-4`
+- 标题：使用原生 `h2` + `CardTitle` 类名，去除 `Card` 组件
+- 筛选项：`grid grid-cols-2 sm:grid-cols-3 lg:flex lg:flex-row lg:gap-3`
+- StatCard 区域：`gap-2` 手机端更紧凑
+- 空状态/骨架屏：添加响应式高度
+
+---
+
+### 退货分析页面
+
+| 元素 | 问题 | 适配方案 |
+|------|------|----------|
+| 控制台 | DataCard + FilterField 结构，标签冗余 | 重构为 `dashboard-surface`，去除 DataCard / DataCardHeader / DataCardContent / FilterField |
+| 筛选项（3项） | 项目/国家/日期范围 + 操作按钮 | 手机 `grid-cols-2`，日期范围 `col-span-2`；桌面 `lg:flex` 横向 |
+| 日期范围 | `w-[240px]` 固定宽度 | 改为 `w-full` 配合 grid |
+| 操作按钮 | 与筛选项同处一行 | 移至标题行 action 区域，手机 `w-full sm:w-auto` |
+| 统计卡（7项） | 嵌套 DataCard 过重 | 精简为 `dashboard-surface` 内 `grid-cols-2` 带 border 的统计单元格 |
+| 排行表（7列） | 偏挤 | 保持现状，7 列在手机端勉强可用 |
+| 趋势图表 | 留白大 | 缩减 margin，减小 barSize / fontSize / radius，容器 `p-1 sm:p-4` |
+| 饼图 | 外半径大 | `outerRadius` 缩小，容器高度 `h-[240px] sm:h-[300px]` |
+| 星期分布 | `grid-cols-7` 手机端太挤 | 改为 `grid-cols-4 sm:grid-cols-7` |
+| Tab 内容区 | 无 padding | 各 Tab 添加 `p-4` padding |
+
+**关键改动**：
+- 控制台三层结构：标题行（含操作按钮）→ 筛选项 → 统计条
+- 统计卡改为 `rounded-lg border border-border/70 py-2.5 px-2` 内联样式，去除嵌套 DataCard
+- 图表优化：margin `top: 12, right: 4, left: -12, bottom: 8`，barSize 16/10，fontSize 10
+- 标题 `text-base font-semibold`（统一为 `text-base`，去除 `text-lg`/`text-2xl`）
 
 ---
 

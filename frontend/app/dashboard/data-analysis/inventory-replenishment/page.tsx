@@ -20,24 +20,19 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, STICKY_LEFT_HEAD_CELL, STICKY_LEFT_CELL_HOVER, STICKY_TOP_ROW } from '@/components/ui/table'
 import {
-  DataCard,
-  DataCardContent,
-  DataCardHeader,
   DataTableCard,
   DataTableCardBody,
   DataTableCardHeader,
-  DataTableCardStatBar,
 } from '@/components/ui/data-card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useNotifications } from '@/components/notifications'
-import { formatLocalTimestampForFilename } from '@/lib/utils'
+import { formatLocalTimestampForFilename, cn } from '@/lib/utils'
 import { applyBorder, applyHeaderBorder, applyRowBorder } from '@/lib/excel-styles'
 import { COUNTRY_OPTIONS } from '@/lib/console-constants'
 import {
   CountrySelect,
-  FilterField,
   RefreshButton,
 } from '@/components/dashboard/console'
 import { SnapshotSelector } from '@/components/dashboard/inventory-replenishment/snapshot-selector'
@@ -759,121 +754,136 @@ export default function InventoryReplenishmentPage() {
 
   return (
     <div className="w-full space-y-6">
-      <DataCard>
-        <DataCardHeader
-          title="补货分析控制台"
-          badge={<p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">分析控制台</p>}
-          action={
-            <>
-              <SnapshotSelector
-                projectId={currentProjectId}
-                country={country}
-                selectedSnapshotId={selectedSnapshotId}
-                onSnapshotSelect={setSelectedSnapshotId}
-                onCreateSnapshot={() => setCreateDialogOpen(true)}
-                onEditSnapshot={(snapshot) => {
-                  setEditingSnapshot(snapshot)
-                  setEditDialogOpen(true)
-                }}
-                disabled={!currentProjectId || loading}
-                refreshNonce={snapshotRefreshNonce}
-                isAdmin={isAdmin}
-                onDeleteSnapshot={() => setSnapshotRefreshNonce((n) => n + 1)}
-              />
-              {!isSnapshotMode && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={!currentProjectId || loading || refreshingAll}
-                  onClick={() => void refreshWithSave()}
-                >
-                  <RefreshCw className={`mr-1.5 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-                  {loading || refreshingAll ? '重算中...' : '刷新重算'}
-                </Button>
-              )}
-            </>
-          }
-        />
-        <DataCardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid grid-cols-2 gap-2">
-              <div className="w-full min-w-0">
-                <FilterField label="项目">
-                  {projectsLoading ? (
-                    <Skeleton className="h-9 w-full rounded-lg" />
-                  ) : (
-                    <Select value={projectId} onValueChange={(id) => { setProjectId(id); setSelectedSnapshotId(null); syncUrlParams(id, country) }}>
-                      <SelectTrigger className="h-9 rounded-md border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground">
-                        <SelectValue placeholder="选择项目" />
-                      </SelectTrigger>
-                      <SelectContent align="start" side="bottom" sideOffset={8} collisionPadding={16}>
-                        {projects.map((project) => (
-                          <SelectItem key={project.id} value={String(project.id)}>
-                            {project.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </FilterField>
-              </div>
-              <div className="w-full min-w-0">
-                <FilterField label="搜索">
-                  <Input
-                    value={keyword}
-                    onChange={(event) => setKeyword(event.target.value)}
-                    placeholder="搜索 SKU / ASIN"
-                    className="h-9 rounded-md border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
-                  />
-                </FilterField>
-              </div>
-              <FilterField label="国家站点">
-                <CountrySelect
-                  value={country}
-                  onChange={(c) => { setCountry(c); setSelectedSnapshotId(null); syncUrlParams(projectId, c) }}
-                  triggerClassName="h-9 rounded-md border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
-                />
-              </FilterField>
-              <FilterField label="风险状态">
-                <Select value={riskFilter} onValueChange={setRiskFilter}>
-                  <SelectTrigger className="h-9 rounded-md border-border/70 bg-[hsl(var(--surface-panel))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground">
-                    <SelectValue placeholder="风险状态" />
+      {/* 控制台 */}
+      <div className="dashboard-surface">
+        {/* 标题行 */}
+        <div className="flex flex-col gap-3 border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">分析控制台</p>
+            <h2 className="text-base font-semibold text-foreground leading-none">补货分析</h2>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <SnapshotSelector
+              projectId={currentProjectId}
+              country={country}
+              selectedSnapshotId={selectedSnapshotId}
+              onSnapshotSelect={setSelectedSnapshotId}
+              onCreateSnapshot={() => setCreateDialogOpen(true)}
+              onEditSnapshot={(snapshot) => {
+                setEditingSnapshot(snapshot)
+                setEditDialogOpen(true)
+              }}
+              disabled={!currentProjectId || loading}
+              refreshNonce={snapshotRefreshNonce}
+              isAdmin={isAdmin}
+              onDeleteSnapshot={() => setSnapshotRefreshNonce((n) => n + 1)}
+            />
+            {!isSnapshotMode && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={!currentProjectId || loading || refreshingAll}
+                onClick={() => void refreshWithSave()}
+              >
+                <RefreshCw className={`mr-1.5 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                {loading || refreshingAll ? '重算中...' : '刷新重算'}
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* 筛选项 */}
+        <div className="px-4 py-3">
+          <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-row lg:items-center lg:gap-3">
+            <div className="w-full min-w-0">
+              {projectsLoading ? (
+                <Skeleton className="h-9 w-full rounded-lg" />
+              ) : (
+                <Select value={projectId} onValueChange={(id) => { setProjectId(id); setSelectedSnapshotId(null); syncUrlParams(id, country) }}>
+                  <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground">
+                    <SelectValue placeholder="选择项目" />
                   </SelectTrigger>
                   <SelectContent align="start" side="bottom" sideOffset={8} collisionPadding={16}>
-                    <SelectItem value="all">全部状态</SelectItem>
-                    <SelectItem value="长期断货">长期断货</SelectItem>
-                    <SelectItem value="短期断货">短期断货</SelectItem>
-                    <SelectItem value="断货风险">断货风险</SelectItem>
-                    <SelectItem value="健康库存">健康库存</SelectItem>
-                    <SelectItem value="滞销">滞销</SelectItem>
-                    <SelectItem value="严重滞销">严重滞销</SelectItem>
-                    <SelectItem value="待补数据">待补数据</SelectItem>
+                    {projects.map((project) => (
+                      <SelectItem key={project.id} value={String(project.id)}>
+                        {project.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
-              </FilterField>
-            </div>
-            <div>
-              {loading && rows.length === 0 ? (
-                <div className="grid grid-cols-7 gap-2">
-                  <Skeleton className="h-16 w-full rounded-xl" />
-                  <Skeleton className="h-16 w-full rounded-xl" />
-                  <Skeleton className="h-16 w-full rounded-xl" />
-                  <Skeleton className="h-16 w-full rounded-xl" />
-                  <Skeleton className="h-16 w-full rounded-xl" />
-                  <Skeleton className="h-16 w-full rounded-xl" />
-                  <Skeleton className="h-16 w-full rounded-xl" />
-                </div>
-              ) : (
-                <DataTableCardStatBar items={statBarItems} />
               )}
             </div>
+            <div className="w-full min-w-0">
+              <Input
+                value={keyword}
+                onChange={(event) => setKeyword(event.target.value)}
+                placeholder="搜索 SKU / ASIN"
+                className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
+              />
+            </div>
+            <div className="w-full min-w-0">
+              <CountrySelect
+                value={country}
+                onChange={(c) => { setCountry(c); setSelectedSnapshotId(null); syncUrlParams(projectId, c) }}
+                triggerClassName="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
+              />
+            </div>
+            <div className="w-full min-w-0">
+              <Select value={riskFilter} onValueChange={setRiskFilter}>
+                <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-panel))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground">
+                  <SelectValue placeholder="风险状态" />
+                </SelectTrigger>
+                <SelectContent align="start" side="bottom" sideOffset={8} collisionPadding={16}>
+                  <SelectItem value="all">全部状态</SelectItem>
+                  <SelectItem value="长期断货">长期断货</SelectItem>
+                  <SelectItem value="短期断货">短期断货</SelectItem>
+                  <SelectItem value="断货风险">断货风险</SelectItem>
+                  <SelectItem value="健康库存">健康库存</SelectItem>
+                  <SelectItem value="滞销">滞销</SelectItem>
+                  <SelectItem value="严重滞销">严重滞销</SelectItem>
+                  <SelectItem value="待补数据">待补数据</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        </DataCardContent>
-      </DataCard>
+        </div>
+
+        {/* 统计条 */}
+        <div className="border-t border-border/70 px-4 py-3">
+          {loading && rows.length === 0 ? (
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+              {Array.from({ length: 7 }).map((_, i) => (
+                <Skeleton key={i} className="h-14 w-full rounded-xl" />
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:flex lg:divide-x lg:divide-border/60">
+              {statBarItems.map((item, i) => (
+                <div
+                  key={i}
+                  className={cn(
+                    'flex flex-col items-center justify-center rounded-lg border border-border/70 py-2.5 lg:flex-1 lg:rounded-none lg:border-0',
+                    i === 0 && 'lg:pl-4',
+                    i === statBarItems.length - 1 && 'lg:pr-4',
+                  )}
+                >
+                  <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">{item.label}</div>
+                  <div className={cn(
+                    'mt-0.5 text-xl font-semibold leading-tight',
+                    item.highlight ? 'text-primary' : 'text-foreground',
+                  )}>
+                    {item.value}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
       <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'table' | 'calendar')}>
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <TabsList>
             <TabsTrigger value="table" className="gap-1.5">
               <Table2 className="h-4 w-4" />
@@ -884,122 +894,289 @@ export default function InventoryReplenishmentPage() {
               日历视图
             </TabsTrigger>
           </TabsList>
+          {viewMode === 'table' && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full sm:w-auto"
+              disabled={loading || exporting || rows.length === 0}
+              onClick={() => void exportToExcel()}
+            >
+              <FileDown className="h-3.5 w-3.5" />
+              {exporting ? '导出中...' : '导出 Excel'}
+            </Button>
+          )}
         </div>
 
         <TabsContent value="table">
-          <DataTableCard>
-            <DataTableCardHeader className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="space-y-1">
-                <h3 className="text-base font-semibold text-foreground">SKU 补货主表</h3>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={loading || exporting || rows.length === 0}
-                onClick={() => void exportToExcel()}
-              >
-                <FileDown className="h-3.5 w-3.5" />
-                {exporting ? '导出中...' : '导出 Excel'}
-              </Button>
-            </DataTableCardHeader>
-            <DataTableCardBody>
+          {/* 共享的加载/空状态 */}
           {!currentProjectId && !projectsLoading ? (
-            <div className="px-6 py-16 text-center text-sm text-muted-foreground">请先选择项目。</div>
+            <div className="dashboard-surface px-6 py-16 text-center text-sm text-muted-foreground">请先选择项目。</div>
           ) : loading && rows.length === 0 ? (
-            <div className="space-y-3 p-6">
+            <div className="dashboard-surface space-y-3 p-6">
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
             </div>
           ) : rows.length === 0 ? (
-            <div className="px-6 py-16 text-center text-sm text-muted-foreground">当前筛选条件下没有可分析的 SKU。</div>
+            <div className="dashboard-surface px-6 py-16 text-center text-sm text-muted-foreground">当前筛选条件下没有可分析的 SKU。</div>
           ) : (
-            <div className="relative">
-              {loading && rows.length > 0 ? (
-                <div className="pointer-events-none absolute right-4 top-4 z-20 rounded-full border border-border/70 bg-[hsl(var(--surface-panel))/0.95] px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))/0.96] dark:text-foreground/72">
-                  补货主表更新中...
-                </div>
-              ) : null}
-              <Table
-                containerClassName="max-h-[72vh] overflow-auto border-t border-border/70 bg-transparent dark:border-border/85 rounded-none"
-                className="min-w-[2050px] table-auto border-separate border-spacing-0 bg-transparent text-[13px]"
-              >
-                <TableHeader>
-                  <TableRow className="bg-transparent">
-                    <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} ${STICKY_LEFT_HEAD_CELL} min-w-[132px]`}>SKU</TableHead>
-                    <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[88px]`}>国家</TableHead>
-                    <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[152px]`}>ASIN</TableHead>
-                    <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[96px] text-right`}>店铺库存</TableHead>
-                    <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[88px] text-right`}>在途</TableHead>
-                    <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[72px] text-right`}>30D</TableHead>
-                    <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[72px] text-right`}>14D</TableHead>
-                    <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[72px] text-right`}>7D</TableHead>
-                    <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[72px] text-right`}>3D</TableHead>
-                    <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[88px] text-right`}>DMS</TableHead>
-                    <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[112px]`}>加权系数</TableHead>
-                    <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[100px] text-right`}>加权DMS</TableHead>
-                    <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[100px] text-right`}>可售天数</TableHead>
-                    <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[116px]`}>售卖截止</TableHead>
-                    <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[116px]`}>含在途截止</TableHead>
-                    <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[104px]`}>生产交货</TableHead>
-                    <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[104px]`}>运输时间</TableHead>
-                    <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[116px]`}>补货指令</TableHead>
-                    <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[116px]`}>建仓指令</TableHead>
-                    <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[116px]`}>发货指令</TableHead>
-                    <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[104px] text-right`}>预计数量</TableHead>
-                    <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[104px]`}>风险状态</TableHead>
-                    <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[154px]`}>操作</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <>
-                    {rows.map((row) => {
-                      const key = rowKey(row)
-                      const edit = edits[key] || buildEditState(row)
-                      const risk = riskMeta(row.risk_status)
-                      return (
-                        <TableRow key={key} className="group align-top odd:bg-[hsl(var(--surface-panel))] even:bg-[hsl(var(--surface-overlay))] hover:bg-sky-50/80 dark:odd:bg-[hsl(var(--surface-panel))] dark:even:bg-[hsl(var(--surface-overlay))] dark:hover:bg-sky-950/20">
-                          <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 ${STICKY_LEFT_CELL_HOVER} font-medium`}>
-                            {row.sku}
-                          </TableCell>
-                          <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80`}>{row.country}</TableCell>
-                          <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80} font-medium text-foreground`}>
-                            {row.asin || '--'}
-                          </TableCell>
-                          <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80} text-right`}>{formatInt(row.available_inventory)}</TableCell>
-                          <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80} text-right`}>{formatInt(row.in_transit_quantity)}</TableCell>
-                          <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80} text-right`}>{formatNumber(row.dms_30)}</TableCell>
-                          <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80} text-right`}>{formatNumber(row.dms_14)}</TableCell>
-                          <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80} text-right`}>{formatNumber(row.dms_7)}</TableCell>
-                          <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80} text-right`}>{formatNumber(row.dms_3)}</TableCell>
-                          <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80} text-right font-medium text-foreground`}>
-                            {formatNumber(row.base_dms)}
-                          </TableCell>
-                          <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80`}>
+            <>
+              {/* 桌面端：完整表格 */}
+              <div className="hidden md:block">
+                <DataTableCard>
+                  <DataTableCardHeader className="px-4 py-3">
+                    <div className="space-y-1">
+                      <h3 className="text-base font-semibold text-foreground">SKU 补货主表</h3>
+                    </div>
+                  </DataTableCardHeader>
+                  <DataTableCardBody>
+                    <div className="relative">
+                      {loading && rows.length > 0 ? (
+                        <div className="pointer-events-none absolute right-4 top-4 z-20 rounded-full border border-border/70 bg-[hsl(var(--surface-panel))/0.95] px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))/0.96] dark:text-foreground/72">
+                          补货主表更新中...
+                        </div>
+                      ) : null}
+                      <Table
+                        containerClassName="max-h-[72vh] overflow-auto border-t border-border/70 bg-transparent dark:border-border/85 rounded-none"
+                        className="min-w-[2050px] table-auto border-separate border-spacing-0 bg-transparent text-[13px]"
+                      >
+                        <TableHeader>
+                          <TableRow className="bg-transparent">
+                            <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} ${STICKY_LEFT_HEAD_CELL} min-w-[132px]`}>SKU</TableHead>
+                            <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[88px]`}>国家</TableHead>
+                            <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[152px]`}>ASIN</TableHead>
+                            <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[96px] text-right`}>店铺库存</TableHead>
+                            <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[88px] text-right`}>在途</TableHead>
+                            <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[72px] text-right`}>30D</TableHead>
+                            <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[72px] text-right`}>14D</TableHead>
+                            <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[72px] text-right`}>7D</TableHead>
+                            <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[72px] text-right`}>3D</TableHead>
+                            <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[88px] text-right`}>DMS</TableHead>
+                            <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[112px]`}>加权系数</TableHead>
+                            <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[100px] text-right`}>加权DMS</TableHead>
+                            <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[100px] text-right`}>可售天数</TableHead>
+                            <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[116px]`}>售卖截止</TableHead>
+                            <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[116px]`}>含在途截止</TableHead>
+                            <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[104px]`}>生产交货</TableHead>
+                            <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[104px]`}>运输时间</TableHead>
+                            <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[116px]`}>补货指令</TableHead>
+                            <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[116px]`}>建仓指令</TableHead>
+                            <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[116px]`}>发货指令</TableHead>
+                            <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[104px] text-right`}>预计数量</TableHead>
+                            <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[104px]`}>风险状态</TableHead>
+                            <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[154px]`}>操作</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          <>
+                            {rows.map((row) => {
+                              const key = rowKey(row)
+                              const edit = edits[key] || buildEditState(row)
+                              const risk = riskMeta(row.risk_status)
+                              return (
+                                <TableRow key={key} className="group align-top odd:bg-[hsl(var(--surface-panel))] even:bg-[hsl(var(--surface-overlay))] hover:bg-sky-50/80 dark:odd:bg-[hsl(var(--surface-panel))] dark:even:bg-[hsl(var(--surface-overlay))] dark:hover:bg-sky-950/20">
+                                  <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 ${STICKY_LEFT_CELL_HOVER} font-medium`}>
+                                    {row.sku}
+                                  </TableCell>
+                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80">{row.country}</TableCell>
+                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 font-medium text-foreground">
+                                    {row.asin || '--'}
+                                  </TableCell>
+                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatInt(row.available_inventory)}</TableCell>
+                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatInt(row.in_transit_quantity)}</TableCell>
+                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatNumber(row.dms_30)}</TableCell>
+                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatNumber(row.dms_14)}</TableCell>
+                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatNumber(row.dms_7)}</TableCell>
+                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatNumber(row.dms_3)}</TableCell>
+                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right font-medium text-foreground">
+                                    {formatNumber(row.base_dms)}
+                                  </TableCell>
+                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80">
+                                    {isSnapshotMode ? (
+                                      <span>{formatNumber(row.safety_factor)}%</span>
+                                    ) : (
+                                      <div className="flex items-center gap-2">
+                                        <Input
+                                          value={edit.safety_factor}
+                                          onChange={(event) =>
+                                            setEdits((prev) => ({ ...prev, [key]: { ...edit, safety_factor: event.target.value } }))
+                                          }
+                                          className="h-8 w-[72px] rounded-md border-border/70 bg-[hsl(var(--surface-panel))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
+                                        />
+                                        <span className="text-xs text-muted-foreground">%</span>
+                                      </div>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right font-medium text-foreground">
+                                    {formatNumber(row.weighted_dms)}
+                                  </TableCell>
+                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatNumber(row.sellable_days)}</TableCell>
+                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80">{formatDate(row.sellout_date)}</TableCell>
+                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80">{formatDate(row.sellout_date_with_transit)}</TableCell>
+                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80">
+                                    {isSnapshotMode ? (
+                                      <span>{row.production_lead_days}</span>
+                                    ) : (
+                                      <Input
+                                        value={edit.production_lead_days}
+                                        onChange={(event) =>
+                                          setEdits((prev) => ({
+                                            ...prev,
+                                            [key]: { ...edit, production_lead_days: event.target.value },
+                                          }))
+                                        }
+                                        className="h-8 w-[72px] rounded-md border-border/70 bg-[hsl(var(--surface-panel))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
+                                      />
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80">
+                                    {isSnapshotMode ? (
+                                      <span>{row.shipping_days}</span>
+                                    ) : (
+                                      <Input
+                                        value={edit.shipping_days}
+                                        onChange={(event) =>
+                                          setEdits((prev) => ({ ...prev, [key]: { ...edit, shipping_days: event.target.value } }))
+                                        }
+                                        className="h-8 w-[72px] rounded-md border-border/70 bg-[hsl(var(--surface-panel))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
+                                      />
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80">{formatDate(row.replenishment_order_date)}</TableCell>
+                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80">{formatDate(row.warehouse_entry_date)}</TableCell>
+                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80">{formatDate(row.shipment_order_date)}</TableCell>
+                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right font-medium text-foreground">
+                                    {formatInt(row.estimated_replenishment_quantity)}
+                                  </TableCell>
+                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80">
+                                    <Badge variant="outline" className={risk.className}>
+                                      {risk.label}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80">
+                                    <div className="flex flex-col gap-1.5">
+                                      <div className="flex items-center gap-2">
+                                        {!isSnapshotMode && (
+                                          <Button
+                                            size="sm"
+                                            className="h-8 gap-1.5 whitespace-nowrap px-2.5 text-xs dark:bg-[hsl(var(--surface-strong))] dark:text-foreground"
+                                            onClick={() => void saveRow(row)}
+                                            disabled={savingSku === key}
+                                          >
+                                            {savingSku === key ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-1.5 h-3.5 w-3.5" />}
+                                            保存
+                                          </Button>
+                                        )}
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="h-8 gap-1.5 whitespace-nowrap px-2.5 text-xs dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
+                                          onClick={() => void openShipments(row)}
+                                        >
+                                          <Send className="h-3.5 w-3.5" />
+                                          查看发货
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              )
+                            })}
+                            <TableRow className="bg-muted/40 font-semibold">
+                              <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 ${STICKY_LEFT_CELL_HOVER}`}>合计</TableCell>
+                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80" colSpan={2} />
+                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatInt(tableTotals.available_inventory)}</TableCell>
+                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatInt(tableTotals.in_transit_quantity)}</TableCell>
+                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatNumber(tableTotals.dms_30, 4)}</TableCell>
+                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatNumber(tableTotals.dms_14, 4)}</TableCell>
+                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatNumber(tableTotals.dms_7, 4)}</TableCell>
+                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatNumber(tableTotals.dms_3, 4)}</TableCell>
+                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatNumber(tableTotals.base_dms, 4)}</TableCell>
+                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80" />
+                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatNumber(tableTotals.weighted_dms)}</TableCell>
+                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80" />
+                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80" />
+                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80" />
+                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80" />
+                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80" />
+                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80" />
+                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80" />
+                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80" />
+                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatInt(tableTotals.estimated_replenishment_quantity)}</TableCell>
+                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80">{`SKU: ${formatInt(summary.sku_count)}`}</TableCell>
+                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80" />
+                            </TableRow>
+                          </>
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </DataTableCardBody>
+                </DataTableCard>
+              </div>
+
+              {/* 手机端：卡片列表 */}
+              <div className="md:hidden space-y-3">
+                {loading && rows.length > 0 ? (
+                  <div className="text-center text-xs text-muted-foreground py-2">补货主表更新中...</div>
+                ) : null}
+                {rows.map((row) => {
+                  const key = rowKey(row)
+                  const edit = edits[key] || buildEditState(row)
+                  const risk = riskMeta(row.risk_status)
+                  return (
+                    <div key={key} className="dashboard-surface p-4 space-y-3">
+                      {/* 头部：SKU + 风险 + 国家 */}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="font-semibold text-sm text-foreground truncate">{row.sku}</span>
+                          <span className="text-xs text-muted-foreground shrink-0">{row.country}</span>
+                        </div>
+                        <Badge variant="outline" className={cn('text-xs shrink-0', risk.className)}>
+                          {risk.label}
+                        </Badge>
+                      </div>
+
+                      {/* ASIN */}
+                      {row.asin && (
+                        <div className="text-xs text-muted-foreground">ASIN: {row.asin}</div>
+                      )}
+
+                      {/* 核心数据 2 列网格 */}
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                        <div>
+                          <span className="text-xs text-muted-foreground">店铺库存</span>
+                          <div className="font-medium text-foreground">{formatInt(row.available_inventory)}</div>
+                        </div>
+                        <div>
+                          <span className="text-xs text-muted-foreground">在途</span>
+                          <div className="font-medium text-foreground">{formatInt(row.in_transit_quantity)}</div>
+                        </div>
+                        <div>
+                          <span className="text-xs text-muted-foreground">DMS (加权)</span>
+                          <div className="font-medium text-foreground">{formatNumber(row.weighted_dms)}</div>
+                        </div>
+                        <div>
+                          <span className="text-xs text-muted-foreground">可售天数</span>
+                          <div className="font-medium text-foreground">{formatNumber(row.sellable_days)}</div>
+                        </div>
+                      </div>
+
+                      {/* 日期信息 */}
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                        <div>售卖截止: {formatDate(row.sellout_date)}</div>
+                        <div>含在途: {formatDate(row.sellout_date_with_transit)}</div>
+                        <div>补货指令: {formatDate(row.replenishment_order_date)}</div>
+                        <div>发货指令: {formatDate(row.shipment_order_date)}</div>
+                      </div>
+
+                      {/* 可编辑字段 */}
+                      <div className="border-t border-border/70 pt-3">
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="space-y-1">
+                            <div className="text-[11px] text-muted-foreground">生产交货</div>
                             {isSnapshotMode ? (
-                              <span>{formatNumber(row.safety_factor)}%</span>
-                            ) : (
-                              <div className="flex items-center gap-2">
-                                <Input
-                                  value={edit.safety_factor}
-                                  onChange={(event) =>
-                                    setEdits((prev) => ({ ...prev, [key]: { ...edit, safety_factor: event.target.value } }))
-                                  }
-                                  className="h-8 w-[72px] rounded-md border-border/70 bg-[hsl(var(--surface-panel))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
-                                />
-                                <span className="text-xs text-muted-foreground">%</span>
-                              </div>
-                            )}
-                          </TableCell>
-                          <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80} text-right font-medium text-foreground`}>
-                            {formatNumber(row.weighted_dms)}
-                          </TableCell>
-                          <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80} text-right`}>{formatNumber(row.sellable_days)}</TableCell>
-                          <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80`}>{formatDate(row.sellout_date)}</TableCell>
-                          <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80`}>{formatDate(row.sellout_date_with_transit)}</TableCell>
-                          <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80`}>
-                            {isSnapshotMode ? (
-                              <span>{row.production_lead_days}</span>
+                              <div className="h-8 flex items-center text-sm">{row.production_lead_days} 天</div>
                             ) : (
                               <Input
                                 value={edit.production_lead_days}
@@ -1009,94 +1186,81 @@ export default function InventoryReplenishmentPage() {
                                     [key]: { ...edit, production_lead_days: event.target.value },
                                   }))
                                 }
-                                className="h-8 w-[72px] rounded-md border-border/70 bg-[hsl(var(--surface-panel))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
+                                className="h-8 text-xs rounded-md border-border/70 bg-[hsl(var(--surface-panel))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
                               />
                             )}
-                          </TableCell>
-                          <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80`}>
+                          </div>
+                          <div className="space-y-1">
+                            <div className="text-[11px] text-muted-foreground">运输时间</div>
                             {isSnapshotMode ? (
-                              <span>{row.shipping_days}</span>
+                              <div className="h-8 flex items-center text-sm">{row.shipping_days} 天</div>
                             ) : (
                               <Input
                                 value={edit.shipping_days}
                                 onChange={(event) =>
                                   setEdits((prev) => ({ ...prev, [key]: { ...edit, shipping_days: event.target.value } }))
                                 }
-                                className="h-8 w-[72px] rounded-md border-border/70 bg-[hsl(var(--surface-panel))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
+                                className="h-8 text-xs rounded-md border-border/70 bg-[hsl(var(--surface-panel))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
                               />
                             )}
-                          </TableCell>
-                          <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80`}>{formatDate(row.replenishment_order_date)}</TableCell>
-                          <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80`}>{formatDate(row.warehouse_entry_date)}</TableCell>
-                          <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80`}>{formatDate(row.shipment_order_date)}</TableCell>
-                          <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80} text-right font-medium text-foreground`}>
-                            {formatInt(row.estimated_replenishment_quantity)}
-                          </TableCell>
-                          <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80`}>
-                            <Badge variant="outline" className={risk.className}>
-                              {risk.label}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80`}>
-                            <div className="flex flex-col gap-1.5">
-                              <div className="flex items-center gap-2">
-                                {!isSnapshotMode && (
-                                  <Button
-                                    size="sm"
-                                    className="h-8 gap-1.5 whitespace-nowrap px-2.5 text-xs dark:bg-[hsl(var(--surface-strong))] dark:text-foreground"
-                                    onClick={() => void saveRow(row)}
-                                    disabled={savingSku === key}
-                                  >
-                                    {savingSku === key ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-1.5 h-3.5 w-3.5" />}
-                                    保存
-                                  </Button>
-                                )}
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-8 gap-1.5 whitespace-nowrap px-2.5 text-xs dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
-                                  onClick={() => void openShipments(row)}
-                                >
-                                  <Send className="h-3.5 w-3.5" />
-                                  查看发货
-                                </Button>
+                          </div>
+                          <div className="space-y-1">
+                            <div className="text-[11px] text-muted-foreground">加权系数</div>
+                            {isSnapshotMode ? (
+                              <div className="h-8 flex items-center text-sm">{formatNumber(row.safety_factor)}%</div>
+                            ) : (
+                              <div className="flex items-center gap-1">
+                                <Input
+                                  value={edit.safety_factor}
+                                  onChange={(event) =>
+                                    setEdits((prev) => ({ ...prev, [key]: { ...edit, safety_factor: event.target.value } }))
+                                  }
+                                  className="h-8 text-xs rounded-md border-border/70 bg-[hsl(var(--surface-panel))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
+                                />
+                                <span className="text-xs text-muted-foreground">%</span>
                               </div>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })}
-                    <TableRow className="bg-muted/40 font-semibold">
-                      <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 ${STICKY_LEFT_CELL_HOVER}`}>合计</TableCell>
-                      <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80`} colSpan={2} />
-                      <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right`}>{formatInt(tableTotals.available_inventory)}</TableCell>
-                      <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right`}>{formatInt(tableTotals.in_transit_quantity)}</TableCell>
-                      <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right`}>{formatNumber(tableTotals.dms_30, 4)}</TableCell>
-                      <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right`}>{formatNumber(tableTotals.dms_14, 4)}</TableCell>
-                      <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right`}>{formatNumber(tableTotals.dms_7, 4)}</TableCell>
-                      <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right`}>{formatNumber(tableTotals.dms_3, 4)}</TableCell>
-                      <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right`}>{formatNumber(tableTotals.base_dms, 4)}</TableCell>
-                      <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80`} />
-                      <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right`}>{formatNumber(tableTotals.weighted_dms)}</TableCell>
-                      <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80`} />
-                      <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80`} />
-                      <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80`} />
-                      <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80`} />
-                      <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80`} />
-                      <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80`} />
-                      <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80`} />
-                      <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80`} />
-                      <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right`}>{formatInt(tableTotals.estimated_replenishment_quantity)}</TableCell>
-                      <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80`}>{`SKU: ${formatInt(summary.sku_count)}`}</TableCell>
-                      <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80`} />
-                    </TableRow>
-                  </>
-                </TableBody>
-              </Table>
-            </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 预计补货数量 */}
+                      {row.estimated_replenishment_quantity !== null && (
+                        <div className="text-sm">
+                          <span className="text-xs text-muted-foreground">预计补货数量: </span>
+                          <span className="font-medium text-foreground">{formatInt(row.estimated_replenishment_quantity)}</span>
+                        </div>
+                      )}
+
+                      {/* 操作按钮 */}
+                      <div className="flex gap-2 pt-1">
+                        {!isSnapshotMode && (
+                          <Button
+                            size="sm"
+                            className="h-9 flex-1 gap-1.5 text-xs dark:bg-[hsl(var(--surface-strong))] dark:text-foreground"
+                            onClick={() => void saveRow(row)}
+                            disabled={savingSku === key}
+                          >
+                            {savingSku === key ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                            保存
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className={cn('h-9 gap-1.5 text-xs dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground', isSnapshotMode ? 'w-full' : 'flex-1')}
+                          onClick={() => void openShipments(row)}
+                        >
+                          <Send className="h-3.5 w-3.5" />
+                          查看发货
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </>
           )}
-        </DataTableCardBody>
-      </DataTableCard>
         </TabsContent>
 
         <TabsContent value="calendar">

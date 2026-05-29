@@ -2636,7 +2636,7 @@ export default function PricingCalculationPage() {
   return (
     <div className='space-y-4'>
       <>
-        <div className='grid gap-4 xl:grid-cols-[520px_minmax(0,1fr)]'>
+        <div className='grid gap-4 grid-cols-1 xl:grid-cols-[520px_minmax(0,1fr)]'>
                   <Card className='border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90'>
                     <CardHeader className='pb-3'>
                       <CardTitle className='text-lg'>测算输入</CardTitle>
@@ -2650,7 +2650,7 @@ export default function PricingCalculationPage() {
                           }
                         >
                           <TabsMotionGroup id='pricing-calculation-mode-tabs'>
-                            <TabsList className='grid w-full grid-cols-4 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-1'>
+                            <TabsList className='grid w-full grid-cols-2 sm:grid-cols-4 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-1'>
                               <SlidingTabsTrigger
                                 value='profit-calc'
                                 activeValue={calculationMode}
@@ -2735,7 +2735,7 @@ export default function PricingCalculationPage() {
                                 </Field>
                               )}
                             </div>
-                            <div className='grid gap-3 sm:grid-cols-4'>
+                            <div className='grid gap-3 grid-cols-2 sm:grid-cols-4'>
                               <Field label='长(cm)'>
                                 <Input
                                   type='number'
@@ -3043,14 +3043,15 @@ export default function PricingCalculationPage() {
                         <CardTitle className='text-lg'>控制台</CardTitle>
                       </CardHeader>
                       <CardContent className='space-y-3'>
-                        <div className='flex items-end gap-3'>
-                          <Field label='国家站点'>
+                        {/* 手机端：2列网格 | 桌面端：横向排列 */}
+                        <div className='grid gap-3 grid-cols-1 sm:grid-cols-[140px_1fr_auto] md:flex md:flex-row md:items-end md:gap-3'>
+                          <Field label='国家站点' className='md:min-w-[140px]'>
                             <div className='flex h-9 items-center text-sm'>
                                美国站 (US)
                             </div>
                           </Field>
-                          <Field label='产品搜索'>
-                            <div className='relative w-[220px]'>
+                          <Field label='产品搜索' className='sm:col-span-2 md:min-w-0 md:flex-1'>
+                            <div className='relative'>
                               <Search className='pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
                               <Input
                                 value={productKeyword}
@@ -3062,7 +3063,7 @@ export default function PricingCalculationPage() {
                               />
                             </div>
                           </Field>
-                          <Field label='测算结果' className='min-w-0 flex-1'>
+                          <Field label='测算结果' className='md:min-w-0 md:flex-1'>
                             <Popover
                               open={runPickerOpen}
                               onOpenChange={setRunPickerOpen}
@@ -3075,8 +3076,8 @@ export default function PricingCalculationPage() {
                                 >
                                   <span className='truncate'>
                                     {selectedRunIds.length > 0
-                                      ? `已选 ${selectedRunIds.length} 个测算结果`
-                                      : '下拉选择测算结果'}
+                                      ? `已选 ${selectedRunIds.length} 个`
+                                      : '下拉选择'}
                                   </span>
                                   <ChevronDown className='ml-2 h-4 w-4 shrink-0 text-muted-foreground' />
                                 </Button>
@@ -3156,16 +3157,15 @@ export default function PricingCalculationPage() {
                             </PopoverContent>
                             </Popover>
                           </Field>
-                          <Field label=''>
-                            <Button
-                              type='button'
-                              variant='outline'
-                              onClick={() => setSelectedRunIds([])}
-                              disabled={selectedRunIds.length === 0}
-                            >
-                              清空选择
-                            </Button>
-                          </Field>
+                          <Button
+                            type='button'
+                            variant='outline'
+                            onClick={() => setSelectedRunIds([])}
+                            disabled={selectedRunIds.length === 0}
+                            className='h-9 md:self-end'
+                          >
+                            清空
+                          </Button>
                         </div>
                         <div className='flex flex-wrap items-center gap-2 text-xs text-muted-foreground'>
                           <span>筛选结果 {filteredRuns.length} 条</span>

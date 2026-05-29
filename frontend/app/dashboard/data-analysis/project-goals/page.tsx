@@ -8,7 +8,7 @@ import { useSession } from 'next-auth/react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { DataCard, DataCardHeader, DataCardContent, DataTableCard, DataTableCardHeader, DataTableCardBody } from '@/components/ui/data-card'
+import { DataTableCard, DataTableCardHeader, DataTableCardBody } from '@/components/ui/data-card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -334,13 +334,13 @@ export default function ProjectGoalsPage() {
     <div className='space-y-5'>
 
       {/* ── Console Hero ─────────────────────────────────────────────────── */}
-      <Card className='dashboard-surface relative overflow-hidden'>
+      <div className='dashboard-surface overflow-hidden relative'>
         {/* Atmospheric glow */}
         <div className='pointer-events-none absolute inset-0 overflow-hidden'>
           <div className='absolute -right-16 -top-16 h-72 w-72 rounded-full bg-[radial-gradient(circle,hsl(var(--primary)/0.14),transparent_72%)] dark:bg-[radial-gradient(circle,hsl(var(--primary)/0.22),transparent_72%)]' />
           <div className='absolute -bottom-8 -left-8 h-48 w-48 rounded-full bg-[radial-gradient(circle,hsl(var(--chart-2)/0.08),transparent_72%)]' />
         </div>
-        <CardHeader className='relative pb-5'>
+        <div className='relative pb-5 px-4 py-4'>
           <div className='flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between'>
             <div className='space-y-3'>
               <div className='flex items-center gap-2'>
@@ -348,10 +348,10 @@ export default function ProjectGoalsPage() {
                 <p className='dashboard-kicker'>目标管理控制台</p>
               </div>
               <div>
-                <CardTitle className='text-2xl md:text-[2rem]'>控制台</CardTitle>
-                <CardDescription className='mt-2 max-w-2xl text-sm leading-6'>
+                <h2 className='text-2xl font-semibold text-foreground lg:text-[2rem]'>控制台</h2>
+                <p className='mt-2 max-w-2xl text-sm leading-6 text-muted-foreground'>
                   追踪项目在选定国家站点的月度与年度销售目标完成进度，支持快速设置与调整目标。
-                </CardDescription>
+                </p>
               </div>
             </div>
 
@@ -374,62 +374,70 @@ export default function ProjectGoalsPage() {
               )}
             </div>
           </div>
-        </CardHeader>
-      </Card>
+        </div>
+      </div>
 
       {/* ── Filters ─────────────────────────────────────────────────────── */}
-      <div className='flex flex-wrap items-center gap-3'>
-        <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-          <SelectTrigger className='w-56'>
-            <SelectValue placeholder='选择项目' />
-          </SelectTrigger>
-          <SelectContent>
-            {projects.map(p => (
-              <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className='dashboard-surface px-4 py-3'>
+        <div className='grid grid-cols-2 gap-2 sm:grid-cols-3 lg:flex lg:flex-row lg:items-center lg:gap-3'>
+          <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
+            <SelectTrigger className='h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]'>
+              <SelectValue placeholder='选择项目' />
+            </SelectTrigger>
+            <SelectContent>
+              {projects.map(p => (
+                <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-        <Select value={selectedCountry} onValueChange={setSelectedCountry}>
-          <SelectTrigger className='w-36'>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {COUNTRY_OPTIONS.map(c => (
-              <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <Select value={selectedCountry} onValueChange={setSelectedCountry}>
+            <SelectTrigger className='h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]'>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {COUNTRY_OPTIONS.map(c => (
+                <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-        <Select value={selectedYear} onValueChange={setSelectedYear}>
-          <SelectTrigger className='w-28'>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {years.map(y => (
-              <SelectItem key={y} value={String(y)}>{y} 年</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <Select value={selectedYear} onValueChange={setSelectedYear}>
+            <SelectTrigger className='h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]'>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {years.map(y => (
+                <SelectItem key={y} value={String(y)}>{y} 年</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-        <Button variant='outline' size='sm' onClick={loadData} disabled={loading || !selectedProjectId}>
-          {loading ? <Loader2 className='mr-2 h-4 w-4 animate-spin' /> : null}
-          刷新
-        </Button>
+          <Button
+            variant='outline'
+            size='sm'
+            className='w-full lg:w-auto'
+            onClick={loadData}
+            disabled={loading || !selectedProjectId}
+          >
+            {loading ? <Loader2 className='mr-2 h-4 w-4 animate-spin' /> : null}
+            刷新
+          </Button>
+        </div>
       </div>
 
       {!selectedProjectId ? (
-        <div className='flex h-48 items-center justify-center text-muted-foreground'>
+        <div className='dashboard-surface flex h-48 items-center justify-center text-muted-foreground'>
           请选择项目以查看目标数据
         </div>
       ) : loading && !progressData ? (
         <div className='space-y-4'>
-          <div className='grid grid-cols-2 gap-4 lg:grid-cols-4'>
+          <div className='grid grid-cols-2 gap-2 sm:gap-4 sm:grid-cols-4'>
             {[...Array(4)].map((_, i) => (
-              <Skeleton key={i} className='h-36 rounded-xl' />
+              <Skeleton key={i} className='h-28 rounded-xl sm:h-36' />
             ))}
           </div>
-          <Skeleton className='h-64 rounded-xl' />
+          <Skeleton className='h-48 rounded-xl sm:h-64' />
         </div>
       ) : (
         <div className='space-y-5'>
@@ -443,7 +451,7 @@ export default function ProjectGoalsPage() {
                   本月进度 · {currentMonthProgress.month_label}
                 </h2>
               </div>
-              <div className='grid grid-cols-2 gap-4 lg:grid-cols-4'>
+              <div className='grid grid-cols-2 gap-2 sm:grid-cols-4'>
                 <StatCard
                   title='月度完成率'
                   value={formatPercent(currentMonthProgress.completion_vs_monthly)}
@@ -474,10 +482,10 @@ export default function ProjectGoalsPage() {
                     trendLabel={`目标 ${currencySymbol}${formatMoney(annualProgress.target_amount)}`}
                   />
                 ) : (
-                  <div className='dashboard-surface hover-lift flex flex-col items-center justify-center gap-2 rounded-xl p-4 text-center'>
+                  <div className='dashboard-surface flex flex-col items-center justify-center gap-2 rounded-xl p-4 text-center'>
                     <AlertCircle className='h-6 w-6 text-muted-foreground/50' />
                     <p className='text-sm text-muted-foreground'>未设置年度目标</p>
-                    <Button size='sm' variant='outline' onClick={() => openCreateDialog('annual')}>
+                    <Button size='sm' variant='outline' onClick={() => openCreateDialog('annual')} className='w-full'>
                       <Plus className='mr-1 h-3 w-3' /> 设置年度目标
                     </Button>
                   </div>

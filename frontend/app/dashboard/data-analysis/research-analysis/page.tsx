@@ -1269,30 +1269,31 @@ function buildPriceChartModels(overview: CategoryResearchOverview | null) {
 
 function MetricGridCard({ title, description, items }: { title: string; description: string; items: MetricItem[] }) {
   return (
-    <DataCard className="dashboard-surface border-border/70">
-      <DataCardHeader
-        title={title}
-        description={description}
-        titleClassName="text-base"
-      />
-      <DataCardContent className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-        {items.map((item) => (
-          <div key={item.label} className="rounded-xl border border-border/70 bg-muted/[0.14] p-3 transition-colors duration-200 hover:border-primary/30 hover:bg-muted/[0.2]">
-            <p className="text-xs text-muted-foreground">{item.label}</p>
-            <p
-              className={cn(
-                'mt-1 text-lg font-semibold',
-                item.tone === 'positive' && 'text-emerald-600',
-                item.tone === 'negative' && 'text-rose-600'
-              )}
-            >
-              {item.value}
-            </p>
-            {item.hint ? <p className="mt-1 text-xs text-muted-foreground">{item.hint}</p> : null}
-          </div>
-        ))}
-      </DataCardContent>
-    </DataCard>
+    <div className="dashboard-surface border-border/70">
+      <div className="border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3">
+        <h3 className="text-base font-semibold text-foreground">{title}</h3>
+        {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
+      </div>
+      <div className="p-4">
+        <div className="grid gap-3 grid-cols-2 lg:grid-cols-3">
+          {items.map((item) => (
+            <div key={item.label} className="rounded-xl border border-border/70 bg-muted/[0.14] p-3 transition-colors duration-200 hover:border-primary/30 hover:bg-muted/[0.2]">
+              <p className="text-xs text-muted-foreground">{item.label}</p>
+              <p
+                className={cn(
+                  'mt-1 text-lg font-semibold',
+                  item.tone === 'positive' && 'text-emerald-600',
+                  item.tone === 'negative' && 'text-rose-600'
+                )}
+              >
+                {item.value}
+              </p>
+              {item.hint ? <p className="mt-1 text-xs text-muted-foreground">{item.hint}</p> : null}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -1312,17 +1313,16 @@ function InsightChartCard({
   contentClassName?: string
 }) {
   return (
-    <DataCard className={cn('dashboard-surface border-border/70', className)}>
-      <DataCardHeader
-        title={title}
-        description={description}
-        titleClassName="text-base"
-      />
-      <DataCardContent className={cn('space-y-4', contentClassName)}>
+    <div className={cn('dashboard-surface border-border/70', className)}>
+      <div className="border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3">
+        <h3 className="text-base font-semibold text-foreground">{title}</h3>
+        {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
+      </div>
+      <div className={cn('space-y-4 p-4', contentClassName)}>
         {children}
         {footer ? <div className="border-t border-border/60 pt-3 text-xs text-muted-foreground">{footer}</div> : null}
-      </DataCardContent>
-    </DataCard>
+      </div>
+    </div>
   )
 }
 
@@ -1414,7 +1414,7 @@ function ContextSummaryStrip({
 }) {
   return (
     <div className="rounded-2xl border border-border/80 bg-background/80 p-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/65">
-      <div className="grid gap-2 md:grid-cols-3 lg:grid-cols-[repeat(6,minmax(0,1fr))_220px]">
+      <div className="grid gap-2 grid-cols-2 lg:grid-cols-[repeat(6,minmax(0,1fr))_220px]">
         {items.map((item) => (
           <div key={item.key} className="rounded-xl border border-border/70 bg-muted/[0.12] px-3 py-2">
             <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{item.label}</p>
@@ -2029,19 +2029,20 @@ export default function CategoryResearchPage() {
       <TabsContent forceMount value={workspaceTab} className="space-y-6">
       {workspaceTab === 'research' ? (
         <>
-        <DataCard className="overflow-hidden border-border/80 shadow-[0_20px_45px_-24px_rgba(15,23,42,0.3)]">
-          <DataCardHeader
-            title="调研工作台"
-            description="上传 BestSeller 类目表并完成核算，生成可复用的调研版本。"
-            titleClassName="flex items-center gap-2 text-xl"
-            action={<Upload className="h-5 w-5" />}
-          />
-          <DataCardContent className="space-y-5">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-              <div className="space-y-2">
+        <div className="dashboard-surface overflow-hidden border-border/80">
+          <div className="border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3">
+            <div className="flex items-center gap-2 text-xl font-semibold text-foreground">
+              <Upload className="h-5 w-5" />
+              调研工作台
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">上传 BestSeller 类目表并完成核算，生成可复用的调研版本。</p>
+          </div>
+          <div className="space-y-5 p-4">
+            <div className="grid gap-4 grid-cols-2 lg:grid-cols-5">
+              <div className="space-y-2 col-span-2 lg:col-span-1">
                 <p className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">站点</p>
                 <Select value={marketplace} onValueChange={setMarketplace}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
                     <SelectValue placeholder="选择站点" />
                   </SelectTrigger>
                   <SelectContent>
@@ -2052,17 +2053,17 @@ export default function CategoryResearchPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2 xl:col-span-2">
+              <div className="space-y-2 col-span-2 lg:col-span-2">
                 <p className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">品类关键词（英文）</p>
                 <Input placeholder="例如: reciprocating saws" value={keywordEn} onChange={(event) => setKeywordEn(event.target.value)} />
               </div>
-              <div className="space-y-2 xl:col-span-2">
+              <div className="space-y-2 col-span-2 lg:col-span-2">
                 <p className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">品类名称（中文）</p>
                 <Input placeholder="例如: 往复锯" value={nameZh} onChange={(event) => setNameZh(event.target.value)} />
               </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
+            <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
               <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">上传文件（xlsx）</p>
                 <Input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={onFileChange} />
@@ -2075,55 +2076,55 @@ export default function CategoryResearchPage() {
 
             {formError ? <p className="text-sm text-rose-600">{formError}</p> : null}
             {formSuccess ? <p className="text-sm text-emerald-600">{formSuccess}</p> : null}
-          </DataCardContent>
-        </DataCard>
+          </div>
+        </div>
 
-        <DataCard>
-          <DataCardHeader
-            title="核心过程"
-            description="保持上传与版本流转逻辑不变，分析端升级为图表工作台。"
-            titleClassName="text-base"
-          />
-          <DataCardContent className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-            {[
-              '填写站点与关键词',
-              '上传 xlsx 原始数据',
-              '执行核算/重算生成版本',
-              '切换到分析查看结果',
-            ].map((item, index) => (
-              <div key={item} className="rounded-md border bg-muted/20 p-3">
-                <p className="text-xs text-muted-foreground">Step {index + 1}</p>
-                <p className="text-sm font-medium">{item}</p>
-              </div>
-            ))}
-          </DataCardContent>
-        </DataCard>
+        <div className="dashboard-surface border-border/70">
+          <div className="border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3">
+            <h3 className="text-base font-semibold text-foreground">核心过程</h3>
+            <p className="mt-1 text-sm text-muted-foreground">保持上传与版本流转逻辑不变，分析端升级为图表工作台。</p>
+          </div>
+          <div className="p-4">
+            <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+              {[
+                '填写站点与关键词',
+                '上传 xlsx 原始数据',
+                '执行核算/重算生成版本',
+                '切换到分析查看结果',
+              ].map((item, index) => (
+                <div key={item} className="rounded-md border bg-muted/20 p-3">
+                  <p className="text-xs text-muted-foreground">Step {index + 1}</p>
+                  <p className="text-sm font-medium">{item}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
         </>
       ) : isFactoryWithoutOperatorName ? (
-        <DataCard>
-          <DataCardContent className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-            <ShieldAlert className="h-10 w-10 text-muted-foreground" />
-            <div>
-              <p className="font-semibold">无法访问分析数据</p>
-              <p className="mt-1 text-sm text-muted-foreground">您的账号未设置运营姓名，无法加载调研记录。请联系管理员完善账号信息后重试。</p>
-            </div>
-          </DataCardContent>
-        </DataCard>
+        <div className="dashboard-surface flex flex-col items-center justify-center gap-3 py-16 text-center">
+          <ShieldAlert className="h-10 w-10 text-muted-foreground" />
+          <div>
+            <p className="font-semibold">无法访问分析数据</p>
+            <p className="mt-1 text-sm text-muted-foreground">您的账号未设置运营姓名，无法加载调研记录。请联系管理员完善账号信息后重试。</p>
+          </div>
+        </div>
       ) : (
         <>
-        <DataCard className="overflow-hidden border-border/80 shadow-[0_20px_45px_-24px_rgba(15,23,42,0.3)]">
-          <DataCardHeader
-            title="分析工作台"
-            description="按官方 shadcn 图表体系重构的高密度分析界面，聚焦机会、风险与结构判断。"
-            titleClassName="flex items-center gap-2 text-xl"
-            action={<Database className="h-5 w-5" />}
-          />
-          <DataCardContent className="space-y-5">
-            <div className="grid gap-4 lg:grid-cols-[1fr_1.35fr_220px]">
+        <div className="dashboard-surface overflow-hidden border-border/80">
+          <div className="border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3">
+            <div className="flex items-center gap-2 text-xl font-semibold text-foreground">
+              <Database className="h-5 w-5" />
+              分析工作台
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">按官方 shadcn 图表体系重构的高密度分析界面，聚焦机会、风险与结构判断。</p>
+          </div>
+          <div className="space-y-5 p-4">
+            <div className="grid gap-4 grid-cols-2 lg:grid-cols-[1fr_1.35fr_220px]">
               <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">站点</p>
                 <Select value={marketplace} onValueChange={setMarketplace}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
                     <SelectValue placeholder="选择站点" />
                   </SelectTrigger>
                   <SelectContent>
@@ -2140,7 +2141,7 @@ export default function CategoryResearchPage() {
                 <div className="space-y-2">
                   <p className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">调研关键词</p>
                   <Select value={analysisKeyword || ''} onValueChange={setAnalysisKeyword}>
-                    <SelectTrigger>
+                    <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
                       <SelectValue placeholder="选择已有调研关键词" />
                     </SelectTrigger>
                     <SelectContent>
@@ -2255,11 +2256,11 @@ export default function CategoryResearchPage() {
                 </Button>
               </div>
             </div>
-          </DataCardContent>
-        </DataCard>
+          </div>
+        </div>
 
         {overviewLoading ? (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
             {Array.from({ length: 8 }).map((_, index) => (
               <Skeleton key={index} className="h-48 rounded-xl" />
             ))}
@@ -2789,8 +2790,8 @@ export default function CategoryResearchPage() {
                           <TableCell>{item.brand}</TableCell>
                           <TableCell className="text-right">{formatNumber(item.product_count)}</TableCell>
                           <TableCell className="text-right">{formatNumber(item.monthly_sales)}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(item.price_range.min_price)} - {formatCurrency(item.price_range.max_price)}</TableCell>
-                          <TableCell>{item.covered_bands.join(', ') || '-'}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(item.price_range?.min_price)} - {formatCurrency(item.price_range?.max_price)}</TableCell>
+                          <TableCell>{item.covered_bands?.join(', ') || '-'}</TableCell>
                         </TableRow>
                       )) : (
                         <EmptyTableState colSpan={5} />
