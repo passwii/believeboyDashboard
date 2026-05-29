@@ -12,6 +12,7 @@ import {
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import { DataCard, DataCardContent, DataCardHeader } from '@/components/ui/data-card'
 import {
   Dialog,
@@ -314,96 +315,166 @@ export default function AccountManagementPage() {
         />
         <DataCardContent className="p-0 space-y-0">
           <div className="border-t border-border/70 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>名称</TableHead>
-                  <TableHead>姓名</TableHead>
-                  <TableHead>邮箱</TableHead>
-                  <TableHead>角色属性</TableHead>
-                  <TableHead>状态</TableHead>
-                  <TableHead>更新时间</TableHead>
-                  <TableHead className="w-[140px]">操作</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? (
+            {/* 桌面端：完整表格 */}
+            <div className="hidden md:block">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground">
-                      加载中...
-                    </TableCell>
+                    <TableHead>名称</TableHead>
+                    <TableHead>姓名</TableHead>
+                    <TableHead>邮箱</TableHead>
+                    <TableHead>角色属性</TableHead>
+                    <TableHead>状态</TableHead>
+                    <TableHead>更新时间</TableHead>
+                    <TableHead className="w-[140px]">操作</TableHead>
                   </TableRow>
-                ) : items.length === 0 ? (
-                  <EmptyTableState colSpan={7} message="暂无账号" />
-                ) : (
-                  items.map((item) => {
-                    const isProtected = isYaweiAccount(item)
-                    return (
-                      <TableRow key={item.id}>
-                        <TableCell>{getAccountDisplayName(item)}</TableCell>
-                        <TableCell>{item.fullName || item.operatorNameZh || '-'}</TableCell>
-                        <TableCell>{item.email}</TableCell>
-                        <TableCell>
-                          <RoleTypeBadge roleType={item.roleType} />
-                        </TableCell>
-                        <TableCell>
-                          <span
-                            className={
-                              item.isActive
-                                ? 'text-emerald-700 dark:text-emerald-300'
-                                : 'text-red-600 dark:text-red-400'
-                            }
-                          >
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center text-muted-foreground">
+                        加载中...
+                      </TableCell>
+                    </TableRow>
+                  ) : items.length === 0 ? (
+                    <EmptyTableState colSpan={7} message="暂无账号" />
+                  ) : (
+                    items.map((item) => {
+                      const isProtected = isYaweiAccount(item)
+                      return (
+                        <TableRow key={item.id}>
+                          <TableCell>{getAccountDisplayName(item)}</TableCell>
+                          <TableCell>{item.fullName || item.operatorNameZh || '-'}</TableCell>
+                          <TableCell>{item.email}</TableCell>
+                          <TableCell>
+                            <RoleTypeBadge roleType={item.roleType} />
+                          </TableCell>
+                          <TableCell>
+                            <span
+                              className={
+                                item.isActive
+                                  ? 'text-emerald-700 dark:text-emerald-300'
+                                  : 'text-red-600 dark:text-red-400'
+                              }
+                            >
+                              {item.isActive ? '启用' : '停用'}
+                            </span>
+                          </TableCell>
+                          <TableCell>{fmtTime(item.updatedAt)}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant={item.isActive ? 'outline' : 'default'}
+                                size="sm"
+                                disabled={busyId === item.id || (isProtected && item.isActive)}
+                                onClick={() => void updateOne(item.id, { isActive: !item.isActive })}
+                              >
+                                {item.isActive ? '停用' : '启用'}
+                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="outline" size="sm" disabled={busyId === item.id}>
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => onEditOpen(item)}>
+                                    改角色属性 / 编辑
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => {
+                                      setResetUser(item)
+                                      setResetOpen(true)
+                                    }}
+                                  >
+                                    重置密码
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    disabled={isProtected}
+                                    className="text-destructive focus:text-destructive"
+                                    onClick={() => onDeleteOpen(item)}
+                                  >
+                                    删除账号
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* 手机端：卡片列表 */}
+            <div className="md:hidden space-y-3 p-4">
+              {loading ? (
+                <div className="text-center text-sm text-muted-foreground py-8">加载中...</div>
+              ) : items.length === 0 ? (
+                <div className="text-center text-sm text-muted-foreground py-8">暂无账号</div>
+              ) : (
+                items.map((item) => {
+                  const isProtected = isYaweiAccount(item)
+                  return (
+                    <div key={item.id} className="dashboard-surface p-4 space-y-3">
+                      {/* 头部 */}
+                      <div className="flex items-start justify-between gap-2 border-b border-border/70 pb-3">
+                        <div>
+                          <div className="font-semibold">{getAccountDisplayName(item)}</div>
+                          <div className="text-xs text-muted-foreground">{item.fullName || item.operatorNameZh || '-'}</div>
+                        </div>
+                        <RoleTypeBadge roleType={item.roleType} />
+                      </div>
+
+                      {/* 信息 */}
+                      <div className="space-y-2 text-sm">
+                        <div>
+                          <span className="text-xs text-muted-foreground">邮箱</span>
+                          <div className="text-sm">{item.email}</div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground">状态</span>
+                          <span className={cn(
+                            "text-sm font-medium",
+                            item.isActive ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-600 dark:text-red-400'
+                          )}>
                             {item.isActive ? '启用' : '停用'}
                           </span>
-                        </TableCell>
-                        <TableCell>{fmtTime(item.updatedAt)}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant={item.isActive ? 'outline' : 'default'}
-                              size="sm"
-                              disabled={busyId === item.id || (isProtected && item.isActive)}
-                              onClick={() => void updateOne(item.id, { isActive: !item.isActive })}
-                            >
-                              {item.isActive ? '停用' : '启用'}
-                            </Button>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="outline" size="sm" disabled={busyId === item.id}>
-                                  <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => onEditOpen(item)}>
-                                  改角色属性 / 编辑
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() => {
-                                    setResetUser(item)
-                                    setResetOpen(true)
-                                  }}
-                                >
-                                  重置密码
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  disabled={isProtected}
-                                  className="text-destructive focus:text-destructive"
-                                  onClick={() => onDeleteOpen(item)}
-                                >
-                                  删除账号
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })
-                )}
-              </TableBody>
-            </Table>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          更新: {fmtTime(item.updatedAt)}
+                        </div>
+                      </div>
+
+                      {/* 操作按钮 */}
+                      <div className="flex gap-2 pt-2 border-t border-border/70">
+                        <Button
+                          variant={item.isActive ? 'outline' : 'default'}
+                          size="sm"
+                          className="h-9 min-h-[44px] flex-1"
+                          disabled={busyId === item.id || (isProtected && item.isActive)}
+                          onClick={() => void updateOne(item.id, { isActive: !item.isActive })}
+                        >
+                          {item.isActive ? '停用' : '启用'}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-9 min-h-[44px] flex-1"
+                          disabled={busyId === item.id}
+                          onClick={() => onEditOpen(item)}
+                        >
+                          编辑
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </div>
           </div>
         </DataCardContent>
       </DataCard>

@@ -7,6 +7,7 @@ import { LineChart, TimerReset } from 'lucide-react'
 import { AdAnalysisContextBanner } from '@/components/dashboard/ad-analysis/context-banner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
+import { cn } from '@/lib/utils'
 import {
   Table,
   TableBody,
@@ -177,36 +178,80 @@ export function AdAnalysisTimeTrendClient() {
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>日期</TableHead>
-                <TableHead>Clicks</TableHead>
-                <TableHead>Spend</TableHead>
-                <TableHead>CPC</TableHead>
-                <TableHead>Running Spend</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.summary.map((item) => (
-                <TableRow
-                  key={item.report_date}
-                  className={focusDate === item.report_date ? 'bg-muted/40' : undefined}
-                >
-                  <TableCell className='font-medium'>
-                    <div className='flex items-center gap-2'>
-                      <TimerReset className='h-3.5 w-3.5 text-muted-foreground' />
-                      {item.report_date}
-                    </div>
-                  </TableCell>
-                  <TableCell>{item.clicks}</TableCell>
-                  <TableCell>${item.spend.toFixed(2)}</TableCell>
-                  <TableCell>${item.cpc.toFixed(2)}</TableCell>
-                  <TableCell>${item.running_spend.toFixed(2)}</TableCell>
+          {/* 桌面端：完整表格 */}
+          <div className="hidden lg:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>日期</TableHead>
+                  <TableHead>Clicks</TableHead>
+                  <TableHead>Spend</TableHead>
+                  <TableHead>CPC</TableHead>
+                  <TableHead>Running Spend</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {data.summary.map((item) => (
+                  <TableRow
+                    key={item.report_date}
+                    className={focusDate === item.report_date ? 'bg-muted/40' : undefined}
+                  >
+                    <TableCell className='font-medium'>
+                      <div className='flex items-center gap-2'>
+                        <TimerReset className='h-3.5 w-3.5 text-muted-foreground' />
+                        {item.report_date}
+                      </div>
+                    </TableCell>
+                    <TableCell>{item.clicks}</TableCell>
+                    <TableCell>${item.spend.toFixed(2)}</TableCell>
+                    <TableCell>${item.cpc.toFixed(2)}</TableCell>
+                    <TableCell>${item.running_spend.toFixed(2)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* 手机端：卡片列表 */}
+          <div className='lg:hidden space-y-2'>
+            {data.summary.map((item) => (
+              <div
+                key={item.report_date}
+                className={cn(
+                  'dashboard-surface p-3',
+                  focusDate === item.report_date ? 'border-primary/50 bg-primary/5' : ''
+                )}
+              >
+                <div className='flex items-center justify-between gap-2'>
+                  <div className='flex items-center gap-2'>
+                    <TimerReset className='h-3.5 w-3.5 text-muted-foreground' />
+                    <span className='font-medium text-sm'>{item.report_date}</span>
+                  </div>
+                  {focusDate === item.report_date && (
+                    <span className='text-xs text-primary'>当前</span>
+                  )}
+                </div>
+                <div className='grid grid-cols-4 gap-2 mt-2 text-xs'>
+                  <div>
+                    <span className='text-muted-foreground'>Clicks</span>
+                    <div className='font-medium'>{item.clicks}</div>
+                  </div>
+                  <div>
+                    <span className='text-muted-foreground'>Spend</span>
+                    <div className='font-medium'>${item.spend.toFixed(2)}</div>
+                  </div>
+                  <div>
+                    <span className='text-muted-foreground'>CPC</span>
+                    <div className='font-medium'>${item.cpc.toFixed(2)}</div>
+                  </div>
+                  <div>
+                    <span className='text-muted-foreground'>Running</span>
+                    <div className='font-medium'>${item.running_spend.toFixed(2)}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </CardContent>
       </Card>
     </div>

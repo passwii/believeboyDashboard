@@ -436,62 +436,57 @@ export default function ExchangeRatePage() {
           }
         />
         <DataCardContent className="p-0 px-4 pb-4 pt-4">
-          <div className="flex flex-wrap gap-4 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-4">
-            <div className="flex items-center gap-2">
-              <Label className="whitespace-nowrap text-sm font-medium">货币种类</Label>
-              <Select
-                value={filters.currency || ALL_FILTER_VALUE}
-                onValueChange={(value) =>
-                  handleFilterChange("currency", value === ALL_FILTER_VALUE ? "" : value)
-                }
-              >
-                  <SelectTrigger className="w-[180px] dark:bg-[hsl(var(--surface-soft))]">
-                  <SelectValue placeholder="全部货币" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_FILTER_VALUE}>全部货币</SelectItem>
-                  {CURRENCY_OPTIONS.map((currency) => (
-                    <SelectItem key={currency.value} value={currency.value}>
-                      {currency.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <div className="grid grid-cols-1 gap-2 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-4 sm:grid-cols-2 lg:flex lg:flex-row lg:flex-wrap lg:gap-4">
+            <div className="hidden lg:block lg:flex-1">
+              {/* Placeholder for layout balance */}
             </div>
+            <Select
+              value={filters.currency || ALL_FILTER_VALUE}
+              onValueChange={(value) =>
+                handleFilterChange("currency", value === ALL_FILTER_VALUE ? "" : value)
+              }
+            >
+                <SelectTrigger className="w-full sm:w-[180px] dark:bg-[hsl(var(--surface-soft))]">
+                <SelectValue placeholder="全部货币" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_FILTER_VALUE}>全部货币</SelectItem>
+                {CURRENCY_OPTIONS.map((currency) => (
+                  <SelectItem key={currency.value} value={currency.value}>
+                    {currency.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-            <div className="flex items-center gap-2">
-              <Label className="whitespace-nowrap text-sm font-medium">年份</Label>
-              <Select
-                value={filters.year || ALL_FILTER_VALUE}
-                onValueChange={(value) =>
-                  handleFilterChange("year", value === ALL_FILTER_VALUE ? "" : value)
-                }
-              >
-                  <SelectTrigger className="w-[120px] dark:bg-[hsl(var(--surface-soft))]">
-                  <SelectValue placeholder="全部年份" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_FILTER_VALUE}>全部年份</SelectItem>
-                  {getYearOptions().map((year) => (
-                    <SelectItem key={year.value} value={year.value.toString()}>
-                      {year.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <Select
+              value={filters.year || ALL_FILTER_VALUE}
+              onValueChange={(value) =>
+                handleFilterChange("year", value === ALL_FILTER_VALUE ? "" : value)
+              }
+            >
+                <SelectTrigger className="w-full sm:w-[120px] dark:bg-[hsl(var(--surface-soft))]">
+                <SelectValue placeholder="全部年份" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_FILTER_VALUE}>全部年份</SelectItem>
+                {getYearOptions().map((year) => (
+                  <SelectItem key={year.value} value={year.value.toString()}>
+                    {year.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-            <div className="flex items-center gap-2">
-              <Label className="whitespace-nowrap text-sm font-medium">月份</Label>
-              <Select
-                value={filters.month || ALL_FILTER_VALUE}
-                onValueChange={(value) =>
-                  handleFilterChange("month", value === ALL_FILTER_VALUE ? "" : value)
-                }
-              >
-                  <SelectTrigger className="w-[112px] dark:bg-[hsl(var(--surface-soft))]">
-                  <SelectValue placeholder="全部月份" />
-                </SelectTrigger>
+            <Select
+              value={filters.month || ALL_FILTER_VALUE}
+              onValueChange={(value) =>
+                handleFilterChange("month", value === ALL_FILTER_VALUE ? "" : value)
+              }
+            >
+                <SelectTrigger className="w-full sm:w-[112px] dark:bg-[hsl(var(--surface-soft))]">
+                <SelectValue placeholder="全部月份" />
+              </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={ALL_FILTER_VALUE}>全部月份</SelectItem>
                   {MONTH_OPTIONS.map((month) => (
@@ -501,14 +496,11 @@ export default function ExchangeRatePage() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
 
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={resetFilters}>
-                <RotateCcw className="mr-1 h-4 w-4" />
-                重置
-              </Button>
-            </div>
+            <Button variant="outline" size="sm" onClick={resetFilters} className="w-full sm:w-auto">
+              <RotateCcw className="mr-1 h-4 w-4" />
+              重置
+            </Button>
           </div>
         </DataCardContent>
       </DataCard>
@@ -516,118 +508,184 @@ export default function ExchangeRatePage() {
       <DataCard className="overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
         <DataCardContent className="p-0">
           <div className="border-border/70 bg-[hsl(var(--surface-panel))]">
-            <Table>
-              <TableHeader className="bg-[hsl(var(--surface-subtle))]">
-                <TableRow>
-                  <TableHead>货币代码</TableHead>
-                  <TableHead>货币名称</TableHead>
-                  <TableHead>年份</TableHead>
-                  <TableHead>月份</TableHead>
-                  <TableHead className="text-right">汇率值</TableHead>
-                  <TableHead>备注</TableHead>
-                  <TableHead>更新时间</TableHead>
-                  {isAdmin ? <TableHead className="text-right">操作</TableHead> : null}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? (
+            {/* 桌面端：完整表格 */}
+            <div className="hidden lg:block overflow-x-auto">
+              <Table>
+                <TableHeader className="bg-[hsl(var(--surface-subtle))]">
                   <TableRow>
-                    <TableCell colSpan={isAdmin ? 8 : 7} className="h-24 text-center">
-                      加载中...
-                    </TableCell>
+                    <TableHead>货币代码</TableHead>
+                    <TableHead>货币名称</TableHead>
+                    <TableHead>年份</TableHead>
+                    <TableHead>月份</TableHead>
+                    <TableHead className="text-right">汇率值</TableHead>
+                    <TableHead>备注</TableHead>
+                    <TableHead>更新时间</TableHead>
+                    {isAdmin ? <TableHead className="text-right">操作</TableHead> : null}
                   </TableRow>
-                ) : rates.length === 0 ? (
-                  <EmptyTableState colSpan={isAdmin ? 8 : 7} message={isAdmin ? "暂无汇率数据，点击右上角按钮新增" : "暂无汇率数据"} />
-                ) : (
-                  rates.map((rate) => (
-                    <TableRow key={rate.id}>
-                      <TableCell>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={isAdmin ? 8 : 7} className="h-24 text-center">
+                        加载中...
+                      </TableCell>
+                    </TableRow>
+                  ) : rates.length === 0 ? (
+                    <EmptyTableState colSpan={isAdmin ? 8 : 7} message={isAdmin ? "暂无汇率数据，点击右上角按钮新增" : "暂无汇率数据"} />
+                  ) : (
+                    rates.map((rate) => (
+                      <TableRow key={rate.id}>
+                        <TableCell>
+                          {(() => {
+                            const badgeMeta = getCurrencyBadgeMeta(rate.currency)
+                            return (
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  "gap-1.5 rounded-full px-3 py-1 font-mono text-[11px] font-bold tracking-[0.18em]",
+                                  badgeMeta.className
+                                )}
+                                title={`${rate.currency} - ${badgeMeta.accent}`}
+                              >
+                                <span className="text-sm leading-none">{badgeMeta.symbol}</span>
+                                <span>{rate.currency}</span>
+                              </Badge>
+                            )
+                          })()}
+                        </TableCell>
+                        <TableCell>{rate.currencyName}</TableCell>
+                        <TableCell>{rate.year}</TableCell>
+                        <TableCell>{rate.month}月</TableCell>
+                        <TableCell className="text-right font-mono text-sm">
+                          {Number(rate.rate).toFixed(6)}
+                        </TableCell>
+                        <TableCell className="max-w-[280px]">
+                          <div className="space-y-2">
+                            <p className="truncate text-sm">
+                              {rate.description || (rate.noteImages?.length > 0 ? "" : "-")}
+                            </p>
+                            {rate.noteImages?.length > 0 && (
+                              <div className="flex flex-wrap gap-2">
+                                {rate.noteImages.slice(0, 4).map((image) => (
+                                  <button
+                                    key={image.id}
+                                    type="button"
+                                    className="relative h-10 w-10 overflow-hidden rounded border border-border/70"
+                                    onClick={() => setPreviewImage(image)}
+                                    title={image.filename}
+                                  >
+                                    <Image
+                                      src={image.thumbnailUrl || image.url}
+                                      alt={image.filename}
+                                      fill
+                                      className="object-cover"
+                                      unoptimized
+                                    />
+                                  </button>
+                                ))}
+                                {rate.noteImages.length > 4 && (
+                                  <div className="flex h-10 w-10 items-center justify-center rounded border border-border/70 text-xs text-muted-foreground">
+                                    +{rate.noteImages.length - 4}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {new Date(rate.updatedAt).toLocaleString("zh-CN")}
+                        </TableCell>
+                        {isAdmin ? (
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-2">
+                              <Button variant="ghost" size="icon" onClick={() => handleEdit(rate)}>
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleDeleteClick(rate)}>
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        ) : null}
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* 手机端：卡片列表 */}
+            <div className="lg:hidden space-y-3 p-4">
+              {loading ? (
+                <div className="text-center text-sm text-muted-foreground py-8">加载中...</div>
+              ) : rates.length === 0 ? (
+                <div className="text-center text-sm text-muted-foreground py-8">暂无汇率数据</div>
+              ) : (
+                rates.map((rate) => (
+                  <div key={rate.id} className="dashboard-surface p-4 space-y-3">
+                    {/* 头部：货币 + 汇率 */}
+                    <div className="flex items-start justify-between gap-2 border-b border-border/70 pb-3">
+                      <div>
                         {(() => {
                           const badgeMeta = getCurrencyBadgeMeta(rate.currency)
-
                           return (
                             <Badge
                               variant="outline"
                               className={cn(
-                                "gap-1.5 rounded-full px-3 py-1 font-mono text-[11px] font-bold tracking-[0.18em]",
+                                "gap-1.5 rounded-full px-2 py-0.5 font-mono text-[11px] font-bold tracking-[0.18em]",
                                 badgeMeta.className
                               )}
-                              title={`${rate.currency} - ${badgeMeta.accent}`}
                             >
                               <span className="text-sm leading-none">{badgeMeta.symbol}</span>
                               <span>{rate.currency}</span>
                             </Badge>
                           )
                         })()}
-                      </TableCell>
-                      <TableCell>{rate.currencyName}</TableCell>
-                      <TableCell>{rate.year}</TableCell>
-                      <TableCell>{rate.month}月</TableCell>
-                      <TableCell className="text-right font-mono text-sm">
-                        {Number(rate.rate).toFixed(6)}
-                      </TableCell>
-                      <TableCell className="max-w-[280px]">
-                        <div className="space-y-2">
-                          <p className="truncate text-sm">
-                            {rate.description || (rate.noteImages?.length > 0 ? "" : "-")}
-                          </p>
-                          {rate.noteImages?.length > 0 && (
-                            <div className="flex flex-wrap gap-2">
-                              {rate.noteImages.slice(0, 4).map((image) => (
-                                <button
-                                  key={image.id}
-                                  type="button"
-                              className="relative h-10 w-10 overflow-hidden rounded border border-border/70"
-                                  onClick={() => setPreviewImage(image)}
-                                  title={image.filename}
-                                >
-                                  <Image
-                                    src={image.thumbnailUrl || image.url}
-                                    alt={image.filename}
-                                    fill
-                                    className="object-cover"
-                                    unoptimized
-                                  />
-                                </button>
-                              ))}
-                              {rate.noteImages.length > 4 && (
-                                <div className="flex h-10 w-10 items-center justify-center rounded border border-border/70 text-xs text-muted-foreground">
-                                  +{rate.noteImages.length - 4}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {new Date(rate.updatedAt).toLocaleString("zh-CN")}
-                      </TableCell>
-                      {isAdmin ? (
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleEdit(rate)}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="text-destructive hover:text-destructive"
-                              onClick={() => handleDeleteClick(rate)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      ) : null}
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                        <div className="mt-1 text-xs text-muted-foreground">{rate.currencyName}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-mono text-lg font-semibold">{Number(rate.rate).toFixed(4)}</div>
+                        <div className="text-xs text-muted-foreground">{rate.year}/{rate.month}月</div>
+                      </div>
+                    </div>
+
+                    {/* 备注 */}
+                    {rate.description && (
+                      <div className="text-sm">{rate.description}</div>
+                    )}
+
+                    {/* 更新时间 */}
+                    <div className="text-xs text-muted-foreground">
+                      更新: {new Date(rate.updatedAt).toLocaleString("zh-CN")}
+                    </div>
+
+                    {/* 操作按钮 */}
+                    {isAdmin && (
+                      <div className="flex gap-2 pt-2 border-t border-border/70">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-9 min-h-[44px] flex-1"
+                          onClick={() => handleEdit(rate)}
+                        >
+                          <Pencil className="mr-1 h-4 w-4" />
+                          编辑
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-9 min-h-[44px] flex-1 text-destructive hover:text-destructive"
+                          onClick={() => handleDeleteClick(rate)}
+                        >
+                          <Trash2 className="mr-1 h-4 w-4" />
+                          删除
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
           </div>
 
           <div className="flex items-center justify-center gap-2 px-4 py-3">

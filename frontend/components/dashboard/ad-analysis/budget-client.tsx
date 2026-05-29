@@ -9,7 +9,9 @@ import { buildAnalysisDrillHref } from '@/components/dashboard/ad-analysis/drill
 import { AdAnalysisDrillLinks } from '@/components/dashboard/ad-analysis/drill-links'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
+import { cn } from '@/lib/utils'
 import {
   Table,
   TableBody,
@@ -211,85 +213,160 @@ export function AdAnalysisBudgetClient() {
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>活动</TableHead>
-                <TableHead>动作</TableHead>
-                <TableHead>当前预算</TableHead>
-                <TableHead>建议预算</TableHead>
-                <TableHead>预算在线时间</TableHead>
-                <TableHead>错失销售额</TableHead>
-                <TableHead>下一步</TableHead>
-                <TableHead>ACOS</TableHead>
-                <TableHead>下钻</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.items.map((item) => (
-                <TableRow key={item.campaign_name}>
-                  <TableCell className='align-top'>
-                    <div className='space-y-1'>
-                      <p className='font-medium'>{item.campaign_name}</p>
-                      <p className='text-xs text-muted-foreground'>{item.status}</p>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant='secondary'>
-                      <BadgeDollarSign className='mr-1 h-3.5 w-3.5' />
-                      {item.action}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>${item.budget.toFixed(2)}</TableCell>
-                  <TableCell>${item.suggested_budget.toFixed(2)}</TableCell>
-                  <TableCell>{(item.budget_utilization_rate * 100).toFixed(2)}%</TableCell>
-                  <TableCell>
-                    ${item.missed_sales_min.toFixed(2)} - ${item.missed_sales_max.toFixed(2)}
-                  </TableCell>
-                  <TableCell className='max-w-[220px] text-sm text-muted-foreground'>{item.next_step}</TableCell>
-                  <TableCell>{(item.acos * 100).toFixed(2)}%</TableCell>
-                  <TableCell className='align-top'>
-                    <AdAnalysisDrillLinks
-                      links={[
-                        {
-                          href: buildAnalysisDrillHref(
-                            'campaigns',
-                            { projectId, country, dateFrom, dateTo },
-                            { campaign: item.campaign_name },
-                          ),
-                          label: '活动',
-                        },
-                        {
-                          href: buildAnalysisDrillHref(
-                            'search-terms',
-                            { projectId, country, dateFrom, dateTo },
-                            { campaign: item.campaign_name },
-                          ),
-                          label: '搜索词',
-                        },
-                        {
-                          href: buildAnalysisDrillHref(
-                            'targets',
-                            { projectId, country, dateFrom, dateTo },
-                            { campaign: item.campaign_name },
-                          ),
-                          label: '投放',
-                        },
-                        {
-                          href: buildAnalysisDrillHref(
-                            'traffic-quality',
-                            { projectId, country, dateFrom, dateTo },
-                            { campaign: item.campaign_name },
-                          ),
-                          label: '流量',
-                        },
-                      ]}
-                    />
-                  </TableCell>
+          {/* 桌面端：完整表格 */}
+          <div className="hidden lg:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>活动</TableHead>
+                  <TableHead>动作</TableHead>
+                  <TableHead>当前预算</TableHead>
+                  <TableHead>建议预算</TableHead>
+                  <TableHead>预算在线时间</TableHead>
+                  <TableHead>错失销售额</TableHead>
+                  <TableHead>下一步</TableHead>
+                  <TableHead>ACOS</TableHead>
+                  <TableHead>下钻</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {data.items.map((item) => (
+                  <TableRow key={item.campaign_name}>
+                    <TableCell className='align-top'>
+                      <div className='space-y-1'>
+                        <p className='font-medium'>{item.campaign_name}</p>
+                        <p className='text-xs text-muted-foreground'>{item.status}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant='secondary'>
+                        <BadgeDollarSign className='mr-1 h-3.5 w-3.5' />
+                        {item.action}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>${item.budget.toFixed(2)}</TableCell>
+                    <TableCell>${item.suggested_budget.toFixed(2)}</TableCell>
+                    <TableCell>{(item.budget_utilization_rate * 100).toFixed(2)}%</TableCell>
+                    <TableCell>
+                      ${item.missed_sales_min.toFixed(2)} - ${item.missed_sales_max.toFixed(2)}
+                    </TableCell>
+                    <TableCell className='max-w-[220px] text-sm text-muted-foreground'>{item.next_step}</TableCell>
+                    <TableCell>{(item.acos * 100).toFixed(2)}%</TableCell>
+                    <TableCell className='align-top'>
+                      <AdAnalysisDrillLinks
+                        links={[
+                          {
+                            href: buildAnalysisDrillHref(
+                              'campaigns',
+                              { projectId, country, dateFrom, dateTo },
+                              { campaign: item.campaign_name },
+                            ),
+                            label: '活动',
+                          },
+                          {
+                            href: buildAnalysisDrillHref(
+                              'search-terms',
+                              { projectId, country, dateFrom, dateTo },
+                              { campaign: item.campaign_name },
+                            ),
+                            label: '搜索词',
+                          },
+                          {
+                            href: buildAnalysisDrillHref(
+                              'targets',
+                              { projectId, country, dateFrom, dateTo },
+                              { campaign: item.campaign_name },
+                            ),
+                            label: '投放',
+                          },
+                          {
+                            href: buildAnalysisDrillHref(
+                              'traffic-quality',
+                              { projectId, country, dateFrom, dateTo },
+                              { campaign: item.campaign_name },
+                            ),
+                            label: '流量',
+                          },
+                        ]}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* 手机端：卡片列表 */}
+          <div className='lg:hidden space-y-3'>
+            {data.items.map((item) => (
+              <div key={item.campaign_name} className='dashboard-surface p-4 space-y-3'>
+                <div className='flex items-start justify-between gap-2 border-b border-border/70 pb-3'>
+                  <div className='min-w-0 flex-1'>
+                    <p className='font-medium text-sm'>{item.campaign_name}</p>
+                    <p className='text-xs text-muted-foreground'>{item.status}</p>
+                  </div>
+                  <Badge variant='secondary' className='shrink-0'>
+                    <BadgeDollarSign className='mr-1 h-3 w-3' />
+                    {item.action}
+                  </Badge>
+                </div>
+
+                <div className='grid grid-cols-2 gap-x-4 gap-y-2 text-sm'>
+                  <div>
+                    <span className='text-xs text-muted-foreground'>当前预算</span>
+                    <div className='font-medium'>${item.budget.toFixed(2)}</div>
+                  </div>
+                  <div>
+                    <span className='text-xs text-muted-foreground'>建议预算</span>
+                    <div className='font-medium'>${item.suggested_budget.toFixed(2)}</div>
+                  </div>
+                  <div>
+                    <span className='text-xs text-muted-foreground'>预算在线</span>
+                    <div className='font-medium'>{(item.budget_utilization_rate * 100).toFixed(2)}%</div>
+                  </div>
+                  <div>
+                    <span className='text-xs text-muted-foreground'>ACOS</span>
+                    <div className={cn("font-medium", item.acos > 0.3 ? 'text-red-500' : 'text-emerald-500')}>
+                      {(item.acos * 100).toFixed(2)}%
+                    </div>
+                  </div>
+                </div>
+
+                <div className='text-xs text-muted-foreground'>
+                  错失销售: ${item.missed_sales_min.toFixed(2)} - ${item.missed_sales_max.toFixed(2)}
+                </div>
+
+                <div className='text-xs text-muted-foreground border-t border-border/70 pt-2'>
+                  下一步: {item.next_step}
+                </div>
+
+                <div className='flex gap-2 pt-2 border-t border-border/70'>
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    className='h-8 min-h-[44px] text-xs flex-1'
+                    onClick={() => {
+                      const href = buildAnalysisDrillHref('campaigns', { projectId, country, dateFrom, dateTo }, { campaign: item.campaign_name })
+                      if (href) window.location.href = href
+                    }}
+                  >
+                    活动
+                  </Button>
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    className='h-8 min-h-[44px] text-xs flex-1'
+                    onClick={() => {
+                      const href = buildAnalysisDrillHref('search-terms', { projectId, country, dateFrom, dateTo }, { campaign: item.campaign_name })
+                      if (href) window.location.href = href
+                    }}
+                  >
+                    搜索词
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
         </CardContent>
       </Card>
     </div>

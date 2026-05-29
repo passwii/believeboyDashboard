@@ -8,6 +8,7 @@ import { AdAnalysisContextBanner } from '@/components/dashboard/ad-analysis/cont
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
+import { cn } from '@/lib/utils'
 import {
   Table,
   TableBody,
@@ -139,37 +140,77 @@ export function AdAnalysisPurchasedProductsClient() {
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>关联 ASIN</TableHead>
-                <TableHead>动作</TableHead>
-                <TableHead>广告 SKU</TableHead>
-                <TableHead>活动数</TableHead>
-                <TableHead>Units</TableHead>
-                <TableHead>Orders</TableHead>
-                <TableHead>Sales</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredItems.map((item) => (
-                <TableRow key={`${item.purchased_asin}-${item.ad_sku}`}>
-                  <TableCell className='font-medium'>{item.purchased_asin}</TableCell>
-                  <TableCell>
-                    <Badge variant='secondary'>
-                      <Boxes className='mr-1 h-3.5 w-3.5' />
-                      {item.action}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{item.ad_sku}</TableCell>
-                  <TableCell>{item.campaign_count}</TableCell>
-                  <TableCell>{item.other_sku_units_7d}</TableCell>
-                  <TableCell>{item.other_sku_orders_7d}</TableCell>
-                  <TableCell>${item.other_sku_sales_7d.toFixed(2)}</TableCell>
+          {/* 桌面端：完整表格 */}
+          <div className="hidden lg:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>关联 ASIN</TableHead>
+                  <TableHead>动作</TableHead>
+                  <TableHead>广告 SKU</TableHead>
+                  <TableHead>活动数</TableHead>
+                  <TableHead>Units</TableHead>
+                  <TableHead>Orders</TableHead>
+                  <TableHead>Sales</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredItems.map((item) => (
+                  <TableRow key={`${item.purchased_asin}-${item.ad_sku}`}>
+                    <TableCell className='font-medium'>{item.purchased_asin}</TableCell>
+                    <TableCell>
+                      <Badge variant='secondary'>
+                        <Boxes className='mr-1 h-3.5 w-3.5' />
+                        {item.action}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{item.ad_sku}</TableCell>
+                    <TableCell>{item.campaign_count}</TableCell>
+                    <TableCell>{item.other_sku_units_7d}</TableCell>
+                    <TableCell>{item.other_sku_orders_7d}</TableCell>
+                    <TableCell>${item.other_sku_sales_7d.toFixed(2)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* 手机端：卡片列表 */}
+          <div className='lg:hidden space-y-3'>
+            {filteredItems.map((item) => (
+              <div key={`${item.purchased_asin}-${item.ad_sku}`} className='dashboard-surface p-4 space-y-3'>
+                <div className='flex items-start justify-between gap-2 border-b border-border/70 pb-3'>
+                  <div className='min-w-0 flex-1'>
+                    <p className='font-medium text-sm'>ASIN: {item.purchased_asin}</p>
+                    <p className='text-xs text-muted-foreground'>广告 SKU: {item.ad_sku}</p>
+                  </div>
+                  <Badge variant='secondary' className='shrink-0'>
+                    <Boxes className='mr-1 h-3 w-3' />
+                    {item.action}
+                  </Badge>
+                </div>
+
+                <div className='grid grid-cols-2 gap-x-4 gap-y-2 text-sm'>
+                  <div>
+                    <span className='text-xs text-muted-foreground'>活动数</span>
+                    <div className='font-medium'>{item.campaign_count}</div>
+                  </div>
+                  <div>
+                    <span className='text-xs text-muted-foreground'>Units</span>
+                    <div className='font-medium'>{item.other_sku_units_7d}</div>
+                  </div>
+                  <div>
+                    <span className='text-xs text-muted-foreground'>Orders</span>
+                    <div className='font-medium'>{item.other_sku_orders_7d}</div>
+                  </div>
+                  <div>
+                    <span className='text-xs text-muted-foreground'>Sales</span>
+                    <div className='font-medium'>${item.other_sku_sales_7d.toFixed(2)}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </CardContent>
       </Card>
     </div>

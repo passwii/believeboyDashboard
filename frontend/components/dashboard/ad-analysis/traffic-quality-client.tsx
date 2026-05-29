@@ -8,8 +8,10 @@ import { AdAnalysisContextBanner } from '@/components/dashboard/ad-analysis/cont
 import { buildAnalysisDrillHref } from '@/components/dashboard/ad-analysis/drill'
 import { AdAnalysisDrillLinks } from '@/components/dashboard/ad-analysis/drill-links'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
+import { cn } from '@/lib/utils'
 import {
   Table,
   TableBody,
@@ -203,85 +205,169 @@ export function AdAnalysisTrafficQualityClient() {
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>活动</TableHead>
-                <TableHead>风险等级</TableHead>
-                <TableHead>总曝光 / 无效曝光</TableHead>
-                <TableHead>无效曝光率</TableHead>
-                <TableHead>总点击 / 无效点击</TableHead>
-                <TableHead>无效点击率</TableHead>
-                <TableHead>下一步</TableHead>
-                <TableHead>下钻</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.items.map((item) => (
-                <TableRow key={item.campaign_name}>
-                  <TableCell className='align-top'>
-                    <div className='space-y-1'>
-                      <p className='font-medium'>{item.campaign_name}</p>
-                      <p className='text-xs text-muted-foreground'>{item.status}</p>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={riskVariant(item.risk_level)}>
-                      <AlertTriangle className='mr-1 h-3.5 w-3.5' />
-                      {item.risk_level}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {item.total_impressions} / {item.invalid_impressions}
-                  </TableCell>
-                  <TableCell>{(item.invalid_impression_rate * 100).toFixed(2)}%</TableCell>
-                  <TableCell>
-                    {item.total_clicks} / {item.invalid_clicks}
-                  </TableCell>
-                  <TableCell>{(item.invalid_click_rate * 100).toFixed(2)}%</TableCell>
-                  <TableCell className='max-w-[220px] text-sm text-muted-foreground'>{item.next_step}</TableCell>
-                  <TableCell className='align-top'>
-                    <AdAnalysisDrillLinks
-                      links={[
-                        {
-                          href: buildAnalysisDrillHref(
-                            'campaigns',
-                            { projectId, country, dateFrom, dateTo },
-                            { campaign: item.campaign_name },
-                          ),
-                          label: '活动',
-                        },
-                        {
-                          href: buildAnalysisDrillHref(
-                            'targets',
-                            { projectId, country, dateFrom, dateTo },
-                            { campaign: item.campaign_name },
-                          ),
-                          label: '投放',
-                        },
-                        {
-                          href: buildAnalysisDrillHref(
-                            'placements',
-                            { projectId, country, dateFrom, dateTo },
-                            { campaign: item.campaign_name },
-                          ),
-                          label: '广告位',
-                        },
-                        {
-                          href: buildAnalysisDrillHref(
-                            'search-terms',
-                            { projectId, country, dateFrom, dateTo },
-                            { campaign: item.campaign_name },
-                          ),
-                          label: '搜索词',
-                        },
-                      ]}
-                    />
-                  </TableCell>
+          {/* 桌面端：完整表格 */}
+          <div className="hidden lg:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>活动</TableHead>
+                  <TableHead>风险等级</TableHead>
+                  <TableHead>总曝光 / 无效曝光</TableHead>
+                  <TableHead>无效曝光率</TableHead>
+                  <TableHead>总点击 / 无效点击</TableHead>
+                  <TableHead>无效点击率</TableHead>
+                  <TableHead>下一步</TableHead>
+                  <TableHead>下钻</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {data.items.map((item) => (
+                  <TableRow key={item.campaign_name}>
+                    <TableCell className='align-top'>
+                      <div className='space-y-1'>
+                        <p className='font-medium'>{item.campaign_name}</p>
+                        <p className='text-xs text-muted-foreground'>{item.status}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={riskVariant(item.risk_level)}>
+                        <AlertTriangle className='mr-1 h-3.5 w-3.5' />
+                        {item.risk_level}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {item.total_impressions} / {item.invalid_impressions}
+                    </TableCell>
+                    <TableCell>{(item.invalid_impression_rate * 100).toFixed(2)}%</TableCell>
+                    <TableCell>
+                      {item.total_clicks} / {item.invalid_clicks}
+                    </TableCell>
+                    <TableCell>{(item.invalid_click_rate * 100).toFixed(2)}%</TableCell>
+                    <TableCell className='max-w-[220px] text-sm text-muted-foreground'>{item.next_step}</TableCell>
+                    <TableCell className='align-top'>
+                      <AdAnalysisDrillLinks
+                        links={[
+                          {
+                            href: buildAnalysisDrillHref(
+                              'campaigns',
+                              { projectId, country, dateFrom, dateTo },
+                              { campaign: item.campaign_name },
+                            ),
+                            label: '活动',
+                          },
+                          {
+                            href: buildAnalysisDrillHref(
+                              'targets',
+                              { projectId, country, dateFrom, dateTo },
+                              { campaign: item.campaign_name },
+                            ),
+                            label: '投放',
+                          },
+                          {
+                            href: buildAnalysisDrillHref(
+                              'placements',
+                              { projectId, country, dateFrom, dateTo },
+                              { campaign: item.campaign_name },
+                            ),
+                            label: '广告位',
+                          },
+                          {
+                            href: buildAnalysisDrillHref(
+                              'search-terms',
+                              { projectId, country, dateFrom, dateTo },
+                              { campaign: item.campaign_name },
+                            ),
+                            label: '搜索词',
+                          },
+                        ]}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* 手机端：卡片列表 */}
+          <div className='lg:hidden space-y-3'>
+            {data.items.map((item) => (
+              <div key={item.campaign_name} className='dashboard-surface p-4 space-y-3'>
+                <div className='flex items-start justify-between gap-2 border-b border-border/70 pb-3'>
+                  <div className='min-w-0 flex-1'>
+                    <p className='font-medium text-sm'>{item.campaign_name}</p>
+                    <p className='text-xs text-muted-foreground'>{item.status}</p>
+                  </div>
+                  <Badge variant={riskVariant(item.risk_level)} className='shrink-0'>
+                    <AlertTriangle className='mr-1 h-3 w-3' />
+                    {item.risk_level}
+                  </Badge>
+                </div>
+
+                <div className='grid grid-cols-2 gap-x-4 gap-y-2 text-sm'>
+                  <div>
+                    <span className='text-xs text-muted-foreground'>总曝光</span>
+                    <div className='font-medium'>{item.total_impressions.toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <span className='text-xs text-muted-foreground'>无效曝光率</span>
+                    <div className={cn("font-medium", item.invalid_impression_rate > 0.1 ? 'text-red-500' : '')}>
+                      {(item.invalid_impression_rate * 100).toFixed(2)}%
+                    </div>
+                  </div>
+                  <div>
+                    <span className='text-xs text-muted-foreground'>总点击</span>
+                    <div className='font-medium'>{item.total_clicks.toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <span className='text-xs text-muted-foreground'>无效点击率</span>
+                    <div className={cn("font-medium", item.invalid_click_rate > 0.1 ? 'text-red-500' : '')}>
+                      {(item.invalid_click_rate * 100).toFixed(2)}%
+                    </div>
+                  </div>
+                </div>
+
+                <div className='grid grid-cols-2 gap-x-4 gap-y-1 text-xs'>
+                  <div>
+                    <span className='text-muted-foreground'>无效曝光</span>
+                    <div className='font-medium'>{item.invalid_impressions.toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <span className='text-muted-foreground'>无效点击</span>
+                    <div className='font-medium'>{item.invalid_clicks.toLocaleString()}</div>
+                  </div>
+                </div>
+
+                <div className='text-xs text-muted-foreground border-t border-border/70 pt-2'>
+                  下一步: {item.next_step}
+                </div>
+
+                <div className='flex gap-2 pt-2 border-t border-border/70'>
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    className='h-8 min-h-[44px] text-xs flex-1'
+                    onClick={() => {
+                      const href = buildAnalysisDrillHref('campaigns', { projectId, country, dateFrom, dateTo }, { campaign: item.campaign_name })
+                      if (href) window.location.href = href
+                    }}
+                  >
+                    活动
+                  </Button>
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    className='h-8 min-h-[44px] text-xs flex-1'
+                    onClick={() => {
+                      const href = buildAnalysisDrillHref('targets', { projectId, country, dateFrom, dateTo }, { campaign: item.campaign_name })
+                      if (href) window.location.href = href
+                    }}
+                  >
+                    投放
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
         </CardContent>
       </Card>
     </div>
