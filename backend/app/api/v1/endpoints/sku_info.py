@@ -37,6 +37,8 @@ from app.schemas.sku_info import (
     SkuRecordsPage,
     SkuRecordUpdate,
     SkuRecordUpsertResponse,
+    FnskuLabelsResponse,
+    GetFnskuLabelsBySkusRequest,
 )
 from app.services.audit_log_service import (
     append_operation_audit_log,
@@ -977,4 +979,25 @@ def batch_download_fnsku_labels(
             "X-Downloaded-Count": str(len(labeled_rows)),
             "X-Skipped-Count": str(skipped),
         },
+    )
+
+
+@router.post("/sku-info/fnsku-labels/by-skus")
+def get_fnsku_labels_by_skus(
+    payload: GetFnskuLabelsBySkusRequest,
+    db: Session = Depends(get_db_session),
+) -> FnskuLabelsResponse:
+    """通过项目名称和 SKU 列表获取 FNSKU 标签信息（包含 R2 key）。"""
+    rows = db.execute(
+        select(SkuRecord).where(
+            SkuRecord.project_name == payload.project_name,
+            SkuRecord.sku.in_(payload.skus),
+        )
+    ).scalars().all()
+
+    return FnskuLabelsResponse(
+        sku_records=[
+            {"id": row.id, "sku": row.sku, "fnsku_label_r2_key": row.fnsku_label_r2_key}
+            for row in rows
+        ]
     )

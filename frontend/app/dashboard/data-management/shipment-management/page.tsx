@@ -3,7 +3,7 @@
 import { type ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
-import { RefreshCcw, Upload, FileDown, FileSpreadsheet, Plus, Pencil, Trash2, X, ChevronsUpDown, Check } from 'lucide-react'
+import { RefreshCcw, Upload, FileDown, FileSpreadsheet, Plus, Pencil, Trash2, X, ChevronsUpDown, Check, Tag } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { DirectionalTabTransition, SlidingTabsTrigger, TabsMotionGroup } from '@/components/ui/tab-motion'
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
@@ -708,6 +708,7 @@ export default function ShipmentManagementPage() {
   const [fbaBoxExporting, setFbaBoxExporting] = useState(false)
   const [fbaBoxMeta, setFbaBoxMeta] = useState<{ projectNames: string[]; countries: string[]; shipmentNos: string[] } | null>(null)
   const [fbaBoxItems, setFbaBoxItems] = useState<ShipmentFbaBoxDetailItem[]>([])
+  const [labelDownloading, setLabelDownloading] = useState(false)
 
   const summary = useMemo(() => {
     return items.reduce(
@@ -2389,6 +2390,65 @@ export default function ShipmentManagementPage() {
     }
   }
 
+  // 下载产品标签
+  const handleDownloadProductLabels = async () => {
+    if (!detail || editableItems.length === 0) {
+      notify({ type: 'error', title: '无可下载的产品标签' })
+      return
+    }
+
+    setLabelDownloading(true)
+    try {
+      // 1. 获取 fnsku_label_r2_key 信息
+      const skus = editableItems.map((item) => item.sku)
+      const response = await fetch(`${API_BASE}/api/v1/sku-info/fnsku-labels/by-skus`, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project_name: detail.project_name, skus }),
+      })
+
+      if (!response.ok) throw new Error(await parseResponseError(response, '请求失败'))
+
+      const data = (await response.json()) as { sku_records: Array<{ id: number; sku: string; fnsku_label_r2_key: string | null }> }
+      const skuRecords = data.sku_records.filter((r) => r.fnsku_label_r2_key)
+
+      if (skuRecords.length === 0) {
+        notify({ type: 'error', title: '所选 SKU 均无 FNSKU 标签' })
+        return
+      }
+
+      // 2. 调用批量下载 API
+      const downloadResponse = await fetch(`${API_BASE}/api/v1/sku-info/fnsku-labels/batch-download`, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sku_record_ids: skuRecords.map((r) => r.id) }),
+      })
+
+      if (!downloadResponse.ok) throw new Error(await parseResponseError(downloadResponse, '下载失败'))
+
+      // 3. 处理下载
+      const blob = await downloadResponse.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${detail.shipment_no}-fnsku-labels.zip`
+      link.click()
+      URL.revokeObjectURL(url)
+
+      const downloaded = downloadResponse.headers.get('X-Downloaded-Count') || skuRecords.length
+      const skipped = downloadResponse.headers.get('X-Skipped-Count') || '0'
+      notify({
+        type: 'success',
+        title: '下载完成',
+        message: `共 ${downloaded} 个标签${Number(skipped) > 0 ? `，跳过 ${skipped} 个无标签的 SKU` : ''}`,
+      })
+    } catch (downloadError) {
+      notify({ type: 'error', title: '下载失败', message: normalizeErrorMessage(downloadError, '下载失败') })
+    } finally {
+      setLabelDownloading(false)
+    }
+  }
+
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
 
   return (
@@ -3107,7 +3167,7 @@ export default function ShipmentManagementPage() {
 
           {dialogMode === 'edit' && detail && (
             <>
-              <Separator className="bg-border" />
+              <div className="pt-2" />
               <div className="space-y-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
@@ -3151,6 +3211,15 @@ export default function ShipmentManagementPage() {
                           onChange={handleImportFile}
                         />
                       </label>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => void handleDownloadProductLabels()}
+                      disabled={editableItems.length === 0 || labelDownloading}
+                      className="gap-2"
+                    >
+                      <Tag className="h-4 w-4" />
+                      {labelDownloading ? '下载中...' : '下载产品标签'}
                     </Button>
                     <Button
                       variant="outline"
