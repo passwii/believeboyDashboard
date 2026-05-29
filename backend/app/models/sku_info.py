@@ -103,6 +103,8 @@ class SkuRecord(Base):
         DateTime(timezone=True), nullable=True
     )
     sku_factory_info_updated_by: Mapped[str | None] = mapped_column(String, nullable=True)
+    fnsku_label_r2_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    fnsku_label_r2_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

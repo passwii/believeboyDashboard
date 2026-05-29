@@ -1,7 +1,7 @@
 'use client'
 
 import { Suspense } from 'react'
-import Index from '@/components/ui/bilifu-crossborder-signin'
+import Index from '@/components/login'
 
 export default function LoginPage() {
   return (

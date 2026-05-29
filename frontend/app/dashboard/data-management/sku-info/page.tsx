@@ -1,14 +1,15 @@
 'use client'
 
-import { type ChangeEvent, useEffect, useMemo, useState } from 'react'
+import { type ChangeEvent, Fragment, useEffect, useMemo, useState } from 'react'
 import { useSession } from 'next-auth/react'
-import { FileDown, FileText, Package2, RefreshCw, Ruler, Upload } from 'lucide-react'
+import { FileDown, FileText, Package2, RefreshCw, Ruler, Tag, Upload } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { HoverCard } from '@/components/ui/hover-card'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { UploadZone } from '@/components/ui/upload-zone'
 import { useNotifications } from '@/components/notifications'
 import { useConfirm } from '@/hooks/use-confirm'
 import {
@@ -64,6 +65,8 @@ type ProductCostItem = {
   sku_factory_info: Record<string, unknown> | null
   sku_factory_info_updated_at: string | null
   sku_factory_info_updated_by: string | null
+  fnsku_label_r2_key?: string | null
+  fnsku_label_r2_url?: string | null
   historical_first_leg_cost_rmb?: number | null
 }
 
@@ -89,9 +92,9 @@ type ShipmentSkuSummaryResponse = {
   items: ShipmentSkuSummaryItem[]
 }
 
-type ActiveTab = 'cost' | 'dimension' | 'factory'
+type ActiveTab = 'cost' | 'dimension' | 'factory' | 'label'
 type ImportMode = 'create' | 'update'
-const ACTIVE_TAB_ORDER: ActiveTab[] = ['cost', 'dimension', 'factory']
+const ACTIVE_TAB_ORDER: ActiveTab[] = ['cost', 'dimension', 'factory', 'label']
 
 const API_BASE = '/api/backend'
 const HISTORY_SHIPMENT_STATUSES = ['completed', 'in_transit'] as const
@@ -322,6 +325,11 @@ export default function SkuInfoPage() {
   // 批量编辑产品属性
   const [batchSheetOpen, setBatchSheetOpen] = useState(false)
   const [selectedSkus, setSelectedSkus] = useState<ProductCostItem[]>([])
+
+  // FNSKU 标签
+  const [labelUploadingId, setLabelUploadingId] = useState<number | null>(null)
+  const [labelDownloading, setLabelDownloading] = useState(false)
+  const [selectedLabelSkus, setSelectedLabelSkus] = useState<ProductCostItem[]>([])
 
   const totalPages = useMemo(
     () => Math.max(1, Math.ceil(total / pageSize)),
@@ -721,6 +729,71 @@ export default function SkuInfoPage() {
     }
   }
 
+  // ── FNSKU 标签操作 ──
+
+  const handleLabelUploadClick = (skuRecordId: number) => {
+    setLabelUploadingId((prev) => (prev === skuRecordId ? null : skuRecordId))
+  }
+
+  const handleLabelDownload = async (skuRecordId: number, sku: string) => {
+    try {
+      const response = await fetch(
+        `${API_BASE}/api/v1/sku-info/${skuRecordId}/fnsku-label/download`,
+        { headers: authHeaders() },
+      )
+      if (!response.ok) throw new Error(await parseError(response))
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${sku}-fnsku-label.pdf`
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch (downloadError) {
+      notify({ type: 'error', title: '标签下载失败', message: normalizeErrorMessage(downloadError, '下载失败') })
+    }
+  }
+
+  const handleBatchDownloadLabels = async () => {
+    const ids = selectedLabelSkus
+      .filter((s) => s.fnsku_label_r2_key)
+      .map((s) => s.id)
+    if (ids.length === 0) {
+      notify({ type: 'error', title: '所选 SKU 均无 FNSKU 标签' })
+      return
+    }
+    setLabelDownloading(true)
+    try {
+      const response = await fetch(
+        `${API_BASE}/api/v1/sku-info/fnsku-labels/batch-download`,
+        {
+          method: 'POST',
+          headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sku_record_ids: ids }),
+        },
+      )
+      if (!response.ok) throw new Error(await parseError(response))
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = 'fnsku-labels.zip'
+      link.click()
+      URL.revokeObjectURL(url)
+      const downloaded = response.headers.get('X-Downloaded-Count') || ids.length
+      const skipped = response.headers.get('X-Skipped-Count') || '0'
+      notify({
+        type: 'success',
+        title: `批量下载完成，共 ${downloaded} 个标签`,
+        message: Number(skipped) > 0 ? `跳过 ${skipped} 个无标签的 SKU` : undefined,
+      })
+    } catch (batchError) {
+      notify({ type: 'error', title: '批量下载失败', message: normalizeErrorMessage(batchError, '下载失败') })
+    } finally {
+      setLabelDownloading(false)
+    }
+  }
+
   return (
     <div className='w-full space-y-6 text-foreground'>
       <DataCard className='overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90'>
@@ -841,7 +914,7 @@ export default function SkuInfoPage() {
       >
         <div className='flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between'>
           <TabsMotionGroup id='sku-cost-tabs'>
-            <TabsList className='inline-flex h-auto w-full max-w-[360px] rounded-xl border border-border/70 bg-[hsl(var(--surface-subtle))] p-1 shadow-none'>
+            <TabsList className='inline-flex h-auto w-full max-w-[480px] rounded-xl border border-border/70 bg-[hsl(var(--surface-subtle))] p-1 shadow-none'>
               <SlidingTabsTrigger
                 value='cost'
                 activeValue={activeTab}
@@ -868,6 +941,15 @@ export default function SkuInfoPage() {
               >
                 <FileText className='h-4 w-4' />
                 产品属性
+              </SlidingTabsTrigger>
+              <SlidingTabsTrigger
+                value='label'
+                activeValue={activeTab}
+                layoutId='sku-cost-tab-indicator'
+                className='flex-1 gap-2 px-4 py-2'
+              >
+                <Tag className='h-4 w-4' />
+                产品标签
               </SlidingTabsTrigger>
             </TabsList>
           </TabsMotionGroup>
@@ -1543,7 +1625,7 @@ export default function SkuInfoPage() {
                   </table>
                 </DataTableCardBody>
               </DataTableCard>
-            ) : (
+            ) : activeTab === 'factory' ? (
               <DataTableCard className='overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90'>
                 <DataTableCardHeader className='px-6 py-5'>
                   <div className='flex flex-wrap items-center justify-between gap-3'>
@@ -1589,8 +1671,8 @@ export default function SkuInfoPage() {
                         <TableSkeletonRows columns={6} cellWidth='w-24' />
                       ) : null}
                       {items.map((row) => (
+                        <Fragment key={row.id}>
                         <tr
-                          key={row.id}
                           className='border-b border-border/50 transition-colors hover:bg-[hsl(var(--surface-subtle))]'
                         >
                           <td className='border-b border-r border-border/60 p-4 align-top font-medium'>
@@ -1668,6 +1750,223 @@ export default function SkuInfoPage() {
                             </Button>
                           </td>
                         </tr>
+                        </Fragment>
+                      ))}
+                      {!loading && items.length === 0 ? (
+                        <EmptyState
+                          colSpan={6}
+                          message={
+                            projectFilter
+                              ? '当前筛选条件下暂无数据。'
+                              : '暂无数据，请输入项目名或 SKU/ASIN 进行查询。'
+                          }
+                        />
+                      ) : null}
+                    </tbody>
+                  </table>
+                </DataTableCardBody>
+              </DataTableCard>
+            ) : (
+              /* ── 产品标签 Tab ── */
+              <DataTableCard className='overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90'>
+                <DataTableCardHeader className='px-6 py-5'>
+                  <div className='flex flex-wrap items-center justify-between gap-3'>
+                    <div className='space-y-1'>
+                      <h2 className='text-base font-semibold'>产品标签</h2>
+                      <p className='text-xs text-muted-foreground'>上传和管理每个 SKU 的 FNSKU 标签 PDF</p>
+                    </div>
+                    {selectedLabelSkus.length > 0 && (
+                      <Button
+                        type='button'
+                        size='sm'
+                        variant='default'
+                        disabled={labelDownloading}
+                        onClick={() => void handleBatchDownloadLabels()}
+                      >
+                        <FileDown className='mr-2 h-4 w-4' />
+                        {labelDownloading
+                          ? '下载中...'
+                          : `批量下载标签 (${selectedLabelSkus.filter((s) => s.fnsku_label_r2_key).length})`}
+                      </Button>
+                    )}
+                  </div>
+                </DataTableCardHeader>
+                <DataTableCardBody
+                  className='relative overflow-auto'
+                  style={{ maxHeight: '560px' }}
+                >
+                  {loading && items.length > 0 ? (
+                    <div className='pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/60 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm'>
+                      数据更新中...
+                    </div>
+                  ) : null}
+                  <table className='w-full border-separate border-spacing-0 text-sm'>
+                    <thead className='[&_tr]:border-b'>
+                      <tr className='border-b bg-[hsl(var(--surface-subtle))]'>
+                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-2 text-center w-10'>
+                          <input
+                            type='checkbox'
+                            className='h-4 w-4 rounded border-border/60'
+                            checked={selectedLabelSkus.length > 0 && selectedLabelSkus.length === items.length}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedLabelSkus([...items])
+                              } else {
+                                setSelectedLabelSkus([])
+                              }
+                            }}
+                          />
+                        </th>
+                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                          项目名
+                        </th>
+                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                          SKU / ASIN / FNSKU
+                        </th>
+                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                          产品名称
+                        </th>
+                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                          标签状态
+                        </th>
+                        <th className='sticky top-0 z-10 h-12 border-b border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                          操作
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loading && items.length === 0 ? (
+                        <TableSkeletonRows columns={6} cellWidth='w-24' />
+                      ) : null}
+                      {items.map((row) => (
+                        <Fragment key={row.id}>
+                        <tr
+                          className='border-b border-border/50 transition-colors hover:bg-[hsl(var(--surface-subtle))]'
+                        >
+                          <td className='border-b border-r border-border/60 p-4 align-top text-center w-10'>
+                            <input
+                              type='checkbox'
+                              className='h-4 w-4 rounded border-border/60'
+                              checked={selectedLabelSkus.some((s) => s.id === row.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedLabelSkus((prev) => [...prev, row])
+                                } else {
+                                  setSelectedLabelSkus((prev) => prev.filter((s) => s.id !== row.id))
+                                }
+                              }}
+                            />
+                          </td>
+                          <td className='border-b border-r border-border/60 p-4 align-top font-medium'>
+                            {row.project_name}
+                          </td>
+                          <td className='border-b border-r border-border/60 p-4 align-top'>
+                            <div>
+                              <div className='font-medium'>{row.sku}</div>
+                              <div className='mt-0.5 flex gap-3 text-xs text-muted-foreground'>
+                                <span>ASIN: {row.asin || '-'}</span>
+                                <span>FNSKU: {row.fnsku || '-'}</span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className='border-b border-r border-border/60 p-4 align-top text-sm'>
+                            {row.product_name || '-'}
+                          </td>
+                          <td className='border-b border-r border-border/60 p-4 align-top'>
+                            {row.fnsku_label_r2_key ? (
+                              <Badge
+                                variant='outline'
+                                className='border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
+                              >
+                                已上传
+                              </Badge>
+                            ) : (
+                              <Badge
+                                variant='outline'
+                                className='border-border/70 bg-[hsl(var(--surface-subtle))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))] dark:text-foreground'
+                              >
+                                未上传
+                              </Badge>
+                            )}
+                          </td>
+                          <td className='border-b border-border/60 p-4 align-top'>
+                            <div className='flex gap-2'>
+                              <Button
+                                type='button'
+                                size='sm'
+                                variant='outline'
+                                disabled={labelUploadingId === row.id}
+                                onClick={() => handleLabelUploadClick(row.id)}
+                              >
+                                <Upload className='mr-1.5 h-3.5 w-3.5' />
+                                {labelUploadingId === row.id ? '上传中...' : '上传标签'}
+                              </Button>
+                              {row.fnsku_label_r2_key && (
+                                <Button
+                                  type='button'
+                                  size='sm'
+                                  variant='ghost'
+                                  onClick={() => void handleLabelDownload(row.id, row.sku)}
+                                >
+                                  <FileDown className='mr-1.5 h-3.5 w-3.5' />
+                                  下载
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                        {labelUploadingId === row.id && (
+                          <tr className='border-b border-border/50 bg-[hsl(var(--surface-subtle))]'>
+                            <td colSpan={6} className='px-6 py-4'>
+                              <div className='flex items-center justify-between mb-2'>
+                                <span className='text-sm font-medium text-foreground'>
+                                  粘贴、拖拽或选择 PDF 文件上传标签
+                                </span>
+                                <Button
+                                  type='button'
+                                  size='sm'
+                                  variant='ghost'
+                                  className='h-7 px-2 text-xs'
+                                  onClick={() => setLabelUploadingId(null)}
+                                >
+                                  取消
+                                </Button>
+                              </div>
+                              <UploadZone
+                                accept='application/pdf'
+                                maxSize={20}
+                                showPreview={false}
+                                onUpload={async (file) => {
+                                  const formData = new FormData()
+                                  formData.append('file', file)
+                                  try {
+                                    const response = await fetch(
+                                      `${API_BASE}/api/v1/sku-info/${row.id}/fnsku-label`,
+                                      { method: 'POST', headers: authHeaders(), body: formData },
+                                    )
+                                    if (!response.ok) throw new Error(await parseError(response))
+                                    const data = await response.json() as {
+                                      fnsku_verified?: boolean
+                                      fnsku_verification_message?: string
+                                    }
+                                    if (data.fnsku_verified) {
+                                      notify({ type: 'success', title: 'FNSKU 标签上传成功', message: data.fnsku_verification_message })
+                                    } else if (data.fnsku_verification_message?.includes('不匹配')) {
+                                      notify({ type: 'warning', title: '标签已上传，但 FNSKU 不匹配', message: data.fnsku_verification_message })
+                                    } else {
+                                      notify({ type: 'success', title: 'FNSKU 标签上传成功', message: data.fnsku_verification_message })
+                                    }
+                                    setLabelUploadingId(null)
+                                    await loadData(undefined, { pageOverride: page, clearOnMissingProject: true })
+                                  } catch (uploadError) {
+                                    notify({ type: 'error', title: '标签上传失败', message: normalizeErrorMessage(uploadError, '上传失败') })
+                                  }
+                                }}
+                              />
+                            </td>
+                          </tr>
+                        )}
+                        </Fragment>
                       ))}
                       {!loading && items.length === 0 ? (
                         <EmptyState

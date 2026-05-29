@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { TimePicker } from '@/components/ui/time-picker'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog'
@@ -127,25 +128,13 @@ function SubscriptionForm({
                 <span className="ml-1.5 text-xs text-amber-600 font-normal">（周一限制 ≥ 16:00）</span>
               )}
             </label>
-            <div className="flex gap-1.5 items-center">
-              <Select value={String(formDispatchHour)} onValueChange={v => setFormDispatchHour(Number(v))}>
-                <SelectTrigger className="w-[80px]"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {allowedHourOptions.map(h => (
-                    <SelectItem key={h} value={String(h)}>{h.toString().padStart(2, '0')}:00{isMondayRestricted && h === MIN_HOUR_FOR_MONDAY ? ' 起' : ''}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <span className="text-muted-foreground">:</span>
-              <Select value={String(formDispatchMinute)} onValueChange={v => setFormDispatchMinute(Number(v))}>
-                <SelectTrigger className="w-[80px]"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Array.from({ length: 12 }, (_, i) => (
-                    <SelectItem key={i * 5} value={String(i * 5)}>{(i * 5).toString().padStart(2, '0')}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <TimePicker
+              hour={formDispatchHour}
+              minute={formDispatchMinute}
+              onHourChange={setFormDispatchHour}
+              onMinuteChange={setFormDispatchMinute}
+              allowedHours={allowedHourOptions}
+            />
           </div>
           <div>
             <label className="text-sm font-medium mb-1 block">
