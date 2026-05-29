@@ -14,7 +14,6 @@ import type { Worksheet } from 'exceljs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart'
-import { DataCard, DataCardContent, DataCardHeader } from '@/components/ui/data-card'
 import { DataTableCard, DataTableCardHeader, DataTableCardBody } from '@/components/ui/data-card'
 import { DateRangePicker } from '@/components/ui/date-picker'
 import { EmptyTableState } from '@/components/ui/empty-state'
@@ -27,11 +26,11 @@ import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useNotifications } from '@/components/notifications'
 import { applyBorder, applyHeaderBorder } from '@/lib/excel-styles'
+import { cn } from '@/lib/utils'
 import { useSmoothRefresh } from '@/hooks/use-smooth-refresh'
 import { RefreshProgressBar } from '@/components/ui/refresh-progress-bar'
 import {
   CountrySelect,
-  FilterField,
   RefreshButton,
 } from '@/components/dashboard/console'
 
@@ -562,21 +561,47 @@ export default function ReturnAnalysisPage() {
   return (
     <div className="flex flex-col gap-5">
       {/* Section 1: 控制台 */}
-      <DataCard>
-        <DataCardHeader
-          title="控制台"
-          titleClassName="text-2xl tracking-tight"
-          badge={<p className="dashboard-kicker">退货分析控制台</p>}
-        />
-        <DataCardContent className="space-y-5">
-          {/* 筛选区域 */}
-          <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
-            <FilterField label="项目">
+      <div className="dashboard-surface">
+        {/* 标题行 */}
+        <div className="flex flex-col gap-3 border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">退货分析</p>
+            <h2 className="text-base font-semibold text-foreground leading-none">控制台</h2>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {data && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void handleExportExcel()}
+                disabled={exporting || loading}
+                className="w-full sm:w-auto"
+              >
+                {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                导出 Excel
+              </Button>
+            )}
+            <RefreshButton
+              onClick={() => void loadData()}
+              loading={loading || projectsLoading}
+              label="刷新"
+              variant="default"
+              size="sm"
+              className="w-full sm:w-auto"
+            />
+          </div>
+        </div>
+
+        {/* 筛选项 */}
+        <div className="px-4 py-3">
+          <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-row lg:items-center lg:gap-3">
+            <div className="w-full min-w-0">
               {projectsLoading ? (
-                <Skeleton className="h-9 w-full" />
+                <Skeleton className="h-9 w-full rounded-lg" />
               ) : (
                 <Select value={projectId} onValueChange={setProjectId}>
-                  <SelectTrigger className="border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
+                  <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
                     <SelectValue placeholder="选择项目" />
                   </SelectTrigger>
                   <SelectContent>
@@ -588,107 +613,74 @@ export default function ReturnAnalysisPage() {
                   </SelectContent>
                 </Select>
               )}
-            </FilterField>
-
-            <FilterField label="国家站点">
+            </div>
+            <div className="w-full min-w-0">
               <CountrySelect
                 value={country}
                 onChange={(value) => setCountry(value as CountryOption)}
-                triggerClassName="border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
+                triggerClassName="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
               />
-            </FilterField>
-
-            <FilterField label="日期范围">
+            </div>
+            <div className="col-span-2 w-full min-w-0 lg:col-span-1">
               <DateRangePicker
                 value={dateRange}
                 onChange={setDateRange}
-                className="h-10 w-[240px]"
+                className="h-9 w-full"
                 onApply={() => void loadData()}
-              />
-            </FilterField>
-
-            <div className="flex items-end gap-2">
-              {data && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => void handleExportExcel()}
-                  disabled={exporting || loading}
-                  className="h-10 px-4"
-                >
-                  {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                  导出 Excel
-                </Button>
-              )}
-              <RefreshButton
-                onClick={() => void loadData()}
-                loading={loading || projectsLoading}
-                label="刷新视图"
-                variant="default"
-                size="default"
-                className="h-10 px-5"
               />
             </div>
           </div>
+        </div>
 
-          {/* Summary Stats */}
-          {data && (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
-              <DataCard>
-                <DataCardContent className="p-3">
-                  <div className="text-xs text-muted-foreground">退货单数</div>
-                  <div className="mt-1 text-xl font-semibold">{data.summary.total_returns.toLocaleString()}</div>
-                </DataCardContent>
-              </DataCard>
-              <DataCard>
-                <DataCardContent className="p-3">
-                  <div className="text-xs text-muted-foreground">退货总量</div>
-                  <div className="mt-1 text-xl font-semibold">{data.summary.total_quantity.toLocaleString()}</div>
-                </DataCardContent>
-              </DataCard>
-              <DataCard>
-                <DataCardContent className="p-3">
-                  <div className="text-xs text-muted-foreground">销售数量</div>
-                  <div className="mt-1 text-xl font-semibold">{data.summary.total_sales_quantity.toLocaleString()}</div>
-                </DataCardContent>
-              </DataCard>
-              <DataCard>
-                <DataCardContent className="p-3">
-                  <div className="text-xs text-muted-foreground">整体退货率</div>
-                  <div className={`mt-1 text-xl font-semibold ${data.summary.overall_return_rate > 8 ? 'text-red-500' : data.summary.overall_return_rate > 3 ? 'text-yellow-500' : 'text-green-500'}`}>
-                    {data.summary.overall_return_rate.toFixed(1)}%
+        {/* Summary Stats */}
+        {data && (
+          <div className="border-t border-border/70 px-4 py-3">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+              {[
+                { label: '退货单数', value: data.summary.total_returns.toLocaleString(), highlight: false },
+                { label: '退货总量', value: data.summary.total_quantity.toLocaleString(), highlight: false },
+                { label: '销售数量', value: data.summary.total_sales_quantity.toLocaleString(), highlight: false },
+                {
+                  label: '整体退货率',
+                  value: `${data.summary.overall_return_rate.toFixed(1)}%`,
+                  highlight: true,
+                  color: data.summary.overall_return_rate > 8 ? 'text-red-500' : data.summary.overall_return_rate > 3 ? 'text-yellow-500' : 'text-green-500',
+                },
+                { label: '涉及SKU', value: data.summary.unique_skus.toLocaleString(), highlight: false },
+                {
+                  label: 'Top退货原因',
+                  value: data.summary.top_return_reason ? translateReason(data.summary.top_return_reason) : '--',
+                  highlight: false,
+                  small: true,
+                },
+                {
+                  label: '多件退货',
+                  value: data.multi_item_return_count.toLocaleString(),
+                  sub: `共${data.multi_item_return_quantity.toLocaleString()}件`,
+                  highlight: false,
+                },
+              ].map((item, i) => (
+                <div
+                  key={i}
+                  className="flex flex-col items-center justify-center rounded-lg border border-border/70 py-2.5 px-2"
+                >
+                  <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">{item.label}</div>
+                  <div className={cn(
+                    'mt-0.5 font-semibold leading-tight',
+                    (item as any).small ? 'text-sm truncate max-w-full' : 'text-xl',
+                    (item as any).color || 'text-foreground',
+                  )}>
+                    {item.value}
                   </div>
-                </DataCardContent>
-              </DataCard>
-              <DataCard>
-                <DataCardContent className="p-3">
-                  <div className="text-xs text-muted-foreground">涉及SKU</div>
-                  <div className="mt-1 text-xl font-semibold">{data.summary.unique_skus.toLocaleString()}</div>
-                </DataCardContent>
-              </DataCard>
-              <DataCard>
-                <DataCardContent className="p-3">
-                  <div className="text-xs text-muted-foreground">Top退货原因</div>
-                  <div className="mt-1 truncate text-sm font-semibold">
-                    {data.summary.top_return_reason
-                      ? translateReason(data.summary.top_return_reason)
-                      : '--'}
-                  </div>
-                </DataCardContent>
-              </DataCard>
-              <DataCard>
-                <DataCardContent className="p-3">
-                  <div className="text-xs text-muted-foreground">多件退货单数</div>
-                  <div className="mt-1 text-xl font-semibold">{data.multi_item_return_count.toLocaleString()}</div>
-                  <div className="text-xs text-muted-foreground">
-                    共{data.multi_item_return_quantity.toLocaleString()}件
-                  </div>
-                </DataCardContent>
-              </DataCard>
+                  {(item as any).sub && (
+                    <div className="text-[11px] text-muted-foreground">{(item as any).sub}</div>
+                  )}
+                </div>
+              ))}
             </div>
-          )}
-        </DataCardContent>
-      </DataCard>
+          </div>
+        )}
+      </div>
 
       {/* Section 2: Tab Bar */}
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ViewTab)} className="w-full">
@@ -786,8 +778,8 @@ export default function ReturnAnalysisPage() {
                 )}
 
                 {activeTab === 'reason' && (
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-semibold">退货原因分析</h3>
+                  <div className="space-y-4 p-4">
+                    <h3 className="text-base font-semibold">退货原因分析</h3>
                     <div className="grid gap-4 lg:grid-cols-2">
                       {/* Table */}
                       <Table containerClassName="bg-[hsl(var(--surface-panel))]/94">
@@ -815,8 +807,8 @@ export default function ReturnAnalysisPage() {
 
                       {/* Pie Chart */}
                       {data?.reason_rows && data.reason_rows.length > 0 && (
-                        <div className="rounded-lg border border-border/60 bg-[hsl(var(--surface-soft))] p-4">
-                          <ChartContainer config={chartConfig} className="h-[300px] w-full">
+                        <div className="rounded-lg border border-border/60 bg-[hsl(var(--surface-soft))] p-2 sm:p-4">
+                          <ChartContainer config={chartConfig} className="h-[240px] w-full sm:h-[300px]">
                             <PieChart>
                               <Pie
                                 data={data.reason_rows.slice(0, 5).map((r, i) => ({
@@ -826,7 +818,7 @@ export default function ReturnAnalysisPage() {
                                 }))}
                                 cx="50%"
                                 cy="50%"
-                                outerRadius={100}
+                                outerRadius={80}
                                 dataKey="value"
                               >
                                 {data.reason_rows.slice(0, 5).map((_, i) => (
@@ -845,19 +837,22 @@ export default function ReturnAnalysisPage() {
                 )}
 
                 {activeTab === 'trend' && (
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-semibold">销售与退货趋势对比</h3>
+                  <div className="space-y-4 p-4">
+                    <h3 className="text-base font-semibold">销售与退货趋势对比</h3>
                     {data?.trend_rows && data.trend_rows.length > 0 ? (
-                      <div className="rounded-lg border border-border/60 bg-[hsl(var(--surface-soft))] p-4">
-                        <ChartContainer config={chartConfig} className="h-[350px] w-full">
-                          <ComposedChart data={data.trend_rows}>
+                      <div className="rounded-lg border border-border/60 bg-[hsl(var(--surface-soft))] p-1 sm:p-4">
+                        <ChartContainer config={chartConfig} className="h-[280px] w-full sm:h-[350px]">
+                          <ComposedChart
+                            data={data.trend_rows}
+                            margin={{ top: 12, right: 4, left: -12, bottom: 8 }}
+                          >
                             <CartesianGrid vertical={false} stroke="rgba(148,163,184,0.18)" />
                             <XAxis
                               dataKey="date"
                               axisLine={false}
                               tickLine={false}
-                              tickMargin={12}
-                              tick={{ fontSize: 12, fill: '#71717a' }}
+                              tickMargin={8}
+                              tick={{ fontSize: 10, fill: '#71717a' }}
                               tickFormatter={(value) => {
                                 const [, month, day] = String(value).split('-')
                                 return `${month}/${day}`
@@ -866,18 +861,20 @@ export default function ReturnAnalysisPage() {
                             <YAxis
                               axisLine={false}
                               tickLine={false}
-                              tickMargin={12}
-                              tick={{ fontSize: 12, fill: '#71717a' }}
+                              tickMargin={8}
+                              tick={{ fontSize: 10, fill: '#71717a' }}
                               yAxisId="left"
+                              width={35}
                             />
                             <YAxis
                               axisLine={false}
                               tickLine={false}
-                              tickMargin={12}
-                              tick={{ fontSize: 12, fill: '#71717a' }}
+                              tickMargin={8}
+                              tick={{ fontSize: 10, fill: '#71717a' }}
                               yAxisId="right"
                               orientation="right"
                               tickFormatter={(value) => `${value}%`}
+                              width={35}
                             />
                             <ChartTooltip
                               content={<ChartTooltipContent nameKey="date" formatter={(value, name) => {
@@ -889,16 +886,16 @@ export default function ReturnAnalysisPage() {
                               dataKey="sales_quantity"
                               name="sales_quantity"
                               fill="var(--color-sales_quantity)"
-                              radius={[6, 6, 0, 0]}
-                              barSize={20}
+                              radius={[4, 4, 0, 0]}
+                              barSize={16}
                               yAxisId="left"
                             />
                             <Bar
                               dataKey="return_count"
                               name="return_count"
                               fill="var(--color-return_count)"
-                              radius={[6, 6, 0, 0]}
-                              barSize={14}
+                              radius={[4, 4, 0, 0]}
+                              barSize={10}
                               yAxisId="left"
                             />
                             <Line
@@ -912,7 +909,7 @@ export default function ReturnAnalysisPage() {
                             />
                           </ComposedChart>
                         </ChartContainer>
-                        <div className="mt-2 flex flex-wrap gap-4 text-xs text-muted-foreground">
+                        <div className="mt-2 flex flex-wrap gap-4 px-3 text-xs text-muted-foreground">
                           <span className="flex items-center gap-1.5">
                             <span className="inline-block h-2.5 w-5 rounded-sm bg-[hsl(var(--chart-4))]" />销售数量
                           </span>
@@ -931,8 +928,8 @@ export default function ReturnAnalysisPage() {
                 )}
 
                 {activeTab === 'product-status' && (
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-semibold">商品状态分布</h3>
+                  <div className="space-y-4 p-4">
+                    <h3 className="text-base font-semibold">商品状态分布</h3>
                     <div className="grid gap-4 lg:grid-cols-2">
                       <Table containerClassName="bg-[hsl(var(--surface-panel))]/94">
                         <TableHeader>
@@ -973,8 +970,8 @@ export default function ReturnAnalysisPage() {
                 )}
 
                 {activeTab === 'inventory-status' && (
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-semibold">库存状态分布</h3>
+                  <div className="space-y-4 p-4">
+                    <h3 className="text-base font-semibold">库存状态分布</h3>
                     <div className="grid gap-4 lg:grid-cols-2">
                       <Table containerClassName="bg-[hsl(var(--surface-panel))]/94">
                         <TableHeader>
@@ -1015,8 +1012,8 @@ export default function ReturnAnalysisPage() {
                 )}
 
                 {activeTab === 'feedback' && (
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-semibold">顾客反馈</h3>
+                  <div className="space-y-4 p-4">
+                    <h3 className="text-base font-semibold">顾客反馈</h3>
                     <Table containerClassName="bg-[hsl(var(--surface-panel))]/94">
                       <TableHeader>
                         <TableRow>
@@ -1051,9 +1048,9 @@ export default function ReturnAnalysisPage() {
                 )}
 
                 {activeTab === 'summary' && (
-                  <div className="space-y-4">
+                  <div className="space-y-4 p-4">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-semibold">退货分析总结</h3>
+                      <h3 className="text-base font-semibold">退货分析总结</h3>
                       {data && (
                         <span className="text-xs text-muted-foreground">
                           {data.start_date} 至 {data.end_date}
@@ -1102,7 +1099,7 @@ export default function ReturnAnalysisPage() {
                             {data.weekday_rows && data.weekday_rows.length > 0 && (
                               <div className="rounded-lg border border-border/60 bg-[hsl(var(--surface-soft))] p-4">
                                 <h4 className="text-sm font-semibold mb-3">📅 星期退货分布</h4>
-                                <div className="grid grid-cols-7 gap-2">
+                                <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
                                   {data.weekday_rows.map((row) => (
                                     <div key={row.weekday} className="flex flex-col items-center p-2 rounded-md bg-[hsl(var(--surface-panel))]">
                                       <div className="text-xs text-muted-foreground">{row.weekday_display}</div>

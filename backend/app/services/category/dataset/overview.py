@@ -66,7 +66,6 @@ def get_dataset_overview(
     from app.services.category.product_detail import (
         build_dimension_price_band_analysis,
         build_brand_price_band_analysis,
-        resolve_price_band_spec,
     )
 
     dataset = db.get(CategoryResearchDataset, dataset_id)

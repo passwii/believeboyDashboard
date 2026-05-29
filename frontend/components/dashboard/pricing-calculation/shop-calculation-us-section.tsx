@@ -685,19 +685,19 @@ export function ShopCalculationUsSection({
             ))}
           </div>
         ) : storeSkusError ? (
-          <div className='m-4 flex items-center gap-2.5 rounded-lg border border-destructive/40 bg-destructive/8 px-4 py-3 text-sm text-destructive'>
+          <div className='flex items-center gap-2.5 rounded-lg border border-destructive/40 bg-destructive/8 px-4 py-3 text-sm text-destructive'>
             <span className='flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-destructive/15 text-[10px] font-bold'>!</span>
             {storeSkusError}
           </div>
         ) : !selectedProjectName ? (
-          <div className='flex h-48 flex-col items-center justify-center gap-2 text-center'>
+          <div className='flex flex-col items-center justify-center gap-2 py-8 text-center'>
             <div className='flex h-12 w-12 items-center justify-center rounded-xl border border-dashed border-border/70 bg-[hsl(var(--surface-subtle))]'>
               <Package className='h-5 w-5 text-muted-foreground/40' />
             </div>
             <p className='text-sm text-muted-foreground'>请选择项目以加载 SKU 数据</p>
           </div>
         ) : filteredSkus.length === 0 ? (
-          <div className='flex h-48 flex-col items-center justify-center gap-2 text-center'>
+          <div className='flex flex-col items-center justify-center gap-2 py-8 text-center'>
             <div className='flex h-12 w-12 items-center justify-center rounded-xl border border-dashed border-border/70 bg-[hsl(var(--surface-subtle))]'>
               <Search className='h-5 w-5 text-muted-foreground/40' />
             </div>

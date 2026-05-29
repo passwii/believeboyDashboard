@@ -25,7 +25,7 @@ export function CountrySelect({
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger
         className={cn(
-          'h-10 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]',
+          'h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]',
           triggerClassName,
         )}
       >

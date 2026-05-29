@@ -6,7 +6,7 @@ import { useSession } from 'next-auth/react'
 
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { DataCard, DataCardHeader, DataCardContent, DataTableCard, DataTableCardHeader, DataTableCardBody, DataTableCardStatBar, DENSE_CELL, DENSE_HEAD } from '@/components/ui/data-card'
+import { DataTableCard, DataTableCardHeader, DataTableCardBody, DENSE_CELL, DENSE_HEAD } from '@/components/ui/data-card'
 import { EmptyTableState } from '@/components/ui/empty-state'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -14,12 +14,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useNotifications } from '@/components/notifications'
-import { formatLocalTimestampForFilename } from '@/lib/utils'
+import { cn, formatLocalTimestampForFilename } from '@/lib/utils'
 import { applyBorder, applyHeaderBorder, applyRowBorder } from '@/lib/excel-styles'
 import { COUNTRY_OPTIONS } from '@/lib/console-constants'
 import {
   CountrySelect,
-  FilterField,
 } from '@/components/dashboard/console'
 
 const API_BASE = '/api/backend/api/v1'
@@ -432,79 +431,96 @@ export default function InventoryAnalysisPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <DataCard>
-        <DataCardHeader
-          title="库存分析"
-          titleClassName="text-2xl tracking-tight"
-          badge={<p className="dashboard-kicker">分析控制台</p>}
-        />
-        <DataCardContent className="grid gap-4 lg:grid-cols-2">
-          <div className="dashboard-toolbar grid gap-3 sm:grid-cols-2">
-            <FilterField label="项目">
-              {projectsLoading ? (
-                <Skeleton className="h-9 w-full" />
-              ) : (
-                <Select value={projectId} onValueChange={setProjectId}>
-                  <SelectTrigger className="border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
-                    <SelectValue placeholder="请选择项目" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {projects.map((project) => (
-                      <SelectItem key={project.id} value={String(project.id)}>
-                        {project.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </FilterField>
-            <FilterField label="国家站点">
-              <CountrySelect
-                value={country}
-                onChange={setCountry}
-                triggerClassName="border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
-              />
-            </FilterField>
-            <FilterField label="业务日期">
-              <Select value={selectedSnapshotDate} onValueChange={setSelectedSnapshotDate}>
-                <SelectTrigger className="border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
-                  <SelectValue placeholder="选择业务日期" />
+    <div className="space-y-4 lg:space-y-6">
+      {/* 控制台：dashboard-surface 直接承载筛选项 + 业务日期 */}
+      <div className="dashboard-surface px-4 py-4 lg:px-6 lg:py-5">
+        {/* 筛选项：手机 2×2 网格无标签；桌面横向 */}
+        <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-row lg:items-center lg:gap-3">
+          {/* 项目 */}
+          <div className="space-y-1.5 lg:space-y-1.5 lg:min-w-[140px] lg:flex-shrink-0">
+            <div className="hidden lg:block text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">项目</div>
+            {projectsLoading ? (
+              <Skeleton className="h-9 w-full" />
+            ) : (
+              <Select value={projectId} onValueChange={setProjectId}>
+                <SelectTrigger className="h-9 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
+                  <SelectValue placeholder="请选择项目" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="current">最新业务日期</SelectItem>
-                  {snapshotOptions.map((option) => (
-                    <SelectItem key={option.report_date} value={option.report_date}>
-                      {formatBusinessDate(option.report_date)}
-                      {option.is_current ? ' (当前)' : ''}
+                  {projects.map((project) => (
+                    <SelectItem key={project.id} value={String(project.id)}>
+                      {project.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </FilterField>
-            <div className="flex items-center gap-3 rounded-md border border-border/70 bg-[linear-gradient(135deg,hsl(var(--primary)/0.08),hsl(var(--surface-subtle))/0.96)] p-3 dark:border-border/85 dark:bg-[linear-gradient(135deg,hsl(var(--surface-overlay)),hsl(var(--surface-strong))]">
-              <div className="flex items-center gap-2 text-sm font-medium text-blue-700 dark:text-blue-300">
-                <Clock4 className="h-4 w-4" />
-                当前业务日期
+            )}
+          </div>
+          {/* 国家站点 */}
+          <div className="space-y-1.5 lg:space-y-1.5 lg:min-w-[120px] lg:flex-shrink-0">
+            <div className="hidden lg:block text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">国家站点</div>
+            <CountrySelect
+              value={country}
+              onChange={setCountry}
+              triggerClassName="h-9 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
+            />
+          </div>
+          {/* 业务日期 */}
+          <div className="space-y-1.5 lg:space-y-1.5 lg:min-w-[140px] lg:flex-shrink-0">
+            <div className="hidden lg:block text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">业务日期</div>
+            <Select value={selectedSnapshotDate} onValueChange={setSelectedSnapshotDate}>
+              <SelectTrigger className="h-9 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
+                <SelectValue placeholder="选择业务日期" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="current">最新业务日期</SelectItem>
+                {snapshotOptions.map((option) => (
+                  <SelectItem key={option.report_date} value={option.report_date}>
+                    {formatBusinessDate(option.report_date)}
+                    {option.is_current ? ' (当前)' : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {/* 当前业务日期 */}
+          <div className="space-y-1.5 lg:space-y-1.5 lg:w-auto lg:min-w-[180px] lg:flex-shrink-0">
+            <div className="hidden lg:block text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">当前业务日期</div>
+            <div className="flex h-9 min-h-[44px] w-full items-center gap-2 rounded-lg border border-input bg-[linear-gradient(135deg,hsl(var(--primary)/0.08),hsl(var(--surface-subtle))/0.96)] px-3 dark:border-border/95 dark:bg-[linear-gradient(135deg,hsl(var(--surface-overlay)),hsl(var(--surface-strong))]">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-blue-700 dark:text-blue-300">
+                <Clock4 className="h-3.5 w-3.5 shrink-0" />
+                <span className="hidden sm:inline">业务日期</span>
               </div>
-              <div className="text-lg font-bold text-blue-900 dark:text-blue-100">
+              <div className="min-w-0 flex-1 truncate text-sm font-bold text-blue-900 dark:text-blue-100 sm:text-base">
                 {formatBusinessDate(reportDate)}
               </div>
             </div>
           </div>
-          <DataTableCardStatBar
-            items={[
-              { label: 'SKU 总数', value: formatInt(summary.sku_count) },
-              { label: '可售库存总量', value: formatInt(summary.total_available_qty) },
-              { label: '缺货 SKU', value: formatInt(summary.out_of_stock_count), highlight: summary.out_of_stock_count > 0 },
-              { label: '365+ 库龄库存', value: formatInt(summary.total_age_365_plus_qty), highlight: summary.total_age_365_plus_qty > 0 },
-            ]}
-          />
-        </DataCardContent>
-      </DataCard>
+        </div>
+
+        {/* 统计条：手机 2×2 网格（严格各占一行两个）；桌面横向 */}
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:mt-5 sm:flex sm:flex-row sm:gap-0 lg:mt-5">
+          <div className="flex w-full flex-col items-center justify-center rounded-lg border border-border/70 bg-[hsl(var(--surface-soft))]/70 py-2.5 px-2 sm:flex-1 sm:border-0 sm:bg-transparent sm:py-3">
+            <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">SKU 总数</div>
+            <div className="mt-0.5 text-xl font-semibold leading-tight text-foreground">{formatInt(summary.sku_count)}</div>
+          </div>
+          <div className="flex w-full flex-col items-center justify-center rounded-lg border border-border/70 bg-[hsl(var(--surface-soft))]/70 py-2.5 px-2 sm:flex-1 sm:border-0 sm:bg-transparent sm:py-3">
+            <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">可售库存总量</div>
+            <div className="mt-0.5 text-xl font-semibold leading-tight text-foreground">{formatInt(summary.total_available_qty)}</div>
+          </div>
+          <div className="flex w-full flex-col items-center justify-center rounded-lg border border-border/70 bg-[hsl(var(--surface-soft))]/70 py-2.5 px-2 sm:flex-1 sm:border-0 sm:bg-transparent sm:py-3">
+            <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">缺货 SKU</div>
+            <div className={cn("mt-0.5 text-xl font-semibold leading-tight", summary.out_of_stock_count > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-foreground')}>{formatInt(summary.out_of_stock_count)}</div>
+          </div>
+          <div className="flex w-full flex-col items-center justify-center rounded-lg border border-border/70 bg-[hsl(var(--surface-soft))]/70 py-2.5 px-2 sm:flex-1 sm:border-0 sm:bg-transparent sm:py-3">
+            <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">365+ 库龄库存</div>
+            <div className={cn("mt-0.5 text-xl font-semibold leading-tight", summary.total_age_365_plus_qty > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-foreground')}>{formatInt(summary.total_age_365_plus_qty)}</div>
+          </div>
+        </div>
+      </div>
 
       <DataTableCard>
-        <DataTableCardHeader className="flex min-w-0 flex-col gap-1 px-4 py-3 xl:flex-row xl:items-center xl:justify-between xl:gap-3">
+        <DataTableCardHeader className="flex min-w-0 flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
           <div>
             <p className='dashboard-kicker'>操作台账</p>
             <div className="text-base font-semibold text-foreground">库存明细表</div>
@@ -513,7 +529,7 @@ export default function InventoryAnalysisPage() {
             type="button"
             size="sm"
             variant="outline"
-            className="gap-1.5 shrink-0"
+            className="gap-1.5 shrink-0 w-full sm:w-auto"
             onClick={exportToExcel}
             disabled={exporting || loading || rows.length === 0}
           >
