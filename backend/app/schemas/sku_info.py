@@ -29,6 +29,8 @@ class SkuRecordItem(BaseModel):
     sku_factory_info: dict | None = None
     sku_factory_info_updated_at: datetime | None = None
     sku_factory_info_updated_by: str | None = None
+    fnsku_label_r2_key: str | None = None
+    fnsku_label_r2_url: str | None = None
 
 
 class SkuRecordsPage(BaseModel):
@@ -157,3 +159,18 @@ class ParseFactoryInfoResponse(BaseModel):
     """解析产品属性响应"""
     result: dict[str, str] = Field(default_factory=dict, description="解析后的键值对")
     raw: str = Field(..., description="原始 AI 输出")
+
+
+class FnskuLabelUploadResponse(BaseModel):
+    """FNSKU 标签上传响应"""
+    sku_record_id: int
+    fnsku_label_r2_key: str
+    fnsku_label_r2_url: str
+    fnsku_verified: bool = False
+    fnsku_found_in_pdf: str | None = None
+    fnsku_verification_message: str = ""
+
+
+class BatchFnskuLabelDownloadRequest(BaseModel):
+    """批量下载 FNSKU 标签请求"""
+    sku_record_ids: list[int] = Field(..., min_length=1, max_length=500, description="SKU 记录 ID 列表")

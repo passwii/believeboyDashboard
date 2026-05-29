@@ -1,5 +1,5 @@
 import * as React from "react";
-import Index from "@/components/ui/bilifu-crossborder-signin";
+import Index from "@/components/login";
 
 function DemoAiAssistatBasic() {
   return <Index />;

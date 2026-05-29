@@ -20,8 +20,10 @@ from app.api.deps import get_db_session, get_request_is_admin, get_request_opera
 from app.models.sku_info import SkuRecord
 from app.models.project import Project
 from app.schemas.sku_info import (
+    BatchFnskuLabelDownloadRequest,
     BatchUpdateFactoryInfoRequest,
     BatchUpdateFactoryInfoResponse,
+    FnskuLabelUploadResponse,
     ParseFactoryInfoRequest,
     ParseFactoryInfoResponse,
     SkuRecordBulkCreate,
@@ -88,6 +90,8 @@ def _serialize_sku_record(row: SkuRecord | SkuRecordItem) -> dict[str, object]:
         "sku_factory_info": row.sku_factory_info if hasattr(row, 'sku_factory_info') else None,
         "sku_factory_info_updated_at": str(row.sku_factory_info_updated_at) if row.sku_factory_info_updated_at else None,
         "sku_factory_info_updated_by": str(row.sku_factory_info_updated_by) if row.sku_factory_info_updated_by else None,
+        "fnsku_label_r2_key": getattr(row, 'fnsku_label_r2_key', None),
+        "fnsku_label_r2_url": getattr(row, 'fnsku_label_r2_url', None),
     }
 
 
@@ -188,6 +192,8 @@ def _list_sku_records_endpoint(
                 sku_factory_info=row.sku_factory_info,
                 sku_factory_info_updated_at=row.sku_factory_info_updated_at,
                 sku_factory_info_updated_by=row.sku_factory_info_updated_by,
+                fnsku_label_r2_key=getattr(row, 'fnsku_label_r2_key', None),
+                fnsku_label_r2_url=getattr(row, 'fnsku_label_r2_url', None),
             )
             for row in rows
         ],
@@ -753,4 +759,222 @@ def batch_update_factory_info_endpoint(
     return BatchUpdateFactoryInfoResponse(
         updated=updated[0],
         sku_ids=payload.sku_ids,
+    )
+
+
+# ---------------------------------------------------------------------------
+# FNSKU Label PDF Upload / Download / Batch Download
+# ---------------------------------------------------------------------------
+
+@router.post("/sku-info/{sku_record_id}/fnsku-label", response_model=FnskuLabelUploadResponse)
+def upload_fnsku_label(
+    sku_record_id: int,
+    file: UploadFile = File(...),
+    request: Request = None,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+) -> FnskuLabelUploadResponse:
+    """上传单个 SKU 的 FNSKU 标签 PDF。如已有旧标签则替换。上传时自动验证 PDF 中的 FNSKU。"""
+    import uuid as _uuid
+    import io
+
+    from app.core.config import get_settings
+    from app.services.r2_service import upload_bytes_to_r2, delete_file_from_r2
+    from app.services.upload_service import _safe_project_folder_name
+    from app.services.fnsku_label_verifier import verify_fnsku_label
+
+    settings = get_settings()
+    if not settings.r2_enabled:
+        raise HTTPException(status_code=503, detail="R2 存储未配置")
+
+    # 查找记录
+    row = db.execute(select(SkuRecord).where(SkuRecord.id == sku_record_id)).scalars().first()
+    if not row:
+        raise HTTPException(status_code=404, detail="SKU 记录不存在")
+
+    # 验证文件类型
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="仅支持 PDF 文件")
+
+    # 读取内容并验证大小
+    content = file.file.read()
+    max_size = 20 * 1024 * 1024  # 20MB
+    if len(content) > max_size:
+        raise HTTPException(status_code=400, detail="文件大小不能超过 20MB")
+    if len(content) == 0:
+        raise HTTPException(status_code=400, detail="文件为空")
+
+    # FNSKU 验证：从 PDF 提取 FNSKU 并与数据库对比
+    verification = verify_fnsku_label(content, row.fnsku)
+
+    # 删除旧文件
+    if row.fnsku_label_r2_key:
+        try:
+            delete_file_from_r2(settings, row.fnsku_label_r2_key)
+        except Exception:
+            pass  # 旧文件删除失败不阻塞上传
+
+    # 生成 R2 key
+    project_slug = _safe_project_folder_name(row.project_name)
+    unique_id = _uuid.uuid4().hex
+    safe_sku = row.sku.replace("/", "_").replace("\\", "_").replace(" ", "_")
+    filename = f"{unique_id}_{safe_sku}.pdf"
+
+    # 上传到 R2
+    result = upload_bytes_to_r2(
+        settings=settings,
+        data=content,
+        filename=filename,
+        project_slug=project_slug,
+        file_type="fnsku-labels",
+        content_type="application/pdf",
+    )
+
+    # 更新数据库
+    row.fnsku_label_r2_key = result["key"]
+    row.fnsku_label_r2_url = result["url"]
+
+    append_operation_audit_log(
+        db,
+        action="sku_info.upload_fnsku_label",
+        target_type="sku_info",
+        target_id=sku_record_id,
+        operator=operator,
+        after={
+            "sku": row.sku,
+            "fnsku_label_r2_key": result["key"],
+            "file_size": len(content),
+            "fnsku_verified": verification["verified"],
+            "fnsku_found_in_pdf": verification["fnsku_found"],
+        },
+        request=request,
+    )
+    db.commit()
+
+    return FnskuLabelUploadResponse(
+        sku_record_id=sku_record_id,
+        fnsku_label_r2_key=result["key"],
+        fnsku_label_r2_url=result["url"],
+        fnsku_verified=verification["verified"],
+        fnsku_found_in_pdf=verification["fnsku_found"],
+        fnsku_verification_message=verification["message"],
+    )
+
+
+@router.get("/sku-info/{sku_record_id}/fnsku-label/download")
+def download_fnsku_label(
+    sku_record_id: int,
+    db: Session = Depends(get_db_session),
+) -> Response:
+    """下载单个 SKU 的 FNSKU 标签 PDF。"""
+    import io
+
+    from app.core.config import get_settings
+    from app.services.r2_service import get_r2_client
+
+    settings = get_settings()
+
+    row = db.execute(select(SkuRecord).where(SkuRecord.id == sku_record_id)).scalars().first()
+    if not row:
+        raise HTTPException(status_code=404, detail="SKU 记录不存在")
+    if not row.fnsku_label_r2_key:
+        raise HTTPException(status_code=404, detail="该 SKU 暂无 FNSKU 标签")
+
+    # 从 R2 下载到内存
+    client = get_r2_client(settings)
+    buffer = io.BytesIO()
+    client.download_fileobj(settings.r2_bucket_name, row.fnsku_label_r2_key, buffer)
+    buffer.seek(0)
+
+    safe_sku = row.sku.replace("/", "_").replace("\\", "_")
+    filename = f"{safe_sku}-fnsku-label.pdf"
+
+    return Response(
+        content=buffer.getvalue(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/sku-info/fnsku-labels/batch-download")
+def batch_download_fnsku_labels(
+    payload: BatchFnskuLabelDownloadRequest,
+    request: Request,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+) -> Response:
+    """批量下载 FNSKU 标签，返回 ZIP 文件。"""
+    import io
+    import zipfile
+
+    from app.core.config import get_settings
+    from app.services.r2_service import get_r2_client
+
+    settings = get_settings()
+
+    # 查找所有匹配记录
+    rows = db.execute(
+        select(SkuRecord).where(SkuRecord.id.in_(payload.sku_record_ids))
+    ).scalars().all()
+
+    if not rows:
+        raise HTTPException(status_code=404, detail="未找到匹配的 SKU 记录")
+
+    # 过滤有标签的记录
+    labeled_rows = [r for r in rows if r.fnsku_label_r2_key]
+    if not labeled_rows:
+        raise HTTPException(status_code=400, detail="所选 SKU 均无 FNSKU 标签")
+
+    skipped = len(rows) - len(labeled_rows)
+
+    # 从 R2 下载并打包
+    client = get_r2_client(settings)
+    zip_buffer = io.BytesIO()
+    seen_filenames: dict[str, int] = {}
+
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for row in labeled_rows:
+            safe_sku = row.sku.replace("/", "_").replace("\\", "_")
+            entry_name = f"{safe_sku}-fnsku-label.pdf"
+
+            # 处理重名：加项目名前缀
+            if entry_name in seen_filenames:
+                seen_filenames[entry_name] += 1
+                safe_project = row.project_name.replace("/", "_").replace("\\", "_").replace(" ", "_")
+                entry_name = f"{safe_project}_{safe_sku}-fnsku-label.pdf"
+            else:
+                seen_filenames[entry_name] = 1
+
+            pdf_buffer = io.BytesIO()
+            try:
+                client.download_fileobj(settings.r2_bucket_name, row.fnsku_label_r2_key, pdf_buffer)
+                pdf_buffer.seek(0)
+                zf.writestr(entry_name, pdf_buffer.getvalue())
+            except Exception:
+                continue  # 跳过下载失败的文件
+
+    zip_buffer.seek(0)
+
+    append_operation_audit_log(
+        db,
+        action="sku_info.batch_download_fnsku_labels",
+        target_type="sku_info",
+        operator=operator,
+        after={
+            "requested": len(payload.sku_record_ids),
+            "downloaded": len(labeled_rows),
+            "skipped": skipped,
+        },
+        request=request,
+    )
+    db.commit()
+
+    return Response(
+        content=zip_buffer.getvalue(),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": 'attachment; filename="fnsku-labels.zip"',
+            "X-Downloaded-Count": str(len(labeled_rows)),
+            "X-Skipped-Count": str(skipped),
+        },
     )
