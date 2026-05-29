@@ -8,8 +8,10 @@ import { AdAnalysisContextBanner } from '@/components/dashboard/ad-analysis/cont
 import { buildAnalysisDrillHref } from '@/components/dashboard/ad-analysis/drill'
 import { AdAnalysisDrillLinks } from '@/components/dashboard/ad-analysis/drill-links'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
+import { Input } from '@/components/ui/input'
 import {
   Table,
   TableBody,
@@ -18,6 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { cn } from '@/lib/utils'
 
 const API_BASE = '/api/backend'
 
@@ -231,121 +234,228 @@ export function AdAnalysisCampaignsClient() {
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>活动</TableHead>
-                <TableHead>Grade</TableHead>
-                <TableHead>类型</TableHead>
-                <TableHead>Spend</TableHead>
-                <TableHead>Sales</TableHead>
-                <TableHead>预算缺口</TableHead>
-                <TableHead>关联销售</TableHead>
-                <TableHead>下一步</TableHead>
-                <TableHead>ACOS</TableHead>
-                <TableHead>下钻</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredItems.map((item) => (
-                <TableRow key={item.campaign_name}>
-                  <TableCell className='align-top'>
-                    <div className='space-y-1'>
-                      <p className='font-medium'>{item.campaign_name}</p>
-                      <p className='text-xs text-muted-foreground'>
-                        {item.status} / {item.bidding_strategy}
-                      </p>
-                      <p className='text-xs text-muted-foreground'>
-                        CTR {(item.ctr * 100).toFixed(2)}% / 预算在线 {(item.budget_utilization_rate * 100).toFixed(2)}%
-                      </p>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant='secondary'>
-                      <Activity className='mr-1 h-3.5 w-3.5' />
-                      {item.grade}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{item.targeting_type}</TableCell>
-                  <TableCell>${item.spend.toFixed(2)}</TableCell>
-                  <TableCell>${item.sales_7d.toFixed(2)}</TableCell>
-                  <TableCell className='align-top'>
-                    <div className='space-y-1 text-sm'>
-                      <p>${item.budget_gap.toFixed(2)}</p>
-                      <p className='text-xs text-muted-foreground'>
-                        错失销售 ${item.missed_sales_max.toFixed(2)}
-                      </p>
-                    </div>
-                  </TableCell>
-                  <TableCell className='align-top'>
-                    <div className='space-y-1 text-sm'>
-                      <p>${item.cross_sell_sales_7d.toFixed(2)}</p>
-                      <p className='text-xs text-muted-foreground'>{item.cross_sell_orders_7d} 单</p>
-                      <Badge variant='outline'>{item.cross_sell_action}</Badge>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant='outline'>{item.next_action}</Badge>
-                  </TableCell>
-                  <TableCell>{(item.acos * 100).toFixed(2)}%</TableCell>
-                  <TableCell className='align-top'>
-                    <AdAnalysisDrillLinks
-                      links={[
-                        {
-                          href: buildAnalysisDrillHref(
-                            'budget',
-                            { projectId, country, dateFrom, dateTo },
-                            { campaign: item.campaign_name },
-                          ),
-                          label: '预算',
-                        },
-                        {
-                          href: buildAnalysisDrillHref(
-                            'products',
-                            { projectId, country, dateFrom, dateTo },
-                            { campaign: item.campaign_name },
-                          ),
-                          label: 'SKU',
-                        },
-                        {
-                          href: buildAnalysisDrillHref(
-                            'search-terms',
-                            { projectId, country, dateFrom, dateTo },
-                            { campaign: item.campaign_name },
-                          ),
-                          label: '搜索词',
-                        },
-                        {
-                          href: buildAnalysisDrillHref(
-                            'targets',
-                            { projectId, country, dateFrom, dateTo },
-                            { campaign: item.campaign_name },
-                          ),
-                          label: '投放',
-                        },
-                        {
-                          href: buildAnalysisDrillHref(
-                            'placements',
-                            { projectId, country, dateFrom, dateTo },
-                            { campaign: item.campaign_name },
-                          ),
-                          label: '广告位',
-                        },
-                        {
-                          href: buildAnalysisDrillHref(
-                            'traffic-quality',
-                            { projectId, country, dateFrom, dateTo },
-                            { campaign: item.campaign_name },
-                          ),
-                          label: '流量',
-                        },
-                      ]}
-                    />
-                  </TableCell>
+          {/* 桌面端：完整表格 */}
+          <div className="hidden lg:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>活动</TableHead>
+                  <TableHead>Grade</TableHead>
+                  <TableHead>类型</TableHead>
+                  <TableHead>Spend</TableHead>
+                  <TableHead>Sales</TableHead>
+                  <TableHead>预算缺口</TableHead>
+                  <TableHead>关联销售</TableHead>
+                  <TableHead>下一步</TableHead>
+                  <TableHead>ACOS</TableHead>
+                  <TableHead>下钻</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredItems.map((item) => (
+                  <TableRow key={item.campaign_name}>
+                    <TableCell className='align-top'>
+                      <div className='space-y-1'>
+                        <p className='font-medium'>{item.campaign_name}</p>
+                        <p className='text-xs text-muted-foreground'>
+                          {item.status} / {item.bidding_strategy}
+                        </p>
+                        <p className='text-xs text-muted-foreground'>
+                          CTR {(item.ctr * 100).toFixed(2)}% / 预算在线 {(item.budget_utilization_rate * 100).toFixed(2)}%
+                        </p>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant='secondary'>
+                        <Activity className='mr-1 h-3.5 w-3.5' />
+                        {item.grade}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{item.targeting_type}</TableCell>
+                    <TableCell>${item.spend.toFixed(2)}</TableCell>
+                    <TableCell>${item.sales_7d.toFixed(2)}</TableCell>
+                    <TableCell className='align-top'>
+                      <div className='space-y-1 text-sm'>
+                        <p>${item.budget_gap.toFixed(2)}</p>
+                        <p className='text-xs text-muted-foreground'>
+                          错失销售 ${item.missed_sales_max.toFixed(2)}
+                        </p>
+                      </div>
+                    </TableCell>
+                    <TableCell className='align-top'>
+                      <div className='space-y-1 text-sm'>
+                        <p>${item.cross_sell_sales_7d.toFixed(2)}</p>
+                        <p className='text-xs text-muted-foreground'>{item.cross_sell_orders_7d} 单</p>
+                        <Badge variant='outline'>{item.cross_sell_action}</Badge>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant='outline'>{item.next_action}</Badge>
+                    </TableCell>
+                    <TableCell>{(item.acos * 100).toFixed(2)}%</TableCell>
+                    <TableCell className='align-top'>
+                      <AdAnalysisDrillLinks
+                        links={[
+                          {
+                            href: buildAnalysisDrillHref(
+                              'budget',
+                              { projectId, country, dateFrom, dateTo },
+                              { campaign: item.campaign_name },
+                            ),
+                            label: '预算',
+                          },
+                          {
+                            href: buildAnalysisDrillHref(
+                              'products',
+                              { projectId, country, dateFrom, dateTo },
+                              { campaign: item.campaign_name },
+                            ),
+                            label: 'SKU',
+                          },
+                          {
+                            href: buildAnalysisDrillHref(
+                              'search-terms',
+                              { projectId, country, dateFrom, dateTo },
+                              { campaign: item.campaign_name },
+                            ),
+                            label: '搜索词',
+                          },
+                          {
+                            href: buildAnalysisDrillHref(
+                              'targets',
+                              { projectId, country, dateFrom, dateTo },
+                              { campaign: item.campaign_name },
+                            ),
+                            label: '投放',
+                          },
+                          {
+                            href: buildAnalysisDrillHref(
+                              'placements',
+                              { projectId, country, dateFrom, dateTo },
+                              { campaign: item.campaign_name },
+                            ),
+                            label: '广告位',
+                          },
+                          {
+                            href: buildAnalysisDrillHref(
+                              'traffic-quality',
+                              { projectId, country, dateFrom, dateTo },
+                              { campaign: item.campaign_name },
+                            ),
+                            label: '流量',
+                          },
+                        ]}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* 手机端：卡片列表 */}
+          <div className='lg:hidden space-y-3'>
+            {filteredItems.map((item) => (
+              <div key={item.campaign_name} className='dashboard-surface p-4 space-y-3'>
+                {/* 头部：活动名 + Grade */}
+                <div className='flex items-start justify-between gap-2'>
+                  <div className='min-w-0 flex-1'>
+                    <p className='font-medium text-sm'>{item.campaign_name}</p>
+                    <p className='text-xs text-muted-foreground'>
+                      {item.status} / {item.bidding_strategy}
+                    </p>
+                    <p className='text-xs text-muted-foreground'>
+                      CTR {(item.ctr * 100).toFixed(2)}% / 预算在线 {(item.budget_utilization_rate * 100).toFixed(2)}%
+                    </p>
+                  </div>
+                  <Badge variant='secondary' className='shrink-0'>
+                    <Activity className='mr-1 h-3 w-3' />
+                    {item.grade}
+                  </Badge>
+                </div>
+
+                {/* 核心数据 2x3 网格 */}
+                <div className='grid grid-cols-2 gap-x-4 gap-y-2 text-sm'>
+                  <div>
+                    <span className='text-xs text-muted-foreground'>Spend</span>
+                    <div className='font-medium'>${item.spend.toFixed(2)}</div>
+                  </div>
+                  <div>
+                    <span className='text-xs text-muted-foreground'>Sales</span>
+                    <div className='font-medium'>${item.sales_7d.toFixed(2)}</div>
+                  </div>
+                  <div>
+                    <span className='text-xs text-muted-foreground'>ACOS</span>
+                    <div className={cn("font-medium", item.acos > 0.3 ? 'text-red-500' : 'text-emerald-500')}>
+                      {(item.acos * 100).toFixed(2)}%
+                    </div>
+                  </div>
+                  <div>
+                    <span className='text-xs text-muted-foreground'>类型</span>
+                    <div className='text-xs'>{item.targeting_type}</div>
+                  </div>
+                  <div>
+                    <span className='text-xs text-muted-foreground'>预算缺口</span>
+                    <div className='font-medium text-amber-600'>${item.budget_gap.toFixed(2)}</div>
+                  </div>
+                  <div>
+                    <span className='text-xs text-muted-foreground'>关联销售</span>
+                    <div className='font-medium'>${item.cross_sell_sales_7d.toFixed(2)}</div>
+                  </div>
+                </div>
+
+                {/* 错失销售 */}
+                {item.missed_sales_max > 0 && (
+                  <div className='text-xs text-amber-600'>
+                    错失销售: ${item.missed_sales_max.toFixed(2)}
+                  </div>
+                )}
+
+                {/* 操作按钮 */}
+                <div className='flex flex-wrap gap-2 pt-2 border-t border-border/70'>
+                  <Badge variant='outline' className='text-xs'>{item.next_action}</Badge>
+                  <Badge variant='outline' className='text-xs'>{item.cross_sell_action}</Badge>
+                </div>
+
+                {/* 下钻链接 */}
+                <div className='flex flex-wrap gap-2'>
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    className='h-8 min-h-[44px] text-xs'
+                    onClick={() => {
+                      const href = buildAnalysisDrillHref('budget', { projectId, country, dateFrom, dateTo }, { campaign: item.campaign_name })
+                      if (href) window.location.href = href
+                    }}
+                  >
+                    预算
+                  </Button>
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    className='h-8 min-h-[44px] text-xs'
+                    onClick={() => {
+                      const href = buildAnalysisDrillHref('products', { projectId, country, dateFrom, dateTo }, { campaign: item.campaign_name })
+                      if (href) window.location.href = href
+                    }}
+                  >
+                    SKU
+                  </Button>
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    className='h-8 min-h-[44px] text-xs'
+                    onClick={() => {
+                      const href = buildAnalysisDrillHref('search-terms', { projectId, country, dateFrom, dateTo }, { campaign: item.campaign_name })
+                      if (href) window.location.href = href
+                    }}
+                  >
+                    搜索词
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
         </CardContent>
       </Card>
     </div>

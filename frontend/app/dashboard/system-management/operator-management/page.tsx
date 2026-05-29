@@ -16,6 +16,7 @@ import { DirectionalTabTransition, SlidingTabsTrigger, TabsMotionGroup } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import { buildBackendHeaders } from '@/lib/backend-auth'
+import { cn } from '@/lib/utils'
 import { useNotifications } from '@/components/notifications'
 import { DataCard, DataCardContent, DataCardHeader } from '@/components/ui/data-card'
 import { DataTableCard, DataTableCardBody, DataTableCardHeader, DataTableCardStatBar } from '@/components/ui/data-card'
@@ -951,87 +952,198 @@ export default function OperatorManagementPage() {
                 </Button>
               </DataTableCardHeader>
               <DataTableCardBody className="flex-1 min-h-0 overflow-auto">
-                <Table>
-                  <TableHeader className="bg-slate-100/80 dark:bg-slate-900/45">
-                    <TableRow>
-                      <TableHead>人员</TableHead>
-                      <TableHead>项目</TableHead>
-                      <TableHead>岗位</TableHead>
-                      <TableHead>佣金类别</TableHead>
-                      <TableHead className="text-right">绩效总分</TableHead>
-                      <TableHead className="text-right">绩效均分</TableHead>
-                      <TableHead className="text-right">绩效周数</TableHead>
-                      <TableHead className="text-right">销售收入(USD)</TableHead>
-                      <TableHead className="text-right">项目佣金率</TableHead>
-                      <TableHead className="text-right">提成比例</TableHead>
-                      <TableHead className="text-right">提成金额(RMB)</TableHead>
-                      <TableHead>比例来源</TableHead>
-                      <TableHead>备注</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {commissionLoading ? (
+                {/* 桌面端：完整表格 */}
+                <div className="hidden lg:block">
+                  <Table>
+                    <TableHeader className="bg-slate-100/80 dark:bg-slate-900/45">
                       <TableRow>
-                        <TableCell colSpan={13} className="text-center text-muted-foreground">加载中...</TableCell>
+                        <TableHead>人员</TableHead>
+                        <TableHead>项目</TableHead>
+                        <TableHead>岗位</TableHead>
+                        <TableHead>佣金类别</TableHead>
+                        <TableHead className="text-right">绩效总分</TableHead>
+                        <TableHead className="text-right">绩效均分</TableHead>
+                        <TableHead className="text-right">绩效周数</TableHead>
+                        <TableHead className="text-right">销售收入(USD)</TableHead>
+                        <TableHead className="text-right">项目佣金率</TableHead>
+                        <TableHead className="text-right">提成比例</TableHead>
+                        <TableHead className="text-right">提成金额(RMB)</TableHead>
+                        <TableHead>比例来源</TableHead>
+                        <TableHead>备注</TableHead>
                       </TableRow>
-                    ) : commissionTableRows.length === 0 ? (
-                      <EmptyTableState colSpan={13} message="当前月份暂无佣金记录，请先完成佣金核算。" />
-                    ) : (
-                      commissionTableRows.map((row) => {
-                        const key = `${row.project_id}::${row.person_name}::${row.income_category}`
-                        const draft = commissionDrafts[key] ?? {
-                          ratio: (row.operator_bonus_ratio * 100).toFixed(2),
-                          reason: '',
-                        }
-                        return (
-                          <TableRow key={row.id}>
-                            <TableCell>{row.person_name}</TableCell>
-                            <TableCell>{row.project_name}</TableCell>
-                            <TableCell>{toRoleLabel(row.role_type)}</TableCell>
-                            <TableCell>{toIncomeCategoryLabel(row.income_category)}</TableCell>
-                            <TableCell className="text-right tabular-nums font-medium">
-                              {row.performanceSummary.weekCount > 0 ? row.performanceSummary.totalScore : '-'}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              {row.performanceSummary.weekCount > 0 ? row.performanceSummary.averageScore.toFixed(1) : '-'}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              {row.performanceSummary.weekCount > 0 ? row.performanceSummary.weekCount : '-'}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">{formatUsd(row.income_total_usd)}</TableCell>
-                            <TableCell className="text-right tabular-nums">{formatPercent(row.factory_commission_rate)}</TableCell>
-                            <TableCell className="text-right">
+                    </TableHeader>
+                    <TableBody>
+                      {commissionLoading ? (
+                        <TableRow>
+                          <TableCell colSpan={13} className="text-center text-muted-foreground">加载中...</TableCell>
+                        </TableRow>
+                      ) : commissionTableRows.length === 0 ? (
+                        <EmptyTableState colSpan={13} message="当前月份暂无佣金记录，请先完成佣金核算。" />
+                      ) : (
+                        commissionTableRows.map((row) => {
+                          const key = `${row.project_id}::${row.person_name}::${row.income_category}`
+                          const draft = commissionDrafts[key] ?? {
+                            ratio: (row.operator_bonus_ratio * 100).toFixed(2),
+                            reason: '',
+                          }
+                          return (
+                            <TableRow key={row.id}>
+                              <TableCell>{row.person_name}</TableCell>
+                              <TableCell>{row.project_name}</TableCell>
+                              <TableCell>{toRoleLabel(row.role_type)}</TableCell>
+                              <TableCell>{toIncomeCategoryLabel(row.income_category)}</TableCell>
+                              <TableCell className="text-right tabular-nums font-medium">
+                                {row.performanceSummary.weekCount > 0 ? row.performanceSummary.totalScore : '-'}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums">
+                                {row.performanceSummary.weekCount > 0 ? row.performanceSummary.averageScore.toFixed(1) : '-'}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums">
+                                {row.performanceSummary.weekCount > 0 ? row.performanceSummary.weekCount : '-'}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums">{formatUsd(row.income_total_usd)}</TableCell>
+                              <TableCell className="text-right tabular-nums">{formatPercent(row.factory_commission_rate)}</TableCell>
+                              <TableCell className="text-right">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  step="0.01"
+                                  value={draft.ratio}
+                                  className="min-w-[110px] text-right"
+                                  onChange={(event) => {
+                                    const value = event.target.value
+                                    setCommissionDrafts((prev) => ({ ...prev, [key]: { ...draft, ratio: value } }))
+                                  }}
+                                />
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums font-medium">{formatRmb(row.bonus_amount_rmb)}</TableCell>
+                              <TableCell>{row.override ? '手动' : '规则'}</TableCell>
+                              <TableCell>
+                                <Input
+                                  value={draft.reason}
+                                  placeholder="填写说明"
+                                  onChange={(event) => {
+                                    const value = event.target.value
+                                    setCommissionDrafts((prev) => ({ ...prev, [key]: { ...draft, reason: value } }))
+                                  }}
+                                />
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* 手机端：卡片列表 */}
+                <div className="lg:hidden space-y-3">
+                  {commissionLoading ? (
+                    <div className="text-center text-sm text-muted-foreground py-8">加载中...</div>
+                  ) : commissionTableRows.length === 0 ? (
+                    <div className="text-center text-sm text-muted-foreground py-8">当前月份暂无佣金记录</div>
+                  ) : (
+                    commissionTableRows.map((row) => {
+                      const key = `${row.project_id}::${row.person_name}::${row.income_category}`
+                      const draft = commissionDrafts[key] ?? {
+                        ratio: (row.operator_bonus_ratio * 100).toFixed(2),
+                        reason: '',
+                      }
+                      return (
+                        <div key={row.id} className="dashboard-surface p-4 space-y-3">
+                          {/* 头部：人员 + 项目 + 岗位 */}
+                          <div className="flex items-start justify-between gap-2 border-b border-border/70 pb-3">
+                            <div className="min-w-0">
+                              <div className="font-semibold text-sm">{row.person_name}</div>
+                              <div className="text-xs text-muted-foreground truncate">{row.project_name}</div>
+                            </div>
+                            <div className="flex flex-col items-end gap-1">
+                              <Badge variant="secondary" className="text-xs">{toRoleLabel(row.role_type)}</Badge>
+                              <Badge variant="outline" className="text-xs">{toIncomeCategoryLabel(row.income_category)}</Badge>
+                            </div>
+                          </div>
+
+                          {/* 核心数据 2x3 网格 */}
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                            <div>
+                              <span className="text-xs text-muted-foreground">绩效总分</span>
+                              <div className={cn("font-medium", row.performanceSummary.weekCount > 0 ? '' : 'text-muted-foreground')}>
+                                {row.performanceSummary.weekCount > 0 ? row.performanceSummary.totalScore : '-'}
+                              </div>
+                            </div>
+                            <div>
+                              <span className="text-xs text-muted-foreground">绩效均分</span>
+                              <div className={cn("font-medium", row.performanceSummary.weekCount > 0 ? '' : 'text-muted-foreground')}>
+                                {row.performanceSummary.weekCount > 0 ? row.performanceSummary.averageScore.toFixed(1) : '-'}
+                              </div>
+                            </div>
+                            <div>
+                              <span className="text-xs text-muted-foreground">销售收入</span>
+                              <div className="font-medium">{formatUsd(row.income_total_usd)}</div>
+                            </div>
+                            <div>
+                              <span className="text-xs text-muted-foreground">项目佣金率</span>
+                              <div className="font-medium">{formatPercent(row.factory_commission_rate)}</div>
+                            </div>
+                            <div>
+                              <span className="text-xs text-muted-foreground">提成比例</span>
+                              <div className="font-medium">{formatPercent(row.operator_bonus_ratio)}</div>
+                            </div>
+                            <div>
+                              <span className="text-xs text-muted-foreground">提成金额</span>
+                              <div className="font-medium text-primary">{formatRmb(row.bonus_amount_rmb)}</div>
+                            </div>
+                          </div>
+
+                          {/* 绩效周数 */}
+                          <div className="text-xs text-muted-foreground">
+                            绩效周数: {row.performanceSummary.weekCount > 0 ? `${row.performanceSummary.weekCount} 周` : '无'}
+                          </div>
+
+                          {/* 可编辑字段 */}
+                          <div className="border-t border-border/70 pt-3 space-y-3">
+                            <div className="space-y-1">
+                              <div className="text-xs text-muted-foreground">调整提成比例 (%)</div>
                               <Input
                                 type="number"
                                 min="0"
                                 max="100"
                                 step="0.01"
                                 value={draft.ratio}
-                                className="min-w-[110px] text-right"
+                                className="h-9 min-h-[44px] text-sm"
                                 onChange={(event) => {
                                   const value = event.target.value
                                   setCommissionDrafts((prev) => ({ ...prev, [key]: { ...draft, ratio: value } }))
                                 }}
                               />
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums font-medium">{formatRmb(row.bonus_amount_rmb)}</TableCell>
-                            <TableCell>{row.override ? '手动' : '规则'}</TableCell>
-                            <TableCell>
+                            </div>
+                            <div className="space-y-1">
+                              <div className="text-xs text-muted-foreground">备注</div>
                               <Input
                                 value={draft.reason}
                                 placeholder="填写说明"
+                                className="h-9 min-h-[44px] text-sm"
                                 onChange={(event) => {
                                   const value = event.target.value
                                   setCommissionDrafts((prev) => ({ ...prev, [key]: { ...draft, reason: value } }))
                                 }}
                               />
-                            </TableCell>
-                          </TableRow>
-                        )
-                      })
-                    )}
-                  </TableBody>
-                </Table>
+                            </div>
+                          </div>
+
+                          {/* 比例来源 */}
+                          <div className="flex items-center gap-2 text-xs">
+                            <span className="text-muted-foreground">比例来源:</span>
+                            <Badge variant={row.override ? "default" : "secondary"} className="text-xs">
+                              {row.override ? '手动' : '规则'}
+                            </Badge>
+                          </div>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
               </DataTableCardBody>
             </DataTableCard>
 

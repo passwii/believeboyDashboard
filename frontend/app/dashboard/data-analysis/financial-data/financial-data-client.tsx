@@ -1968,20 +1968,19 @@ export default function FinancialDataClient({
           titleClassName='text-2xl tracking-tight'
           badge={<p className='dashboard-kicker'>分析控制台</p>}
         />
-        <DataCardContent className="flex flex-wrap items-end gap-3">
-          {projectsLoading ? (
-            <div className="min-w-[180px]">
-              <FinancialFilterSkeleton />
-            </div>
-          ) : (
-            <FilterField label="店铺">
+        <DataCardContent className="px-4 pb-4 pt-4">
+          {/* 手机端：2列网格无标签 */}
+          <div className="grid grid-cols-2 gap-2 lg:hidden">
+            {projectsLoading ? (
+              <Skeleton className="h-9 w-full rounded-lg" />
+            ) : (
               <Select
                 value={projectId}
                 onValueChange={setProjectId}
                 disabled={projects.length === 0}
               >
-                <SelectTrigger className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
-                  <SelectValue placeholder="请选择店铺" />
+                <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
+                  <SelectValue placeholder="选择店铺" />
                 </SelectTrigger>
                 <SelectContent>
                   {projects.map((project) => (
@@ -1991,36 +1990,86 @@ export default function FinancialDataClient({
                   ))}
                 </SelectContent>
               </Select>
-            </FilterField>
-          )}
-          <FilterField label="国家站点">
+            )}
             <CountrySelect
               value={country}
               onChange={(value) => setCountry(value as ReportUploadCountry)}
-              triggerClassName="h-9"
+              triggerClassName="h-9 w-full rounded-lg"
             />
-          </FilterField>
-          <FilterField label="开始月份">
             <MonthPicker
               value={parseMonthInputValue(startMonth)}
               onChange={(date) => setStartMonth(formatMonthInputValue(date))}
-              className="h-9 w-[170px]"
+              className="h-9 w-full"
             />
-          </FilterField>
-          <FilterField label="结束月份">
             <MonthPicker
               value={parseMonthInputValue(endMonth)}
               onChange={(date) => setEndMonth(formatMonthInputValue(date))}
-              className="h-9 w-[170px]"
+              className="h-9 w-full"
             />
-          </FilterField>
-          <RefreshButton
-            onClick={() => void loadFinancialSeries({ force: true })}
-            loading={loading}
-            label="刷新数据"
-            variant="outline"
-            className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
-          />
+            <RefreshButton
+              onClick={() => void loadFinancialSeries({ force: true })}
+              loading={loading}
+              label="刷新"
+              variant="outline"
+              className="col-span-2 h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
+            />
+          </div>
+
+          {/* 桌面端：横向排列 */}
+          <div className="hidden lg:flex lg:flex-row lg:flex-wrap lg:items-end lg:gap-3">
+            {projectsLoading ? (
+              <div className="min-w-[180px]">
+                <FinancialFilterSkeleton />
+              </div>
+            ) : (
+              <FilterField label="店铺">
+                <Select
+                  value={projectId}
+                  onValueChange={setProjectId}
+                  disabled={projects.length === 0}
+                >
+                  <SelectTrigger className="h-9 w-[200px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
+                    <SelectValue placeholder="请选择店铺" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {projects.map((project) => (
+                      <SelectItem key={project.id} value={String(project.id)}>
+                        {project.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FilterField>
+            )}
+            <FilterField label="国家站点">
+              <CountrySelect
+                value={country}
+                onChange={(value) => setCountry(value as ReportUploadCountry)}
+                triggerClassName="h-9"
+              />
+            </FilterField>
+            <FilterField label="开始月份">
+              <MonthPicker
+                value={parseMonthInputValue(startMonth)}
+                onChange={(date) => setStartMonth(formatMonthInputValue(date))}
+                className="h-9 w-[170px]"
+              />
+            </FilterField>
+            <FilterField label="结束月份">
+              <MonthPicker
+                value={parseMonthInputValue(endMonth)}
+                onChange={(date) => setEndMonth(formatMonthInputValue(date))}
+                className="h-9 w-[170px]"
+              />
+            </FilterField>
+            <RefreshButton
+              onClick={() => void loadFinancialSeries({ force: true })}
+              loading={loading}
+              label="刷新数据"
+              variant="outline"
+              className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
+            />
+          </div>
         </DataCardContent>
       </DataCard>
 

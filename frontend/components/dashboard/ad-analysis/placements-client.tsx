@@ -8,8 +8,10 @@ import { AdAnalysisContextBanner } from '@/components/dashboard/ad-analysis/cont
 import { buildAnalysisDrillHref } from '@/components/dashboard/ad-analysis/drill'
 import { AdAnalysisDrillLinks } from '@/components/dashboard/ad-analysis/drill-links'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
+import { cn } from '@/lib/utils'
 import {
   Table,
   TableBody,
@@ -215,70 +217,141 @@ export function AdAnalysisPlacementsClient() {
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>广告位</TableHead>
-                <TableHead>活动</TableHead>
-                <TableHead>建议</TableHead>
-                <TableHead>Spend</TableHead>
-                <TableHead>Sales</TableHead>
-                <TableHead>Orders</TableHead>
-                <TableHead>下一步</TableHead>
-                <TableHead>ACOS</TableHead>
-                <TableHead>下钻</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredItems.map((item) => (
-                <TableRow key={`${item.campaign_name}-${item.placement}`}>
-                  <TableCell className='font-medium'>{item.placement}</TableCell>
-                  <TableCell>{item.campaign_name}</TableCell>
-                  <TableCell>
-                    <Badge variant='secondary'>
-                      <Gauge className='mr-1 h-3.5 w-3.5' />
-                      {item.action}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>${item.spend.toFixed(2)}</TableCell>
-                  <TableCell>${item.sales_7d.toFixed(2)}</TableCell>
-                  <TableCell>{item.orders_7d}</TableCell>
-                  <TableCell className='max-w-[220px] text-sm text-muted-foreground'>{item.next_step}</TableCell>
-                  <TableCell>{(item.acos * 100).toFixed(2)}%</TableCell>
-                  <TableCell>
-                    <AdAnalysisDrillLinks
-                      links={[
-                        {
-                          href: buildAnalysisDrillHref(
-                            'campaigns',
-                            { projectId, country, dateFrom, dateTo },
-                            {
-                              campaign: item.campaign_name,
-                              sku: skuFilter || undefined,
-                              placement: item.placement,
-                            },
-                          ),
-                          label: '活动',
-                        },
-                        {
-                          href: buildAnalysisDrillHref(
-                            'placements',
-                            { projectId, country, dateFrom, dateTo },
-                            {
-                              campaign: item.campaign_name,
-                              sku: skuFilter || undefined,
-                              placement: item.placement,
-                            },
-                          ),
-                          label: '聚焦',
-                        },
-                      ]}
-                    />
-                  </TableCell>
+          {/* 桌面端：完整表格 */}
+          <div className="hidden lg:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>广告位</TableHead>
+                  <TableHead>活动</TableHead>
+                  <TableHead>建议</TableHead>
+                  <TableHead>Spend</TableHead>
+                  <TableHead>Sales</TableHead>
+                  <TableHead>Orders</TableHead>
+                  <TableHead>下一步</TableHead>
+                  <TableHead>ACOS</TableHead>
+                  <TableHead>下钻</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredItems.map((item) => (
+                  <TableRow key={`${item.campaign_name}-${item.placement}`}>
+                    <TableCell className='font-medium'>{item.placement}</TableCell>
+                    <TableCell>{item.campaign_name}</TableCell>
+                    <TableCell>
+                      <Badge variant='secondary'>
+                        <Gauge className='mr-1 h-3.5 w-3.5' />
+                        {item.action}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>${item.spend.toFixed(2)}</TableCell>
+                    <TableCell>${item.sales_7d.toFixed(2)}</TableCell>
+                    <TableCell>{item.orders_7d}</TableCell>
+                    <TableCell className='max-w-[220px] text-sm text-muted-foreground'>{item.next_step}</TableCell>
+                    <TableCell>{(item.acos * 100).toFixed(2)}%</TableCell>
+                    <TableCell>
+                      <AdAnalysisDrillLinks
+                        links={[
+                          {
+                            href: buildAnalysisDrillHref(
+                              'campaigns',
+                              { projectId, country, dateFrom, dateTo },
+                              {
+                                campaign: item.campaign_name,
+                                sku: skuFilter || undefined,
+                                placement: item.placement,
+                              },
+                            ),
+                            label: '活动',
+                          },
+                          {
+                            href: buildAnalysisDrillHref(
+                              'placements',
+                              { projectId, country, dateFrom, dateTo },
+                              {
+                                campaign: item.campaign_name,
+                                sku: skuFilter || undefined,
+                                placement: item.placement,
+                              },
+                            ),
+                            label: '聚焦',
+                          },
+                        ]}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* 手机端：卡片列表 */}
+          <div className='lg:hidden space-y-3'>
+            {filteredItems.map((item) => (
+              <div key={`${item.campaign_name}-${item.placement}`} className='dashboard-surface p-4 space-y-3'>
+                <div className='flex items-start justify-between gap-2 border-b border-border/70 pb-3'>
+                  <div className='min-w-0 flex-1'>
+                    <p className='font-medium text-sm'>{item.placement}</p>
+                    <p className='text-xs text-muted-foreground truncate'>{item.campaign_name}</p>
+                  </div>
+                  <Badge variant='secondary' className='shrink-0'>
+                    <Gauge className='mr-1 h-3 w-3' />
+                    {item.action}
+                  </Badge>
+                </div>
+
+                <div className='grid grid-cols-2 gap-x-4 gap-y-2 text-sm'>
+                  <div>
+                    <span className='text-xs text-muted-foreground'>Spend</span>
+                    <div className='font-medium'>${item.spend.toFixed(2)}</div>
+                  </div>
+                  <div>
+                    <span className='text-xs text-muted-foreground'>Sales</span>
+                    <div className='font-medium'>${item.sales_7d.toFixed(2)}</div>
+                  </div>
+                  <div>
+                    <span className='text-xs text-muted-foreground'>Orders</span>
+                    <div className='font-medium'>{item.orders_7d}</div>
+                  </div>
+                  <div>
+                    <span className='text-xs text-muted-foreground'>ACOS</span>
+                    <div className={cn("font-medium", item.acos > 0.3 ? 'text-red-500' : 'text-emerald-500')}>
+                      {(item.acos * 100).toFixed(2)}%
+                    </div>
+                  </div>
+                </div>
+
+                <div className='text-xs text-muted-foreground border-t border-border/70 pt-2'>
+                  下一步: {item.next_step}
+                </div>
+
+                <div className='flex gap-2 pt-2 border-t border-border/70'>
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    className='h-8 min-h-[44px] text-xs flex-1'
+                    onClick={() => {
+                      const href = buildAnalysisDrillHref('campaigns', { projectId, country, dateFrom, dateTo }, { campaign: item.campaign_name, placement: item.placement })
+                      if (href) window.location.href = href
+                    }}
+                  >
+                    活动
+                  </Button>
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    className='h-8 min-h-[44px] text-xs flex-1'
+                    onClick={() => {
+                      const href = buildAnalysisDrillHref('placements', { projectId, country, dateFrom, dateTo }, { campaign: item.campaign_name, placement: item.placement })
+                      if (href) window.location.href = href
+                    }}
+                  >
+                    聚焦
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
         </CardContent>
       </Card>
     </div>
