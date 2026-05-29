@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useGlobalLoading } from '@/components/global-loading-provider'
 import { useSidebar } from '@/components/ui/sidebar'
 
-const NAVIGATION_LOADING_WATCHDOG_MS = 30000
+const NAVIGATION_LOADING_WATCHDOG_MS = 10_000
 const IDLE_PREFETCH_DELAY_MS = 120
 
 type RouteLoadingLinkProps = LinkProps &

@@ -1,8 +1,10 @@
 'use client'
 
-import { createContext, useCallback, useContext, useMemo, useState } from 'react'
+import { createContext, useCallback, useEffect, useContext, useMemo, useRef, useState } from 'react'
 
 type GlobalLoadingKind = 'blocking' | 'navigation'
+
+const BLOCKING_WATCHDOG_MS = 10_000
 
 type GlobalLoadingContextValue = {
   isLoading: boolean
@@ -24,6 +26,30 @@ export function GlobalLoadingProvider({
   const [blockingPendingCount, setBlockingPendingCount] = useState(0)
   const [navigationPendingCount, setNavigationPendingCount] = useState(0)
   const [navigationTargetPath, setNavigationTargetPath] = useState<string | null>(null)
+  const blockingWatchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Auto-clear blocking loading if it exceeds the watchdog timeout.
+  useEffect(() => {
+    if (blockingPendingCount > 0) {
+      if (!blockingWatchdogRef.current) {
+        blockingWatchdogRef.current = setTimeout(() => {
+          setBlockingPendingCount(0)
+          blockingWatchdogRef.current = null
+        }, BLOCKING_WATCHDOG_MS)
+      }
+    } else {
+      if (blockingWatchdogRef.current) {
+        clearTimeout(blockingWatchdogRef.current)
+        blockingWatchdogRef.current = null
+      }
+    }
+    return () => {
+      if (blockingWatchdogRef.current) {
+        clearTimeout(blockingWatchdogRef.current)
+        blockingWatchdogRef.current = null
+      }
+    }
+  }, [blockingPendingCount])
 
   const startGlobalLoading = useCallback((
     kind: GlobalLoadingKind = 'blocking',

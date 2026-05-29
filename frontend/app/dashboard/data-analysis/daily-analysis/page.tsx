@@ -1773,75 +1773,47 @@ export default function DailyAnalysisPage() {
           titleClassName='text-2xl tracking-tight'
         />
         <div className='space-y-0'>
-          {/* 筛选区 — 桌面端横向排列 */}
-          <div className='dashboard-toolbar hidden md:flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-4 lg:px-6 lg:py-5'>
-            <FilterField label="项目">
+          {/* 筛选区 — 桌面端横向排列（无标签） */}
+          <div className='dashboard-toolbar hidden md:flex flex-wrap items-center gap-3 px-4 py-4 lg:px-6 lg:py-5'>
+            <Select value={projectId} onValueChange={setProjectId}>
+              <SelectTrigger className="h-9 w-[140px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none [&>span]:truncate dark:border-border/85 dark:bg-[hsl(var(--surface-overlay)]">
+                <SelectValue placeholder="选择项目" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部项目</SelectItem>
+                {projects.map((item) => (
+                  <SelectItem key={item.id} value={String(item.id)}>{item.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <CountrySelect value={country} onChange={(value) => setCountry(value as CountryOption)} triggerClassName="h-9 w-[120px]" />
+            <SearchableSkuField value={selectedSku} options={skuOptions} loading={skuLoading} onChange={(value) => { selectedSkuRef.current = value; setSelectedSku(value); setActiveTab('summary'); void loadData() }} />
+            <DateRangePicker value={dateRange} onChange={setDateRange} className='h-9 w-[220px]' timezone={COUNTRY_TIMEZONE_MAP[country]} onApply={() => void loadData()} />
+            <RefreshButton onClick={() => void loadData(undefined, true)} loading={loading || projectsLoading} label="刷新数据" size="default" variant="outline" className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]" />
+          </div>
+          {/* 筛选区 — 手机端 2 列网格（无标签） */}
+          <div className='dashboard-toolbar md:hidden px-4 py-3'>
+            <div className='grid grid-cols-2 gap-2'>
               <Select value={projectId} onValueChange={setProjectId}>
-                <SelectTrigger className="h-9 w-[160px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none [&>span]:truncate dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
-                  <SelectValue placeholder="选择项目" />
+                <SelectTrigger className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
+                  <SelectValue placeholder="项目" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem key="all" value="all">全部项目</SelectItem>
+                  <SelectItem value="all">全部项目</SelectItem>
                   {projects.map((item) => (
                     <SelectItem key={item.id} value={String(item.id)}>{item.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </FilterField>
-
-            <FilterField label="国家站点">
-              <CountrySelect value={country} onChange={(value) => setCountry(value as CountryOption)} triggerClassName="h-9 w-[140px]" />
-            </FilterField>
-
-            <FilterField label="SKU">
-              <SearchableSkuField value={selectedSku} options={skuOptions} loading={skuLoading} onChange={(value) => { selectedSkuRef.current = value; setSelectedSku(value); setActiveTab('summary'); void loadData() }} />
-            </FilterField>
-
-            <div className='flex flex-col gap-1.5'>
-              <div className='text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground'>日期范围</div>
-              <DateRangePicker value={dateRange} onChange={setDateRange} className='h-9 w-[240px]' timezone={COUNTRY_TIMEZONE_MAP[country]} onApply={() => void loadData()} />
+              <CountrySelect value={country} onChange={(value) => setCountry(value as CountryOption)} triggerClassName="h-9" />
             </div>
-
-            <FilterField label="操作">
-              <RefreshButton onClick={() => void loadData(undefined, true)} loading={loading || projectsLoading} label="刷新数据" size="default" variant="outline" className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]" />
-            </FilterField>
-          </div>
-          {/* 筛选区 — 手机端 2 列网格 */}
-          <div className='dashboard-toolbar md:hidden px-4 py-3'>
-            <div className='grid grid-cols-2 gap-2'>
-              {/* 项目 */}
-              <div className='space-y-1.5'>
-                <div className='text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground'>项目</div>
-                <Select value={projectId} onValueChange={setProjectId}>
-                  <SelectTrigger className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
-                    <SelectValue placeholder="选择项目" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">全部项目</SelectItem>
-                    {projects.map((item) => (
-                      <SelectItem key={item.id} value={String(item.id)}>{item.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {/* 国家站点 */}
-              <div className='space-y-1.5'>
-                <div className='text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground'>国家</div>
-                <CountrySelect value={country} onChange={(value) => setCountry(value as CountryOption)} triggerClassName="h-9" />
-              </div>
-            </div>
-            {/* SKU */}
-            <div className='space-y-1.5 mt-3'>
-              <div className='text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground'>SKU</div>
+            <div className='mt-2'>
               <SearchableSkuField value={selectedSku} options={skuOptions} loading={skuLoading} onChange={(value) => { selectedSkuRef.current = value; setSelectedSku(value); setActiveTab('summary'); void loadData() }} />
             </div>
-            {/* 日期范围 */}
-            <div className='space-y-1.5 mt-3'>
-              <div className='text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground'>日期范围</div>
+            <div className='mt-2'>
               <DateRangePicker value={dateRange} onChange={setDateRange} className='h-9 w-full' timezone={COUNTRY_TIMEZONE_MAP[country]} onApply={() => void loadData()} />
             </div>
-            {/* 操作按钮 */}
-            <div className='flex gap-2 mt-3'>
+            <div className='flex gap-2 mt-2'>
               <RefreshButton onClick={() => void loadData(undefined, true)} loading={loading || projectsLoading} label="刷新" size="sm" variant="outline" className="flex-1 h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]" />
               <Button type='button' variant='outline' size='sm' onClick={() => void handleQuickRange(lastSevenDaysRange(country))} className='flex-1 h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85'>近7天</Button>
             </div>
