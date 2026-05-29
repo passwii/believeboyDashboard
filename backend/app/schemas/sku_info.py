@@ -148,6 +148,24 @@ class BatchUpdateFactoryInfoResponse(BaseModel):
     sku_ids: list[int] = Field(..., description="已更新的 SKU ID 列表")
 
 
+class GetFnskuLabelsBySkusRequest(BaseModel):
+    """通过 SKU 列表获取 FNSKU 标签信息的请求"""
+    project_name: str = Field(..., min_length=1, description="项目名称")
+    skus: list[str] = Field(..., min_length=1, description="SKU 列表")
+
+
+class SkuRecordFnskuLabelItem(BaseModel):
+    """SKU 记录的 FNSKU 标签信息"""
+    id: int
+    sku: str
+    fnsku_label_r2_key: str | None = None
+
+
+class FnskuLabelsResponse(BaseModel):
+    """通过 SKU 列表获取 FNSKU 标签信息的响应"""
+    sku_records: list[SkuRecordFnskuLabelItem]
+
+
 class ParseFactoryInfoRequest(BaseModel):
     """解析产品属性请求"""
     description: str = Field(..., min_length=1, max_length=2000, description="自然语言描述")
