@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useNotifications } from '@/components/notifications'
 
@@ -95,43 +95,48 @@ export function useDashboardOverview(
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<Error | null>(null)
   const { notify } = useNotifications()
+  const abortRef = useRef<AbortController | null>(null)
 
   const load = useCallback(async () => {
     if (!enabled) return
+
+    // Cancel any in-flight request from a previous invocation.
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
 
     setLoading(true)
     setError(null)
 
     try {
       const projects = await fetchManagedProjectsCached<ProjectItem[]>()
+      if (controller.signal.aborted) return
+
       const projectIds = projects.map((p) => p.id).join(',')
+      const params = new URLSearchParams({ country, days: String(days) })
+      if (projectIds) params.set('project_ids', projectIds)
 
-      const params = new URLSearchParams({
-        country,
-        days: String(days),
+      const res = await fetch(`/api/backend/api/v1/dashboard/overview?${params}`, {
+        signal: controller.signal,
       })
-      if (projectIds) {
-        params.set('project_ids', projectIds)
-      }
-
-      const res = await fetch(`/api/backend/api/v1/dashboard/overview?${params}`)
-      if (!res.ok) {
-        throw new Error(`API error: ${res.status}`)
-      }
+      if (!res.ok) throw new Error(`API error: ${res.status}`)
 
       const json: DashboardOverviewResponse = await res.json()
+      if (controller.signal.aborted) return
       setData(json)
     } catch (err) {
+      if (controller.signal.aborted) return
       const errObj = err instanceof Error ? err : new Error('Unknown error')
       setError(errObj)
       notify({ type: 'error', title: '加载失败', message: 'KPI 总览数据加载失败，请稍后重试' })
     } finally {
-      setLoading(false)
+      if (!controller.signal.aborted) setLoading(false)
     }
   }, [country, days, enabled, notify])
 
   useEffect(() => {
     load()
+    return () => { abortRef.current?.abort() }
   }, [load])
 
   return { data, loading, error, refresh: load }

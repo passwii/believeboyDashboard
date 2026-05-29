@@ -48,6 +48,7 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
       headers: buildBackendProxyHeaders(session, request.headers),
       body: await getProxyRequestBody(request),
       cache: 'no-store',
+      signal: AbortSignal.timeout(10_000),
     })
     return await toProxyResponse(response)
   } catch (error) {

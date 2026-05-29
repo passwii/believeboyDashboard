@@ -294,6 +294,54 @@
 
 ---
 
+### 规则 9：控制台筛选项 → 去除小标题标签
+
+**问题**：每个筛选项带有小标题标签（如"项目"、"国家站点"、"日期范围"），导致：
+1. 手机端 2 列网格时，每个单元格的标签 + 控件高度不一致，对齐不整齐
+2. 左右留白多，利用率低
+3. 桌面端显得拥挤
+
+**解决方案**：统一去除所有控制台筛选项的标题标签，控件直接横向排列。桌面端紧凑对齐，手机端 2 列网格紧贴无缝隙。
+
+**实现模式**：
+
+```tsx
+// ✅ 正确：无标签，横向排列
+<div className='dashboard-toolbar hidden md:flex items-center gap-3 px-4 py-4'>
+  <Select placeholder='选择项目'>...</Select>
+  <Select placeholder='国家站点'>...</Select>
+  <DateRangePicker />
+  <Button>刷新</Button>
+</div>
+
+// ✅ 手机端：2 列网格无标签
+<div className='dashboard-toolbar md:hidden px-4 py-3'>
+  <div className='grid grid-cols-2 gap-2'>
+    <Select placeholder='项目'>...</Select>
+    <Select placeholder='国家'>...</Select>
+  </div>
+  <div className='mt-2'>
+    <DateRangePicker className='w-full' />
+  </div>
+  <div className='flex gap-2 mt-2'>
+    <Button className='flex-1'>刷新</Button>
+    <Button className='flex-1'>近7天</Button>
+  </div>
+</div>
+
+// ❌ 错误：有标签导致对齐问题
+<div className='space-y-1.5'>
+  <div className='text-xs text-muted-foreground'>项目</div>
+  <Select>...</Select>
+</div>
+```
+
+**适用场景**：所有控制台工具栏、筛选区域、数据分析页面的筛选项
+
+**注意**：如果某筛选项需要特别说明（如"周一限制 ≥ 16:00"），可以在控件内通过 tooltip 或 placeholder 提示，而不是单独标签
+
+---
+
 ## 定时报告页面适配记录
 
 ### 订阅管理 Tab
@@ -320,9 +368,9 @@
 
 | 元素 | 问题 | 适配方案 |
 |------|------|----------|
-| 控制台工具栏 | 桌面横向 → 手机换行混乱 | 桌面端横向排列；手机端 2 列网格，标签内联 |
-| 项目/国家站点 | 并列显示但对齐差 | 2 列网格并排，标签 `text-[0.65rem]` |
-| SKU + 日期范围 | 全宽显示 | 各自独立一行 |
+| 控制台工具栏 | 桌面横向 → 手机换行混乱 | 桌面端横向排列；手机端 2 列网格 |
+| 项目/国家站点 | 并列显示但对齐差 | 去除小标题标签，2 列网格紧贴 |
+| SKU + 日期范围 | 全宽显示 | 各自独立一行，无标签 |
 | 操作按钮 | 双按钮堆叠 | 双按钮横排 `flex-1` 各占一半 |
 | 指标卡（11个） | 手机端左右箭头占位导致卡片被压缩 | 桌面端箭头+网格；手机端水平滑动 `overflow-x-auto` + `snap-x`，每屏 2 张 |
 | Tab 切换 + 导出 | 导出按钮宽度不适配 | 桌面端 `w-auto`；手机端 `w-full` |

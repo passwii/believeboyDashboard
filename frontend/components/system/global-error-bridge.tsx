@@ -19,6 +19,8 @@ export function GlobalErrorBridge() {
       try {
         return await originalFetch(...args)
       } catch (error) {
+        const url = typeof args[0] === 'string' ? args[0] : args[0] instanceof URL ? args[0].href : args[0].url
+        if (url.includes('/api/auth/')) throw error
         if (isBackendUnavailableError(error)) {
           notify({
             type: 'error',
