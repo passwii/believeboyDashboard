@@ -124,8 +124,8 @@ export function BoltStyleChat({
           <AnnouncementBadge text={announcementText} href={announcementHref} />
         </div>
 
-        {/* Title + Subtitle - 移动端垂直居中 */}
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center w-full px-6 sm:px-4">
+        {/* Title + Subtitle - 位于输入框上方 */}
+        <div className="absolute left-1/2 top-[32%] -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center w-full px-6 sm:px-4">
           <div className="text-center mb-4 sm:mb-6">
             {/* 移动端标题字号缩小 */}
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white tracking-tight mb-3 min-h-[1.2em]">
@@ -167,7 +167,7 @@ export function BoltStyleChat({
           className="absolute left-0 right-0 w-full px-3 sm:px-4"
           style={{
             ...(isLanding
-              ? { top: '50%', transform: 'translateY(-50%)' }
+              ? { top: '55%', transform: 'translateY(-50%)' }
               : { bottom: '0', paddingBottom: 'env(safe-area-inset-bottom, 16px)' }
             ),
             transition: 'top 0.7s cubic-bezier(0.22, 1, 0.36, 1), bottom 0.7s cubic-bezier(0.22, 1, 0.36, 1)',
