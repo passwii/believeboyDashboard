@@ -18,6 +18,7 @@ export function BoltStyleChat({
   announcementText = 'BelieveBoy AI 助手',
   announcementHref = '#',
   placeholder = '你想构建什么？',
+  showInput = true,
   onSend,
 }: BoltChatProps) {
   const [phase, setPhase] = useState<Phase>('landing')
@@ -56,6 +57,9 @@ export function BoltStyleChat({
   const { start: startStream } = useSimulatedStream(handleStreamChunk, handleStreamDone)
 
   const handleSend = useCallback((message: string) => {
+    // If showInput is false, do nothing
+    if (!showInput) return
+
     onSend?.(message)
 
     const userMsg: ChatMessage = {
@@ -92,7 +96,7 @@ export function BoltStyleChat({
       setMessages(prev => [...prev, userMsg, assistantMsg])
       startStream()
     }
-  }, [phase, onSend, startStream])
+  }, [phase, onSend, startStream, showInput])
 
   const typewriterSegments: TextSegment[] = [
     { text: `${title} `, speed: 80 },
@@ -158,23 +162,25 @@ export function BoltStyleChat({
       )}
 
       {/* Layer 4: Input Box - 移动端全宽适配 */}
-      <div
-        className="absolute left-0 right-0 w-full px-3 sm:px-4"
-        style={{
-          ...(isLanding
-            ? { top: '50%', transform: 'translateY(-50%)' }
-            : { bottom: '0', paddingBottom: 'env(safe-area-inset-bottom, 16px)' }
-          ),
-          transition: 'top 0.7s cubic-bezier(0.22, 1, 0.36, 1), bottom 0.7s cubic-bezier(0.22, 1, 0.36, 1)',
-          zIndex: 40,
-        }}
-      >
-        <ChatInput
-          placeholder={isLanding ? placeholder : '继续对话...'}
-          onSend={handleSend}
-          compact={!isLanding}
-        />
-      </div>
+      {showInput && (
+        <div
+          className="absolute left-0 right-0 w-full px-3 sm:px-4"
+          style={{
+            ...(isLanding
+              ? { top: '50%', transform: 'translateY(-50%)' }
+              : { bottom: '0', paddingBottom: 'env(safe-area-inset-bottom, 16px)' }
+            ),
+            transition: 'top 0.7s cubic-bezier(0.22, 1, 0.36, 1), bottom 0.7s cubic-bezier(0.22, 1, 0.36, 1)',
+            zIndex: 40,
+          }}
+        >
+          <ChatInput
+            placeholder={isLanding ? placeholder : '继续对话...'}
+            onSend={handleSend}
+            compact={!isLanding}
+          />
+        </div>
+      )}
     </div>
   )
 }

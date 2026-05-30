@@ -31,5 +31,6 @@ export interface BoltChatProps {
   announcementText?: string
   announcementHref?: string
   placeholder?: string
+  showInput?: boolean
   onSend?: (message: string) => void
 }
