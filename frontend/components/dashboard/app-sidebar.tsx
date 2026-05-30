@@ -72,7 +72,8 @@ const primaryGroups: NavGroup[] = [
     iconAccent: '#888888',
     activeIconAccent: 'rgba(255,255,255,0.95)',
     items: [
-      { title: 'AI 洞察', url: '/dashboard/ai-insights' },
+      { title: 'AI 概览', url: '/dashboard/ai' },
+      { title: 'AI Chat', url: '/ai-chat', target: '_blank' },
     ],
   },
   {
