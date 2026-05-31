@@ -1,8 +1,8 @@
 'use client'
 
 import React from 'react'
-import type { TextSegment } from '../types'
-import { useTypewriter } from '../hooks/use-typewriter'
+import type { TextSegment } from './types'
+import { useTypewriter } from './hooks/use-typewriter'
 
 export function TypewriterText({
   segments,

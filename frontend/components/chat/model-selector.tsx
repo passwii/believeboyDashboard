@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import { ChevronDown, Check } from 'lucide-react'
-import type { Model } from '../types'
-import { models } from '../constants/models'
+import type { Model } from './types'
+import { models } from './constants/models'
 
 export function ModelSelector({ selectedModel = 'sonnet-4.5', onModelChange }: {
   selectedModel?: string

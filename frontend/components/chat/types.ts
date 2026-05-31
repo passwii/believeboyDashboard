@@ -22,9 +22,17 @@ export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   streaming?: boolean
+  error?: boolean
 }
 
-export interface BoltChatProps {
+export interface Conversation {
+  id: string
+  title: string
+  createdAt: number
+  messageCount: number
+}
+
+export interface AIChatWindowProps {
   title?: string
   titleHighlight?: string
   subtitle?: string
@@ -33,4 +41,10 @@ export interface BoltChatProps {
   placeholder?: string
   showInput?: boolean
   onSend?: (message: string) => void
+}
+
+export type StreamCallbacks = {
+  onChunk: (delta: string) => void
+  onDone: () => void
+  onError: (error: string) => void
 }

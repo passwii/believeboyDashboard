@@ -1,13 +1,13 @@
 'use client'
 
-import { BoltStyleChat } from '@/components/chat/bolt-style-chat'
+import { AIChatWindow } from '@/components/chat/ai-chat-window'
 import { MessageSquare } from 'lucide-react'
 import Link from 'next/link'
 
 export default function AiLandingPage() {
   return (
     <div className="relative h-full w-full">
-      <BoltStyleChat
+      <AIChatWindow
         title="让 AI"
         titleHighlight="助你"
         subtitle="探索智能助手，提升运营效率"
