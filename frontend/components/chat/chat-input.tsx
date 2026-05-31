@@ -44,22 +44,7 @@ export function ChatInput({
     }
   }, [message, compact])
 
-  // ── GSAP: Input glow on focus ───────────────────────────────────
-  useGSAP(
-    () => {
-      if (outerGlowRef.current) {
-        gsap.to(outerGlowRef.current, {
-          opacity: focused ? 1 : 0,
-          scale: focused ? 1 : 0.95,
-          duration: 0.3,
-          ease: 'power2.out',
-        })
-      }
-    },
-    { scope: rootRef, dependencies: [focused] }
-  )
-
-  const handleSubmit = () => {
+const handleSubmit = () => {
     if (message.trim() && !disabled) {
       // Send button press animation
       if (sendBtnRef.current) {
@@ -87,10 +72,9 @@ export function ChatInput({
       <div
         ref={outerGlowRef}
         className="absolute -inset-2 rounded-3xl pointer-events-none"
-        style={{ opacity: 0, transform: 'scale(0.95)' }}
         style={{
-          opacity: focused ? (outerGlowRef.current ? undefined : 1) : 0,
-          transform: focused ? undefined : 'scale(0.95)',
+          opacity: focused ? 1 : 0,
+          transform: focused ? 'scale(1)' : 'scale(0.95)',
           boxShadow: '0 0 40px rgba(20,136,252,0.35), 0 0 80px rgba(20,136,252,0.15), 0 0 120px rgba(99,102,241,0.1)',
         }}
       />
