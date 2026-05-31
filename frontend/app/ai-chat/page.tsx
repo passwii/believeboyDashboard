@@ -1,10 +1,10 @@
 'use client'
 
-import { BoltStyleChat } from '@/components/chat/bolt-style-chat'
+import { AIChatWindow } from '@/components/chat/ai-chat-window'
 
 export default function AiChatPage() {
   return (
-    <BoltStyleChat
+    <AIChatWindow
       onSend={(message) => {
         // TODO: 接入后端 AI 接口
         console.log('User message:', message)

@@ -36,6 +36,14 @@ export const animationStyles = `
     from { opacity: 0; transform: translateY(24px); }
     to   { opacity: 1; transform: translateY(0); }
   }
+  @keyframes bb-sidebar-in {
+    from { opacity: 0; transform: translateX(-100%); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes bb-stop-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+    50%      { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+  }
 
   .bb-anim-fade-up {
     opacity: 0;
@@ -67,6 +75,12 @@ export const animationStyles = `
   }
   .bb-chat-enter {
     animation: bb-chat-enter 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  .bb-anim-sidebar {
+    animation: bb-sidebar-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  .bb-stop-pulse {
+    animation: bb-stop-pulse 1.5s ease-in-out infinite;
   }
 
   /* Mobile Safe Area Support */
