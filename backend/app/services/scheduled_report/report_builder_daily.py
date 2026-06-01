@@ -588,6 +588,7 @@ def _query_ads_single_day(
                 AdUploadFile.report_type == "ad_promoted_product_report",
                 AdUploadFile.is_current == True,  # noqa: E712
                 AdUploadFile.period_end_date == target_date,
+                AdUploadPromotedProductRow.scope_status == "included_product",
             )
         )
         if project_ids:
