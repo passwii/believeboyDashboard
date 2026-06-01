@@ -210,11 +210,16 @@ class AdUploadPromotedProductRow(Base):
     __tablename__ = 'ad_upload_promoted_product_rows'
     __table_args__ = (
         UniqueConstraint('source_file_id', 'source_row_no', name='ad_upload_promoted_product_rows_source_row_key'),
+        CheckConstraint(
+            "scope_status in ('included_product', 'excluded_store_level', 'excluded_unmapped')",
+            name='ck_ad_upload_promoted_product_rows_scope_status',
+        ),
         Index('idx_ad_upload_promoted_product_rows_source_id', 'source_file_id'),
         Index('idx_ad_upload_promoted_product_rows_sku', 'ad_sku'),
         Index('idx_ad_upload_promoted_product_rows_asin', 'ad_asin'),
         Index('idx_ad_upload_promoted_product_rows_campaign', 'campaign_name'),
         Index('idx_ad_upload_promoted_product_rows_dates', 'report_start_date', 'report_end_date'),
+        Index('idx_ad_upload_promoted_product_rows_scope_status', 'scope_status'),
     )
 
     id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
@@ -247,6 +252,11 @@ class AdUploadPromotedProductRow(Base):
     other_sku_units_7d: Mapped[int] = mapped_column(Integer, nullable=False, server_default='0')
     ad_sku_sales_7d: Mapped[float] = mapped_column(Numeric(18, 6), nullable=False, server_default='0')
     other_sku_sales_7d: Mapped[float] = mapped_column(Numeric(18, 6), nullable=False, server_default='0')
+    # scope 分类 (从 A 表 analysis_ad_product_rows 迁入时塞 raw_row.__meta__ 里)
+    # 新数据上传由 _persist_ad_product_to_c_table 调 classify_scope 写入
+    scope_status: Mapped[str] = mapped_column(
+        String(32), nullable=False, server_default='included_product'
+    )
     raw_row: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
