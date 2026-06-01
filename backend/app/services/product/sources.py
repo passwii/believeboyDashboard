@@ -5,8 +5,8 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.models import AdUploadFile, AdUploadPromotedProductRow, InventorySnapshotRow
 from app.models.product_analysis_source import AnalysisSourceFile
-from app.models import InventorySnapshotRow
 
 from app.services.product._internal import (
     _get_project_by_name,
@@ -86,9 +86,6 @@ def get_source_rows(
     page_size: int,
     include_excluded: bool = False,
 ):
-    from app.utils.parsers import SCOPE_INCLUDED
-    from sqlalchemy import or_ as _or
-
     ensure_tables(db)
     source = db.get(AnalysisSourceFile, source_id)
     if source is None:
@@ -96,12 +93,40 @@ def get_source_rows(
     if page < 1 or page_size < 1:
         raise ValueError('page and page_size must be >= 1')
 
-    from app.services.product._internal import _get_row_model
-    model = _get_row_model(source.report_type)
-    stmt = select(model).where(model.source_file_id == source_id).order_by(
+    # ad_product_report 已切到 C 表 (ad_upload_promoted_product_rows)
+    # 把 A 表 source_id 通过 (project, country, period, version, is_current) 映射到 C 表 source_id
+    if source.report_type == 'ad_product_report':
+        c_source = db.execute(
+            select(AdUploadFile)
+            .where(
+                AdUploadFile.project_id == source.project_id,
+                AdUploadFile.country == source.country,
+                AdUploadFile.period_start_date == source.period_start_date,
+                AdUploadFile.period_end_date == source.period_end_date,
+                AdUploadFile.version == source.version,
+                AdUploadFile.is_current == source.is_current,
+                AdUploadFile.report_type == 'ad_promoted_product_report',
+            )
+        ).scalar_one_or_none()
+        if c_source is None:
+            raise ValueError(
+                f'No C table source for A id={source_id} '
+                f'(project={source.project_id} country={source.country} period={source.period_start_date}..{source.period_end_date} version={source.version})'
+            )
+        model = AdUploadPromotedProductRow
+        actual_source_id = c_source.id
+    else:
+        from app.services.product._internal import _get_row_model
+        model = _get_row_model(source.report_type)
+        actual_source_id = source_id
+
+    stmt = select(model).where(model.source_file_id == actual_source_id).order_by(
         model.source_row_no.asc(),
     )
-    if source.report_type in {'payment_report', 'ad_product_report'} and not include_excluded:
+    # NOTE: scope_status 过滤暂时拿掉 (Step 7 Alembic 给 C 表加列后再加回)
+    # payment_report 仍按 scope 过滤
+    if source.report_type == 'payment_report' and not include_excluded:
+        from app.utils.parsers import SCOPE_INCLUDED
         stmt = stmt.where(model.scope_status == SCOPE_INCLUDED)
 
     rows = db.execute(stmt.offset((page - 1) * page_size).limit(page_size + 1)).scalars().all()

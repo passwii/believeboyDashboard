@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.models import (
     AdUploadFile,
     AdUploadCampaignRow,
+    AdUploadPromotedProductRow,
     AnalysisAdProductRow,
     AnalysisBusinessRow,
     AnalysisReturnRow,
@@ -338,26 +339,26 @@ def _build_ad_snapshot(
     start_date: date,
     end_date: date,
 ) -> dict:
-    """最近N天广告概况：花费、ROAS、ACOS、CTR（数据来源：analysis_ad_product_rows）"""
+    """最近N天广告概况：花费、ROAS、ACOS、CTR（数据来源：ad_upload_promoted_product_rows）"""
     rows = (
         db.query(
-            func.coalesce(func.sum(AnalysisAdProductRow.spend), 0).label("spend"),
-            func.coalesce(func.sum(AnalysisAdProductRow.sales_7d), 0).label("sales"),
-            func.coalesce(func.sum(AnalysisAdProductRow.clicks), 0).label("clicks"),
-            func.coalesce(func.sum(AnalysisAdProductRow.impressions), 0).label("impressions"),
-            func.coalesce(func.sum(AnalysisAdProductRow.orders_7d), 0).label("orders"),
+            func.coalesce(func.sum(AdUploadPromotedProductRow.spend), 0).label("spend"),
+            func.coalesce(func.sum(AdUploadPromotedProductRow.sales_7d), 0).label("sales"),
+            func.coalesce(func.sum(AdUploadPromotedProductRow.clicks), 0).label("clicks"),
+            func.coalesce(func.sum(AdUploadPromotedProductRow.impressions), 0).label("impressions"),
+            func.coalesce(func.sum(AdUploadPromotedProductRow.orders_7d), 0).label("orders"),
         )
         .join(
-            AnalysisSourceFile,
-            AnalysisSourceFile.id == AnalysisAdProductRow.source_file_id,
+            AdUploadFile,
+            AdUploadFile.id == AdUploadPromotedProductRow.source_file_id,
         )
         .filter(
-            AnalysisSourceFile.project_id == project_id,
-            AnalysisSourceFile.country == normalize_country(country),
-            AnalysisSourceFile.report_type == "ad_product_report",
-            AnalysisSourceFile.is_current == True,
-            AnalysisSourceFile.period_end_date >= start_date,
-            AnalysisSourceFile.period_end_date <= end_date,
+            AdUploadFile.project_id == project_id,
+            AdUploadFile.country == normalize_country(country),
+            AdUploadFile.report_type == "ad_promoted_product_report",
+            AdUploadFile.is_current == True,
+            AdUploadFile.period_end_date >= start_date,
+            AdUploadFile.period_end_date <= end_date,
         )
         .first()
     )

@@ -11,6 +11,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import (
+    AdUploadFile,
+    AdUploadPromotedProductRow,
     AnalysisAdProductRow,
     AnalysisSalesOrderRow,
     AnalysisSourceFile,
@@ -345,30 +347,30 @@ def _aggregate_ad_by_date_sql(
         
         stmt = (
             select(
-                AnalysisSourceFile.report_date,
-                func.sum(AnalysisAdProductRow.impressions).label("impressions"),
-                func.sum(AnalysisAdProductRow.clicks).label("clicks"),
-                func.sum(AnalysisAdProductRow.spend).label("ad_spend"),
-                func.sum(AnalysisAdProductRow.sales_7d).label("ad_sales"),
-                func.sum(AnalysisAdProductRow.orders_7d).label("ad_orders"),
+                AdUploadFile.report_date,
+                func.sum(AdUploadPromotedProductRow.impressions).label("impressions"),
+                func.sum(AdUploadPromotedProductRow.clicks).label("clicks"),
+                func.sum(AdUploadPromotedProductRow.spend).label("ad_spend"),
+                func.sum(AdUploadPromotedProductRow.sales_7d).label("ad_sales"),
+                func.sum(AdUploadPromotedProductRow.orders_7d).label("ad_orders"),
             )
-            .select_from(AnalysisSourceFile)
+            .select_from(AdUploadFile)
             .join(
-                AnalysisAdProductRow,
-                AnalysisAdProductRow.source_file_id == AnalysisSourceFile.id,
+                AdUploadPromotedProductRow,
+                AdUploadPromotedProductRow.source_file_id == AdUploadFile.id,
             )
             .where(
-                AnalysisSourceFile.project_id == project_id,
-                AnalysisSourceFile.report_type == "ad_product_report",
-                AnalysisSourceFile.country == country,
-                AnalysisSourceFile.is_current.is_(True),
-                AnalysisSourceFile.report_date.is_not(None),
-                AnalysisSourceFile.report_date >= start_date,
-                AnalysisSourceFile.report_date <= end_date,
-                AnalysisAdProductRow.scope_status == "included_product",
+                AdUploadFile.project_id == project_id,
+                AdUploadFile.report_type == "ad_promoted_product_report",
+                AdUploadFile.country == country,
+                AdUploadFile.is_current.is_(True),
+                AdUploadFile.report_date.is_not(None),
+                AdUploadFile.report_date >= start_date,
+                AdUploadFile.report_date <= end_date,
+                # NOTE: scope_status 过滤暂时拿掉 (Step 7 Alembic 给 C 表加列后再加回)
             )
-            .group_by(AnalysisSourceFile.report_date)
-            .order_by(AnalysisSourceFile.report_date)
+            .group_by(AdUploadFile.report_date)
+            .order_by(AdUploadFile.report_date)
         )
         rows = db.execute(stmt).all()
 
@@ -640,30 +642,30 @@ def _get_ad_campaign_summary_sql(
         
         stmt = (
             select(
-                AnalysisSourceFile.report_date,
-                func.sum(AnalysisAdProductRow.impressions).label("impressions"),
-                func.sum(AnalysisAdProductRow.clicks).label("clicks"),
-                func.sum(AnalysisAdProductRow.spend).label("ad_spend"),
-                func.sum(AnalysisAdProductRow.sales_7d).label("ad_sales"),
-                func.sum(AnalysisAdProductRow.orders_7d).label("ad_orders"),
+                AdUploadFile.report_date,
+                func.sum(AdUploadPromotedProductRow.impressions).label("impressions"),
+                func.sum(AdUploadPromotedProductRow.clicks).label("clicks"),
+                func.sum(AdUploadPromotedProductRow.spend).label("ad_spend"),
+                func.sum(AdUploadPromotedProductRow.sales_7d).label("ad_sales"),
+                func.sum(AdUploadPromotedProductRow.orders_7d).label("ad_orders"),
             )
-            .select_from(AnalysisSourceFile)
+            .select_from(AdUploadFile)
             .join(
-                AnalysisAdProductRow,
-                AnalysisAdProductRow.source_file_id == AnalysisSourceFile.id,
+                AdUploadPromotedProductRow,
+                AdUploadPromotedProductRow.source_file_id == AdUploadFile.id,
             )
             .where(
-                AnalysisSourceFile.project_id == project_id,
-                AnalysisSourceFile.report_type == "ad_product_report",
-                AnalysisSourceFile.country == country,
-                AnalysisSourceFile.is_current.is_(True),
-                AnalysisSourceFile.report_date.is_not(None),
-                AnalysisSourceFile.report_date >= start_date,
-                AnalysisSourceFile.report_date <= end_date,
-                AnalysisAdProductRow.scope_status == "included_product",
+                AdUploadFile.project_id == project_id,
+                AdUploadFile.report_type == "ad_promoted_product_report",
+                AdUploadFile.country == country,
+                AdUploadFile.is_current.is_(True),
+                AdUploadFile.report_date.is_not(None),
+                AdUploadFile.report_date >= start_date,
+                AdUploadFile.report_date <= end_date,
+                # NOTE: scope_status 过滤暂时拿掉 (Step 7 Alembic 给 C 表加列后再加回)
             )
-            .group_by(AnalysisSourceFile.report_date)
-            .order_by(AnalysisSourceFile.report_date)
+            .group_by(AdUploadFile.report_date)
+            .order_by(AdUploadFile.report_date)
         )
         rows = db.execute(stmt).all()
 
