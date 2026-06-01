@@ -41,7 +41,8 @@ class AnalysisSourceFile(Base):
             name='analysis_sources_period_version_key',
         ),
         CheckConstraint(
-            "report_type in ('business_report', 'payment_report', 'ad_product_report', 'sales_report', 'inventory_report', 'return_report')",
+            # ad_product_report 已切到 C 表 (ad_upload_files), 不再写入 A 表
+            "report_type in ('business_report', 'payment_report', 'sales_report', 'inventory_report', 'return_report')",
             name='ck_analysis_sources_report_type',
         ),
         CheckConstraint('version >= 1', name='ck_analysis_sources_version_positive'),
@@ -51,7 +52,8 @@ class AnalysisSourceFile(Base):
         ),
         CheckConstraint(
             "("
-            "report_type in ('business_report', 'payment_report', 'ad_product_report', 'sales_report', 'return_report') "
+            # ad_product_report 已切走
+            "report_type in ('business_report', 'payment_report', 'sales_report', 'return_report') "
             'and period_start_date is not null '
             'and period_end_date is not null '
             'and period_start_date <= period_end_date '
