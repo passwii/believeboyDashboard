@@ -8,7 +8,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import (
-    AnalysisAdProductRow,
+    AdUploadFile,
+    AdUploadPromotedProductRow,
     AnalysisBusinessRow,
     AnalysisSourceFile,
     Project,
@@ -81,24 +82,24 @@ def _build_asin_to_sku_map(
 ) -> dict[str, str]:
     stmt = (
         select(
-            AnalysisAdProductRow.asin,
-            AnalysisAdProductRow.sku,
+            AdUploadPromotedProductRow.ad_asin,
+            AdUploadPromotedProductRow.ad_sku,
         )
         .join(
-            AnalysisSourceFile,
-            AnalysisSourceFile.id == AnalysisAdProductRow.source_file_id,
+            AdUploadFile,
+            AdUploadFile.id == AdUploadPromotedProductRow.source_file_id,
         )
         .where(
-            AnalysisSourceFile.project_id == project_id,
-            AnalysisSourceFile.report_type == "ad_product_report",
-            AnalysisSourceFile.country == country,
-            AnalysisSourceFile.is_current.is_(True),
-            AnalysisSourceFile.report_date.is_not(None),
-            AnalysisSourceFile.report_date >= start_date,
-            AnalysisSourceFile.report_date <= end_date,
-            AnalysisAdProductRow.scope_status == "included_product",
-            AnalysisAdProductRow.asin.is_not(None),
-            AnalysisAdProductRow.sku.is_not(None),
+            AdUploadFile.project_id == project_id,
+            AdUploadFile.report_type == "ad_promoted_product_report",
+            AdUploadFile.country == country,
+            AdUploadFile.is_current.is_(True),
+            AdUploadFile.report_date.is_not(None),
+            AdUploadFile.report_date >= start_date,
+            AdUploadFile.report_date <= end_date,
+            # NOTE: scope_status 过滤暂时拿掉 (Step 7 Alembic 给 C 表加列后再加回)
+            AdUploadPromotedProductRow.ad_asin.is_not(None),
+            AdUploadPromotedProductRow.ad_sku.is_not(None),
         )
         .distinct()
     )
@@ -186,6 +187,19 @@ def _load_latest_available_dates(
     project_id: int,
     country: str,
 ) -> dict[str, str | None]:
+    # ad 数据从 ad_upload_files 查 (C 表是 ad 报告的新体系)
+    latest_ad_date: date | None = db.execute(
+        select(func.max(AdUploadFile.report_date))
+        .where(
+            AdUploadFile.project_id == project_id,
+            AdUploadFile.country == country,
+            AdUploadFile.is_current.is_(True),
+            AdUploadFile.report_type == "ad_promoted_product_report",
+            AdUploadFile.report_date.is_not(None),
+        )
+    ).scalar()
+
+    # 其他 3 种 report_type 仍从 analysis_source_files 读
     stmt = select(
         AnalysisSourceFile.report_type,
         AnalysisSourceFile.report_date,
@@ -196,13 +210,12 @@ def _load_latest_available_dates(
         AnalysisSourceFile.country == country,
         AnalysisSourceFile.is_current.is_(True),
         AnalysisSourceFile.report_type.in_(
-            ("sales_report", "ad_product_report", "inventory_report", "business_report")
+            ("sales_report", "inventory_report", "business_report")
         ),
     )
     rows = db.execute(stmt).all()
 
     latest_sales_date: date | None = None
-    latest_ad_date: date | None = None
     latest_inventory_date: date | None = None
     latest_business_date: date | None = None
 
@@ -215,15 +228,6 @@ def _load_latest_available_dates(
                 business_date
                 if latest_sales_date is None or business_date > latest_sales_date
                 else latest_sales_date
-            )
-        elif report_type == "ad_product_report":
-            business_date = report_date
-            if business_date is None:
-                continue
-            latest_ad_date = (
-                business_date
-                if latest_ad_date is None or business_date > latest_ad_date
-                else latest_ad_date
             )
         elif report_type == "inventory_report":
             business_date = report_date or (

@@ -13,7 +13,8 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models import (
-    AnalysisAdProductRow,
+    AdUploadFile,
+    AdUploadPromotedProductRow,
     AnalysisReturnRow,
     AnalysisSalesOrderRow,
     AnalysisSourceFile,
@@ -575,23 +576,23 @@ def _get_ads_comparison(
         try:
             query = (
                 db.query(
-                    func.coalesce(func.sum(AnalysisAdProductRow.spend), 0).label("spend"),
-                    func.coalesce(func.sum(AnalysisAdProductRow.sales_7d), 0).label("sales"),
-                    func.coalesce(func.sum(AnalysisAdProductRow.clicks), 0).label("clicks"),
-                    func.coalesce(func.sum(AnalysisAdProductRow.impressions), 0).label("impressions"),
-                    func.coalesce(func.sum(AnalysisAdProductRow.orders_7d), 0).label("orders"),
+                    func.coalesce(func.sum(AdUploadPromotedProductRow.spend), 0).label("spend"),
+                    func.coalesce(func.sum(AdUploadPromotedProductRow.sales_7d), 0).label("sales"),
+                    func.coalesce(func.sum(AdUploadPromotedProductRow.clicks), 0).label("clicks"),
+                    func.coalesce(func.sum(AdUploadPromotedProductRow.impressions), 0).label("impressions"),
+                    func.coalesce(func.sum(AdUploadPromotedProductRow.orders_7d), 0).label("orders"),
                 )
-                .join(AnalysisSourceFile, AnalysisSourceFile.id == AnalysisAdProductRow.source_file_id)
+                .join(AdUploadFile, AdUploadFile.id == AdUploadPromotedProductRow.source_file_id)
                 .filter(
-                    AnalysisSourceFile.country == country,
-                    AnalysisSourceFile.report_type == "ad_product_report",
-                    AnalysisSourceFile.is_current == True,
-                    AnalysisSourceFile.period_end_date >= start,
-                    AnalysisSourceFile.period_end_date <= end,
+                    AdUploadFile.country == country,
+                    AdUploadFile.report_type == "ad_promoted_product_report",
+                    AdUploadFile.is_current == True,
+                    AdUploadFile.period_end_date >= start,
+                    AdUploadFile.period_end_date <= end,
                 )
             )
             if project_ids:
-                query = query.filter(AnalysisSourceFile.project_id.in_(project_ids))
+                query = query.filter(AdUploadFile.project_id.in_(project_ids))
 
             row = query.first()
             spend = float(row.spend) if row and row.spend else 0.0

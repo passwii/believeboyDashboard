@@ -6,7 +6,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import AnalysisAdProductRow, AnalysisSourceFile
+from app.models import AdUploadFile, AdUploadPromotedProductRow
 from app.services.daily.aggregation import _get_or_create_bucket, _set_asin_if_blank
 
 
@@ -21,27 +21,27 @@ def _load_ad_metrics(
 ) -> tuple[set[str], str | None]:
     stmt = (
         select(
-            AnalysisSourceFile.report_date,
-            AnalysisAdProductRow.sku,
-            AnalysisAdProductRow.asin,
-            AnalysisAdProductRow.impressions,
-            AnalysisAdProductRow.clicks,
-            AnalysisAdProductRow.spend,
-            AnalysisAdProductRow.orders_7d,
+            AdUploadFile.report_date,
+            AdUploadPromotedProductRow.ad_sku,
+            AdUploadPromotedProductRow.ad_asin,
+            AdUploadPromotedProductRow.impressions,
+            AdUploadPromotedProductRow.clicks,
+            AdUploadPromotedProductRow.spend,
+            AdUploadPromotedProductRow.orders_7d,
         )
         .join(
-            AnalysisAdProductRow,
-            AnalysisAdProductRow.source_file_id == AnalysisSourceFile.id,
+            AdUploadPromotedProductRow,
+            AdUploadPromotedProductRow.source_file_id == AdUploadFile.id,
         )
         .where(
-            AnalysisSourceFile.project_id == project_id,
-            AnalysisSourceFile.report_type == "ad_product_report",
-            AnalysisSourceFile.country == country,
-            AnalysisSourceFile.is_current.is_(True),
-            AnalysisSourceFile.report_date.is_not(None),
-            AnalysisSourceFile.report_date >= start_date,
-            AnalysisSourceFile.report_date <= end_date,
-            AnalysisAdProductRow.scope_status == "included_product",
+            AdUploadFile.project_id == project_id,
+            AdUploadFile.report_type == "ad_promoted_product_report",
+            AdUploadFile.country == country,
+            AdUploadFile.is_current.is_(True),
+            AdUploadFile.report_date.is_not(None),
+            AdUploadFile.report_date >= start_date,
+            AdUploadFile.report_date <= end_date,
+            # NOTE: scope_status 过滤暂时拿掉 (Step 7 Alembic 给 C 表加列后再加回)
         )
     )
     rows = db.execute(stmt).all()

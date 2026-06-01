@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import (
+    AdUploadPromotedProductRow,
     AnalysisAdProductRow,
     AnalysisBusinessRow,
     AnalysisPaymentRow,
@@ -39,13 +40,17 @@ def _get_project_by_name(db: Session, project_name: str) -> Project:
 
 
 def _get_row_model(report_type: str):
-    """Return the SQLAlchemy model class for a given report type."""
+    """Return the SQLAlchemy model class for a given report type.
+
+    注：ad_product_report 已切到 C 表 (AdUploadPromotedProductRow)；
+    其他 report_type 仍在 A 表。
+    """
     if report_type == 'business_report':
         return AnalysisBusinessRow
     if report_type == 'payment_report':
         return AnalysisPaymentRow
     if report_type == 'ad_product_report':
-        return AnalysisAdProductRow
+        return AdUploadPromotedProductRow
     if report_type == 'inventory_report':
         return InventorySnapshotRow
     if report_type == 'sales_report':
@@ -79,13 +84,29 @@ def _serialize_row(report_type: str, row: Any) -> dict[str, Any]:
             'raw_row': row.raw_row,
         }
     if report_type == 'ad_product_report':
+        # C 表 AdUploadPromotedProductRow 没有 scope_status 列
+        # scope 信息保留在 raw_row.__meta__.old_scope_status (Step 7 加列后再加回)
+        raw = row.raw_row or {}
+        meta = raw.get('__meta__', {}) if isinstance(raw, dict) else {}
         return {
-            'source_row_no': row.source_row_no, 'sku': row.sku, 'asin': row.asin,
+            'source_row_no': row.source_row_no,
+            'sku': row.ad_sku, 'asin': row.ad_asin,
             'impressions': row.impressions, 'clicks': row.clicks,
+            'ctr': float(row.ctr or 0),
+            'cpc': float(row.cpc or 0),
             'spend': float(row.spend or 0), 'sales_7d': float(row.sales_7d or 0),
-            'orders_7d': row.orders_7d,
-            'scope_status': row.scope_status, 'scope_reason': row.scope_reason,
-            'raw_row': row.raw_row,
+            'acos': float(row.acos or 0), 'roas': float(row.roas or 0),
+            'orders_7d': row.orders_7d, 'units_7d': row.units_7d,
+            'cvr_7d': float(row.cvr_7d or 0),
+            'ad_sku_units_7d': row.ad_sku_units_7d,
+            'other_sku_units_7d': row.other_sku_units_7d,
+            'ad_sku_sales_7d': float(row.ad_sku_sales_7d or 0),
+            'other_sku_sales_7d': float(row.other_sku_sales_7d or 0),
+            'campaign_name': row.campaign_name,
+            'ad_group_name': row.ad_group_name,
+            'scope_status': meta.get('old_scope_status'),  # 来自 raw_row.__meta__
+            'scope_reason': meta.get('old_scope_reason'),
+            'raw_row': raw,
         }
     if report_type == 'inventory_report':
         return {

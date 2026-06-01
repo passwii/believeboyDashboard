@@ -13,10 +13,12 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import insert, or_, select, update as sa_update
+from sqlalchemy import func, insert, or_, select, update as sa_update
 from sqlalchemy.orm import Session
 
 from app.models import (
+    AdUploadFile,
+    AdUploadPromotedProductRow,
     AnalysisAdProductRow,
     AnalysisBusinessRow,
     AnalysisPT1Calculation,
@@ -272,6 +274,121 @@ def _build_pt_sku_detail_rows(details: Any) -> list[dict[str, Any]]:
     return payloads
 
 
+def _persist_ad_product_to_c_table(
+    db: Session,
+    *,
+    project: Project,
+    country: str,
+    report_date: date | None,
+    period_start_date: date | None,
+    period_end_date: date | None,
+    upload_file_id: str,
+    upload_file_path: str,
+    created_by: str | None = None,
+) -> SourcePersistOutcome:
+    """把 ad_product_report 持久化到 C 表 (ad_upload_files + ad_upload_promoted_product_rows)。
+
+    与 _persist_one_source_file 的差异：
+    - 创建 AdUploadFile 而不是 AnalysisSourceFile
+    - 行用 _ingest_detail_rows 写到 ad_upload_promoted_product_rows
+    - 不做 scope 分类 (Step 7 加 scope_status 列后再加回)
+    """
+    from app.services.ad.upload.persistence import _ensure_table, _ingest_detail_rows
+    _ensure_table(db)
+    normalized_country = _normalize_country(country)
+    # C 表 ad_upload_files 的 report_type 是 'ad_promoted_product_report'
+    c_report_type = 'ad_promoted_product_report'
+    now = datetime.now(UTC)
+    path = Path(upload_file_path)
+    file_size_bytes = path.stat().st_size if path.exists() else None
+    file_extension = (path.suffix or '').lower() or '.xlsx'
+    period_start = period_start_date or report_date
+    period_end = period_end_date or report_date
+
+    # 计算 version (C 表自己)
+    max_version = db.execute(
+        select(func.max(AdUploadFile.version))
+        .where(
+            AdUploadFile.project_id == project.id,
+            AdUploadFile.report_type == c_report_type,
+            AdUploadFile.country == normalized_country,
+            AdUploadFile.period_start_date == period_start,
+            AdUploadFile.period_end_date == period_end,
+        )
+    ).scalar_one_or_none() or 0
+    new_version = int(max_version) + 1
+
+    # 标记旧 is_current=False
+    db.execute(
+        sa_update(AdUploadFile)
+        .where(
+            AdUploadFile.project_id == project.id,
+            AdUploadFile.report_type == c_report_type,
+            AdUploadFile.country == normalized_country,
+            AdUploadFile.period_start_date == period_start,
+            AdUploadFile.period_end_date == period_end,
+            AdUploadFile.is_current.is_(True),
+        )
+        .values(is_current=False, superseded_at=now)
+    )
+
+    # 创建 AdUploadFile
+    source = AdUploadFile(
+        project_id=project.id,
+        project_name=project.project_name,
+        report_type=c_report_type,
+        report_label=f'Ad-Promoted-Product-{period_start.isoformat() if period_start else "unknown"}',
+        country=normalized_country,
+        report_date=report_date,
+        period_start_date=period_start,
+        period_end_date=period_end,
+        version=new_version,
+        is_current=True,
+        upload_file_id=upload_file_id,
+        upload_file_path=upload_file_path,
+        original_filename=_restore_original_filename(upload_file_id),
+        stored_filename=upload_file_id,
+        logical_filename=path.name or upload_file_id,
+        file_extension=file_extension,
+        file_size_bytes=file_size_bytes,
+        recognition_status='recognized',
+        ingestion_status='saved',
+        row_count_preview=0,  # 写入后回填
+        matched_columns=[],
+        warnings=[],
+        recognition_payload={},
+        created_by=(created_by or '').strip()[:255] or None,
+    )
+    db.add(source)
+    db.flush()
+
+    # 写入 C 表行
+    _ingest_detail_rows(
+        db,
+        source_file_id=int(source.id),
+        report_type='ad_promoted_product_report',
+        path=path,
+    )
+
+    # 写 report_upload_log (用老 A 表的 report_type，便于 dashboard 兼容)
+    _write_report_upload_log(
+        db,
+        project.id,
+        normalized_country,
+        AD_PRODUCT_REPORT,
+        source_file_id=int(source.id),
+        has_real_data=True,
+        original_filename=_restore_original_filename(upload_file_id),
+    )
+
+    return SourcePersistOutcome(
+        report_type=AD_PRODUCT_REPORT,
+        source_id=source.id,
+        success=True,
+        error_message=None,
+    )
+
+
 def _persist_one_source_file(
     db: Session,
     *,
@@ -291,7 +408,23 @@ def _persist_one_source_file(
 
     根据 report_type 选择对应的解析器，解析文件后批量插入对应的明细表，
     并创建 AnalysisSourceFile 元数据记录。
+
+    ad_product_report 已切到 C 表 (走 _persist_ad_product_to_c_table)；
+    其他 report_type 仍在 A 表。
     """
+    # ad_product_report 走 C 表
+    if report_type == AD_PRODUCT_REPORT:
+        return _persist_ad_product_to_c_table(
+            db,
+            project=project,
+            country=country,
+            report_date=report_date,
+            period_start_date=period_start_date,
+            period_end_date=period_end_date,
+            upload_file_id=upload_file_id,
+            upload_file_path=upload_file_path,
+            created_by=created_by,
+        )
     ensure_tables(db)
     normalized_country = _normalize_country(country)
     report_type = normalize_report_type(report_type)
