@@ -374,20 +374,28 @@ Skills 位于 `.claude/skills/` 目录，每个 skill 有独立的 `SKILL.md` �
 
 ### 数据表说明
 
-系统中存在两类广告数据表：
+ad 报告现在使用 `ad_upload_files` 体系（**正在使用**），取代了之前的 `analysis_source_files` ad_product_report 路径。
 
 | 表名 | 用途 | 使用状态 |
 |------|------|----------|
-| `ad_upload_*` | 亚马逊原始广告报表（直接上传） | **已废弃**，仅作占位 |
-| `analysis_ad_product_rows` | 每日维护的广告产品数据 | **正在使用** |
+| `ad_upload_files` + `ad_upload_promoted_product_rows` | 亚马逊原始广告报表（按文件存储） | **正在使用** |
+| `analysis_source_files` + `analysis_ad_product_rows` (ad_product_report 部分) | 旧的"分析"路径 | **已下线**（2026-06-01 alembic 152 删了 27,445 行） |
 
 ### 重要决策记录
 
-**2026-05-22**: `_build_ad_snapshot` 函数已修改为从 `analysis_ad_product_rows` 查询广告数据，不再使用 `ad_upload_campaign_rows`。
+**2026-06-01**: ad_product_report 数据从 A 表 (`analysis_source_files` + `analysis_ad_product_rows`) 完整迁移到 C 表 (`ad_upload_files` + `ad_upload_promoted_product_rows`)：
+- 业务读取 10 个调用点已切换到 C 表（daily/ad, daily/analysis, product/ad, product/sources, product/_internal, scheduled_report/{daily,weekly}, digital_display_service, ai_insight_aggregator）
+- 新数据入口（`commit_upload` 走 ad_product_report）已切到 C 表（不再写 A 表）
+- A 表 ad_product_report 数据已删除（alembic 152）；CHECK constraint 移除 `ad_product_report` 防止未来误用
+- `raw_row.__meta__` 保留迁移来源追溯 (`old_source_file_id`, `old_source_row_no`, `old_scope_status`)
+- alembic 153 独立回填 scope_status 列（从 raw_row.__meta__ 提取），处理"加列时 0 数据"陷阱
 
-原因：`ad_upload_` 仅项目4（玥涵）有数据，且数据日期为2026-03-26。创酷（项目15）及其他13个项目的数据维护在 `analysis_ad_product_rows` 表中，最新数据到2026-05-21。
+**2026-05-22** (已撤销): `_build_ad_snapshot` 函数曾修改为从 `analysis_ad_product_rows` 查询广告数据。
+
+原因（已失效）：当时 `ad_upload_` 仅项目4（玥涵）有数据，且数据日期为2026-03-26。其他13个项目数据维护在 `analysis_ad_product_rows` 表中。**该决策于 2026-06-01 被 ad_product_report 数据迁移到 C 表 取代**。
 
 ### 报告类型映射
 
-- `analysis_ad_product_rows` 对应 `AnalysisSourceFile.report_type = 'ad_product_report'`
-- 日期过滤使用 `AnalysisSourceFile.period_end_date` 而非 `report_date`
+- `ad_upload_promoted_product_rows` 对应 `AdUploadFile.report_type = 'ad_promoted_product_report'`
+- 日期过滤使用 `AdUploadFile.report_date`（同 `period_end_date`，因为单日上传时相等）
+- scope 过滤：`AdUploadPromotedProductRow.scope_status == 'included_product'`
