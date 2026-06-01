@@ -359,6 +359,7 @@ def _build_ad_snapshot(
             AdUploadFile.is_current == True,
             AdUploadFile.period_end_date >= start_date,
             AdUploadFile.period_end_date <= end_date,
+            AdUploadPromotedProductRow.scope_status == "included_product",
         )
         .first()
     )

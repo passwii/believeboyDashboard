@@ -589,6 +589,7 @@ def _get_ads_comparison(
                     AdUploadFile.is_current == True,
                     AdUploadFile.period_end_date >= start,
                     AdUploadFile.period_end_date <= end,
+                    AdUploadPromotedProductRow.scope_status == "included_product",
                 )
             )
             if project_ids:
