@@ -97,7 +97,7 @@ def _build_asin_to_sku_map(
             AdUploadFile.report_date.is_not(None),
             AdUploadFile.report_date >= start_date,
             AdUploadFile.report_date <= end_date,
-            # NOTE: scope_status 过滤暂时拿掉 (Step 7 Alembic 给 C 表加列后再加回)
+            AdUploadPromotedProductRow.scope_status == "included_product",
             AdUploadPromotedProductRow.ad_asin.is_not(None),
             AdUploadPromotedProductRow.ad_sku.is_not(None),
         )

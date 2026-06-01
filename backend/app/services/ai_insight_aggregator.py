@@ -367,7 +367,7 @@ def _aggregate_ad_by_date_sql(
                 AdUploadFile.report_date.is_not(None),
                 AdUploadFile.report_date >= start_date,
                 AdUploadFile.report_date <= end_date,
-                # NOTE: scope_status 过滤暂时拿掉 (Step 7 Alembic 给 C 表加列后再加回)
+                AdUploadPromotedProductRow.scope_status == "included_product",
             )
             .group_by(AdUploadFile.report_date)
             .order_by(AdUploadFile.report_date)
@@ -662,7 +662,7 @@ def _get_ad_campaign_summary_sql(
                 AdUploadFile.report_date.is_not(None),
                 AdUploadFile.report_date >= start_date,
                 AdUploadFile.report_date <= end_date,
-                # NOTE: scope_status 过滤暂时拿掉 (Step 7 Alembic 给 C 表加列后再加回)
+                AdUploadPromotedProductRow.scope_status == "included_product",
             )
             .group_by(AdUploadFile.report_date)
             .order_by(AdUploadFile.report_date)

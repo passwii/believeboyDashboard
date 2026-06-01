@@ -284,6 +284,8 @@ def _persist_ad_product_to_c_table(
     period_end_date: date | None,
     upload_file_id: str,
     upload_file_path: str,
+    known_skus: set[str],
+    known_asins: set[str],
     created_by: str | None = None,
 ) -> SourcePersistOutcome:
     """把 ad_product_report 持久化到 C 表 (ad_upload_files + ad_upload_promoted_product_rows)。
@@ -291,9 +293,18 @@ def _persist_ad_product_to_c_table(
     与 _persist_one_source_file 的差异：
     - 创建 AdUploadFile 而不是 AnalysisSourceFile
     - 行用 _ingest_detail_rows 写到 ad_upload_promoted_product_rows
-    - 不做 scope 分类 (Step 7 加 scope_status 列后再加回)
+    - 新数据走 classify_scope 分类并写入 scope_status 列
     """
-    from app.services.ad.upload.persistence import _ensure_table, _ingest_detail_rows
+    from app.services.ad.upload.persistence import (
+        _ensure_table,
+        _read_dataframe,
+        _prepare_ingest_dataframe,
+        _resolve_record_date_range,
+        _clean_string,
+    )
+    from app.services.ad.upload.utils import _to_int, _to_decimal, _raw_row_dict
+    from app.utils.parsers import classify_scope
+
     _ensure_table(db)
     normalized_country = _normalize_country(country)
     # C 表 ad_upload_files 的 report_type 是 'ad_promoted_product_report'
@@ -362,13 +373,45 @@ def _persist_ad_product_to_c_table(
     db.add(source)
     db.flush()
 
-    # 写入 C 表行
-    _ingest_detail_rows(
-        db,
-        source_file_id=int(source.id),
-        report_type='ad_promoted_product_report',
-        path=path,
-    )
+    # 读 xlsx + scope 分类 + 写入 C 表行
+    df = _prepare_ingest_dataframe(_read_dataframe(path))
+    for index, (_, series) in enumerate(df.iterrows(), start=1):
+        record = series.to_dict()
+        sku = _clean_string(record.get('广告SKU'))
+        asin = _clean_string(record.get('广告ASIN'))
+        scope_status, _scope_reason = classify_scope(
+            sku=sku, asin=asin, known_skus=known_skus, known_asins=known_asins,
+        )
+        report_start_date, report_end_date = _resolve_record_date_range(record)
+        db.add(
+            AdUploadPromotedProductRow(
+                source_file_id=int(source.id),
+                source_row_no=index,
+                report_start_date=report_start_date,
+                report_end_date=report_end_date,
+                campaign_name=_clean_string(record.get('广告活动名称')),
+                ad_group_name=_clean_string(record.get('广告组名称')),
+                ad_sku=sku,
+                ad_asin=asin,
+                impressions=_to_int(record.get('展示量')),
+                clicks=_to_int(record.get('点击量')),
+                ctr=_to_decimal(record.get('点击率 (CTR)')),
+                spend=_to_decimal(record.get('花费')),
+                cpc=_to_decimal(record.get('单次点击成本 (CPC)')),
+                orders_7d=_to_int(record.get('7天总订单数(#)')),
+                units_7d=_to_int(record.get('7天总销售量(#)')),
+                sales_7d=_to_decimal(record.get('7天总销售额')),
+                acos=_to_decimal(record.get('广告投入产出比 (ACOS) 总计')),
+                roas=_to_decimal(record.get('总广告投资回报率 (ROAS)')),
+                cvr_7d=_to_decimal(record.get('7天的转化率')),
+                ad_sku_units_7d=_to_int(record.get('7天内广告SKU销售量(#)')),
+                other_sku_units_7d=_to_int(record.get('7天内其他SKU销售量(#)')),
+                ad_sku_sales_7d=_to_decimal(record.get('7天内广告SKU销售额')),
+                other_sku_sales_7d=_to_decimal(record.get('7天内其他SKU销售额')),
+                scope_status=scope_status,
+                raw_row=_raw_row_dict(record),
+            )
+        )
 
     # 写 report_upload_log (用老 A 表的 report_type，便于 dashboard 兼容)
     _write_report_upload_log(
@@ -423,6 +466,8 @@ def _persist_one_source_file(
             period_end_date=period_end_date,
             upload_file_id=upload_file_id,
             upload_file_path=upload_file_path,
+            known_skus=known_skus,
+            known_asins=known_asins,
             created_by=created_by,
         )
     ensure_tables(db)
