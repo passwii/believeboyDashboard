@@ -34,6 +34,7 @@ from models import (
     ProductCost,
     Project,
     ReportUploadLog,
+    AdUploadFile,
 )
 from recognition import (
     B_TABLE_AD_REPORT_TYPES,
@@ -526,6 +527,9 @@ def _persist_ad_upload_report(
     normalized_country = _normalize_country(country)
     file_size_bytes = file_path.stat().st_size
 
+    # Compute SHA-256 of the source file once; reused for all (periodic) scopes.
+    file_sha256_hash = _sha256_file(file_path)
+
     # Parse the source dataframe using the B-table shared helpers
     raw_df = _ad_read_dataframe(file_path)
     source_df = _ad_prepare_df(raw_df)
@@ -589,6 +593,7 @@ def _persist_ad_upload_report(
                     "source": "autoReportUpload",
                 },
                 created_by="autoReportUpload",
+                file_sha256=file_sha256_hash,
             )
             saved_rows.append(row)
     else:
@@ -618,6 +623,7 @@ def _persist_ad_upload_report(
                 "source": "autoReportUpload",
             },
             created_by="autoReportUpload",
+            file_sha256=file_sha256_hash,
         )
         saved_rows.append(row)
 
@@ -1292,21 +1298,48 @@ def _parse_payment_period_from_filename(value: str | None) -> tuple[date, date] 
 def _find_sha256_duplicates(db: Session, file_sha256: str) -> list[dict]:
     """Find existing records with same SHA-256 (autoReportUpload version).
 
-    Returns list of dicts with project_id, report_type, country, source_id, row_count_total.
+    Scans BOTH A-table (analysis_source_files) and C-table (ad_upload_files) for
+    any prior ingestion of this exact file.  Returns list of dicts with
+    project_id, report_type, country, source_id, row_count_total, and table
+    (so callers can log which table held the duplicate).
     """
-    rows = db.execute(
+    duplicates: list[dict] = []
+
+    # A-table: 业务/销售/付款/库存/退货 (5 types still active)
+    a_rows = db.execute(
         select(AnalysisSourceFile).where(
             AnalysisSourceFile.file_sha256 == file_sha256
         )
     ).scalars().all()
-
-    return [
-        {
+    for row in a_rows:
+        duplicates.append({
             "project_id": row.project_id,
             "report_type": row.report_type,
             "country": row.country,
             "source_id": row.id,
             "row_count_total": row.row_count_total,
-        }
-        for row in rows
-    ]
+            "table": "A",
+        })
+
+    # C-table: ad_*_report (10 types). Periodic files split into multiple
+    # AdUploadFile rows (one per scope_date) — each is a separate match.
+    c_rows = db.execute(
+        select(AdUploadFile).where(
+            AdUploadFile.file_sha256 == file_sha256
+        )
+    ).scalars().all()
+    for row in c_rows:
+        # C-table AdUploadFile uses period_start_date / period_end_date as
+        # the canonical "row_count" signal — total_ad_rows lives on the
+        # related detail row table (not all share the same column name),
+        # so we report 0 here and rely on log_warnings for context.
+        duplicates.append({
+            "project_id": int(row.project_id),
+            "report_type": row.report_type,
+            "country": row.country,
+            "source_id": int(row.id),
+            "row_count_total": 0,
+            "table": "C",
+        })
+
+    return duplicates

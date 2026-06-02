@@ -49,6 +49,7 @@ from app.services.ad.upload.utils import (
     _to_int,
 )
 from app.utils.country import normalize_country
+from app.utils.utils import sha256_file
 
 
 def _ensure_table(db: Session) -> None:
@@ -413,6 +414,7 @@ def save_ad_upload_scope(
     warnings: list[str] | None = None,
     recognition_payload: dict | None = None,
     created_by: str | None = None,
+    file_sha256: str | None = None,
 ) -> AdUploadFile:
     """Persist a single (project, report_type, country, scope_date) AdUploadFile + detail rows.
 
@@ -486,6 +488,7 @@ def save_ad_upload_scope(
         warnings=list(warnings or []),
         recognition_payload=dict(recognition_payload or {}),
         created_by=(created_by or '').strip()[:255] or None,
+        file_sha256=file_sha256,
     )
     db.add(new_row)
     db.flush()
@@ -577,6 +580,14 @@ def commit_ad_upload(
         report_type=payload.report_type,
     )
 
+    # Compute SHA-256 of the source file once; reused for all (periodic) scopes.
+    file_sha256_hash: str | None = None
+    try:
+        file_sha256_hash = sha256_file(Path(str(file_meta['file_path'])))
+    except (OSError, FileNotFoundError):
+        # File not on disk (e.g. test fixtures) — leave hash as None.
+        file_sha256_hash = None
+
     def _save_scope(*, scope_date: date, scope_df: pd.DataFrame, row_count_preview: int) -> AdUploadFile:
         return save_ad_upload_scope(
             db,
@@ -595,6 +606,7 @@ def commit_ad_upload(
             warnings=list(recognition.warnings),
             recognition_payload=recognition.model_dump(mode='json'),
             created_by=operator,
+            file_sha256=file_sha256_hash,
         )
 
     saved_rows: list[AdUploadFile] = []

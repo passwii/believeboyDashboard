@@ -79,6 +79,7 @@ class AdUploadFile(Base):
             'period_start_date',
             'period_end_date',
         ),
+        Index('idx_ad_upload_files_file_sha256', 'file_sha256'),
     )
 
     id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
@@ -107,6 +108,9 @@ class AdUploadFile(Base):
     logical_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     file_extension: Mapped[str] = mapped_column(String(16), nullable=False)
     file_size_bytes: Mapped[int | None] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), nullable=True)
+    # SHA-256 hash of source file (hex string). Nullable for backfill / historical rows.
+    # Indexed for fast duplicate detection (autoReportUpload dedup).
+    file_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     recognition_status: Mapped[str] = mapped_column(String(16), nullable=False, server_default='recognized')
     ingestion_status: Mapped[str] = mapped_column(String(16), nullable=False, server_default='pending')
