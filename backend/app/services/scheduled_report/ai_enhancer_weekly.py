@@ -159,11 +159,20 @@ def _generate_fallback_weekly_summary(report_data: dict[str, Any]) -> str:
     - 关键变化摘要
     - 简单预警提示
     """
-    current = report_data.get("current_week", {})
-    prev = report_data.get("prev_week", {})
-    changes = report_data.get("changes", {})
-    alerts = report_data.get("alerts", [])
-    top_skus = report_data.get("top_skus_comparison", [])[:3]
+    current = report_data.get("current_week", {}) or {}
+    prev = report_data.get("prev_week", {}) or {}
+    changes = report_data.get("changes", {}) or {}
+    alerts = report_data.get("alerts", []) or []
+    top_skus = report_data.get("top_skus_comparison", []) or []
+
+    if not isinstance(current, dict):
+        current = {}
+    if not isinstance(prev, dict):
+        prev = {}
+    if not isinstance(changes, dict):
+        changes = {}
+
+    top_skus = list(top_skus)[:3]
 
     # 基础数据
     curr_qty = current.get("qty", 0)

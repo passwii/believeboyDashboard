@@ -90,20 +90,20 @@ def fetch_multi_project_context(
     return merged_project_ctx or None, merged_sku_ctx or None
 
 
-def _is_single_project_context(ctx: dict[str, Any] | None) -> bool:
+def _is_single_project_context(ctx: Any) -> bool:
     """Check whether ctx is a single-project context dict (vs multi-project keyed by name)."""
-    if not ctx:
+    if not ctx or not isinstance(ctx, dict):
         return True
     return bool(_PROJECT_CONTEXT_KEYS & ctx.keys())
 
 
 def format_project_context_for_prompt(
-    project_context: dict[str, Any] | None,
+    project_context: Any,
 ) -> str:
     """Format project_context into prompt text. Handles both single and multi-project."""
     from app.services.ai_insight_generator import _format_project_context_for_prompt
 
-    if not project_context:
+    if not project_context or not isinstance(project_context, dict):
         return _format_project_context_for_prompt({})
 
     if _is_single_project_context(project_context):
@@ -112,18 +112,26 @@ def format_project_context_for_prompt(
     # Multi-project: render each with a project name header
     parts = []
     for name, ctx in project_context.items():
-        text = _format_project_context_for_prompt(ctx)
+        if isinstance(ctx, dict):
+            text = _format_project_context_for_prompt(ctx)
+        elif isinstance(ctx, str):
+            text = ctx
+        else:
+            text = str(ctx) if ctx else "（暂无项目背景信息）"
         parts.append(f"### {name}\n{text}")
     return "\n\n".join(parts)
 
 
 def format_sku_context_for_prompt(
-    sku_context: dict[str, Any] | None,
+    sku_context: Any,
 ) -> str:
     """Format sku_context into prompt text."""
     from app.services.ai_insight_generator import _format_sku_context_for_prompt
 
-    return _format_sku_context_for_prompt(sku_context or {})
+    if not sku_context or not isinstance(sku_context, dict):
+        return _format_sku_context_for_prompt({})
+
+    return _format_sku_context_for_prompt(sku_context)
 
 
 def fetch_and_format_sku_factory_info(

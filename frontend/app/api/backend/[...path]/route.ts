@@ -48,6 +48,10 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
   // - /ai-insights/generate/stream (legacy NDJSON, kept for back-compat)
   const isStreamEndpoint = /\/ai-insights\/.+\/stream$/.test(backendPath) || /\/ai-insights\/generate\/stream$/.test(backendPath)
 
+  // Long-running endpoints that need a longer timeout:
+  // - /scheduled-reports/test-email (60s) — builds report data + AI summary + email
+  const isScheduledReportTestEmail = /\/scheduled-reports\/test-email$/.test(backendPath)
+
   // Also detect by the request's Accept header (EventSource always sends
   // text/event-stream; NDJSON consumers send application/x-ndjson).
   const requestAccept = (request.headers.get('accept') || '').toLowerCase()
@@ -55,6 +59,14 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
     isStreamEndpoint ||
     requestAccept.includes('text/event-stream') ||
     requestAccept.includes('application/x-ndjson')
+
+  // Choose appropriate timeout
+  let timeoutMs = 10_000
+  if (isStreamRequest) {
+    timeoutMs = 0 // no timeout for streams
+  } else if (isScheduledReportTestEmail) {
+    timeoutMs = 60_000 // 60s for test email (AI summary generation)
+  }
 
   try {
     const search = request.nextUrl.search || ''
@@ -66,7 +78,7 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
       // Stream endpoints: no timeout (let the connection close naturally when
       // the backend finishes or the client disconnects). Other endpoints:
       // 10s guard against runaway backend calls.
-      ...(isStreamRequest ? {} : { signal: AbortSignal.timeout(10_000) }),
+      ...(timeoutMs === 0 ? {} : { signal: AbortSignal.timeout(timeoutMs) }),
     })
     return await toProxyResponse(response)
   } catch (error) {

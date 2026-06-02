@@ -25,6 +25,12 @@ def _format_project_context_for_prompt(context: dict[str, Any]) -> str:
     for key, label in mapping.items():
         if key in context and context[key]:
             section = context[key]
+            if isinstance(section, str):
+                lines.append(f"**{label}**：{section}")
+                continue
+            if not isinstance(section, dict):
+                lines.append(f"**{label}**：{str(section)}")
+                continue
             parts = []
             if key == "factory":
                 if section.get("description"):
@@ -55,8 +61,16 @@ def _format_project_context_for_prompt(context: dict[str, Any]) -> str:
                 lines.append(f"**{label}**：{'；'.join(parts)}")
 
     # 自由备注
-    if context.get("notes"):
-        lines.append(f"**📝 自由备注**：{context['notes']}")
+    notes = context.get("notes")
+    if notes:
+        lines.append(f"**📝 自由备注**：{notes}")
+
+    # 非标准 key（AI context parser 产生的扁平 key-value）
+    known_keys = set(mapping.keys()) | {"notes"}
+    extra_keys = [k for k in context if k not in known_keys and context[k]]
+    for k in extra_keys:
+        val = context[k]
+        lines.append(f"**{k}**：{val if isinstance(val, str) else str(val)}")
 
     return "\n".join(lines) if lines else "（暂无项目背景信息）"
 
@@ -68,6 +82,12 @@ def _format_sku_context_for_prompt(context: dict[str, Any]) -> str:
 
     lines = []
     for sku, item in context.items():
+        if isinstance(item, str):
+            lines.append(f"- **{sku}**：{item}")
+            continue
+        if not isinstance(item, dict):
+            lines.append(f"- **{sku}**：{str(item)}")
+            continue
         parts = []
         if item.get("status"):
             parts.append(f"状态：{item['status']}")
@@ -82,6 +102,8 @@ def _format_sku_context_for_prompt(context: dict[str, Any]) -> str:
 
         if parts:
             lines.append(f"- **{sku}**：{'；'.join(parts)}")
+        else:
+            lines.append(f"- **{sku}**：{str(item)}")
 
     return "\n".join(lines) if lines else "（暂无 SKU 特殊状态）"
 
@@ -466,8 +488,12 @@ def build_insight_messages(
     data_str = json.dumps(display_data, ensure_ascii=False, indent=2)
 
     # 格式化项目背景信息
-    project_context = data.get("project_context", {})
-    sku_context = data.get("sku_context", {})
+    project_context = data.get("project_context") or {}
+    sku_context = data.get("sku_context") or {}
+    if not isinstance(project_context, dict):
+        project_context = {}
+    if not isinstance(sku_context, dict):
+        sku_context = {}
     project_context_text = _format_project_context_for_prompt(project_context)
     sku_context_text = _format_sku_context_for_prompt(sku_context)
 
