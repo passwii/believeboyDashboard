@@ -30,13 +30,21 @@ class ExpectedOccurrence:
     expected_at: datetime
 
 
-def build_ledger_key(subscription_id: int, expected_date: str, country: str | None = None) -> str:
-    if country:
-        return f"{subscription_id}:{expected_date}:{country}"
+def build_ledger_key(subscription_id: int, expected_date: str, **_kwargs) -> str:
+    """Build a unique ledger key per (subscription, expected_date).
+
+    Multi-country subscriptions produce one combined report, so they
+    get one ledger entry — not one per country.
+    """
     return f"{subscription_id}:{expected_date}"
 
 
 def parse_ledger_key(ledger_key: str) -> tuple[int, str]:
+    """Parse ledger key into (subscription_id, expected_date).
+
+    Handles both the current format ``{id}:{date}`` and the legacy
+    multi-country format ``{id}:{date}:{country}``.
+    """
     parts = ledger_key.split(":", 2)
     return int(parts[0]), parts[1]
 
@@ -94,12 +102,10 @@ def _classify_log(log: ScheduledReportDeliveryLog | None) -> str:
 def _upsert_entry(
     db: Session,
     occurrence: ExpectedOccurrence,
-    country: str | None = None,
 ) -> ScheduledReportLedgerEntry:
     sub = occurrence.subscription
     expected_date = occurrence.expected_date.isoformat()
-    entry_country = country if country else sub.country
-    ledger_key = build_ledger_key(sub.id, expected_date, country)
+    ledger_key = build_ledger_key(sub.id, expected_date)
     latest_log = _latest_log_for(db, sub, expected_date)
     status = _classify_log(latest_log)
     now = datetime.now(timezone.utc)
@@ -116,7 +122,7 @@ def _upsert_entry(
             expected_at=occurrence.expected_at,
             email=sub.email,
             project_ids=sub.project_ids,
-            country=entry_country,
+            country=sub.country,
         )
         db.add(entry)
 
@@ -125,7 +131,7 @@ def _upsert_entry(
     entry.expected_at = occurrence.expected_at
     entry.email = sub.email
     entry.project_ids = sub.project_ids
-    entry.country = entry_country
+    entry.country = sub.country
     entry.status = status
     entry.latest_delivery_log_id = latest_log.id if latest_log else None
     entry.error_message = latest_log.error_message if latest_log else None
@@ -268,11 +274,11 @@ def refresh_ledger(
     for sub in subscriptions:
         sub_created_date = sub.created_at.astimezone(SHANGHAI_TZ).date()
         sub_start = max(start, sub_created_date)
-        country_list = sub.country_list
         for day in _iter_dates(sub_start, end):
             if _subscription_matches_date(sub, day):
                 expected_date = day.isoformat()
-                # 清理该 subscription 在该日期的旧记录（避免多国家拆分后残留合并记录）
+                # 清理该 subscription 在该日期的旧记录
+                # 包括旧格式的多国家拆分条目（ledger_key 含国家后缀）
                 db.execute(
                     delete(ScheduledReportLedgerEntry)
                     .where(
@@ -280,13 +286,8 @@ def refresh_ledger(
                         ScheduledReportLedgerEntry.expected_date == expected_date,
                     )
                 )
-                if len(country_list) > 1:
-                    for country in country_list:
-                        occurrence = ExpectedOccurrence(sub, day, _build_expected_at(sub, day))
-                        _upsert_entry(db, occurrence, country=country)
-                else:
-                    occurrence = ExpectedOccurrence(sub, day, _build_expected_at(sub, day))
-                    _upsert_entry(db, occurrence)
+                occurrence = ExpectedOccurrence(sub, day, _build_expected_at(sub, day))
+                _upsert_entry(db, occurrence)
         # 清理订阅创建之前的虚假 ledger 条目
         if sub_created_date > start:
             db.execute(
