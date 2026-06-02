@@ -45,9 +45,11 @@ interface ScheduleListProps {
   onEdit: (schedule: InsightScheduleItem) => void
   onRefresh: () => void
   isRefreshing?: boolean
+  /** When provided, the list filters schedules server-side by insight_type. */
+  insightType?: string
 }
 
-export function ScheduleList({ onEdit, onRefresh, isRefreshing }: ScheduleListProps) {
+export function ScheduleList({ onEdit, onRefresh, isRefreshing, insightType }: ScheduleListProps) {
   const [schedules, setSchedules] = useState<InsightScheduleItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -56,7 +58,10 @@ export function ScheduleList({ onEdit, onRefresh, isRefreshing }: ScheduleListPr
   const loadSchedules = useCallback(async () => {
     try {
       setError(null)
-      const res = await fetch('/api/backend/v1/ai-insights/schedules')
+      const params = new URLSearchParams()
+      if (insightType) params.set('insight_type', insightType)
+      const query = params.toString()
+      const res = await fetch(`/api/backend/v1/ai-insights/schedules${query ? `?${query}` : ''}`)
       if (!res.ok) throw new Error('加载失败')
       const data = await res.json()
       setSchedules(data.items || [])
@@ -66,7 +71,7 @@ export function ScheduleList({ onEdit, onRefresh, isRefreshing }: ScheduleListPr
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [insightType])
 
   useEffect(() => {
     loadSchedules()

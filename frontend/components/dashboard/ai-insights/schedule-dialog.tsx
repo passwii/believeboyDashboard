@@ -35,6 +35,8 @@ interface ScheduleDialogProps {
   onOpenChange: (open: boolean) => void
   schedule?: InsightScheduleItem | null
   onSave: (data: InsightScheduleCreate | InsightScheduleUpdate) => Promise<void>
+  /** When provided, insight_type is locked to this value and the selector is hidden */
+  fixedInsightType?: string
 }
 
 const EMPTY_FORM = {
@@ -51,6 +53,7 @@ export function ScheduleDialog({
   onOpenChange,
   schedule,
   onSave,
+  fixedInsightType,
 }: ScheduleDialogProps) {
   const isEdit = !!schedule
   const [loading, setLoading] = useState(false)
@@ -84,17 +87,20 @@ export function ScheduleDialog({
         setForm({
           project_id: schedule.project_id,
           country: schedule.country as 'US' | 'DE' | 'UK',
-          insight_type: schedule.insight_type as 'daily' | 'weekly' | 'monthly' | 'custom',
+          insight_type: (fixedInsightType || schedule.insight_type) as typeof EMPTY_FORM.insight_type,
           cron_expression: schedule.cron_expression,
           date_range_strategy: schedule.date_range_strategy as any,
           model: schedule.model,
         })
       } else {
-        setForm(EMPTY_FORM)
+        setForm({
+          ...EMPTY_FORM,
+          insight_type: (fixedInsightType || EMPTY_FORM.insight_type) as typeof EMPTY_FORM.insight_type,
+        })
       }
       setError(null)
     }
-  }, [open, schedule])
+  }, [open, schedule, fixedInsightType])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -216,32 +222,34 @@ export function ScheduleDialog({
             </Select>
           </div>
 
-          {/* Insight Type */}
-          <div className="space-y-2">
-            <Label htmlFor="insight_type">
-              <FileText className="inline-block w-4 h-4 mr-1.5 -mt-0.5" />
-              洞察类型
-            </Label>
-            <Select
-              value={form.insight_type}
-              onValueChange={(v) =>
-                setForm({ ...form, insight_type: v as typeof form.insight_type })
-              }
-            >
-              <SelectTrigger id="insight_type">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectLabel>洞察类型</SelectLabel>
-                  <SelectItem value="daily">日报</SelectItem>
-                  <SelectItem value="weekly">周报</SelectItem>
-                  <SelectItem value="monthly">月报</SelectItem>
-                  <SelectItem value="custom">自定义</SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
+          {/* Insight Type (hidden when fixedInsightType is provided) */}
+          {!fixedInsightType && (
+            <div className="space-y-2">
+              <Label htmlFor="insight_type">
+                <FileText className="inline-block w-4 h-4 mr-1.5 -mt-0.5" />
+                洞察类型
+              </Label>
+              <Select
+                value={form.insight_type}
+                onValueChange={(v) =>
+                  setForm({ ...form, insight_type: v as typeof form.insight_type })
+                }
+              >
+                <SelectTrigger id="insight_type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectLabel>洞察类型</SelectLabel>
+                    <SelectItem value="daily">日报</SelectItem>
+                    <SelectItem value="weekly">周报</SelectItem>
+                    <SelectItem value="monthly">月报</SelectItem>
+                    <SelectItem value="custom">自定义</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {/* Cron Expression with presets */}
           <div className="space-y-2">

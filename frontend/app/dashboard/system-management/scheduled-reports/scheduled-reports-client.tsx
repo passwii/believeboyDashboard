@@ -451,7 +451,7 @@ function EditSubscriptionDialog({
   const [testingEmail, setTestingEmail] = useState(false)
 
   useEffect(() => {
-    if (subscription) {
+    if (open && subscription) {
       setFormEmail(subscription.email)
       setFormProjectIds(subscription.project_ids)
       setFormCountries(subscription.country.split(',').map(c => c.trim()).filter(Boolean))
@@ -464,7 +464,7 @@ function EditSubscriptionDialog({
       setFormError(null)
       setTestResult(null)
     }
-  }, [subscription, modelConfig?.defaultModel])
+  }, [open, subscription, modelConfig?.defaultModel])
 
   const handleTestEmail = async () => {
     if (!formEmail.trim()) {
@@ -1644,7 +1644,7 @@ export function ScheduledReportsClient() {
         <Dialog open onOpenChange={() => setPreviewSummary(null)}>
           <DialogContent className="max-w-2xl max-w-[calc(100%-2rem)] sm:max-w-[540px] max-h-[80vh] flex flex-col">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
-              <h3 className="text-base font-semibold text-[hsl(var(--chart-2))]">报表总结</h3>
+              <DialogTitle className="text-base font-semibold text-[hsl(var(--chart-2))]">报表总结</DialogTitle>
               <button
                 type="button"
                 onClick={() => {

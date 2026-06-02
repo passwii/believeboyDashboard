@@ -7,7 +7,7 @@ from typing import Optional
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.models import AnalysisSourceFile, ReportUploadLog
+from app.models import AdUploadFile, AnalysisSourceFile, ReportUploadLog
 from app.services import project_service
 
 
@@ -207,7 +207,6 @@ def get_report_status_for_date(
                         AnalysisSourceFile.report_type.in_([
                             "business_report",
                             "payment_report",
-                            "ad_product_report",
                             "sales_report",
                             "return_report",
                         ]),
@@ -246,6 +245,39 @@ def get_report_status_for_date(
                 original_filename=src.original_filename,
                 status_source="business_date_backfill",
             )
+
+    # ── Fallback for ad data: query ad_upload_files (C 表) ──
+    if target_date is not None:
+        ad_missing_pids = [
+            pid for pid in project_ids
+            if pid in status_by_project
+            and not status_by_project[pid]["ad_product_report"].is_uploaded
+        ]
+        if ad_missing_pids:
+            ad_sources = db.execute(
+                select(AdUploadFile)
+                .where(AdUploadFile.project_id.in_(ad_missing_pids))
+                .where(AdUploadFile.country == country)
+                .where(AdUploadFile.report_type == "ad_promoted_product_report")
+                .where(AdUploadFile.is_current.is_(True))
+                .where(AdUploadFile.ingestion_status == "success")
+                .where(AdUploadFile.period_start_date <= target_date)
+                .where(AdUploadFile.period_end_date >= target_date)
+            ).scalars().all()
+            ad_map: dict[int, AdUploadFile] = {}
+            for src in ad_sources:
+                pid = int(src.project_id)
+                if pid not in ad_map or src.created_at > ad_map[pid].created_at:
+                    ad_map[pid] = src
+            for pid, src in ad_map.items():
+                status_by_project[pid]["ad_product_report"] = ReportTypeStatus(
+                    report_type="ad_product_report",
+                    has_data=src.row_count_total > 0,
+                    is_uploaded=True,
+                    latest_date=str(src.report_date) if src.report_date else None,
+                    original_filename=src.original_filename,
+                    status_source="business_date_backfill",
+                )
 
     items = [
         ProjectReportStatus(

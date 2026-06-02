@@ -394,6 +394,110 @@ def _ingest_detail_rows(
         _ingest_purchased_product_rows(db, source_file_id=source_file_id, df=prepared_df)
 
 
+def save_ad_upload_scope(
+    db: Session,
+    *,
+    project: Project,
+    report_type: str,
+    country: str,
+    report_label: str,
+    scope_date: date,
+    scope_df: pd.DataFrame,
+    row_count_preview: int,
+    file_id: str,
+    file_path: str,
+    original_filename: str,
+    recognition_status: str = 'recognized',
+    matched_columns: list[str] | None = None,
+    warnings: list[str] | None = None,
+    recognition_payload: dict | None = None,
+    created_by: str | None = None,
+) -> AdUploadFile:
+    """Persist a single (project, report_type, country, scope_date) AdUploadFile + detail rows.
+
+    Module-level helper shared by:
+      - ``commit_ad_upload`` (HTTP endpoint)
+      - ``autoReportUpload.processor`` (RPA-style local ingestion)
+
+    Supersedes the previous version of the same logic that lived as a nested
+    function inside ``commit_ad_upload``. Centralizing it here avoids drift
+    between the two entry points.
+
+    Raises:
+        ValueError on missing required fields; no HTTPException is thrown here.
+    """
+    if not report_type:
+        raise ValueError('report_type is required')
+    if not file_path:
+        raise ValueError('file_path is required')
+
+    scope_filters = (
+        AdUploadFile.project_id == project.id,
+        AdUploadFile.report_type == report_type,
+        AdUploadFile.country == country,
+        AdUploadFile.period_start_date == scope_date,
+        AdUploadFile.period_end_date == scope_date,
+    )
+
+    max_version = (
+        db.execute(
+            select(func.coalesce(func.max(AdUploadFile.version), 0)).where(*scope_filters)
+        )
+        .scalar_one()
+    )
+    current_rows = (
+        db.execute(
+            select(AdUploadFile).where(*scope_filters, AdUploadFile.is_current.is_(True))
+        )
+        .scalars()
+        .all()
+    )
+    for current_row in current_rows:
+        current_row.is_current = False
+        current_row.superseded_at = datetime.now(UTC)
+
+    file_path_resolved = Path(file_path)
+    file_size_bytes = file_path_resolved.stat().st_size if file_path_resolved.exists() else None
+    file_extension = file_path_resolved.suffix.lower() or '.xlsx'
+
+    new_row = AdUploadFile(
+        project_id=project.id,
+        project_name=project.project_name,
+        report_type=report_type,
+        report_label=report_label,
+        country=country,
+        report_date=scope_date,
+        period_start_date=scope_date,
+        period_end_date=scope_date,
+        version=int(max_version) + 1,
+        is_current=True,
+        upload_file_id=str(file_id),
+        upload_file_path=str(file_path_resolved),
+        original_filename=(original_filename or '').strip() or None,
+        stored_filename=str(file_id),
+        logical_filename=(original_filename or file_id).strip(),
+        file_extension=file_extension,
+        file_size_bytes=file_size_bytes,
+        recognition_status=recognition_status,
+        ingestion_status='saved',
+        row_count_preview=row_count_preview,
+        matched_columns=list(matched_columns or []),
+        warnings=list(warnings or []),
+        recognition_payload=dict(recognition_payload or {}),
+        created_by=(created_by or '').strip()[:255] or None,
+    )
+    db.add(new_row)
+    db.flush()
+    _ingest_detail_rows(
+        db,
+        source_file_id=int(new_row.id),
+        report_type=new_row.report_type,
+        path=file_path_resolved,
+        df=scope_df,
+    )
+    return new_row
+
+
 def commit_ad_upload(
     db: Session,
     settings: Settings,
@@ -473,67 +577,24 @@ def commit_ad_upload(
     )
 
     def _save_scope(*, scope_date: date, scope_df: pd.DataFrame, row_count_preview: int) -> AdUploadFile:
-        scope_filters = (
-            AdUploadFile.project_id == project.id,
-            AdUploadFile.report_type == payload.report_type,
-            AdUploadFile.country == recognition.country,
-            AdUploadFile.period_start_date == scope_date,
-            AdUploadFile.period_end_date == scope_date,
-        )
-
-        max_version = (
-            db.execute(
-                select(func.coalesce(func.max(AdUploadFile.version), 0)).where(*scope_filters)
-            )
-            .scalar_one()
-        )
-        current_rows = (
-            db.execute(
-                select(AdUploadFile).where(*scope_filters, AdUploadFile.is_current.is_(True))
-            )
-            .scalars()
-            .all()
-        )
-        for current_row in current_rows:
-            current_row.is_current = False
-            current_row.superseded_at = datetime.now(UTC)
-
-        new_row = AdUploadFile(
-            project_id=project.id,
-            project_name=project.project_name,
+        return save_ad_upload_scope(
+            db,
+            project=project,
             report_type=payload.report_type,
-            report_label=recognition.report_label,
             country=recognition.country,
-            report_date=scope_date,
-            period_start_date=scope_date,
-            period_end_date=scope_date,
-            version=int(max_version) + 1,
-            is_current=True,
-            upload_file_id=str(file_meta['file_id']),
-            upload_file_path=str(file_meta['file_path']),
-            original_filename=(payload.original_filename or recognition.original_filename or '').strip() or None,
-            stored_filename=str(file_meta['filename']),
-            logical_filename=(payload.original_filename or recognition.original_filename or str(file_meta['filename'])).strip(),
-            file_extension=Path(str(file_meta['file_path'])).suffix.lower(),
-            file_size_bytes=int(file_meta['size']) if file_meta.get('size') is not None else None,
-            recognition_status=recognition.status,
-            ingestion_status='saved',
+            report_label=recognition.report_label,
+            scope_date=scope_date,
+            scope_df=scope_df,
             row_count_preview=row_count_preview,
+            file_id=str(file_meta['file_id']),
+            file_path=str(file_meta['file_path']),
+            original_filename=payload.original_filename or recognition.original_filename or '',
+            recognition_status=recognition.status,
             matched_columns=list(recognition.matched_columns),
             warnings=list(recognition.warnings),
             recognition_payload=recognition.model_dump(mode='json'),
-            created_by=(operator or '').strip()[:255] or None,
+            created_by=operator,
         )
-        db.add(new_row)
-        db.flush()
-        _ingest_detail_rows(
-            db,
-            source_file_id=int(new_row.id),
-            report_type=new_row.report_type,
-            path=Path(new_row.upload_file_path),
-            df=scope_df,
-        )
-        return new_row
 
     saved_rows: list[AdUploadFile] = []
     if is_periodic_row_date_upload:

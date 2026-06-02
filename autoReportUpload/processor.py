@@ -23,9 +23,8 @@ from sqlalchemy.orm import Session
 _env_path = Path(__file__).parent / ".env"
 load_dotenv(_env_path)
 
-from config import IS_LOCAL, PROCESSED_SUBDIR
+from config import AD_PROCESSED_SUBDIR, IS_LOCAL, PROCESSED_SUBDIR
 from models import (
-    AnalysisAdProductRow,
     AnalysisBusinessRow,
     AnalysisPaymentRow,
     AnalysisReturnRow,
@@ -37,13 +36,30 @@ from models import (
     ReportUploadLog,
 )
 from recognition import (
-    AD_PRODUCT_REPORT,
+    B_TABLE_AD_REPORT_TYPES,
     recognize_file,
     _read_csv_with_encoding_fallback as _recog_csv,
 )
 
 # Payment report parsing — use locale (single source of truth)
 from app.utils.payment_locale import read_payment_report_dataframe
+
+# B-table ad upload pipeline (10 ad subtypes) — single source of truth lives in
+# backend/app/services/ad/upload/. autoReportUpload reuses the same persistence
+# helpers as the HTTP endpoint, so A-table / C-table / B-table all converge on
+# one set of ingest functions.
+from app.services.ad.upload import (
+    REPORT_SPECS,
+    save_ad_upload_scope,
+)
+from app.services.ad.upload.utils import (
+    _read_dataframe as _ad_read_dataframe,
+    _prepare_ingest_dataframe as _ad_prepare_df,
+    _to_int as _ad_to_int,
+    _to_decimal as _ad_to_decimal,
+)
+from app.utils.country import normalize_country as _normalize_country
+from app.utils.parsers import classify_scope
 
 # Shared utilities from backend/app/utils/utils.py
 from app.utils.utils import (
@@ -74,7 +90,6 @@ from app.utils.parsers import (
     read_excel_no_warning as _read_excel_no_warning,
     parse_business_rows as _parse_business_rows,
     parse_payment_rows as _parse_payment_rows,
-    parse_ad_rows as _parse_ad_rows,
     parse_inventory_rows as _parse_inventory_rows,
     parse_sales_rows as _parse_sales_rows,
     parse_return_rows as _parse_return_rows,
@@ -319,7 +334,7 @@ def process_file(
             result.report_type, result.country or "US", duplicates,
         )
         if not IS_LOCAL:
-            _move_to_processed(file_path)
+            _move_to_processed(file_path, result.report_type)
         return ProcessResult(
             skipped=True,
             report_type=result.report_type,
@@ -354,7 +369,7 @@ def process_file(
                 _find_sha256_duplicates(db, file_sha256),
             )
             if not IS_LOCAL:
-                _move_to_processed(file_path)
+                _move_to_processed(file_path, result.report_type)
             return ProcessResult(
                 skipped=True,
                 report_type=result.report_type,
@@ -370,7 +385,7 @@ def process_file(
 
     # 3. Move file to processed/ (skip in local env)
     if not IS_LOCAL:
-        _move_to_processed(file_path)
+        _move_to_processed(file_path, result.report_type)
 
     total_time = time.time() - t0
     return ProcessResult(
@@ -407,6 +422,25 @@ def _persist_one_file(
     report_type = result.report_type
     country = result.country or "US"
     now = datetime.now()
+
+    # B-table ad reports (10 subtypes) have their own persistence path —
+    # delegate to the shared ad upload scope helper before touching A-table.
+    if report_type in B_TABLE_AD_REPORT_TYPES:
+        t1 = time.time()
+        known_skus, known_asins = _load_project_product_mapping(db, project_name, country)
+        t2 = time.time()
+        outcome = _persist_ad_upload_report(
+            db=db,
+            file_path=file_path,
+            project=project,
+            country=country,
+            result=result,
+            known_skus=known_skus,
+            known_asins=known_asins,
+            now=now,
+        )
+        outcome["_timing"] = f"setup={t2-t1:.1f}s total={time.time()-t0:.1f}s"
+        return outcome
 
     t1 = time.time()
     known_skus, known_asins = _load_project_product_mapping(db, project_name, country)
@@ -466,6 +500,143 @@ def _persist_one_file(
         report_date, period_start, period_end, snapshot_at,
         known_skus, known_asins, now,
     )
+
+
+def _persist_ad_upload_report(
+    *,
+    db: Session,
+    file_path: Path,
+    project: Project,
+    country: str,
+    result,
+    known_skus: set[str],
+    known_asins: set[str],
+    now: datetime,
+) -> dict[str, Any]:
+    """Persist a B-table ad report (10 subtypes) to ad_upload_files + detail rows.
+
+    Reuses the canonical helpers from
+    ``backend/app/services/ad/upload/`` so the RPA path stays byte-identical
+    with the HTTP endpoint (POST /api/v1/ad-upload/commit). The only
+    differences are:
+      - no FastAPI HTTPException (raises plain ValueError on bad input)
+      - file moves to ``广告Processed/`` (driven by report_type)
+    """
+    report_type = result.report_type
+    normalized_country = _normalize_country(country)
+    file_size_bytes = file_path.stat().st_size
+
+    # Parse the source dataframe using the B-table shared helpers
+    raw_df = _ad_read_dataframe(file_path)
+    source_df = _ad_prepare_df(raw_df)
+
+    # Detect single-day vs periodic (日期-column) layout
+    has_period_columns = "开始日期" in source_df.columns and "结束日期" in source_df.columns
+    is_periodic_row_date = (
+        "日期" in source_df.columns
+        and not has_period_columns
+    )
+
+    # Compute report label from the matched spec
+    spec = result.spec
+    report_label = spec.report_label if spec else report_type
+
+    # Period dates from recognition result
+    period_start_date: date | None = None
+    period_end_date: date | None = None
+    if result.detected_start_date:
+        period_start_date = _parse_yyyy_mm_dd(result.detected_start_date)
+    if result.detected_end_date:
+        period_end_date = _parse_yyyy_mm_dd(result.detected_end_date)
+    if period_start_date is None and period_end_date is None:
+        # Fallback: use today (file ingestion date)
+        period_start_date = period_end_date = now.date()
+
+    saved_rows: list = []
+    if is_periodic_row_date:
+        # Multi-day file — split by 日期 column, one AdUploadFile per day
+        import pandas as pd
+        source_df = source_df.copy()
+        source_df["__row_date__"] = pd.to_datetime(source_df["日期"], errors="coerce")
+        normalized_range = source_df.dropna(subset=["__row_date__"]).copy()
+        if normalized_range.empty:
+            return {"success": False, "error": "日期 is required"}
+        normalized_range["__row_date_key__"] = normalized_range["__row_date__"].dt.strftime("%Y-%m-%d")
+        for row_date_text, scope_df in normalized_range.groupby("__row_date_key__", sort=True):
+            scope_date = _parse_yyyy_mm_dd(str(row_date_text))
+            scope_df_clean = scope_df.drop(columns=["__row_date__", "__row_date_key__"])
+            file_id = _generate_file_id(file_path.name)
+            row = save_ad_upload_scope(
+                db,
+                project=project,
+                report_type=report_type,
+                country=normalized_country,
+                report_label=report_label,
+                scope_date=scope_date,
+                scope_df=scope_df_clean,
+                row_count_preview=len(scope_df_clean.index),
+                file_id=file_id,
+                file_path=str(file_path),
+                original_filename=file_path.name,
+                recognition_status="recognized",
+                matched_columns=list(result.matched_columns or []),
+                warnings=list(result.warnings or []),
+                recognition_payload={
+                    "report_type": report_type,
+                    "report_label": report_label,
+                    "scope_date": scope_date.isoformat(),
+                    "row_count_preview": len(scope_df_clean.index),
+                    "source": "autoReportUpload",
+                },
+                created_by="autoReportUpload",
+            )
+            saved_rows.append(row)
+    else:
+        # Single-day file (typical case) — one AdUploadFile
+        scope_date = period_end_date or period_start_date or now.date()
+        file_id = _generate_file_id(file_path.name)
+        row = save_ad_upload_scope(
+            db,
+            project=project,
+            report_type=report_type,
+            country=normalized_country,
+            report_label=report_label,
+            scope_date=scope_date,
+            scope_df=source_df,
+            row_count_preview=result.row_count_preview or len(source_df.index),
+            file_id=file_id,
+            file_path=str(file_path),
+            original_filename=file_path.name,
+            recognition_status="recognized",
+            matched_columns=list(result.matched_columns or []),
+            warnings=list(result.warnings or []),
+            recognition_payload={
+                "report_type": report_type,
+                "report_label": report_label,
+                "scope_date": scope_date.isoformat(),
+                "row_count_preview": result.row_count_preview or len(source_df.index),
+                "source": "autoReportUpload",
+            },
+            created_by="autoReportUpload",
+        )
+        saved_rows.append(row)
+
+    # NOTE: do NOT write ReportUploadLog for ad reports — its source_file_id FK
+    # points at analysis_source_files (A-table) but ad reports live in
+    # ad_upload_files (B-table). The HTTP ad-upload path (commit_ad_upload) also
+    # omits ReportUploadLog; we follow the same policy.
+
+    db.commit()
+    for saved_row in saved_rows:
+        db.refresh(saved_row)
+
+    return {
+        "success": True,
+        "source_id": int(saved_rows[-1].id),
+        "row_count": len(saved_rows),
+        "report_start_date": saved_rows[0].period_start_date.isoformat() if saved_rows else None,
+        "report_end_date": saved_rows[-1].period_end_date.isoformat() if saved_rows else None,
+    }
 
 
 def _persist_single_source(
@@ -959,12 +1130,6 @@ def _parse_and_insert_rows(
             db.execute(insert(AnalysisPaymentRow), rows)
         return total, included
 
-    if report_type == AD_PRODUCT_REPORT:
-        rows, total, included = _parse_ad_rows(path, source_id, known_skus, known_asins)
-        if rows:
-            db.execute(insert(AnalysisAdProductRow), rows)
-        return total, included
-
     if report_type == "inventory_report":
         rows, total, included = _parse_inventory_rows(path, source_id)
         _validate_inventory(rows, project_name=project_name, country=country, known_skus=known_skus, known_asins=known_asins)
@@ -972,6 +1137,9 @@ def _parse_and_insert_rows(
             db.execute(insert(InventorySnapshotRow), rows)
         return total, included
 
+    # ad_*_report types are NOT handled here — they go through the B-table
+    # pipeline (_persist_ad_upload_report) which delegates to
+    # app.services.ad.upload.persistence.save_ad_upload_scope.
     return 0, 0
 
 
@@ -991,8 +1159,18 @@ def _extract_sales_report_dates(path: Path, country: str) -> list[date]:
 # ─── File system helpers ──────────────────────────────────────────────────────
 
 
-def _move_to_processed(file_path: Path) -> None:
-    processed_dir = file_path.parent / PROCESSED_SUBDIR
+def _move_to_processed(file_path: Path, report_type: str | None = None) -> None:
+    """Move file to its processed subfolder.
+
+    Ad reports (any B-table ad_*_report type) go to a dedicated
+    ``广告Processed/`` folder so the 10 ad subtypes stay separate from the
+    general 7 report types. Other reports keep the default ``processed/`` folder.
+    """
+    if report_type and report_type in B_TABLE_AD_REPORT_TYPES:
+        subdir = AD_PROCESSED_SUBDIR
+    else:
+        subdir = PROCESSED_SUBDIR
+    processed_dir = file_path.parent / subdir
     processed_dir.mkdir(parents=True, exist_ok=True)
     dest = processed_dir / file_path.name
     if dest.exists():

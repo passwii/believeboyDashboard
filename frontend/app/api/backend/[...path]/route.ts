@@ -41,6 +41,21 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
     return NextResponse.json({ message: 'Invalid backend path' }, { status: 400 })
   }
 
+  // Streaming endpoints (SSE / NDJSON) MUST NOT have a 10s timeout — AI
+  // insight generation can take 30-80s. Detect by URL pattern; the response
+  // content-type is checked again in toProxyResponse for safety.
+  // - /ai-insights/{id}/stream (SSE)
+  // - /ai-insights/generate/stream (legacy NDJSON, kept for back-compat)
+  const isStreamEndpoint = /\/ai-insights\/.+\/stream$/.test(backendPath) || /\/ai-insights\/generate\/stream$/.test(backendPath)
+
+  // Also detect by the request's Accept header (EventSource always sends
+  // text/event-stream; NDJSON consumers send application/x-ndjson).
+  const requestAccept = (request.headers.get('accept') || '').toLowerCase()
+  const isStreamRequest =
+    isStreamEndpoint ||
+    requestAccept.includes('text/event-stream') ||
+    requestAccept.includes('application/x-ndjson')
+
   try {
     const search = request.nextUrl.search || ''
     const response = await fetch(`${buildBackendUrl(backendPath)}${search}`, {
@@ -48,7 +63,10 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
       headers: buildBackendProxyHeaders(session, request.headers),
       body: await getProxyRequestBody(request),
       cache: 'no-store',
-      signal: AbortSignal.timeout(10_000),
+      // Stream endpoints: no timeout (let the connection close naturally when
+      // the backend finishes or the client disconnects). Other endpoints:
+      // 10s guard against runaway backend calls.
+      ...(isStreamRequest ? {} : { signal: AbortSignal.timeout(10_000) }),
     })
     return await toProxyResponse(response)
   } catch (error) {

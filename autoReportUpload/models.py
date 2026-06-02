@@ -25,8 +25,10 @@ if str(_BACKEND_PATH) not in sys.path:
 from app.db.session import Base  # noqa: E402, F401
 
 # Analysis models
+# Note: AnalysisAdProductRow intentionally removed — A 表 (analysis_ad_product_rows)
+# 已废弃 (alembic 152 已 DROP). All ad data now lives in C 表 (ad_upload_files +
+# 10 detail row tables). See backend/alembic/versions/20260601_152_drop_ad_product_report_from_a_table.py
 from app.models import (  # noqa: E402
-    AnalysisAdProductRow,
     AnalysisBusinessRow,
     AnalysisPaymentRow,
     AnalysisReturnRow,
@@ -37,4 +39,16 @@ from app.models import (  # noqa: E402
     ReportUploadLog,
     ReturnCustomerComment,
     SkuRecord as ProductCost,  # product_costs table — backend calls it SkuRecord
+    # Ad C 表 (ad_upload_*) — needed for ad report persistence
+    AdUploadFile,
+    AdUploadBudgetRow,
+    AdUploadCampaignRow,
+    AdUploadInvalidTrafficRow,
+    AdUploadPlacementRow,
+    AdUploadPromotedProductRow,
+    AdUploadPurchasedProductRow,
+    AdUploadSearchTermRow,
+    AdUploadSearchTermShareRow,
+    AdUploadTargetRow,
+    AdUploadTimeTrendRow,
 )

@@ -1,8 +1,12 @@
 """
 Report type recognition for the auto-report-upload service.
 
-Uses recognition module from backend/app/utils/recognition/
-for non-payment report types. Payment reports use backend/app/utils/payment_locale.
+Two recognition pipelines:
+  - B 表 (ad_upload_*) — 10 ad report subtypes via app.services.ad.upload.specs
+  - A 表 (analysis_*) — 7 general report types via app.utils.recognition
+
+AutoReportUpload tries B 表 first, then A 表. Ad reports always go to B 表
+because A 表's analysis_ad_product_rows was dropped in alembic 152.
 """
 
 from __future__ import annotations
@@ -22,6 +26,7 @@ _BACKEND_PATH = Path(__file__).resolve().parent.parent / "backend"
 if str(_BACKEND_PATH) not in sys.path:
     sys.path.insert(0, str(_BACKEND_PATH))
 
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.utils.payment_locale import read_payment_report_dataframe
@@ -30,12 +35,21 @@ from app.utils.recognition import (
     RecognitionResult as SharedRecognitionResult,
     _normalize_columns,
     _read_csv_with_encoding_fallback,
-    _read_excel,
 )
+
+# B 表 ad report recognition — independent from A 表 per architecture note in specs.py
+from app.services.ad.upload.specs import REPORT_SPECS, ReportSpec
+from app.services.ad.upload.recognition import _detect_report_spec
+from app.services.ad.upload.utils import _read_dataframe, _date_to_string
+from app.services.ad.upload.project_match import _build_project_match
+
 from models import ProductCost
 
-# Re-export AD_PRODUCT_REPORT for compatibility
-AD_PRODUCT_REPORT = "ad_product_report"
+# ─── Set of B-table ad report types (for routing in processor.py) ─────────────
+# Sourced from REPORT_SPECS so the source of truth stays in one place.
+B_TABLE_AD_REPORT_TYPES: frozenset[str] = frozenset(
+    spec.report_type for spec in REPORT_SPECS
+)
 
 
 # ─── Custom result with project_match (RPA-specific) ───────────────────────────
@@ -57,6 +71,7 @@ class RecognitionResult:
         warnings: list[str] | None = None,
         country: str = "US",
         project_match: dict | None = None,
+        spec: ReportSpec | None = None,
     ):
         self.report_type = report_type
         self.matched_columns = matched_columns
@@ -69,10 +84,13 @@ class RecognitionResult:
         self.warnings = warnings or []
         self.country = country
         self.project_match = project_match
+        # Non-None when this result was produced by the B-table ad specs pipeline.
+        # processor.py uses this flag to dispatch to the C-table persister.
+        self.spec = spec
 
     @classmethod
     def from_shared_result(cls, result: SharedRecognitionResult) -> "RecognitionResult":
-        """Create from shared RecognitionResult (without project_match)."""
+        """Create from shared RecognitionResult (without project_match, A-table path)."""
         return cls(
             report_type=result.report_type,
             matched_columns=result.matched_columns,
@@ -85,20 +103,210 @@ class RecognitionResult:
             warnings=result.warnings,
             country=result.country,
             project_match=None,
+            spec=None,
         )
 
 
-# ─── Project matching (RPA-specific, different from backend) ──────────────────
+# ─── B-table ad report recognition ─────────────────────────────────────────────
 
 
-def _build_project_match(
+def _try_recognize_b_table_ad(path: Path, country: str) -> tuple[ReportSpec, Any] | None:
+    """Try to match the file against the 10 B-table ad report specs.
+
+    Returns (spec, dataframe) on success; None on miss. Raises on read errors
+    (caller catches and falls through to A-table recognition).
+    """
+    df = _read_dataframe(path)
+    spec = _detect_report_spec(df, path.suffix.lower())
+    if spec is None:
+        return None
+    return spec, df
+
+
+def _build_b_table_result(
+    db: Session,
+    path: Path,
+    spec: ReportSpec,
+    df: Any,
+    country: str,
+    original_filename: str,
+) -> RecognitionResult:
+    """Build a RecognitionResult for a B-table ad report match."""
+    detected_country = country
+    if "国家/地区" in df.columns and not df["国家/地区"].dropna().empty:
+        from app.utils.country import normalize_country as _norm_country
+        try:
+            detected_country = _norm_country(str(df["国家/地区"].dropna().iloc[0]).strip())
+        except Exception:
+            detected_country = country
+
+    detected_start_date: str | None = None
+    detected_end_date: str | None = None
+    if "开始日期" in df.columns and "结束日期" in df.columns:
+        if not df["开始日期"].dropna().empty:
+            detected_start_date = _date_to_string(df["开始日期"].dropna().iloc[0])
+        if not df["结束日期"].dropna().empty:
+            detected_end_date = _date_to_string(df["结束日期"].dropna().iloc[0])
+    elif "日期" in df.columns and not df["日期"].dropna().empty:
+        import pandas as pd
+        parsed = pd.to_datetime(df["日期"], errors="coerce").dropna()
+        if not parsed.empty:
+            detected_start_date = parsed.min().strftime("%Y-%m-%d")
+            detected_end_date = parsed.max().strftime("%Y-%m-%d")
+
+    warnings_list: list[str] = []
+    if len(df.index) == 0:
+        warnings_list.append("报表已识别，但当前文件没有业务明细行")
+
+    # B-table project matching via the canonical helper (no operator → no allow-list filter)
+    try:
+        project_summary = _build_project_match(
+            db,
+            df=df,
+            spec=spec,
+            country=detected_country,
+            allowed_projects=None,
+        )
+        project_match = {
+            "status": project_summary.status,
+            "project_name": project_summary.project_name,
+            "candidate_projects": list(project_summary.candidate_projects),
+            "matched_by": project_summary.matched_by,
+            "matched_values": list(project_summary.matched_values),
+            "message": project_summary.message,
+        }
+    except Exception as exc:  # noqa: BLE001
+        project_match = {
+            "status": "manual",
+            "message": f"项目匹配失败: {exc}",
+        }
+
+    # RPA fallback: when spec has no project_match_fields (most ad subtypes
+    # like ad_placement / ad_campaign don't carry SKU/ASIN), the canonical
+    # helper returns status='manual'. In the RPA path the file lives inside
+    # a project folder, so fall back to folder-name matching — same policy
+    # A-table reports already use.
+    if project_match["status"] in {"unmatched", "manual"}:
+        from models import Project
+        from sqlalchemy import select
+        folder_name = path.parent.name
+        project = db.execute(
+            select(Project).where(Project.project_name == folder_name)
+        ).scalars().first()
+        if project:
+            project_match = {
+                "status": "matched",
+                "project_name": project.project_name,
+                "candidate_projects": [project.project_name],
+                "matched_by": "folder_name",
+                "matched_values": [],
+                "message": f"根据目录名 [{folder_name}] 匹配项目（spec 无 project_match_fields 走 fallback）",
+            }
+
+    return RecognitionResult(
+        report_type=spec.report_type,
+        matched_columns=list(spec.required_columns),
+        reason=f"命中 B 表 ad 报表规则：{spec.report_label}",
+        date_input_mode="single_detected" if detected_start_date == detected_end_date else "range_detected",
+        detected_date=detected_end_date or detected_start_date,
+        detected_start_date=detected_start_date,
+        detected_end_date=detected_end_date,
+        row_count_preview=len(df.index),
+        warnings=warnings_list,
+        country=detected_country,
+        project_match=project_match,
+        spec=spec,
+    )
+
+
+# ─── A-table project matching (legacy, only for non-ad reports) ───────────────
+
+
+def _add_project_match(result: RecognitionResult, db: Session, path: Path, country: str) -> RecognitionResult:
+    """Add project matching to a recognition result (A-table reports only)."""
+    try:
+        import pandas as pd
+
+        if result.report_type in {"inventory_report", "sales_report", "return_report"}:
+            df = _normalize_columns(_read_csv_with_encoding_fallback(path))
+            match_by = "sku"
+            values = df[match_by].dropna().astype(str).tolist()
+        elif result.report_type == "business_report":
+            df = _normalize_columns(_read_csv_with_encoding_fallback(path, sep=","))
+            match_by = "asin"
+            asin_col = next(
+                (c for c in ["（子）asin", "(子)asin", "子asin", "asin"] if c in df.columns),
+                None,
+            )
+            if asin_col:
+                values = df[asin_col].dropna().astype(str).tolist()
+            else:
+                values = []
+        elif result.report_type == "payment_report":
+            df = read_payment_report_dataframe(path, country=country)
+            df = _normalize_columns(df)
+            match_by = "sku"
+            values = df["sku"].dropna().astype(str).tolist()
+        elif result.report_type == "ad_search_term_report":
+            # A-table ad search term report — match by SKU from "广告SKU" column
+            df = _normalize_columns(_read_csv_with_encoding_fallback(path))
+            match_by = "sku"
+            sku_col = next(
+                (c for c in ["广告SKU", "广告sku", "ad_sku"] if c in df.columns),
+                None,
+            )
+            values = df[sku_col].dropna().astype(str).tolist() if sku_col else []
+        else:
+            values = []
+
+        if values:
+            result.project_match = _build_project_match_legacy(
+                db,
+                values=values,
+                match_by=match_by,
+                country=country,
+            )
+        else:
+            result.project_match = {
+                "status": "unmatched",
+                "matched_by": match_by,
+                "message": "文件中未找到可用于匹配项目的标识",
+            }
+
+        # 如果无法通过 SKU/ASIN 匹配（例如文件内容为空），回退到目录名匹配
+        if result.project_match["status"] == "unmatched":
+            from models import Project
+            from sqlalchemy import select
+            folder_name = path.parent.name
+            project = db.execute(
+                select(Project).where(Project.project_name == folder_name)
+            ).scalars().first()
+            if project:
+                result.project_match = {
+                    "status": "matched",
+                    "project_name": project.project_name,
+                    "matched_by": "folder_name",
+                    "message": f"根据目录名 [{folder_name}] 匹配项目（内容匹配失败）",
+                }
+            else:
+                result.project_match["message"] = (
+                    f"{result.project_match['message']}；目录名 [{folder_name}] 未在数据库中找到对应项目"
+                )
+
+    except Exception as exc:
+        result.project_match = {"status": "manual", "message": f"项目匹配失败: {exc}"}
+
+    return result
+
+
+def _build_project_match_legacy(
     db: Session,
     *,
     values: list[str],
     match_by: str,
     country: str = "US",
 ) -> dict[str, Any]:
-    """Match files to projects by SKU or ASIN (RPA-specific implementation)."""
+    """Match files to projects by SKU or ASIN (A-table RPA-specific implementation)."""
     from sqlalchemy import func, select
 
     def _normalize_identifier(value: object) -> str:
@@ -155,81 +363,6 @@ def _build_project_match(
     }
 
 
-def _add_project_match(result: RecognitionResult, db: Session, path: Path, country: str) -> RecognitionResult:
-    """Add project matching to a recognition result."""
-    try:
-        import pandas as pd
-
-        if result.report_type in {"inventory_report", "sales_report", "return_report"}:
-            df = _normalize_columns(_read_csv_with_encoding_fallback(path))
-            match_by = "sku"
-            values = df[match_by].dropna().astype(str).tolist()
-        elif result.report_type == "business_report":
-            df = _normalize_columns(_read_csv_with_encoding_fallback(path, sep=","))
-            match_by = "asin"
-            asin_col = next(
-                (c for c in ["（子）asin", "(子)asin", "子asin", "asin"] if c in df.columns),
-                None,
-            )
-            if asin_col:
-                values = df[asin_col].dropna().astype(str).tolist()
-            else:
-                values = []
-        elif result.report_type == "payment_report":
-            df = read_payment_report_dataframe(path, country=country)
-            df = _normalize_columns(df)
-            match_by = "sku"
-            values = df["sku"].dropna().astype(str).tolist()
-        elif result.report_type == AD_PRODUCT_REPORT:
-            df = _normalize_columns(_read_excel(path))
-            match_by = "sku"
-            values = df["广告sku"].dropna().astype(str).tolist()
-        elif result.report_type == "ad_search_term_report":
-            result.project_match = {"status": "manual", "message": "该报表项目需手动选择"}
-            return result
-        else:
-            values = []
-
-        if values:
-            result.project_match = _build_project_match(
-                db,
-                values=values,
-                match_by=match_by,
-                country=country,
-            )
-        else:
-            result.project_match = {
-                "status": "unmatched",
-                "matched_by": match_by,
-                "message": "文件中未找到可用于匹配项目的标识",
-            }
-
-        # 如果无法通过 SKU/ASIN 匹配（例如文件内容为空），回退到目录名匹配
-        if result.project_match["status"] == "unmatched":
-            from models import Project
-            from sqlalchemy import select
-            folder_name = path.parent.name
-            project = db.execute(
-                select(Project).where(Project.project_name == folder_name)
-            ).scalars().first()
-            if project:
-                result.project_match = {
-                    "status": "matched",
-                    "project_name": project.project_name,
-                    "matched_by": "folder_name",
-                    "message": f"根据目录名 [{folder_name}] 匹配项目（内容匹配失败）",
-                }
-            else:
-                result.project_match["message"] = (
-                    f"{result.project_match['message']}；目录名 [{folder_name}] 未在数据库中找到对应项目"
-                )
-
-    except Exception as exc:
-        result.project_match = {"status": "manual", "message": f"项目匹配失败: {exc}"}
-
-    return result
-
-
 # ─── Main entry point ─────────────────────────────────────────────────────────
 
 
@@ -240,20 +373,31 @@ def recognize_file(
     original_filename: str = "",
 ) -> RecognitionResult | None:
     """
-    Recognize a file's report type using the shared recognition module.
+    Recognize a file's report type. Returns None if no known report type matches.
 
-    Returns None if the file doesn't match any known report type (skip the file).
+    Order:
+      1. B-table ad specs (10 ad subtypes) — writes to ad_upload_*
+      2. A-table general recognition (sales / business / payment / inventory /
+         return / ad_search_term) — writes to analysis_*
     """
-    # Use shared recognition module
-    shared_result = _shared_recognize_file(path, country=country, original_filename=original_filename)
+    # 1) B-table ad pipeline (10 subtypes)
+    try:
+        b_match = _try_recognize_b_table_ad(path, country)
+        if b_match is not None:
+            spec, df = b_match
+            return _build_b_table_result(db, path, spec, df, country, original_filename)
+    except HTTPException:
+        # _detect_report_spec raises HTTPException(400) when nothing matches
+        pass
+    except Exception:
+        # Read errors → fall through to A-table in case the file is a different type
+        pass
 
+    # 2) A-table general recognition
+    shared_result = _shared_recognize_file(path, country=country, original_filename=original_filename)
     if shared_result is None:
         return None
 
-    # Convert to RPA-specific result
     result = RecognitionResult.from_shared_result(shared_result)
-
-    # Add project matching (RPA-specific)
     result = _add_project_match(result, db, path, country)
-
     return result

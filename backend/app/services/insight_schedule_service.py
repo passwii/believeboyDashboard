@@ -244,6 +244,7 @@ def get_schedules(
     project_id: int | None = None,
     is_active: bool | None = None,
     include_inactive: bool = True,
+    insight_type: str | None = None,
 ) -> list[InsightSchedule]:
     """获取调度任务列表"""
     query = select(InsightSchedule)
@@ -255,6 +256,9 @@ def get_schedules(
         query = query.where(InsightSchedule.is_active == is_active)
     elif not include_inactive:
         query = query.where(InsightSchedule.is_active == True)
+
+    if insight_type is not None:
+        query = query.where(InsightSchedule.insight_type == insight_type)
 
     query = query.order_by(InsightSchedule.created_at.desc())
     return list(db.execute(query).scalars().all())
