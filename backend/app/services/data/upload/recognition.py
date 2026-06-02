@@ -14,7 +14,6 @@ from app.schemas.upload import (
 )
 import app.services.project_service as project_service
 import app.services.upload_service as upload_service
-from app.services.report_type_service import AD_PRODUCT_REPORT
 from app.utils.country import normalize_country as _normalize_country
 from app.utils.recognition import (
     recognize_file,
@@ -134,34 +133,9 @@ def recognize_saved_report_upload(
             df = _normalize_columns(df)
             match_by = "sku"
             values = df["sku"].dropna().astype(str).tolist()
-        elif result.report_type == AD_PRODUCT_REPORT:
-            df = _normalize_columns(_read_excel(path))
-            match_by = "sku"
-            values = df["广告sku"].dropna().astype(str).tolist()
-        elif result.report_type == "ad_search_term_report":
-            payload.project_match = ReportProjectMatchSummary(
-                status="manual", message="该报表项目需手动选择"
-            )
-            return ReportRecognitionResponse(
-                temp_file_id=temp_file_id,
-                original_filename=original_filename,
-                extension=extension,
-                report_type=payload.report_type,
-                matched_columns=payload.matched_columns,
-                reason=payload.reason,
-                status="recognized",
-                country=effective_country,
-                detected_countries=payload.detected_countries,
-                primary_country=payload.primary_country,
-                date_input_mode=payload.date_input_mode,
-                detected_date=payload.detected_date,
-                detected_start_date=payload.detected_start_date,
-                detected_end_date=payload.detected_end_date,
-                project_match=payload.project_match or ReportProjectMatchSummary(status="manual"),
-                row_count_preview=payload.row_count_preview,
-                warnings=payload.warnings or [],
-            )
         else:
+            # ad_product_report / ad_search_term_report 已下线，走 B 表
+            # (app.services.ad.upload.specs)，不再经过 /api/v1/data-upload/commit
             values = []
 
         if values:

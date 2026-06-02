@@ -28,12 +28,17 @@ def _build_project_match(
         )
 
     for match_by, column_name in spec.project_match_fields:
-        if column_name not in df.columns:
+        # Case-insensitive column lookup (Amazon exports sometimes use mixed case)
+        actual_column = next(
+            (c for c in df.columns if str(c).lower() == column_name.lower()),
+            None,
+        )
+        if actual_column is None:
             continue
         values = sorted(
             {
                 _normalize_identifier(value)
-                for value in df[column_name].dropna().tolist()
+                for value in df[actual_column].dropna().tolist()
                 if _normalize_identifier(value)
             }
         )

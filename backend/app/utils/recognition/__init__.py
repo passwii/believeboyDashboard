@@ -8,8 +8,6 @@ from app.utils.recognition.recognizers import (
     recognize_sales_report,
     recognize_business_report,
     recognize_payment_report,
-    recognize_ad_product_report,
-    recognize_ad_search_term_report,
     recognize_return_report,
 )
 from app.utils.recognition.models import RecognitionResult

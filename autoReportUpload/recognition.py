@@ -40,7 +40,7 @@ from app.utils.recognition import (
 # B 表 ad report recognition — independent from A 表 per architecture note in specs.py
 from app.services.ad.upload.specs import REPORT_SPECS, ReportSpec
 from app.services.ad.upload.recognition import _detect_report_spec
-from app.services.ad.upload.utils import _read_dataframe, _date_to_string
+from app.services.ad.upload.utils import _find_column_ci, _read_dataframe, _date_to_string
 from app.services.ad.upload.project_match import _build_project_match
 
 from models import ProductCost
@@ -133,23 +133,27 @@ def _build_b_table_result(
 ) -> RecognitionResult:
     """Build a RecognitionResult for a B-table ad report match."""
     detected_country = country
-    if "国家/地区" in df.columns and not df["国家/地区"].dropna().empty:
+    country_col = _find_column_ci(df.columns, "国家/地区")
+    if country_col and not df[country_col].dropna().empty:
         from app.utils.country import normalize_country as _norm_country
         try:
-            detected_country = _norm_country(str(df["国家/地区"].dropna().iloc[0]).strip())
+            detected_country = _norm_country(str(df[country_col].dropna().iloc[0]).strip())
         except Exception:
             detected_country = country
 
     detected_start_date: str | None = None
     detected_end_date: str | None = None
-    if "开始日期" in df.columns and "结束日期" in df.columns:
-        if not df["开始日期"].dropna().empty:
-            detected_start_date = _date_to_string(df["开始日期"].dropna().iloc[0])
-        if not df["结束日期"].dropna().empty:
-            detected_end_date = _date_to_string(df["结束日期"].dropna().iloc[0])
-    elif "日期" in df.columns and not df["日期"].dropna().empty:
+    start_col = _find_column_ci(df.columns, "开始日期")
+    end_col = _find_column_ci(df.columns, "结束日期")
+    date_col = _find_column_ci(df.columns, "日期")
+    if start_col and end_col:
+        if not df[start_col].dropna().empty:
+            detected_start_date = _date_to_string(df[start_col].dropna().iloc[0])
+        if not df[end_col].dropna().empty:
+            detected_end_date = _date_to_string(df[end_col].dropna().iloc[0])
+    elif date_col and not df[date_col].dropna().empty:
         import pandas as pd
-        parsed = pd.to_datetime(df["日期"], errors="coerce").dropna()
+        parsed = pd.to_datetime(df[date_col], errors="coerce").dropna()
         if not parsed.empty:
             detected_start_date = parsed.min().strftime("%Y-%m-%d")
             detected_end_date = parsed.max().strftime("%Y-%m-%d")
@@ -247,15 +251,6 @@ def _add_project_match(result: RecognitionResult, db: Session, path: Path, count
             df = _normalize_columns(df)
             match_by = "sku"
             values = df["sku"].dropna().astype(str).tolist()
-        elif result.report_type == "ad_search_term_report":
-            # A-table ad search term report — match by SKU from "广告SKU" column
-            df = _normalize_columns(_read_csv_with_encoding_fallback(path))
-            match_by = "sku"
-            sku_col = next(
-                (c for c in ["广告SKU", "广告sku", "ad_sku"] if c in df.columns),
-                None,
-            )
-            values = df[sku_col].dropna().astype(str).tolist() if sku_col else []
         else:
             values = []
 
