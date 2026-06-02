@@ -638,6 +638,22 @@ def commit_ad_upload(
             )
         )
 
+    # 为每个 scope 写入 ReportUploadLog（RPA 状态回退 Priority 1：写入日期判定）
+    from app.utils.persist_helpers import write_report_upload_log
+
+    for saved_row in saved_rows:
+        write_report_upload_log(
+            db,
+            project_id=int(saved_row.project_id),
+            country=saved_row.country,
+            report_type=saved_row.report_type,
+            upload_date=saved_row.report_date,
+            source_file_id=None,
+            has_real_data=saved_row.ingestion_status == "success",
+            row_count=saved_row.row_count_preview or 0,
+            original_filename=saved_row.original_filename,
+        )
+
     db.commit()
     for saved_row in saved_rows:
         db.refresh(saved_row)
