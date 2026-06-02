@@ -666,6 +666,13 @@ def _persist_ad_upload_report(
     # ad_upload_files (B-table). The HTTP ad-upload path (commit_ad_upload) also
     # omits ReportUploadLog; we follow the same policy.
 
+    # Mark ingestion_status as 'success' so that the RPA status Priority-3
+    # query (AdUploadFile.ingestion_status == 'success') can match these rows.
+    # Without this, the status grid stays red because the default 'saved'
+    # from save_ad_upload_scope() doesn't satisfy the query condition.
+    for row in saved_rows:
+        row.ingestion_status = 'success'
+
     db.commit()
     for saved_row in saved_rows:
         db.refresh(saved_row)
