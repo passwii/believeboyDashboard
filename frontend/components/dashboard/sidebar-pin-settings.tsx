@@ -174,11 +174,6 @@ export const ALL_ITEMS: PinnedItem[] = [
   },
   // 数据管理
   {
-    title: '广告管理',
-    url: '/dashboard/data-management/ad-upload',
-    icon: <ClipboardList className='h-4 w-4' />,
-  },
-  {
     title: '发货管理',
     url: '/dashboard/data-management/shipment-management',
     icon: <Package className='h-4 w-4' />,

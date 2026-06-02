@@ -43,6 +43,7 @@ import { cn } from '@/lib/utils'
 import { useSmoothRefresh } from '@/hooks/use-smooth-refresh'
 import { RefreshProgressBar } from '@/components/ui/refresh-progress-bar'
 import {
+  AD_REPORT_TYPES,
   REPORT_UPLOAD_COUNTRY_OPTIONS,
   getReportUploadCountryLabel,
   isDateRequired,
@@ -69,6 +70,10 @@ const REPORT_UPLOAD_REPORT_TYPE_LABELS: Record<string, string> = {
   sales_report: '销售报表 - 所有订单',
   payment_report: '付款报告',
   return_report: '退货报告',
+  ...AD_REPORT_TYPES.reduce<Record<string, string>>((acc, item) => {
+    acc[item.type] = `广告 - ${item.label}`
+    return acc
+  }, {}),
 }
 
 function getUploadReportTypeLabel(type: UploadQueueItem['reportType']): string {
@@ -126,7 +131,11 @@ type ProjectRow = {
 const REPORT_TYPES = [
   { key: 'inventory_report', label: '库存', active: true },
   { key: 'business_report', label: '业务', active: true },
-  { key: 'ad_product_report', label: '广告', active: true },
+  ...AD_REPORT_TYPES.map((item) => ({
+    key: item.type,
+    label: item.short,
+    active: true,
+  })),
   { key: 'sales_report', label: '销售', active: true },
   { key: 'payment_report', label: '付款', active: true },
   { key: 'return_report', label: '退货', active: true },
@@ -423,7 +432,17 @@ function RpaStatusGrid({ country, onCountryChange }: { country: string; onCountr
 
 // ── Auto Upload Content ──────────────────────────────────────────────────────
 
-function AutoUploadContent({ country, onCountryChange }: { country: ReportUploadCountry; onCountryChange: (v: ReportUploadCountry) => void }) {
+type UploadEndpoint = 'report-upload' | 'ad-upload'
+
+function AutoUploadContent({
+  country,
+  onCountryChange,
+  endpoint,
+}: {
+  country: ReportUploadCountry
+  onCountryChange: (v: ReportUploadCountry) => void
+  endpoint: UploadEndpoint
+}) {
   const { data: session } = useSession()
   const [dragActive, setDragActive] = useState(false)
   const [recognizing, setRecognizing] = useState(false)
@@ -480,7 +499,7 @@ function AutoUploadContent({ country, onCountryChange }: { country: ReportUpload
         const formData = new FormData()
         formData.append('file', file)
         formData.append('country', country)
-        const res = await fetch(`${API_BASE}/api/v1/report-upload/recognize`, {
+        const res = await fetch(`${API_BASE}/api/v1/${endpoint}/recognize`, {
           method: 'POST',
           body: formData,
         })
@@ -669,7 +688,7 @@ function AutoUploadContent({ country, onCountryChange }: { country: ReportUpload
           country: effectiveCountry,
           project_name: finalProjectName,
         }
-        const res = await fetch(`${API_BASE}/api/v1/report-upload/commit`, {
+        const res = await fetch(`${API_BASE}/api/v1/${endpoint}/commit`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
@@ -1112,6 +1131,7 @@ function AutoUploadContent({ country, onCountryChange }: { country: ReportUpload
 
 export default function AutoUploadPage() {
   const [activeTab, setActiveTab] = useState<'upload' | 'status'>('status')
+  const [uploadSubTab, setUploadSubTab] = useState<UploadEndpoint>('report-upload')
   const [country, setCountry] = useState('US')
 
   return (
@@ -1125,10 +1145,26 @@ export default function AutoUploadPage() {
 
         {/* Tab content */}
         <TabsContent value='upload' className='mt-4'>
-          <AutoUploadContent
-            country={country as ReportUploadCountry}
-            onCountryChange={setCountry}
-          />
+          <Tabs value={uploadSubTab} onValueChange={(v) => setUploadSubTab(v as UploadEndpoint)}>
+            <TabsList>
+              <TabsTrigger value='report-upload'>通用报表</TabsTrigger>
+              <TabsTrigger value='ad-upload'>广告报表</TabsTrigger>
+            </TabsList>
+            <TabsContent value='report-upload' className='mt-4'>
+              <AutoUploadContent
+                country={country as ReportUploadCountry}
+                onCountryChange={setCountry}
+                endpoint='report-upload'
+              />
+            </TabsContent>
+            <TabsContent value='ad-upload' className='mt-4'>
+              <AutoUploadContent
+                country={country as ReportUploadCountry}
+                onCountryChange={setCountry}
+                endpoint='ad-upload'
+              />
+            </TabsContent>
+          </Tabs>
         </TabsContent>
         <TabsContent value='status' className='mt-4'>
           <RpaStatusGrid country={country} onCountryChange={setCountry} />

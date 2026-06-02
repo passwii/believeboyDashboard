@@ -2,9 +2,48 @@ export type ReportType =
   | 'inventory_report'
   | 'business_report'
   | 'ad_product_report'
+  | 'ad_search_term_share_report'
+  | 'ad_budget_report'
+  | 'ad_campaign_report'
+  | 'ad_purchased_product_report'
+  | 'ad_promoted_product_report'
+  | 'ad_invalid_traffic_report'
+  | 'ad_placement_report'
+  | 'ad_target_report'
+  | 'ad_search_term_report'
+  | 'ad_time_trend_report'
   | 'sales_report'
   | 'payment_report'
   | 'return_report'
+
+export const AD_REPORT_TYPES: ReadonlyArray<{
+  type: Extract<
+    ReportType,
+    | 'ad_search_term_share_report'
+    | 'ad_budget_report'
+    | 'ad_campaign_report'
+    | 'ad_purchased_product_report'
+    | 'ad_promoted_product_report'
+    | 'ad_invalid_traffic_report'
+    | 'ad_placement_report'
+    | 'ad_target_report'
+    | 'ad_search_term_report'
+    | 'ad_time_trend_report'
+  >
+  label: string
+  short: string
+}> = [
+  { type: 'ad_search_term_share_report', label: '搜索词展示量份额', short: '词份额' },
+  { type: 'ad_budget_report', label: '预算', short: '预算' },
+  { type: 'ad_campaign_report', label: '广告活动', short: '广告活动' },
+  { type: 'ad_purchased_product_report', label: '已购买商品', short: '已购商品' },
+  { type: 'ad_promoted_product_report', label: '推广的商品', short: '推广商品' },
+  { type: 'ad_invalid_traffic_report', label: '总流量和无效流量', short: '无效流量' },
+  { type: 'ad_placement_report', label: '广告位', short: '广告位' },
+  { type: 'ad_target_report', label: '搜索词投放', short: '搜索词投放' },
+  { type: 'ad_search_term_report', label: '搜索词', short: '搜索词' },
+  { type: 'ad_time_trend_report', label: '按时间查看效果', short: '时间效果' },
+] as const
 
 export const REPORT_UPLOAD_COUNTRY_OPTIONS = [
   { value: 'US', label: 'US 美国站' },
@@ -93,6 +132,16 @@ export const DATE_REQUIRED_REPORT_TYPES: ReportType[] = [
   'business_report',
   'inventory_report',
   'ad_product_report',
+  'ad_search_term_share_report',
+  'ad_budget_report',
+  'ad_campaign_report',
+  'ad_purchased_product_report',
+  'ad_promoted_product_report',
+  'ad_invalid_traffic_report',
+  'ad_placement_report',
+  'ad_target_report',
+  'ad_search_term_report',
+  'ad_time_trend_report',
   'payment_report',
   'return_report',
 ]
