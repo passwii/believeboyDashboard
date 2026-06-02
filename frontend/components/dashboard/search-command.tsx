@@ -66,7 +66,6 @@ const navItems: SearchItem[] = [
   // 数字员工
   { title: '数字员工', url: '/dashboard/digital-employees', icon: <Users className='h-4 w-4' />, category: '数字员工' },
   // 数据管理
-  { title: '广告管理', url: '/dashboard/data-management/ad-upload', icon: <Upload className='h-4 w-4' />, category: '数据管理' },
   { title: '发货管理', url: '/dashboard/data-management/shipment-management', icon: <Package className='h-4 w-4' />, category: '数据管理' },
   { title: 'SKU 信息', url: '/dashboard/data-management/sku-info', icon: <Database className='h-4 w-4' />, category: '数据管理' },
   { title: '汇率信息', url: '/dashboard/data-management/exchange-rate', icon: <Coins className='h-4 w-4' />, category: '数据管理' },

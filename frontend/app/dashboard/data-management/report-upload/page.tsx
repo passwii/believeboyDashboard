@@ -25,6 +25,7 @@ import {
 import { ReportUploadDropzone } from '@/components/report-upload/report-upload-dropzone'
 import { ReportStatusCard } from '@/components/report-upload/report-status-card'
 import {
+  AD_REPORT_TYPES,
   DEFAULT_REPORT_UPLOAD_COUNTRY,
   getReportUploadCountryLabel,
   REPORT_UPLOAD_COUNTRY_OPTIONS,
@@ -237,75 +238,31 @@ function shiftDateString(value: string, offsetDays: number, country?: string): s
   return toLocalDateInputValue(date, country)
 }
 
+const EMPTY_CARD_STATE: ReportCardState = {
+  recognition: null,
+  candidates: [],
+  activeTempFileId: null,
+  selectedProject: '',
+  reportDate: '',
+  reportStartDate: '',
+  reportEndDate: '',
+  commitStatus: 'idle',
+  commitMessage: null,
+}
+
 function createEmptyCardState(): Record<ReportType, ReportCardState> {
   return {
-    inventory_report: {
-      recognition: null,
-      candidates: [],
-      activeTempFileId: null,
-      selectedProject: '',
-      reportDate: '',
-      reportStartDate: '',
-      reportEndDate: '',
-      commitStatus: 'idle',
-      commitMessage: null,
-    },
-    business_report: {
-      recognition: null,
-      candidates: [],
-      activeTempFileId: null,
-      selectedProject: '',
-      reportDate: '',
-      reportStartDate: '',
-      reportEndDate: '',
-      commitStatus: 'idle',
-      commitMessage: null,
-    },
-    ad_product_report: {
-      recognition: null,
-      candidates: [],
-      activeTempFileId: null,
-      selectedProject: '',
-      reportDate: '',
-      reportStartDate: '',
-      reportEndDate: '',
-      commitStatus: 'idle',
-      commitMessage: null,
-    },
-    sales_report: {
-      recognition: null,
-      candidates: [],
-      activeTempFileId: null,
-      selectedProject: '',
-      reportDate: '',
-      reportStartDate: '',
-      reportEndDate: '',
-      commitStatus: 'idle',
-      commitMessage: null,
-    },
-    payment_report: {
-      recognition: null,
-      candidates: [],
-      activeTempFileId: null,
-      selectedProject: '',
-      reportDate: '',
-      reportStartDate: '',
-      reportEndDate: '',
-      commitStatus: 'idle',
-      commitMessage: null,
-    },
-    return_report: {
-      recognition: null,
-      candidates: [],
-      activeTempFileId: null,
-      selectedProject: '',
-      reportDate: '',
-      reportStartDate: '',
-      reportEndDate: '',
-      commitStatus: 'idle',
-      commitMessage: null,
-    },
-  }
+    inventory_report: { ...EMPTY_CARD_STATE },
+    business_report: { ...EMPTY_CARD_STATE },
+    ad_product_report: { ...EMPTY_CARD_STATE },
+    sales_report: { ...EMPTY_CARD_STATE },
+    payment_report: { ...EMPTY_CARD_STATE },
+    return_report: { ...EMPTY_CARD_STATE },
+    ...AD_REPORT_TYPES.reduce<Record<string, ReportCardState>>((acc, item) => {
+      acc[item.type] = { ...EMPTY_CARD_STATE }
+      return acc
+    }, {}),
+  } as Record<ReportType, ReportCardState>
 }
 
 function updateCardFromCandidates(
@@ -865,15 +822,20 @@ export default function ReportUploadPage() {
     }
   }
 
-  const statusLabelByType: Record<ReportType, string> = useMemo(
-    () => ({
-      inventory_report: '库存',
-      business_report: '业务',
-      ad_product_report: '广告',
-      sales_report: '订单',
-      payment_report: '付款',
-      return_report: '退货',
-    }),
+  const statusLabelByType = useMemo(
+    () =>
+      ({
+        inventory_report: '库存',
+        business_report: '业务',
+        ad_product_report: '广告',
+        sales_report: '订单',
+        payment_report: '付款',
+        return_report: '退货',
+        ...AD_REPORT_TYPES.reduce<Record<string, string>>((acc, item) => {
+          acc[item.type] = item.short
+          return acc
+        }, {}),
+      }) as Record<ReportType, string>,
     [],
   )
 

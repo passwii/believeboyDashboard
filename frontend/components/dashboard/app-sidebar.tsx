@@ -148,7 +148,6 @@ const primaryGroups: NavGroup[] = [
     iconAccent: '#888888',
     activeIconAccent: 'rgba(255,255,255,0.95)',
     items: [
-      { title: '广告管理', url: '/dashboard/data-management/ad-upload' },
       {
         title: '发货管理',
         url: '/dashboard/data-management/shipment-management',
