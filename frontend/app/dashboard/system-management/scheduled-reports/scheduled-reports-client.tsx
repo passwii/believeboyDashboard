@@ -728,6 +728,7 @@ export function ScheduledReportsClient() {
   const [editingId, setEditingId] = useState<number | null>(null)
   const [previewScreenshotUrl, setPreviewScreenshotUrl] = useState<string | null>(null)
   const [previewSummary, setPreviewSummary] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState('subscriptions')
 
   /** 复制到剪贴板的文案：将 - 前缀替换为 ◉ */
   const previewCopyText = useMemo(() => {
@@ -1083,7 +1084,7 @@ export function ScheduledReportsClient() {
 
   return (
     <>
-    <Tabs defaultValue="subscriptions" className="w-full">
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="mb-4">
           <TabsTrigger value="subscriptions">订阅管理</TabsTrigger>
           <TabsTrigger value="ledger">调度记录</TabsTrigger>
