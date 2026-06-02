@@ -661,17 +661,36 @@ def _persist_ad_upload_report(
         )
         saved_rows.append(row)
 
-    # NOTE: do NOT write ReportUploadLog for ad reports — its source_file_id FK
-    # points at analysis_source_files (A-table) but ad reports live in
-    # ad_upload_files (B-table). The HTTP ad-upload path (commit_ad_upload) also
-    # omits ReportUploadLog; we follow the same policy.
-
     # Mark ingestion_status as 'success' so that the RPA status Priority-3
     # query (AdUploadFile.ingestion_status == 'success') can match these rows.
     # Without this, the status grid stays red because the default 'saved'
     # from save_ad_upload_scope() doesn't satisfy the query condition.
     for row in saved_rows:
         row.ingestion_status = 'success'
+
+    # Write a single ReportUploadLog for today (upload date) so that the RPA
+    # status grid shows green for the CURRENT day — not just the business dates
+    # covered by AdUploadFile period ranges (Priority 3).
+    # This mirrors what A-table reports do in _persist_single_source():
+    # write an upload log with upload_date = now.date().
+    # One log per (project, report_type, country, today) is enough; even if
+    # the file spans multiple days, we only need one entry to mark today.
+    # source_file_id is None because ReportUploadLog.source_file_id FK points
+    # at analysis_source_files (A-table), not ad_upload_files (C-table).
+    upload_date = _resolve_upload_date(now)
+    last_row = saved_rows[-1]
+    has_real_data = last_row.row_count_preview is not None and last_row.row_count_preview > 0
+    _write_upload_log(
+        db,
+        project_id=int(project.id),
+        report_type=report_type,
+        country=normalized_country,
+        upload_date=upload_date,
+        has_real_data=has_real_data,
+        row_count=last_row.row_count_preview or 0,
+        source_file_id=None,
+        original_filename=file_path.name,
+    )
 
     db.commit()
     for saved_row in saved_rows:
