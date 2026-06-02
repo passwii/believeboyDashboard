@@ -229,8 +229,8 @@ def test_resend_async_refreshes_ledger_after_success(db: Session, monkeypatch: p
     assert refreshed_entry.sent_at is not None
 
 
-def test_refresh_ledger_splits_multi_country_subscription(db: Session):
-    """多国家订阅应按国家拆分为独立的 ledger entry，避免互相覆盖。"""
+def test_refresh_ledger_multi_country_subscription_creates_single_entry(db: Session):
+    """多国家订阅应创建一个合并的 ledger entry，与订阅和报告一一对应。"""
     from app.services.scheduled_report.ledger_service import refresh_ledger
 
     sub = add_subscription(db, frequency="daily", country="UK,DE")
@@ -241,41 +241,54 @@ def test_refresh_ledger_splits_multi_country_subscription(db: Session):
         end_date="2026-05-23",
     )
 
-    assert result.summary.expected == 2
-    assert len(result.items) == 2
+    assert result.summary.expected == 1
+    assert len(result.items) == 1
 
     keys = {item.ledger_key for item in result.items}
     assert keys == {
-        f"{sub.id}:2026-05-23:UK",
-        f"{sub.id}:2026-05-23:DE",
+        f"{sub.id}:2026-05-23",
     }
 
+    item = result.items[0]
+    assert item.country == "UK,DE"
+
     rows = db.query(ScheduledReportLedgerEntry).all()
-    assert len(rows) == 2
-    countries = {row.country for row in rows}
-    assert countries == {"UK", "DE"}
+    assert len(rows) == 1
+    assert rows[0].country == "UK,DE"
 
 
-def test_refresh_ledger_migrates_old_merged_entry(db: Session):
-    """刷新时应清理旧的多国家合并记录，替换为按国家拆分的记录。"""
-    from app.services.scheduled_report.ledger_service import refresh_ledger, build_ledger_key
+def test_refresh_ledger_migrates_old_per_country_entries(db: Session):
+    """刷新时应清理旧的按国家拆分的 ledger entries，合并为一个。"""
+    from app.services.scheduled_report.ledger_service import refresh_ledger
 
     sub = add_subscription(db, frequency="daily", country="UK,DE")
 
-    # 模拟旧格式的合并记录
-    old_key = build_ledger_key(sub.id, "2026-05-23")  # 旧格式不带 country
-    old_entry = ScheduledReportLedgerEntry(
-        ledger_key=old_key,
+    # 模拟旧格式的按国家拆分记录
+    old_key_uk = f"{sub.id}:2026-05-23:UK"
+    old_key_de = f"{sub.id}:2026-05-23:DE"
+    old_entry_uk = ScheduledReportLedgerEntry(
+        ledger_key=old_key_uk,
         subscription_id=sub.id,
         frequency="daily",
         expected_date="2026-05-23",
         expected_at=datetime(2026, 5, 23, 15, 0, tzinfo=ZoneInfo("Asia/Shanghai")),
         email=sub.email,
         project_ids=sub.project_ids,
-        country="UK,DE",
+        country="UK",
         status=LedgerStatus.MISSING.value,
     )
-    db.add(old_entry)
+    old_entry_de = ScheduledReportLedgerEntry(
+        ledger_key=old_key_de,
+        subscription_id=sub.id,
+        frequency="daily",
+        expected_date="2026-05-23",
+        expected_at=datetime(2026, 5, 23, 15, 0, tzinfo=ZoneInfo("Asia/Shanghai")),
+        email=sub.email,
+        project_ids=sub.project_ids,
+        country="DE",
+        status=LedgerStatus.MISSING.value,
+    )
+    db.add_all([old_entry_uk, old_entry_de])
     db.commit()
 
     result = refresh_ledger(
@@ -284,11 +297,13 @@ def test_refresh_ledger_migrates_old_merged_entry(db: Session):
         end_date="2026-05-23",
     )
 
-    # 旧记录应被删除，只保留按国家拆分的新记录
-    assert result.summary.expected == 2
-    assert len(result.items) == 2
-    assert old_key not in {item.ledger_key for item in result.items}
+    # 旧的两条按国家拆分记录应被删除，只保留一条合并记录
+    assert result.summary.expected == 1
+    assert len(result.items) == 1
+    assert old_key_uk not in {item.ledger_key for item in result.items}
+    assert old_key_de not in {item.ledger_key for item in result.items}
 
     rows = db.query(ScheduledReportLedgerEntry).all()
-    assert len(rows) == 2
+    assert len(rows) == 1
+    assert rows[0].country == "UK,DE"
 
