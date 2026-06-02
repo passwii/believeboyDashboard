@@ -348,7 +348,7 @@ function CreateSubscriptionDialog({
       const res = await fetch(resolveApiUrl('/api/v1/scheduled-reports/test-email'), {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: formEmail, frequency: formFrequency, project_ids: formProjectIds, country: formCountries[0] || 'US', ai_model: formAiModel || null }),
+        body: JSON.stringify({ email: formEmail, frequency: formFrequency, project_ids: formProjectIds, country: formCountries.join(','), ai_model: formAiModel || null }),
       })
       const data = await res.json()
       setTestResult({ success: data.success, message: data.message })
@@ -480,7 +480,7 @@ function EditSubscriptionDialog({
       const res = await fetch(resolveApiUrl('/api/v1/scheduled-reports/test-email'), {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: formEmail, frequency: formFrequency, project_ids: formProjectIds, country: formCountries[0] || 'US', ai_model: formAiModel || null }),
+        body: JSON.stringify({ email: formEmail, frequency: formFrequency, project_ids: formProjectIds, country: formCountries.join(','), ai_model: formAiModel || null }),
       })
       const data = await res.json()
       setTestResult({ success: data.success, message: data.message })
@@ -1089,7 +1089,7 @@ export function ScheduledReportsClient() {
       const res = await fetch(resolveApiUrl('/api/v1/scheduled-reports/test-email'), {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: formEmail, frequency: formFrequency, project_ids: formProjectIds, country: formCountries[0] || 'US', ai_model: formAiModel || null }),
+        body: JSON.stringify({ email: formEmail, frequency: formFrequency, project_ids: formProjectIds, country: formCountries.join(','), ai_model: formAiModel || null }),
       })
       const data = await res.json()
       setTestResult({ success: data.success, message: data.message })

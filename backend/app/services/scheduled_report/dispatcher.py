@@ -286,16 +286,31 @@ def _build_multi_country_report(
             country_data[country] = data
         except Exception as e:
             logger.warning("Failed to build report for country=%s: %s", country, e)
-            country_data[country] = {
-                "sales": {}, "week_sales": {}, "prev_week_sales": {},
-                "trend_days": [], "top_skus": [], "sku_sales_detail": [],
-                "inventory": {}, "alert_rows": [], "ads": {},
-                "returns": {"qty": 0, "rate": 0, "top_returns": []},
-                "country": country,
-                "report_date": (reference_date or date.today()).isoformat(),
-                "date_range": "",
-                "ai_summary": f"暂无 {_country_label(country)} 数据",
-            }
+            if frequency == "weekly":
+                country_data[country] = {
+                    "current_week": {"qty": 0, "amount": 0.0, "orders": 0, "avg_price": 0.0},
+                    "prev_week": {"qty": 0, "amount": 0.0, "orders": 0, "avg_price": 0.0},
+                    "changes": {}, "attribution": [], "top_skus_comparison": [],
+                    "ads_comparison": {}, "inventory_alerts": [],
+                    "returns_data": {"qty": 0, "rate": 0.0},
+                    "daily_trend": [], "sku_sales_detail": [],
+                    "alerts": [], "action_items": [],
+                    "country": country,
+                    "report_date": (reference_date or date.today()).isoformat(),
+                    "date_range": "",
+                    "ai_summary": f"暂无 {_country_label(country)} 数据",
+                }
+            else:
+                country_data[country] = {
+                    "sales": {}, "week_sales": {}, "prev_week_sales": {},
+                    "trend_days": [], "top_skus": [], "sku_sales_detail": [],
+                    "inventory": {}, "alert_rows": [], "ads": {},
+                    "returns": {"qty": 0, "rate": 0, "top_returns": []},
+                    "country": country,
+                    "report_date": (reference_date or date.today()).isoformat(),
+                    "date_range": "",
+                    "ai_summary": f"暂无 {_country_label(country)} 数据",
+                }
 
     # Use first country's data for shared shell fields
     first = country_data[country_list[0]]
@@ -305,7 +320,9 @@ def _build_multi_country_report(
         frequency, country_data, ai_model=ai_model,
     )
 
-    return {
+    # Build result dict — include keys from both daily and weekly formats
+    # so that both email senders can find what they need
+    result: dict[str, Any] = {
         "is_multi_country": True,
         "countries": country_list,
         "country_data": country_data,
@@ -314,20 +331,41 @@ def _build_multi_country_report(
         "report_date": first.get("report_date", date.today().isoformat()),
         "date_range": first.get("date_range", ""),
         "ai_summary": ai_summary,
-        # Shell fields from first country (used by email sender outer wrapper)
-        "sales": first.get("sales", {}),
-        "week_sales": first.get("week_sales", {}),
-        "prev_week_sales": first.get("prev_week_sales", {}),
-        "period7d_change_pct": first.get("period7d_change_pct", 0),
-        "period7d_amount_change_pct": first.get("period7d_amount_change_pct", 0),
-        "trend_days": first.get("trend_days", []),
-        "top_skus": first.get("top_skus", []),
-        "sku_sales_detail": first.get("sku_sales_detail", []),
-        "inventory": first.get("inventory", {}),
-        "alert_rows": first.get("alert_rows", []),
-        "ads": first.get("ads", {}),
-        "returns": first.get("returns", {}),
     }
+
+    if frequency == "weekly":
+        result.update({
+            "current_week": first.get("current_week", {}),
+            "prev_week": first.get("prev_week", {}),
+            "changes": first.get("changes", {}),
+            "attribution": first.get("attribution", []),
+            "top_skus_comparison": first.get("top_skus_comparison", []),
+            "ads_comparison": first.get("ads_comparison", {}),
+            "inventory_alerts": first.get("inventory_alerts", []),
+            "returns_data": first.get("returns_data", {}),
+            "daily_trend": first.get("daily_trend", []),
+            "sku_sales_detail": first.get("sku_sales_detail", []),
+            "alerts": first.get("alerts", []),
+            "action_items": first.get("action_items", []),
+            "week_number": first.get("week_number", ""),
+        })
+    else:
+        result.update({
+            "sales": first.get("sales", {}),
+            "week_sales": first.get("week_sales", {}),
+            "prev_week_sales": first.get("prev_week_sales", {}),
+            "period7d_change_pct": first.get("period7d_change_pct", 0),
+            "period7d_amount_change_pct": first.get("period7d_amount_change_pct", 0),
+            "trend_days": first.get("trend_days", []),
+            "top_skus": first.get("top_skus", []),
+            "sku_sales_detail": first.get("sku_sales_detail", []),
+            "inventory": first.get("inventory", {}),
+            "alert_rows": first.get("alert_rows", []),
+            "ads": first.get("ads", {}),
+            "returns": first.get("returns", {}),
+        })
+
+    return result
 
 
 def _generate_multi_country_summary(

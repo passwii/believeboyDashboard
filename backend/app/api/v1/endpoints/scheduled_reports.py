@@ -136,19 +136,30 @@ def test_email(
         except ValueError:
             project_ids = None
 
+    # Parse country list — support multi-country subscriptions
+    parsed_countries = [c.strip().upper() for c in data.country.split(",") if c.strip()]
+
     # Aggregate real data from the database
     try:
-        if data.frequency == "weekly":
+        if len(parsed_countries) > 1:
+            from app.services.scheduled_report.dispatcher import _build_multi_country_report
+            report_data = _build_multi_country_report(
+                project_ids=project_ids,
+                country_list=parsed_countries,
+                frequency=data.frequency,
+                ai_model=data.ai_model,
+            )
+        elif data.frequency == "weekly":
             report_data = build_weekly_report_data(
                 db=db,
                 project_ids=project_ids,
-                country=data.country,
+                country=parsed_countries[0] if parsed_countries else "US",
             )
         else:
             report_data = build_report_email_data(
                 db=db,
                 project_ids=project_ids,
-                country=data.country,
+                country=parsed_countries[0] if parsed_countries else "US",
                 frequency=data.frequency,
                 ai_model=data.ai_model,
             )
