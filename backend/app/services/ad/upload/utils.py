@@ -5,12 +5,47 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 import re
 import warnings
+from typing import Any
 
 import pandas as pd
 from fastapi import HTTPException, status
 from slugify import slugify
 
 from app.services.ad.upload.specs import DECIMAL_ZERO, OPENPYXL_MISSING_DEFAULT_STYLE_WARNING
+
+
+def _record_get_ci(record: dict[str, object], column_name: str) -> object:
+    """Case-insensitive column lookup against a DataFrame row dict.
+
+    Why: Amazon's advertising console sometimes exports columns in mixed case
+    (e.g. "广告SKU" vs "广告sku"). The B-table specs and persistence code use
+    Amazon's official case, but we want robustness against pd.read_excel's
+    case normalization quirks.
+
+    Lookup order: exact match -> case-insensitive match -> None.
+    """
+    if column_name in record:
+        return record[column_name]
+    lowered = str(column_name).lower()
+    for key, value in record.items():
+        if str(key).lower() == lowered:
+            return value
+    return None
+
+
+def _find_column_ci(df_columns: Any, column_name: str) -> str | None:
+    """Case-insensitive column name lookup against a DataFrame's columns.
+
+    Returns the original column name from df_columns that matches (case-insensitively)
+    the given column_name, or None if not found.
+    """
+    if column_name in df_columns:
+        return column_name
+    lowered = str(column_name).lower()
+    for col in df_columns:
+        if str(col).lower() == lowered:
+            return col
+    return None
 
 
 def _safe_name(filename: str) -> str:
@@ -132,9 +167,9 @@ def _date_to_string(value: object) -> str | None:
 
 
 def _resolve_record_date_range(record: dict[str, object]) -> tuple[date, date]:
-    start_text = _date_to_string(record.get('开始日期'))
-    end_text = _date_to_string(record.get('结束日期'))
-    row_date_text = _date_to_string(record.get('日期'))
+    start_text = _date_to_string(_record_get_ci(record, '开始日期'))
+    end_text = _date_to_string(_record_get_ci(record, '结束日期'))
+    row_date_text = _date_to_string(_record_get_ci(record, '日期'))
 
     if row_date_text and not start_text and not end_text:
         row_date = _parse_yyyy_mm_dd(row_date_text, '日期')

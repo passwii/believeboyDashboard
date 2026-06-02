@@ -120,15 +120,20 @@ def finalize_ad_upload_temp_file(
 
 
 def _detect_report_spec(df: pd.DataFrame, extension: str) -> ReportSpec:
-    columns = set(df.columns)
+    # Case-insensitive column matching (Amazon exports sometimes use mixed case,
+    # e.g. "广告SKU" vs "广告sku"). Specs keep Amazon's official case; comparison
+    # is done in lowercase.
+    columns_lower = {str(c).strip().lower() for c in df.columns}
     for spec in REPORT_SPECS:
         if extension not in spec.extensions:
             continue
-        missing = [column for column in spec.required_columns if column not in columns]
+        required_lower = tuple(str(c).lower() for c in spec.required_columns)
+        missing = [column for column in required_lower if column not in columns_lower]
         if not missing:
             return spec
         periodic_columns = _periodic_required_columns(spec)
-        missing_periodic = [column for column in periodic_columns if column not in columns]
+        periodic_columns_lower = tuple(str(c).lower() for c in periodic_columns)
+        missing_periodic = [column for column in periodic_columns_lower if column not in columns_lower]
         if not missing_periodic:
             return ReportSpec(
                 report_type=spec.report_type,

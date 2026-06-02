@@ -206,83 +206,6 @@ def recognize_payment_report(path: Path, country: str = "US") -> RecognitionResu
     )
 
 
-def recognize_ad_product_report(path: Path, country: str = "US") -> RecognitionResult:
-    """Recognize ad product report (.xlsx with 开始日期 / 结束日期 / 广告SKU / 广告ASIN)."""
-    df = _normalize_columns(_read_excel(path))
-    required = ["开始日期", "结束日期", "广告sku", "广告asin"]
-    missing = [c for c in required if c not in df.columns]
-    if missing:
-        raise ValueError(f"Ad report missing required columns: {missing}")
-
-    detected_end_date = None
-    if not df["结束日期"].dropna().empty:
-        detected_end_date = _date_to_string_by_country(df["结束日期"].dropna().iloc[0], country)
-
-    detected_start_date = None
-    if not df["开始日期"].dropna().empty:
-        detected_start_date = _date_to_string_by_country(df["开始日期"].dropna().iloc[0], country)
-
-    warnings_list: list[str] = []
-    detected_country: str | None = None
-    if "国家/地区" in df.columns and not df["国家/地区"].dropna().empty:
-        file_country_val = str(df["国家/地区"].dropna().iloc[0]).strip().upper()
-        if file_country_val in {"DE", "GERMANY", "德国", "德国站"}:
-            detected_country = "DE"
-        elif file_country_val in {"UK", "GB", "UNITED KINGDOM", "英国", "英国站"}:
-            detected_country = "UK"  # 🔶 Reserved
-        elif file_country_val in {"US", "USA", "美国", "美国站"}:
-            detected_country = "US"
-        if detected_country and detected_country != country:
-            warnings_list.append(f"文件内国家/地区为 {detected_country}，当前按所选站点 {country} 处理")
-
-    return RecognitionResult(
-        report_type=AD_PRODUCT_REPORT,
-        matched_columns=required,
-        reason="命中开始日期 / 结束日期 / 广告SKU / 广告ASIN",
-        date_input_mode="single_detected",
-        detected_date=detected_end_date,
-        detected_start_date=detected_start_date,
-        detected_end_date=detected_end_date,
-        row_count_preview=len(df.index),
-        warnings=warnings_list,
-        country=detected_country or country,
-    )
-
-
-def recognize_ad_search_term_report(path: Path, country: str = "US") -> RecognitionResult:
-    """Recognize ad search term report (.xlsx with 开始日期 / 结束日期 / 投放 / 客户搜索词)."""
-    df = _normalize_columns(_read_excel(path))
-    required = ["开始日期", "结束日期"]
-    missing = [c for c in required if c not in df.columns]
-    if missing:
-        raise ValueError("Ad search term report missing required columns")
-
-    from pandas import to_datetime
-    end_date = None
-    if not df["结束日期"].dropna().empty:
-        parsed = to_datetime(df["结束日期"].dropna().iloc[0], errors="coerce")
-        if parsed is not None and not parsed.isna():
-            end_date = parsed.strftime("%Y-%m-%d")
-
-    start_date = None
-    if not df["开始日期"].dropna().empty:
-        parsed = to_datetime(df["开始日期"].dropna().iloc[0], errors="coerce")
-        if parsed is not None and not parsed.isna():
-            start_date = parsed.strftime("%Y-%m-%d")
-
-    return RecognitionResult(
-        report_type="ad_search_term_report",
-        matched_columns=required,
-        reason="命中开始日期 / 结束日期，识别为商品推广搜索词报表",
-        date_input_mode="single_detected",
-        detected_date=end_date,
-        detected_start_date=start_date,
-        detected_end_date=end_date,
-        row_count_preview=len(df.index),
-        country=country,
-    )
-
-
 def recognize_return_report(path: Path, country: str = "US") -> RecognitionResult:
     """Recognize return report (.txt with return-date / sku)."""
     df = _normalize_columns(_read_csv_with_encoding_fallback(path))
@@ -383,15 +306,8 @@ def recognize_file(
             # No report type matched — return None (recognition failure)
             return None
 
-        if extension == ".xlsx":
-            df = _normalize_columns(_read_excel(path))
-            columns = set(df.columns)
-            if {"广告sku", "广告asin"}.issubset(columns):
-                return recognize_ad_product_report(path, normalized_country)
-            if {"开始日期", "结束日期", "投放", "客户搜索词"}.issubset(columns):
-                return recognize_ad_search_term_report(path, normalized_country)
-            return None
-
+        # ad 报表 (.xlsx) 全部走 B 表 (app.services.ad.upload.specs)，
+        # 此处不再识别 A 表 ad_*_report。CLAUDE.md 注明 ad_product_report 已切到 C 表。
         return None
 
     except Exception:

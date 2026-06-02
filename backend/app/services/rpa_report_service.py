@@ -27,14 +27,28 @@ def _business_date_iso(src: AnalysisSourceFile) -> Optional[str]:
         return src.period_end_date.isoformat()
     return None
 
+# 广告类报表 report_type 必须以 ad_ 开头、_report 结尾
+AD_REPORT_TYPE_PREFIX = "ad_"
+AD_REPORT_TYPE_SUFFIX = "_report"
+
 REPORT_TYPES = [
     # 已接入
     "inventory_report",      # 库存
     "business_report",        # 业务
-    "ad_product_report",      # 广告
-    "sales_report",           # 销售
-    "payment_report",         # 付款
-    "return_report",          # 退货
+    # 广告（C 表 10 个细分维度；已推广商品报告 = ad_promoted_product_report 在列内）
+    "ad_search_term_share_report",  # 广告 - 搜索词展示量份额
+    "ad_budget_report",             # 广告 - 预算
+    "ad_campaign_report",           # 广告 - 广告活动
+    "ad_purchased_product_report",  # 广告 - 已购买商品
+    "ad_promoted_product_report",   # 广告 - 推广的商品（已推广商品报告）
+    "ad_invalid_traffic_report",    # 广告 - 总流量和无效流量
+    "ad_placement_report",          # 广告 - 广告位
+    "ad_target_report",             # 广告 - 搜索词投放
+    "ad_search_term_report",        # 广告 - 搜索词
+    "ad_time_trend_report",         # 广告 - 按时间查看效果
+    "sales_report",                 # 销售
+    "payment_report",               # 付款
+    "return_report",                # 退货
     # 预留（未来报表类型）
     "storage_report",         # 仓储
     "returns_detail_report",  # 退货明细
@@ -46,6 +60,14 @@ REPORT_TYPES = [
     "brand_report",           # 品牌报表
     "vendor_report",          # 供应商报表
 ]
+
+
+def _ad_report_types() -> list[str]:
+    """Return all ad_*_report entries from REPORT_TYPES (derived from a single source of truth)."""
+    return [
+        rt for rt in REPORT_TYPES
+        if rt.startswith(AD_REPORT_TYPE_PREFIX) and rt.endswith(AD_REPORT_TYPE_SUFFIX)
+    ]
 
 
 @dataclass
@@ -246,32 +268,39 @@ def get_report_status_for_date(
                 status_source="business_date_backfill",
             )
 
-    # ── Fallback for ad data: query ad_upload_files (C 表) ──
+    # ── Fallback for ad data: query ad_upload_files (C 表) for each of the 10 ad report types ──
     if target_date is not None:
-        ad_missing_pids = [
-            pid for pid in project_ids
+        ad_report_types = _ad_report_types()
+        ad_missing_pairs = [
+            (pid, rt)
+            for pid in project_ids
+            for rt in ad_report_types
             if pid in status_by_project
-            and not status_by_project[pid]["ad_product_report"].is_uploaded
+            and not status_by_project[pid][rt].is_uploaded
         ]
-        if ad_missing_pids:
+        if ad_missing_pairs:
+            missing_pids = sorted({pid for pid, _ in ad_missing_pairs})
             ad_sources = db.execute(
                 select(AdUploadFile)
-                .where(AdUploadFile.project_id.in_(ad_missing_pids))
+                .where(AdUploadFile.project_id.in_(missing_pids))
                 .where(AdUploadFile.country == country)
-                .where(AdUploadFile.report_type == "ad_promoted_product_report")
+                .where(AdUploadFile.report_type.in_(ad_report_types))
                 .where(AdUploadFile.is_current.is_(True))
                 .where(AdUploadFile.ingestion_status == "success")
                 .where(AdUploadFile.period_start_date <= target_date)
                 .where(AdUploadFile.period_end_date >= target_date)
             ).scalars().all()
-            ad_map: dict[int, AdUploadFile] = {}
+            # Keep latest source per (project_id, report_type) — 每个 ad 维度独立
+            ad_map: dict[tuple[int, str], AdUploadFile] = {}
             for src in ad_sources:
-                pid = int(src.project_id)
-                if pid not in ad_map or src.created_at > ad_map[pid].created_at:
-                    ad_map[pid] = src
-            for pid, src in ad_map.items():
-                status_by_project[pid]["ad_product_report"] = ReportTypeStatus(
-                    report_type="ad_product_report",
+                key = (int(src.project_id), src.report_type)
+                if key not in ad_map or src.created_at > ad_map[key].created_at:
+                    ad_map[key] = src
+            for (pid, rt), src in ad_map.items():
+                if pid not in status_by_project:
+                    continue
+                status_by_project[pid][rt] = ReportTypeStatus(
+                    report_type=rt,
                     has_data=src.row_count_total > 0,
                     is_uploaded=True,
                     latest_date=str(src.report_date) if src.report_date else None,
