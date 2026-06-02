@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import Image from 'next/image'
 import ReactMarkdown from 'react-markdown'
@@ -304,6 +304,7 @@ function CreateSubscriptionDialog({
   isLoadingModelConfig,
   allowedHourOptions,
   isMondayRestricted,
+  onSuccess,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -312,6 +313,7 @@ function CreateSubscriptionDialog({
   isLoadingModelConfig: boolean
   allowedHourOptions: number[]
   isMondayRestricted: boolean
+  onSuccess: () => void
 }) {
   const [formEmail, setFormEmail] = useState('')
   const [formProjectIds, setFormProjectIds] = useState('*')
@@ -375,8 +377,7 @@ function CreateSubscriptionDialog({
         throw new Error(err || '创建失败')
       }
       onOpenChange(false)
-      // 触发父组件刷新
-      window.location.reload()
+      onSuccess()
     } catch (e) {
       setFormError(normalizeErrorMessage(e, '创建失败'))
     } finally {
@@ -426,6 +427,7 @@ function EditSubscriptionDialog({
   isLoadingModelConfig,
   allowedHourOptions,
   isMondayRestricted,
+  onSuccess,
 }: {
   subscription: Subscription | null
   open: boolean
@@ -435,6 +437,7 @@ function EditSubscriptionDialog({
   isLoadingModelConfig: boolean
   allowedHourOptions: number[]
   isMondayRestricted: boolean
+  onSuccess: () => void
 }) {
   const [formEmail, setFormEmail] = useState('')
   const [formProjectIds, setFormProjectIds] = useState('*')
@@ -507,7 +510,7 @@ function EditSubscriptionDialog({
         throw new Error(err || '更新失败')
       }
       onOpenChange(false)
-      window.location.reload()
+      onSuccess()
     } catch (e) {
       setFormError(normalizeErrorMessage(e, '更新失败'))
     } finally {
@@ -729,6 +732,7 @@ export function ScheduledReportsClient() {
   const [previewScreenshotUrl, setPreviewScreenshotUrl] = useState<string | null>(null)
   const [previewSummary, setPreviewSummary] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState('subscriptions')
+  const initialLoadDone = useRef(false)
 
   /** 复制到剪贴板的文案：将 - 前缀替换为 ◉ */
   const previewCopyText = useMemo(() => {
@@ -832,9 +836,24 @@ export function ScheduledReportsClient() {
     void loadModelConfig()
   }, [])
 
+  const refreshSubscriptions = useCallback(async () => {
+    try {
+      const [subRes, projectData] = await Promise.all([
+        fetch(resolveApiUrl('/api/v1/scheduled-reports/subscriptions'), { headers: authHeaders() }),
+        fetchManagedProjectsCached<Array<{ id?: number | null; name: string }>>(session),
+      ])
+      const subs = subRes.ok ? await subRes.json() : { items: [] }
+      setSubscriptions(subs.items || [])
+      setProjects(projectData.filter(p => typeof p.name === 'string' && p.name.trim()))
+    } catch (e) {
+      console.error(e)
+    }
+  }, [session])
+
   useEffect(() => {
     const loadData = async () => {
-      setLoading(true)
+      const isInitial = !initialLoadDone.current
+      if (isInitial) setLoading(true)
       try {
         const [subRes, projectData] = await Promise.all([
           fetch(resolveApiUrl('/api/v1/scheduled-reports/subscriptions'), { headers: authHeaders() }),
@@ -846,7 +865,10 @@ export function ScheduledReportsClient() {
       } catch (e) {
         console.error(e)
       } finally {
-        setLoading(false)
+        if (isInitial) {
+          setLoading(false)
+          initialLoadDone.current = true
+        }
       }
     }
     void loadData()
@@ -1677,6 +1699,7 @@ export function ScheduledReportsClient() {
         isLoadingModelConfig={isLoadingModelConfig}
         allowedHourOptions={allowedHourOptions}
         isMondayRestricted={isMondayRestricted}
+        onSuccess={refreshSubscriptions}
       />
 
       {/* 编辑订阅 Dialog */}
@@ -1689,6 +1712,7 @@ export function ScheduledReportsClient() {
         isLoadingModelConfig={isLoadingModelConfig}
         allowedHourOptions={allowedHourOptions}
         isMondayRestricted={isMondayRestricted}
+        onSuccess={refreshSubscriptions}
       />
     </>
   )
