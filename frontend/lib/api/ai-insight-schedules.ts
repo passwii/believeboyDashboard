@@ -33,7 +33,7 @@ export interface InsightScheduleListResponse {
 export interface InsightScheduleCreate {
   project_id: number
   country: 'US' | 'DE' | 'UK'
-  insight_type: 'daily' | 'weekly' | 'monthly' | 'custom'
+  insight_type: 'daily' | 'weekly' | 'monthly' | 'custom' | 'ad_analysis'
   cron_expression: string
   date_range_strategy: 'yesterday' | 'last_7d' | 'last_30d' | 'prev_month' | 'current_month' | 'last_week'
   model?: string | null
@@ -46,7 +46,7 @@ export interface ProjectOption {
 
 export interface InsightScheduleUpdate {
   country?: 'US' | 'DE' | 'UK'
-  insight_type?: 'daily' | 'weekly' | 'monthly' | 'custom'
+  insight_type?: 'daily' | 'weekly' | 'monthly' | 'custom' | 'ad_analysis'
   cron_expression?: string
   date_range_strategy?: 'yesterday' | 'last_7d' | 'last_30d' | 'prev_month' | 'current_month' | 'last_week'
   model?: string | null

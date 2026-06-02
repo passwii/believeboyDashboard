@@ -51,6 +51,7 @@ from app.services.ad.upload.persistence import (
     _ingest_time_trend_rows,
     commit_ad_upload,
     list_ad_upload_statuses,
+    save_ad_upload_scope,
 )
 
 __all__ = [
@@ -96,4 +97,5 @@ __all__ = [
     '_ingest_time_trend_rows',
     'commit_ad_upload',
     'list_ad_upload_statuses',
+    'save_ad_upload_scope',
 ]

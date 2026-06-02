@@ -23,6 +23,7 @@ class InsightType(str, enum.Enum):
     weekly = 'weekly'
     monthly = 'monthly'
     custom = 'custom'
+    ad_analysis = 'ad_analysis'  # 广告专项 AI 分析 (10 种 ad 类型 + 销售 + 库存融合)
 
 
 class AIInsight(Base):

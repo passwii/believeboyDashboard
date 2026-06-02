@@ -73,6 +73,11 @@ const primaryGroups: NavGroup[] = [
     activeIconAccent: 'rgba(255,255,255,0.95)',
     items: [
       { title: 'AI 概览', url: '/dashboard/ai' },
+      {
+        title: 'AI 广告分析',
+        url: '/dashboard/ai/ad-analysis',
+        matchPrefixes: ['/dashboard/ai/ad-analysis'],
+      },
       { title: 'AI Chat', url: '/ai-chat', target: '_blank' },
     ],
   },

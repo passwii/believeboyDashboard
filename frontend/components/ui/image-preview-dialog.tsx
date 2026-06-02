@@ -91,6 +91,7 @@ export function PortraitScreenshotDialog({
         "flex flex-col items-center p-4 transition-all duration-300",
         zoomed ? "max-w-[96vw]" : "max-w-2xl",
       )}>
+        <DialogTitle className="sr-only">{alt}</DialogTitle>
         <div
           className={cn(
             "w-full overflow-y-auto",

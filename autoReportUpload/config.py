@@ -63,6 +63,11 @@ CHECK_INTERVAL_MINUTES = 5
 # Sub-folder under each project folder where processed files are moved
 PROCESSED_SUBDIR = "processed"
 
+# Ad reports use a dedicated archive folder so 10 ad subtypes (promoted
+# product / campaign / placement / etc.) stay separate from general reports.
+# 10 ad subtypes are recognized by ``app.services.ad.upload.specs.REPORT_SPECS``.
+AD_PROCESSED_SUBDIR = "广告Processed"
+
 # Folder names to ignore entirely
 IGNORED_DIRS = {"sync.ffs_db"}
 

@@ -9,7 +9,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from config import CHECK_INTERVAL_MINUTES, IGNORED_DIRS, IS_LOCAL, IS_WINDOWS, PROCESSED_SUBDIR, PROJECTS, SUPPORTED_EXTENSIONS, WATCH_ROOT
+from config import AD_PROCESSED_SUBDIR, CHECK_INTERVAL_MINUTES, IGNORED_DIRS, IS_LOCAL, IS_WINDOWS, PROCESSED_SUBDIR, PROJECTS, SUPPORTED_EXTENSIONS, WATCH_ROOT
 from db import Session, check_db_health, get_db_session, get_db_session_with_retry, reconnect_engine
 from processor import ProcessResult, process_file
 try:
@@ -125,8 +125,12 @@ def _collect_files(project_dir: Path) -> list[Path]:
     collected = []
     for entry in project_dir.iterdir():
         if entry.is_dir():
-            # Skip the processed subfolder itself
-            if entry.name == PROCESSED_SUBDIR or entry.name in IGNORED_DIRS:
+            # Skip the processed subfolders themselves (general + ad-specific)
+            if (
+                entry.name == PROCESSED_SUBDIR
+                or entry.name == AD_PROCESSED_SUBDIR
+                or entry.name in IGNORED_DIRS
+            ):
                 continue
             continue
         if entry.suffix.lower() in SUPPORTED_EXTENSIONS:
@@ -251,8 +255,12 @@ def _start_watchdog_logger(logger: RunLogger, dry_run: bool):
             # 判断属于哪个项目
             try:
                 project_name = file_path.parent.name
-                # 明确排除 processed/ 子目录，防止处理已归档文件
-                if project_name == PROCESSED_SUBDIR or project_name not in PROJECTS:
+                # 明确排除 processed/ 和 广告Processed/ 子目录，防止处理已归档文件
+                if (
+                    project_name == PROCESSED_SUBDIR
+                    or project_name == AD_PROCESSED_SUBDIR
+                    or project_name not in PROJECTS
+                ):
                     return
             except Exception:
                 return

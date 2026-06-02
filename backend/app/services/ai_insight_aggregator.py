@@ -11,9 +11,17 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import (
+    AdUploadBudgetRow,
+    AdUploadCampaignRow,
     AdUploadFile,
+    AdUploadInvalidTrafficRow,
+    AdUploadPlacementRow,
     AdUploadPromotedProductRow,
-    AnalysisAdProductRow,
+    AdUploadPurchasedProductRow,
+    AdUploadSearchTermRow,
+    AdUploadSearchTermShareRow,
+    AdUploadTargetRow,
+    AdUploadTimeTrendRow,
     AnalysisSalesOrderRow,
     AnalysisSourceFile,
     InventorySnapshotRow,
@@ -36,6 +44,9 @@ class AggregatedData:
     comparison_period: dict[str, Any] | None = None
     top_skus: list[dict[str, Any]] = field(default_factory=list)
     ad_campaigns: list[dict[str, Any]] = field(default_factory=list)
+    # ad_breakdown_by_type: 10 种 ad 报表类型各自聚合的指标，供 ad_analysis 模式使用。
+    # 结构: { report_type: { "summary": {...}, "top": [...], "...": ... } }
+    ad_breakdown_by_type: dict[str, dict[str, Any]] = field(default_factory=dict)
     data_coverage: dict[str, Any] = field(default_factory=dict)
     project_context: dict[str, Any] = field(default_factory=dict)
     sku_context: dict[str, Any] = field(default_factory=dict)
@@ -52,6 +63,7 @@ class AggregatedData:
             "comparison_period": self.comparison_period,
             "top_skus": self.top_skus,
             "ad_campaigns": self.ad_campaigns,
+            "ad_breakdown_by_type": self.ad_breakdown_by_type,
             "data_coverage": self.data_coverage,
             "project_context": self.project_context,
             "sku_context": self.sku_context,
@@ -202,6 +214,12 @@ def aggregate_project_data(
         AGGREGATE_STEP_AD_CAMPAIGNS, progress_cb,
     )
 
+    # 10 种 ad 报表类型的全量聚合 (给 ad_analysis 模式用)
+    ad_breakdown_by_type = _aggregate_ad_breakdown_by_type_sql(
+        session_factory, project_id, country, start_date, end_date,
+        progress_cb,
+    )
+
     # Fetch project context
     project_context, sku_context = project_service.get_project_context(db, project_id)
 
@@ -232,6 +250,7 @@ def aggregate_project_data(
         comparison_period=comparison_period,
         top_skus=top_skus,
         ad_campaigns=ad_campaigns,
+        ad_breakdown_by_type=ad_breakdown_by_type,
         data_coverage={
             "sales_days": sales_coverage["days"],
             "ad_days": ad_coverage["days"],
@@ -704,6 +723,259 @@ def _get_ad_campaign_summary_sql(
             "message": f"获取到 {len(result)} 天广告活动数据",
         })
 
+        return result
+    finally:
+        db.close()
+
+
+# ─── 10 种 ad 报表类型全量聚合 (ad_analysis 模式用) ────────────────────────────
+#
+# 每种类型聚合: 一个 summary (期间内总 spend/sales/orders/clicks/impressions 等)
+#              + 一个 top-N (按 spend 排序的前 N 行明细，AI 可以基于此做细节分析)
+#
+# 设计原则:
+#  - 每种类型都聚 (即使没数据也返回空 dict, AI 知道"这个类型没数据")
+#  - top-N 限制在 20 行, 控制 prompt token
+#  - summary 数字保留 2 位小数
+#
+# 这是 ai_insight_aggregator 的扩展, 跟现有的 _aggregate_ad_by_date_sql 不冲突:
+#  现有函数按日期聚 promoted_product (返回时间序列)
+#  新函数按 10 种类型分别聚 (返回分类聚合, 适合 ad_analysis 模式)
+
+
+# 聚合类型 → 报表类型 → 表模型 映射
+AD_REPORT_TYPE_TO_MODEL: dict[str, Any] = {
+    "ad_promoted_product_report": AdUploadPromotedProductRow,
+    "ad_campaign_report": AdUploadCampaignRow,
+    "ad_search_term_report": AdUploadSearchTermRow,
+    "ad_target_report": AdUploadTargetRow,
+    "ad_placement_report": AdUploadPlacementRow,
+    "ad_budget_report": AdUploadBudgetRow,
+    "ad_invalid_traffic_report": AdUploadInvalidTrafficRow,
+    "ad_time_trend_report": AdUploadTimeTrendRow,
+    "ad_search_term_share_report": AdUploadSearchTermShareRow,
+    "ad_purchased_product_report": AdUploadPurchasedProductRow,
+}
+
+# 中文标签 (用于 prompt 提示)
+AD_REPORT_TYPE_LABELS: dict[str, str] = {
+    "ad_promoted_product_report": "商品推广（按 SKU/ASIN 拆）",
+    "ad_campaign_report": "广告活动（按 campaign 拆）",
+    "ad_search_term_report": "搜索词（找高花费低转化词）",
+    "ad_target_report": "投放（按 target 拆，看首位展示份额）",
+    "ad_placement_report": "广告位（按 placement 拆）",
+    "ad_budget_report": "预算（含建议预算 vs 实际预算）",
+    "ad_invalid_traffic_report": "无效流量",
+    "ad_time_trend_report": "按时间看效果（CPC/花费时序）",
+    "ad_search_term_share_report": "搜索词展示量份额",
+    "ad_purchased_product_report": "已购买商品（看 ad SKU 转化）",
+}
+
+# 每种类型聚合 SQL 的 group-by 维度 (返回 row 的字段)
+# None 表示不 group (整体聚合)
+AD_REPORT_TYPE_GROUP_BY: dict[str, str | None] = {
+    "ad_promoted_product_report": "ad_sku",   # 按 SKU 拆
+    "ad_campaign_report": "campaign_name",   # 按 campaign 拆
+    "ad_search_term_report": "search_term",   # 按搜索词拆
+    "ad_target_report": "target_text",       # 按投放词拆
+    "ad_placement_report": "placement",      # 按广告位拆
+    "ad_budget_report": "campaign_name",     # 按 campaign 拆 (含建议预算)
+    "ad_invalid_traffic_report": None,       # 整体聚合
+    "ad_time_trend_report": None,            # 整体聚合 (本身已是时序)
+    "ad_search_term_share_report": "search_term",  # 按搜索词拆
+    "ad_purchased_product_report": "ad_sku", # 按 ad SKU 拆
+}
+
+# 每种类型的 top-N 上限
+TOP_N_PER_TYPE = 20
+
+
+def _safe_div(numerator: float, denominator: float) -> float:
+    """Division returning 0 on zero denominator, rounded to 2 dp."""
+    if not denominator:
+        return 0.0
+    return round(numerator / denominator, 2)
+
+
+def _summarize_one_ad_type(
+    db: Session,
+    *,
+    report_type: str,
+    project_id: int,
+    country: str,
+    start_date: date,
+    end_date: date,
+    progress_cb: ProgressCallback | None,
+) -> dict[str, Any]:
+    """聚合单种 ad 类型的指标 (summary + top-N)。
+
+    返回结构:
+      {
+        "report_type": "ad_search_term_report",
+        "label": "搜索词（找高花费低转化词）",
+        "has_data": True/False,
+        "summary": {"spend": ..., "sales": ..., "orders": ..., "clicks": ..., "impressions": ...},
+        "top": [ {groupby_field: value, "spend": ..., ...}, ... ],  # top TOP_N_PER_TYPE 按 spend 排序
+      }
+    """
+    model = AD_REPORT_TYPE_TO_MODEL.get(report_type)
+    if model is None:
+        return {"report_type": report_type, "label": AD_REPORT_TYPE_LABELS.get(report_type, report_type), "has_data": False, "summary": {}, "top": []}
+
+    _report(progress_cb, f"data_aggregating_ad_{report_type}", {
+        "step_label": AD_REPORT_TYPE_LABELS.get(report_type, report_type),
+        "status": "running",
+        "message": f"正在聚合 {report_type} ...",
+    })
+
+    # Common WHERE clause (project + country + is_current + report_date range)
+    base_where = [
+        AdUploadFile.project_id == project_id,
+        AdUploadFile.report_type == report_type,
+        AdUploadFile.country == country,
+        AdUploadFile.is_current.is_(True),
+        AdUploadFile.report_date.is_not(None),
+        AdUploadFile.report_date >= start_date,
+        AdUploadFile.report_date <= end_date,
+    ]
+    # promoted_product 还有 scope_status 过滤 (排除非店内产品)
+    if report_type == "ad_promoted_product_report":
+        base_where.append(AdUploadPromotedProductRow.scope_status == "included_product")
+
+    # Determine numeric columns the model has (different per type)
+    numeric_cols = {
+        col.name for col in model.__table__.columns
+        if col.name in {"spend", "sales_7d", "orders_7d", "clicks", "impressions", "units_7d", "budget"}
+    }
+    if not numeric_cols:
+        return {"report_type": report_type, "label": AD_REPORT_TYPE_LABELS.get(report_type, report_type), "has_data": False, "summary": {}, "top": []}
+
+    # ----- summary (整体聚合) -----
+    summary_selects = []
+    for col in numeric_cols:
+        summary_selects.append(func.sum(getattr(model, col)).label(col))
+    summary_stmt = select(*summary_selects).select_from(model).join(
+        AdUploadFile, AdUploadFile.id == model.source_file_id
+    ).where(*base_where)
+    summary_row = db.execute(summary_stmt).one()
+
+    summary: dict[str, float] = {}
+    total_spend = 0.0
+    total_sales = 0.0
+    total_clicks = 0
+    total_impressions = 0
+    total_orders = 0
+    for col in numeric_cols:
+        v = getattr(summary_row, col) or 0
+        if col in {"spend", "sales_7d", "budget"}:
+            summary[col] = _round_money(Decimal(str(v)))
+        elif col in {"orders_7d", "clicks", "impressions", "units_7d"}:
+            summary[col] = int(v)
+        else:
+            summary[col] = v
+    total_spend = summary.get("spend", 0)
+    total_sales = summary.get("sales_7d", 0)
+    total_orders = summary.get("orders_7d", 0)
+    total_clicks = summary.get("clicks", 0)
+    total_impressions = summary.get("impressions", 0)
+    summary["roas"] = _safe_div(total_sales, total_spend)
+    summary["acos"] = _safe_div(total_spend, total_sales) * 100  # percentage
+    summary["ctr"] = _safe_div(total_clicks, total_impressions) * 100  # percentage
+    summary["cpc"] = _safe_div(total_spend, total_clicks)
+    summary["conversion_rate"] = _safe_div(total_orders, total_clicks) * 100  # percentage
+    has_data = any(v for v in summary.values() if isinstance(v, (int, float)) and v > 0)
+
+    # ----- top-N (按 spend 排序, 取 spend > 0 的) -----
+    group_by_col = AD_REPORT_TYPE_GROUP_BY.get(report_type)
+    top: list[dict[str, Any]] = []
+    if group_by_col:
+        group_by_attr = getattr(model, group_by_col, None)
+        if group_by_attr is not None:
+            # 找到这个 group_by 字段的类型，决定能不能用
+            top_selects = [group_by_attr.label("group_value")]
+            for col in numeric_cols:
+                top_selects.append(func.sum(getattr(model, col)).label(col))
+            top_stmt = (
+                select(*top_selects)
+                .select_from(model)
+                .join(AdUploadFile, AdUploadFile.id == model.source_file_id)
+                .where(*base_where)
+                .group_by(group_by_attr)
+                .having(func.sum(getattr(model, "spend")) > 0)
+                .order_by(func.sum(getattr(model, "spend")).desc())
+                .limit(TOP_N_PER_TYPE)
+            )
+            top_rows = db.execute(top_stmt).all()
+            for r in top_rows:
+                row_dict: dict[str, Any] = {group_by_col: r.group_value}
+                row_spend = 0.0
+                row_sales = 0.0
+                row_orders = 0
+                row_clicks = 0
+                for col in numeric_cols:
+                    v = getattr(r, col) or 0
+                    if col in {"spend", "sales_7d", "budget"}:
+                        row_dict[col] = _round_money(Decimal(str(v)))
+                    elif col in {"orders_7d", "clicks", "impressions", "units_7d"}:
+                        row_dict[col] = int(v)
+                    else:
+                        row_dict[col] = v
+                row_spend = row_dict.get("spend", 0)
+                row_sales = row_dict.get("sales_7d", 0)
+                row_orders = row_dict.get("orders_7d", 0)
+                row_clicks = row_dict.get("clicks", 0)
+                row_dict["roas"] = _safe_div(row_sales, row_spend)
+                row_dict["acos_pct"] = _safe_div(row_spend, row_sales) * 100
+                row_dict["conversion_rate_pct"] = _safe_div(row_orders, row_clicks) * 100
+                top.append(row_dict)
+
+    _report(progress_cb, f"data_aggregating_ad_{report_type}", {
+        "step_label": AD_REPORT_TYPE_LABELS.get(report_type, report_type),
+        "status": "completed",
+        "record_count": len(top),
+        "total_amount": total_spend,
+        "message": f"{AD_REPORT_TYPE_LABELS.get(report_type, report_type)}: {len(top)} 条 top 行 (按 spend 排序)",
+    })
+
+    return {
+        "report_type": report_type,
+        "label": AD_REPORT_TYPE_LABELS.get(report_type, report_type),
+        "has_data": has_data,
+        "summary": summary,
+        "top": top,
+    }
+
+
+def _aggregate_ad_breakdown_by_type_sql(
+    session_factory,
+    project_id: int,
+    country: str,
+    start_date: date,
+    end_date: date,
+    progress_cb: ProgressCallback | None,
+) -> dict[str, dict[str, Any]]:
+    """为 ad_analysis 模式聚 10 种 ad 报表类型。
+
+    Returns:
+        {report_type: {summary, top, has_data, label}, ...}
+
+    设计说明:
+      - 全部 10 种类型都会尝试聚, 没数据返回空 summary + 空 top (has_data=False)
+      - 每种类型发一个 progress 事件 (data_aggregating_ad_<type>), 让前端能看到进度
+    """
+    db = session_factory()
+    result: dict[str, dict[str, Any]] = {}
+    try:
+        for report_type in AD_REPORT_TYPE_TO_MODEL:
+            result[report_type] = _summarize_one_ad_type(
+                db,
+                report_type=report_type,
+                project_id=project_id,
+                country=country,
+                start_date=start_date,
+                end_date=end_date,
+                progress_cb=progress_cb,
+            )
         return result
     finally:
         db.close()

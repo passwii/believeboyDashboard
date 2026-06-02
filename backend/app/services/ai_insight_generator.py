@@ -219,6 +219,118 @@ title 库龄结构分布
 """
 
 
+# ─── 专项: 广告 AI 分析 Prompt (ad_analysis 模式) ─────────────────────────────
+#
+# 核心设计原则 (用户明确要求):
+#  1. **不预设分析维度** — prompt 不写"必须分析 ROAS"等; 给完整数据 + 角色 + 目标, AI 自主决定看什么
+#  2. **角色是双专家** — 亚马逊运营专家 + 广告投放优化专家
+#  3. **建议必须可执行** — 硬性要求, 避免"建议优化"这种空话
+#  4. **不强加章节结构** — 让 AI 根据数据自然组织
+#
+# 与通用 INSIGHT_SYSTEM_PROMPT 的差异:
+#  - 通用 prompt 是"运营分析师", 章节固定 (执行摘要/销售/广告/库存/异常/建议)
+#  - 本 prompt 是"双专家", 强调建议可执行 + 跨数据融合, 不预设章节
+INSIGHT_AD_ANALYSIS_PROMPT = """你是一位资深的亚马逊运营专家，同时也是广告投放优化专家，专注美国站。
+
+## 你的任务
+
+基于以下提供的【项目数据】，输出**可被运营团队直接采纳**的洞察报告和行动建议。
+
+你可以**自行决定分析角度**——比如：
+- 哪些 SKU / ASIN 的广告投入产出有问题
+- 哪些搜索词在浪费预算（高花费低转化）
+- 哪些 campaign 预算不足或过度
+- 哪些 ad placement 表现突出或落后
+- 销售 / 库存 / 广告三者之间的关联
+- 季节性 / 预算节奏 / 出价策略的合理性
+
+**不要受任何预定义分析框架的束缚**。如果数据告诉你某件事值得关注，就深入分析；如果某维度数据为空或无意义，可以略过。
+
+## 硬性要求
+
+1. **建议必须可执行** — 每条建议要给具体数字和具体对象（"将 X campaign 预算从 $Y 提高 20% 到 $Z"，不要"建议优化"这种空话）。
+2. **数字必须从数据中读取** — 不得编造。所有数字必须能在提供的数据中找到来源。
+3. **不重复数据** — 洞察是分析，不是把数据再列一遍。如果某个数字没值得说的事，就别提。
+4. **不强加章节** — 根据数据自然组织结构。如果数据说"今天最该关注的是搜索词浪费"，就把搜索词放最前面。
+5. **跨数据融合** — 当销售/库存/广告之间有关联时（比如某个 SKU 库存快没了但广告还在烧），必须指出这种关联。
+6. **不预设必须包含的章节** — 跟通用洞察报告不同，本报告不强求执行摘要/销售/广告/库存这种固定结构。
+
+## 数据说明
+
+提供的数据中，**ad_breakdown_by_type** 是 10 种广告报表类型分别聚合的指标：
+
+- `ad_promoted_product_report` — 商品推广（按 SKU 聚合 + summary）
+- `ad_campaign_report` — 广告活动（按 campaign 聚合 + summary）
+- `ad_search_term_report` — 搜索词（按 search term 聚合 + summary，**重点找高花费零订单词**）
+- `ad_target_report` — 投放（按 target 聚合 + summary，含 top of search impression share）
+- `ad_placement_report` — 广告位（按 placement 聚合 + summary）
+- `ad_budget_report` — 预算（按 campaign 聚合，含建议预算 vs 当前预算对比）
+- `ad_invalid_traffic_report` — 无效流量（summary 级别）
+- `ad_time_trend_report` — 按时间看效果（summary 级别，看 CPC/花费时序）
+- `ad_search_term_share_report` — 搜索词展示量份额（按 search term 聚合）
+- `ad_purchased_product_report` — 已购买商品（按 ad_sku 聚合，看广告 SKU 转化）
+
+每种类型的数据结构：
+- `summary` — 期间内总 spend / sales / orders / clicks / impressions，以及 roas / acos / ctr / cpc / conversion_rate
+- `top` — 按 spend 排序的前 20 行明细（AI 可以基于此做细节分析，比如指出"第 3 个 search term 花了 $X 但 0 订单"）
+- `has_data` — 该类型是否真的有数据
+- `label` — 中文标签
+
+其它数据字段：
+- `sales_by_date` — 销售日汇总（量 / 额 / ASIN 数）
+- `ad_by_date` — 广告时序（按日 impressions / clicks / spend / sales / orders / roas）
+- `ad_campaigns` — 按 campaign 的 spend / sales / orders 汇总
+- `inventory_summary` — 库存快照（可用库存 / 缺货 SKU / 库龄分布）
+- `comparison_period` — 对比期（上一周期）数据
+- `top_skus` — TOP SKU 排行
+- `project_context` / `sku_context` — 项目 / SKU 背景（运营人员填写的）
+
+## 输出格式
+
+- 中文 Markdown
+- 折线图必须使用完整 fenced code block ```lineChart ... ```
+- 饼图必须使用完整 fenced code block ```pieChart ... ```
+- 告警使用 ```alert ... ``` 代码块（**不要**用 ASCII 边框）
+- 数字保留 2 位小数，百分比带 % 符号
+- 标题、段落、表格、图表之间留空行
+- 表格使用标准 Markdown 表格
+
+## 折线图格式示例
+
+```lineChart
+x-axis[Day 1, Day 2, Day 3, Day 4]
+y-axis[Spend USD]
+ROAS[3.51, 3.48, 3.55, 3.52]
+```
+
+## 饼图格式示例
+
+```pieChart
+title 搜索词花费占比
+"高转化词" : 65
+"零转化词" : 35
+```
+
+## 告警格式示例
+
+```alert
+⚠️ 标题（一行，30 字以内）
+
+要点 1（不超过 50 字）
+要点 2
+要点 3
+```
+
+## 输出前自检
+
+- 折线图 / 饼图必须被完整包裹在 fenced code block 中
+- 告警必须用 ```alert 不要用 ASCII 边框
+- 表格必须用标准 Markdown 表格
+- 每条建议必须可执行（有具体数字 + 具体对象）
+- 不要附加"下面是报告"等前言后记，直接输出报告正文
+"""
+
+
 LINE_CHART_LINE_RE = re.compile(r'^[^`#>|-][^\[\]]{0,48}\[[^\]]+\]\s*$')
 PIE_CHART_VALUE_RE = re.compile(r'^"?[^"\n]+"?\s*[:：]\s*-?\d+(?:\.\d+)?\s*$')
 
@@ -336,8 +448,19 @@ def normalize_insight_markdown(content: str) -> str:
 def build_insight_messages(
     data: dict[str, Any],
     user_message: str | None = None,
+    *,
+    insight_type: str = "custom",
 ) -> tuple[str, list[dict[str, Any]]]:
-    """Build system prompt and user message for insight generation."""
+    """Build system prompt and user message for insight generation.
+
+    Args:
+        data: aggregated data dict from ai_insight_aggregator.to_dict()
+        user_message: optional user-provided focus / supplementary instructions
+        insight_type: 'custom' | 'daily' | 'weekly' | 'monthly' | 'ad_analysis'
+            - 'ad_analysis' uses the dedicated ad_breakdown_by_type prompt
+              (双角色: 亚马逊运营 + 广告投放优化; 不预设分析维度; 建议可执行)
+            - 其它值走通用 INSIGHT_SYSTEM_PROMPT
+    """
     # 提取数据（去掉 context 用于 JSON 展示，保持 user_content 清晰）
     display_data = {k: v for k, v in data.items() if k not in ("project_context", "sku_context")}
     data_str = json.dumps(display_data, ensure_ascii=False, indent=2)
@@ -348,9 +471,14 @@ def build_insight_messages(
     project_context_text = _format_project_context_for_prompt(project_context)
     sku_context_text = _format_sku_context_for_prompt(sku_context)
 
-    system_prompt = INSIGHT_SYSTEM_PROMPT.strip()
+    if insight_type == "ad_analysis":
+        system_prompt = INSIGHT_AD_ANALYSIS_PROMPT.strip()
+        intro = "请根据以下数据生成广告专项洞察报告（亚马逊运营 + 广告投放双专家视角）:"
+    else:
+        system_prompt = INSIGHT_SYSTEM_PROMPT.strip()
+        intro = "请根据以下数据生成洞察报告："
 
-    user_content = f"""请根据以下数据生成洞察报告：
+    user_content = f"""{intro}
 
 ```json
 {data_str}
@@ -374,6 +502,8 @@ def generate_insight_stream(
     settings: Settings,
     data: dict[str, Any],
     model: str | None = None,
+    *,
+    insight_type: str = "custom",
 ) -> Iterator[str]:
     """Generate insight content via streaming LLM call."""
     if not ai_chat_service.is_provider_configured(settings):
@@ -389,7 +519,7 @@ def generate_insight_stream(
         reasoning_effort=None,
     )
 
-    system_prompt, messages = build_insight_messages(data)
+    system_prompt, messages = build_insight_messages(data, insight_type=insight_type)
     llm_config.system_prompt = system_prompt
 
     for chunk in ai_chat_service.stream_assistant_content(
@@ -410,6 +540,8 @@ def generate_insight_once(
     settings: Settings,
     data: dict[str, Any],
     model: str | None = None,
+    *,
+    insight_type: str = "custom",
 ) -> str:
     """Generate insight content via non-streaming LLM call."""
     if not ai_chat_service.is_provider_configured(settings):
@@ -425,7 +557,7 @@ def generate_insight_once(
         reasoning_effort=None,
     )
 
-    system_prompt, messages = build_insight_messages(data)
+    system_prompt, messages = build_insight_messages(data, insight_type=insight_type)
     llm_config.system_prompt = system_prompt
 
     return ai_chat_service.generate_assistant_content(

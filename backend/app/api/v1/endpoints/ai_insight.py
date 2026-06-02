@@ -237,6 +237,7 @@ def _run_insight_generation(
             settings,
             data_dict,
             model=payload.get("model"),
+            insight_type=payload.get("insight_type", "custom"),
         ):
             if chunk:
                 content_chunks.append(chunk)
@@ -355,6 +356,7 @@ def generate_insight(
         "start_date": payload.date_range_start.isoformat(),
         "end_date": payload.date_range_end.isoformat(),
         "model": payload.model,
+        "insight_type": payload.insight_type,
     }
     thread = threading.Thread(
         target=_run_insight_generation,
@@ -534,6 +536,7 @@ def generate_insight_stream_endpoint(
                 settings,
                 data_dict,
                 model=payload.model,
+                insight_type=payload.insight_type,
             ):
                 if chunk:
                     content_chunks.append(chunk)
@@ -600,6 +603,7 @@ def list_insights(
     project_id: int | None = None,
     country: str | None = None,
     status_filter: str | None = None,
+    insight_type: str | None = None,
     limit: int = 20,
     offset: int = 0,
     db: Session = Depends(get_db_session),
@@ -628,6 +632,9 @@ def list_insights(
     if status_filter is not None:
         stmt = stmt.where(AIInsight.status == status_filter)
         count_stmt = count_stmt.where(AIInsight.status == status_filter)
+    if insight_type is not None:
+        stmt = stmt.where(AIInsight.insight_type == insight_type)
+        count_stmt = count_stmt.where(AIInsight.insight_type == insight_type)
 
     stmt = stmt.order_by(AIInsight.created_at.desc()).limit(limit).offset(offset)
     rows = db.execute(stmt).scalars().all()
@@ -702,6 +709,7 @@ def _serialize_schedule(db: Session, schedule) -> InsightScheduleItem:
 def list_schedules(
     project_id: int | None = None,
     is_active: bool | None = None,
+    insight_type: str | None = None,
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Depends(get_request_is_admin),
@@ -711,7 +719,12 @@ def list_schedules(
     - Admin 用户看到所有任务
     - 非 Admin 用户只看自己有项目访问权限的任务
     """
-    schedules = get_schedules(db, project_id=project_id, is_active=is_active)
+    schedules = get_schedules(
+        db,
+        project_id=project_id,
+        is_active=is_active,
+        insight_type=insight_type,
+    )
 
     # 过滤：无项目访问权限的 schedule
     if not is_admin:
@@ -923,6 +936,7 @@ def retry_insight(
         "start_date": row.date_range_start.isoformat(),
         "end_date": row.date_range_end.isoformat(),
         "model": None,  # model is not persisted; use default
+        "insight_type": row.insight_type.value if isinstance(row.insight_type, InsightType) else str(row.insight_type or "custom"),
     }
     thread = threading.Thread(
         target=_run_insight_generation,
