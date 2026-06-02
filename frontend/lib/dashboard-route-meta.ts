@@ -12,7 +12,6 @@ export const DASHBOARD_PAGE_TITLES: Array<{ match: string; title: string }> = [
   { match: '/data-analysis/inventory-replenishment', title: '补货分析' },
   { match: '/data-analysis/project-goals', title: '目标管理' },
   { match: '/data-management/report-upload', title: '报表上传' },
-  { match: '/data-management/ad-upload', title: '广告报表上传' },
   { match: '/data-management/shipment-management', title: '发货管理' },
   { match: '/data-management/sku-info', title: 'SKU 信息中心' },
   { match: '/data-management/report-reconciliation', title: '报表核对' },
