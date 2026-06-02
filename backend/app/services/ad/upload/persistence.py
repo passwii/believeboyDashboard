@@ -654,6 +654,32 @@ def commit_ad_upload(
             original_filename=saved_row.original_filename,
         )
 
+    # Also write a ReportUploadLog for today (upload date) so that the RPA
+    # status grid shows green for the CURRENT day — not just the business
+    # dates.  One log per (project, report_type, country, today) is enough;
+    # dedup by writing only if no log for today exists yet.
+    import datetime as _dt
+    _today = _dt.date.today()
+    _seen_today_keys: set[tuple[int, str, str]] = set()
+    for saved_row in saved_rows:
+        key = (int(saved_row.project_id), saved_row.report_type, saved_row.country)
+        if key in _seen_today_keys:
+            continue
+        if saved_row.report_date == _today:
+            continue  #已有跟今天同日期的业务日志,无需重复
+        write_report_upload_log(
+            db,
+            project_id=int(saved_row.project_id),
+            country=saved_row.country,
+            report_type=saved_row.report_type,
+            upload_date=_today,
+            source_file_id=None,
+            has_real_data=saved_row.ingestion_status == "success",
+            row_count=saved_row.row_count_preview or 0,
+            original_filename=saved_row.original_filename,
+        )
+        _seen_today_keys.add(key)
+
     db.commit()
     for saved_row in saved_rows:
         db.refresh(saved_row)
