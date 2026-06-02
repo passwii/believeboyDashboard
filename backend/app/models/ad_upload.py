@@ -57,7 +57,7 @@ class AdUploadFile(Base):
             name='ck_ad_upload_files_recognition_status',
         ),
         CheckConstraint(
-            "ingestion_status in ('pending', 'saved', 'failed')",
+            "ingestion_status in ('pending', 'saved', 'failed', 'success')",
             name='ck_ad_upload_files_ingestion_status',
         ),
         CheckConstraint('version >= 1', name='ck_ad_upload_files_version_positive'),
