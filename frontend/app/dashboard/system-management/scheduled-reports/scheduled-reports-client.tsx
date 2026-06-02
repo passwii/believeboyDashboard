@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { format } from 'date-fns'
 import { useSession } from 'next-auth/react'
 import Image from 'next/image'
 import ReactMarkdown from 'react-markdown'
@@ -747,14 +748,19 @@ export function ScheduledReportsClient() {
   const [ledgerSummary, setLedgerSummary] = useState<LedgerSummary | null>(null)
   const [ledgerLoading, setLedgerLoading] = useState(false)
   const [ledgerError, setLedgerError] = useState<string | null>(null)
-  const [ledgerStartDate, setLedgerStartDate] = useState(thirtyDaysAgo.toISOString().slice(0, 10))
-  const [ledgerEndDate, setLedgerEndDate] = useState(today.toISOString().slice(0, 10))
+  const [ledgerStartDate, setLedgerStartDate] = useState(format(thirtyDaysAgo, 'yyyy-MM-dd'))
+  const [ledgerEndDate, setLedgerEndDate] = useState(format(today, 'yyyy-MM-dd'))
 
   // Sync DateRange to separate start/end state
   const handleLedgerDateRangeChange = (range: DateRange | undefined) => {
-    setLedgerStartDate(range?.from ? range.from.toISOString().slice(0, 10) : '')
-    setLedgerEndDate(range?.to ? range.to.toISOString().slice(0, 10) : '')
+    setLedgerStartDate(range?.from ? format(range.from, 'yyyy-MM-dd') : '')
+    setLedgerEndDate(range?.to ? format(range.to, 'yyyy-MM-dd') : '')
   }
+
+  const ledgerDateRangeValue = useMemo(
+    () => parseDateRangeInputValue(ledgerStartDate, ledgerEndDate),
+    [ledgerStartDate, ledgerEndDate]
+  )
   const [ledgerFrequency, setLedgerFrequency] = useState<string>('all')
   const [ledgerStatus, setLedgerStatus] = useState<string>('all')
   const [ledgerEmail, setLedgerEmail] = useState('')
@@ -1360,7 +1366,7 @@ export function ScheduledReportsClient() {
                 {/* 桌面端工具栏 */}
                 <div className="hidden md:flex gap-3 flex-wrap items-center">
                   <DateRangePicker
-                    value={parseDateRangeInputValue(ledgerStartDate, ledgerEndDate)}
+                      value={ledgerDateRangeValue}
                     onChange={handleLedgerDateRangeChange}
                     className="h-9 w-[280px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none"
                   />
@@ -1394,7 +1400,7 @@ export function ScheduledReportsClient() {
                 <div className="md:hidden space-y-2">
                   <div className="grid grid-cols-2 gap-2">
                     <DateRangePicker
-                      value={parseDateRangeInputValue(ledgerStartDate, ledgerEndDate)}
+                    value={ledgerDateRangeValue}
                       onChange={handleLedgerDateRangeChange}
                       className="col-span-2 h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none text-xs"
                     />
