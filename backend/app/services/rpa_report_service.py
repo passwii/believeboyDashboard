@@ -301,7 +301,7 @@ def get_report_status_for_date(
                     continue
                 status_by_project[pid][rt] = ReportTypeStatus(
                     report_type=rt,
-                    has_data=src.row_count_total > 0,
+                    has_data=src.row_count_preview > 0,
                     is_uploaded=True,
                     latest_date=str(src.report_date) if src.report_date else None,
                     original_filename=src.original_filename,
