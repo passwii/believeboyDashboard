@@ -131,14 +131,14 @@ type ProjectRow = {
 const REPORT_TYPES = [
   { key: 'inventory_report', label: '库存', active: true },
   { key: 'business_report', label: '业务', active: true },
+  { key: 'sales_report', label: '销售', active: true },
+  { key: 'payment_report', label: '付款', active: true },
+  { key: 'return_report', label: '退货', active: true },
   ...AD_REPORT_TYPES.map((item) => ({
     key: item.type,
     label: item.short,
     active: true,
   })),
-  { key: 'sales_report', label: '销售', active: true },
-  { key: 'payment_report', label: '付款', active: true },
-  { key: 'return_report', label: '退货', active: true },
   { key: 'storage_report', label: '仓储', active: false },
   { key: 'returns_detail_report', label: '退货明细', active: false },
   { key: 'fba_inventory_report', label: 'FBA库存', active: false },
