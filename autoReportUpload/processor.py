@@ -563,12 +563,13 @@ def _persist_ad_upload_report(
         source_df = source_df.copy()
         source_df["__row_date__"] = pd.to_datetime(source_df["日期"], errors="coerce")
         normalized_range = source_df.dropna(subset=["__row_date__"]).copy()
+
         if normalized_range.empty:
-            return {"success": False, "error": "日期 is required"}
-        normalized_range["__row_date_key__"] = normalized_range["__row_date__"].dt.strftime("%Y-%m-%d")
-        for row_date_text, scope_df in normalized_range.groupby("__row_date_key__", sort=True):
-            scope_date = _parse_yyyy_mm_dd(str(row_date_text))
-            scope_df_clean = scope_df.drop(columns=["__row_date__", "__row_date_key__"])
+            # Empty file (column headers only, no data rows): still persist one
+            # empty-scope record so the RPA status grid shows "processed for today".
+            # This matches A-table behaviour where an empty file creates a source row
+            # with row_count_total=0 and writes an upload log.
+            scope_date = period_end_date or period_start_date or now.date()
             file_id = _generate_file_id(file_path.name)
             row = save_ad_upload_scope(
                 db,
@@ -577,8 +578,8 @@ def _persist_ad_upload_report(
                 country=normalized_country,
                 report_label=report_label,
                 scope_date=scope_date,
-                scope_df=scope_df_clean,
-                row_count_preview=len(scope_df_clean.index),
+                scope_df=source_df,
+                row_count_preview=0,
                 file_id=file_id,
                 file_path=str(file_path),
                 original_filename=file_path.name,
@@ -589,13 +590,46 @@ def _persist_ad_upload_report(
                     "report_type": report_type,
                     "report_label": report_label,
                     "scope_date": scope_date.isoformat(),
-                    "row_count_preview": len(scope_df_clean.index),
+                    "row_count_preview": 0,
                     "source": "autoReportUpload",
+                    "note": "empty file (column headers only)",
                 },
                 created_by="autoReportUpload",
                 file_sha256=file_sha256_hash,
             )
             saved_rows.append(row)
+        else:
+            normalized_range["__row_date_key__"] = normalized_range["__row_date__"].dt.strftime("%Y-%m-%d")
+            for row_date_text, scope_df in normalized_range.groupby("__row_date_key__", sort=True):
+                scope_date = _parse_yyyy_mm_dd(str(row_date_text))
+                scope_df_clean = scope_df.drop(columns=["__row_date__", "__row_date_key__"])
+                file_id = _generate_file_id(file_path.name)
+                row = save_ad_upload_scope(
+                    db,
+                    project=project,
+                    report_type=report_type,
+                    country=normalized_country,
+                    report_label=report_label,
+                    scope_date=scope_date,
+                    scope_df=scope_df_clean,
+                    row_count_preview=len(scope_df_clean.index),
+                    file_id=file_id,
+                    file_path=str(file_path),
+                    original_filename=file_path.name,
+                    recognition_status="recognized",
+                    matched_columns=list(result.matched_columns or []),
+                    warnings=list(result.warnings or []),
+                    recognition_payload={
+                        "report_type": report_type,
+                        "report_label": report_label,
+                        "scope_date": scope_date.isoformat(),
+                        "row_count_preview": len(scope_df_clean.index),
+                        "source": "autoReportUpload",
+                    },
+                    created_by="autoReportUpload",
+                    file_sha256=file_sha256_hash,
+                )
+                saved_rows.append(row)
     else:
         # Single-day file (typical case) — one AdUploadFile
         scope_date = period_end_date or period_start_date or now.date()
