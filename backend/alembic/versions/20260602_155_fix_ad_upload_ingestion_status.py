@@ -25,7 +25,23 @@ depends_on = None
 _TABLE = "ad_upload_files"
 
 
+_CONSTRAINT_NAME = "ck_ad_upload_files_ingestion_status"
+
+
 def upgrade() -> None:
+    op.execute(
+        f"""
+        ALTER TABLE {_TABLE}
+        DROP CONSTRAINT {_CONSTRAINT_NAME}
+        """
+    )
+    op.execute(
+        f"""
+        ALTER TABLE {_TABLE}
+        ADD CONSTRAINT {_CONSTRAINT_NAME}
+        CHECK (ingestion_status IN ('pending', 'saved', 'failed', 'success'))
+        """
+    )
     op.execute(
         f"""
         UPDATE {_TABLE}
@@ -42,5 +58,18 @@ def downgrade() -> None:
         SET ingestion_status = 'saved'
         WHERE ingestion_status = 'success'
           AND created_by = 'autoReportUpload'
+        """
+    )
+    op.execute(
+        f"""
+        ALTER TABLE {_TABLE}
+        DROP CONSTRAINT {_CONSTRAINT_NAME}
+        """
+    )
+    op.execute(
+        f"""
+        ALTER TABLE {_TABLE}
+        ADD CONSTRAINT {_CONSTRAINT_NAME}
+        CHECK (ingestion_status IN ('pending', 'saved', 'failed'))
         """
     )
