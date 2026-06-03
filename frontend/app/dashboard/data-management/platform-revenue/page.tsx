@@ -30,7 +30,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { ImagePreviewDialog } from '@/components/ui/image-preview-dialog'
+import { PortraitScreenshotDialog } from '@/components/ui/image-preview-dialog'
 import { EmptyTableState } from '@/components/ui/empty-state'
 import { DataCard, DataCardHeader, DataCardContent } from '@/components/ui/data-card'
 import { Badge } from '@/components/ui/badge'
@@ -262,8 +262,7 @@ export default function PlatformRevenuePage() {
   const [editingRevenue, setEditingRevenue] = useState<PlatformRevenue | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deletingRevenue, setDeletingRevenue] = useState<PlatformRevenue | null>(null)
-  const [previewImage, setPreviewImage] = useState<Attachment | null>(null)
-  const [previewScreenshotUrl, setPreviewScreenshotUrl] = useState<string | null>(null)
+  const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [uploadingImage, setUploadingImage] = useState(false)
   const [imageUploadState, setImageUploadState] = useState<{ status: 'idle' | 'uploading' | 'success' | 'error'; message: string }>({ status: 'idle', message: '' })
 
@@ -907,6 +906,8 @@ export default function PlatformRevenuePage() {
       <DataCard className="overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
         <DataCardContent className="p-0">
           <div className="border-border/70 bg-[hsl(var(--surface-panel))]">
+            {/* 桌面端：完整表格 */}
+            <div className="hidden lg:block">
             <Table>
               <TableHeader className="bg-[hsl(var(--surface-subtle))]">
                 <TableRow>
@@ -994,7 +995,7 @@ export default function PlatformRevenuePage() {
                                   key={image.id}
                                   type="button"
                                   className="relative h-10 w-10 overflow-hidden rounded border border-border/70"
-                                  onClick={() => setPreviewImage(image)}
+                                  onClick={() => setPreviewImage(image.url)}
                                   title={image.filename}
                                 >
                                   <Image
@@ -1050,6 +1051,110 @@ export default function PlatformRevenuePage() {
                 )}
               </TableBody>
             </Table>
+            </div>
+
+            {/* 手机端：卡片列表 */}
+            <div className="lg:hidden space-y-3 p-4">
+              {loading ? (
+                <div className="text-center text-sm text-muted-foreground py-8">加载中...</div>
+              ) : revenues.length === 0 ? (
+                <div className="text-center text-sm text-muted-foreground py-8">暂无回款数据</div>
+              ) : (
+                revenues.map((revenue) => (
+                  <div key={revenue.id} className="dashboard-surface p-4 space-y-3">
+                    {/* 头部：项目 + 金额 */}
+                    <div className="flex items-start justify-between gap-2 border-b border-border/70 pb-3">
+                      <div className="min-w-0">
+                        <div className="truncate font-medium">{revenue.project_name}</div>
+                        <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                          <span>{new Date(revenue.received_date).toLocaleDateString('zh-CN')}</span>
+                          {(() => {
+                            const badgeMeta = getCountryBadgeMeta(revenue.country)
+                            return (
+                              <Badge
+                                className={cn(
+                                  "gap-1 rounded-full px-2 py-0.5 font-mono text-[10px] font-bold tracking-[0.1em]",
+                                  badgeMeta.className
+                                )}
+                                title={`${revenue.country} - ${badgeMeta.accent}`}
+                              >
+                                <span className="text-xs leading-none">{badgeMeta.symbol}</span>
+                                <span>{revenue.country}</span>
+                              </Badge>
+                            )
+                          })()}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="font-mono text-base font-semibold">{formatCurrency(revenue.amount, revenue.currency)}</div>
+                        <Badge className={`mt-1 text-[10px] ${
+                          revenue.revenue_type === 'B2B回款'
+                            ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
+                            : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+                        }`}>
+                          {revenue.revenue_type || '订单回款'}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    {/* 备注 */}
+                    {revenue.note && (
+                      <div className="text-sm">{revenue.note}</div>
+                    )}
+
+                    {/* 截图缩略图（移动端） */}
+                    {revenue.attachments?.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {revenue.attachments.slice(0, 4).map((image) => (
+                          <button
+                            key={image.id}
+                            type="button"
+                            className="relative h-12 w-12 overflow-hidden rounded border border-border/70"
+                            onClick={() => setPreviewImage(image.url)}
+                            title={image.filename}
+                          >
+                            <Image
+                              src={image.url}
+                              alt={image.filename}
+                              fill
+                              className="object-cover"
+                              unoptimized
+                            />
+                          </button>
+                        ))}
+                        {revenue.attachments.length > 4 && (
+                          <div className="flex h-12 w-12 items-center justify-center rounded border border-border/70 text-xs text-muted-foreground">
+                            +{revenue.attachments.length - 4}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* 操作按钮 */}
+                    <div className="flex gap-2 pt-2 border-t border-border/70">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-9 min-h-[44px] flex-1"
+                        onClick={() => handleEdit(revenue)}
+                      >
+                        <Pencil className="mr-1 h-4 w-4" />
+                        编辑
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-9 min-h-[44px] flex-1 text-destructive hover:text-destructive"
+                        onClick={() => handleDeleteClick(revenue)}
+                      >
+                        <Trash2 className="mr-1 h-4 w-4" />
+                        删除
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
 
           {/* 分页 */}
@@ -1354,8 +1459,8 @@ export default function PlatformRevenuePage() {
                         role="button"
                         tabIndex={0}
                         className="relative block h-20 w-20 cursor-pointer overflow-hidden rounded border"
-                        onClick={() => setPreviewImage(image)}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setPreviewImage(image) }}
+                        onClick={() => setPreviewImage(image.url)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setPreviewImage(image.url) }}
                       >
                         <Image
                           src={image.url}
@@ -1431,26 +1536,11 @@ export default function PlatformRevenuePage() {
         </DialogContent>
       </Dialog>
 
-      {/* 图片预览弹窗 */}
-      <ImagePreviewDialog
+      <PortraitScreenshotDialog
         open={!!previewImage}
         onOpenChange={(open) => !open && setPreviewImage(null)}
-        src={previewImage?.url ?? ''}
-        alt={previewImage?.filename ?? '图片预览'}
-        title="图片预览"
-        description={previewImage?.filename}
-        className="max-w-3xl dark:border-border/90 dark:bg-[hsl(var(--surface-panel))]"
-      />
-
-      {/* 回款截图预览弹窗 */}
-      <ImagePreviewDialog
-        open={!!previewScreenshotUrl}
-        onOpenChange={(open) => !open && setPreviewScreenshotUrl(null)}
-        src={previewScreenshotUrl ?? ''}
-        alt="回款截图"
-        title="回款截图"
-        description="回款截图预览"
-        className="max-w-3xl dark:border-border/90 dark:bg-[hsl(var(--surface-panel))]"
+        src={previewImage ?? ''}
+        alt="图片预览"
       />
     </div>
   )
