@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+import { useApiQuery } from '@/lib/hooks/use-api-query'
 import { useNotifications } from '@/components/notifications'
 
 export interface DashboardOverviewSalesSnapshot {
@@ -87,57 +88,61 @@ interface UseDashboardOverviewReturn {
 
 type ProjectItem = { id: number; name: string }
 
+/**
+ * KPI 总览数据 hook —— 5s 短超时 + 超时自动重试 1 次。
+ */
 export function useDashboardOverview(
   options: UseDashboardOverviewOptions = {}
 ): UseDashboardOverviewReturn {
   const { country = 'US', days = 7, enabled = true } = options
-  const [data, setData] = useState<DashboardOverviewResponse | undefined>()
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<Error | null>(null)
   const { notify } = useNotifications()
-  const abortRef = useRef<AbortController | null>(null)
+  const [contextError, setContextError] = useState<Error | null>(null)
+  // Keep last good query string so retry uses the same params
+  const lastQueryRef = useRef<string>('')
 
-  const load = useCallback(async () => {
-    if (!enabled) return
-
-    // Cancel any in-flight request from a previous invocation.
-    abortRef.current?.abort()
-    const controller = new AbortController()
-    abortRef.current = controller
-
-    setLoading(true)
-    setError(null)
-
-    try {
+  const loader = useCallback(
+    async (signal: AbortSignal): Promise<DashboardOverviewResponse> => {
       const projects = await fetchManagedProjectsCached<ProjectItem[]>()
-      if (controller.signal.aborted) return
-
+      if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
       const projectIds = projects.map((p) => p.id).join(',')
       const params = new URLSearchParams({ country, days: String(days) })
       if (projectIds) params.set('project_ids', projectIds)
+      lastQueryRef.current = params.toString()
 
-      const res = await fetch(`/api/backend/api/v1/dashboard/overview?${params}`, {
-        signal: controller.signal,
-      })
-      if (!res.ok) throw new Error(`API error: ${res.status}`)
+      const res = await fetch(`/api/backend/api/v1/dashboard/overview?${params}`, { signal })
+      if (!res.ok) {
+        const err = new Error(`API error: ${res.status}`) as Error & { status: number }
+        err.status = res.status
+        throw err
+      }
+      return (await res.json()) as DashboardOverviewResponse
+    },
+    [country, days]
+  )
 
-      const json: DashboardOverviewResponse = await res.json()
-      if (controller.signal.aborted) return
-      setData(json)
-    } catch (err) {
-      if (controller.signal.aborted) return
-      const errObj = err instanceof Error ? err : new Error('Unknown error')
-      setError(errObj)
-      notify({ type: 'error', title: '加载失败', message: 'KPI 总览数据加载失败，请稍后重试' })
-    } finally {
-      if (!controller.signal.aborted) setLoading(false)
-    }
-  }, [country, days, enabled, notify])
+  const { data, loading, error, retry } = useApiQuery<DashboardOverviewResponse>(loader, {
+    enabled,
+    timeoutMs: 5_000,
+    autoRetry: true,
+  })
 
+  // Surface terminal errors via the project's notification system.
   useEffect(() => {
-    load()
-    return () => { abortRef.current?.abort() }
-  }, [load])
+    if (!error) return
+    setContextError(new Error(error.message))
+    if (error.kind === 'timeout') {
+      notify({ type: 'warning', title: '加载较慢', message: 'KPI 总览数据加载超时，已自动重试，请稍候' })
+    } else if (error.kind === 'network') {
+      notify({ type: 'error', title: '网络异常', message: 'KPI 总览数据网络异常，请稍后重试' })
+    } else {
+      notify({ type: 'error', title: '加载失败', message: 'KPI 总览数据加载失败，请稍后重试' })
+    }
+  }, [error, notify])
 
-  return { data, loading, error, refresh: load }
+  return {
+    data,
+    loading,
+    error: contextError,
+    refresh: retry,
+  }
 }

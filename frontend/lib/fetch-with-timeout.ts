@@ -4,7 +4,7 @@
  */
 
 interface FetchWithTimeoutInit extends RequestInit {
-  /** Timeout in milliseconds. Defaults to 10 000 ms. */
+  /** Timeout in milliseconds. Defaults to 5_000 ms (5s short timeout). */
   timeoutMs?: number
 }
 
@@ -12,7 +12,7 @@ export async function fetchWithTimeout(
   input: RequestInfo | URL,
   init?: FetchWithTimeoutInit,
 ): Promise<Response> {
-  const { timeoutMs = 10_000, signal: userSignal, ...rest } = init ?? {}
+  const { timeoutMs = 5_000, signal: userSignal, ...rest } = init ?? {}
 
   if (userSignal?.aborted) {
     throw new DOMException('The operation was aborted.', 'AbortError')
