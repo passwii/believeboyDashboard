@@ -2,59 +2,7 @@
 
 import * as React from "react"
 import { cn } from "@/lib/utils"
-import Image from "next/image"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-
-interface ImagePreviewDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  src: string
-  alt: string
-  title?: string
-  description?: string
-  /** 对话框额外 class，默认 max-w-4xl max-h-[90vh] flex flex-col */
-  className?: string
-  /** 图片容器的额外 class */
-  imageContainerClassName?: string
-  children?: React.ReactNode
-}
-
-export function ImagePreviewDialog({
-  open,
-  onOpenChange,
-  src,
-  alt,
-  title,
-  description,
-  className,
-  imageContainerClassName,
-  children,
-}: ImagePreviewDialogProps) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={className}>
-        {title ? (
-          <DialogHeader>
-            <DialogTitle>{title}</DialogTitle>
-            {description && <DialogDescription>{description}</DialogDescription>}
-          </DialogHeader>
-        ) : (
-          <DialogTitle className="sr-only">{alt}</DialogTitle>
-        )}
-        {children}
-        <div className={imageContainerClassName}>
-          <Image src={src} alt={alt} fill className="object-contain" unoptimized />
-        </div>
-      </DialogContent>
-    </Dialog>
-  )
-}
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 
 /**
  * PortraitScreenshotDialog — 专为竖图（手机截图/仪表盘快照）设计的大图预览

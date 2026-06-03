@@ -30,7 +30,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { ImagePreviewDialog } from "@/components/ui/image-preview-dialog"
+import { PortraitScreenshotDialog } from "@/components/ui/image-preview-dialog"
 import { EmptyTableState } from "@/components/ui/empty-state"
 import { DataCard, DataCardHeader, DataCardContent } from "@/components/ui/data-card"
 import { Badge } from "@/components/ui/badge"
@@ -163,7 +163,7 @@ export default function ExchangeRatePage() {
   const [editingRate, setEditingRate] = useState<ExchangeRate | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deletingRate, setDeletingRate] = useState<ExchangeRate | null>(null)
-  const [previewImage, setPreviewImage] = useState<NoteImage | null>(null)
+  const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [uploadingImage, setUploadingImage] = useState(false)
   const [imageUploadState, setImageUploadState] = useState<ImageUploadState>({ status: 'idle', message: '' })
   const [submitting, setSubmitting] = useState(false)
@@ -571,7 +571,7 @@ export default function ExchangeRatePage() {
                                     key={image.id}
                                     type="button"
                                     className="relative h-10 w-10 overflow-hidden rounded border border-border/70"
-                                    onClick={() => setPreviewImage(image)}
+                                    onClick={() => setPreviewImage(image.url)}
                                     title={image.filename}
                                   >
                                     <Image
@@ -652,6 +652,34 @@ export default function ExchangeRatePage() {
                     {/* 备注 */}
                     {rate.description && (
                       <div className="text-sm">{rate.description}</div>
+                    )}
+
+                    {/* 截图缩略图（移动端） */}
+                    {rate.noteImages?.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {rate.noteImages.slice(0, 4).map((image) => (
+                          <button
+                            key={image.id}
+                            type="button"
+                            className="relative h-12 w-12 overflow-hidden rounded border border-border/70"
+                            onClick={() => setPreviewImage(image.url)}
+                            title={image.filename}
+                          >
+                            <Image
+                              src={image.thumbnailUrl || image.url}
+                              alt={image.filename}
+                              fill
+                              className="object-cover"
+                              unoptimized
+                            />
+                          </button>
+                        ))}
+                        {rate.noteImages.length > 4 && (
+                          <div className="flex h-12 w-12 items-center justify-center rounded border border-border/70 text-xs text-muted-foreground">
+                            +{rate.noteImages.length - 4}
+                          </div>
+                        )}
+                      </div>
                     )}
 
                     {/* 更新时间 */}
@@ -925,7 +953,7 @@ export default function ExchangeRatePage() {
                       <button
                         type="button"
                         className="relative block h-20 w-20 overflow-hidden rounded border"
-                        onClick={() => setPreviewImage(image)}
+                        onClick={() => setPreviewImage(image.url)}
                       >
                         <Image
                           src={image.thumbnailUrl || image.url}
@@ -1008,14 +1036,11 @@ export default function ExchangeRatePage() {
         </DialogContent>
       </Dialog>
 
-      <ImagePreviewDialog
+      <PortraitScreenshotDialog
         open={!!previewImage}
         onOpenChange={(open) => !open && setPreviewImage(null)}
-        src={previewImage?.url ?? ''}
-        alt={previewImage?.filename ?? '图片预览'}
-        title="图片预览"
-        description={previewImage?.filename}
-        className="max-w-3xl dark:border-border/90 dark:bg-[hsl(var(--surface-panel))]"
+        src={previewImage ?? ''}
+        alt="图片预览"
       />
     </div>
   )
