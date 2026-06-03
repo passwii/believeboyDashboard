@@ -1,7 +1,9 @@
 'use client'
 
-import { Factory, KeyRound, LogOut, Shield, Store } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Check, Factory, KeyRound, LogOut, Monitor, Moon, Shield, Store, SunMedium } from 'lucide-react'
 import { ChevronsUpDown } from 'lucide-react'
+import { useTheme } from 'next-themes'
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
@@ -12,6 +14,9 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/components/ui/sidebar'
@@ -46,6 +51,14 @@ export function NavUser({ user, onLogout }: NavUserProps) {
   const { isMobile } = useSidebar()
   const fallback = user.name?.[0]?.toUpperCase() || 'U'
   const roleLabel = user.roleType ? ROLE_LABELS[user.roleType] : null
+
+  // Theme: reuse ThemeToggle pattern to avoid hydration mismatch
+  const { theme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+  const currentTheme = mounted ? theme : 'system'
 
   return (
     <SidebarMenu>
@@ -88,6 +101,30 @@ export function NavUser({ user, onLogout }: NavUserProps) {
                 </div>
               </div>
             </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <SunMedium />
+                <span>外观</span>
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuItem onClick={() => setTheme('light')}>
+                  <SunMedium />
+                  <span>浅色</span>
+                  {currentTheme === 'light' ? <Check className="ml-auto" /> : null}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setTheme('dark')}>
+                  <Moon />
+                  <span>深色</span>
+                  {currentTheme === 'dark' ? <Check className="ml-auto" /> : null}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setTheme('system')}>
+                  <Monitor />
+                  <span>跟随系统</span>
+                  {currentTheme === 'system' ? <Check className="ml-auto" /> : null}
+                </DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem asChild>
