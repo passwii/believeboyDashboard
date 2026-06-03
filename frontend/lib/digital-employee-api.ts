@@ -21,11 +21,14 @@ function normalizeResponse(data: { items: unknown[]; total: number }) {
   }
 }
 
-export async function fetchDigitalEmployees(): Promise<{
+export async function fetchDigitalEmployees(signal?: AbortSignal): Promise<{
   items: import('@/types/digital-employee').DigitalEmployee[]
   total: number
 }> {
-  const res = await fetch(resolveApiUrl('/api/v1/digital-employees'), { cache: 'no-store' })
+  const res = await fetch(resolveApiUrl('/api/v1/digital-employees'), {
+    cache: 'no-store',
+    ...(signal ? { signal } : {}),
+  })
   if (res.status === 401) {
     window.location.href = '/login'
     return { items: [], total: 0 }

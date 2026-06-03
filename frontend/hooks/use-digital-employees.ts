@@ -1,43 +1,44 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import type { DigitalEmployee } from '@/types/digital-employee'
 import { fetchDigitalEmployees } from '@/lib/digital-employee-api'
+import { useApiQuery } from '@/lib/hooks/use-api-query'
 
 interface UseDigitalEmployeesOptions {
   pollInterval?: number
 }
 
 export function useDigitalEmployees({ pollInterval = 10000 }: UseDigitalEmployeesOptions = {}) {
-  const [employees, setEmployees] = useState<DigitalEmployee[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<Error | null>(null)
-  const activeRef = useRef(true)
+  const loader = useCallback(
+    async (signal: AbortSignal): Promise<DigitalEmployee[]> => {
+      const data = await fetchDigitalEmployees(signal)
+      return data.items
+    },
+    []
+  )
 
-  const load = useCallback(async () => {
-    setIsLoading(true)
-    try {
-      const data = await fetchDigitalEmployees()
-      if (!activeRef.current) return
-      setEmployees(data.items)
-      setError(null)
-    } catch (err) {
-      if (!activeRef.current) return
-      setError(err instanceof Error ? err : new Error('Unknown error'))
-    } finally {
-      if (activeRef.current) setIsLoading(false)
-    }
-  }, [])
+  const { data, loading, error, retry } = useApiQuery<DigitalEmployee[]>(loader, {
+    timeoutMs: 5_000,
+    autoRetry: true,
+  })
 
+  // Polling: trigger a refresh on an interval while the component is mounted.
+  // retry() bumps an internal nonce in useApiQuery and re-runs the loader.
+  const retryRef = useRef(retry)
+  retryRef.current = retry
   useEffect(() => {
-    activeRef.current = true
-    load()
-    const interval = setInterval(load, pollInterval)
-    return () => {
-      activeRef.current = false
-      clearInterval(interval)
-    }
-  }, [load, pollInterval])
+    if (pollInterval <= 0) return
+    const id = setInterval(() => {
+      retryRef.current()
+    }, pollInterval)
+    return () => clearInterval(id)
+  }, [pollInterval])
 
-  return { employees, isLoading, error, mutate: load }
+  return {
+    employees: data ?? [],
+    isLoading: loading,
+    error: error ? new Error(error.message) : null,
+    mutate: retry,
+  }
 }

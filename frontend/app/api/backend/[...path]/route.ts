@@ -61,7 +61,11 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
     requestAccept.includes('application/x-ndjson')
 
   // Choose appropriate timeout
-  let timeoutMs = 10_000
+  // Default: 5s short timeout — prevents long skeleton waits. The client-side
+  // useApiQuery hook also enforces 5s and auto-retries once on timeout.
+  // - Stream endpoints: no timeout (let the connection close naturally)
+  // - scheduled-reports/test-email: 60s (AI summary generation)
+  let timeoutMs = 5_000
   if (isStreamRequest) {
     timeoutMs = 0 // no timeout for streams
   } else if (isScheduledReportTestEmail) {

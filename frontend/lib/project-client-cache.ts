@@ -3,6 +3,7 @@ import type { Session } from 'next-auth'
 import { buildBackendHeaders } from '@/lib/backend-auth'
 import { clearClientCacheByPrefix, getClientCache, setClientCache } from '@/lib/client-cache'
 import { normalizeErrorMessage } from '@/lib/error-utils'
+import { fetchWithTimeout } from '@/lib/fetch-with-timeout'
 
 const PROJECT_CACHE_PREFIX = 'projects:'
 // TTL: 2 minutes — balances UX (avoid频繁刷新) vs权限变更感知
@@ -44,7 +45,8 @@ async function fetchCachedJson<T>(
   const cached = getClientCache<T>(key, PROJECTS_CACHE_TTL_MS)
   if (cached) return cached
 
-  const response = await fetch(url, {
+  const response = await fetchWithTimeout(url, {
+    timeoutMs: 5_000,
     cache: 'no-store',
     headers: buildBackendHeaders(options?.session),
   })
