@@ -206,3 +206,16 @@ def _inline_markdown(text: str) -> str:
     text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
     text = re.sub(r"\*(.+?)\*", r"<em>\1</em>", text)
     return text
+
+
+def _scale_html_fonts(html: str, factor: float) -> str:
+    """将 HTML 字符串中所有内联 `font-size: Npx` 按 factor 缩放。
+
+    用途：调整手机版邮件/截图的字号，使在小屏设备上更易读。
+    只缩放 font-size，不动 padding/margin/max-width（需调用方同步调整容器宽度）。
+    """
+    def _replace(m: re.Match[str]) -> str:
+        px = float(m.group(1))
+        return f'font-size: {round(px * factor, 2)}px'
+
+    return re.sub(r"font-size:\s*([\d.]+)px", _replace, html)

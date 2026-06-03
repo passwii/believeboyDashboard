@@ -11,8 +11,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# 邮件模板最大宽度 680px + 两侧 padding
-_VIEWPORT_WIDTH = 720
+# 邮件模板最大宽度 850px + 两侧 padding
+_VIEWPORT_WIDTH = 900
 _VIEWPORT_HEIGHT = 800  # 初始高度，full_page=True 会自动扩展
 # Super Retina 缩放因子：3x 保证手机端截图超清晰（720 CSS px → 2160 物理 px）
 _DEVICE_SCALE_FACTOR = 3
