@@ -857,7 +857,7 @@ def _render_multi_country_html(
       </tr>""")
 
     combined_content = "\n".join(content_parts)
-    return _wrap_html_shell(project_name, country_display, report_date, ai_summary_html, combined_content, include_summary)
+    return _scale_html_fonts(_wrap_html_shell(project_name, country_display, report_date, ai_summary_html, combined_content, include_summary), 1.25)
 
 
 # ── Email sender ─────────────────────────────────────────────────────────────
