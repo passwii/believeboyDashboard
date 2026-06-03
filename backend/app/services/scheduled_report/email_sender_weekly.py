@@ -13,6 +13,7 @@ from app.services.scheduled_report.email_sender import (
     _color_delta, _arrow_delta, _color_positive, _country_label,
     _currency_code, CURRENCY_SYMBOLS, CURRENCY_CODES,
     _render_country_sub_header,
+    _scale_html_fonts,
 )
 
 logger = logging.getLogger(__name__)
@@ -856,7 +857,7 @@ def _wrap_weekly_html_shell(
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: #F3F4F6; padding: 12px 0;">
   <tr><td>
     <table width="100%" cellpadding="0" cellspacing="0" border="0"
-           style="max-width: 680px; margin: 0 auto; background: white; border-radius: 50px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+           style="max-width: 850px; margin: 0 auto; background: white; border-radius: 50px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
 
       <!-- Header -->
       <tr>
@@ -924,7 +925,7 @@ def _render_weekly_report_html(report_data: dict[str, Any], include_summary: boo
     ai_summary = _markdown_to_email_html(report_data.get("ai_summary", "暂无报表总结"))
     suffix = f" · {_country_label(country)}"
     content = _render_weekly_content_sections(report_data, country_suffix=suffix)
-    return _wrap_weekly_html_shell(project_name, _country_label(country), report_date, str(week_number), date_range, ai_summary, content, include_summary)
+    return _scale_html_fonts(_wrap_weekly_html_shell(project_name, _country_label(country), report_date, str(week_number), date_range, ai_summary, content, include_summary), 1.25)
 
 
 def _render_multi_country_weekly_html(
