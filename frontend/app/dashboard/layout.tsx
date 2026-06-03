@@ -18,7 +18,6 @@ import {
   PinSettingsPopover,
 } from '@/components/dashboard/sidebar-pin-settings'
 import { Button } from '@/components/ui/button'
-import { ThemeToggle } from '@/components/theme-toggle'
 import { getDashboardPageTitle } from '@/lib/dashboard-route-meta'
 import { useRecentPages } from '@/lib/recent-pages'
 import { useGlobalLoading } from '@/components/global-loading-provider'
@@ -299,7 +298,6 @@ export default function DashboardLayout({
               <DesktopPinnedItems />
               <LivePresence />
               <div className="flex items-center justify-end gap-2">
-                <ThemeToggle />
                 <NotificationBell />
                 <RecentPagesDropdown />
                 <Button
@@ -345,7 +343,6 @@ export default function DashboardLayout({
             }`}
           >
             <div className="flex items-center justify-end gap-2 px-2 py-2.5">
-              <ThemeToggle />
               <NotificationBell />
               <Button
                 asChild
