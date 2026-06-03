@@ -880,10 +880,21 @@ export function ScheduledReportsClient() {
     void loadData()
   }, [session])
 
+  // 初始加载台账
   useEffect(() => {
     void loadLedger()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // 选项变化时自动刷新台账（邮箱输入防抖 400ms，其余选项立即刷新）
+  useEffect(() => {
+    if (!initialLoadDone.current) return
+    const handle = setTimeout(() => {
+      void loadLedger()
+    }, 400)
+    return () => clearTimeout(handle)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ledgerStartDate, ledgerEndDate, ledgerFrequency, ledgerStatus, ledgerEmail])
 
   const handleCreate = async () => {
     if (!formEmail.trim()) {
