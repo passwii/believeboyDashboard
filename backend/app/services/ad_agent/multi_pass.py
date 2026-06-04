@@ -200,6 +200,49 @@ def _build_synthesis_prompt(
     )
 
 
+def _run_single_deep_dive(
+    hotspot: dict[str, Any],
+    aggregated_data: dict[str, Any],
+    settings: Settings,
+    selected_model: str,
+    project_context_text: str,
+    sku_context_text: str,
+) -> str:
+    """单个热点的 deep-dive 分析（独立函数，便于后续并行化）。"""
+    from app.services import ai as ai_chat_service
+
+    zoomed_data = extract_zoomed_data(aggregated_data, hotspot)
+    data_json = json.dumps(zoomed_data, ensure_ascii=False, indent=2)
+
+    deep_prompt = _build_deep_dive_prompt(hotspot)
+    deep_llm_config = ai_chat_service.build_llm_config(
+        settings=settings,
+        model=selected_model,
+        system_prompt=deep_prompt,
+        reasoning_effort=None,
+    )
+
+    collected = ""
+    for chunk in ai_chat_service.stream_assistant_content(
+        llm_config=deep_llm_config,
+        messages=[],
+        user_content=f"以下是针对「{hotspot.get('dimension', '')}」维度的精准数据：\n\n```json\n{data_json}\n```\n\n{project_context_text}\n\n{sku_context_text}",
+        settings=settings,
+    ):
+        if isinstance(chunk, dict):
+            if chunk.get("type") == "thinking":
+                continue
+            delta = chunk.get("content", "")
+        elif isinstance(chunk, str):
+            delta = chunk
+        else:
+            continue
+        if delta:
+            collected += delta
+
+    return collected
+
+
 def run_multi_pass_stream(
     aggregated_data: dict[str, Any],
     settings: Settings,
@@ -267,36 +310,14 @@ def run_multi_pass_stream(
     for i, hotspot in enumerate(hotspots[:max_hotspots]):
         yield {"type": "deep_dive_start", "hotspot": hotspot, "index": i}
 
-        # 提取精准数据子集
-        zoomed_data = extract_zoomed_data(aggregated_data, hotspot)
-        data_json = json.dumps(zoomed_data, ensure_ascii=False, indent=2)
-
-        deep_prompt = _build_deep_dive_prompt(hotspot)
-        deep_llm_config = ai_chat_service.build_llm_config(
-            settings=settings,
-            model=selected_model,
-            system_prompt=deep_prompt,
-            reasoning_effort=None,
+        collected = _run_single_deep_dive(
+            hotspot, aggregated_data, settings, selected_model,
+            project_context_text, sku_context_text,
         )
-
-        collected = ""
-        for chunk in ai_chat_service.stream_assistant_content(
-            llm_config=deep_llm_config,
-            messages=[],
-            user_content=f"以下是针对「{hotspot.get('dimension', '')}」维度的精准数据：\n\n```json\n{data_json}\n```\n\n{project_context_text}\n\n{sku_context_text}",
-            settings=settings,
-        ):
-            if isinstance(chunk, dict):
-                if chunk.get("type") == "thinking":
-                    continue
-                delta = chunk.get("content", "")
-            elif isinstance(chunk, str):
-                delta = chunk
-            else:
-                continue
-            if delta:
-                collected += delta
-                yield {"type": "chunk", "delta": delta}
+        # 将 deep-dive 结果分段 yield 以保持流式体验
+        for line in collected.split("\n"):
+            if line:
+                yield {"type": "chunk", "delta": line + "\n"}
 
         deep_dive_results.append({"hotspot": hotspot, "analysis": collected})
         full_content_parts.append(f"## {hotspot.get('finding', f'热点 {i+1}')}\n\n{collected}")
