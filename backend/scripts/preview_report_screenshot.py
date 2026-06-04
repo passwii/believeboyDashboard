@@ -133,7 +133,17 @@ MOCK_WEEKLY_DATA = {
         {"sku": "BLF-SENSOR-C", "available_qty": 5, "level": "low"},
         {"sku": "BLF-OLD-X", "available_qty": 0, "level": "oos"},
     ],
-    "returns_data": {"qty": 12, "rate": 1.8},
+    "inventory_summary": {
+        "total_available": 3456,
+        "sku_count": 24,
+        "low_stock_count": 2,
+        "oos_count": 1,
+    },
+    "returns_data": {"qty": 12, "rate": 1.8, "top_returns": [
+        {"reason": "商品与描述不符", "qty": 5},
+        {"reason": "质量问题", "qty": 4},
+        {"reason": "尺码不合适", "qty": 3},
+    ]},
     "action_items": [
         {"item": "BLF-SENSOR-C 库存告急，建议立即补货 200 件", "priority": "high", "reason": "仅剩 5 件"},
         {"item": "BLF-NEW-F 新品表现优异，可加大广告投入", "priority": "medium", "reason": "首周 31 件"},

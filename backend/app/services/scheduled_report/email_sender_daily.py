@@ -163,22 +163,21 @@ def _render_daily_content_sections(
     else:
         ret_rows_td = f"""<tr><td colspan="2" style="padding: 12px; font-size: 13px; color: #9CA3AF; text-align: center;">暂无退货数据</td></tr>"""
 
-    # ── 库存告急（满宽警告条）────────────────
+    # ── 库存告急（简洁列表）────────────────
     alert_section = ""
     if alert_rows:
         alert_tds = ""
-        for item in alert_rows[:6]:
+        for item in alert_rows[:8]:
             alert_tds += f"""<tr>
-              <td style="padding: 10px 14px; font-size: 14px; color: #92400E; border-bottom: 1px solid #FDE68A;">
-                <span style="background:{item.get("badge_color","#F59E0B")};color:white;font-size:12px;font-weight:700;padding:2px 8px;border-radius:3px;margin-right:6px;">{item.get("badge","告急")}</span>
+              <td style="padding: 6px 14px; font-size: 13px; color: #374151; border-bottom: 1px solid #F3F4F6;">
                 {item.get("sku","")} — 剩余 {item.get("qty","0")} 件
               </td>
             </tr>"""
         alert_section = f"""
         <tr>
           <td style="padding: 0 16px 12px;">
-            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 8px; overflow: hidden;">
-              <tr><td style="padding: 12px 14px 8px; font-size: 14px; font-weight: 700; color: #92400E; border-bottom: 1px solid #FDE68A;">⚠️ 库存告急 / 缺货提醒</td></tr>
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden;">
+              <tr><td style="padding: 10px 14px 6px; font-size: 13px; font-weight: 600; color: #6B7280; border-bottom: 1px solid #E5E7EB;">⚠️ 库存提醒</td></tr>
               <tr><td style="padding: 0;">
                 <table width="100%" cellpadding="0" cellspacing="0" border="0">{alert_tds}</table>
               </td></tr>
@@ -347,7 +346,7 @@ def _render_daily_content_sections(
         </td>
       </tr>
 
-      <!-- 库存告急（全宽） -->
+      <!-- 库存提醒 -->
       {alert_section}
 
       <!-- Section: 近7天热销 SKU TOP 5 -->
@@ -614,16 +613,15 @@ def _section_returns(report_data: dict[str, Any], country: str) -> str:
 
 
 def _section_stock_alerts(report_data: dict[str, Any], country: str) -> str:
-    """⚠️ 库存告急全宽警告条。无数据返回空串。"""
+    """⚠️ 库存提醒简洁列表。无数据返回空串。"""
     alert_rows = report_data.get("alert_rows", [])
     if not alert_rows:
         return ""
 
     alert_tds = ""
-    for item in alert_rows[:6]:
+    for item in alert_rows[:8]:
         alert_tds += f"""<tr>
-          <td style="padding: 10px 14px; font-size: 14px; color: #92400E; border-bottom: 1px solid #FDE68A;">
-            <span style="background:{item.get("badge_color","#F59E0B")};color:white;font-size:12px;font-weight:700;padding:2px 8px;border-radius:3px;margin-right:6px;">{item.get("badge","告急")}</span>
+          <td style="padding: 6px 14px; font-size: 13px; color: #374151; border-bottom: 1px solid #F3F4F6;">
             {item.get("sku","")} — 剩余 {item.get("qty","0")} 件
           </td>
         </tr>"""
@@ -631,8 +629,8 @@ def _section_stock_alerts(report_data: dict[str, Any], country: str) -> str:
     return f"""
       <tr>
         <td style="padding: 0 16px 12px;">
-          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 8px; overflow: hidden;">
-            <tr><td style="padding: 12px 14px 8px; font-size: 14px; font-weight: 700; color: #92400E; border-bottom: 1px solid #FDE68A;">⚠️ 库存告急 / 缺货提醒</td></tr>
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden;">
+            <tr><td style="padding: 10px 14px 6px; font-size: 13px; font-weight: 600; color: #6B7280; border-bottom: 1px solid #E5E7EB;">⚠️ 库存提醒</td></tr>
             <tr><td style="padding: 0;">
               <table width="100%" cellpadding="0" cellspacing="0" border="0">{alert_tds}</table>
             </td></tr>
@@ -685,7 +683,7 @@ _DAILY_SECTIONS = [
     {"emoji": "📈", "title": "近7天概况",           "color": "#6366F1", "fn": _section_7day_overview},
     {"emoji": "",   "title": "库存状态 + 广告数据",  "color": "#6B7280", "fn": _section_inventory_ads},
     {"emoji": "↩️", "title": "7天退货分析",         "color": "#F59E0B", "fn": _section_returns},
-    {"emoji": "",   "title": "库存告急 / 缺货提醒",  "color": "#92400E", "fn": _section_stock_alerts},
+    {"emoji": "",   "title": "库存提醒",     "color": "#6B7280", "fn": _section_stock_alerts},
     {"emoji": "🏆", "title": "近7天热销 SKU TOP 5", "color": "#059669", "fn": _section_top5_skus},
 ]
 
@@ -718,7 +716,6 @@ def _wrap_html_shell(
     Args:
         for_screenshot: True 时使用手机端窄宽度 (400px)，适配手机端截图查看。
     """
-    dash_url = "https://dash.believeboy.com/dashboard"
     max_width = "420px" if for_screenshot else "850px"
 
     if for_screenshot:
@@ -774,23 +771,22 @@ def _wrap_html_shell(
 
       {content_html}
 
-      <!-- 数据说明 -->
+      <!-- Footer -->
       <tr>
-        <td style="padding: 0 16px 10px;">
-          <div style="padding: 12px 14px; background: #FFFBEB; border-left: 3px solid #F59E0B; border-radius: 6px;">
-            <div style="font-size: 13px; color: #92400E; line-height: 1.6;">💡 数据来源于 Amazon Seller Central 自动同步，每日 15:00 准时推送。如有异常请登录仪表板核查。</div>
-          </div>
-        </td>
-      </tr>
-
-      <!-- CTA -->
-      <tr>
-        <td style="padding: 12px 16px 24px; text-align: center; border-top: 1px solid #F3F4F6;">
-          <a href="{dash_url}"
-             style="display: inline-block; background: #2563EB; color: white; text-decoration: none; padding: 13px 32px; border-radius: 8px; font-size: 16px; font-weight: 700;">
-            查看完整仪表板 →
-          </a>
-          <div style="margin-top: 12px; font-size: 13px; color: #9CA3AF;">BelieveBoy Dashboard · {report_date}</div>
+        <td style="padding: 24px 20px 20px; text-align: center; background: #F9FAFB; border-top: 1px solid #E5E7EB;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td style="vertical-align: middle; padding-bottom: 8px;">
+                <img src="https://dash.believeboy.com/logo-email.png" width="28" height="28" alt="BelieveBoy" style="border-radius: 50%; display: inline-block; vertical-align: middle; margin-right: 8px;" onerror="this.style.display='none'">
+                <span style="font-size: 15px; font-weight: 700; color: #374151; vertical-align: middle;">BelieveBoy Dashboard</span>
+              </td>
+            </tr>
+            <tr>
+              <td style="font-size: 12px; color: #9CA3AF; line-height: 1.8;">
+                {project_name} · {report_date}
+              </td>
+            </tr>
+          </table>
         </td>
       </tr>
 

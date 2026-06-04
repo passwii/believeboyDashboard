@@ -37,24 +37,22 @@ def _fmt_week_change(val: float) -> tuple[str, str, str]:
     return color, f"{icon} {abs(val):.1f}%", icon
 
 
-def _render_week_kpi_card(label: str, current: str, prev: str, change: float, unit: str = "", highlight: bool = False) -> str:
+def _render_week_kpi_card(label: str, current: str, prev: str, change: float, highlight: bool = False) -> str:
     """渲染周报 KPI 卡片（每行 2 个，width=50%）"""
     color, change_str, _ = _fmt_week_change(change)
     bg_style = "background: #F0FDF4; border-color: #10B981;" if highlight else "background: white;"
     return f"""<td width="50%" style="padding: 18px 10px 14px; text-align: center; border: 1px solid #E5E7EB; {bg_style} vertical-align: top;">
       <div style="font-size: 14px; color: #6B7280; margin-bottom: 8px;">{label}</div>
       <div style="font-size: 36px; font-weight: 900; color: #111827; line-height: 1;">{current}</div>
-      <div style="font-size: 13px; color: #9CA3AF; margin: 4px 0;">{unit}</div>
-      <div style="font-size: 14px; color: {color}; font-weight: 700; margin-top: 4px;">{change_str}</div>
+      <div style="font-size: 14px; color: {color}; font-weight: 700; margin-top: 6px;">{change_str}</div>
     </td>"""
 
 
-def _render_week_kpi_card_prev(label: str, current: str, unit: str = "") -> str:
+def _render_week_kpi_card_prev(label: str, current: str) -> str:
     """渲染"上周数据"展示用的 KPI 卡片（无变化率）"""
     return f"""<td width="50%" style="padding: 18px 10px 14px; text-align: center; border: 1px solid #E5E7EB; background: #F9FAFB; vertical-align: top;">
       <div style="font-size: 14px; color: #9CA3AF; margin-bottom: 8px;">{label}</div>
       <div style="font-size: 36px; font-weight: 900; color: #6B7280; line-height: 1;">{current}</div>
-      <div style="font-size: 13px; color: #D1D5DB; margin: 4px 0;">{unit}</div>
     </td>"""
 
 
@@ -322,10 +320,10 @@ def _render_weekly_content_sections(
     qty_chg = changes.get("qty_change", 0)
     amt_chg = changes.get("amount_change", 0)
 
-    card_qty_curr = _render_week_kpi_card("本周销量", f"{wk_qty:,}", f"{pr_qty:,}", qty_chg, "件")
-    card_amt_curr = _render_week_kpi_card("本周销售额", _fmt_week_currency(wk_amt, country), _fmt_week_currency(pr_amt, country), amt_chg, _currency_code(country), highlight=True)
-    card_qty_prev = _render_week_kpi_card_prev("上周销量", f"{pr_qty:,}", "件")
-    card_amt_prev = _render_week_kpi_card_prev("上周销售额", _fmt_week_currency(pr_amt, country), _currency_code(country))
+    card_qty_curr = _render_week_kpi_card("本周销量", f"{wk_qty:,}", f"{pr_qty:,}", qty_chg)
+    card_amt_curr = _render_week_kpi_card("本周销售额", _fmt_week_currency(wk_amt, country), _fmt_week_currency(pr_amt, country), amt_chg, highlight=True)
+    card_qty_prev = _render_week_kpi_card_prev("上周销量", f"{pr_qty:,}")
+    card_amt_prev = _render_week_kpi_card_prev("上周销售额", _fmt_week_currency(pr_amt, country))
 
     # 每日销量趋势
     daily_trend = report_data.get("daily_trend", [])
@@ -346,15 +344,15 @@ def _render_weekly_content_sections(
 
     # 周对比表格
     comparison_rows = [
-        {"label": "📦 销量（件）", "current": f"{wk_qty:,}", "prev": f"{pr_qty:,}", "change": qty_chg},
-        {"label": f"💰 销售额（{_currency_code(country)}）", "current": _fmt_week_currency(wk_amt, country), "prev": _fmt_week_currency(pr_amt, country), "change": amt_chg},
+        {"label": "销量", "current": f"{wk_qty:,}", "prev": f"{pr_qty:,}", "change": qty_chg},
+        {"label": "销售额", "current": _fmt_week_currency(wk_amt, country), "prev": _fmt_week_currency(pr_amt, country), "change": amt_chg},
     ]
     avg_price_curr = current_week.get("avg_price", 0)
     avg_price_prev = prev_week.get("avg_price", 0)
     avg_price_chg = changes.get("avg_price_change", 0)
     if avg_price_curr > 0 or avg_price_prev > 0:
         comparison_rows.append({
-            "label": f"📊 平均客单价（{_currency_code(country)}）",
+            "label": "平均客单价",
             "current": _fmt_week_currency(avg_price_curr, country),
             "prev": _fmt_week_currency(avg_price_prev, country),
             "change": avg_price_chg,
@@ -365,38 +363,23 @@ def _render_weekly_content_sections(
     top_skus = report_data.get("top_skus_comparison", [])
     top_sku_table = _render_top_sku_comparison_table(top_skus)
 
-    # 归因分析
-    attribution = report_data.get("attribution", [])
-    attribution_rows = ""
-    for item in attribution[:8]:
-        is_positive = item.get("contribution", 0) > 0
-        attribution_rows += _render_attribution_bar(
-            item.get("contribution", 0),
-            item.get("pct", 0),
-            is_positive,
-            _safe_html(item.get("sku", ""))[:20],
-        )
-    attribution_table = f"""<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden;">
-      <thead><tr style="background: #F9FAFB;">
-        <th style="padding: 10px 12px; font-size: 12px; color: #6B7280; text-align: left; font-weight: 600; border-bottom: 1px solid #E5E7EB;">SKU</th>
-        <th style="padding: 10px 12px; font-size: 12px; color: #6B7280; font-weight: 600; border-bottom: 1px solid #E5E7EB; width: 140px;">贡献量</th>
-        <th style="padding: 10px 12px; font-size: 12px; color: #6B7280; text-align: right; font-weight: 600; border-bottom: 1px solid #E5E7EB;">占比</th>
-      </tr></thead><tbody>{attribution_rows or '<tr><td colspan="3" style="padding: 16px; text-align: center; color: #9CA3AF;">暂无数据</td></tr>'}</tbody>
-    </table>"""
-
     # 广告对比
     ads_comparison = report_data.get("ads_comparison", {})
     ads_cards = _render_ads_comparison_cards(ads_comparison, country)
-
-    # 库存告警
-    inventory_alerts = report_data.get("inventory_alerts", [])
-    inventory_section = _render_inventory_alerts_section(inventory_alerts)
 
     # 退货数据
     returns_data = report_data.get("returns_data", {})
     ret_qty = returns_data.get("qty", 0)
     ret_rate = returns_data.get("rate", 0.0)
+    ret_top = returns_data.get("top_returns", [])
     ret_clr = "#DC2626" if ret_rate > 3 else "#F59E0B" if ret_rate > 1 else "#16A34A"
+
+    # 库存概览数据
+    inv_summary = report_data.get("inventory_summary", {})
+    inv_total = inv_summary.get("total_available", 0)
+    inv_sku_cnt = inv_summary.get("sku_count", 0)
+    inv_low_cnt = inv_summary.get("low_stock_count", 0)
+    inv_oos_cnt = inv_summary.get("oos_count", 0)
 
     # SKU 销售明细
     sku_sales_detail = report_data.get("sku_sales_detail", [])
@@ -435,46 +418,59 @@ def _render_weekly_content_sections(
       </tr>"""
 
     returns_section = ""
-    if ret_qty > 0 or ret_rate > 0:
+    if ret_qty > 0 or ret_rate > 0 or inv_total > 0 or ret_top:
+        inv_rows = ""
+        for label, val, val_clr in [
+            ("在售 SKU 数", inv_sku_cnt, "#111827"),
+            ("可用库存总量", f"{inv_total:,}", "#111827"),
+            ("低库存告急", inv_low_cnt, "#D97706"),
+            ("缺货", inv_oos_cnt, "#DC2626"),
+        ]:
+            inv_rows += f"""<tr>
+              <td style="padding: 6px 12px; font-size: 12px; color: #6B7280; border-bottom: 1px solid #F3F4F6;">{label}</td>
+              <td width="35%" style="padding: 6px 12px; font-size: 13px; font-weight: 700; text-align: right; color: {val_clr};">{val}</td>
+            </tr>"""
+        inventory_table = f"""
+            <tr>
+              <td colspan="2" style="padding: 10px 12px 4px; font-size: 12px; font-weight: 600; color: #6B7280; border-bottom: 1px solid #E5E7EB;">📦 库存状态</td>
+            </tr>
+            {inv_rows}"""
+
+        ret_reason_rows = ""
+        if ret_top:
+            for r in ret_top[:5]:
+                ret_reason_rows += f"""<tr>
+              <td style="padding: 6px 12px; font-size: 12px; color: #374151; border-bottom: 1px solid #F3F4F6;">{_safe_html(r.get("reason", "—"))}</td>
+              <td width="30%" style="padding: 6px 12px; font-size: 13px; font-weight: 700; text-align: right; color: #DC2626;">{r.get("qty", 0)}</td>
+            </tr>"""
+            ret_reason_table = f"""
+            <tr>
+              <td colspan="2" style="padding: 10px 12px 4px; font-size: 12px; font-weight: 600; color: #6B7280; border-bottom: 1px solid #E5E7EB;">↩️ 退货原因 TOP</td>
+            </tr>
+            {ret_reason_rows}"""
+        else:
+            ret_reason_table = ""
+
         returns_section = f"""
-      {_render_weekly_section_header("↩️", f"本周退货概况{country_suffix}")}
+      {_render_weekly_section_header("↩️", f"本周退货及库存概况{country_suffix}")}
       <tr>
         <td style="padding: 6px 16px 12px;">
           <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden;">
             <tr>
-              <td width="50%" style="padding: 16px 10px; text-align: center; border: 1px solid #E5E7EB; background: white;">
+              <td width="50%" style="padding: 16px 10px; text-align: center; border: 1px solid #E5E7EB; background: white; vertical-align: top;">
                 <div style="font-size: 12px; color: #6B7280; margin-bottom: 6px;">退货数量</div>
                 <div style="font-size: 36px; font-weight: 900; color: {ret_clr}; line-height: 1;">{ret_qty}</div>
-                <div style="font-size: 12px; color: #9CA3AF; margin-top: 4px;">件</div>
               </td>
-              <td width="50%" style="padding: 16px 10px; text-align: center; border: 1px solid #E5E7EB; background: white;">
+              <td width="50%" style="padding: 16px 10px; text-align: center; border: 1px solid #E5E7EB; background: white; vertical-align: top;">
                 <div style="font-size: 12px; color: #6B7280; margin-bottom: 6px;">退货率</div>
                 <div style="font-size: 36px; font-weight: 900; color: {ret_clr}; line-height: 1;">{ret_rate:.1f}%</div>
-                <div style="font-size: 12px; color: #9CA3AF; margin-top: 4px;">{"正常" if ret_rate <= 1 else "偏高" if ret_rate <= 3 else "告警"}</div>
               </td>
             </tr>
+            {inventory_table}
+            {ret_reason_table}
           </table>
         </td>
       </tr>"""
-
-    # 归因分析总结
-    attribution_summary = report_data.get("attribution_summary", "")
-    attribution_summary_section = ""
-    if attribution_summary:
-        attribution_summary_html = _markdown_to_email_html(attribution_summary)
-        attribution_summary_section = f"""<tr>
-        <td style="padding: 4px 16px 12px;">
-          <div style="font-size: 14px; color: #374151; line-height: 1.6; padding: 10px 12px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px;">{attribution_summary_html}</div>
-        </td>
-      </tr>"""
-
-    # 行动建议
-    action_items = report_data.get("action_items", [])
-    action_section = _render_action_items_section(action_items)
-
-    # 告警列表
-    alerts = report_data.get("alerts", [])
-    alert_section = _render_alert_section(alerts)
 
     # ── Assemble all content sections ──────────────────
     return f"""
@@ -519,15 +515,6 @@ def _render_weekly_content_sections(
         </td>
       </tr>
 
-      {_render_weekly_section_header("🎯", f"销量变化归因{country_suffix}", "本周 vs 上周各 SKU 贡献")}
-      <tr>
-        <td style="padding: 6px 16px 12px;">
-          {attribution_table}
-        </td>
-      </tr>
-
-      {attribution_summary_section}
-
       {_render_weekly_section_header("💰", f"广告效果对比{country_suffix}", "本周 vs 上周")}
       <tr>
         <td style="padding: 6px 16px 12px;">
@@ -535,13 +522,7 @@ def _render_weekly_content_sections(
         </td>
       </tr>
 
-      {returns_section}
-
-      {inventory_section if inventory_section else ''}
-
-      {action_section}
-
-      {alert_section}"""
+      {returns_section}"""
 
 
 
@@ -561,10 +542,10 @@ def _section_week_kpi(report_data: dict[str, Any], country: str) -> str:
     qty_chg = changes.get("qty_change", 0)
     amt_chg = changes.get("amount_change", 0)
 
-    card_qty_curr = _render_week_kpi_card("本周销量", f"{wk_qty:,}", f"{pr_qty:,}", qty_chg, "件")
-    card_amt_curr = _render_week_kpi_card("本周销售额", _fmt_week_currency(wk_amt, country), _fmt_week_currency(pr_amt, country), amt_chg, _currency_code(country), highlight=True)
-    card_qty_prev = _render_week_kpi_card_prev("上周销量", f"{pr_qty:,}", "件")
-    card_amt_prev = _render_week_kpi_card_prev("上周销售额", _fmt_week_currency(pr_amt, country), _currency_code(country))
+    card_qty_curr = _render_week_kpi_card("本周销量", f"{wk_qty:,}", f"{pr_qty:,}", qty_chg)
+    card_amt_curr = _render_week_kpi_card("本周销售额", _fmt_week_currency(wk_amt, country), _fmt_week_currency(pr_amt, country), amt_chg, highlight=True)
+    card_qty_prev = _render_week_kpi_card_prev("上周销量", f"{pr_qty:,}")
+    card_amt_prev = _render_week_kpi_card_prev("上周销售额", _fmt_week_currency(pr_amt, country))
 
     return f"""
       <tr>
@@ -668,15 +649,15 @@ def _section_week_comparison(report_data: dict[str, Any], country: str) -> str:
     amt_chg = changes.get("amount_change", 0)
 
     comparison_rows = [
-        {"label": "📦 销量（件）", "current": f"{wk_qty:,}", "prev": f"{pr_qty:,}", "change": qty_chg},
-        {"label": f"💰 销售额（{_currency_code(country)}）", "current": _fmt_week_currency(wk_amt, country), "prev": _fmt_week_currency(pr_amt, country), "change": amt_chg},
+        {"label": "销量", "current": f"{wk_qty:,}", "prev": f"{pr_qty:,}", "change": qty_chg},
+        {"label": "销售额", "current": _fmt_week_currency(wk_amt, country), "prev": _fmt_week_currency(pr_amt, country), "change": amt_chg},
     ]
     avg_price_curr = current_week.get("avg_price", 0)
     avg_price_prev = prev_week.get("avg_price", 0)
     avg_price_chg = changes.get("avg_price_change", 0)
     if avg_price_curr > 0 or avg_price_prev > 0:
         comparison_rows.append({
-            "label": f"📊 平均客单价（{_currency_code(country)}）",
+            "label": "平均客单价",
             "current": _fmt_week_currency(avg_price_curr, country),
             "prev": _fmt_week_currency(avg_price_prev, country),
             "change": avg_price_chg,
@@ -703,47 +684,6 @@ def _section_week_top_skus(report_data: dict[str, Any], country: str) -> str:
       </tr>"""
 
 
-def _section_week_attribution(report_data: dict[str, Any], country: str) -> str:
-    """🎯 销量变化归因（条形图 + 文字总结）。"""
-    attribution = report_data.get("attribution", [])
-    attribution_summary = report_data.get("attribution_summary", "")
-
-    attribution_rows = ""
-    for item in attribution[:8]:
-        is_positive = item.get("contribution", 0) > 0
-        attribution_rows += _render_attribution_bar(
-            item.get("contribution", 0),
-            item.get("pct", 0),
-            is_positive,
-            _safe_html(item.get("sku", ""))[:20],
-        )
-    attribution_table = f"""<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden;">
-      <thead><tr style="background: #F9FAFB;">
-        <th style="padding: 10px 12px; font-size: 12px; color: #6B7280; text-align: left; font-weight: 600; border-bottom: 1px solid #E5E7EB;">SKU</th>
-        <th style="padding: 10px 12px; font-size: 12px; color: #6B7280; font-weight: 600; border-bottom: 1px solid #E5E7EB; width: 140px;">贡献量</th>
-        <th style="padding: 10px 12px; font-size: 12px; color: #6B7280; text-align: right; font-weight: 600; border-bottom: 1px solid #E5E7EB;">占比</th>
-      </tr></thead><tbody>{attribution_rows or '<tr><td colspan="3" style="padding: 16px; text-align: center; color: #9CA3AF;">暂无数据</td></tr>'}</tbody>
-    </table>"""
-
-    result = f"""
-      <tr>
-        <td style="padding: 6px 16px 12px;">
-          {attribution_table}
-        </td>
-      </tr>"""
-
-    if attribution_summary:
-        summary_html = _markdown_to_email_html(attribution_summary)
-        result += f"""
-      <tr>
-        <td style="padding: 4px 16px 12px;">
-          <div style="font-size: 14px; color: #374151; line-height: 1.6; padding: 10px 12px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px;">{summary_html}</div>
-        </td>
-      </tr>"""
-
-    return result
-
-
 def _section_week_ads(report_data: dict[str, Any], country: str) -> str:
     """💰 广告效果对比卡片。"""
     ads_comparison = report_data.get("ads_comparison", {})
@@ -757,30 +697,66 @@ def _section_week_ads(report_data: dict[str, Any], country: str) -> str:
 
 
 def _section_week_returns(report_data: dict[str, Any], country: str) -> str:
-    """↩️ 本周退货概况。无数据返回空串。"""
+    """↩️ 本周退货及库存概况。无数据返回空串。"""
     returns_data = report_data.get("returns_data", {})
     ret_qty = returns_data.get("qty", 0)
     ret_rate = returns_data.get("rate", 0.0)
-    if ret_qty <= 0 and ret_rate <= 0:
+    ret_top = returns_data.get("top_returns", [])
+    inv_summary = report_data.get("inventory_summary", {})
+    inv_total = inv_summary.get("total_available", 0)
+    inv_sku_cnt = inv_summary.get("sku_count", 0)
+    inv_low_cnt = inv_summary.get("low_stock_count", 0)
+    inv_oos_cnt = inv_summary.get("oos_count", 0)
+    if ret_qty <= 0 and ret_rate <= 0 and inv_total <= 0:
         return ""
 
     ret_clr = "#DC2626" if ret_rate > 3 else "#F59E0B" if ret_rate > 1 else "#16A34A"
+    inv_rows = ""
+    for label, val, val_clr in [
+        ("在售 SKU 数", inv_sku_cnt, "#111827"),
+        ("可用库存总量", f"{inv_total:,}", "#111827"),
+        ("低库存告急", inv_low_cnt, "#D97706"),
+        ("缺货", inv_oos_cnt, "#DC2626"),
+    ]:
+        inv_rows += f"""<tr>
+              <td style="padding: 6px 12px; font-size: 12px; color: #6B7280; border-bottom: 1px solid #F3F4F6;">{label}</td>
+              <td width="35%" style="padding: 6px 12px; font-size: 13px; font-weight: 700; text-align: right; color: {val_clr};">{val}</td>
+            </tr>"""
+
+    ret_reason_rows = ""
+    if ret_top:
+        for r in ret_top[:5]:
+            ret_reason_rows += f"""<tr>
+              <td style="padding: 6px 12px; font-size: 12px; color: #374151; border-bottom: 1px solid #F3F4F6;">{_safe_html(r.get("reason", "—"))}</td>
+              <td width="30%" style="padding: 6px 12px; font-size: 13px; font-weight: 700; text-align: right; color: #DC2626;">{r.get("qty", 0)}</td>
+            </tr>"""
+    ret_reason_table = (
+        f"""
+            <tr>
+              <td colspan="2" style="padding: 10px 12px 4px; font-size: 12px; font-weight: 600; color: #6B7280; border-bottom: 1px solid #E5E7EB;">↩️ 退货原因 TOP</td>
+            </tr>
+            {ret_reason_rows}"""
+    ) if ret_top else ""
+
     return f"""
       <tr>
         <td style="padding: 6px 16px 12px;">
           <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden;">
             <tr>
-              <td width="50%" style="padding: 16px 10px; text-align: center; border: 1px solid #E5E7EB; background: white;">
+              <td width="50%" style="padding: 16px 10px; text-align: center; border: 1px solid #E5E7EB; background: white; vertical-align: top;">
                 <div style="font-size: 12px; color: #6B7280; margin-bottom: 6px;">退货数量</div>
                 <div style="font-size: 36px; font-weight: 900; color: {ret_clr}; line-height: 1;">{ret_qty}</div>
-                <div style="font-size: 12px; color: #9CA3AF; margin-top: 4px;">件</div>
               </td>
-              <td width="50%" style="padding: 16px 10px; text-align: center; border: 1px solid #E5E7EB; background: white;">
+              <td width="50%" style="padding: 16px 10px; text-align: center; border: 1px solid #E5E7EB; background: white; vertical-align: top;">
                 <div style="font-size: 12px; color: #6B7280; margin-bottom: 6px;">退货率</div>
                 <div style="font-size: 36px; font-weight: 900; color: {ret_clr}; line-height: 1;">{ret_rate:.1f}%</div>
-                <div style="font-size: 12px; color: #9CA3AF; margin-top: 4px;">{"正常" if ret_rate <= 1 else "偏高" if ret_rate <= 3 else "告警"}</div>
               </td>
             </tr>
+            <tr>
+              <td colspan="2" style="padding: 10px 12px 4px; font-size: 12px; font-weight: 600; color: #6B7280; border-bottom: 1px solid #E5E7EB;">📦 库存状态</td>
+            </tr>
+            {inv_rows}
+            {ret_reason_table}
           </table>
         </td>
       </tr>"""
@@ -810,12 +786,8 @@ _WEEKLY_SECTIONS = [
     {"emoji": "📈", "title": "周销量趋势",      "color": "#6366F1", "fn": _section_week_trend},
     {"emoji": "📈", "title": "周对比分析",      "color": "#2563EB", "fn": _section_week_comparison},
     {"emoji": "🏆", "title": "热销 SKU 表现",  "color": "#059669", "fn": _section_week_top_skus},
-    {"emoji": "🎯", "title": "销量变化归因",    "color": "#8B5CF6", "fn": _section_week_attribution},
     {"emoji": "💰", "title": "广告效果对比",    "color": "#16A34A", "fn": _section_week_ads},
-    {"emoji": "↩️", "title": "本周退货概况",   "color": "#F59E0B", "fn": _section_week_returns},
-    {"emoji": "📦", "title": "库存告警",        "color": "#DC2626", "fn": _section_week_inventory_alerts},
-    {"emoji": "💡", "title": "行动建议",        "color": "#065F46", "fn": _section_week_action_items},
-    {"emoji": "⚠️", "title": "需要关注",       "color": "#991B1B", "fn": _section_week_alerts},
+    {"emoji": "↩️", "title": "退货及库存概况",  "color": "#F59E0B", "fn": _section_week_returns},
 ]
 
 
@@ -849,9 +821,8 @@ def _wrap_weekly_html_shell(
     Args:
         for_screenshot: True 时使用手机端窄宽度 (400px)，适配手机端截图查看。
     """
-    dash_url = "https://dash.believeboy.com/dashboard"
-    year = report_date[:4] if report_date else ""
     max_width = "420px" if for_screenshot else "850px"
+    year = report_date[:4] if report_date else ""
 
     if for_screenshot:
         outer_style = "margin: 0; padding: 0; background: white; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;"
@@ -900,23 +871,22 @@ def _wrap_weekly_html_shell(
 
       {content_html}
 
-      <!-- 数据说明 -->
+      <!-- Footer -->
       <tr>
-        <td style="padding: 0 16px 10px;">
-          <div style="padding: 12px 14px; background: #FFFBEB; border-left: 3px solid #F59E0B; border-radius: 6px;">
-            <div style="font-size: 13px; color: #92400E; line-height: 1.6;">💡 数据来源于 Amazon Seller Central 自动同步，每周一 09:00 准时推送。如有异常请登录仪表板核查。</div>
-          </div>
-        </td>
-      </tr>
-
-      <!-- CTA -->
-      <tr>
-        <td style="padding: 12px 16px 24px; text-align: center; border-top: 1px solid #F3F4F6;">
-          <a href="{dash_url}"
-             style="display: inline-block; background: #2563EB; color: white; text-decoration: none; padding: 13px 32px; border-radius: 8px; font-size: 16px; font-weight: 700;">
-            查看完整仪表板 →
-          </a>
-          <div style="margin-top: 12px; font-size: 13px; color: #9CA3AF;">BelieveBoy Dashboard · {year} 第 {week_number} 周</div>
+        <td style="padding: 24px 20px 20px; text-align: center; background: #F9FAFB; border-top: 1px solid #E5E7EB;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td style="vertical-align: middle; padding-bottom: 8px;">
+                <img src="https://dash.believeboy.com/logo-email.png" width="28" height="28" alt="BelieveBoy" style="border-radius: 50%; display: inline-block; vertical-align: middle; margin-right: 8px;" onerror="this.style.display='none'">
+                <span style="font-size: 15px; font-weight: 700; color: #374151; vertical-align: middle;">BelieveBoy Dashboard</span>
+              </td>
+            </tr>
+            <tr>
+              <td style="font-size: 12px; color: #9CA3AF; line-height: 1.8;">
+                {project_name} · {year} 第 {week_number} 周 · {date_range}
+              </td>
+            </tr>
+          </table>
         </td>
       </tr>
 

@@ -664,9 +664,20 @@ def _get_weekly_returns(
         qty = sum(r.quantity for _, r in seen.values())
         rate = (qty / week_total_qty * 100) if week_total_qty > 0 else 0.0
 
+        # 按退货原因聚合 TOP 3
+        reason_qty: dict[str, int] = {}
+        for _, r in seen.values():
+            reason = r.reason or "未知"
+            reason_qty[reason] = reason_qty.get(reason, 0) + r.quantity
+        top_returns = sorted(
+            [{"reason": k, "qty": v} for k, v in reason_qty.items()],
+            key=lambda x: x["qty"], reverse=True,
+        )[:3]
+
         return {
             "qty": qty,
             "rate": round(rate, 1),
+            "top_returns": top_returns,
         }
     except Exception as e:
         logger.warning(f"Failed to get weekly returns: {e}")
