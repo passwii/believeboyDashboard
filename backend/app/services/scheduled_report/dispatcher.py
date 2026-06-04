@@ -444,7 +444,7 @@ def _fallback_multi_country_summary(
         sales = data.get("sales", {})
         qty = sales.get("yesterday_qty", 0)
         amt = sales.get("yesterday_amount", 0)
-        parts.append(f"- {label}：昨日 {qty} 单，销售额 {_fmt_currency(amt, country)}")
+        parts.append(f"- {label}：今日 {qty} 单，销售额 {_fmt_currency(amt, country)}")
     return "\n".join(parts)
 
 

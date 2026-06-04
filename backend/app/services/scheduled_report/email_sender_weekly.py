@@ -19,6 +19,14 @@ from app.services.scheduled_report.email_sender import (
 logger = logging.getLogger(__name__)
 
 
+def _get_logo_src(for_screenshot: bool) -> str:
+    """截图模式优先用本地 base64 data URI，邮件模式保持外网 URL。"""
+    if not for_screenshot:
+        return "https://dash.believeboy.com/logo-email.png"
+    from app.services.scheduled_report.screenshot import get_logo_src_for_screenshot
+    return get_logo_src_for_screenshot()
+
+
 # ── Helper functions ─────────────────────────────────────────────────────────
 
 
@@ -815,11 +823,13 @@ def _wrap_weekly_html_shell(
     include_summary: bool,
     *,
     for_screenshot: bool = False,
+    logo_src: str = "https://dash.believeboy.com/logo-email.png",
 ) -> str:
     """Wrap weekly content sections with the outer HTML shell.
 
     Args:
         for_screenshot: True 时使用手机端窄宽度 (400px)，适配手机端截图查看。
+        logo_src: 邮件 logo 的 src（截图模式可传入 base64 data URI 避免外网请求）。
     """
     max_width = "420px" if for_screenshot else "850px"
     year = report_date[:4] if report_date else ""
@@ -852,7 +862,7 @@ def _wrap_weekly_html_shell(
           <table width="100%" cellpadding="0" cellspacing="0" border="0">
             <tr>
               <td width="52" style="vertical-align: middle; padding-right: 14px;">
-                <img src="https://dash.believeboy.com/logo-email.png" width="52" height="52" alt="BelieveBoy" style="border-radius: 50%; display: block;" onerror="this.style.display='none'">
+                <img src="{logo_src}" width="52" height="52" alt="BelieveBoy" style="border-radius: 50%; display: block;" onerror="this.style.display='none'">
               </td>
               <td style="vertical-align: middle;">
                 <div style="font-size: 22px; font-weight: 700; color: white;">每周运营报告</div>
@@ -877,7 +887,7 @@ def _wrap_weekly_html_shell(
           <table width="100%" cellpadding="0" cellspacing="0" border="0">
             <tr>
               <td style="vertical-align: middle; padding-bottom: 8px;">
-                <img src="https://dash.believeboy.com/logo-email.png" width="28" height="28" alt="BelieveBoy" style="border-radius: 50%; display: inline-block; vertical-align: middle; margin-right: 8px;" onerror="this.style.display='none'">
+                <img src="{logo_src}" width="28" height="28" alt="BelieveBoy" style="border-radius: 50%; display: inline-block; vertical-align: middle; margin-right: 8px;" onerror="this.style.display='none'">
                 <span style="font-size: 15px; font-weight: 700; color: #374151; vertical-align: middle;">BelieveBoy Dashboard</span>
               </td>
             </tr>
@@ -915,7 +925,8 @@ def _render_weekly_report_html(report_data: dict[str, Any], include_summary: boo
     ai_summary = _markdown_to_email_html(report_data.get("ai_summary", "暂无报表总结"))
     suffix = f" · {_country_label(country)}"
     content = _render_weekly_content_sections(report_data, country_suffix=suffix)
-    html = _wrap_weekly_html_shell(project_name, _country_label(country), report_date, str(week_number), date_range, ai_summary, content, include_summary, for_screenshot=for_screenshot)
+    logo_src = _get_logo_src(for_screenshot)
+    html = _wrap_weekly_html_shell(project_name, _country_label(country), report_date, str(week_number), date_range, ai_summary, content, include_summary, for_screenshot=for_screenshot, logo_src=logo_src)
     return html if for_screenshot else _scale_html_fonts(html, 1.25)
 
 
@@ -976,7 +987,8 @@ def _render_multi_country_weekly_html(
       </tr>""")
 
     combined_content = "\n".join(content_parts)
-    html = _wrap_weekly_html_shell(project_name, country_display, report_date, str(week_number), date_range, ai_summary_html, combined_content, include_summary, for_screenshot=for_screenshot)
+    logo_src = _get_logo_src(for_screenshot)
+    html = _wrap_weekly_html_shell(project_name, country_display, report_date, str(week_number), date_range, ai_summary_html, combined_content, include_summary, for_screenshot=for_screenshot, logo_src=logo_src)
     return html if for_screenshot else _scale_html_fonts(html, 1.25)
 
 

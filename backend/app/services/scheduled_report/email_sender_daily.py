@@ -20,6 +20,14 @@ from app.services.scheduled_report.email_sender import (
 logger = logging.getLogger(__name__)
 
 
+def _get_logo_src(for_screenshot: bool) -> str:
+    """截图模式优先用本地 base64 data URI，邮件模式保持外网 URL。"""
+    if not for_screenshot:
+        return "https://dash.believeboy.com/logo-email.png"
+    from app.services.scheduled_report.screenshot import get_logo_src_for_screenshot
+    return get_logo_src_for_screenshot()
+
+
 # ── Content sections builder (extracted for multi-country reuse) ──────────────
 
 
@@ -105,13 +113,13 @@ def _render_daily_content_sections(
 
     # ── 指标卡（每行 2 列）──────────────────────────
     card1 = f"""<td width="50%" style="padding: 18px 10px 14px; text-align: center; border: 1px solid #E5E7EB; background: white; vertical-align: top;">
-      <div style="font-size: 14px; color: #6B7280; margin-bottom: 8px;">昨日销量</div>
+      <div style="font-size: 14px; color: #6B7280; margin-bottom: 8px;">今日销量</div>
       <div style="font-size: 36px; font-weight: 900; color: #111827; line-height: 1;">{y_qty} <span style="font-size: 22px; font-weight: 600;">件</span></div>
-      <div style="font-size: 14px; color: {delta_clr}; font-weight: 700; margin-top: 6px;">{delta_icon} {abs(chg_pct):.1f}% vs 前日</div>
+      <div style="font-size: 14px; color: {delta_clr}; font-weight: 700; margin-top: 6px;">{delta_icon} {abs(chg_pct):.1f}% vs 昨日</div>
     </td>"""
 
     card2 = f"""<td width="50%" style="padding: 18px 10px 14px; text-align: center; border: 1px solid #E5E7EB; background: white; vertical-align: top;">
-      <div style="font-size: 14px; color: #6B7280; margin-bottom: 8px;">昨日销售额</div>
+      <div style="font-size: 14px; color: #6B7280; margin-bottom: 8px;">今日销售额</div>
       <div style="font-size: 36px; font-weight: 900; color: #059669; line-height: 1;">{_fmt_currency(y_amt, country)}</div>
       <div style="font-size: 14px; color: #6B7280; margin-top: 6px;">{_currency_code(country)}</div>
     </td>"""
@@ -227,10 +235,10 @@ def _render_daily_content_sections(
             </tr>"""
 
         sku_detail_section = f"""
-      <!-- 昨日销售 SKU 明细 -->
+      <!-- 今日销售 SKU 明细 -->
       <tr>
         <td style="padding: 6px 16px 12px;">
-          <div style="font-size: 14px; font-weight: 600; color: #6B7280; margin-bottom: 6px;">📋 昨日销售 SKU 明细{country_suffix}</div>
+          <div style="font-size: 14px; font-weight: 600; color: #6B7280; margin-bottom: 6px;">📋 今日销售 SKU 明细{country_suffix}</div>
           <table width="100%" cellpadding="0" cellspacing="0" border="0" style="width: 100%; border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden; border-collapse: collapse; table-layout: fixed;">
             <thead>
               <tr style="background: #F9FAFB;">
@@ -371,7 +379,7 @@ def _render_daily_content_sections(
 
 
 def _section_kpi_cards(report_data: dict[str, Any], country: str) -> str:
-    """📌 今日运营概况：昨日销量/销售额两张指标卡。"""
+    """📌 今日运营概况：今日销量/销售额两张指标卡。"""
     sales = report_data.get("sales", {})
     y_qty = sales.get("yesterday_qty", 0)
     y_amt = sales.get("yesterday_amount", 0.0)
@@ -382,13 +390,13 @@ def _section_kpi_cards(report_data: dict[str, Any], country: str) -> str:
     delta_icon = _arrow_delta(is_up)
 
     card1 = f"""<td width="50%" style="padding: 18px 10px 14px; text-align: center; border: 1px solid #E5E7EB; background: white; vertical-align: top;">
-      <div style="font-size: 14px; color: #6B7280; margin-bottom: 8px;">昨日销量</div>
+      <div style="font-size: 14px; color: #6B7280; margin-bottom: 8px;">今日销量</div>
       <div style="font-size: 36px; font-weight: 900; color: #111827; line-height: 1;">{y_qty} <span style="font-size: 22px; font-weight: 600;">件</span></div>
-      <div style="font-size: 14px; color: {delta_clr}; font-weight: 700; margin-top: 6px;">{delta_icon} {abs(chg_pct):.1f}% vs 前日</div>
+      <div style="font-size: 14px; color: {delta_clr}; font-weight: 700; margin-top: 6px;">{delta_icon} {abs(chg_pct):.1f}% vs 昨日</div>
     </td>"""
 
     card2 = f"""<td width="50%" style="padding: 18px 10px 14px; text-align: center; border: 1px solid #E5E7EB; background: white; vertical-align: top;">
-      <div style="font-size: 14px; color: #6B7280; margin-bottom: 8px;">昨日销售额</div>
+      <div style="font-size: 14px; color: #6B7280; margin-bottom: 8px;">今日销售额</div>
       <div style="font-size: 36px; font-weight: 900; color: #059669; line-height: 1;">{_fmt_currency(y_amt, country)}</div>
       <div style="font-size: 14px; color: #6B7280; margin-top: 6px;">{_currency_code(country)}</div>
     </td>"""
@@ -404,7 +412,7 @@ def _section_kpi_cards(report_data: dict[str, Any], country: str) -> str:
 
 
 def _section_sku_detail(report_data: dict[str, Any], country: str) -> str:
-    """📋 昨日销售 SKU 明细。无数据返回空串。"""
+    """📋 今日销售 SKU 明细。无数据返回空串。"""
     sku_sales_detail = report_data.get("sku_sales_detail", [])
     if not sku_sales_detail:
         return ""
@@ -679,7 +687,7 @@ def _section_top5_skus(report_data: dict[str, Any], country: str) -> str:
 
 _DAILY_SECTIONS = [
     {"emoji": "📌", "title": "今日运营概况",       "color": "#2563EB", "fn": _section_kpi_cards},
-    {"emoji": "📋", "title": "昨日销售 SKU 明细",  "color": "#6B7280", "fn": _section_sku_detail},
+    {"emoji": "📋", "title": "今日销售 SKU 明细",  "color": "#6B7280", "fn": _section_sku_detail},
     {"emoji": "📈", "title": "近7天概况",           "color": "#6366F1", "fn": _section_7day_overview},
     {"emoji": "",   "title": "库存状态 + 广告数据",  "color": "#6B7280", "fn": _section_inventory_ads},
     {"emoji": "↩️", "title": "7天退货分析",         "color": "#F59E0B", "fn": _section_returns},
@@ -710,11 +718,13 @@ def _wrap_html_shell(
     include_summary: bool,
     *,
     for_screenshot: bool = False,
+    logo_src: str = "https://dash.believeboy.com/logo-email.png",
 ) -> str:
     """Wrap content sections with the outer HTML shell (header, summary, CTA).
 
     Args:
         for_screenshot: True 时使用手机端窄宽度 (400px)，适配手机端截图查看。
+        logo_src: 邮件 logo 的 src（截图模式可传入 base64 data URI 避免外网请求）。
     """
     max_width = "420px" if for_screenshot else "850px"
 
@@ -747,7 +757,7 @@ def _wrap_html_shell(
           <table width="100%" cellpadding="0" cellspacing="0" border="0">
             <tr>
               <td width="52" style="vertical-align: middle; padding-right: 14px;">
-                <img src="https://dash.believeboy.com/logo-email.png" width="52" height="52" alt="BelieveBoy" style="border-radius: 50%; display: block;" onerror="this.style.display='none'">
+                <img src="{logo_src}" width="52" height="52" alt="BelieveBoy" style="border-radius: 50%; display: block;" onerror="this.style.display='none'">
               </td>
               <td style="vertical-align: middle;">
                 <div style="font-size: 22px; font-weight: 700; color: white;">每日运营报告</div>
@@ -777,7 +787,7 @@ def _wrap_html_shell(
           <table width="100%" cellpadding="0" cellspacing="0" border="0">
             <tr>
               <td style="vertical-align: middle; padding-bottom: 8px;">
-                <img src="https://dash.believeboy.com/logo-email.png" width="28" height="28" alt="BelieveBoy" style="border-radius: 50%; display: inline-block; vertical-align: middle; margin-right: 8px;" onerror="this.style.display='none'">
+                <img src="{logo_src}" width="28" height="28" alt="BelieveBoy" style="border-radius: 50%; display: inline-block; vertical-align: middle; margin-right: 8px;" onerror="this.style.display='none'">
                 <span style="font-size: 15px; font-weight: 700; color: #374151; vertical-align: middle;">BelieveBoy Dashboard</span>
               </td>
             </tr>
@@ -814,7 +824,8 @@ def _render_daily_report_html(report_data: dict[str, Any], include_summary: bool
     report_date = report_data.get("report_date", date.today().isoformat())
 
     content = _render_daily_content_sections(report_data, country_suffix=suffix)
-    html = _wrap_html_shell(project_name, _country_label(country), report_date, ai_summary, content, include_summary, for_screenshot=for_screenshot)
+    logo_src = _get_logo_src(for_screenshot)
+    html = _wrap_html_shell(project_name, _country_label(country), report_date, ai_summary, content, include_summary, for_screenshot=for_screenshot, logo_src=logo_src)
     # 截图模式不做字号缩放（窄宽度下原尺寸更合适）
     return html if for_screenshot else _scale_html_fonts(html, 1.25)
 
@@ -878,7 +889,8 @@ def _render_multi_country_html(
       </tr>""")
 
     combined_content = "\n".join(content_parts)
-    html = _wrap_html_shell(project_name, country_display, report_date, ai_summary_html, combined_content, include_summary, for_screenshot=for_screenshot)
+    logo_src = _get_logo_src(for_screenshot)
+    html = _wrap_html_shell(project_name, country_display, report_date, ai_summary_html, combined_content, include_summary, for_screenshot=for_screenshot, logo_src=logo_src)
     return html if for_screenshot else _scale_html_fonts(html, 1.25)
 
 

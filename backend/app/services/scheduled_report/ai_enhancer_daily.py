@@ -164,9 +164,9 @@ def _generate_fallback_summary(frequency: str, report_data: dict[str, Any]) -> s
     lines = []
 
     dir_icon = "↑" if vs_prev >= 0 else "↓"
-    lines.append(f"- 昨日销量 {today_qty:,} 件，{dir_icon} {abs(vs_prev):.1f}% vs 前日")
+    lines.append(f"- 今日销量 {today_qty:,} 件，{dir_icon} {abs(vs_prev):.1f}% vs 昨日")
     if today_amt > 0:
-        lines.append(f"- 昨日销售额 ${today_amt:,.2f}")
+        lines.append(f"- 今日销售额 ${today_amt:,.2f}")
 
     p7d_dir = "↑" if p7d_chg >= 0 else "↓"
     amt_dir = "↑" if p7d_amt_chg >= 0 else "↓"
