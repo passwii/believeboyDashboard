@@ -82,12 +82,12 @@ def _render_daily_content_sections(
     # ── 退货统计卡片 ──────────────────────────────
     ret_card1 = f"""<td width="50%" style="padding: 18px 10px 14px; text-align: center; border: 1px solid #E5E7EB; background: white; vertical-align: top;">
       <div style="font-size: 14px; color: #6B7280; margin-bottom: 8px;">7天退货总量</div>
-      <div style="font-size: 42px; font-weight: 900; color: {ret_clr}; line-height: 1;">{ret_qty} <span style="font-size: 22px; font-weight: 600;">件</span></div>
+      <div style="font-size: 36px; font-weight: 900; color: {ret_clr}; line-height: 1;">{ret_qty} <span style="font-size: 22px; font-weight: 600;">件</span></div>
     </td>"""
 
     ret_card2 = f"""<td width="50%" style="padding: 18px 10px 14px; text-align: center; border: 1px solid #E5E7EB; background: white; vertical-align: top;">
       <div style="font-size: 14px; color: #6B7280; margin-bottom: 8px;">退货率</div>
-      <div style="font-size: 42px; font-weight: 900; color: {ret_clr}; line-height: 1;">{ret_rate:.1f}<span style="font-size: 22px; font-weight: 600;">%</span></div>
+      <div style="font-size: 36px; font-weight: 900; color: {ret_clr}; line-height: 1;">{ret_rate:.1f}<span style="font-size: 22px; font-weight: 600;">%</span></div>
     </td>"""
 
     # ── 7天趋势柱图 ────────────────────────────────
@@ -106,25 +106,25 @@ def _render_daily_content_sections(
     # ── 指标卡（每行 2 列）──────────────────────────
     card1 = f"""<td width="50%" style="padding: 18px 10px 14px; text-align: center; border: 1px solid #E5E7EB; background: white; vertical-align: top;">
       <div style="font-size: 14px; color: #6B7280; margin-bottom: 8px;">昨日销量</div>
-      <div style="font-size: 42px; font-weight: 900; color: #111827; line-height: 1;">{y_qty} <span style="font-size: 22px; font-weight: 600;">件</span></div>
+      <div style="font-size: 36px; font-weight: 900; color: #111827; line-height: 1;">{y_qty} <span style="font-size: 22px; font-weight: 600;">件</span></div>
       <div style="font-size: 14px; color: {delta_clr}; font-weight: 700; margin-top: 6px;">{delta_icon} {abs(chg_pct):.1f}% vs 前日</div>
     </td>"""
 
     card2 = f"""<td width="50%" style="padding: 18px 10px 14px; text-align: center; border: 1px solid #E5E7EB; background: white; vertical-align: top;">
       <div style="font-size: 14px; color: #6B7280; margin-bottom: 8px;">昨日销售额</div>
-      <div style="font-size: 42px; font-weight: 900; color: #059669; line-height: 1;">{_fmt_currency(y_amt, country)}</div>
+      <div style="font-size: 36px; font-weight: 900; color: #059669; line-height: 1;">{_fmt_currency(y_amt, country)}</div>
       <div style="font-size: 14px; color: #6B7280; margin-top: 6px;">{_currency_code(country)}</div>
     </td>"""
 
     card3 = f"""<td width="50%" style="padding: 14px 10px 18px; text-align: center; border: 1px solid #E5E7EB; background: white; vertical-align: top;">
       <div style="font-size: 14px; color: #6B7280; margin-bottom: 8px;">7天累计销量</div>
-      <div style="font-size: 42px; font-weight: 900; color: #111827; line-height: 1;">{wk_qty} <span style="font-size: 22px; font-weight: 600;">件</span></div>
+      <div style="font-size: 36px; font-weight: 900; color: #111827; line-height: 1;">{wk_qty} <span style="font-size: 22px; font-weight: 600;">件</span></div>
       <div style="font-size: 13px; color: #6B7280; margin-top: 6px;">{date_range}</div>
     </td>"""
 
     card4 = f"""<td width="50%" style="padding: 14px 10px 18px; text-align: center; border: 1px solid #10B981; background: #F0FDF4; vertical-align: top;">
       <div style="font-size: 14px; color: #6B7280; margin-bottom: 8px;">7天累计销售额</div>
-      <div style="font-size: 42px; font-weight: 900; color: #059669; line-height: 1;">{_fmt_currency(wk_amt, country)}</div>
+      <div style="font-size: 36px; font-weight: 900; color: #059669; line-height: 1;">{_fmt_currency(wk_amt, country)}</div>
       <div style="font-size: 13px; color: #6B7280; margin-top: 6px;">{_currency_code(country)}</div>
     </td>"""
 
@@ -384,13 +384,13 @@ def _section_kpi_cards(report_data: dict[str, Any], country: str) -> str:
 
     card1 = f"""<td width="50%" style="padding: 18px 10px 14px; text-align: center; border: 1px solid #E5E7EB; background: white; vertical-align: top;">
       <div style="font-size: 14px; color: #6B7280; margin-bottom: 8px;">昨日销量</div>
-      <div style="font-size: 42px; font-weight: 900; color: #111827; line-height: 1;">{y_qty} <span style="font-size: 22px; font-weight: 600;">件</span></div>
+      <div style="font-size: 36px; font-weight: 900; color: #111827; line-height: 1;">{y_qty} <span style="font-size: 22px; font-weight: 600;">件</span></div>
       <div style="font-size: 14px; color: {delta_clr}; font-weight: 700; margin-top: 6px;">{delta_icon} {abs(chg_pct):.1f}% vs 前日</div>
     </td>"""
 
     card2 = f"""<td width="50%" style="padding: 18px 10px 14px; text-align: center; border: 1px solid #E5E7EB; background: white; vertical-align: top;">
       <div style="font-size: 14px; color: #6B7280; margin-bottom: 8px;">昨日销售额</div>
-      <div style="font-size: 42px; font-weight: 900; color: #059669; line-height: 1;">{_fmt_currency(y_amt, country)}</div>
+      <div style="font-size: 36px; font-weight: 900; color: #059669; line-height: 1;">{_fmt_currency(y_amt, country)}</div>
       <div style="font-size: 14px; color: #6B7280; margin-top: 6px;">{_currency_code(country)}</div>
     </td>"""
 
@@ -453,13 +453,13 @@ def _section_7day_overview(report_data: dict[str, Any], country: str) -> str:
 
     card3 = f"""<td width="50%" style="padding: 14px 10px 18px; text-align: center; border: 1px solid #E5E7EB; background: white; vertical-align: top;">
       <div style="font-size: 14px; color: #6B7280; margin-bottom: 8px;">7天累计销量</div>
-      <div style="font-size: 42px; font-weight: 900; color: #111827; line-height: 1;">{wk_qty} <span style="font-size: 22px; font-weight: 600;">件</span></div>
+      <div style="font-size: 36px; font-weight: 900; color: #111827; line-height: 1;">{wk_qty} <span style="font-size: 22px; font-weight: 600;">件</span></div>
       <div style="font-size: 13px; color: #6B7280; margin-top: 6px;">{date_range}</div>
     </td>"""
 
     card4 = f"""<td width="50%" style="padding: 14px 10px 18px; text-align: center; border: 1px solid #10B981; background: #F0FDF4; vertical-align: top;">
       <div style="font-size: 14px; color: #6B7280; margin-bottom: 8px;">7天累计销售额</div>
-      <div style="font-size: 42px; font-weight: 900; color: #059669; line-height: 1;">{_fmt_currency(wk_amt, country)}</div>
+      <div style="font-size: 36px; font-weight: 900; color: #059669; line-height: 1;">{_fmt_currency(wk_amt, country)}</div>
       <div style="font-size: 13px; color: #6B7280; margin-top: 6px;">{_currency_code(country)}</div>
     </td>"""
 
@@ -570,12 +570,12 @@ def _section_returns(report_data: dict[str, Any], country: str) -> str:
 
     ret_card1 = f"""<td width="50%" style="padding: 18px 10px 14px; text-align: center; border: 1px solid #E5E7EB; background: white; vertical-align: top;">
       <div style="font-size: 14px; color: #6B7280; margin-bottom: 8px;">7天退货总量</div>
-      <div style="font-size: 42px; font-weight: 900; color: {ret_clr}; line-height: 1;">{ret_qty} <span style="font-size: 22px; font-weight: 600;">件</span></div>
+      <div style="font-size: 36px; font-weight: 900; color: {ret_clr}; line-height: 1;">{ret_qty} <span style="font-size: 22px; font-weight: 600;">件</span></div>
     </td>"""
 
     ret_card2 = f"""<td width="50%" style="padding: 18px 10px 14px; text-align: center; border: 1px solid #E5E7EB; background: white; vertical-align: top;">
       <div style="font-size: 14px; color: #6B7280; margin-bottom: 8px;">退货率</div>
-      <div style="font-size: 42px; font-weight: 900; color: {ret_clr}; line-height: 1;">{ret_rate:.1f}<span style="font-size: 22px; font-weight: 600;">%</span></div>
+      <div style="font-size: 36px; font-weight: 900; color: {ret_clr}; line-height: 1;">{ret_rate:.1f}<span style="font-size: 22px; font-weight: 600;">%</span></div>
     </td>"""
 
     ret_rows_td = ""
@@ -710,9 +710,26 @@ def _wrap_html_shell(
     ai_summary_html: str,
     content_html: str,
     include_summary: bool,
+    *,
+    for_screenshot: bool = False,
 ) -> str:
-    """Wrap content sections with the outer HTML shell (header, summary, CTA)."""
+    """Wrap content sections with the outer HTML shell (header, summary, CTA).
+
+    Args:
+        for_screenshot: True 时使用手机端窄宽度 (400px)，适配手机端截图查看。
+    """
     dash_url = "https://dash.believeboy.com/dashboard"
+    max_width = "420px" if for_screenshot else "850px"
+
+    if for_screenshot:
+        # 截图模式：去掉外层白底边框（圆角由 _apply_rounded_corners 处理）
+        outer_style = "margin: 0; padding: 0; background: white; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;"
+        wrapper_style = "background: white;"
+        inner_style = f"max-width: {max_width}; width: 100%; background: white;"
+    else:
+        outer_style = "margin: 0; padding: 0; background: #F3F4F6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;"
+        wrapper_style = "background: #F3F4F6; padding: 12px 0;"
+        inner_style = f"max-width: {max_width}; margin: 0 auto; background: white; border-radius: 50px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08);"
 
     return f"""<!DOCTYPE html>
 <html lang="zh-CN">
@@ -721,11 +738,11 @@ def _wrap_html_shell(
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>每日运营报告 · {project_name}</title>
 </head>
-<body style="margin: 0; padding: 0; background: #F3F4F6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: #F3F4F6; padding: 12px 0;">
+<body style="{outer_style}">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="{wrapper_style}">
   <tr><td>
     <table width="100%" cellpadding="0" cellspacing="0" border="0"
-           style="max-width: 850px; margin: 0 auto; background: white; border-radius: 50px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+           style="{inner_style}">
 
       <!-- Header -->
       <tr>
@@ -787,8 +804,12 @@ def _wrap_html_shell(
 # ── Public renderers ─────────────────────────────────────────────────────────
 
 
-def _render_daily_report_html(report_data: dict[str, Any], include_summary: bool = True) -> str:
-    """构建每日报告 HTML 邮件（单站点路径，完全向后兼容）。"""
+def _render_daily_report_html(report_data: dict[str, Any], include_summary: bool = True, *, for_screenshot: bool = False) -> str:
+    """构建每日报告 HTML 邮件（单站点路径，完全向后兼容）。
+
+    Args:
+        for_screenshot: True 时使用手机端窄宽度，不做字号缩放。
+    """
     country = report_data.get("country", "US")
     suffix = f" · {_country_label(country)}"
 
@@ -797,7 +818,9 @@ def _render_daily_report_html(report_data: dict[str, Any], include_summary: bool
     report_date = report_data.get("report_date", date.today().isoformat())
 
     content = _render_daily_content_sections(report_data, country_suffix=suffix)
-    return _scale_html_fonts(_wrap_html_shell(project_name, _country_label(country), report_date, ai_summary, content, include_summary), 1.25)
+    html = _wrap_html_shell(project_name, _country_label(country), report_date, ai_summary, content, include_summary, for_screenshot=for_screenshot)
+    # 截图模式不做字号缩放（窄宽度下原尺寸更合适）
+    return html if for_screenshot else _scale_html_fonts(html, 1.25)
 
 
 def _render_multi_country_html(
@@ -807,6 +830,8 @@ def _render_multi_country_html(
     report_date: str,
     ai_summary: str,
     include_summary: bool = True,
+    *,
+    for_screenshot: bool = False,
 ) -> str:
     """Render a merged multi-country report with section-first layout.
 
@@ -857,7 +882,8 @@ def _render_multi_country_html(
       </tr>""")
 
     combined_content = "\n".join(content_parts)
-    return _scale_html_fonts(_wrap_html_shell(project_name, country_display, report_date, ai_summary_html, combined_content, include_summary), 1.25)
+    html = _wrap_html_shell(project_name, country_display, report_date, ai_summary_html, combined_content, include_summary, for_screenshot=for_screenshot)
+    return html if for_screenshot else _scale_html_fonts(html, 1.25)
 
 
 # ── Email sender ─────────────────────────────────────────────────────────────
@@ -897,6 +923,7 @@ def send_scheduled_report_email(email: str, frequency: str, report_data: dict[st
             screenshot_html = _render_multi_country_html(
                 country_list, country_data, project_name, report_date,
                 report_data.get("ai_summary", ""), include_summary=False,
+                for_screenshot=True,
             )
             labels = [_country_label(c) for c in country_list]
             subject = f"BelieveBoy | {project_name} · {'/'.join(labels)} · {freq_label}运营报告 · {report_date}"
@@ -904,7 +931,7 @@ def send_scheduled_report_email(email: str, frequency: str, report_data: dict[st
         else:
             # Single-country path (existing behavior)
             email_html = _render_daily_report_html(report_data, include_summary=True)
-            screenshot_html = _render_daily_report_html(report_data, include_summary=False)
+            screenshot_html = _render_daily_report_html(report_data, include_summary=False, for_screenshot=True)
             subject = f"BelieveBoy | {project_name} · {freq_label}运营报告 · {report_date}"
             country_for_file = country_list[0] if country_list else "US"
 

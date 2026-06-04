@@ -11,12 +11,14 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# 邮件模板最大宽度 850px + 两侧 padding
-_VIEWPORT_WIDTH = 900
+# 邮件模板：桌面版 850px + padding；截图版 400px（手机端优化）
+_DESKTOP_VIEWPORT_WIDTH = 900
+_MOBILE_VIEWPORT_WIDTH = 420  # 手机竖屏宽度，截图专用
 _VIEWPORT_HEIGHT = 800  # 初始高度，full_page=True 会自动扩展
-# Super Retina 缩放因子：3x 保证手机端截图超清晰（720 CSS px → 2160 物理 px）
-_DEVICE_SCALE_FACTOR = 3
-_ROUNDED_RADIUS = 100
+# 手机端截图：4x 保证 Retina 超清（420 CSS px → 1680 物理 px）
+# 覆盖 iPhone 15 Pro Max（430 CSS @ 3x = 1290px）等高端设备，无毛刺
+_MOBILE_SCALE_FACTOR = 4
+_ROUNDED_RADIUS = 30  # 与 420px 宽度成比例（原来 100/900 ≈ 30/420）
 
 
 def _apply_rounded_corners(png_bytes: bytes, radius: int = _ROUNDED_RADIUS) -> bytes:
@@ -39,15 +41,15 @@ def _apply_rounded_corners(png_bytes: bytes, radius: int = _ROUNDED_RADIUS) -> b
 
 def html_to_png(
     html: str,
-    width: int = _VIEWPORT_WIDTH,
-    scale: int = _DEVICE_SCALE_FACTOR,
+    width: int = _MOBILE_VIEWPORT_WIDTH,
+    scale: int = _MOBILE_SCALE_FACTOR,
 ) -> bytes | None:
     """将 HTML 字符串渲染为 PNG 截图，并自动添加手机圆角蒙版。
 
     Args:
         html: 要渲染的完整 HTML 文档。
-        width: CSS 视口宽度（默认 720px）。
-        scale: 设备缩放因子（默认 3x，生成 Super Retina 级别清晰度）。
+        width: CSS 视口宽度（默认 420px，手机竖屏宽度）。
+        scale: 设备缩放因子（默认 4x，生成 1680px 物理宽度，Retina 超清）。
 
     Returns:
         PNG 字节数据（含透明圆角），失败时返回 None（不阻断邮件发送）。
@@ -149,10 +151,10 @@ def process_screenshot_and_upload(
         )
         logger.info("完整截图已上传到 R2: key=%s url=%s", full_result["key"], full_result["url"])
 
-        # ── 缩略图（缩小至 1x：720px 宽）───────────────────
+        # ── 缩略图（缩小至 1x：420px 宽）───────────────────
         img = PILImage.open(_io.BytesIO(png_bytes)).convert("RGBA")
         w, h = img.size
-        thumb_w, thumb_h = w // 3, h // 3
+        thumb_w, thumb_h = w // _MOBILE_SCALE_FACTOR, h // _MOBILE_SCALE_FACTOR
         thumb_img = img.resize((thumb_w, thumb_h), PILImage.LANCZOS)
         thumb_buffer = _io.BytesIO()
         thumb_img.save(thumb_buffer, format="PNG")

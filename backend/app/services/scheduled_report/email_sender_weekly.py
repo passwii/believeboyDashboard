@@ -43,7 +43,7 @@ def _render_week_kpi_card(label: str, current: str, prev: str, change: float, un
     bg_style = "background: #F0FDF4; border-color: #10B981;" if highlight else "background: white;"
     return f"""<td width="50%" style="padding: 18px 10px 14px; text-align: center; border: 1px solid #E5E7EB; {bg_style} vertical-align: top;">
       <div style="font-size: 14px; color: #6B7280; margin-bottom: 8px;">{label}</div>
-      <div style="font-size: 42px; font-weight: 900; color: #111827; line-height: 1;">{current}</div>
+      <div style="font-size: 36px; font-weight: 900; color: #111827; line-height: 1;">{current}</div>
       <div style="font-size: 13px; color: #9CA3AF; margin: 4px 0;">{unit}</div>
       <div style="font-size: 14px; color: {color}; font-weight: 700; margin-top: 4px;">{change_str}</div>
     </td>"""
@@ -53,7 +53,7 @@ def _render_week_kpi_card_prev(label: str, current: str, unit: str = "") -> str:
     """渲染"上周数据"展示用的 KPI 卡片（无变化率）"""
     return f"""<td width="50%" style="padding: 18px 10px 14px; text-align: center; border: 1px solid #E5E7EB; background: #F9FAFB; vertical-align: top;">
       <div style="font-size: 14px; color: #9CA3AF; margin-bottom: 8px;">{label}</div>
-      <div style="font-size: 42px; font-weight: 900; color: #6B7280; line-height: 1;">{current}</div>
+      <div style="font-size: 36px; font-weight: 900; color: #6B7280; line-height: 1;">{current}</div>
       <div style="font-size: 13px; color: #D1D5DB; margin: 4px 0;">{unit}</div>
     </td>"""
 
@@ -841,10 +841,26 @@ def _wrap_weekly_html_shell(
     ai_summary_html: str,
     content_html: str,
     include_summary: bool,
+    *,
+    for_screenshot: bool = False,
 ) -> str:
-    """Wrap weekly content sections with the outer HTML shell."""
+    """Wrap weekly content sections with the outer HTML shell.
+
+    Args:
+        for_screenshot: True 时使用手机端窄宽度 (400px)，适配手机端截图查看。
+    """
     dash_url = "https://dash.believeboy.com/dashboard"
     year = report_date[:4] if report_date else ""
+    max_width = "420px" if for_screenshot else "850px"
+
+    if for_screenshot:
+        outer_style = "margin: 0; padding: 0; background: white; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;"
+        wrapper_style = "background: white;"
+        inner_style = f"max-width: {max_width}; width: 100%; background: white;"
+    else:
+        outer_style = "margin: 0; padding: 0; background: #F3F4F6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;"
+        wrapper_style = "background: #F3F4F6; padding: 12px 0;"
+        inner_style = f"max-width: {max_width}; margin: 0 auto; background: white; border-radius: 50px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08);"
 
     return f"""<!DOCTYPE html>
 <html lang="zh-CN">
@@ -853,11 +869,11 @@ def _wrap_weekly_html_shell(
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>每周运营报告 · {project_name}</title>
 </head>
-<body style="margin: 0; padding: 0; background: #F3F4F6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: #F3F4F6; padding: 12px 0;">
+<body style="{outer_style}">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="{wrapper_style}">
   <tr><td>
     <table width="100%" cellpadding="0" cellspacing="0" border="0"
-           style="max-width: 850px; margin: 0 auto; background: white; border-radius: 50px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+           style="{inner_style}">
 
       <!-- Header -->
       <tr>
@@ -914,8 +930,12 @@ def _wrap_weekly_html_shell(
 # ── Public renderers ─────────────────────────────────────────────────────────
 
 
-def _render_weekly_report_html(report_data: dict[str, Any], include_summary: bool = True) -> str:
-    """构建每周报告 HTML 邮件（单站点路径，完全向后兼容）。"""
+def _render_weekly_report_html(report_data: dict[str, Any], include_summary: bool = True, *, for_screenshot: bool = False) -> str:
+    """构建每周报告 HTML 邮件（单站点路径，完全向后兼容）。
+
+    Args:
+        for_screenshot: True 时使用手机端窄宽度，不做字号缩放。
+    """
     project_name = report_data.get("project_name", "项目")
     country = report_data.get("country", "US")
     week_number = report_data.get("week_number", "")
@@ -925,7 +945,8 @@ def _render_weekly_report_html(report_data: dict[str, Any], include_summary: boo
     ai_summary = _markdown_to_email_html(report_data.get("ai_summary", "暂无报表总结"))
     suffix = f" · {_country_label(country)}"
     content = _render_weekly_content_sections(report_data, country_suffix=suffix)
-    return _scale_html_fonts(_wrap_weekly_html_shell(project_name, _country_label(country), report_date, str(week_number), date_range, ai_summary, content, include_summary), 1.25)
+    html = _wrap_weekly_html_shell(project_name, _country_label(country), report_date, str(week_number), date_range, ai_summary, content, include_summary, for_screenshot=for_screenshot)
+    return html if for_screenshot else _scale_html_fonts(html, 1.25)
 
 
 def _render_multi_country_weekly_html(
@@ -937,6 +958,8 @@ def _render_multi_country_weekly_html(
     date_range: str,
     ai_summary: str,
     include_summary: bool = True,
+    *,
+    for_screenshot: bool = False,
 ) -> str:
     """Render a merged multi-country weekly report with section-first layout."""
     ai_summary_html = _markdown_to_email_html(ai_summary)
@@ -983,7 +1006,8 @@ def _render_multi_country_weekly_html(
       </tr>""")
 
     combined_content = "\n".join(content_parts)
-    return _scale_html_fonts(_wrap_weekly_html_shell(project_name, country_display, report_date, str(week_number), date_range, ai_summary_html, combined_content, include_summary), 1.25)
+    html = _wrap_weekly_html_shell(project_name, country_display, report_date, str(week_number), date_range, ai_summary_html, combined_content, include_summary, for_screenshot=for_screenshot)
+    return html if for_screenshot else _scale_html_fonts(html, 1.25)
 
 
 # ── Email sender ─────────────────────────────────────────────────────────────
@@ -1022,13 +1046,14 @@ def send_weekly_report_email(email: str, report_data: dict[str, Any], stage_call
                 country_list, country_data, project_name, report_date,
                 str(week_number), date_range,
                 report_data.get("ai_summary", ""), include_summary=False,
+                for_screenshot=True,
             )
             labels = [_country_label(c) for c in country_list]
             subject = f"BelieveBoy | {project_name} · {'/'.join(labels)} · {report_date[:4]} 第 {week_number} 周 周报"
             country_for_file = "+".join(country_list)
         else:
             html = _render_weekly_report_html(report_data, include_summary=True)
-            screenshot_html = _render_weekly_report_html(report_data, include_summary=False)
+            screenshot_html = _render_weekly_report_html(report_data, include_summary=False, for_screenshot=True)
             subject = f"BelieveBoy | {project_name} · {report_date[:4]} 第 {week_number} 周 周报"
             country_for_file = country_list[0] if country_list else "US"
 
