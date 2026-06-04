@@ -1057,3 +1057,28 @@ def delete_insight(
     db.delete(row)
     db.commit()
     return InsightDeleteResponse(deleted=True, id=insight_id)
+
+
+@router.get("/ad-agent/evolution-report")
+def get_ad_agent_evolution_report(
+    project_id: int | None = None,
+    db: Session = Depends(get_db_session),
+) -> dict[str, Any]:
+    """Get ad agent evolution report for a project."""
+    from app.services.ad_agent.evolution_engine import (
+        get_run_history_from_db,
+        evolve_dimension_weights,
+        AnalysisRunMetadata,
+    )
+
+    rows = get_run_history_from_db(db, project_id=project_id, limit=100)
+    runs: list[AnalysisRunMetadata] = []
+    for r in rows:
+        runs.append(AnalysisRunMetadata(
+            run_id=r["run_id"],
+            project_id=r["project_id"],
+            dimensions_analyzed=r.get("dimensions_analyzed", []),
+            dimensions_skipped=r.get("dimensions_skipped", []),
+        ))
+    report = evolve_dimension_weights(runs, None)
+    return report
