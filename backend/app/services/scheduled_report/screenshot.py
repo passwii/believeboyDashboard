@@ -6,8 +6,10 @@ on a mobile device the phone's own rounded bezel does not clip content.
 
 from __future__ import annotations
 
+import base64
 import io
 import logging
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +21,44 @@ _VIEWPORT_HEIGHT = 800  # 初始高度，full_page=True 会自动扩展
 # 覆盖 iPhone 15 Pro Max（430 CSS @ 3x = 1290px）等高端设备，无毛刺
 _MOBILE_SCALE_FACTOR = 4
 _ROUNDED_RADIUS = 30  # 与 420px 宽度成比例（原来 100/900 ≈ 30/420）
+
+# 邮件 logo 本地副本（与 dash.believeboy.com/logo-email.png 同源）
+# 截图渲染时优先用本地 base64 data URI，避免外网慢请求触发 networkidle 超时
+_DEFAULT_LOGO_URL = "https://dash.believeboy.com/logo-email.png"
+# screenshot.py 在 backend/app/services/scheduled_report/，向上 4 层到项目根
+_REPO_ROOT = Path(__file__).resolve().parents[4]
+_LOCAL_LOGO_FILE = _REPO_ROOT / "frontend" / "public" / "logo-email.png"
+
+_logo_data_uri_cache: str | None = None
+_logo_data_uri_attempted: bool = False
+
+
+def _load_logo_data_uri() -> str | None:
+    """读取本地 logo-email.png，转为 base64 data URI（结果缓存）。
+
+    Returns:
+        data URI 字符串（如 "data:image/png;base64,iVBOR..."），文件缺失/读取失败时返回 None。
+    """
+    global _logo_data_uri_cache, _logo_data_uri_attempted
+    if _logo_data_uri_attempted:
+        return _logo_data_uri_cache
+    _logo_data_uri_attempted = True
+    try:
+        if not _LOCAL_LOGO_FILE.exists():
+            logger.warning("本地 logo 文件不存在: %s，将回退到外网 URL", _LOCAL_LOGO_FILE)
+            return None
+        b64 = base64.b64encode(_LOCAL_LOGO_FILE.read_bytes()).decode("ascii")
+        _logo_data_uri_cache = f"data:image/png;base64,{b64}"
+        logger.info("已加载本地 logo data URI（%d 字节）", _LOCAL_LOGO_FILE.stat().st_size)
+        return _logo_data_uri_cache
+    except Exception as e:
+        logger.warning("读取本地 logo 失败: %s，将回退到外网 URL", e)
+        return None
+
+
+def get_logo_src_for_screenshot() -> str:
+    """截图模式下的 logo src：优先本地 data URI，缺失则回退外网 URL。"""
+    return _load_logo_data_uri() or _DEFAULT_LOGO_URL
 
 
 def _apply_rounded_corners(png_bytes: bytes, radius: int = _ROUNDED_RADIUS) -> bytes:
