@@ -18,6 +18,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+from sqlalchemy.orm import Session
+
 logger = logging.getLogger(__name__)
 
 
@@ -46,6 +48,7 @@ class AnalysisRunMetadata:
     quality_signals: list[str] = field(default_factory=list)
     prompt_version: str = "v2"
     user_feedback: str | None = None
+    insight_id: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -69,6 +72,7 @@ class AnalysisRunMetadata:
 
 def extract_run_metadata(
     *,
+    insight_id: int | None = None,
     project_id: int = 0,
     project_name: str = "",
     country: str = "",
@@ -85,6 +89,7 @@ def extract_run_metadata(
     metadata = AnalysisRunMetadata(
         run_id=run_id,
         timestamp=now.isoformat(),
+        insight_id=insight_id,
         project_id=project_id,
         project_name=project_name,
         country=country,
@@ -234,12 +239,16 @@ def evolve_dimension_weights(
     }
 
 
-# ── 内存中的运行历史（生产环境可替换为数据库存储）────────────────────────────
-_run_history: list[AnalysisRunMetadata] = []
+# ── 内存中的运行历史（上限 100 条，防止无界增长）────────────────────────────
+from collections import deque
+
+_run_history: deque[AnalysisRunMetadata] = deque(maxlen=100)
 
 
-def record_run(metadata: AnalysisRunMetadata) -> None:
+def record_run(metadata: AnalysisRunMetadata, skip_if_db: bool = False) -> None:
     """记录一次分析运行。"""
+    if skip_if_db:
+        return
     _run_history.append(metadata)
     logger.info(
         "Recorded analysis run %s: %d dimensions analyzed, %d skipped",
@@ -262,7 +271,7 @@ def get_evolution_report() -> dict[str, Any]:
 # ── 数据库持久化 ────────────────────────────────────────────────────────────
 
 
-def record_run_to_db(db: Any, metadata: AnalysisRunMetadata) -> None:
+def record_run_to_db(db: Session, metadata: AnalysisRunMetadata) -> None:
     """Record a run to the database with savepoint isolation.
 
     Uses a nested transaction (savepoint) so that failure here does not
@@ -275,6 +284,7 @@ def record_run_to_db(db: Any, metadata: AnalysisRunMetadata) -> None:
     try:
         run_row = AdAgentRun(
             run_id=metadata.run_id,
+            insight_id=metadata.insight_id,
             project_id=metadata.project_id,
             project_name=metadata.project_name,
             country=metadata.country,
@@ -320,7 +330,7 @@ def record_run_to_db(db: Any, metadata: AnalysisRunMetadata) -> None:
         raise
 
 
-def get_run_history_from_db(db: Any, project_id: int | None = None, limit: int = 50) -> list[dict[str, Any]]:
+def get_run_history_from_db(db: Session, project_id: int | None = None, limit: int = 50) -> list[dict[str, Any]]:
     """Get run history from the database."""
     from app.models.ad_agent_run import AdAgentRun
 
