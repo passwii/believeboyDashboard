@@ -233,6 +233,8 @@ def run_multi_pass_stream(
     yield {"type": "pass", "pass": 1, "name": "scout", "status": "starting"}
 
     scout_data = _build_scout_data(data_profile, strategy)
+    yield {"type": "pass_progress", "pass": 1, "message": "正在扫描数据热点..."}
+
     scout_llm_config = ai_chat_service.build_llm_config(
         settings=settings,
         model=selected_model,
@@ -246,6 +248,7 @@ def run_multi_pass_stream(
         user_content=f"以下是广告数据探针结果，请识别 TOP {max_hotspots} 个热点问题：\n\n{scout_data}",
     )
 
+    yield {"type": "pass_progress", "pass": 1, "message": "热点扫描完成"}
     hotspots = _parse_hotspots(scout_raw)
     yield {"type": "hotspots", "data": hotspots}
     logger.info("Scout identified %d hotspots", len(hotspots))
