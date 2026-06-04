@@ -313,7 +313,7 @@ export function DashboardSalesChart({ session }: DashboardSalesChartProps) {
         {/* Metric summary */}
         {data.length > 0 && (
           <div className="flex flex-wrap gap-3">
-            <div className="flex items-center gap-3 rounded-lg border border-border/70 bg-[hsl(var(--surface-soft))]/80 px-3 py-3 min-w-[13rem]">
+            <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-[hsl(var(--surface-soft))]/60 px-2.5 py-2 min-w-[13rem]">
               <div className="rounded-md bg-primary/10 p-2 text-primary">
                 <DollarSign className="h-4 w-4" />
               </div>
@@ -346,7 +346,7 @@ export function DashboardSalesChart({ session }: DashboardSalesChartProps) {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-3 rounded-lg border border-border/70 bg-[hsl(var(--surface-soft))]/80 px-3 py-3 min-w-[13rem]">
+            <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-[hsl(var(--surface-soft))]/60 px-2.5 py-2 min-w-[13rem]">
               <div className="rounded-md bg-[hsl(var(--chart-2))]/10 p-2 text-[hsl(var(--chart-2))]">
                 <ShoppingBag className="h-4 w-4" />
               </div>
@@ -483,8 +483,8 @@ export function DashboardSalesChart({ session }: DashboardSalesChartProps) {
                     dataKey="compare_sales"
                     name="上一周期销售额"
                     fill="rgba(148,163,184,0.22)"
-                    radius={[6, 6, 0, 0]}
-                    barSize={isMobile ? 10 : 14}
+                    radius={[8, 8, 0, 0]}
+                    barSize={isMobile ? 12 : 16}
                     isAnimationActive
                     animationDuration={300}
                   />
@@ -493,10 +493,10 @@ export function DashboardSalesChart({ session }: DashboardSalesChartProps) {
                 <Bar
                   yAxisId="sales"
                   dataKey="sales_amount"
-                  name="sales_amount"
-                  fill="var(--color-sales_amount)"
-                  radius={[6, 6, 0, 0]}
-                  barSize={isMobile ? 10 : 14}
+name="sales_amount"
+                    fill="var(--color-sales_amount)"
+                    radius={[8, 8, 0, 0]}
+                    barSize={isMobile ? 12 : 16}
                   isAnimationActive
                   animationDuration={360}
                   animationEasing="ease-out"
