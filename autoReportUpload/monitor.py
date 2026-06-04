@@ -45,6 +45,61 @@ class RunLogger:
         self.logger.addHandler(fh)
         self.logger.addHandler(ch)
 
+
+# ─── File stability check ─────────────────────────────────────────────────────
+# OneDrive / cloud-sync files may appear in the filesystem before they are
+# fully downloaded. Reading a partially-downloaded .xlsx produces garbled or
+# incomplete column data, causing recognition to fail ("未知报表").
+# The fix: poll the file size at intervals until it stops changing, with a
+# maximum wait so we don't hang indefinitely.
+
+_STABLE_POLL_INTERVAL = 1.0       # seconds between size checks
+_STABLE_MAX_WAIT = 30.0           # maximum seconds to wait for stability
+_STABLE_REQUIRED_POLLS = 2        # how many consecutive same-size checks
+
+
+def _wait_for_file_stable(path: Path, logger: logging.Logger) -> bool:
+    """Block until *path* stops changing in size, or until timeout.
+
+    Returns True if the file appears stable; False if we gave up.
+    """
+    if not path.exists():
+        logger.warning("[watchdog] 文件稳定性检查: 文件不存在 %s", path.name)
+        return False
+
+    prev_size = -1
+    stable_count = 0
+    waited = 0.0
+
+    while waited < _STABLE_MAX_WAIT:
+        try:
+            current_size = path.stat().st_size
+        except OSError:
+            logger.warning("[watchdog] 文件稳定性检查: 无法读取 %s", path.name)
+            return False
+
+        if current_size == prev_size and current_size > 0:
+            stable_count += 1
+            if stable_count >= _STABLE_REQUIRED_POLLS:
+                logger.debug(
+                    "[watchdog] 文件已稳定: %s (%d bytes, 等 %.1fs)",
+                    path.name, current_size, waited,
+                )
+                return True
+        else:
+            stable_count = 0
+
+        prev_size = current_size
+        time.sleep(_STABLE_POLL_INTERVAL)
+        waited += _STABLE_POLL_INTERVAL
+
+    # Timeout — file is still changing. Process anyway (better than skipping).
+    logger.warning(
+        "[watchdog] 文件稳定性检查超时: %s (仍为 %d bytes, 等 %.1fs, 继续处理)",
+        path.name, prev_size, waited,
+    )
+    return True
+
     def debug(self, msg: str) -> None:
         self.logger.debug(msg)
 
@@ -245,17 +300,14 @@ def _start_watchdog_logger(logger: RunLogger, dry_run: bool):
             if file_path.suffix.lower() not in SUPPORTED_EXTENSIONS:
                 return
 
-            # debounce
             key = str(file_path)
             now = time.time()
             if key in self._pending and now - self._pending[key] < 2:
                 return
             self._pending[key] = now
 
-            # 判断属于哪个项目
             try:
                 project_name = file_path.parent.name
-                # 明确排除 processed/ 和 广告Processed/ 子目录，防止处理已归档文件
                 if (
                     project_name == PROCESSED_SUBDIR
                     or project_name == AD_PROCESSED_SUBDIR
@@ -263,6 +315,10 @@ def _start_watchdog_logger(logger: RunLogger, dry_run: bool):
                 ):
                     return
             except Exception:
+                return
+
+            if not _wait_for_file_stable(file_path, self.logger):
+                self.logger.error(f"  [watchdog] 文件不稳定，跳过: {file_path.name}")
                 return
 
             db = self._get_db_session()
@@ -273,6 +329,12 @@ def _start_watchdog_logger(logger: RunLogger, dry_run: bool):
             try:
                 result = process_file(file_path, project_name, db, dry_run=self.dry_run)
                 logger.result(file_path, project_name, result)
+
+                if result.skipped and "未匹配任何报表类型" in (result.reason or ""):
+                    self.logger.info(f"  [watchdog] 5 秒后重试未识别文件: {file_path.name}")
+                    time.sleep(5)
+                    result = process_file(file_path, project_name, db, dry_run=self.dry_run)
+                    logger.result(file_path, project_name, result)
             except Exception as exc:
                 logger.error(f"  [watchdog] 处理文件异常: {file_path.name}  {exc}")
             finally:
