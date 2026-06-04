@@ -85,13 +85,18 @@ def commit_report_upload(
                     detail="report_type does not match recognized report",
                 )
             if report_type in {"sales_report", "inventory_report", "business_report", AD_PRODUCT_REPORT, "payment_report", "return_report"} and auto_recognition.country != country:
-                # 多站点销售报表：跳过国家验证，后端会自动按站点拆分
+                # 多站点销售报表 / 退货报表：跳过国家验证，后端会自动按站点拆分
                 is_multi_country_sales = (
                     report_type == "sales_report" and
                     auto_recognition.detected_countries and
                     len(auto_recognition.detected_countries) > 1
                 )
-                if not is_multi_country_sales:
+                is_multi_country_return = (
+                    report_type == "return_report" and
+                    auto_recognition.detected_countries and
+                    len(auto_recognition.detected_countries) > 1
+                )
+                if not is_multi_country_sales and not is_multi_country_return:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail=(
@@ -143,13 +148,18 @@ def commit_report_upload(
                     detail="report_type does not match recognized report",
                 )
             if report_type in {"sales_report", "inventory_report", "business_report", AD_PRODUCT_REPORT, "payment_report", "return_report"} and recognition.country != country:
-                # 多站点销售报表：跳过国家验证，后端会自动按站点拆分
+                # 多站点销售/退货报表：跳过国家验证，后端会自动按站点拆分
                 is_multi_country_sales = (
                     report_type == "sales_report" and
                     recognition.detected_countries and
                     len(recognition.detected_countries) > 1
                 )
-                if not is_multi_country_sales:
+                is_multi_country_return = (
+                    report_type == "return_report" and
+                    recognition.detected_countries and
+                    len(recognition.detected_countries) > 1
+                )
+                if not is_multi_country_sales and not is_multi_country_return:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail=(
@@ -458,6 +468,7 @@ def commit_report_upload(
             country=country,
             file_path=str(file_meta["file_path"]),
             created_by=operator,
+            detected_countries=recognition.detected_countries if recognition else None,
         )
         if not outcome["success"]:
             raise HTTPException(

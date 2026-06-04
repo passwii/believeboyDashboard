@@ -1,4 +1,5 @@
 # Agent / AI tool directories
+.agent-contexts/
 .claude/
 .codegraph/
 .openclaude/

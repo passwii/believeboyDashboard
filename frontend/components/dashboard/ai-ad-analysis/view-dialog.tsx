@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
+import { DimensionPanel, type DimensionCoverage } from './dimension-panel'
 
 export interface InsightDetail {
   id: number
@@ -35,6 +36,7 @@ export interface InsightDetail {
   status: string
   sub_status: string | null
   error_message?: string | null
+  strategy_metadata?: string | null
   created_by: string
   created_at: string
   updated_at: string
@@ -55,6 +57,28 @@ export function ViewDialog({ open, onOpenChange, insightId, onUpdated }: ViewDia
   const [editContent, setEditContent] = useState('')
   const [saving, setSaving] = useState(false)
   const [copied, setCopied] = useState(false)
+
+  // Parse strategy metadata for dimension panel
+  const dimensionCoverage: DimensionCoverage | null = (() => {
+    if (!insight?.strategy_metadata) return null
+    try {
+      const meta = JSON.parse(insight.strategy_metadata)
+      const evo = meta.evolution_metadata
+      if (!evo) return null
+      return {
+        analyzed: evo.dimensions_analyzed ?? [],
+        cross: (evo.cross_analyses_performed ?? []).map((name: string) => ({
+          dimension_id: name, name, level: 2,
+        })),
+        temporal: (evo.temporal_analyses_performed ?? []).map((name: string) => ({
+          dimension_id: name, name, level: 3,
+        })),
+        skipped: evo.dimensions_skipped ?? [],
+      }
+    } catch {
+      return null
+    }
+  })()
 
   useEffect(() => {
     if (!open || !insightId) {
@@ -185,7 +209,11 @@ export function ViewDialog({ open, onOpenChange, insightId, onUpdated }: ViewDia
           )}
 
           {insight && !editing && (
-            <div className="rounded-md border bg-card p-5">
+            <div className="space-y-3">
+              {dimensionCoverage && (
+                <DimensionPanel coverage={dimensionCoverage} defaultExpanded={false} />
+              )}
+              <div className="rounded-md border bg-card p-5">
               <div
                 className={cn(
                   'prose prose-sm dark:prose-invert max-w-none',
@@ -200,6 +228,7 @@ export function ViewDialog({ open, onOpenChange, insightId, onUpdated }: ViewDia
               >
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{insight.content}</ReactMarkdown>
               </div>
+            </div>
             </div>
           )}
 

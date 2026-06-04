@@ -27,6 +27,7 @@ import { ReportStatusCard } from '@/components/report-upload/report-status-card'
 import {
   AD_REPORT_TYPES,
   DEFAULT_REPORT_UPLOAD_COUNTRY,
+  getMultiCountryDisplay,
   getReportUploadCountryLabel,
   REPORT_UPLOAD_COUNTRY_OPTIONS,
 } from '@/components/report-upload/types'
@@ -657,21 +658,29 @@ export default function ReportUploadPage() {
     if (!recognition) return
 
     // 防呆检查：检查所有待提交文件的检测国家是否与所选站点匹配
-    const candidatesToCheck = (type === 'sales_report' || type === 'ad_product_report') &&
-      state.candidates.length > 1
-      ? state.candidates
-      : [recognition]
+    // 多站点文件（如欧洲销售/退货报表）跳过此检查，后端会自动按站点拆分
+    const isMultiCountry =
+      (type === 'sales_report' || type === 'return_report') &&
+      recognition.detected_countries &&
+      recognition.detected_countries.length > 1
 
-    const countryMismatch = candidatesToCheck.find(
-      (c) => c.country && c.country !== selectedCountry,
-    )
-    if (countryMismatch) {
-      updateCard(type, (current) => ({
-        ...current,
-        commitStatus: 'error',
-        commitMessage: `文件站点（${countryMismatch.country}）与所选站点（${selectedCountry}）不一致，请上传到对应站点`,
-      }))
-      return
+    if (!isMultiCountry) {
+      const candidatesToCheck = (type === 'sales_report' || type === 'ad_product_report') &&
+        state.candidates.length > 1
+        ? state.candidates
+        : [recognition]
+
+      const countryMismatch = candidatesToCheck.find(
+        (c) => c.country && c.country !== selectedCountry,
+      )
+      if (countryMismatch) {
+        updateCard(type, (current) => ({
+          ...current,
+          commitStatus: 'error',
+          commitMessage: `文件站点（${countryMismatch.country}）与所选站点（${selectedCountry}）不一致，请上传到对应站点`,
+        }))
+        return
+      }
     }
 
     const isMultiCommit =

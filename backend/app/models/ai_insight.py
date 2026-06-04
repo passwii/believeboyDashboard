@@ -59,6 +59,7 @@ class AIInsight(Base):
     )
     sub_status: Mapped[str | None] = mapped_column(String(32), nullable=True)  # data_aggregating / ai_generating / title_generating
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    strategy_metadata: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_by: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(

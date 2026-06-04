@@ -26,6 +26,7 @@ type InsightStatus =
   | 'idle'
   | 'pending'
   | 'data_aggregating'
+  | 'generating'
   | 'ai_generating'
   | 'title_generating'
   | 'completed'
@@ -50,6 +51,16 @@ const SUB_STATUS_LABEL: Record<string, string> = {
   data_aggregating_ad_ad_time_trend_report: '聚合并时间效果数据...',
   data_aggregating_ad_ad_search_term_share_report: '聚合搜索词展示量份额...',
   data_aggregating_ad_ad_purchased_product_report: '聚合已购买商品数据...',
+  // Agent Pipeline 阶段标签
+  agent_profiling: '📊 正在分析数据质量与信号强度...',
+  agent_planning: '🎯 正在规划分析策略...',
+  agent_assembling: '🔧 正在组装分析指令...',
+  agent_generating: '🤖 AI Agent 分析中...',
+  agent_evolving: '📝 正在记录分析结果...',
+  // Multi-pass stages
+  agent_pass_1: '🔍 Pass 1: 侦察扫描中...',
+  agent_pass_2: '🎯 Pass 2: 深度分析中...',
+  agent_pass_3: '📋 Pass 3: 综合报告中...',
   ai_generating: 'AI 分析中（双角色：运营 + 广告优化）...',
   title_generating: '正在生成标题...',
 }
@@ -85,13 +96,18 @@ export function GenerationDialog({
   const [finalTitle, setFinalTitle] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [agentStage, setAgentStage] = useState<string | null>(null)
+  const [agentStageData, setAgentStageData] = useState<any>(null)
+  const [passMode, setPassMode] = useState<string | null>(null)
+  const [currentPass, setCurrentPass] = useState<number>(0)
+  const [hotspots, setHotspots] = useState<any[] | null>(null)
   const esRef = useRef<EventSource | null>(null)
   const startedRef = useRef(false)
 
   const startDate = formatYMD(dateRange.from)
   const endDate = formatYMD(dateRange.to)
 
-  const isRunning = ['pending', 'data_aggregating', 'ai_generating', 'title_generating'].includes(status)
+  const isRunning = ['pending', 'data_aggregating', 'generating', 'ai_generating', 'title_generating'].includes(status)
 
   const startGeneration = useCallback(async () => {
     if (!projectId || !startDate || !endDate) return
@@ -137,6 +153,21 @@ export function GenerationDialog({
           if (payload.type === 'status') {
             setStatus(payload.status ?? 'idle')
             setSubStatus(payload.sub_status ?? null)
+          } else if (payload.type === 'agent_stage') {
+            // Agent Pipeline 阶段事件 — 记录当前阶段和数据
+            const stage = payload.stage ?? null
+            setAgentStage(stage)
+            if (payload.data) setAgentStageData(payload.data)
+            if (payload.text) setAgentStageData({ declaration: payload.text })
+            // 多轮分析阶段追踪
+            if (stage === 'pass_mode') {
+              setPassMode(payload.text ?? payload.data?.mode ?? null)
+            } else if (stage?.startsWith('pass_')) {
+              const passNum = parseInt(stage.replace('pass_', ''), 10)
+              if (!isNaN(passNum)) setCurrentPass(passNum)
+            } else if (stage === 'hotspots' && Array.isArray(payload.data)) {
+              setHotspots(payload.data)
+            }
           } else if (payload.type === 'chunk' && payload.delta) {
             setStatus('ai_generating')
             setSubStatus('ai_generating')
@@ -248,11 +279,85 @@ export function GenerationDialog({
         <div className="flex-1 overflow-y-auto px-1">
           {/* Status banner */}
           {isRunning && (
-            <div className="mb-4 flex items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2">
-              <Loader2 className="h-4 w-4 animate-spin text-primary" />
-              <span className="text-sm text-primary">
-                {subStatus && SUB_STATUS_LABEL[subStatus] ? SUB_STATUS_LABEL[subStatus] : '处理中...'}
-              </span>
+            <div className="mb-4 space-y-2">
+              <div className="flex items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2">
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                <span className="text-sm text-primary">
+                  {subStatus && SUB_STATUS_LABEL[subStatus] ? SUB_STATUS_LABEL[subStatus] : '处理中...'}
+                </span>
+              </div>
+              {/* Agent stage indicator */}
+              {agentStage && (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground pl-1">
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                  {agentStage === 'profile' && 'Layer 0: 数据探针完成'}
+                  {agentStage === 'strategy' && 'Layer 1: 策略规划完成'}
+                  {agentStage === 'declaration' && 'Layer 2: Prompt 组装完成 → AI 生成中'}
+                  {agentStage === 'pass_mode' && `分析模式: ${passMode === '多轮分析' ? 'Scout → Deep-dive → Synthesis' : '单轮分析'}`}
+                  {agentStage === 'pass_1' && '🔍 Pass 1: 侦察扫描 — 识别热点问题...'}
+                  {agentStage === 'pass_2' && `🎯 Pass 2: 深度分析 — 正在深挖第 ${currentPass} 个热点...`}
+                  {agentStage === 'pass_3' && '📋 Pass 3: 综合报告 — 整合交叉分析...'}
+                  {agentStage === 'hotspots' && hotspots && (
+                    <span>发现 {hotspots.length} 个热点: {hotspots.map(h => h.finding).join('、')}</span>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Agent strategy summary (shown after strategy stage, before/during content) */}
+          {agentStageData?.primary_dimensions && (
+            <div className="mb-3 rounded-md border bg-muted/30 px-3 py-2">
+              <p className="text-xs font-medium text-muted-foreground mb-1.5">
+                分析策略：覆盖 {agentStageData.primary_dimensions?.length ?? 0} 个单维度
+                {agentStageData.cross_analyses?.length ? `、${agentStageData.cross_analyses.length} 个交叉分析` : ''}
+                {agentStageData.temporal_analyses?.length ? `、${agentStageData.temporal_analyses.length} 个跨周期分析` : ''}
+                {agentStageData.skipped?.length ? `，跳过 ${agentStageData.skipped.length} 个` : ''}
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {agentStageData.primary_dimensions?.map((d: any) => (
+                  <span key={d.dimension_id} className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                    L1 {d.name}
+                  </span>
+                ))}
+                {agentStageData.cross_analyses?.map((d: any) => (
+                  <span key={d.dimension_id} className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                    L2 {d.name}
+                  </span>
+                ))}
+                {agentStageData.temporal_analyses?.map((d: any) => (
+                  <span key={d.dimension_id} className="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-medium text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+                    L3 {d.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Hotspots display (shown after Scout pass identifies issues) */}
+          {hotspots && hotspots.length > 0 && !streamedContent && (
+            <div className="mb-3 rounded-md border bg-amber-50/50 dark:bg-amber-950/20 px-3 py-2">
+              <p className="text-xs font-medium text-amber-700 dark:text-amber-400 mb-1.5">
+                🔍 侦察发现 {hotspots.length} 个热点问题
+              </p>
+              <div className="space-y-1">
+                {hotspots.map((h: any, i: number) => (
+                  <div key={i} className="flex items-center gap-2 text-xs">
+                    <span className={cn(
+                      'inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
+                      h.severity === 'high'
+                        ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                        : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+                    )}>
+                      {h.severity === 'high' ? '高' : '中'}
+                    </span>
+                    <span className="font-medium">{h.finding}</span>
+                    {h.key_metric && (
+                      <span className="text-muted-foreground ml-auto">{h.key_metric}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 

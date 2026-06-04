@@ -51,6 +51,7 @@ class InsightItem(BaseModel):
 
 class InsightDetail(InsightItem):
     content: str
+    strategy_metadata: str | None = None
 
     model_config = {'from_attributes': True}
 

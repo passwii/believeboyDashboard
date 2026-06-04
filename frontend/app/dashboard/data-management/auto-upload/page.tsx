@@ -45,6 +45,7 @@ import { RefreshProgressBar } from '@/components/ui/refresh-progress-bar'
 import {
   AD_REPORT_TYPES,
   REPORT_UPLOAD_COUNTRY_OPTIONS,
+  getMultiCountryDisplay,
   getReportUploadCountryLabel,
   isDateRequired,
   type ReportType,
@@ -79,14 +80,6 @@ const REPORT_UPLOAD_REPORT_TYPE_LABELS: Record<string, string> = {
 function getUploadReportTypeLabel(type: UploadQueueItem['reportType']): string {
   if (!type || type === 'unknown') return '未识别'
   return REPORT_UPLOAD_REPORT_TYPE_LABELS[type] ?? type
-}
-
-function getMultiCountryDisplay(countries: string[]): string {
-  if (!countries || countries.length === 0) return '未识别'
-  if (countries.length === 1) {
-    return getReportUploadCountryLabel(countries[0], true)
-  }
-  return countries.map(c => getReportUploadCountryLabel(c, true)).join(' + ')
 }
 
 // ── RPA Status types ──────────────────────────────────────────────────────────

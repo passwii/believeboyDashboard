@@ -1,6 +1,6 @@
 'use client'
 
-import { AlertCircle, CalendarDays, CheckCircle2, CircleHelp, FileText, Loader2, PackageSearch } from 'lucide-react'
+import { AlertCircle, CalendarDays, CheckCircle2, CircleHelp, FileText, Globe, Loader2, PackageSearch } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -8,6 +8,7 @@ import { Card, CardContent, CardTitle } from '@/components/ui/card'
 import { DateRangePicker, SingleDatePicker, formatDateInputValue, parseDateInputValue, parseDateRangeInputValue } from '@/components/ui/date-picker'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { ReportCardConfig, ReportCardState } from '@/components/report-upload/types'
+import { getMultiCountryDisplay } from '@/components/report-upload/types'
 import { cn } from '@/lib/utils'
 
 type Props = {
@@ -92,6 +93,7 @@ export function ReportStatusCard({
   const projectWarning = needsProjectAttention(state)
   const dateWarning = needsDateAttention(state)
   const useRangePicker = recognition?.date_input_mode === 'range_manual' || recognition?.date_input_mode === 'range_auto' || (!recognition && config.type === 'payment_report')
+  const isMultiCountry = Boolean(recognition?.detected_countries && recognition.detected_countries.length > 1)
 
   return (
     <Card className="flex h-full flex-col overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-sm dark:border-border/90">
@@ -228,6 +230,15 @@ export function ReportStatusCard({
             </div>
           </div>
         </div>
+
+        {isMultiCountry && recognition ? (
+          <div className="rounded-xl border border-blue-300/60 bg-blue-50/80 px-3 py-2 text-xs text-blue-900 dark:border-blue-400/35 dark:bg-blue-400/10 dark:text-blue-100">
+            <div className="flex items-center gap-2">
+              <Globe className="h-4 w-4 shrink-0" />
+              <span>检测到多站点数据：{getMultiCountryDisplay(recognition.detected_countries)}，系统将自动按站点拆分</span>
+            </div>
+          </div>
+        ) : null}
 
         {recognition?.warnings?.length ? (
           <div className="rounded-xl border border-amber-300/60 bg-amber-50/80 px-3 py-2 text-xs text-amber-900 dark:border-amber-400/35 dark:bg-amber-400/10 dark:text-amber-100">
