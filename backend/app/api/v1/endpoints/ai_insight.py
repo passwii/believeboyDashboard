@@ -44,6 +44,10 @@ from app.services.ai_insight_generator import (
     generate_insight_title,
     normalize_insight_markdown,
 )
+from app.services.ai_insight_utils import (
+    format_project_context_for_prompt,
+    format_sku_context_for_prompt,
+)
 from app.services.digital_employee_reporter import (
     ai_insight_start,
     ai_insight_progress,
@@ -106,6 +110,7 @@ def _serialize_insight_detail(row: AIInsight) -> InsightDetail:
         status=row.status.value if isinstance(row.status, InsightStatus) else row.status,
         sub_status=row.sub_status,
         error_message=row.error_message,
+        strategy_metadata=getattr(row, 'strategy_metadata', None),
         created_by=row.created_by,
         created_at=row.created_at,
         updated_at=row.updated_at,
@@ -233,23 +238,107 @@ def _run_insight_generation(
 
         content_chunks: list[str] = []
         chunk_count = 0
-        for chunk in generate_insight_stream(
-            settings,
-            data_dict,
-            model=payload.get("model"),
-            insight_type=payload.get("insight_type", "custom"),
-        ):
-            if chunk:
-                content_chunks.append(chunk)
-                chunk_count += 1
-                _enqueue_if_exists(insight_id, {"type": "chunk", "delta": chunk})
-                if chunk_count % 5 == 0:
-                    _report_progress("ai_generating", 50 + min(40, chunk_count // 2))
+        strategy_metadata_str: str | None = None
+
+        if payload.get("insight_type") == "ad_analysis":
+            # ── Agent Pipeline (动态策略) ──────────────────────────────────────
+            from app.services.ad_agent.pipeline import run_ad_agent_pipeline_multi_pass_stream
+
+            project_context_text = format_project_context_for_prompt(
+                data_dict.get("project_context") or {}
+            )
+            sku_context_text = format_sku_context_for_prompt(
+                data_dict.get("sku_context") or {}
+            )
+
+            for event in run_ad_agent_pipeline_multi_pass_stream(
+                aggregated_data=data_dict,
+                settings=settings,
+                project_id=payload["project_id"],
+                project_name=payload["project_name"],
+                country=payload["country"],
+                date_range_start=payload["start_date"],
+                date_range_end=payload["end_date"],
+                project_context_text=project_context_text,
+                sku_context_text=sku_context_text,
+                model=payload.get("model"),
+                db=gen_db,
+                insight_id=insight_id,
+            ):
+                etype = event.get("type")
+                if etype == "chunk":
+                    delta = event.get("delta", "")
+                    if delta:
+                        content_chunks.append(delta)
+                        chunk_count += 1
+                        _enqueue_if_exists(insight_id, {"type": "chunk", "delta": delta})
+                        if chunk_count % 5 == 0:
+                            _report_progress("ai_generating", 50 + min(40, chunk_count // 2))
+                elif etype == "profile":
+                    _enqueue_if_exists(insight_id, {
+                        "type": "status", "status": "generating",
+                        "sub_status": "agent_profiling",
+                    })
+                    _enqueue_if_exists(insight_id, {
+                        "type": "agent_stage", "stage": "profile",
+                        "data": event.get("data"),
+                    })
+                elif etype == "strategy":
+                    _enqueue_if_exists(insight_id, {
+                        "type": "status", "status": "generating",
+                        "sub_status": "agent_planning",
+                    })
+                    _enqueue_if_exists(insight_id, {
+                        "type": "agent_stage", "stage": "strategy",
+                        "data": event.get("data"),
+                    })
+                elif etype == "declaration":
+                    _enqueue_if_exists(insight_id, {
+                        "type": "agent_stage", "stage": "declaration",
+                        "text": event.get("text", ""),
+                    })
+                elif etype == "pass_mode":
+                    mode_label = "多轮分析" if event.get("mode") == "multi_pass" else "单轮分析"
+                    _enqueue_if_exists(insight_id, {
+                        "type": "agent_stage", "stage": "pass_mode",
+                        "text": mode_label,
+                    })
+                elif etype == "pass":
+                    _enqueue_if_exists(insight_id, {
+                        "type": "agent_stage", "stage": f"pass_{event.get('pass', 0)}",
+                        "data": {"name": event.get("name", ""), "status": event.get("status", "")},
+                    })
+                elif etype == "hotspots":
+                    _enqueue_if_exists(insight_id, {
+                        "type": "agent_stage", "stage": "hotspots",
+                        "data": event.get("data"),
+                    })
+                elif etype == "done":
+                    # 使用 Pipeline 的最终内容（已经过 normalize）
+                    pipeline_content = event.get("content", "")
+                    if pipeline_content:
+                        content_chunks = [pipeline_content]
+                    strategy_metadata_str = json.dumps({
+                        "strategy_declaration": event.get("strategy_declaration", ""),
+                        "evolution_metadata": event.get("evolution_metadata", {}),
+                    }, ensure_ascii=False)
+        else:
+            # ── 静态 Prompt（原有逻辑）────────────────────────────────────────
+            for chunk in generate_insight_stream(
+                settings,
+                data_dict,
+                model=payload.get("model"),
+                insight_type=payload.get("insight_type", "custom"),
+            ):
+                if chunk:
+                    content_chunks.append(chunk)
+                    chunk_count += 1
+                    _enqueue_if_exists(insight_id, {"type": "chunk", "delta": chunk})
+                    if chunk_count % 5 == 0:
+                        _report_progress("ai_generating", 50 + min(40, chunk_count // 2))
 
         final_content = normalize_insight_markdown("".join(content_chunks))
         _report_progress("ai_generating", 90)
-
-        final_content = normalize_insight_markdown("".join(content_chunks))
 
         # Stage 3: Title generation
         gen_db.query(AIInsight).filter(AIInsight.id == insight_id).update({
@@ -272,6 +361,7 @@ def _run_insight_generation(
         gen_db.query(AIInsight).filter(AIInsight.id == insight_id).update({
             AIInsight.title: title,
             AIInsight.content: final_content,
+            AIInsight.strategy_metadata: strategy_metadata_str,
             AIInsight.status: InsightStatus.completed,
             AIInsight.sub_status: None,
             AIInsight.updated_at: datetime.now(timezone.utc),
@@ -867,6 +957,7 @@ def get_insight(
         status=row.status.value if isinstance(row.status, InsightStatus) else row.status,
         sub_status=row.sub_status,
         error_message=row.error_message,
+        strategy_metadata=getattr(row, 'strategy_metadata', None),
         created_by=row.created_by,
         created_at=row.created_at,
         updated_at=row.updated_at,
