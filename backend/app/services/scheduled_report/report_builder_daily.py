@@ -42,6 +42,7 @@ def build_report_email_data(
     ai_model: str | None = None,
     reference_date: date | None = None,
     stage_callback=None,
+    ai_timeout: float | None = None,
 ) -> dict[str, Any]:
     """
     Aggregate real data and transform it into the format expected by
@@ -242,7 +243,7 @@ def build_report_email_data(
         from app.models.scheduled_report import DeliveryStage
         stage_callback(DeliveryStage.GENERATING_SUMMARY.value)
 
-    ai_summary = _generate_summary(frequency, report_data, ai_model)
+    ai_summary = _generate_summary(frequency, report_data, ai_model, timeout=ai_timeout)
 
     # 13. Build weekly report data format for email renderer
     curr_qty = week_sales.get("week_qty", 0)
@@ -461,18 +462,63 @@ def _query_top_return_reasons(
         return []
 
 
-def _generate_summary(frequency: str, overview: dict[str, Any], model: str | None = None) -> str:
-    """Generate AI summary, with fallback to basic text."""
-    try:
+AI_SUMMARY_TIMEOUT_SEC = 30
+
+
+def _generate_summary(
+    frequency: str,
+    overview: dict[str, Any],
+    model: str | None = None,
+    timeout: float | None = None,
+) -> str:
+    """Generate AI summary with a configurable timeout.
+
+    Uses a thread-based timeout so it works both on the main thread
+    and inside ThreadPoolExecutor workers (where SIGALRM is unavailable).
+
+    If the AI call exceeds *timeout* seconds, a fallback text summary is
+    returned immediately and the rest of the pipeline proceeds without
+    blocking on screenshot / email delivery.
+
+    Args:
+        frequency: "daily" / "weekly" / "monthly"
+        overview: Report data dict passed to the AI prompt
+        model: Optional model override
+        timeout: Max seconds to wait for AI. Defaults to AI_SUMMARY_TIMEOUT_SEC.
+    """
+    secs = timeout if timeout is not None else AI_SUMMARY_TIMEOUT_SEC
+
+    if secs <= 0:
+        return _generate_fallback_summary(frequency, overview)
+
+    from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
+
+    def _call_ai():
         from app.services.scheduled_report.ai_enhancer_daily import generate_ai_summary
         return generate_ai_summary(frequency, overview, model=model)
+
+    try:
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(_call_ai)
+            return future.result(timeout=secs)
+    except FuturesTimeout:
+        logger.warning(
+            "AI summary timed out (%.0fs) for frequency=%s — using fallback",
+            secs, frequency,
+        )
+        return _generate_fallback_summary(frequency, overview)
     except Exception as e:
         logger.warning("AI summary failed, using fallback: %s", e)
-        sales = overview.get("sales", {})
-        qty = sales.get("today_order_qty", 0)
-        pct = sales.get("order_qty_change_pct", 0)
-        direction = "上升" if pct >= 0 else "下降"
-        return f"今日销售 {qty} 件，较前日{direction} {abs(pct):.1f}%。"
+        return _generate_fallback_summary(frequency, overview)
+
+
+def _generate_fallback_summary(frequency: str, overview: dict[str, Any]) -> str:
+    """当 AI 服务不可用或超时时，生成基础摘要。"""
+    sales = overview.get("sales", {})
+    qty = sales.get("today_order_qty", 0)
+    pct = sales.get("order_qty_change_pct", 0)
+    direction = "上升" if pct >= 0 else "下降"
+    return f"今日销售 {qty} 件，较前日{direction} {abs(pct):.1f}%。"
 
 
 def _query_period_sales(

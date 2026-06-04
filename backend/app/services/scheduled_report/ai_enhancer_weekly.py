@@ -59,68 +59,97 @@ FALLBACK_SYSTEM_PROMPT = """你是一位跨境电商运营分析师。
 要求：150-200字，分段落，风格专业，只输出分析内容。"""
 
 
+WEEKLY_AI_TIMEOUT_SEC = 30
+
+
 def generate_weekly_ai_summary(
     report_data: dict[str, Any],
     model: str | None = None,
+    timeout: float | None = None,
 ) -> str:
-    """调用 AI 服务生成周报告深度分析。
+    """调用 AI 服务生成周报告深度分析，支持可配置超时。
+
+    使用线程级超时机制，确保在 ThreadPoolExecutor 工作线程中也能生效。
+    超时后立即返回 fallback 摘要，不阻塞后续截图和邮件发送。
 
     Args:
-        report_data: 包含周报告完整数据的字典，包括：
-            - current_week: 本周销售数据
-            - prev_week: 上周销售数据
-            - changes: 变化率数据
-            - attribution: SKU 归因分析
-            - alerts: 预警信号
-            - top_skus: Top SKU 列表（含本周/上周对比）
-            - ads_comparison: 广告数据对比
-            - inventory_alerts: 库存预警
+        report_data: 包含周报告完整数据的字典
         model: 指定 AI 模型名称，空则使用默认模型
+        timeout: AI 调用最大等待秒数，默认 WEEKLY_AI_TIMEOUT_SEC
 
     Returns:
         AI 生成的周报告分析文本
     """
+    secs = timeout if timeout is not None else WEEKLY_AI_TIMEOUT_SEC
+
+    if secs <= 0:
+        return _generate_fallback_weekly_summary(report_data)
+
+    from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
+
+    def _call_weekly_ai():
+        return _call_weekly_ai_inner(report_data, model)
+
+    try:
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(_call_weekly_ai)
+            return future.result(timeout=secs)
+    except FuturesTimeout:
+        logger.warning(
+            "Weekly AI summary timed out (%.0fs) — using fallback",
+            secs,
+        )
+        return _generate_fallback_weekly_summary(report_data)
+    except Exception as e:
+        logger.warning("Weekly AI summary failed, using fallback: %s", e)
+        return _generate_fallback_weekly_summary(report_data)
+
+
+def _call_weekly_ai_inner(
+    report_data: dict[str, Any],
+    model: str | None = None,
+) -> str:
+    """Inner function for weekly AI call (extracted for timeout wrapping)."""
     settings = get_settings()
     if not settings.ai_chat_provider_api_key:
         logger.warning("AI_CHAT_PROVIDER_API_KEY not configured, using fallback weekly summary")
         return _generate_fallback_weekly_summary(report_data)
 
-    try:
-        from app.services.ai.llm import (
-            build_llm_config,
-            generate_assistant_content,
-            resolve_available_models,
-        )
+    from app.services.ai.llm import (
+        build_llm_config,
+        generate_assistant_content,
+        resolve_available_models,
+    )
 
-        _models, default_model = resolve_available_models(settings)
-        use_model = model if model else default_model
-        llm_config = build_llm_config(
-            settings=settings,
-            model=use_model,
-            system_prompt=SYSTEM_PROMPT_WEEKLY,
-            reasoning_effort=None,
-        )
+    _models, default_model = resolve_available_models(settings)
+    use_model = model if model else default_model
+    llm_config = build_llm_config(
+        settings=settings,
+        model=use_model,
+        system_prompt=SYSTEM_PROMPT_WEEKLY,
+        reasoning_effort=None,
+    )
 
-        from app.services.scheduled_report.context_helpers import (
-            format_project_context_for_prompt,
-            format_sku_context_for_prompt,
-        )
+    from app.services.scheduled_report.context_helpers import (
+        format_project_context_for_prompt,
+        format_sku_context_for_prompt,
+    )
 
-        # Separate context fields from data for structured prompt
-        ctx_project = report_data.get("project_context")
-        ctx_sku = report_data.get("sku_context")
-        ctx_factory = report_data.get("sku_factory_info_text", "")
+    # Separate context fields from data for structured prompt
+    ctx_project = report_data.get("project_context")
+    ctx_sku = report_data.get("sku_context")
+    ctx_factory = report_data.get("sku_factory_info_text", "")
 
-        display_data = {
-            k: v for k, v in report_data.items()
-            if k not in ("project_context", "sku_context", "sku_factory_info_text")
-        }
-        data_str = json.dumps(display_data, ensure_ascii=False, indent=2)
+    display_data = {
+        k: v for k, v in report_data.items()
+        if k not in ("project_context", "sku_context", "sku_factory_info_text")
+    }
+    data_str = json.dumps(display_data, ensure_ascii=False, indent=2)
 
-        project_context_text = format_project_context_for_prompt(ctx_project)
-        sku_context_text = format_sku_context_for_prompt(ctx_sku)
+    project_context_text = format_project_context_for_prompt(ctx_project)
+    sku_context_text = format_sku_context_for_prompt(ctx_sku)
 
-        user_content = f"""请根据以下周报数据生成深度运营分析：
+    user_content = f"""请根据以下周报数据生成深度运营分析：
 
 ```json
 {data_str}
@@ -136,19 +165,15 @@ def generate_weekly_ai_summary(
 
 ### 产品属性（Top/预警 SKU）
 {ctx_factory}"""
-        result = generate_assistant_content(
-            llm_config=llm_config,
-            messages=[],
-            user_content=user_content,
-        )
+    result = generate_assistant_content(
+        llm_config=llm_config,
+        messages=[],
+        user_content=user_content,
+    )
 
-        if result and result.strip():
-            return result.strip()
-        return _generate_fallback_weekly_summary(report_data)
-
-    except Exception as e:
-        logger.error(f"Weekly AI summary generation failed: {e}")
-        return _generate_fallback_weekly_summary(report_data)
+    if result and result.strip():
+        return result.strip()
+    return _generate_fallback_weekly_summary(report_data)
 
 
 def _generate_fallback_weekly_summary(report_data: dict[str, Any]) -> str:

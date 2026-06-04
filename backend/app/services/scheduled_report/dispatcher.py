@@ -1,19 +1,17 @@
 """Scheduled report dispatcher with AI summary rate limiting.
 
 Dispatches report emails for all active subscriptions of a given frequency.
-Uses a threading semaphore to limit concurrent AI API calls (default: 2),
+Uses a threading semaphore to limit concurrent AI API calls (default: 4),
 and caches AI summaries by (project_ids, country, date) to avoid duplicate
 requests when multiple users subscribe to the same project.
 
-Design notes on the job pipeline:
-- ThreadPoolExecutor runs subscription tasks concurrently (max 8 workers)
-- Inside each task, _build_report_with_throttle() acquires the AI semaphore
-- Semaphore holds while calling generate_ai_summary() — so at most
-  AI_CONCURRENCY_LIMIT AI calls run in parallel at any moment
-- Same project+country+date combo hits in-process cache, skipping semaphore
-- Cache is cleared per dispatch run to keep memory bounded
-- AI calls use signal-based timeout (AI_SUMMARY_TIMEOUT_SEC = 90s);
-  if exceeded, fallback summary is used and the semaphore slot is released
+Design notes on AI timeout:
+- Per-call AI timeout (30s) is enforced INSIDE the report builders using
+  ThreadPoolExecutor + .result(timeout=30). This works in any thread context.
+- The old SIGALRM-based pipeline timeout (AI_SUMMARY_TIMEOUT_SEC = 120s) is
+  kept as a safety net on the main thread only. Worker threads cannot use
+  signals, so they rely on the per-call timeout.
+- Cache is cleared per dispatch run to keep memory bounded.
 """
 
 from __future__ import annotations
@@ -52,9 +50,13 @@ logger = logging.getLogger(__name__)
 
 # ── AI concurrency & timeout control ─────────────────────────────────────────
 AI_CONCURRENCY_LIMIT = 4  # 每轮最多 4 个 AI 调用并发（15 项目分 2 轮，每轮 8+7=15）
-# Timeout per AI call (seconds). If exceeded, fall back to text summary
-# and release the semaphore slot so the queue keeps moving.
-AI_SUMMARY_TIMEOUT_SEC = 90
+# Overall pipeline timeout per AI call (seconds).
+# NOTE: The per-call AI timeout is now enforced inside report_builder_daily /
+# report_builder_weekly via ThreadPoolExecutor + .result(timeout=30).  This
+# global timeout acts as a safety net for the entire _build_report_data call
+# (data-fetching + AI + post-processing).  It only takes effect on the main
+# thread where SIGALRM is available; worker threads rely on the per-call timeout.
+AI_SUMMARY_TIMEOUT_SEC = 120
 
 _ai_semaphore = threading.Semaphore(AI_CONCURRENCY_LIMIT)
 
@@ -184,7 +186,12 @@ def _fallback_report_data(
     frequency: str,
     reference_date: "date | None" = None,
 ) -> dict[str, Any]:
-    """Return report with plain-text fallback summary when AI times out."""
+    """Return report with plain-text fallback summary when AI times out.
+
+    This is only called by the SIGALRM safety-net on the main thread.
+    The report builders already handle per-call AI timeout internally,
+    so this path exists as a last-resort fallback.
+    """
     db = SessionLocal()
     try:
         if frequency == "weekly":
@@ -193,6 +200,7 @@ def _fallback_report_data(
                 project_ids=project_ids,
                 country=country,
                 reference_date=reference_date,
+                ai_timeout=0,
             )
             data["ai_summary"] = "AI 摘要生成超时，请登录仪表板查看详情。"
             return data
@@ -203,11 +211,14 @@ def _fallback_report_data(
             country=country,
             frequency=frequency,
             reference_date=reference_date,
+            ai_timeout=0,
         )
-        # Replace AI summary with fallback text (no AI call)
-        from app.services.scheduled_report.report_builder_daily import _generate_summary
-        overview = data.get("overview", {})
-        data["ai_summary"] = _generate_summary(frequency, overview)
+        # The builder already called _generate_summary(timeout=30) internally.
+        # If that also timed out, ai_summary will be the fallback text already.
+        # If we still need to ensure no AI call was made, overwrite:
+        if not data.get("ai_summary"):
+            from app.services.scheduled_report.report_builder_daily import _generate_fallback_summary
+            data["ai_summary"] = _generate_fallback_summary(frequency, data)
         return data
     finally:
         db.close()
@@ -372,17 +383,25 @@ def _generate_multi_country_summary(
     frequency: str,
     country_data: dict[str, dict[str, Any]],
     ai_model: str | None = None,
+    timeout: float | None = None,
 ) -> str:
     """Generate a single AI summary covering all countries.
 
-    Falls back to per-country bullet points if AI call fails.
+    Falls back to per-country bullet points if AI call fails or times out.
+    Uses the same thread-based timeout as _generate_summary.
     """
     from app.services.scheduled_report.email_sender import _fmt_currency, _country_label
+    from app.services.scheduled_report.report_builder_daily import AI_SUMMARY_TIMEOUT_SEC, _generate_fallback_summary
 
-    try:
+    secs = timeout if timeout is not None else AI_SUMMARY_TIMEOUT_SEC
+
+    if secs <= 0:
+        return _fallback_multi_country_summary(country_data)
+
+    from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
+
+    def _call_ai():
         from app.services.scheduled_report.ai_enhancer_daily import generate_ai_summary
-
-        # Build a combined overview for the AI prompt
         combined: dict[str, Any] = {
             "multi_country": True,
             "countries": {},
@@ -397,18 +416,36 @@ def _generate_multi_country_summary(
                 "returns": data.get("returns", {}),
                 "top_skus": data.get("top_skus", []),
             }
-
         return generate_ai_summary(frequency, combined, model=ai_model)
+
+    try:
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(_call_ai)
+            return future.result(timeout=secs)
+    except FuturesTimeout:
+        logger.warning(
+            "Multi-country AI summary timed out (%.0fs) — using fallback",
+            secs,
+        )
+        return _fallback_multi_country_summary(country_data)
     except Exception as e:
         logger.warning("Multi-country AI summary failed, using fallback: %s", e)
-        parts: list[str] = []
-        for country, data in country_data.items():
-            label = _country_label(country)
-            sales = data.get("sales", {})
-            qty = sales.get("yesterday_qty", 0)
-            amt = sales.get("yesterday_amount", 0)
-            parts.append(f"- {label}：昨日 {qty} 单，销售额 {_fmt_currency(amt, country)}")
-        return "\n".join(parts)
+        return _fallback_multi_country_summary(country_data)
+
+
+def _fallback_multi_country_summary(
+    country_data: dict[str, dict[str, Any]],
+) -> str:
+    """Fallback multi-country summary when AI is unavailable or times out."""
+    from app.services.scheduled_report.email_sender import _fmt_currency, _country_label
+    parts: list[str] = []
+    for country, data in country_data.items():
+        label = _country_label(country)
+        sales = data.get("sales", {})
+        qty = sales.get("yesterday_qty", 0)
+        amt = sales.get("yesterday_amount", 0)
+        parts.append(f"- {label}：昨日 {qty} 单，销售额 {_fmt_currency(amt, country)}")
+    return "\n".join(parts)
 
 
 def _dispatch_one(

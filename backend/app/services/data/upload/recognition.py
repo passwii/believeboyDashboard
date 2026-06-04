@@ -26,6 +26,7 @@ from app.utils.recognition import (
 from app.utils.parsers import detect_countries_in_sales_file
 from app.utils.payment_locale import read_payment_report_dataframe
 from app.services.data.upload.project_match import _build_project_match
+from sqlalchemy import select, distinct
 
 
 @dataclass
@@ -112,6 +113,13 @@ def recognize_saved_report_upload(
             payload.detected_countries = detected
             payload.primary_country = detected[0] if len(detected) == 1 else None
 
+    # Multi-country detection for return reports (via order-id lookup)
+    if result.report_type == "return_report":
+        detected = _detect_countries_in_return_file(db, path)
+        if detected:
+            payload.detected_countries = detected
+            payload.primary_country = detected[0] if len(detected) == 1 else None
+
     try:
         if result.report_type in {"inventory_report", "sales_report", "return_report"}:
             df = _normalize_columns(_read_csv_with_encoding_fallback(path))
@@ -192,3 +200,73 @@ def recognize_saved_report_upload(
         row_count_preview=payload.row_count_preview,
         warnings=payload.warnings or [],
     )
+
+
+def _detect_countries_in_return_file(db: Session, path: Path) -> list[str]:
+    """Detect all marketplace countries in a return report.
+
+    Primary method: DB lookup against analysis_sales_order_rows (authoritative,
+    uses data that was explicitly uploaded with country metadata).
+    Secondary method: Amazon order-id prefix mapping (fallback when DB has no match).
+
+    Note: order-id prefix mapping is NOT reliable for DE vs UK distinction
+    (e.g. 028-xxx can be German, not UK). DB lookup is preferred because it
+    reflects the actual marketplace the seller uploaded data for.
+    """
+    from app.models import AnalysisSalesOrderRow, AnalysisSourceFile
+
+    try:
+        df = _read_csv_with_encoding_fallback(path)
+        df.columns = [str(col).strip() for col in df.columns]
+    except Exception:
+        return []
+
+    if "order-id" not in df.columns:
+        return []
+
+    order_ids = (
+        df["order-id"]
+        .dropna()
+        .astype(str)
+        .str.strip()
+        .unique()
+        .tolist()
+    )
+    if not order_ids:
+        return []
+
+    limited_ids = order_ids[:200]
+
+    # Primary: DB lookup — sales order rows carry the correct country
+    rows = db.execute(
+        select(distinct(AnalysisSalesOrderRow.country))
+        .join(
+            AnalysisSourceFile,
+            AnalysisSalesOrderRow.source_file_id == AnalysisSourceFile.id,
+        )
+        .where(AnalysisSalesOrderRow.amazon_order_id.in_(limited_ids))
+    ).scalars().all()
+
+    countries = [c for c in rows if c in ("DE", "UK")]
+    if countries:
+        return sorted(countries)
+
+    # Fallback: order-id prefix heuristic (less reliable, only used when DB has no data)
+    prefix_countries: set[str] = set()
+    for oid in order_ids[:500]:
+        first = oid.split("-")[0] if "-" in oid else ""
+        if not first:
+            continue
+        try:
+            prefix = int(first)
+        except ValueError:
+            continue
+        if 0 <= prefix <= 99:
+            prefix_countries.add("UK")
+        elif 300 <= prefix <= 399:
+            prefix_countries.add("DE")
+        elif 100 <= prefix <= 199:
+            prefix_countries.add("US")
+
+    eu_countries = prefix_countries & {"DE", "UK"}
+    return sorted(eu_countries)

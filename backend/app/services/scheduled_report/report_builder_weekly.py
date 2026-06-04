@@ -108,6 +108,7 @@ def build_weekly_report_data(
     project_name: str | None = None,
     reference_date: date | None = None,
     stage_callback=None,
+    ai_timeout: float | None = None,
 ) -> dict[str, Any]:
     """构建完整的周报告数据结构。
 
@@ -121,6 +122,7 @@ def build_weekly_report_data(
         country: 国家代码
         project_name: 项目名称覆盖（不传则从数据库自动解析）
         reference_date: 补发时指定的数据锚定日期。为 None 时自动计算。
+        ai_timeout: AI 摘要生成的最大等待秒数，None 使用默认值
 
     Returns:
         完整的周报告数据字典
@@ -217,7 +219,7 @@ def build_weekly_report_data(
         "project_context": project_context,
         "sku_context": sku_context,
         "sku_factory_info_text": sku_factory_info_text,
-    })
+    }, timeout=ai_timeout)
     
     attribution_summary = generate_weekly_attribution_analysis({
         "attribution": attribution,

@@ -67,6 +67,14 @@ export function getReportUploadCountryLabel(country: string, short = false): str
   }
 }
 
+export function getMultiCountryDisplay(countries: string[]): string {
+  if (!countries || countries.length === 0) return '未识别'
+  if (countries.length === 1) {
+    return getReportUploadCountryLabel(countries[0], true)
+  }
+  return countries.map(c => getReportUploadCountryLabel(c, true)).join(' + ')
+}
+
 export type RecognitionStatus = 'recognized' | 'unsupported' | 'error'
 export type DateInputMode = 'single_manual' | 'single_auto' | 'range_manual' | 'range_auto' | 'multi_auto'
 export type ProjectMatchStatus = 'unmatched' | 'matched' | 'conflict' | 'manual'
