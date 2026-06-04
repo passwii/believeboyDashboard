@@ -70,6 +70,17 @@ def html_to_png(
                 viewport={"width": width, "height": _VIEWPORT_HEIGHT},
                 device_scale_factor=scale,
             )
+
+            # 拦截所有外部网络请求，避免外网 logo/CDN 拖慢渲染 / 触发 networkidle 超时
+            # HTML 中 <img> 已带 onerror 隐藏逻辑，拦截后页面布局不受影响
+            def _block_external(route):
+                url = route.request.url
+                if url.startswith("data:") or url.startswith("about:"):
+                    route.continue_()
+                else:
+                    route.abort()
+            page.route("**/*", _block_external)
+
             page.set_content(html, wait_until="networkidle")
             # 等待字体渲染 + 布局稳定（提高到 500ms 确保复杂表格渲染完成）
             page.wait_for_timeout(500)
