@@ -1,5 +1,6 @@
 """Dashboard KPI 总览 API 端点"""
 
+from datetime import date as date_type
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
@@ -17,6 +18,7 @@ def get_dashboard_overview(
     country: str = Query(default="US"),
     days: Annotated[int, Query(ge=1, le=30)] = 7,
     project_ids: Annotated[str | None, Query(description="comma-separated project IDs")] = None,
+    reference_date: Annotated[str | None, Query(description="reference date (YYYY-MM-DD), defaults to server today")] = None,
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Depends(get_request_is_admin),
@@ -35,6 +37,13 @@ def get_dashboard_overview(
         except ValueError:
             parsed_ids = None
 
+    parsed_reference_date: date_type | None = None
+    if reference_date:
+        try:
+            parsed_reference_date = date_type.fromisoformat(reference_date)
+        except ValueError:
+            parsed_reference_date = None
+
     payload = dashboard_overview_service.build_dashboard_overview(
         db=db,
         project_ids=parsed_ids,
@@ -42,5 +51,6 @@ def get_dashboard_overview(
         is_admin=is_admin,
         country=country,
         days=days,
+        reference_date=parsed_reference_date,
     )
     return DashboardOverviewResponse(**payload)
