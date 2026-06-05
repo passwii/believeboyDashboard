@@ -19,33 +19,6 @@ except ImportError:
     HAS_CLIENT = False
 
 
-class RunLogger:
-    """Logs run results to a timestamped file."""
-
-    def __init__(self, logs_dir: Path):
-        self.logs_dir = logs_dir
-        self.logs_dir.mkdir(parents=True, exist_ok=True)
-        self.run_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.log_path = self.logs_dir / f"run_{self.run_ts}.log"
-
-        self.logger = logging.getLogger(f"autorun.{self.run_ts}")
-        self.logger.setLevel(logging.DEBUG)
-        self.logger.handlers.clear()
-
-        # File handler
-        fh = logging.FileHandler(self.log_path, encoding="utf-8")
-        fh.setLevel(logging.DEBUG)
-        # Console handler
-        ch = logging.StreamHandler()
-        ch.setLevel(logging.DEBUG)
-
-        fmt = logging.Formatter("%(asctime)s  %(levelname)-8s  %(message)s", datefmt="%H:%M:%S")
-        fh.setFormatter(fmt)
-        ch.setFormatter(fmt)
-        self.logger.addHandler(fh)
-        self.logger.addHandler(ch)
-
-
 # ─── File stability check ─────────────────────────────────────────────────────
 # OneDrive / cloud-sync files may appear in the filesystem before they are
 # fully downloaded. Reading a partially-downloaded .xlsx produces garbled or
@@ -99,6 +72,33 @@ def _wait_for_file_stable(path: Path, logger: logging.Logger) -> bool:
         path.name, prev_size, waited,
     )
     return True
+
+
+class RunLogger:
+    """Logs run results to a timestamped file."""
+
+    def __init__(self, logs_dir: Path):
+        self.logs_dir = logs_dir
+        self.logs_dir.mkdir(parents=True, exist_ok=True)
+        self.run_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.log_path = self.logs_dir / f"run_{self.run_ts}.log"
+
+        self.logger = logging.getLogger(f"autorun.{self.run_ts}")
+        self.logger.setLevel(logging.DEBUG)
+        self.logger.handlers.clear()
+
+        # File handler
+        fh = logging.FileHandler(self.log_path, encoding="utf-8")
+        fh.setLevel(logging.DEBUG)
+        # Console handler
+        ch = logging.StreamHandler()
+        ch.setLevel(logging.DEBUG)
+
+        fmt = logging.Formatter("%(asctime)s  %(levelname)-8s  %(message)s", datefmt="%H:%M:%S")
+        fh.setFormatter(fmt)
+        ch.setFormatter(fmt)
+        self.logger.addHandler(fh)
+        self.logger.addHandler(ch)
 
     def debug(self, msg: str) -> None:
         self.logger.debug(msg)
