@@ -515,10 +515,28 @@ def _generate_summary(
 def _generate_fallback_summary(frequency: str, overview: dict[str, Any]) -> str:
     """当 AI 服务不可用或超时时，生成基础摘要。"""
     sales = overview.get("sales", {})
-    qty = sales.get("today_order_qty", 0)
-    pct = sales.get("order_qty_change_pct", 0)
-    direction = "上升" if pct >= 0 else "下降"
-    return f"今日销售 {qty} 件，较前日{direction} {abs(pct):.1f}%。"
+    week_sales = overview.get("week_sales", {})
+    inventory = overview.get("inventory", {})
+
+    today_qty = sales.get("yesterday_qty", 0)
+    today_amt = sales.get("yesterday_amount", 0.0)
+    vs_prev = sales.get("change_pct", 0.0)
+
+    p7d_qty = week_sales.get("week_qty", 0)
+
+    total_available = inventory.get("total_available", 0)
+    in_transit = inventory.get("in_transit", 0)
+
+    dir_label = "增长" if vs_prev >= 0 else "下降"
+    amt_str = f"/{today_amt:.2f}欧元" if today_amt > 0 else ""
+    parts = [f"昨日销量{today_qty}单{amt_str}，较前一日{dir_label}{abs(vs_prev):.1f}%（近7天累计{p7d_qty}单）"]
+
+    inv_parts = [f"库存{total_available}件"]
+    if in_transit > 0:
+        inv_parts.append(f"在途{in_transit}件")
+    parts.append("，".join(inv_parts))
+
+    return "；".join(parts)
 
 
 def _query_period_sales(
