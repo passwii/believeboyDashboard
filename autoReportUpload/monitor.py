@@ -100,11 +100,17 @@ class RunLogger:
         self.logger.addHandler(fh)
         self.logger.addHandler(ch)
 
-    def debug(self, msg: str) -> None:
-        self.logger.debug(msg)
+    def debug(self, msg: str, *args) -> None:
+        self.logger.debug(msg, *args)
 
-    def info(self, msg: str) -> None:
-        self.logger.info(msg)
+    def info(self, msg: str, *args) -> None:
+        self.logger.info(msg, *args)
+
+    def warning(self, msg: str, *args) -> None:
+        self.logger.warning(msg, *args)
+
+    def error(self, msg: str, *args) -> None:
+        self.logger.error(msg, *args)
 
     def _fixed(self, text: str, width: int) -> str:
         """Pad a string to fixed width, counting CJK chars as 2 cells."""
