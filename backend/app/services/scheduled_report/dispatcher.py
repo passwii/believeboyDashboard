@@ -411,6 +411,7 @@ def _generate_multi_country_summary(
                 "country_label": _country_label(country),
                 "sales": data.get("sales", {}),
                 "week_sales": data.get("week_sales", {}),
+                "prev_week_sales": data.get("prev_week_sales", {}),
                 "inventory": data.get("inventory", {}),
                 "ads": data.get("ads", {}),
                 "returns": data.get("returns", {}),
@@ -442,9 +443,30 @@ def _fallback_multi_country_summary(
     for country, data in country_data.items():
         label = _country_label(country)
         sales = data.get("sales", {})
+        week_sales = data.get("week_sales", {})
+        inventory = data.get("inventory", {})
+
         qty = sales.get("yesterday_qty", 0)
         amt = sales.get("yesterday_amount", 0)
-        parts.append(f"- {label}：今日 {qty} 单，销售额 {_fmt_currency(amt, country)}")
+        change_pct = sales.get("change_pct", 0.0)
+        p7d_qty = week_sales.get("week_qty", 0)
+        p7d_amt = week_sales.get("week_amount", 0.0)
+
+        total_available = inventory.get("total_available", 0)
+        in_transit = inventory.get("in_transit", 0)
+
+        dir_label = "增长" if change_pct >= 0 else "下降"
+        amt_str = f"/{_fmt_currency(amt, country)}" if amt > 0 else ""
+        p7d_amt_str = f"/{_fmt_currency(p7d_amt, country)}" if p7d_amt > 0 else ""
+
+        line = f"◉ {label}昨日销量{qty}单{amt_str}，较前一日{dir_label}{abs(change_pct):.1f}%（近7天累计{p7d_qty}单{p7d_amt_str}）"
+
+        inv_parts = [f"库存{total_available}件"]
+        if in_transit > 0:
+            inv_parts.append(f"在途{in_transit}件")
+        line += f"，（{'，'.join(inv_parts)}）"
+
+        parts.append(line)
     return "\n".join(parts)
 
 
