@@ -226,7 +226,7 @@ export default function DashboardPage() {
     const totalOrders = aggregateMetric(currentRows, 'order_qty')
     const totalAdSpend = aggregateMetric(currentRows, 'ad_spend')
     const totalAdOrders = aggregateMetric(currentRows, 'ad_orders')
-    const acos = totalSales > 0 ? (totalAdSpend / totalSales) * 100 : 0
+    const roas = totalSales > 0 ? (totalAdSpend / totalSales) * 100 : 0
 
     const prevSales = comparisonRows.length > 0 ? aggregateMetric(comparisonRows, 'sales_amount') : 0
     const prevOrders = comparisonRows.length > 0 ? aggregateMetric(comparisonRows, 'order_qty') : 0
@@ -237,11 +237,19 @@ export default function DashboardPage() {
     const salesTrend = currentRows.map((r) => r.sales_amount)
     const orderTrend = currentRows.map((r) => r.order_qty)
 
-    const acosBadge = acos <= 20 ? '优秀' : acos <= 40 ? '正常' : '偏高'
-    const acosBadgeColor = acos <= 20 ? 'green' : acos <= 40 ? 'yellow' : 'red'
+    const roasBadge = roas <= 20 ? '优秀' : roas <= 40 ? '正常' : '偏高'
+    const roasBadgeColor = roas <= 20 ? 'green' : roas <= 40 ? 'yellow' : 'red'
 
     const salesChangeType = salesChange > 0.5 ? 'up' as const : salesChange < -0.5 ? 'down' as const : 'neutral' as const
     const ordersChangeType = ordersChange > 0.5 ? 'up' as const : ordersChange < -0.5 ? 'down' as const : 'neutral' as const
+
+    const dateLabels = currentRows.map((r) => {
+      const [, m, d] = r.date.split('-')
+      return `${Number(m)}/${Number(d)}`
+    })
+    const fmtAdMoney = (v: number) => `$${v.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    const fmtAdNum = (v: number) => v.toLocaleString('zh-CN')
+    const fmtRoas = (v: number) => `${v.toFixed(1)}%`
 
     return [
       {
@@ -250,12 +258,14 @@ export default function DashboardPage() {
         change: fmtPct(salesChange),
         changeType: salesChangeType,
         trend: salesTrend,
+        labels: dateLabels,
+        formatValue: fmtAdMoney,
         icon: (
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         ),
-        accentColor: 'hsl(var(--secondary))',
+        accentColor: 'hsl(var(--chart-1))',
       },
       {
         title: '订单量',
@@ -263,26 +273,30 @@ export default function DashboardPage() {
         change: fmtPct(ordersChange),
         changeType: ordersChangeType,
         trend: orderTrend,
+        labels: dateLabels,
+        formatValue: fmtAdNum,
         icon: (
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
           </svg>
         ),
-        accentColor: 'hsl(var(--chart-2))',
+        accentColor: 'hsl(var(--chart-3))',
       },
       {
-        title: '广告成本比',
-        value: `${acos.toFixed(1)}%`,
-        change: totalAdSpend > 0 ? fmtPct(-acos) : '—',
-        changeType: (acos <= 20 ? 'up' : acos >= 40 ? 'down' : 'neutral') as 'up' | 'down' | 'neutral',
+        title: '广告投放比',
+        value: `${roas.toFixed(1)}%`,
+        change: totalAdSpend > 0 ? fmtPct(-roas) : '—',
+        changeType: (roas <= 20 ? 'up' : roas >= 40 ? 'down' : 'neutral') as 'up' | 'down' | 'neutral',
         trend: orderTrend,
+        labels: dateLabels,
+        formatValue: fmtRoas,
         icon: (
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
           </svg>
         ),
-        badge: acosBadge,
-        badgeColor: acosBadgeColor,
+        badge: roasBadge,
+        badgeColor: roasBadgeColor,
       },
       {
         title: '广告花费',
@@ -292,12 +306,14 @@ export default function DashboardPage() {
           ? (totalAdSpend > aggregateMetric(comparisonRows, 'ad_spend') ? 'down' : 'up') as 'up' | 'down'
           : 'neutral' as 'up' | 'down' | 'neutral',
         trend: currentRows.map((r) => r.ad_spend),
+        labels: dateLabels,
+        formatValue: fmtAdMoney,
         icon: (
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
           </svg>
         ),
-        accentColor: 'hsl(var(--chart-4))',
+        accentColor: 'hsl(var(--chart-1))',
       },
     ] satisfies MetricTileProps[]
   }, [currentRows, comparisonRows])

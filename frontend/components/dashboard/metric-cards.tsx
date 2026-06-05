@@ -135,7 +135,7 @@ export function MetricCards({ metrics, loading = false }: MetricCardsProps) {
         icon: <Users className="h-4 w-4" />,
       },
       {
-        title: '广告成本比',
+        title: '广告投放比',
         value: '0.0%',
         change: '0.0%',
         changeType: 'neutral' as const,
