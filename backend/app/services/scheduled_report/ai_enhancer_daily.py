@@ -24,10 +24,18 @@ SYSTEM_PROMPT = """你是一位跨境电商运营专家。请根据用户提供�
 - 错误示例："昨日6单，较前一日大幅下降（近7天累计39单）" → 这是拿单日 vs 7天累计得出"大幅下降"，逻辑错误
 - 正确示例："昨日6单/141.94欧元，较前一日增长12.5%（近7天累计39单/981.04欧元）"
 
+⚠️ 货币单位（必须与站点匹配）：
+- 美国站(US) → 美元(USD), 金额写如 "$1,234.56" 或 "1,234.56美元"
+- 德国站(DE) → 欧元(EUR), 金额写如 "€1,234.56" 或 "1,234.56欧元"
+- 英国站(UK) → 英镑(GBP), 金额写如 "£1,234.56" 或 "1,234.56英镑"
+- 数据中的 country 字段标识站点，金额必须使用对应站点货币
+- 绝对不能对美国站使用欧元，或对英国站使用美元
+
 强制格式规则：
 1. **近7天累计数据**必须跟在单日数据后面，用括号标注：
-   格式：`（近7天累计{quantity}单/{amount}欧元）`
-   示例：`昨日6单/141.94欧元，较前一日增长12.5%（近7天累计39单/981.04欧元）`
+   格式：`（近7天累计{quantity}单/{amount}）`
+   示例（德国站）：`昨日6单/€141.94，较前一日增长12.5%（近7天累计39单/€981.04）`
+   示例（美国站）：`昨日6单/$1,234.56，较前一日增长12.5%（近7天累计39单/$9,810.40）`
 2. **库存状况**必须包含可用库存和在途数量：
    格式：`库存{total_available}件在途{in_transit}件`
    示例：`库存285件在途665件`
@@ -105,6 +113,7 @@ def generate_ai_summary(
             format_project_context_for_prompt,
             format_sku_context_for_prompt,
         )
+        from app.services.scheduled_report.email_sender import CURRENCY_SYMBOLS, CURRENCY_CODES
 
         # Separate context fields from data for structured prompt
         ctx_project = report_data.get("project_context")
@@ -115,6 +124,20 @@ def generate_ai_summary(
             k: v for k, v in report_data.items()
             if k not in ("project_context", "sku_context", "sku_factory_info_text")
         }
+
+        # Inject currency mapping for each country in the data
+        is_multi = bool(report_data.get("multi_country") or report_data.get("countries"))
+        if is_multi:
+            country_codes = list(report_data.get("countries", {}).keys())
+        else:
+            country_codes = [report_data.get("country", "US")]
+        currency_note_lines = []
+        for cc in country_codes:
+            symbol = CURRENCY_SYMBOLS.get(cc, "$")
+            code = CURRENCY_CODES.get(cc, "USD")
+            currency_note_lines.append(f"  - {cc} → {symbol} ({code})")
+        currency_note = "\n".join(currency_note_lines)
+
         data_str = json.dumps(display_data, ensure_ascii=False, indent=2)
 
         project_context_text = format_project_context_for_prompt(ctx_project)
@@ -125,6 +148,9 @@ def generate_ai_summary(
 ```json
 {data_str}
 ```
+
+## 货币对照表（必须严格遵守）
+{currency_note}
 
 ## 项目背景信息（由运营人员填写）
 
@@ -158,6 +184,7 @@ def _generate_fallback_summary(frequency: str, report_data: dict[str, Any]) -> s
     prev_week_sales = report_data.get("prev_week_sales", {})
     inventory = report_data.get("inventory", {})
     ads = report_data.get("ads", {})
+    country = report_data.get("country", "US")
 
     today_qty = sales.get("yesterday_qty", 0)
     today_amt = sales.get("yesterday_amount", 0.0)
@@ -182,8 +209,8 @@ def _generate_fallback_summary(frequency: str, report_data: dict[str, Any]) -> s
     lines = []
 
     dir_icon = "↑" if vs_prev >= 0 else "↓"
-    amt_str = f"/{_fmt_curr(today_amt)}" if today_amt > 0 else ""
-    p7d_amt_str = f"/{_fmt_curr(p7d_amt)}" if p7d_amt > 0 else ""
+    amt_str = f"/{_fmt_curr(today_amt, country)}" if today_amt > 0 else ""
+    p7d_amt_str = f"/{_fmt_curr(p7d_amt, country)}" if p7d_amt > 0 else ""
     lines.append(
         f"- 昨日销量{today_qty}单{amt_str}，较前一日"
         f"{'增长' if vs_prev >= 0 else '下降'}{abs(vs_prev):.1f}%"
@@ -206,7 +233,11 @@ def _generate_fallback_summary(frequency: str, report_data: dict[str, Any]) -> s
     return "\n".join(lines)
 
 
-def _fmt_curr(amount: float) -> str:
+def _fmt_curr(amount: float, country: str = "") -> str:
+    symbols = {"US": "$", "DE": "€", "UK": "£"}
+    units = {"US": "美元", "DE": "欧元", "UK": "英镑"}
+    symbol = symbols.get(country, "$")
+    unit = units.get(country, "美元")
     if amount >= 1000:
-        return f"{amount:,.0f}欧元"
-    return f"{amount:.2f}欧元"
+        return f"{symbol}{amount:,.0f}"
+    return f"{symbol}{amount:.2f}"
