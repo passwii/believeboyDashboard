@@ -76,6 +76,7 @@ export interface DashboardOverviewResponse {
 interface UseDashboardOverviewOptions {
   country?: string
   days?: number
+  referenceDate?: string
   enabled?: boolean
 }
 
@@ -94,7 +95,7 @@ type ProjectItem = { id: number; name: string }
 export function useDashboardOverview(
   options: UseDashboardOverviewOptions = {}
 ): UseDashboardOverviewReturn {
-  const { country = 'US', days = 7, enabled = true } = options
+  const { country = 'US', days = 7, referenceDate, enabled = true } = options
   const { notify } = useNotifications()
   const [contextError, setContextError] = useState<Error | null>(null)
   // Keep last good query string so retry uses the same params
@@ -107,6 +108,7 @@ export function useDashboardOverview(
       const projectIds = projects.map((p) => p.id).join(',')
       const params = new URLSearchParams({ country, days: String(days) })
       if (projectIds) params.set('project_ids', projectIds)
+      if (referenceDate) params.set('reference_date', referenceDate)
       lastQueryRef.current = params.toString()
 
       const res = await fetch(`/api/backend/api/v1/dashboard/overview?${params}`, { signal })
@@ -117,7 +119,7 @@ export function useDashboardOverview(
       }
       return (await res.json()) as DashboardOverviewResponse
     },
-    [country, days]
+    [country, days, referenceDate]
   )
 
   const { data, loading, error, retry } = useApiQuery<DashboardOverviewResponse>(loader, {

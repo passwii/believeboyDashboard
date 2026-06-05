@@ -45,7 +45,7 @@ export function DashboardToolbar({
           )}
         >
           <CalendarDays className="h-3.5 w-3.5" />
-          每周销售概况
+          近7日概况
         </button>
       </div>
 
