@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { ArrowDown, ArrowUp, Minus } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
@@ -10,6 +11,10 @@ export interface MetricTileProps {
   change: string
   changeType: 'up' | 'down' | 'neutral'
   trend: number[]
+  /** Date labels for tooltip (e.g. ["6/1", "6/2", ...]) */
+  labels?: string[]
+  /** Formats a trend value for the tooltip display */
+  formatValue?: (value: number) => string
   icon: React.ReactNode
   accentColor?: string
   badge?: string
@@ -38,7 +43,7 @@ function TileCard({ children, className }: { children: React.ReactNode; classNam
   return (
     <div
       className={cn(
-        'hover-lift animate-enter relative rounded-xl border border-border/50 bg-background/70 p-5 backdrop-blur-sm transition-all duration-200',
+        'hover-lift animate-enter relative flex flex-col rounded-xl border border-border/50 bg-background/70 backdrop-blur-sm transition-all duration-200 overflow-hidden',
         className
       )}
     >
@@ -47,54 +52,147 @@ function TileCard({ children, className }: { children: React.ReactNode; classNam
   )
 }
 
-function SparkLineSvg({
-  gradientId,
-  accentColor,
-  children,
-}: {
-  gradientId: string
-  accentColor?: string
-  children: React.ReactNode
-}) {
-  const color = accentColor || 'hsl(var(--secondary))'
-  return (
-    <svg viewBox="0 0 100 30" className="h-full w-full overflow-visible">
-      <defs>
-        <linearGradient id={`spark-${gradientId}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.22" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      {children}
-    </svg>
-  )
-}
-
-function buildSparklinePath(trend: number[]): string {
+function toSvgPoints(trend: number[]): Array<{ x: number; y: number }> {
   const max = Math.max(...trend, 1)
   const min = Math.min(...trend)
   const range = Math.max(max - min, 1)
-  return trend
-    .map((point, index) => {
-      const x = (index / Math.max(trend.length - 1, 1)) * 100
-      const y = 28 - ((point - min) / range) * 22
-      return `${index === 0 ? 'M' : 'L'} ${x} ${y}`
-    })
-    .join(' ')
+  return trend.map((point, index) => ({
+    x: (index / Math.max(trend.length - 1, 1)) * 100,
+    y: 100 - ((point - min) / range) * 76 - 6,
+  }))
 }
 
-function AcosTile({
+function buildPath(points: Array<{ x: number; y: number }>): string {
+  if (points.length === 0) return ''
+  return points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
+}
+
+function buildAreaPath(points: Array<{ x: number; y: number }>): string {
+  const curve = buildPath(points)
+  if (!curve) return ''
+  return `${curve} L ${points[points.length - 1].x} 100 L ${points[0].x} 100 Z`
+}
+
+function AreaSparkline({
+  trend,
+  gradientId,
+  strokeColor,
+  strokeWidth = 2.5,
+  labels,
+  formatValue = (v: number) => String(v),
+}: {
+  trend: number[]
+  gradientId: string
+  strokeColor: string
+  strokeWidth?: number
+  labels?: string[]
+  formatValue?: (value: number) => string
+}) {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
+  const points = toSvgPoints(trend)
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = ((e.clientX - rect.left) / rect.width) * 100
+
+    const segmentWidth = 100 / Math.max(trend.length - 1, 1)
+    const index = Math.round(x / segmentWidth)
+    setHoveredIndex(Math.min(index, trend.length - 1))
+  }
+
+  const handleMouseLeave = () => {
+    setHoveredIndex(null)
+  }
+
+  const hoveredPoint = hoveredIndex !== null ? points[hoveredIndex] : null
+
+  return (
+    <div
+      className="relative w-full h-full"
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+    >
+      {hoveredIndex !== null && (
+        <div
+          className="pointer-events-none absolute z-10"
+          style={{
+            bottom: 'calc(100% + 6px)',
+            left: `${(hoveredIndex / Math.max(trend.length - 1, 1)) * 100}%`,
+            transform: 'translateX(-50%)',
+          }}
+        >
+          <div className="bg-foreground text-background text-[11px] font-medium rounded-lg px-2.5 py-1.5 whitespace-nowrap shadow-lg">
+            {labels?.[hoveredIndex] && (
+              <span className="opacity-60">{labels[hoveredIndex]} · </span>
+            )}
+            <span>{formatValue(trend[hoveredIndex])}</span>
+          </div>
+        </div>
+      )}
+      <svg
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+        className="h-full w-full"
+        style={{ cursor: 'pointer' }}
+      >
+        <defs>
+          <linearGradient id={`spark-fill-${gradientId}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={strokeColor} stopOpacity="0.28" />
+            <stop offset="100%" stopColor={strokeColor} stopOpacity="0.02" />
+          </linearGradient>
+        </defs>
+        <path
+          d={buildAreaPath(points)}
+          fill={`url(#spark-fill-${gradientId})`}
+        />
+        <path
+          d={buildPath(points)}
+          fill="none"
+          stroke={strokeColor}
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        {hoveredPoint && (
+          <>
+            <line
+              x1={hoveredPoint.x}
+              y1={0}
+              x2={hoveredPoint.x}
+              y2={100}
+              stroke={strokeColor}
+              strokeWidth={1}
+              strokeDasharray="3 3"
+              opacity={0.35}
+            />
+            <circle
+              cx={hoveredPoint.x}
+              cy={hoveredPoint.y}
+              r={3.5}
+              fill={strokeColor}
+              stroke="white"
+              strokeWidth={2}
+            />
+          </>
+        )}
+      </svg>
+    </div>
+  )
+}
+
+function RoasTile({
   title,
   value,
   change,
   changeType,
   trend,
+  labels,
+  formatValue,
   icon,
   badge,
   badgeColor,
 }: MetricTileProps) {
   const gradientId = title.toLowerCase().replace(/\s+/g, '-')
-  const path = buildSparklinePath(trend)
 
   const bgClass = cn(
     badgeColor === 'green' && 'bg-secondary/5',
@@ -104,10 +202,10 @@ function AcosTile({
 
   return (
     <TileCard className={bgClass}>
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex flex-col gap-1.5">
+      <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-2">
+        <div className="flex flex-col gap-1">
           <p className="dashboard-kicker">{title}</p>
-          <p className="dashboard-display text-[clamp(1.8rem,2.8vw,2.6rem)]">{value}</p>
+          <p className="dashboard-display text-[clamp(1.6rem,2.6vw,2.4rem)] leading-none">{value}</p>
           <div className="flex items-center gap-1.5">
             <ChangeIndicator change={change} type={changeType} />
             {badge && (
@@ -124,13 +222,16 @@ function AcosTile({
             )}
           </div>
         </div>
-        <div className="rounded-lg bg-secondary/10 p-2.5 text-secondary">{icon}</div>
+        <div className="rounded-lg bg-[hsl(var(--chart-3))]/10 p-2.5 text-[hsl(var(--chart-3))]">{icon}</div>
       </div>
-      <div className="mt-2 h-8 w-full">
-        <SparkLineSvg gradientId={gradientId}>
-          <path d={`${path} L 100 30 L 0 30 Z`} fill={`url(#spark-${gradientId})`} />
-          <path d={path} fill="none" stroke="hsl(var(--secondary))" strokeWidth="2.25" strokeLinecap="round" />
-        </SparkLineSvg>
+      <div className="flex-1 min-h-[72px] px-5 pb-4 pt-1">
+        <AreaSparkline
+          trend={trend}
+          gradientId={gradientId}
+          strokeColor="hsl(var(--chart-3))"
+          labels={labels}
+          formatValue={formatValue}
+        />
       </div>
     </TileCard>
   )
@@ -142,28 +243,32 @@ function DefaultTile({
   change,
   changeType,
   trend,
+  labels,
+  formatValue,
   icon,
   accentColor,
 }: MetricTileProps) {
   const gradientId = title.toLowerCase().replace(/\s+/g, '-')
-  const path = buildSparklinePath(trend)
   const lineColor = accentColor || 'hsl(var(--secondary))'
 
   return (
     <TileCard>
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex flex-col gap-1.5">
+      <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-2">
+        <div className="flex flex-col gap-1">
           <p className="dashboard-kicker">{title}</p>
-          <p className="dashboard-display text-[clamp(1.8rem,2.8vw,2.6rem)]">{value}</p>
+          <p className="dashboard-display text-[clamp(1.6rem,2.6vw,2.4rem)] leading-none">{value}</p>
           <ChangeIndicator change={change} type={changeType} />
         </div>
         <div className="rounded-lg bg-secondary/10 p-2.5 text-secondary">{icon}</div>
       </div>
-      <div className="mt-2 h-8 w-full">
-        <SparkLineSvg gradientId={gradientId} accentColor={lineColor}>
-          <path d={`${path} L 100 30 L 0 30 Z`} fill={`url(#spark-${gradientId})`} />
-          <path d={path} fill="none" stroke={lineColor} strokeWidth="2.25" strokeLinecap="round" />
-        </SparkLineSvg>
+      <div className="flex-1 min-h-[72px] px-5 pb-4 pt-1">
+        <AreaSparkline
+          trend={trend}
+          gradientId={gradientId}
+          strokeColor={lineColor}
+          labels={labels}
+          formatValue={formatValue}
+        />
       </div>
     </TileCard>
   )
@@ -171,16 +276,18 @@ function DefaultTile({
 
 function MetricTileSkeleton() {
   return (
-    <div className="rounded-xl border border-border/50 bg-background/70 p-5 backdrop-blur-sm">
-      <div className="flex items-start justify-between gap-2">
+    <div className="flex flex-col rounded-xl border border-border/50 bg-background/70 backdrop-blur-sm">
+      <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-2">
         <div className="flex flex-col gap-2">
           <Skeleton className="h-3 w-16" />
-          <Skeleton className="h-8 w-32" />
+          <Skeleton className="h-8 w-28" />
           <Skeleton className="h-3 w-14" />
         </div>
         <Skeleton className="h-10 w-10 rounded-lg" />
       </div>
-      <Skeleton className="mt-2 h-8 w-full rounded" />
+      <div className="flex-1 min-h-[72px] px-5 pb-4 pt-1">
+        <Skeleton className="h-full w-full rounded" />
+      </div>
     </div>
   )
 }
@@ -214,17 +321,17 @@ export function DashboardMetricTiles({ metrics, loading = false }: DashboardMetr
   return (
     <div className="grid grid-cols-2 gap-4">
       {metrics.map((metric) =>
-        metric.title === '广告成本比' ? (
-          <AcosTile key={metric.title} {...metric} />
+        metric.title === '广告投放比' ? (
+          <RoasTile key={metric.title} {...metric} />
         ) : (
           <DefaultTile
             key={metric.title}
             {...metric}
             accentColor={
               metric.title === '销售额'
-                ? 'hsl(var(--secondary))'
+                ? 'hsl(var(--chart-1))'
                 : metric.title === '订单量'
-                  ? 'hsl(var(--chart-2))'
+                  ? 'hsl(var(--chart-3))'
                   : undefined
             }
           />
