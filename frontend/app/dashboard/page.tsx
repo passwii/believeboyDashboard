@@ -219,14 +219,6 @@ export default function DashboardPage() {
     if (projects.length > 0) void loadData()
   }, [projects, loadData])
 
-  if (status === 'loading') {
-    return <DashboardPageLoading />
-  }
-
-  if (roleType === 'factory') {
-    return <FactoryDashboard operatorName={operatorName} />
-  }
-
   const metrics = useMemo(() => {
     if (currentRows.length === 0) return undefined
 
@@ -322,6 +314,14 @@ export default function DashboardPage() {
   }
 
   const anyLoading = dataLoading || overviewLoading || projectsLoading
+
+  if (status === 'loading') {
+    return <DashboardPageLoading />
+  }
+
+  if (roleType === 'factory') {
+    return <FactoryDashboard operatorName={operatorName} />
+  }
 
   return (
     <div className="space-y-5">
