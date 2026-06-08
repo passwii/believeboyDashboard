@@ -9,7 +9,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from config import AD_PROCESSED_SUBDIR, CHECK_INTERVAL_MINUTES, IGNORED_DIRS, IS_LOCAL, IS_WINDOWS, PROCESSED_SUBDIR, PROJECTS, SUPPORTED_EXTENSIONS, WATCH_ROOT
+from config import AD_PROCESSED_SUBDIR, CHECK_INTERVAL_MINUTES, IGNORED_DIRS, IS_LOCAL, PROCESSED_SUBDIR, PROJECTS, SUPPORTED_EXTENSIONS, WATCH_ROOT
 from db import Session, check_db_health, get_db_session, get_db_session_with_retry, reconnect_engine
 from processor import ProcessResult, process_file
 try:
@@ -383,7 +383,7 @@ def main_loop(dry_run: bool = False, mode: str = "watchdog") -> None:
     logs_dir = Path(__file__).parent / "logs"
     logger = RunLogger(logs_dir)
 
-    platform_label = "Windows" if IS_WINDOWS else "macOS"
+    platform_label = "macOS"
     env_label = "本地(local)" if IS_LOCAL else "生产(production)"
     move_label = "不移动" if IS_LOCAL else "移动到 processed/"
     logger.info("=" * 60)

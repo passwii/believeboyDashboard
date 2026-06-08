@@ -13,7 +13,6 @@ IS_LOCAL = ENV == "local"
 IS_PRODUCTION = ENV == "production"
 
 # ─── Platform detection ────────────────────────────────────────────────────────
-IS_WINDOWS = platform.system() == "Windows"
 IS_MAC = platform.system() == "Darwin"
 
 # OneDrive sync root — contains sub-folders named after each project
@@ -23,18 +22,11 @@ WATCH_ROOT_MAC = Path(
     "BLF-运营中心 - 文档/W_Sync_Docs"
 )
 
-# Windows: OneDrive local sync folder (EDY's machine)
-WATCH_ROOT_WINDOWS = Path(
-    r"C:\Users\EDY\OneDrive - Believeboys Team\BLF-运营中心 - 文档\W_Sync_Docs"
-)
-
 # Auto-select based on platform; env var overrides everything
 def _resolve_watch_root() -> Path:
     env_path = os.environ.get("WATCH_ROOT", "").strip()
     if env_path:
         return Path(env_path)
-    if IS_WINDOWS:
-        return WATCH_ROOT_WINDOWS
     return WATCH_ROOT_MAC
 
 WATCH_ROOT = _resolve_watch_root()
