@@ -234,6 +234,7 @@ def parse_payment_rows(
     known_skus: set[str],
     known_asins: set[str],
 ) -> tuple[list[dict[str, Any]], int, int]:
+    df = df.copy()
     numeric_cols = [
         "quantity",
         "product sales",
