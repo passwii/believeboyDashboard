@@ -188,12 +188,12 @@ def _prepare_ingest_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     if '开始日期' in prepared.columns:
         first_start = prepared['开始日期'].dropna()
         if not first_start.empty:
-            prepared['开始日期'] = prepared['开始日期'].fillna(first_start.iloc[0])
+            prepared.loc[:, '开始日期'] = prepared['开始日期'].fillna(first_start.iloc[0])
 
     if '结束日期' in prepared.columns:
         first_end = prepared['结束日期'].dropna()
         if not first_end.empty:
-            prepared['结束日期'] = prepared['结束日期'].fillna(first_end.iloc[0])
+            prepared.loc[:, '结束日期'] = prepared['结束日期'].fillna(first_end.iloc[0])
 
     return prepared
 
