@@ -65,6 +65,9 @@ update_extensions.sql
 /frontend/.vercel/
 /frontend/.env*.local
 !/frontend/.env.local
+
+# vitest 覆盖率/缓存产物（VAT 发票模块新增）
+/frontend/coverage/
 /frontend/.env.local.example
 /frontend/*.tsbuildinfo
 /frontend/next-env.d.ts
