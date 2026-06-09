@@ -36,11 +36,12 @@ BACKEND_DIR = f"{PROJECT_DIR}backend/"
 VENV_ACTIVATE = "source /home/damon/believeboyDashboard/backend/.venv/bin/activate"
 
 # 部署命令（在 VPS 上执行）
+# 注意：systemctl 操作需 damon 用户有 NOPASSWD sudo 权限（见 /etc/sudoers.d/damon-systemctl）
+# 在没有交互 TTY 的非交互 ssh 下，polkit 会拒绝 start/stop，所以用 sudo 走传统 sudo 鉴权
 DEPLOY_COMMANDS = [
     f"cd {PROJECT_DIR} && git pull",
     f"cd {BACKEND_DIR} && {VENV_ACTIVATE} && alembic upgrade head",
-    "systemctl stop believeboy-api",
-    "systemctl start believeboy-api",
+    "sudo systemctl restart believeboy-api",
     "systemctl status believeboy-api --no-pager",
 ]
 
