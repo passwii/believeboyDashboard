@@ -44,7 +44,8 @@ export interface InvoiceBuyer {
 
 /** 完整发票表单（前端 state，不持久化） */
 export interface InvoiceForm {
-  project_id: number
+  /** 选中的店铺 ID；null = 未选 */
+  project_id: number | null
   currency: Currency
   order_id: string
   bill_id: string

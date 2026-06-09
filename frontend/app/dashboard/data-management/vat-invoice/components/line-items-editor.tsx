@@ -46,6 +46,22 @@ export function LineItemsEditor({ form, currencySymbol, onChange }: LineItemsEdi
     })
   }
 
+  // 数字输入：允许临时空字符串态，blur/onBlur 时再 clamp 到合法值。
+  // 避免 "1 → 删成 '' → 跳 1" 这种无法输入两位数的问题。
+  const handleNumberInput = (
+    idx: number,
+    key: "qty" | "unit_price_incl_vat",
+    raw: string,
+    min: number,
+  ) => {
+    if (raw === "") {
+      updateRow(idx, { [key]: min } as Partial<InvoiceLineItem>)
+      return
+    }
+    const n = Number(raw)
+    updateRow(idx, { [key]: Number.isFinite(n) ? Math.max(min, n) : min } as Partial<InvoiceLineItem>)
+  }
+
   const addRow = () => {
     onChange({ ...form, line_items: [...items, makeBlankItem()] })
   }
@@ -111,9 +127,7 @@ export function LineItemsEditor({ form, currencySymbol, onChange }: LineItemsEdi
                       min={1}
                       step={1}
                       value={it.qty}
-                      onChange={(e) =>
-                        updateRow(idx, { qty: Math.max(1, Number(e.target.value) || 1) })
-                      }
+                      onChange={(e) => handleNumberInput(idx, "qty", e.target.value, 1)}
                       className="text-right"
                     />
                   </div>
@@ -125,9 +139,7 @@ export function LineItemsEditor({ form, currencySymbol, onChange }: LineItemsEdi
                       step={0.01}
                       value={it.unit_price_incl_vat}
                       onChange={(e) =>
-                        updateRow(idx, {
-                          unit_price_incl_vat: Math.max(0, Number(e.target.value) || 0),
-                        })
+                        handleNumberInput(idx, "unit_price_incl_vat", e.target.value, 0)
                       }
                       className="text-right"
                       placeholder="0.00"
@@ -185,12 +197,18 @@ export function LineItemsEditor({ form, currencySymbol, onChange }: LineItemsEdi
                   min={0}
                   step={0.01}
                   value={form.shipping_incl_vat}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    const raw = e.target.value
+                    if (raw === "") {
+                      onChange({ ...form, shipping_incl_vat: 0 })
+                      return
+                    }
+                    const n = Number(raw)
                     onChange({
                       ...form,
-                      shipping_incl_vat: Math.max(0, Number(e.target.value) || 0),
+                      shipping_incl_vat: Number.isFinite(n) ? Math.max(0, n) : 0,
                     })
-                  }
+                  }}
                   className="text-right"
                   placeholder="0.00"
                   aria-label="运费（含税）"

@@ -137,9 +137,7 @@ export function SellerCard({
     return () => {
       alive = false
     }
-    // onSellerChange 是 props 引用，故意省略避免循环
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProjectId, projects])
+  }, [selectedProjectId, projects, onSellerChange])
 
   const openEdit = () => {
     setEditDraft(seller)

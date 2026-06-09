@@ -37,7 +37,9 @@ export function InvoiceSummary({ form }: InvoiceSummaryProps) {
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         {rows.length === 0 ? (
-          <p className="text-muted-foreground">添加商品行后开始计算。</p>
+          <p className="text-muted-foreground">
+            添加商品行后开始计算（币种：{form.currency} {symbol}）。
+          </p>
         ) : (
           <>
             {/* 按 VAT 率分桶 */}

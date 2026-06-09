@@ -47,6 +47,16 @@ function drawTable(
     acc += c.width
   })
 
+  // 鲁棒性：列宽不能超过 A4 可用宽度
+  const totalWidth = acc - M
+  const maxWidth = PAGE_W - 2 * M
+  if (totalWidth > maxWidth) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `drawTable: 列宽总和 ${totalWidth}mm 超过可用 ${maxWidth}mm，可能溢出页面。`,
+    )
+  }
+
   // header
   doc.setFont("helvetica", "bold")
   doc.setFontSize(9)
@@ -61,7 +71,7 @@ function drawTable(
   // rows
   doc.setFont("helvetica", "normal")
   doc.setFontSize(9)
-  for (const row of rows) {
+  rows.forEach((row, rowIdx) => {
     let rowH = 5
     // 检查换行：description 列（通常是第 0 列）可能换行
     const firstColText = row[0] ?? ""
@@ -69,8 +79,8 @@ function drawTable(
     const lineCount = Math.max(1, firstColLines.length)
     rowH = Math.max(rowH, lineCount * 4.5)
 
-    // zebra
-    if (rows.indexOf(row) % 2 === 1) {
+    // zebra（用 rowIdx 而非 rows.indexOf(row) 避免 O(n²)）
+    if (rowIdx % 2 === 1) {
       doc.setFillColor(248, 250, 252)
       doc.rect(M, y - 4, PAGE_W - 2 * M, rowH, "F")
     }
@@ -82,7 +92,7 @@ function drawTable(
       doc.text(lines, x, y, { align: c.align ?? "left" })
     })
     y += rowH
-  }
+  })
   return y
 }
 
@@ -180,7 +190,7 @@ function drawBillToAndMeta(
   return Math.max(leftEnd, ry) + 4
 }
 
-/** 订单明细表 */
+/** 订单明细表（自动换页支持） */
 function drawOrderTable(doc: jsPDF, form: InvoiceForm, y: number): number {
   doc.setFont("helvetica", "bold")
   doc.setFontSize(11)
@@ -197,14 +207,15 @@ function drawOrderTable(doc: jsPDF, form: InvoiceForm, y: number): number {
     { header: "Subtotal (incl.)", width: 26, align: "right" as const },
   ]
 
-  const rows: string[][] = []
+  // 拆行：行级 ship 与 item 分开渲染，便于换页判断
+  const itemRows: string[][] = []
   for (const it of form.line_items) {
     const sub = splitVat(it.unit_price_incl_vat * it.qty, it.vat_rate)
     const unitExcl = sub.excl / it.qty
     const unitIncl = it.unit_price_incl_vat
     let desc = it.description || "—"
     if (it.asin) desc += `\nASIN: ${it.asin}`
-    rows.push([
+    itemRows.push([
       desc,
       String(it.qty),
       fmtMoney(unitExcl, sym),
@@ -214,22 +225,38 @@ function drawOrderTable(doc: jsPDF, form: InvoiceForm, y: number): number {
     ])
   }
 
-  // shipping row
-  if (form.line_items.length > 0 && form.shipping_incl_vat > 0) {
-    const shipRate = form.line_items[0]!.vat_rate
-    const ship = splitVat(form.shipping_incl_vat, shipRate)
-    rows.push([
-      "Shipping Charges",
-      "—",
-      fmtMoney(ship.excl, sym),
-      fmtPct(shipRate),
-      fmtMoney(form.shipping_incl_vat, sym),
-      fmtMoney(form.shipping_incl_vat, sym),
-    ])
-  }
+  const shippingRow: string[] | null =
+    form.line_items.length > 0 && form.shipping_incl_vat > 0
+      ? (() => {
+          const shipRate = form.line_items[0]!.vat_rate
+          const ship = splitVat(form.shipping_incl_vat, shipRate)
+          return [
+            "Shipping Charges",
+            "—",
+            fmtMoney(ship.excl, sym),
+            fmtPct(shipRate),
+            fmtMoney(form.shipping_incl_vat, sym),
+            fmtMoney(form.shipping_incl_vat, sym),
+          ]
+        })()
+      : null
 
-  y = drawTable(doc, y, columns, rows)
+  y = drawTable(doc, y, columns, itemRows)
+  if (shippingRow) y = drawTable(doc, y, columns, [shippingRow])
   return y + 4
+}
+
+/** 检查 y 是否在安全打印区，否则换页；返回调整后的 y */
+function ensureRoom(
+  doc: jsPDF,
+  y: number,
+  minRoom = 30,
+  onNewPage?: () => void,
+): { y: number; addedPage: boolean } {
+  if (y + minRoom <= PAGE_H - M) return { y, addedPage: false }
+  doc.addPage()
+  if (onNewPage) onNewPage()
+  return { y: M, addedPage: true }
 }
 
 /** 底部汇总：Invoice total + 按 VAT 率分桶 */
@@ -270,7 +297,7 @@ function drawSummary(doc: jsPDF, form: InvoiceForm, rows: SummaryRow[], y: numbe
   return y
 }
 
-/** 页脚 */
+/** 页脚（显示当前页码与总页数） */
 function drawFooter(doc: jsPDF, seller: InvoiceSeller): void {
   const y = PAGE_H - M
   doc.setFont("helvetica", "normal")
@@ -280,11 +307,12 @@ function drawFooter(doc: jsPDF, seller: InvoiceSeller): void {
   if (seller.company_name) lines.push(`VAT declared by ${seller.company_name}`)
   if (seller.vat_id) lines.push(`VAT #: ${seller.vat_id}`)
   doc.text(lines.join(" · "), M, y - 6)
-  doc.text("Page 1 of 1", PAGE_W - M, y, { align: "right" })
+  const pageInfo = `Page ${doc.getCurrentPageInfo().pageNumber}`
+  doc.text(pageInfo, PAGE_W - M, y, { align: "right" })
   doc.setTextColor(0, 0, 0)
 }
 
-/** 主入口 */
+/** 主入口（支持多页：明细很多时自动 addPage） */
 export function drawInvoice(seller: InvoiceSeller, form: InvoiceForm): jsPDF {
   const doc = new jsPDF({ unit: "mm", format: "a4" })
   const rows = summarizeByRate(form)
@@ -293,9 +321,23 @@ export function drawInvoice(seller: InvoiceSeller, form: InvoiceForm): jsPDF {
   y = drawHeader(doc, seller, form)
   y = drawBillToAndMeta(doc, form, seller, y + 4)
   y = drawOrderTable(doc, form, y + 2)
-  if (y > PAGE_H - 80) y = PAGE_H - 80
+
+  // 汇总与页脚若放不下就换页
+  const { y: y2 } = ensureRoom(doc, y, 60)
+  y = y2
   y = drawSummary(doc, form, rows, y)
   drawFooter(doc, seller)
+
+  // 用总页数重写每页的 "Page X of N"
+  const totalPages = doc.getNumberOfPages()
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p)
+    doc.setFont("helvetica", "normal")
+    doc.setFontSize(8)
+    doc.setTextColor(120, 120, 120)
+    doc.text(`Page ${p} of ${totalPages}`, PAGE_W - M, PAGE_H - M, { align: "right" })
+    doc.setTextColor(0, 0, 0)
+  }
 
   return doc
 }
