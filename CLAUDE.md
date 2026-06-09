@@ -258,6 +258,8 @@ pytest tests/path/to/test_file.py::test_name
 - 测试失败 → 立即修复
 - 测试成功 → 继续业务测试
 
+> **前端不引入单元测试框架**（无 vitest / jest / RTL）。前端代码靠 `pnpm build` + `pnpm lint` + 业务测试清单验证。新建纯函数模块时不要主动装 vitest；如果确实需要写单测，先问用户。
+
 ### 规则 2：业务测试（每次必做）
 
 功能完成后，AI agent 必须提供**业务测试清单**给用户，用户手动执行并反馈。
