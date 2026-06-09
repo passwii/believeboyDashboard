@@ -24,6 +24,7 @@ export const DASHBOARD_PAGE_TITLES: Array<{ match: string; title: string }> = [
  { match: '/system-management/logs', title: '日志查看' },
  { match: '/system-management/scheduled-reports', title: '定时报告' },
  { match: '/data-management/auto-upload', title: '报表自动化' },
+ { match: '/data-management/vat-invoice', title: 'VAT 发票生成器' },
  { match: '/data-management/platform-revenue', title: '平台回款' },
  { match: '/data-management/platform-inspection', title: '平台巡检' },
  { match: '/operations/site-navigation', title: '跨境平台书签导航' },
