@@ -29,11 +29,11 @@ import json
 import os
 
 # VPS 配置
-VPS_HOST = "145.79.143.98"
-VPS_USER = "root"
-PROJECT_DIR = "/root/believeboyDashboard/"
+VPS_HOST = "192.168.100.113"
+VPS_USER = "damon"
+PROJECT_DIR = "/home/damon/believeboyDashboard/"
 BACKEND_DIR = f"{PROJECT_DIR}backend/"
-VENV_ACTIVATE = "source /root/believeboyDashboard/backend/.venv/bin/activate"
+VENV_ACTIVATE = "source /home/damon/believeboyDashboard/backend/.venv/bin/activate"
 
 # 部署命令（在 VPS 上执行）
 DEPLOY_COMMANDS = [
