@@ -15,6 +15,7 @@ import {
  LayoutDashboard,
  Layers,
  Package,
+ Receipt,
  Repeat,
  Repeat2,
  RotateCcw,
@@ -77,6 +78,7 @@ const IconMap = {
  ShoppingCart,
  History,
  Package,
+ Receipt,
  Repeat,
  Repeat2,
  Warehouse,
@@ -200,6 +202,7 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
  { title: '汇率信息', url: '/dashboard/data-management/exchange-rate', icon: IconMap.DollarSign },
  { title: '平台回款', url: '/dashboard/data-management/platform-revenue', icon: IconMap.Banknote },
  { title: '报表自动化', url: '/dashboard/data-management/auto-upload', icon: IconMap.Zap },
+ { title: 'VAT 发票', url: '/dashboard/data-management/vat-invoice', icon: IconMap.Receipt },
  ],
  },
 
