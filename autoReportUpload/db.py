@@ -8,16 +8,10 @@ import time
 from pathlib import Path
 from typing import Generator
 
-from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import DBAPIError, OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 
-# Load .env from the same directory as this file
-_env_path = Path(__file__).parent / ".env"
-load_dotenv(_env_path)
-
-# Import config so that ENV is evaluated and defaults are set before we read DB url
 from config import DATABASE_URL  # noqa: E402
 
 logger = logging.getLogger("autorun.db")

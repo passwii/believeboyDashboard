@@ -9,69 +9,9 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from config import AD_PROCESSED_SUBDIR, CHECK_INTERVAL_MINUTES, IGNORED_DIRS, IS_LOCAL, PROCESSED_SUBDIR, PROJECTS, SUPPORTED_EXTENSIONS, WATCH_ROOT
+from config import AD_PROCESSED_SUBDIR, CHECK_INTERVAL_MINUTES, IGNORED_DIRS, PROCESSED_SUBDIR, PROJECTS, SUPPORTED_EXTENSIONS, WATCH_ROOT
 from db import Session, check_db_health, get_db_session, get_db_session_with_retry, reconnect_engine
 from processor import ProcessResult, process_file
-try:
-    from client import report_scan_start, report_scan_progress, report_scan_complete, report_scan_error
-    HAS_CLIENT = True
-except ImportError:
-    HAS_CLIENT = False
-
-
-# ─── File stability check ─────────────────────────────────────────────────────
-# OneDrive / cloud-sync files may appear in the filesystem before they are
-# fully downloaded. Reading a partially-downloaded .xlsx produces garbled or
-# incomplete column data, causing recognition to fail ("未知报表").
-# The fix: poll the file size at intervals until it stops changing, with a
-# maximum wait so we don't hang indefinitely.
-
-_STABLE_POLL_INTERVAL = 1.0       # seconds between size checks
-_STABLE_MAX_WAIT = 30.0           # maximum seconds to wait for stability
-_STABLE_REQUIRED_POLLS = 2        # how many consecutive same-size checks
-
-
-def _wait_for_file_stable(path: Path, logger: logging.Logger) -> bool:
-    """Block until *path* stops changing in size, or until timeout.
-
-    Returns True if the file appears stable; False if we gave up.
-    """
-    if not path.exists():
-        logger.warning("[watchdog] 文件稳定性检查: 文件不存在 %s", path.name)
-        return False
-
-    prev_size = -1
-    stable_count = 0
-    waited = 0.0
-
-    while waited < _STABLE_MAX_WAIT:
-        try:
-            current_size = path.stat().st_size
-        except OSError:
-            logger.warning("[watchdog] 文件稳定性检查: 无法读取 %s", path.name)
-            return False
-
-        if current_size == prev_size and current_size > 0:
-            stable_count += 1
-            if stable_count >= _STABLE_REQUIRED_POLLS:
-                logger.debug(
-                    "[watchdog] 文件已稳定: %s (%d bytes, 等 %.1fs)",
-                    path.name, current_size, waited,
-                )
-                return True
-        else:
-            stable_count = 0
-
-        prev_size = current_size
-        time.sleep(_STABLE_POLL_INTERVAL)
-        waited += _STABLE_POLL_INTERVAL
-
-    # Timeout — file is still changing. Process anyway (better than skipping).
-    logger.warning(
-        "[watchdog] 文件稳定性检查超时: %s (仍为 %d bytes, 等 %.1fs, 继续处理)",
-        path.name, prev_size, waited,
-    )
-    return True
 
 
 class RunLogger:
@@ -112,12 +52,6 @@ class RunLogger:
     def error(self, msg: str, *args) -> None:
         self.logger.error(msg, *args)
 
-    def _fixed(self, text: str, width: int) -> str:
-        """Pad a string to fixed width, counting CJK chars as 2 cells."""
-        # Count visual width (CJK = 2, ASCII/digit/symbol = 1)
-        visual = sum(2 if ord(c) > 0x4E00 and ord(c) < 0x9FFF else 1 for c in text)
-        return text + " " * (width - visual)
-
     def result(self, file_path: Path, project: str, result: ProcessResult) -> None:
         # 状态标签
         if result.skipped:
@@ -130,47 +64,41 @@ class RunLogger:
         # 国家
         country = result.country or "-"
 
-        # 报表类型中文映射
-        report_type_cn = {
-            "sales_report": "销售报表",
-            "business_report": "业绩报表",
-            "payment_report": "付款报表",
-            "ad_product_report": "广告产品报表",
-            "ad_search_term_report": "广告搜索词报表",
-            "inventory_report": "库存快报",
-            "return_report": "退货报表",
-        }.get(result.report_type or "", result.report_type or "未知报表")
+        # 报表类型中文（优先用 report_label，ad 报告直接带中文标签）
+        report_type_cn = result.report_label or result.report_type or "未知报表"
 
-        # 报告日期
+        # 报告日期（压缩格式：单日 MM-DD，区间同月 MM-DD~DD，跨月 MM-DD~MM-DD）
+        def _short_date(ds: str) -> str:
+            """'2026-06-05' → '06-05'"""
+            return ds[5:] if len(ds) >= 10 else ds
+
         if result.detected_start_date and result.detected_end_date:
             if result.detected_start_date == result.detected_end_date:
-                report_date = result.detected_start_date
+                report_date = _short_date(result.detected_start_date)
             else:
-                report_date = f"{result.detected_start_date}–{result.detected_end_date}"
+                sd, ed = result.detected_start_date, result.detected_end_date
+                if sd[:7] == ed[:7]:  # same year-month
+                    report_date = f"{_short_date(sd)}~{ed[8:]}"
+                else:
+                    report_date = f"{_short_date(sd)}~{_short_date(ed)}"
         elif result.detected_start_date:
-            report_date = result.detected_start_date
+            report_date = _short_date(result.detected_start_date)
         elif result.detected_end_date:
-            report_date = result.detected_end_date
+            report_date = _short_date(result.detected_end_date)
         else:
             report_date = "-"
 
         if result.success:
             self.logger.info(
-                f"【{self._fixed(status, 4)}】-【{self._fixed(country, 4)}】-"
-                f"【{self._fixed(project, 10)}】-【{self._fixed(report_type_cn, 10)}】-"
-                f"【{report_date}】"
+                f"{status}|{country}|{project}|{report_type_cn}|{report_date}"
             )
         elif result.skipped:
             self.logger.info(
-                f"【{self._fixed(status, 4)}】-【{self._fixed(country, 4)}】-"
-                f"【{self._fixed(project, 10)}】-【{self._fixed(report_type_cn, 10)}】-"
-                f"【{self._fixed(report_date, 10)}】  {result.reason}"
+                f"{status}|{country}|{project}|{report_type_cn}|{report_date}|{result.reason}"
             )
         else:
             self.logger.error(
-                f"【{self._fixed(status, 4)}】-【{self._fixed(country, 4)}】-"
-                f"【{self._fixed(project, 10)}】-【{self._fixed(report_type_cn, 10)}】-"
-                f"【{self._fixed(report_date, 10)}】  {result.error}"
+                f"{status}|{country}|{project}|{report_type_cn}|{report_date}|{result.error}"
             )
 
     @property
@@ -202,11 +130,6 @@ def _collect_files(project_dir: Path) -> list[Path]:
 def run_cycle(logger: RunLogger, dry_run: bool = False) -> dict:
     """Scan all project folders and process new files. Returns summary stats."""
     stats = {"projects": 0, "files_seen": 0, "skipped": 0, "success": 0, "failed": 0}
-    task_id = None
-
-    if HAS_CLIENT:
-        task_id = report_scan_start(", ".join(PROJECTS))
-        report_scan_progress(task_id, f"扫描 {len(PROJECTS)} 个项目目录", 0, 0)
 
     for project_name in PROJECTS:
         project_dir = WATCH_ROOT / project_name
@@ -231,10 +154,8 @@ def run_cycle(logger: RunLogger, dry_run: bool = False) -> dict:
             continue
 
         try:
-            for i, file_path in enumerate(sorted(files)):
+            for file_path in sorted(files):
                 stats["files_seen"] += 1
-                if HAS_CLIENT:
-                    report_scan_progress(task_id, f"处理: {file_path.name}", stats["files_seen"], i + 1)
 
                 result = process_file(file_path, project_name, db, dry_run=dry_run)
                 logger.result(file_path, project_name, result)
@@ -249,12 +170,6 @@ def run_cycle(logger: RunLogger, dry_run: bool = False) -> dict:
             stats["failed"] += 1
         finally:
             db.close()
-
-    if HAS_CLIENT:
-        if stats["failed"] > 0:
-            report_scan_error(task_id, f"{stats['failed']} 个文件处理失败")
-        else:
-            report_scan_complete(task_id, stats)
 
     return stats
 
@@ -323,10 +238,6 @@ def _start_watchdog_logger(logger: RunLogger, dry_run: bool):
             except Exception:
                 return
 
-            if not _wait_for_file_stable(file_path, self.logger):
-                self.logger.error(f"  [watchdog] 文件不稳定，跳过: {file_path.name}")
-                return
-
             db = self._get_db_session()
             if db is None:
                 logger.error(f"  [watchdog] 无法获取数据库连接，跳过文件: {file_path.name}")
@@ -383,15 +294,11 @@ def main_loop(dry_run: bool = False, mode: str = "watchdog") -> None:
     logs_dir = Path(__file__).parent / "logs"
     logger = RunLogger(logs_dir)
 
-    platform_label = "macOS"
-    env_label = "本地(local)" if IS_LOCAL else "生产(production)"
-    move_label = "不移动" if IS_LOCAL else "移动到 processed/"
     logger.info("=" * 60)
     logger.info("autoReportUpload 服务启动")
-    logger.info(f"平台: {platform_label}  环境: {env_label}  监控目录: {WATCH_ROOT}")
+    logger.info(f"监控目录: {WATCH_ROOT}")
     logger.info(f"项目列表: {', '.join(PROJECTS)}")
-    logger.info(f"检查间隔: {CHECK_INTERVAL_MINUTES} 分钟  文件处理: {move_label}")
-    logger.info(f"dry_run: {dry_run}")
+    logger.info(f"检查间隔: {CHECK_INTERVAL_MINUTES} 分钟  dry_run: {dry_run}")
     logger.info("=" * 60)
 
     if mode == "watchdog":

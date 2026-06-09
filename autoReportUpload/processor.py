@@ -14,16 +14,11 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
-from dotenv import load_dotenv
 from sqlalchemy import insert, select, update as sa_update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
-# Load autoReportUpload .env before importing backend modules
-_env_path = Path(__file__).parent / ".env"
-load_dotenv(_env_path)
-
-from config import AD_PROCESSED_SUBDIR, IS_LOCAL, PROCESSED_SUBDIR
+from config import AD_PROCESSED_SUBDIR, PROCESSED_SUBDIR
 from models import (
     AnalysisBusinessRow,
     AnalysisPaymentRow,
@@ -237,6 +232,7 @@ class ProcessResult:
         skipped: bool = False,
         success: bool = False,
         report_type: str = "",
+        report_label: str = "",
         reason: str = "",
         source_id: int | None = None,
         row_count: int = 0,
@@ -248,6 +244,7 @@ class ProcessResult:
         self.skipped = skipped
         self.success = success
         self.report_type = report_type
+        self.report_label = report_label
         self.reason = reason
         self.source_id = source_id
         self.row_count = row_count
@@ -287,6 +284,9 @@ def process_file(
     if result is None:
         return ProcessResult(skipped=True, reason="未匹配任何报表类型")
 
+    # Chinese report label (ad reports use spec.report_label; A-table uses report_type as-is)
+    _report_label = result.spec.report_label if result.spec else result.report_type
+
     if result.project_match is None:
         return ProcessResult(skipped=True, reason="未匹配到项目信息")
 
@@ -295,6 +295,7 @@ def process_file(
         return ProcessResult(
             skipped=True,
             report_type=result.report_type,
+            report_label=_report_label,
             reason=f"项目匹配状态为 {match_status}：{result.project_match.get('message', '')}",
         )
 
@@ -303,6 +304,7 @@ def process_file(
         return ProcessResult(
             skipped=True,
             report_type=result.report_type,
+            report_label=_report_label,
             reason=f"文件匹配项目 '{matched_project}' 与目标项目 '{project_name}' 不一致，跳过",
         )
 
@@ -310,6 +312,7 @@ def process_file(
         return ProcessResult(
             success=True,
             report_type=result.report_type,
+            report_label=_report_label,
             reason=(
                 f"[dry-run] 会入库 {result.report_type}，"
                 f"行数预估 {result.row_count_preview}，国家 {result.country}"
@@ -324,22 +327,20 @@ def process_file(
             f"项目ID={d['project_id']}({d['report_type']}/{d['country']})"
             for d in duplicates
         )
-        logger.warning(
-            "SHA-256 重复文件: %s | 已存在: %s",
-            file_path.name,
-            dup_info,
-        )
         # Write today's upload log so RPA status grid shows green
         _write_dedup_upload_log(
             db, file_path.name, project_name,
             result.report_type, result.country or "US", duplicates,
         )
-        if not IS_LOCAL:
+        try:
             _move_to_processed(file_path, result.report_type)
+        except Exception as exc:
+            logger.warning("文件移动失败（DB 已提交）: %s — %s", file_path.name, exc)
         return ProcessResult(
             skipped=True,
             report_type=result.report_type,
-            reason="检测到 SHA-256 重复文件，已视为处理完成并归档" if not IS_LOCAL else "检测到 SHA-256 重复文件，local 模式下不移动文件",
+            report_label=_report_label,
+            reason=f"SHA-256 重复（{dup_info}）",
         )
 
     # 2. Persist to DB
@@ -350,6 +351,7 @@ def process_file(
             skipped=False,
             success=False,
             report_type=result.report_type,
+            report_label=_report_label,
             reason="入库异常",
             error=str(exc),
         )
@@ -369,29 +371,36 @@ def process_file(
                 result.report_type, result.country or "US",
                 _find_sha256_duplicates(db, file_sha256),
             )
-            if not IS_LOCAL:
+            try:
                 _move_to_processed(file_path, result.report_type)
+            except Exception as exc:
+                logger.warning("文件移动失败（DB 已提交）: %s — %s", file_path.name, exc)
             return ProcessResult(
                 skipped=True,
                 report_type=result.report_type,
-                reason="数据已存在（唯一约束冲突），文件已移走" if not IS_LOCAL else "数据已存在（唯一约束冲突），local 模式下不移动文件",
+                report_label=_report_label,
+                reason="数据已存在（唯一约束冲突），文件已移走",
             )
         return ProcessResult(
             skipped=False,
             success=False,
             report_type=result.report_type,
+            report_label=_report_label,
             reason="入库失败",
             error=error_msg,
         )
 
-    # 3. Move file to processed/ (skip in local env)
-    if not IS_LOCAL:
+    # 3. Move file to processed/
+    try:
         _move_to_processed(file_path, result.report_type)
+    except Exception as exc:
+        logger.warning("文件移动失败（DB 已提交）: %s — %s", file_path.name, exc)
 
     total_time = time.time() - t0
     return ProcessResult(
         success=True,
         report_type=result.report_type,
+        report_label=_report_label,
         source_id=outcome.get("source_id"),
         row_count=outcome.get("row_count", 0),
         country=result.country,

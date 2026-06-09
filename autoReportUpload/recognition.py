@@ -15,12 +15,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from dotenv import load_dotenv
-
-# Load autoReportUpload .env before importing backend modules
-_env_path = Path(__file__).parent / ".env"
-load_dotenv(_env_path)
-
 # Add backend to Python path so we can import the shared recognition module
 _BACKEND_PATH = Path(__file__).resolve().parent.parent / "backend"
 if str(_BACKEND_PATH) not in sys.path:

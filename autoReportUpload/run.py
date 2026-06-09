@@ -4,37 +4,17 @@ autoReportUpload — entry point.
 
 Usage:
     python run.py                  # Normal mode (启动时全盘扫描，watchdog 持续监控新文件)
-    python run.py --env local      # Force local mode (localhost DB/API, no file moves)
     python run.py --dry-run        # Dry-run: recognize files only, no DB writes, no file moves
     python run.py --once           # Run once (no periodic loop), useful for testing
     python run.py --mode polling   # 旧版定时轮询模式（每 5 分钟）
 """
 
 import argparse
-import os
 import sys
-
-# ── Parse known args first so --env can override before config is loaded ──────
-_parser = argparse.ArgumentParser(allow_abbrev=False)
-_parser.add_argument("--env", choices=["local", "production"], default="production")
-_parser.add_argument("--dry-run", action="store_true")
-_parser.add_argument("--once", action="store_true")
-_args, _ = _parser.parse_known_args()
-
-if _args.env:
-    os.environ["AUTO_REPORT_ENV"] = _args.env
-
-from monitor import main_loop
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="autoReportUpload service")
-    parser.add_argument(
-        "--env",
-        choices=["local", "production"],
-        default="production",
-        help="运行环境: local (本地) 或 production (生产)；默认读取 .env",
-    )
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -52,14 +32,6 @@ def main() -> None:
         help="watchdog: 文件系统事件监控（默认）; polling: 旧版定时轮询",
     )
     args = parser.parse_args()
-
-    if args.env:
-        os.environ["AUTO_REPORT_ENV"] = args.env
-
-    # Import config after env override so IS_LOCAL/IS_PRODUCTION reflect the right mode
-    from config import IS_LOCAL, IS_PRODUCTION
-    env_label = "本地(local)" if IS_LOCAL else "生产(production)"
-    print(f"[启动] 环境: {env_label}")
 
     if args.dry_run:
         print("模式: dry-run（只识别，不入库，不移动文件）")
@@ -80,6 +52,7 @@ def main() -> None:
         print(f"\n日志文件: {logger.log_file}")
         sys.exit(0)
 
+    from monitor import main_loop
     main_loop(dry_run=args.dry_run, mode=args.mode)
 
 
