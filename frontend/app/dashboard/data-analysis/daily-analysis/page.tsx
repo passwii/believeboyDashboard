@@ -1281,17 +1281,8 @@ export default function DailyAnalysisPage() {
         return
       }
 
-      // Clear Redis cache before loading fresh data
-      if (clearCache) {
-        try {
-          await fetch(`${API_BASE}/api/v1/cache/clear-all`, {
-            method: 'POST',
-            headers: authHeaders(),
-          })
-        } catch {
-          // Non-critical: cache clear failure should not block data refresh
-        }
-      }
+      // skipRedis: when refreshing, bypass server-side Redis cache
+      const skipRedis = clearCache
 
       const startDate = formatYMD(effectiveRange.from)
       const endDate = formatYMD(effectiveRange.to)
@@ -1309,6 +1300,7 @@ export default function DailyAnalysisPage() {
             country,
             start_date: startDate,
             end_date: endDate,
+            ...(skipRedis && { no_cache: 'true' }),
           })
           const compareSearch = previousRange
             ? new URLSearchParams({
@@ -1389,6 +1381,7 @@ export default function DailyAnalysisPage() {
             start_date: startDate,
             end_date: endDate,
             ...(selectedSkuRef.current && { sku: selectedSkuRef.current }),
+            ...(skipRedis && { no_cache: 'true' }),
           })
           const compareSearch = previousRange
             ? new URLSearchParams({

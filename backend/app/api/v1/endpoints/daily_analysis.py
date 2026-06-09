@@ -23,6 +23,7 @@ def get_daily_analysis(
     end_date: Annotated[str, Query(min_length=10, max_length=10)],
     country: str = "US",
     sku: Optional[str] = None,
+    no_cache: bool = Query(default=False),
     db: Session = Depends(get_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
@@ -40,6 +41,7 @@ def get_daily_analysis(
         start_date=start_date,
         end_date=end_date,
         sku=sku,
+        no_cache=no_cache,
     )
 
 
