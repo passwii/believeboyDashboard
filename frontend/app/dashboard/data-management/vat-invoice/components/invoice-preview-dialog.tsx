@@ -32,42 +32,40 @@ export function InvoicePreviewDialog({
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [building, setBuilding] = useState(false)
 
-  // 每次 Dialog 打开时重新生成 PDF blob URL
+  // 每次 Dialog 打开时（或 seller/form 变化时）重新生成 PDF blob URL；
+  // 关闭时释放旧 URL，避免内存泄漏。
   useEffect(() => {
     if (!open) return
+
     setBuilding(true)
-    let url: string | null = null
-    try {
-      // 微任务推迟到下一帧，避免和 Dialog 打开动画冲突
-      const id = setTimeout(() => {
-        try {
-          const doc = drawInvoice(seller, form)
-          const blob = doc.output("blob")
-          url = URL.createObjectURL(blob)
-          setPdfUrl(url)
-        } catch (err) {
-          // eslint-disable-next-line no-console
-          console.error("PDF render failed", err)
-        } finally {
-          setBuilding(false)
-        }
-      }, 50)
-      return () => clearTimeout(id)
-    } catch {
-      setBuilding(false)
-    }
-    // 关闭时释放旧 URL
+    const id = setTimeout(() => {
+      try {
+        const doc = drawInvoice(seller, form)
+        const blob = doc.output("blob")
+        const url = URL.createObjectURL(blob)
+        setPdfUrl((prev) => {
+          if (prev) URL.revokeObjectURL(prev) // 释放上一次
+          return url
+        })
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error("PDF render failed", err)
+      } finally {
+        setBuilding(false)
+      }
+    }, 50)
+
     return () => {
-      if (url) URL.revokeObjectURL(url)
+      clearTimeout(id)
     }
   }, [open, seller, form])
 
-  // 关闭时清理
+  // 关闭时释放当前 PDF URL
   useEffect(() => {
-    if (!open && pdfUrl) {
-      URL.revokeObjectURL(pdfUrl)
-      setPdfUrl(null)
-    }
+    if (open) return
+    if (!pdfUrl) return
+    URL.revokeObjectURL(pdfUrl)
+    setPdfUrl(null)
   }, [open, pdfUrl])
 
   const handleDownload = () => {
@@ -125,7 +123,7 @@ export function InvoicePreviewDialog({
 
         <DialogFooter>
           <p className="text-xs text-muted-foreground">
-            {seller.company_name || "Seller"} · {form.order_id} · {form.currency}
+            {seller.company_name || "Seller"} · 订单 {form.order_id || "未填"} · {form.currency}
           </p>
         </DialogFooter>
       </DialogContent>

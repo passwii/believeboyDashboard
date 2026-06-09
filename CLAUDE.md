@@ -16,31 +16,51 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 | 工具 | 用途 | 示例 |
 |------|------|------|
-| `codegraph_search` | 按名称搜索符号（函数、类、类型） | 搜索 `get_user` |
-| `codegraph_context` | 获取任务的关联代码上下文 | |
-| `codegraph_callers` | 查找谁调用了某个函数 | 追踪函数调用链 |
-| `codegraph_callees` | 查找某函数调用了哪些函数 | |
-| `codegraph_impact` | 查看更改符号会影响的范围 | 修改前评估影响 |
-| `codegraph_node` | 获取符号详情 + 源代码 | |
-| `codegraph_files` | 搜索包含特定内容的文件 | |
-| `codegraph_status` | 查看 CodeGraph 索引状态 | |
+| `codegraph_status` | 查看索引健康度（文件数/节点数/边数/语言分布） | 上线前、debug MCP 时 |
+| `codegraph_search` | 按名称快速搜索符号（仅 location，不带源码） | 知道名字但不知在哪 |
+| `codegraph_explore` | **主力工具**：问"X 是怎么工作的" / 给一组符号名，返回 verbatim 源码分组 | 几乎所有"了解/调查/实现"任务的第一步 |
+| `codegraph_node` | 看单个符号的完整 body（当 `explore` 因 token 限制被裁剪时） | 重载方法、过深 body |
+| `codegraph_callers` | 哪些代码调用了 X | 重构前找全部引用 |
+| `codegraph_callees` | X 调用了哪些 | 理解函数依赖 |
+| `codegraph_impact` | 多层依赖图（修改前必跑） | 改公共函数前评估 blast radius |
+| `codegraph_files` | 文件树 + 元数据 | 项目布局浏览 |
+
+> **注**：CLAUDE.md 早期版本提到 `codegraph_context` / `codegraph_node` 等 — `codegraph_context` 在当前 MCP 版本中不存在，已删除。
 
 ### 调用方法
 
 使用 `mcp__codegraph__*` 前缀的工具，例如：
 
 ```
-使用 codegraph_search 搜索 "ProductCost"
-使用 codegraph_callers 查找 "calculate_revenue" 的调用者
-使用 codegraph_callees 查找 "process_report" 调用的函数
+mcp__codegraph__codegraph_status
+mcp__codegraph__codegraph_search query="ProductCost"
+mcp__codegraph__codegraph_explore query="calculate_revenue 的调用链与所有实现"
+mcp__codegraph__codegraph_impact symbol="process_report"
 ```
 
 ### 何时使用
 
-- ✅ 查找函数/类/类型定义 → `codegraph_search`
-- ✅ 追踪调用链 → `codegraph_callers` / `codegraph_callees`
-- ✅ 修改代码前评估影响 → `codegraph_impact`
-- ✅ 理解符号上下文 → `codegraph_node`
+**默认路径**：对于"X 怎么工作 / 架构 / 某 bug / X 在哪 / 概览某模块" → 第一步 `codegraph_explore`，**多数情况下一次调用就够**。Codegraph IS 预构建的搜索索引，**不要**把 lookup 委托给 Read/Grep 子任务（重复工作 + 更贵）。
+
+| 意图 | 工具 |
+|---|---|
+| "X 是怎么工作的" / 架构 / 排查 bug / "X 在哪" / 概览某区域 | `codegraph_explore`（PRIMARY — 第一步，one-capped call） |
+| "X 如何到达 Y" / 跨函数的数据流 / 流程路径 | `codegraph_explore`，把跨流的符号全列上（含动态分派） |
+| "符号 X 在哪"（只要 location） | `codegraph_search` |
+| "谁调用 X" / "X 调用谁" / "改 X 会破什么" | `codegraph_callers` / `codegraph_callees` / `codegraph_impact` |
+| "X 的完整 body"（被 explore 裁剪后） | `codegraph_node` |
+| 索引是否健康 / MCP 是否活着 | `codegraph_status` |
+
+只在你**确认** codegraph 没覆盖的细节上才用 Read/Grep。
+
+### 实战经验（2026-06 起记录）
+
+1. **首选 `codegraph_explore` 而不是 `codegraph_search`**：后者只给 location（"X 在 file:line"），前者直接给 verbatim 源码，多数场景一次到位。`search` 适用于"我只想要 location 列表"（如 grep 替代）。
+2. **改函数前必跑 `codegraph_impact`**：默认 depth=2，会列出多层调用方。VAT 发票模块的 `computeInvoiceTotal` 当时在 3 处被引用（client + summary + pdf），改之前查一下能避免漏改。
+3. **`.test.ts` 后缀的文件不被 codegraph 识别为"覆盖测试"**：`codegraph_explore` 的 blast radius 报告里会标 "⚠️ no covering tests found" — 这可能是误报，要人工核对。
+4. **React 动态分派也能追**：`VatInvoiceClient` → `<SellerCard>` 的 JSX 渲染关系 codegraph 能识别，会在 explore 输出里以 "Dynamic-dispatch links" 段单独列出。
+5. **索引滞后约 1 秒**：写完代码后等几秒再查，否则可能漏新加的符号。如要即时确认可跑 `codegraph_status` 看 `Files indexed` 是否增加。
+6. **MCP 静默/不可用时**：先跑 `codegraph_status`；如果工具直接报"未注册"，说明 `mcpServers` 没配好，需要在 `~/.claude/settings.json` 加 `mcpServers.codegraph` 段。
 
 ### 启动 Explore 代理时
 

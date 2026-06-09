@@ -23,7 +23,7 @@ const emptyBuyer = {
 }
 
 const initialForm: InvoiceForm = {
-  project_id: 0 as unknown as number, // 0 = 未选
+  project_id: null, // null = 未选
   currency: "EUR",
   order_id: "",
   bill_id: "",
@@ -57,7 +57,7 @@ export default function VatInvoiceClient() {
 
   // 校验：发票可预览的最小条件
   const canPreview = useMemo(() => {
-    if (!form.project_id) return false
+    if (form.project_id == null) return false
     if (!form.order_id.trim() || !form.bill_id.trim() || !form.bill_hs.trim()) return false
     if (!form.invoice_date || !form.delivery_date) return false
     if (!form.buyer.name.trim() || !form.buyer.address_line.trim()) return false
@@ -85,7 +85,7 @@ export default function VatInvoiceClient() {
         {/* 左：表单（占 2/3） */}
         <div className="space-y-4 lg:col-span-2">
           <SellerCard
-            selectedProjectId={form.project_id || null}
+            selectedProjectId={form.project_id}
             seller={seller}
             onSellerChange={setSeller}
             onSelectProject={(id) => setForm({ ...form, project_id: id })}
