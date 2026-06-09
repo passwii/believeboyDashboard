@@ -276,19 +276,21 @@ def build_daily_analysis(
     start_date: str,
     end_date: str,
     sku: str | None = None,
+    no_cache: bool = False,
 ) -> dict[str, object]:
     normalized_country = normalize_country(country)
     normalized_start = parse_yyyy_mm_dd(start_date, "start_date")
     normalized_end = parse_yyyy_mm_dd(end_date, "end_date")
 
-    cached = redis_service.get_daily_analysis_cache(
-        project_id,
-        normalized_country,
-        normalized_start.isoformat(),
-        normalized_end.isoformat(),
-    )
-    if cached is not None and sku is None:
-        return cached
+    if not no_cache:
+        cached = redis_service.get_daily_analysis_cache(
+            project_id,
+            normalized_country,
+            normalized_start.isoformat(),
+            normalized_end.isoformat(),
+        )
+        if cached is not None and sku is None:
+            return cached
 
     project = _get_project_or_404(db, project_id)
     if normalized_start > normalized_end:
@@ -396,7 +398,7 @@ def build_daily_analysis(
         },
     }
 
-    if sku is None:
+    if sku is None and not no_cache:
         redis_service.set_daily_analysis_cache(
             project_id,
             normalized_country,
