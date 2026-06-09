@@ -83,14 +83,15 @@ export function SidebarShell({ children: _children }: SidebarShellProps = {}) {
  return (
  <>
  {/* Desktop sidebar (>=md) */}
- <div className='hidden md:flex'>
+<div
+ className='hidden md:flex'
+ onMouseLeave={() => { panelState.hoverLeave() }}
+ >
  <SidebarIconRail
  groups={visibleGroups}
  activeGroupId={activeGroupId}
  pinnedGroupId={pinnedGroupId}
  onHoverEnter={panelState.hoverEnter}
- onHoverLeave={panelState.hoverLeave}
- onClickToggle={panelState.clickToggle}
  user={displayUser}
  onLogout={onLogout}
  />
@@ -109,7 +110,6 @@ export function SidebarShell({ children: _children }: SidebarShellProps = {}) {
  <SidebarPanel
  group={activeGroup}
  pinnedGroupId={pinnedGroupId}
- roleType={roleType}
  onClose={panelState.closePanel}
  onPinToggle={() => panelState.clickToggle(activeGroup.id)}
  onNavigate={() => {
