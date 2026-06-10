@@ -3,33 +3,8 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useTheme } from 'next-themes'
-import {
-  Check,
-  ChevronsUpDown,
-  Factory,
-  KeyRound,
-  LogOut,
-  Monitor,
-  Moon,
-  Shield,
-  Store,
-  SunMedium,
-} from 'lucide-react'
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
 import type { SidebarTopGroup, RoleType } from '@/lib/sidebar-config'
 import { isLinkActive } from '@/lib/sidebar-config'
 import { cn } from '@/lib/utils'
@@ -45,110 +20,69 @@ interface SidebarIconRailProps {
     avatar?: string
     roleType?: RoleType
   }
-  onLogout: () => void
 }
 
-const ROLE_LABELS: Record<string, string> = {
-  admin: '管理员',
-  operator: '运营',
-  businessdev: '招商',
-  factory: '工厂',
-}
+const USER_CHIP_ID = 'user'
+const USER_CHIP_ACCENT = 'bg-[linear-gradient(180deg,#475569,#334155)] text-[#e2e8f0]'
+const USER_CHIP_ACTIVE_ACCENT = 'bg-[linear-gradient(180deg,#64748b,#475569)] text-white'
 
-function MiniUserMenu({
+/**
+ * User chip：和 7 个一级 chip 同款（h-11 w-11 rounded-[0.85rem] 圆角方块），
+ * 仅填充色用中性 slate 渐变，与"指向某页面"的 nav chip 区分开。
+ * 内部嵌入 avatar + 首字 fallback。
+ */
+function UserChip({
   user,
-  onLogout,
+  isActive,
+  isPinned,
+  onHoverEnter,
 }: {
   user: SidebarIconRailProps['user']
-  onLogout: () => void
+  isActive: boolean
+  isPinned: boolean
+  onHoverEnter: () => void
 }) {
-  const { theme, setTheme } = useTheme()
-  const [mounted, setMounted] = React.useState(false)
-  React.useEffect(() => setMounted(true), [])
-  const currentTheme = mounted ? theme : 'system'
-  const fallback = user.name?.[0]?.toUpperCase() || 'U'
-  const roleLabel = user.roleType ? ROLE_LABELS[user.roleType] : null
+  const fallback = React.useMemo(() => {
+    if (!user.name) return 'U'
+    const first = [...user.name.trim()].find(c => /[\p{L}\p{N}]/u.test(c))
+    return first ? first.toUpperCase() : 'U'
+  }, [user.name])
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type='button'
-          title={`${user.name} ·账户菜单`}
-          aria-label={`${user.name}，打开账户菜单`}
-          className='flex h-10 w-10 items-center justify-center rounded-full border border-[hsl(var(--sidebar-foreground)/0.08)] bg-[hsl(var(--sidebar-foreground)/0.03)] text-sidebar-foreground transition-all hover:bg-[hsl(var(--sidebar-foreground)/0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40'
-        >
-          <Avatar className='h-9 w-9'>
-            <AvatarImage src={user.avatar} alt={user.name} />
-            <AvatarFallback className='text-xs font-semibold'>
-              {fallback}
-            </AvatarFallback>
-          </Avatar>
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent side='right' align='end' sideOffset={8} className='w-64'>
-        <DropdownMenuLabel className='p-0 font-normal'>
-          <div className='flex items-center gap-2 px-1 py-1.5 text-left'>
-            <Avatar className='h-8 w-8 rounded-md'>
-              <AvatarImage src={user.avatar} alt={user.name} />
-              <AvatarFallback className='rounded-md text-xs'>{fallback}</AvatarFallback>
-            </Avatar>
-            <div className='grid flex-1 text-left text-sm leading-tight'>
-              <span className='truncate font-semibold'>{user.name}</span>
-              <span className='truncate text-xs text-muted-foreground'>
-                {user.email}
-                {roleLabel ? ` · ${roleLabel}` : ''}
-              </span>
-            </div>
-          </div>
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            <SunMedium className='h-4 w-4' />
-            <span>外观</span>
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent>
-            <DropdownMenuItem onClick={() => setTheme('light')}>
-              <SunMedium className='h-4 w-4' />
-              <span>浅色</span>
-              {currentTheme === 'light' ? <Check className='ml-auto h-4 w-4' /> : null}
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setTheme('dark')}>
-              <Moon className='h-4 w-4' />
-              <span>深色</span>
-              {currentTheme === 'dark' ? <Check className='ml-auto h-4 w-4' /> : null}
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setTheme('system')}>
-              <Monitor className='h-4 w-4' />
-              <span>跟随系统</span>
-              {currentTheme === 'system' ? <Check className='ml-auto h-4 w-4' /> : null}
-            </DropdownMenuItem>
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <RouteLoadingLink href='/dashboard/change-password'>
-            <KeyRound className='h-4 w-4' />
-            修改密码
-          </RouteLoadingLink>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={onLogout}>
-          <LogOut className='h-4 w-4' />
-          退出登录
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <button
+      type='button'
+      data-active={isActive}
+      data-pinned={isPinned}
+      onMouseEnter={onHoverEnter}
+      aria-label={`${user.name}，悬停查看账户信息`}
+      aria-expanded={isActive}
+      aria-controls='sidebar-user-panel'
+      title={`${user.name} · 账户`}
+      className={cn(
+        'group/icon flex h-11 w-11 shrink-0 items-center justify-center rounded-[0.85rem] border border-[hsl(var(--sidebar-foreground)/0.08)] shadow-[inset_0_1px_0_hsl(var(--sidebar-foreground)/0.06)] transition-all duration-200 ease-out',
+        'hover:scale-[1.04] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
+        isActive || isPinned ? USER_CHIP_ACTIVE_ACCENT : USER_CHIP_ACCENT,
+        isActive && 'ring-2 ring-primary/30',
+      )}
+    >
+      <Avatar className='h-7 w-7'>
+        <AvatarImage src={user.avatar} alt={user.name} />
+        <AvatarFallback className='bg-transparent text-[0.95rem] font-medium tracking-tight text-white'>
+          {fallback}
+        </AvatarFallback>
+      </Avatar>
+    </button>
   )
 }
 
 /**
- * 外层 68px 固定窄栏：Logo + 7 个 group icon + 底部 user menu。
+ * 外层 68px 固定窄栏：Logo + 7 个 group icon + 底部 user chip。
  *
  * 行为说明：
  * - 一级 chip 不绑 onClick（纯 hover 触发 panel），鼠标 hover 才打开 panel。
  * - rail 外层不挂 onMouseLeave，统一由 sidebar-shell 的 wrapper 处理。
+ * - 底部 user chip 复用同一套 hover 行为，触发 'user' 虚拟 group id，展开 240px
+ *   SidebarUserPanel（与 7 个 group 走同一套 panelState 状态机）。
  * - 使用 usePathname() 订阅路由变化，避免 SSR hydration mismatch。
  */
 export function SidebarIconRail({
@@ -157,7 +91,6 @@ export function SidebarIconRail({
   pinnedGroupId,
   onHoverEnter,
   user,
-  onLogout,
 }: SidebarIconRailProps) {
   const pathname = usePathname()
   return (
@@ -219,9 +152,14 @@ export function SidebarIconRail({
         })}
       </nav>
 
-      {/* User menu (compact) */}
-      <div className='shrink-0 border-t border-[hsl(var(--sidebar-border))]/60 px-2 pb-3 pt-2'>
-        <MiniUserMenu user={user} onLogout={onLogout} />
+      {/* User chip (bottom) — 第 8 个一级 chip，hover 触发 'user' 虚拟 group，展开 SidebarUserPanel */}
+      <div className='shrink-0 flex justify-center border-t border-[hsl(var(--sidebar-border))]/60 px-2 pb-3 pt-2'>
+        <UserChip
+          user={user}
+          isActive={activeGroupId === USER_CHIP_ID}
+          isPinned={pinnedGroupId === USER_CHIP_ID}
+          onHoverEnter={() => onHoverEnter(USER_CHIP_ID)}
+        />
       </div>
     </div>
   )
