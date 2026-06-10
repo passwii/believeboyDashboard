@@ -1,7 +1,7 @@
 "use client"
 
 // 订单与买方表单（不含动态明细行）
-// 字段：币种、Order ID、Bill ID、Bill HS、Invoice/Delivery 日期、买方
+// 字段：币种、Order ID、发票日期、买方
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -30,8 +30,6 @@ export function InvoiceFormSection({ form, onChange }: InvoiceFormProps) {
     value: InvoiceForm["buyer"][K],
   ) => onChange({ ...form, buyer: { ...form.buyer, [key]: value } })
 
-  const today = new Date()
-
   return (
     <>
       {/* 2. 订单与买方 */}
@@ -40,8 +38,8 @@ export function InvoiceFormSection({ form, onChange }: InvoiceFormProps) {
           <CardTitle className="text-base">2. 订单与买方</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* 第一行：币种 / Order ID / Bill ID / Bill HS */}
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+          {/* 第一行：币种 / Order ID */}
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="currency">币种 *</Label>
               <Select
@@ -70,44 +68,16 @@ export function InvoiceFormSection({ form, onChange }: InvoiceFormProps) {
                 placeholder="205-3678957-4241932"
               />
             </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="bill-id">Bill ID *</Label>
-              <Input
-                id="bill-id"
-                value={form.bill_id}
-                onChange={(e) => update("bill_id", e.target.value)}
-                placeholder="GB65YLH7VAEUD"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="bill-hs">Bill HS *</Label>
-              <Input
-                id="bill-hs"
-                value={form.bill_hs}
-                onChange={(e) => update("bill_hs", e.target.value)}
-                placeholder="9404.21"
-              />
-            </div>
           </div>
 
-          {/* 第二行：日期 */}
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          {/* 第二行：发票日期 */}
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-1">
             <div className="space-y-1.5">
               <Label>发票日期 *</Label>
               <DatePicker
                 value={parseDateInputValue(form.invoice_date)}
                 onChange={(d) => update("invoice_date", d ? formatDateInputValue(d) : "")}
                 placeholder="选择发票日期"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>交付日期 *</Label>
-              <DatePicker
-                value={parseDateInputValue(form.delivery_date)}
-                onChange={(d) => update("delivery_date", d ? formatDateInputValue(d) : "")}
-                placeholder="选择交付日期"
               />
             </div>
           </div>
