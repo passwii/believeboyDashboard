@@ -12,16 +12,19 @@ const HOVER_LEAVE_DELAY_MS = 150
  * - pinnedGroupId: 用户通过 Pin 按钮显式锁定的分组（不持久化）
  *
  * 派生：
- * - activeGroupId = hoveredGroupId ?? pinnedGroupId ?? (pathname 命中组)
+ * - pathnameGroupId: 当前路由命中的分组（仅用于 icon rail 上的"当前位置"高亮）
+ * - activeGroupId: panel 当前显示的分组 = hoveredGroupId ?? pinnedGroupId
  *
  * 行为要点：
  * - 点击一级 icon 不再做任何事（无 onClick），鼠标 hover 才打开 panel。
  * - Pin 状态仅由 panel 顶部的 Pin 按钮触发，不写入 sessionStorage。
  * - 鼠标离开整个 sidebar region（rail + panel）后关闭 panel（150ms 延迟）。
+ * - 当前路由所在分组**不会**自动撑开 panel；只有 hover 或 pin 才打开。
  */
 export interface SidebarPanelState {
   hoveredGroupId: string | null
   pinnedGroupId: string | null
+  pathnameGroupId: string | null
   activeGroupId: string | null
   isOpen: boolean
 }
@@ -41,7 +44,7 @@ export function useSidebarPanel(
   const [pinnedGroupId, setPinnedGroupId] = React.useState<string | null>(null)
   const leaveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const pathnameGroupId = findGroupByPathname(pathname)
+  const pathnameGroupId = findGroupByPathname(pathname) ?? null
 
   // 清理 leave timer
   React.useEffect(() => {
@@ -76,12 +79,14 @@ export function useSidebarPanel(
     setHoveredGroupId(null)
   }, [])
 
-  const activeGroupId = hoveredGroupId ?? pinnedGroupId ?? pathnameGroupId ?? null
+  // panel 是否打开只看交互状态（hover / pin），pathname 不再撑开 panel
+  const activeGroupId = hoveredGroupId ?? pinnedGroupId ?? null
   const isOpen = activeGroupId !== null
 
   return {
     hoveredGroupId,
     pinnedGroupId,
+    pathnameGroupId,
     activeGroupId,
     isOpen,
     hoverEnter,
