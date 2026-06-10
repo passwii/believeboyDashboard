@@ -353,7 +353,8 @@ def resend_ledger_entry_async(db: Session, *, ledger_key: str, ignore_status: bo
         initial_stage=DeliveryStage.PREPARING.value,
     )
 
-    # 更新 ledger entry 指向新的 delivery_log
+    # 更新 ledger entry 指向新的 delivery_log（先保存旧 log id 供补发成功后清理截图）
+    old_log_id = entry.latest_delivery_log_id
     entry.latest_delivery_log_id = log.id
     entry.status = LedgerStatus.MISSING.value
     db.commit()
@@ -375,6 +376,8 @@ def resend_ledger_entry_async(db: Session, *, ledger_key: str, ignore_status: bo
             ledger_key,
             entry.expected_date,
             entry.frequency,
+            False,
+            old_log_id,
         ),
         daemon=True,
     )
@@ -409,6 +412,7 @@ def resend_ledger_entry(db: Session, *, ledger_key: str) -> tuple[bool, int | No
         country=subscription.country,
         frequency=subscription.frequency,
         ai_model=getattr(subscription, "ai_model", None),
+        use_cache=False,
     )
 
     refresh_ledger(

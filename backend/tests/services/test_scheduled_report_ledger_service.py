@@ -229,6 +229,106 @@ def test_resend_async_refreshes_ledger_after_success(db: Session, monkeypatch: p
     assert refreshed_entry.sent_at is not None
 
 
+def test_build_report_with_throttle_bypasses_cache_when_requested(monkeypatch: pytest.MonkeyPatch):
+    import app.services.scheduled_report.dispatcher as dispatcher
+
+    key = dispatcher._cache_key([10], "DE", "2026-06-08")
+    with dispatcher._cache_lock:
+        dispatcher._summary_cache[key] = {"stale": True}
+
+    calls = []
+
+    def fake_build_report_data_with_timeout(*args, **kwargs):
+        calls.append((args, kwargs))
+        return {"fresh": True}
+
+    monkeypatch.setattr(dispatcher, "_build_report_data_with_timeout", fake_build_report_data_with_timeout)
+
+    result = dispatcher._build_report_with_throttle(
+        [10],
+        "DE",
+        "daily",
+        reference_date=date(2026, 6, 8),
+        use_cache=False,
+    )
+
+    assert result == {"fresh": True}
+    assert len(calls) == 1
+    with dispatcher._cache_lock:
+        assert dispatcher._summary_cache[key] == {"stale": True}
+
+
+def test_resend_async_multi_country_bypasses_report_cache(db: Session, monkeypatch: pytest.MonkeyPatch):
+    from app.models.scheduled_report import DeliveryStage
+    from app.services.scheduled_report.ledger_service import refresh_ledger, resend_ledger_entry_async
+    import app.services.scheduled_report.ledger_service as ledger_service
+    import app.services.scheduled_report.dispatcher as dispatcher
+
+    sub = add_subscription(db, frequency="daily", country="UK,DE")
+    ledger = refresh_ledger(db, start_date="2026-05-23", end_date="2026-05-23")
+    ledger_key = ledger.items[0].ledger_key
+
+    class FixedDate(date):
+        @classmethod
+        def today(cls):
+            return cls(2026, 5, 23)
+
+    monkeypatch.setattr(ledger_service, "date", FixedDate)
+
+    class CloseAwareSession:
+        def __init__(self, wrapped: Session):
+            self.wrapped = wrapped
+            self.closed = False
+
+        def close(self):
+            self.closed = True
+
+        def __getattr__(self, name: str):
+            if self.closed:
+                raise RuntimeError("session is closed")
+            return getattr(self.wrapped, name)
+
+    monkeypatch.setattr(dispatcher, "SessionLocal", lambda: CloseAwareSession(db))
+
+    captured = []
+
+    def fake_build_multi_country_report(*args, **kwargs):
+        captured.append(kwargs)
+        return {"ai_summary": "ok"}
+
+    monkeypatch.setattr(dispatcher, "_build_multi_country_report", fake_build_multi_country_report)
+    monkeypatch.setattr(dispatcher, "send_scheduled_report_email", lambda *args, **kwargs: (True, "resend-id"))
+
+    started = []
+
+    class ImmediateThread:
+        def __init__(self, target, args, daemon):
+            self.target = target
+            self.args = args
+            self.daemon = daemon
+
+        def start(self):
+            started.append(True)
+            self.target(*self.args)
+
+    import threading
+    monkeypatch.setattr(threading, "Thread", ImmediateThread)
+
+    success, delivery_log_id, new_status, message = resend_ledger_entry_async(db, ledger_key=ledger_key)
+
+    assert success is True
+    assert delivery_log_id is not None
+    assert new_status == "processing"
+    assert started == [True]
+    assert len(captured) == 1
+    assert captured[0]["use_cache"] is False
+
+    log = db.get(ScheduledReportDeliveryLog, delivery_log_id)
+    assert log is not None
+    assert log.status == DeliveryStatus.SENT.value
+    assert log.stage == DeliveryStage.DONE.value
+
+
 def test_refresh_ledger_multi_country_subscription_creates_single_entry(db: Session):
     """多国家订阅应创建一个合并的 ledger entry，与订阅和报告一一对应。"""
     from app.services.scheduled_report.ledger_service import refresh_ledger
@@ -306,4 +406,3 @@ def test_refresh_ledger_migrates_old_per_country_entries(db: Session):
     rows = db.query(ScheduledReportLedgerEntry).all()
     assert len(rows) == 1
     assert rows[0].country == "UK,DE"
-
