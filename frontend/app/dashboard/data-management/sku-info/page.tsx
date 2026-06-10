@@ -2,7 +2,7 @@
 
 import { type ChangeEvent, Fragment, useEffect, useMemo, useState } from 'react'
 import { useSession } from 'next-auth/react'
-import { FileDown, FileText, Package2, RefreshCw, Ruler, Tag, Upload } from 'lucide-react'
+import { FileDown, FileText, Image as ImageIcon, Package2, RefreshCw, Ruler, Tag, Upload } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -921,7 +921,7 @@ export default function SkuInfoPage() {
       >
         <div className='flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between'>
           <TabsMotionGroup id='sku-cost-tabs'>
-            <TabsList className='inline-flex h-auto w-full max-w-[480px] rounded-xl border border-border/70 bg-[hsl(var(--surface-subtle))] p-1 shadow-none'>
+            <TabsList className='inline-flex h-auto w-full max-w-[600px] rounded-xl border border-border/70 bg-[hsl(var(--surface-subtle))] p-1 shadow-none'>
               <SlidingTabsTrigger
                 value='cost'
                 activeValue={activeTab}
@@ -957,6 +957,15 @@ export default function SkuInfoPage() {
               >
                 <Tag className='h-4 w-4' />
                 产品标签
+              </SlidingTabsTrigger>
+              <SlidingTabsTrigger
+                value='image'
+                activeValue={activeTab}
+                layoutId='sku-cost-tab-indicator'
+                className='flex-1 gap-2 px-4 py-2'
+              >
+                <ImageIcon className='h-4 w-4' />
+                产品图片
               </SlidingTabsTrigger>
             </TabsList>
           </TabsMotionGroup>
