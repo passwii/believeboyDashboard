@@ -14,15 +14,18 @@ export const CURRENCY_OPTIONS: ReadonlyArray<{ value: Currency; label: string; s
 // 欧洲常见 VAT 率（百分比）。允许 0 表示免税。
 export const VAT_RATE_OPTIONS: ReadonlyArray<number> = [0, 5, 7, 10, 19, 20, 23, 25] as const
 
-/** Seller 预填信息。持久化到 projects.project_context.invoice_seller */
-export interface InvoiceSeller {
+/** 单个国家的 Seller 条目（VAT 主体）。按 country 做列表内唯一性约束 */
+export interface InvoiceSellerEntry {
+  country: string
   company_name: string
   vat_id: string
   address_line: string
   postal_code: string
   city: string
-  country: string
 }
+
+/** @deprecated 旧类型别名，仅供迁移参考。新代码请用 InvoiceSellerEntry */
+export type InvoiceSeller = InvoiceSellerEntry
 
 /** 商品明细行 */
 export interface InvoiceLineItem {
@@ -48,10 +51,7 @@ export interface InvoiceForm {
   project_id: number | null
   currency: Currency
   order_id: string
-  bill_id: string
-  bill_hs: string
   invoice_date: string
-  delivery_date: string
   buyer: InvoiceBuyer
   line_items: InvoiceLineItem[]
   shipping_incl_vat: number
@@ -90,7 +90,9 @@ export interface ProjectContext {
   project_id: number
   project_name: string
   project_context: {
-    invoice_seller?: InvoiceSeller
+    invoice_sellers?: InvoiceSellerEntry[]
+    /** @deprecated 旧字段，仅供迁移读取 */
+    invoice_seller?: InvoiceSellerEntry
   } | null
   sku_context: unknown
 }
