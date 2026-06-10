@@ -81,7 +81,7 @@ const RightFormPanel = ({
   return (
     <div
       ref={formRef}
-      className="flex w-full flex-col justify-center bg-white p-6 sm:p-8 lg:p-10 xl:w-1/2 dark:bg-[hsl(var(--card))]"
+      className="flex w-full flex-col justify-center bg-white p-6 sm:p-8 lg:p-10 lg:w-1/2 dark:bg-[hsl(var(--card))]"
       style={{ perspective: "800px" }}
     >
       <div>
