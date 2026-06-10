@@ -64,32 +64,33 @@
 
 - `revision = "159"`
 - `down_revision = "158"`（最新已合并的 short ID；实施前先跑 `cd backend && /Users/damon/miniconda3/bin/python3 -m alembic heads` 确认无未合并分支；如有变化，使用实际 head 作为 down_revision）
+- **重要**：`SkuRecord` 类的 `__tablename__` 是 `"product_costs"`（历史命名），迁移和所有 DDL 都用表名 `product_costs`
 
-为 `sku_records` 表添加 5 个可空列（与 `fnsku_label_*` 字段完全对称）：
+为 `product_costs` 表（SKU 记录实际物理表）添加 6 个可空列（与 `fnsku_label_*` 字段完全对称）：
 
 ```python
 op.add_column(
-    "sku_records",
+    "product_costs",
     sa.Column("product_image_r2_key", sa.String(length=512), nullable=True),
 )
 op.add_column(
-    "sku_records",
+    "product_costs",
     sa.Column("product_image_r2_url", sa.String(length=1024), nullable=True),
 )
 op.add_column(
-    "sku_records",
+    "product_costs",
     sa.Column("product_image_thumbnail_r2_key", sa.String(length=512), nullable=True),
 )
 op.add_column(
-    "sku_records",
+    "product_costs",
     sa.Column("product_image_thumbnail_r2_url", sa.String(length=1024), nullable=True),
 )
 op.add_column(
-    "sku_records",
+    "product_costs",
     sa.Column("product_image_uploaded_at", sa.DateTime(timezone=True), nullable=True),
 )
 op.add_column(
-    "sku_records",
+    "product_costs",
     sa.Column("product_image_uploaded_by", sa.String(length=128), nullable=True),
 )
 ```
@@ -99,6 +100,8 @@ op.add_column(
 ### 3.2 SQLAlchemy 模型更新
 
 `backend/app/models/sku_info.py` 在 `SkuRecord` 类加 6 个 mapped_column（与 `fnsku_label_*` 对齐）：
+
+> **注意**：`SkuRecord.__tablename__ == "product_costs"`（历史命名）。所有 DDL 用表名 `product_costs`，Python 类名仍用 `SkuRecord`。
 
 ```python
 product_image_r2_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
@@ -140,11 +143,12 @@ product_image_uploaded_by: Mapped[str | None] = mapped_column(String(128), nulla
 4. 两图分别保存为 WebP 质量 82/72
 5. 用 `ArtifactService.upload(...)` 上传到 R2，路径：`sku_records/{sku_record_id}/product/{image_id}.webp` + `.../thumbs/{image_id}_thumb.webp`
 6. **如有旧图**：先 `ArtifactService.delete(old_key)` + `delete(old_thumb_key)`，再写新值
-7. 更新 `sku_records` 表对应行：
+7. 更新 `product_costs` 表对应行（即 `SkuRecord`）：
    - `product_image_r2_key`, `product_image_r2_url`, `product_image_thumbnail_r2_key`, `product_image_thumbnail_r2_url`
    - `product_image_uploaded_at = now()`
    - `product_image_uploaded_by = X-Operator` header
-8. 返回 `SkuProductImageUploadResponse`
+8. 调用 `append_operation_audit_log(action="sku_info.upload_product_image", ...)` 记录审计日志（与现有 `update_sku_record` 端点保持一致风格）
+9. 返回 `SkuProductImageUploadResponse`
 
 **权限**：
 - 路由级 `Depends(require_api_key)`（默认全部 `/api/v1/*` 已加）
@@ -165,7 +169,8 @@ product_image_uploaded_by: Mapped[str | None] = mapped_column(String(128), nulla
 2. 读出当前 `product_image_r2_key` / `product_image_thumbnail_r2_key`
 3. 若有 key，调用 `ArtifactService.delete(key)` 与 `delete(thumb_key)`
 4. DB UPDATE：清空 6 个产品图相关字段
-5. 返回 `{"deleted": true, "sku_record_id": ...}`
+5. 调用 `append_operation_audit_log(action="sku_info.delete_product_image", ...)` 记录审计日志
+6. 返回 `{"deleted": true, "sku_record_id": ...}`
 
 **权限**：同上。
 
