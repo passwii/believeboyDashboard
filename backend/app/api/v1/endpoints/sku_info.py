@@ -1,5 +1,7 @@
 import csv
-from io import StringIO
+import uuid
+from datetime import datetime, timezone
+from io import BytesIO, StringIO
 from pathlib import Path
 
 from fastapi import (
@@ -13,6 +15,7 @@ from fastapi import (
     UploadFile,
     status,
 )
+from PIL import Image, ImageOps, UnidentifiedImageError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -26,6 +29,8 @@ from app.schemas.sku_info import (
     FnskuLabelUploadResponse,
     ParseFactoryInfoRequest,
     ParseFactoryInfoResponse,
+    SkuProductImageDeleteResponse,
+    SkuProductImageUploadResponse,
     SkuRecordBulkCreate,
     SkuRecordBulkUpsertResponse,
     SkuRecordCreate,
@@ -94,6 +99,12 @@ def _serialize_sku_record(row: SkuRecord | SkuRecordItem) -> dict[str, object]:
         "sku_factory_info_updated_by": str(row.sku_factory_info_updated_by) if row.sku_factory_info_updated_by else None,
         "fnsku_label_r2_key": getattr(row, 'fnsku_label_r2_key', None),
         "fnsku_label_r2_url": getattr(row, 'fnsku_label_r2_url', None),
+        "product_image_r2_key": getattr(row, 'product_image_r2_key', None),
+        "product_image_r2_url": getattr(row, 'product_image_r2_url', None),
+        "product_image_thumbnail_r2_key": getattr(row, 'product_image_thumbnail_r2_key', None),
+        "product_image_thumbnail_r2_url": getattr(row, 'product_image_thumbnail_r2_url', None),
+        "product_image_uploaded_at": str(row.product_image_uploaded_at) if getattr(row, 'product_image_uploaded_at', None) else None,
+        "product_image_uploaded_by": getattr(row, 'product_image_uploaded_by', None),
     }
 
 
@@ -860,6 +871,185 @@ def upload_fnsku_label(
         fnsku_verified=verification["verified"],
         fnsku_found_in_pdf=verification["fnsku_found"],
         fnsku_verification_message=verification["message"],
+    )
+
+
+@router.post("/sku-info/{sku_record_id}/product-image", response_model=SkuProductImageUploadResponse)
+def upload_product_image(
+    sku_record_id: int,
+    file: UploadFile = File(...),
+    request: Request = None,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+) -> SkuProductImageUploadResponse:
+    """上传或替换指定 SKU 的产品图（自动生成 1920x1920 主图 + 320x320 缩略图）。"""
+    from app.core.config import get_settings
+    from app.services.r2_service import upload_bytes_to_r2, delete_file_from_r2
+    from app.services.upload_service import _safe_project_folder_name
+
+    settings = get_settings()
+    if not settings.r2_enabled:
+        raise HTTPException(status_code=503, detail="R2 存储未配置")
+
+    row = db.execute(
+        select(SkuRecord).where(SkuRecord.id == sku_record_id)
+    ).scalars().first()
+    if not row:
+        raise HTTPException(status_code=404, detail="SKU 记录不存在")
+
+    allowed_types = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="仅支持 JPG / PNG / WebP / GIF 图片")
+
+    content = file.file.read()
+    max_size = 10 * 1024 * 1024  # 10MB
+    if len(content) > max_size:
+        raise HTTPException(status_code=400, detail="文件大小不能超过 10MB")
+    if len(content) == 0:
+        raise HTTPException(status_code=400, detail="文件为空")
+
+    try:
+        image = Image.open(BytesIO(content))
+        image = ImageOps.exif_transpose(image)
+        image.load()
+    except UnidentifiedImageError:
+        raise HTTPException(status_code=400, detail="图片内容无法识别") from None
+
+    image = image.convert("RGB")
+    image.thumbnail((1920, 1920))
+
+    thumb_image = ImageOps.fit(
+        image.copy(),
+        (320, 320),
+        method=Image.Resampling.LANCZOS,
+        centering=(0.5, 0.5),
+    )
+
+    image_id = uuid.uuid4().hex
+    main_name = f"{image_id}.webp"
+    thumb_name = f"{image_id}_thumb.webp"
+
+    main_buf = BytesIO()
+    image.save(main_buf, format="WEBP", quality=82, method=6)
+    main_bytes = main_buf.getvalue()
+
+    thumb_buf = BytesIO()
+    thumb_image.save(thumb_buf, format="WEBP", quality=72, method=6)
+    thumb_bytes = thumb_buf.getvalue()
+
+    if row.product_image_r2_key:
+        try:
+            delete_file_from_r2(settings, row.product_image_r2_key)
+        except Exception:
+            pass
+    if row.product_image_thumbnail_r2_key:
+        try:
+            delete_file_from_r2(settings, row.product_image_thumbnail_r2_key)
+        except Exception:
+            pass
+
+    project_slug = _safe_project_folder_name(row.project_name)
+    main_result = upload_bytes_to_r2(
+        settings=settings,
+        data=main_bytes,
+        filename=main_name,
+        project_slug=project_slug,
+        file_type="product-images",
+        content_type="image/webp",
+    )
+    thumb_result = upload_bytes_to_r2(
+        settings=settings,
+        data=thumb_bytes,
+        filename=thumb_name,
+        project_slug=project_slug,
+        file_type="product-thumbs",
+        content_type="image/webp",
+    )
+
+    row.product_image_r2_key = main_result["key"]
+    row.product_image_r2_url = main_result["url"]
+    row.product_image_thumbnail_r2_key = thumb_result["key"]
+    row.product_image_thumbnail_r2_url = thumb_result["url"]
+    row.product_image_uploaded_at = datetime.now(timezone.utc)
+    row.product_image_uploaded_by = operator
+
+    append_operation_audit_log(
+        db,
+        action="sku_info.upload_product_image",
+        target_type="sku_info",
+        target_id=sku_record_id,
+        operator=operator,
+        after={
+            "sku": row.sku,
+            "product_image_r2_key": main_result["key"],
+            "product_image_thumbnail_r2_key": thumb_result["key"],
+            "file_size": len(content),
+        },
+        request=request,
+    )
+    db.commit()
+
+    return SkuProductImageUploadResponse(
+        sku_record_id=sku_record_id,
+        product_image_r2_key=main_result["key"],
+        product_image_r2_url=main_result["url"],
+        product_image_thumbnail_r2_key=thumb_result["key"],
+        product_image_thumbnail_r2_url=thumb_result["url"],
+        uploaded_at=row.product_image_uploaded_at.isoformat(),
+    )
+
+
+@router.delete("/sku-info/{sku_record_id}/product-image", response_model=SkuProductImageDeleteResponse)
+def delete_product_image(
+    sku_record_id: int,
+    request: Request = None,
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+) -> SkuProductImageDeleteResponse:
+    """删除指定 SKU 的产品图（清空 R2 对象 + DB 字段）。"""
+    from app.core.config import get_settings
+    from app.services.r2_service import delete_file_from_r2
+
+    settings = get_settings()
+
+    row = db.execute(
+        select(SkuRecord).where(SkuRecord.id == sku_record_id)
+    ).scalars().first()
+    if not row:
+        raise HTTPException(status_code=404, detail="SKU 记录不存在")
+
+    if row.product_image_r2_key:
+        try:
+            delete_file_from_r2(settings, row.product_image_r2_key)
+        except Exception:
+            pass
+    if row.product_image_thumbnail_r2_key:
+        try:
+            delete_file_from_r2(settings, row.product_image_thumbnail_r2_key)
+        except Exception:
+            pass
+
+    row.product_image_r2_key = None
+    row.product_image_r2_url = None
+    row.product_image_thumbnail_r2_key = None
+    row.product_image_thumbnail_r2_url = None
+    row.product_image_uploaded_at = None
+    row.product_image_uploaded_by = None
+
+    append_operation_audit_log(
+        db,
+        action="sku_info.delete_product_image",
+        target_type="sku_info",
+        target_id=sku_record_id,
+        operator=operator,
+        after={"sku": row.sku},
+        request=request,
+    )
+    db.commit()
+
+    return SkuProductImageDeleteResponse(
+        sku_record_id=sku_record_id,
+        deleted=True,
     )
 
 
