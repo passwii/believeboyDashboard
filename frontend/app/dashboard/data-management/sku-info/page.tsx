@@ -37,6 +37,7 @@ import {
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import FactoryInfoSheet from '@/components/dashboard/sku-info/factory-info-sheet'
 import BatchFactoryInfoSheet from '@/components/dashboard/sku-info/batch-factory-info-sheet'
+import { ImageTabContent } from '@/components/dashboard/sku-info/image-tab'
 import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 
@@ -67,6 +68,12 @@ type ProductCostItem = {
   sku_factory_info_updated_by: string | null
   fnsku_label_r2_key?: string | null
   fnsku_label_r2_url?: string | null
+  product_image_r2_key?: string | null
+  product_image_r2_url?: string | null
+  product_image_thumbnail_r2_key?: string | null
+  product_image_thumbnail_r2_url?: string | null
+  product_image_uploaded_at?: string | null
+  product_image_uploaded_by?: string | null
   historical_first_leg_cost_rmb?: number | null
 }
 
@@ -92,9 +99,9 @@ type ShipmentSkuSummaryResponse = {
   items: ShipmentSkuSummaryItem[]
 }
 
-type ActiveTab = 'cost' | 'dimension' | 'factory' | 'label'
+type ActiveTab = 'cost' | 'dimension' | 'factory' | 'label' | 'image'
 type ImportMode = 'create' | 'update'
-const ACTIVE_TAB_ORDER: ActiveTab[] = ['cost', 'dimension', 'factory', 'label']
+const ACTIVE_TAB_ORDER: ActiveTab[] = ['cost', 'dimension', 'factory', 'label', 'image']
 
 const API_BASE = '/api/backend'
 const HISTORY_SHIPMENT_STATUSES = ['completed', 'in_transit'] as const
@@ -1982,6 +1989,13 @@ export default function SkuInfoPage() {
                   </table>
                 </DataTableCardBody>
               </DataTableCard>
+            ) : activeTab === 'image' ? (
+              <ImageTabContent
+                projectName={projectFilter}
+                skus={items}
+                loading={loading}
+                onRefresh={() => void loadData()}
+              />
             )}
           </TabsContent>
         </DirectionalTabTransition>
