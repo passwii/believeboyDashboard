@@ -83,9 +83,14 @@ export function SidebarShell({ children: _children }: SidebarShellProps = {}) {
 
  return (
  <>
- {/* Desktop sidebar (>=md) */}
-<div
- className='hidden md:flex'
+ {/* Desktop sidebar (>=md)
+  *
+  * 桌面端结构：外层 wrapper 是 relative 容器，rail 永远占 68px，
+  * panel 改为 absolute 浮在 rail 右侧 0.5rem 处（不挤占主内容区宽度）。
+  * 主内容区始终拿到完整可用宽度，仅在 panel 打开时被覆盖。
+  */}
+ <div
+ className='relative hidden md:flex'
  onMouseLeave={() => { panelState.hoverLeave() }}
  >
  <SidebarIconRail
@@ -96,15 +101,21 @@ export function SidebarShell({ children: _children }: SidebarShellProps = {}) {
  user={displayUser}
  />
  <div
- className={`sidebar-panel-shell flex h-screen w-[240px] shrink-0 flex-col overflow-hidden border-r border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-background))] transition-[transform,width,opacity] duration-300 ease-[cubic-bezier(0.22,1.18,0.36,1)] ${
- activeGroupId ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0 pointer-events-none w-0 border-r-0'
+ className={`sidebar-panel-shell pointer-events-none absolute left-[68px] top-0 z-40 flex h-screen w-[240px] flex-col overflow-hidden rounded-r-xl border border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-background))] shadow-[0_24px_60px_-24px_rgba(15,23,42,0.28)] ring-1 ring-black/[0.04] transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.22,1.18,0.36,1)] ${
+ activeGroupId
+ ? 'translate-x-2 opacity-100'
+ : '-translate-x-3 opacity-0'
  }`}
- style={!activeGroupId ? { width:0 } : undefined}
  onMouseEnter={() => {
  if (!activeGroupId) return
  // Re-enter hover state for the active group when mouse comes back into panel area
  panelState.hoverEnter(activeGroupId)
  }}
+ >
+ <div
+ className={`flex h-full w-full flex-col ${
+ activeGroupId ? 'pointer-events-auto' : 'pointer-events-none'
+ }`}
  >
  {activeGroupId === 'user' ? (
  <SidebarUserPanel
@@ -125,6 +136,7 @@ export function SidebarShell({ children: _children }: SidebarShellProps = {}) {
  }}
  />
  ) : null}
+ </div>
  </div>
  </div>
 
