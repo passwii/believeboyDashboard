@@ -12,6 +12,7 @@ import { fetchDigitalEmployee, fetchEmployeeTasks, suspendEmployee, resumeEmploy
 import { EmployeeAvatar } from '@/components/digital-employee/employee-avatar'
 import { StatusBadge } from '@/components/digital-employee/status-badge'
 import { HeartbeatDot } from '@/components/digital-employee/heartbeat-dot'
+import { PersonifiedPlayer } from '@/components/digital-employee/personified-player'
 
 const TYPE_EMOJI: Record<string, string> = {
   AUTO_REPORT_UPLOAD: '📤',
@@ -146,6 +147,19 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
             </div>
           )}
           <HeartbeatDot lastSeen={employee.last_heartbeat_at} />
+        </CardContent>
+      </Card>
+
+      {/* Personified Player */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">拟人化工作状态</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <PersonifiedPlayer
+            employeeId={employeeId}
+            employeeName={employee.name}
+          />
         </CardContent>
       </Card>
 

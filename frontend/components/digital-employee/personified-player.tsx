@@ -63,7 +63,8 @@ export function PersonifiedPlayer({
     async function poll() {
       try {
         const { items } = await fetchEmployeeTasks(employeeId)
-        const tasks = items as RawTask[]
+        // 转换类型：DigitalEmployeeTask.id 是 number，RawTask.id 是 string
+        const tasks = items.map((t) => ({ ...t, id: String(t.id) })) as unknown as RawTask[]
         const allBuckets = aggregateTasks(tasks)
         const newBuckets = allBuckets.filter(
           (b) => !consumedIdsRef.current.has(b.id),
