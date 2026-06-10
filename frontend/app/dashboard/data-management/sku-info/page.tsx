@@ -1782,7 +1782,7 @@ export default function SkuInfoPage() {
                   </table>
                 </DataTableCardBody>
               </DataTableCard>
-            ) : (
+            ) : activeTab === 'label' ? (
               /* ── 产品标签 Tab ── */
               <DataTableCard className='overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90'>
                 <DataTableCardHeader className='px-6 py-5'>
@@ -1998,7 +1998,7 @@ export default function SkuInfoPage() {
                   </table>
                 </DataTableCardBody>
               </DataTableCard>
-            )}
+            ) : null}
             {activeTab === 'image' && (
               <ImageTabContent
                 projectName={projectFilter}
