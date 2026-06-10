@@ -344,10 +344,6 @@ def process_file(
     file_sha256 = _sha256_file(file_path)
     duplicates = _find_sha256_duplicates(db, file_sha256)
     if duplicates:
-        dup_info = ", ".join(
-            f"项目ID={d['project_id']}({d['report_type']}/{d['country']})"
-            for d in duplicates
-        )
         # Write today's upload log so RPA status grid shows green
         _write_dedup_upload_log(
             db, file_path.name, project_name,
@@ -362,7 +358,7 @@ def process_file(
             skipped=True,
             report_type=result.report_type,
             report_label=_report_label,
-            reason=f"SHA-256 重复（{dup_info}）",
+            reason="SHA-256 重复",
         )
 
     # 2. Persist to DB
