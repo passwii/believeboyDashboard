@@ -6,23 +6,19 @@ import { cn } from '@/lib/utils'
 
 interface DigitalEmployeeGridProps {
   employees: DigitalEmployee[]
-  displayMode?: boolean
   onCardClick?: (id: number) => void
+  taskMap?: Record<number, { task_name: string; progress_percent: number; current_step: string | null; status: string }>
 }
 
-export function DigitalEmployeeGrid({ employees, displayMode = false, onCardClick }: DigitalEmployeeGridProps) {
-  const columns = displayMode
-    ? 'grid-cols-1 md:grid-cols-2'
-    : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
-
+export function DigitalEmployeeGrid({ employees, onCardClick, taskMap }: DigitalEmployeeGridProps) {
   return (
-    <div className={cn('grid gap-4', columns)}>
+    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
       {employees.map((emp) => (
         <DigitalEmployeeCard
           key={emp.id}
           employee={emp}
-          displayMode={displayMode}
           onClick={onCardClick}
+          currentTask={taskMap?.[emp.id]}
         />
       ))}
     </div>
