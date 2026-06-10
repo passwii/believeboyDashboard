@@ -73,6 +73,18 @@ export async function fetchEmployeeLogs(employeeId: number, taskId: number) {
   return res.json()
 }
 
+export async function fetchEmployeeRecentLogs(employeeId: number, limit = 20) {
+  const res = await fetch(resolveApiUrl(`/api/v1/digital-employees/${employeeId}/recent-logs?limit=${limit}`), {
+    cache: 'no-store',
+  })
+  if (res.status === 401) {
+    window.location.href = '/login'
+    throw new Error('Unauthorized')
+  }
+  if (!res.ok) throw new Error('Failed to fetch recent logs')
+  return res.json() as Promise<{ items: import('@/types/digital-employee').DigitalEmployeeLog[] }>
+}
+
 export async function suspendEmployee(id: number) {
   const res = await fetch(resolveApiUrl(`/api/v1/digital-employees/${id}/status`), {
     method: 'PATCH',
