@@ -111,7 +111,7 @@ export function SidebarIconRail({
 
       {/* Group icons */}
       <nav
-        className='flex flex-1 flex-col items-center gap-2.5 overflow-y-auto px-3 py-3'
+        className='flex flex-1 flex-col items-center gap-2.5 overflow-x-hidden overflow-y-auto px-3 py-3'
         aria-label='主导航'
       >
         {groups.map((group) => {
