@@ -100,6 +100,7 @@ def start_task(
     task_id: str,
     task_name: str,
     task_type: str,
+    metadata_json: str | None = None,
 ) -> DigitalEmployeeTask:
     """为数字员工创建一个运行中任务"""
     now = datetime.now(UTC)
@@ -111,6 +112,7 @@ def start_task(
         status=TaskStatus.RUNNING,
         progress_percent=0,
         started_at=now,
+        metadata_json=metadata_json,
     )
     db.add(task)
     employee = db.get(DigitalEmployee, employee_id)
