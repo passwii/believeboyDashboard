@@ -14,30 +14,129 @@ from db import Session, check_db_health, get_db_session, get_db_session_with_ret
 from processor import ProcessResult, process_file
 
 
+class _TableResultFormatter(logging.Formatter):
+    """Console formatter: renders ProcessResult lines as a colourised table row.
+
+    Non-result messages (everything else) are passed through unchanged.
+    """
+
+    # ── ANSI colour codes ────────────────────────────────────────────────────
+    _BOLD    = "\033[1m"
+    _RESET   = "\033[0m"
+    _DIM     = "\033[2m"
+    _GREEN   = "\033[92m"
+    _YELLOW  = "\033[93m"
+    _RED     = "\033[91m"
+    _CYAN    = "\033[96m"
+    _MAGENTA = "\033[95m"
+
+    _SEP  = "│"
+    _HSEP = "─"
+
+    # Column widths
+    _COL_STATUS  = 6
+    _COL_COUNTRY = 4
+    _COL_PROJECT = 10
+    _COL_REPORT  = 18
+    _COL_DATE    = 10
+
+    def _trunc(self, s: str, w: int) -> str:
+        return s[:w-1] + "…" if len(s) > w else s
+
+    def _pad(self, s: str, w: int) -> str:
+        return s + " " * max(0, w - len(s))
+
+    def _header(self) -> str:
+        r = self._RESET
+        cyan = self._BOLD + self._CYAN
+        def h(label, w):
+            return f"{cyan}{self._pad(label, w)}{r}"
+        divider = (
+            f"{self._DIM}"
+            + self._pad("──", self._COL_STATUS).replace(" ", self._HSEP) + self._SEP
+            + self._pad("──", self._COL_COUNTRY).replace(" ", self._HSEP) + self._SEP
+            + self._pad("──", self._COL_PROJECT).replace(" ", self._HSEP) + self._SEP
+            + self._pad("──", self._COL_REPORT).replace(" ", self._HSEP) + self._SEP
+            + self._pad("──", self._COL_DATE).replace(" ", self._HSEP) + self._SEP
+            + self._pad("──", 50).replace(" ", self._HSEP)
+            + self._RESET
+        )
+        return (
+            f"{cyan}{self._pad('状态', self._COL_STATUS)}{self._SEP}"
+            f"{h('国家', self._COL_COUNTRY)}{self._SEP}"
+            f"{h('项目', self._COL_PROJECT)}{self._SEP}"
+            f"{h('报表类型', self._COL_REPORT)}{self._SEP}"
+            f"{h('日期', self._COL_DATE)}{self._SEP}"
+            f"{h('备注', 50)}{self._RESET}"
+            f"\n{divider}"
+        )
+
+    def format(self, record: logging.LogRecord) -> str:
+        msg: str = record.getMessage()
+
+        # Only format pipe-delimited result lines
+        if msg and len(msg) > 3 and msg[2] == "|":
+            parts = msg.split("|")
+            status_raw = parts[0]
+
+            if status_raw == "OK":
+                return self._format_row("✓ OK",   self._GREEN,  parts)
+            elif status_raw == "跳过":
+                return self._format_row("⏭ 跳过", self._YELLOW, parts)
+            elif status_raw == "FAIL":
+                return self._format_row("✗ FAIL", self._RED,   parts)
+
+        # Not a result line — return as-is (raw text, no timestamp prefix)
+        return msg
+
+    def _format_row(self, status: str, colour: str, parts: list[str]) -> str:
+        r, sep = self._RESET, self._SEP
+
+        country  = self._pad(parts[1] if len(parts) > 1 else "-", self._COL_COUNTRY)
+        project  = self._pad(self._trunc(parts[2] if len(parts) > 2 else "-", self._COL_PROJECT), self._COL_PROJECT)
+        report   = self._pad(self._trunc(parts[3] if len(parts) > 3 else "-", self._COL_REPORT),  self._COL_REPORT)
+        date_str = self._pad(parts[4] if len(parts) > 4 else "-", self._COL_DATE)
+        note     = self._trunc(" ".join(parts[5:]) if len(parts) > 5 else "", 50)
+
+        c = colour + self._BOLD
+        return (
+            f"{c}{self._pad(status, self._COL_STATUS)}{r}{sep}"
+            f"{self._DIM}{country}{r}{sep}"
+            f"{self._MAGENTA}{project}{r}{sep}"
+            f"{colour}{report}{r}{sep}"
+            f"{self._CYAN}{date_str}{r}{sep}"
+            f"{self._DIM}{note}{r}"
+        )
+
+
 class RunLogger:
-    """Logs run results to a timestamped file."""
+    """Logs run results to a timestamped file + styled console output."""
 
     def __init__(self, logs_dir: Path):
         self.logs_dir = logs_dir
         self.logs_dir.mkdir(parents=True, exist_ok=True)
         self.run_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.log_path = self.logs_dir / f"run_{self.run_ts}.log"
+        self._table_header_printed = False
 
         self.logger = logging.getLogger(f"autorun.{self.run_ts}")
         self.logger.setLevel(logging.DEBUG)
         self.logger.handlers.clear()
 
-        # File handler
+        # ── File handler (pipe-delimited, easy to parse) ─────────────────────
         fh = logging.FileHandler(self.log_path, encoding="utf-8")
         fh.setLevel(logging.DEBUG)
-        # Console handler
+        fh_fmt = logging.Formatter(
+            "%(asctime)s  %(levelname)-8s  %(message)s",
+            datefmt="%H:%M:%S",
+        )
+        fh.setFormatter(fh_fmt)
+        self.logger.addHandler(fh)
+
+        # ── Console handler (table-styled) ───────────────────────────────────
         ch = logging.StreamHandler()
         ch.setLevel(logging.DEBUG)
-
-        fmt = logging.Formatter("%(asctime)s  %(levelname)-8s  %(message)s", datefmt="%H:%M:%S")
-        fh.setFormatter(fmt)
-        ch.setFormatter(fmt)
-        self.logger.addHandler(fh)
+        ch.setFormatter(_TableResultFormatter())
         self.logger.addHandler(ch)
 
     def debug(self, msg: str, *args) -> None:
