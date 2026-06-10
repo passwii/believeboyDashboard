@@ -1,13 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { Monitor, RefreshCw, Users, Activity, ChevronDown } from 'lucide-react'
+import { Monitor, RefreshCw, Users, Search } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Search } from 'lucide-react'
 import { useDigitalEmployees } from '@/hooks/use-digital-employees'
 import { DigitalEmployeeGrid } from '@/components/digital-employee/digital-employee-grid'
 import { DigitalEmployeeStats } from '@/components/digital-employee/stats'
@@ -30,7 +29,6 @@ export default function DigitalEmployeesPage() {
   const { employees, isLoading, error, mutate } = useDigitalEmployees()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
-  const [showActivityFeed, setShowActivityFeed] = useState(true)
 
   const { showSkeleton, isRefreshing } = useSmoothRefresh({
     loading: isLoading,
@@ -90,20 +88,22 @@ export default function DigitalEmployeesPage() {
       </div>
 
       {showSkeleton ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="rounded-2xl border p-4 space-y-3">
-              <div className="flex items-center gap-3">
-                <Skeleton className="h-14 w-14 rounded-2xl" />
-                <div className="space-y-2">
-                  <Skeleton className="h-5 w-28" />
-                  <Skeleton className="h-4 w-20" />
-                </div>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-16 rounded-xl" />
+            ))}
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="rounded-2xl border p-4 space-y-3">
+                <Skeleton className="h-5 w-28" />
+                <Skeleton className="h-16 w-16 rounded-2xl mx-auto" />
+                <Skeleton className="h-16 w-full rounded-lg" />
+                <Skeleton className="h-4 w-full" />
               </div>
-              <Skeleton className="h-12 w-full rounded-xl" />
-              <Skeleton className="h-8 w-full rounded-lg" />
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       ) : error ? (
         <div className="flex items-center justify-center rounded-xl border border-destructive/20 bg-destructive/5 p-8 text-destructive">
@@ -112,10 +112,8 @@ export default function DigitalEmployeesPage() {
       ) : (
         <div className="relative">
           <RefreshProgressBar refreshing={isRefreshing}>
-            {/* Stats bar */}
-            <DigitalEmployeeStats employees={filtered} />
+            <DigitalEmployeeStats employees={employees} />
 
-            {/* Filters */}
             <div className="flex items-center gap-4 mt-4">
               <div className="relative flex-1 max-w-sm">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -126,7 +124,7 @@ export default function DigitalEmployeesPage() {
                   className="pl-10"
                 />
               </div>
-              <div className="flex gap-1.5">
+              <div className="flex gap-1.5 flex-wrap">
                 {STATUS_FILTERS.map((f) => {
                   const count = f.value === null ? employees.length : employees.filter((e) => e.status === f.value).length
                   return (
@@ -147,40 +145,38 @@ export default function DigitalEmployeesPage() {
               </div>
             </div>
 
-            {filtered.length === 0 ? (
-              <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed p-16 text-muted-foreground gap-3 mt-4">
-                <span className="text-4xl">🤖</span>
-                <p className="text-sm">暂无数字员工</p>
+            <div className="mt-4 grid gap-6 lg:grid-cols-[1fr,360px]">
+              <div>
+                {filtered.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed p-16 text-muted-foreground gap-3">
+                    <span className="text-4xl">🤖</span>
+                    <p className="text-sm">暂无数字员工</p>
+                  </div>
+                ) : (
+                  <DigitalEmployeeGrid
+                    employees={filtered}
+                    onCardClick={(id) => router.push(`/dashboard/digital-employees/${id}`)}
+                  />
+                )}
               </div>
-            ) : (
-              <div className="mt-4">
-                <DigitalEmployeeGrid
-                  employees={filtered}
-                  onCardClick={(id) => router.push(`/dashboard/digital-employees/${id}`)}
-                />
+
+              <div className="hidden lg:flex flex-col rounded-2xl border bg-card/50 overflow-hidden">
+                <div className="flex items-center gap-2 border-b px-4 py-3">
+                  <span className="relative flex h-2 w-2">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                  </span>
+                  <h2 className="text-sm font-semibold">实时动态</h2>
+                  <span className="ml-auto text-xs text-muted-foreground">15s 更新</span>
+                </div>
+                <div className="flex-1 overflow-hidden px-3 py-3">
+                  <ActivityFeed pollInterval={15000} maxHeight="calc(100vh - 320px)" compact />
+                </div>
               </div>
-            )}
+            </div>
           </RefreshProgressBar>
         </div>
       )}
-
-      {/* Activity Feed */}
-      <div className="space-y-3">
-        <button
-          className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-          onClick={() => setShowActivityFeed((v) => !v)}
-        >
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-          </span>
-          实时动态
-          <ChevronDown className={cn('h-4 w-4 transition-transform', showActivityFeed && 'rotate-180')} />
-        </button>
-        {showActivityFeed && (
-          <ActivityFeed pollInterval={15000} maxHeight="400px" compact />
-        )}
-      </div>
     </div>
   )
 }
