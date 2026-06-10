@@ -155,6 +155,20 @@ def list_logs(
     return [_serialize_log(l) for l in items], has_more, next_cursor
 
 
+def list_employee_logs(
+    db: Session, employee_id: int, limit: int = 20
+) -> list[dict]:
+    """查询员工最近日志（不限 task），返回最新 N 条。"""
+    q = (
+        select(DigitalEmployeeLog)
+        .where(DigitalEmployeeLog.employee_id == employee_id)
+        .order_by(DigitalEmployeeLog.created_at.desc())
+        .limit(limit)
+    )
+    items = list(db.execute(q).scalars().all())
+    return [_serialize_log(l) for l in items]
+
+
 # ─── Internal APIs ───────────────────────────────────────────────────────────
 
 

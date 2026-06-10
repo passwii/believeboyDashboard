@@ -40,6 +40,7 @@ from app.services.digital.employee_service import (
     list_tasks as _list_tasks,
     get_task as _get_task,
     list_logs as _list_logs,
+    list_employee_logs as _list_employee_logs,
     register_employee as _register_employee,
 )
 
@@ -136,6 +137,17 @@ def list_logs_endpoint(
         has_more=has_more,
         cursor=next_cursor,
     )
+
+
+@router.get("/{employee_id}/recent-logs")
+def list_recent_logs_endpoint(
+    employee_id: int,
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db_session),
+    _=Depends(protected),
+):
+    items = _list_employee_logs(db, employee_id=employee_id, limit=limit)
+    return {"items": items}
 
 
 # ── Internal APIs ─────────────────────────────────────────────────────────────
