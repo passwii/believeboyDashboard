@@ -4,7 +4,7 @@
 
 import { jsPDF } from "jspdf"
 import { computeInvoiceTotal, splitVat, summarizeByRate } from "./vat-calc"
-import { CURRENCY_OPTIONS, type InvoiceForm, type InvoiceSeller, type SummaryRow } from "../types"
+import { CURRENCY_OPTIONS, type InvoiceForm, type InvoiceSellerEntry, type SummaryRow } from "../types"
 
 const PAGE_W = 210
 const PAGE_H = 297
@@ -97,7 +97,7 @@ function drawTable(
 }
 
 /** 顶部 Seller + 标题（标题右上） */
-function drawHeader(doc: jsPDF, seller: InvoiceSeller, form: InvoiceForm): number {
+function drawHeader(doc: jsPDF, seller: InvoiceSellerEntry, form: InvoiceForm): number {
   let y = M + 5
 
   // Seller 块（左上）
@@ -133,7 +133,7 @@ function drawHeader(doc: jsPDF, seller: InvoiceSeller, form: InvoiceForm): numbe
 function drawBillToAndMeta(
   doc: jsPDF,
   form: InvoiceForm,
-  seller: InvoiceSeller,
+  seller: InvoiceSellerEntry,
   y: number,
 ): number {
   const colLeft = M
@@ -171,10 +171,9 @@ function drawBillToAndMeta(
   const sym = getSymbol(form.currency)
   const total = computeInvoiceTotal(form)
   const meta: Array<[string, string]> = [
-    ["Invoice #", form.bill_id],
+    ["Invoice #", form.order_id],
     ["Order ID", form.order_id],
     ["Invoice Date", form.invoice_date],
-    ["Delivery Date", form.delivery_date],
     ["VAT declared by", seller.company_name || "—"],
     ["VAT #", seller.vat_id || "—"],
     ["Total payable", fmtMoney(total, sym)],
@@ -298,7 +297,7 @@ function drawSummary(doc: jsPDF, form: InvoiceForm, rows: SummaryRow[], y: numbe
 }
 
 /** 页脚（显示当前页码与总页数） */
-function drawFooter(doc: jsPDF, seller: InvoiceSeller): void {
+function drawFooter(doc: jsPDF, seller: InvoiceSellerEntry): void {
   const y = PAGE_H - M
   doc.setFont("helvetica", "normal")
   doc.setFontSize(8)
@@ -313,7 +312,7 @@ function drawFooter(doc: jsPDF, seller: InvoiceSeller): void {
 }
 
 /** 主入口（支持多页：明细很多时自动 addPage） */
-export function drawInvoice(seller: InvoiceSeller, form: InvoiceForm): jsPDF {
+export function drawInvoice(seller: InvoiceSellerEntry, form: InvoiceForm): jsPDF {
   const doc = new jsPDF({ unit: "mm", format: "a4" })
   const rows = summarizeByRate(form)
 
@@ -343,7 +342,7 @@ export function drawInvoice(seller: InvoiceSeller, form: InvoiceForm): jsPDF {
 }
 
 /** 下载发票 PDF */
-export function downloadInvoice(seller: InvoiceSeller, form: InvoiceForm): void {
+export function downloadInvoice(seller: InvoiceSellerEntry, form: InvoiceForm): void {
   const doc = drawInvoice(seller, form)
   const filename = `VAT_${form.order_id || "invoice"}_${form.currency}_${form.invoice_date || "draft"}.pdf`
   doc.save(filename)

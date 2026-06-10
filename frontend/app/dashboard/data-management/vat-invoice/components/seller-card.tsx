@@ -165,6 +165,9 @@ export function SellerCard({
     return () => {
       alive = false
     }
+    // selectedProjectId / projects 变化才重拉；onSellersChange/onCountryChange 来自父 useState（稳定）；
+    // selectedCountry 不能加（否则切换国家会重拉，形成循环）。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProjectId, projects])
 
   // 编辑当前国家
@@ -336,7 +339,7 @@ export function SellerCard({
           <div className="flex items-start gap-2 rounded-md border border-amber-300/60 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700/40 dark:bg-amber-950/40 dark:text-amber-200">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <div>
-              尚未配置任何国家的 VAT 主体。请点击右上角"新增国家"补充。
+              尚未配置任何国家的 VAT 主体。请点击右上角「新增国家」补充。
             </div>
           </div>
         ) : null}

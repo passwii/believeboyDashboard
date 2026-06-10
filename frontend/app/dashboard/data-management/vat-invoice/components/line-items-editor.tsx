@@ -82,7 +82,7 @@ export function LineItemsEditor({ form, currencySymbol, onChange }: LineItemsEdi
       <CardContent className="space-y-3">
         {items.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            暂无明细行。点击右上角"添加行"开始录入。
+            暂无明细行。点击右上角「添加行」开始录入。
           </p>
         ) : (
           <>

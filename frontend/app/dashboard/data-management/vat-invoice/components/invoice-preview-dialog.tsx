@@ -14,12 +14,12 @@ import {
 import { Button } from "@/components/ui/button"
 import { Download, FileText, Loader2 } from "lucide-react"
 import { drawInvoice, downloadInvoice } from "../lib/invoice-pdf"
-import type { InvoiceForm, InvoiceSeller } from "../types"
+import type { InvoiceForm, InvoiceSellerEntry } from "../types"
 
 interface InvoicePreviewDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  seller: InvoiceSeller
+  seller: InvoiceSellerEntry
   form: InvoiceForm
 }
 
@@ -86,7 +86,7 @@ export function InvoicePreviewDialog({
             发票预览
           </DialogTitle>
           <DialogDescription>
-            确认无误后点击右侧"下载 PDF"。每次重新打开会基于当前表单重新渲染。
+            确认无误后点击右侧「下载 PDF」。每次重新打开会基于当前表单重新渲染。
           </DialogDescription>
         </DialogHeader>
 
