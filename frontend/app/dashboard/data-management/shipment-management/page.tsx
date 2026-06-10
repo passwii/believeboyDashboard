@@ -35,6 +35,7 @@ import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { cn, formatLocalTimestampForFilename } from '@/lib/utils'
 import { DENSE_CELL, DENSE_HEAD, DataTableCardStatBar } from '@/components/ui/data-card'
 import { applyBorder, applyHeaderBorder, applyRowBorder } from '@/lib/excel-styles'
+import { ImageLightbox } from '@/components/dashboard/sku-info/image-lightbox'
 
 const API_BASE = '/api/backend'
 const HISTORY_SHIPMENT_STATUSES = ['completed', 'in_transit'] as const
@@ -165,6 +166,9 @@ type ShipmentFbaBoxDetailItem = {
   total_weight_kg: number
   total_volume_m3: number
   fba_label_prefix: string
+  tracking_no: string | null
+  product_image_thumbnail_r2_url: string | null
+  product_image_r2_url: string | null
 }
 
 type ShipmentFbaBoxDetailResponse = {
@@ -708,6 +712,7 @@ export default function ShipmentManagementPage() {
   const [fbaBoxExporting, setFbaBoxExporting] = useState(false)
   const [fbaBoxMeta, setFbaBoxMeta] = useState<{ projectNames: string[]; countries: string[]; shipmentNos: string[] } | null>(null)
   const [fbaBoxItems, setFbaBoxItems] = useState<ShipmentFbaBoxDetailItem[]>([])
+  const [fbaLightboxItem, setFbaLightboxItem] = useState<ShipmentFbaBoxDetailItem | null>(null)
   const [labelDownloading, setLabelDownloading] = useState(false)
 
   const summary = useMemo(() => {
@@ -820,6 +825,43 @@ export default function ShipmentManagementPage() {
 
     return groups
   }, [fbaBoxItems])
+
+  const fbaBoxShipmentGroups = useMemo(() => {
+    const groups: { shipmentNo: string; startIndex: number; endIndex: number }[] = []
+    if (fbaBoxItems.length === 0) return groups
+
+    let currentShipmentNo = fbaBoxItems[0].shipment_no
+    let startIndex = 0
+
+    fbaBoxItems.forEach((item, index) => {
+      if (index === 0) return
+      if (item.shipment_no !== currentShipmentNo) {
+        groups.push({
+          shipmentNo: currentShipmentNo,
+          startIndex,
+          endIndex: index - 1,
+        })
+        currentShipmentNo = item.shipment_no
+        startIndex = index
+      }
+    })
+
+    groups.push({
+      shipmentNo: currentShipmentNo,
+      startIndex,
+      endIndex: fbaBoxItems.length - 1,
+    })
+
+    return groups
+  }, [fbaBoxItems])
+
+  const openFbaImageLightbox = useCallback((item: ShipmentFbaBoxDetailItem) => {
+    setFbaLightboxItem(item)
+  }, [])
+
+  const closeFbaImageLightbox = useCallback(() => {
+    setFbaLightboxItem(null)
+  }, [])
 
   const fbaBoxLabelRanges = useMemo(() => {
     const ranges: string[] = []
@@ -2078,13 +2120,11 @@ export default function ShipmentManagementPage() {
         { header: '国家', key: 'country', width: 10 },
         { header: '货件编号', key: 'shipment_no', width: 20 },
         { header: '仓库 ID', key: 'warehouse_code', width: 16 },
+        { header: '追踪 ID', key: 'tracking_no', width: 18 },
         { header: 'SKU', key: 'sku', width: 26 },
+        { header: '产品图片', key: 'product_image', width: 16 },
         { header: 'ASIN', key: 'asin', width: 20 },
         { header: 'FNSKU', key: 'fnsku', width: 20 },
-        { header: '单品长(cm)', key: 'package_length', width: 13 },
-        { header: '单品宽(cm)', key: 'package_width', width: 13 },
-        { header: '单品高(cm)', key: 'package_height', width: 13 },
-        { header: '单品重量(kg)', key: 'package_weight', width: 14 },
         { header: '外箱长(cm)', key: 'carton_length', width: 13 },
         { header: '外箱宽(cm)', key: 'carton_width', width: 13 },
         { header: '外箱高(cm)', key: 'carton_height', width: 13 },
@@ -2097,6 +2137,8 @@ export default function ShipmentManagementPage() {
         { header: '总重量(kg)', key: 'total_weight', width: 14 },
       ] as const
       const lastColumn = columns.length
+      const dataStartRow = 4
+      const imageColumnIndex = 7 // 产品图片列
 
       worksheet.mergeCells(1, 1, 1, lastColumn)
       const projectText = fbaBoxMeta.projectNames.length === 1 ? fbaBoxMeta.projectNames[0] : `${fbaBoxMeta.projectNames.length} 个项目`
@@ -2125,56 +2167,172 @@ export default function ShipmentManagementPage() {
       })
 
       fbaBoxItems.forEach((item, index) => {
-        const row = worksheet.getRow(index + 4)
+        const row = worksheet.getRow(index + dataStartRow)
         row.values = [
-          item.project_name,
-          item.country,
-          item.shipment_no,
-          item.warehouse_code || '-',
-          item.sku,
-          item.asin || '-',
-          item.fnsku || '-',
-          item.package_length_cm ? formatDecimal(item.package_length_cm, 2) : '-',
-          item.package_width_cm ? formatDecimal(item.package_width_cm, 2) : '-',
-          item.package_height_cm ? formatDecimal(item.package_height_cm, 2) : '-',
-          item.weight_kg ? formatDecimal(item.weight_kg, 3) : '-',
-          item.length_cm > 0 ? formatDecimal(item.length_cm, 2) : '-',
-          item.width_cm > 0 ? formatDecimal(item.width_cm, 2) : '-',
-          item.height_cm > 0 ? formatDecimal(item.height_cm, 2) : '-',
-          item.carton_weight_kg ? formatDecimal(item.carton_weight_kg, 3) : '-',
-          item.units_per_carton > 0 ? `${item.units_per_carton} / 箱` : '-',
-          item.carton_count > 0 ? item.carton_count : '-',
-          fbaBoxLabelRanges[index] ?? '-',
-          item.quantity > 0 ? item.quantity : '-',
-          item.total_volume_m3,
-          item.total_weight_kg,
+          item.project_name,                                    // 1 项目
+          item.country,                                         // 2 国家
+          item.shipment_no,                                     // 3 货件编号
+          item.warehouse_code || '-',                           // 4 仓库 ID
+          item.tracking_no || '-',                              // 5 追踪 ID
+          item.sku,                                             // 6 SKU
+          null,                                                 // 7 产品图片（由 addImage 嵌入）
+          item.asin || '-',                                     // 8 ASIN
+          item.fnsku || '-',                                    // 9 FNSKU
+          item.length_cm > 0 ? formatDecimal(item.length_cm, 2) : '-',   // 10 外箱长
+          item.width_cm > 0 ? formatDecimal(item.width_cm, 2) : '-',     // 11 外箱宽
+          item.height_cm > 0 ? formatDecimal(item.height_cm, 2) : '-',   // 12 外箱高
+          item.carton_weight_kg ? formatDecimal(item.carton_weight_kg, 3) : '-', // 13 外箱重量
+          item.units_per_carton > 0 ? `${item.units_per_carton} / 箱` : '-',   // 14 装箱率
+          item.carton_count > 0 ? item.carton_count : '-',      // 15 总箱数
+          fbaBoxLabelRanges[index] ?? '-',                      // 16 标签号段
+          item.quantity > 0 ? item.quantity : '-',              // 17 总数量
+          item.total_volume_m3,                                 // 18 总体积
+          item.total_weight_kg,                                 // 19 总重量
         ]
-        row.height = 18
+        row.height = 100
         row.eachCell((cell, colNumber) => {
           cell.font = { name: 'Microsoft YaHei', size: 9, color: { argb: 'FF0F172A' } }
           cell.alignment = {
             vertical: 'middle',
-            horizontal: colNumber >= 17 ? 'right' : 'left',
+            horizontal: colNumber >= 14 ? 'right' : colNumber === imageColumnIndex ? 'center' : 'left',
           }
-          if (colNumber === 19) cell.numFmt = '#,##0.0000'
-          if (colNumber === 20) cell.numFmt = '#,##0.000'
+          if (colNumber === 18) cell.numFmt = '#,##0.0000'
+          if (colNumber === 19) cell.numFmt = '#,##0.000'
           applyBorder(cell)
         })
       })
 
-      const totalRow = worksheet.getRow(fbaBoxItems.length + 4)
+      // ── 合并单元格：货件编号(列 3) 按 shipment_no，仓库 ID(列 4) 按 (shipment_no, warehouse_code) ──
+      let shipStart = 0
+      let whStart = 0
+      let currentShipNo = fbaBoxItems[0]?.shipment_no ?? ''
+      let currentShipWhKey = fbaBoxItems[0]
+        ? `${fbaBoxItems[0].shipment_no}|${fbaBoxItems[0].warehouse_code ?? ''}`
+        : ''
+
+      fbaBoxItems.forEach((item, index) => {
+        const itemShipWhKey = `${item.shipment_no}|${item.warehouse_code ?? ''}`
+        const isLast = index === fbaBoxItems.length - 1
+
+        if (item.shipment_no !== currentShipNo) {
+          if (index - shipStart > 1) {
+            worksheet.mergeCells(
+              shipStart + dataStartRow, 3,
+              index + dataStartRow - 1, 3,
+              'merge'
+            )
+          } else if (isLast) {
+            // 单行不合并（ExcelJS 不允许单行 merge）
+          }
+          currentShipNo = item.shipment_no
+          shipStart = index
+          whStart = index
+          currentShipWhKey = itemShipWhKey
+        }
+
+        if (itemShipWhKey !== currentShipWhKey) {
+          if (index - whStart > 1) {
+            worksheet.mergeCells(
+              whStart + dataStartRow, 4,
+              index + dataStartRow - 1, 4,
+              'merge'
+            )
+          }
+          whStart = index
+          currentShipWhKey = itemShipWhKey
+        }
+
+        if (isLast) {
+          if (index - shipStart >= 1) {
+            worksheet.mergeCells(
+              shipStart + dataStartRow, 3,
+              index + dataStartRow, 3,
+              'merge'
+            )
+          }
+          if (index - whStart >= 1) {
+            worksheet.mergeCells(
+              whStart + dataStartRow, 4,
+              index + dataStartRow, 4,
+              'merge'
+            )
+          }
+        }
+      })
+
+      // ── 嵌入产品图片（100x100 像素） ──
+      const uniqueImageUrls = Array.from(
+        new Set(
+          fbaBoxItems
+            .map((it) => it.product_image_r2_url)
+            .filter((u): u is string => Boolean(u))
+        )
+      )
+
+      if (uniqueImageUrls.length > 0) {
+        const CONCURRENCY = 6
+        const imageBuffers = new Map<string, { buffer: ArrayBuffer; extension: 'png' | 'jpeg' | 'gif' }>()
+        const failedUrls = new Set<string>()
+
+        const fetchOne = async (url: string) => {
+          try {
+            const resp = await fetch(url, { cache: 'no-store' })
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+            const buffer = await resp.arrayBuffer()
+            const lower = url.toLowerCase()
+            const ext: 'png' | 'jpeg' | 'gif' = lower.endsWith('.png')
+              ? 'png'
+              : lower.endsWith('.gif')
+              ? 'gif'
+              : 'jpeg'
+            imageBuffers.set(url, { buffer, extension: ext })
+          } catch (err) {
+            failedUrls.add(url)
+            // eslint-disable-next-line no-console
+            console.warn('FBA 箱单导出：图片获取失败', url, err)
+          }
+        }
+
+        const queue = [...uniqueImageUrls]
+        const workers = Array.from({ length: CONCURRENCY }, async () => {
+          while (queue.length > 0) {
+            const url = queue.shift()
+            if (url) await fetchOne(url)
+          }
+        })
+        await Promise.all(workers)
+
+        const imageIdMap = new Map<string, number>()
+        imageBuffers.forEach(({ buffer, extension }, url) => {
+          const id = workbook.addImage({ buffer, extension })
+          imageIdMap.set(url, id)
+        })
+
+        fbaBoxItems.forEach((item, index) => {
+          const url = item.product_image_r2_url
+          if (!url || failedUrls.has(url)) return
+          const imageId = imageIdMap.get(url)
+          if (imageId === undefined) return
+          worksheet.addImage(imageId, {
+            tl: { col: imageColumnIndex - 1, row: index + dataStartRow - 1 },
+            ext: { width: 100, height: 100 },
+          })
+        })
+      }
+
+      const totalRow = worksheet.getRow(fbaBoxItems.length + dataStartRow)
       totalRow.getCell(1).value = '合计'
-      totalRow.getCell(17).value = fbaBoxSummary.totalCartons
-      totalRow.getCell(19).value = fbaBoxSummary.totalQuantity
-      totalRow.getCell(20).value = fbaBoxSummary.totalVolumeM3
-      totalRow.getCell(21).value = fbaBoxSummary.totalWeightKg
-      applyRowBorder(totalRow, 1, 21)
+      totalRow.getCell(15).value = fbaBoxSummary.totalCartons
+      totalRow.getCell(17).value = fbaBoxSummary.totalQuantity
+      totalRow.getCell(18).value = fbaBoxSummary.totalVolumeM3
+      totalRow.getCell(19).value = fbaBoxSummary.totalWeightKg
+      applyRowBorder(totalRow, 1, 19)
       totalRow.eachCell({ includeEmpty: true }, (cell) => {
         cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
       })
-      totalRow.getCell(20).numFmt = '#,##0.0000'
-      totalRow.getCell(21).numFmt = '#,##0.000'
+      totalRow.getCell(18).numFmt = '#,##0.0000'
+      totalRow.getCell(19).numFmt = '#,##0.000'
 
       const buffer = await workbook.xlsx.writeBuffer()
       const blob = new Blob([buffer], {
@@ -2945,13 +3103,13 @@ export default function ShipmentManagementPage() {
                         箱单明细更新中...
                       </div>
                     ) : null}
-                    <Table containerClassName={TABLE_SCROLL_CONTAINER_CLASS} className="w-full min-w-[1100px]">
+                    <Table containerClassName={TABLE_SCROLL_CONTAINER_CLASS} className="w-full min-w-[1300px]">
                         <TableHeader>
                           <TableRow className="bg-[hsl(var(--surface-subtle))]">
                             <TableHead className={`whitespace-nowrap w-[140px] ${DENSE_HEAD}`}>货件编号</TableHead>
                             <TableHead className={`whitespace-nowrap w-[80px] ${DENSE_HEAD}`}>仓库 ID</TableHead>
                             <TableHead className={`whitespace-nowrap w-[140px] ${DENSE_HEAD}`}>SKU</TableHead>
-                            <TableHead className={`whitespace-nowrap w-[180px] ${DENSE_HEAD}`}>单品尺寸和重量</TableHead>
+                            <TableHead className={`whitespace-nowrap w-[80px] ${DENSE_HEAD}`}>产品图片</TableHead>
                             <TableHead className={`whitespace-nowrap w-[180px] ${DENSE_HEAD}`}>外箱尺寸和重量</TableHead>
                             <TableHead className={`whitespace-nowrap w-[80px] text-right ${DENSE_HEAD}`}>装箱率</TableHead>
                             <TableHead className={`whitespace-nowrap w-[60px] text-right ${DENSE_HEAD}`}>总箱数</TableHead>
@@ -2959,37 +3117,68 @@ export default function ShipmentManagementPage() {
                             <TableHead className={`whitespace-nowrap w-[80px] text-right ${DENSE_HEAD}`}>总数量</TableHead>
                             <TableHead className={`whitespace-nowrap w-[80px] text-right ${DENSE_HEAD}`}>总体积(m³)</TableHead>
                             <TableHead className={`whitespace-nowrap w-[80px] text-right ${DENSE_HEAD}`}>总重量(kg)</TableHead>
+                            <TableHead className={`whitespace-nowrap w-[120px] ${DENSE_HEAD}`}>追踪 ID</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {fbaBoxLoading && fbaBoxItems.length === 0 ? <TableSkeletonRows columns={11} /> : null}
+                          {fbaBoxLoading && fbaBoxItems.length === 0 ? <TableSkeletonRows columns={12} /> : null}
                           {fbaBoxItems.map((item, index) => {
-                            const group = fbaBoxWarehouseGroups.find(
+                            const warehouseGroup = fbaBoxWarehouseGroups.find(
                               (g) => g.shipmentNo === item.shipment_no && index >= g.startIndex && index <= g.endIndex
                             )
-                            const rowSpan = group ? group.endIndex - group.startIndex + 1 : 1
-                            const showWarehouse = group && group.startIndex === index
+                            const warehouseRowSpan = warehouseGroup ? warehouseGroup.endIndex - warehouseGroup.startIndex + 1 : 1
+                            const showWarehouse = warehouseGroup && warehouseGroup.startIndex === index
 
-                            const packageInfo = item.package_length_cm || item.package_width_cm || item.package_height_cm
-                              ? `${formatDimensionText(item.package_length_cm || 0, item.package_width_cm || 0, item.package_height_cm || 0)}${item.weight_kg ? ` / ${formatDecimal(item.weight_kg, 3)} kg` : ''}`
-                              : '-'
+                            const shipmentGroup = fbaBoxShipmentGroups.find(
+                              (g) => g.shipmentNo === item.shipment_no && index >= g.startIndex && index <= g.endIndex
+                            )
+                            const shipmentRowSpan = shipmentGroup ? shipmentGroup.endIndex - shipmentGroup.startIndex + 1 : 1
+                            const showShipment = shipmentGroup && shipmentGroup.startIndex === index
+
                             const cartonInfo = item.length_cm || item.width_cm || item.height_cm
                               ? `${formatDimensionText(item.length_cm, item.width_cm, item.height_cm)}${item.carton_weight_kg ? ` / ${formatDecimal(item.carton_weight_kg, 3)} kg` : ''}`
                               : '-'
 
                             return (
                               <TableRow key={`fba-box-${item.shipment_no}-${item.sku}-${index}`}>
-                                <TableCell className={`w-[140px] font-medium ${DENSE_CELL}`}>{item.shipment_no}</TableCell>
+                                {showShipment ? (
+                                  <TableCell
+                                    className={`w-[140px] font-medium align-top ${DENSE_CELL}`}
+                                    rowSpan={shipmentRowSpan}
+                                  >
+                                    {item.shipment_no}
+                                  </TableCell>
+                                ) : null}
                                 {showWarehouse ? (
                                   <TableCell
-                                    className={`w-[80px] font-medium font-semibold text-primary bg-primary/5 ${DENSE_CELL}`}
-                                    rowSpan={rowSpan}
+                                    className={`w-[80px] font-semibold text-primary bg-primary/5 ${DENSE_CELL}`}
+                                    rowSpan={warehouseRowSpan}
                                   >
                                     {item.warehouse_code || '-'}
                                   </TableCell>
                                 ) : null}
                                 <TableCell className={`w-[140px] font-medium ${DENSE_CELL}`}>{item.sku}</TableCell>
-                                <TableCell className={`w-[180px] ${DENSE_CELL}`}>{packageInfo}</TableCell>
+                                <TableCell className={`w-[80px] ${DENSE_CELL}`}>
+                                  {item.product_image_thumbnail_r2_url ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => openFbaImageLightbox(item)}
+                                      className="block h-[60px] w-[60px] overflow-hidden rounded border border-border/50 transition-opacity hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                      aria-label={`查看 ${item.sku} 产品大图`}
+                                    >
+                                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                                      <img
+                                        src={item.product_image_thumbnail_r2_url}
+                                        alt={item.sku}
+                                        className="h-full w-full object-cover"
+                                      />
+                                    </button>
+                                  ) : (
+                                    <div className="flex h-[60px] w-[60px] items-center justify-center rounded border border-dashed border-border/50 text-[10px] text-muted-foreground">
+                                      无图
+                                    </div>
+                                  )}
+                                </TableCell>
                                 <TableCell className={`w-[180px] ${DENSE_CELL}`}>{cartonInfo}</TableCell>
                                 <TableCell className={`w-[80px] text-right ${DENSE_CELL}`}>{item.units_per_carton > 0 ? `${item.units_per_carton} / 箱` : '-'}</TableCell>
                                 <TableCell className={`w-[60px] text-right ${DENSE_CELL}`}>{item.carton_count > 0 ? item.carton_count : '-'}</TableCell>
@@ -2997,6 +3186,7 @@ export default function ShipmentManagementPage() {
                                 <TableCell className={`w-[80px] text-right ${DENSE_CELL}`}>{item.quantity > 0 ? item.quantity : '-'}</TableCell>
                                 <TableCell className={`w-[80px] text-right ${DENSE_CELL}`}>{formatDecimal(item.total_volume_m3, 4)}</TableCell>
                                 <TableCell className={`w-[80px] text-right ${DENSE_CELL}`}>{item.total_weight_kg > 0 ? formatDecimal(item.total_weight_kg) : '0'}</TableCell>
+                                <TableCell className={`w-[120px] font-mono text-xs ${DENSE_CELL}`}>{item.tracking_no || '-'}</TableCell>
                               </TableRow>
                             )
                           })}
@@ -3011,6 +3201,19 @@ export default function ShipmentManagementPage() {
           </DirectionalTabTransition>
         </Tabs>
       </div>
+
+      <ImageLightbox
+        open={fbaLightboxItem !== null}
+        onOpenChange={(open) => {
+          if (!open) closeFbaImageLightbox()
+        }}
+        src={fbaLightboxItem?.product_image_r2_url || ''}
+        alt={fbaLightboxItem?.sku || ''}
+        meta={{
+          sku: fbaLightboxItem?.sku,
+          productName: null,
+        }}
+      />
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent aria-describedby="shipment-dialog-description" className="max-h-[90vh] overflow-auto border-border/70 bg-[hsl(var(--surface-panel))] dark:border-border/90 sm:max-w-5xl">

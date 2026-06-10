@@ -193,6 +193,9 @@ class ShipmentFbaBoxDetailItem(BaseModel):
     total_weight_kg: float
     total_volume_m3: float
     fba_label_prefix: str
+    tracking_no: str | None = None
+    product_image_thumbnail_r2_url: str | None = None
+    product_image_r2_url: str | None = None
 
 
 class ShipmentFbaBoxDetailResponse(BaseModel):

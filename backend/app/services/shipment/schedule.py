@@ -661,6 +661,17 @@ def list_shipment_fba_box_details(
                     "total_weight_kg": decimal_to_float(total_weight_kg, WEIGHT_QUANT),
                     "total_volume_m3": decimal_to_float(total_volume_m3, VOLUME_QUANT),
                     "fba_label_prefix": str(row.shipment_no),
+                    "tracking_no": str(row.tracking_no) if row.tracking_no else None,
+                    "product_image_thumbnail_r2_url": (
+                        str(product.product_image_thumbnail_r2_url)
+                        if product and product.product_image_thumbnail_r2_url
+                        else None
+                    ),
+                    "product_image_r2_url": (
+                        str(product.product_image_r2_url)
+                        if product and product.product_image_r2_url
+                        else None
+                    ),
                 }
             )
 
