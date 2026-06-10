@@ -1,7 +1,7 @@
 "use client"
 
 // 欧洲 VAT 发票生成器 — 主客户端协调器
-// 流程：选店铺 → 加载 Seller 预填 → 录入订单/明细/运费 → 实时汇总 → 预览 → 下载 PDF
+// 流程：选店铺 → 加载 Seller 列表 → 选国家 → 录入订单/明细/运费 → 实时汇总 → 预览 → 下载 PDF
 
 import { useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -12,7 +12,7 @@ import { LineItemsEditor } from "./components/line-items-editor"
 import { InvoiceSummary } from "./components/invoice-summary"
 import { InvoicePreviewDialog } from "./components/invoice-preview-dialog"
 import { computeInvoiceTotal } from "./lib/vat-calc"
-import { CURRENCY_OPTIONS, type InvoiceForm, type InvoiceSeller } from "./types"
+import { CURRENCY_OPTIONS, type InvoiceForm, type InvoiceSellerEntry } from "./types"
 
 const emptyBuyer = {
   name: "",
@@ -26,16 +26,13 @@ const initialForm: InvoiceForm = {
   project_id: null, // null = 未选
   currency: "EUR",
   order_id: "",
-  bill_id: "",
-  bill_hs: "",
   invoice_date: "",
-  delivery_date: "",
   buyer: { ...emptyBuyer },
   line_items: [],
   shipping_incl_vat: 0,
 }
 
-const emptySeller: InvoiceSeller = {
+const emptySellerEntry: InvoiceSellerEntry = {
   company_name: "",
   vat_id: "",
   address_line: "",
@@ -50,18 +47,25 @@ function getSymbol(currency: InvoiceForm["currency"]): string {
 
 export default function VatInvoiceClient() {
   const [form, setForm] = useState<InvoiceForm>(initialForm)
-  const [seller, setSeller] = useState<InvoiceSeller>(emptySeller)
+  const [sellers, setSellers] = useState<InvoiceSellerEntry[]>([])
+  const [selectedCountry, setSelectedCountry] = useState<string>("")
   const [previewOpen, setPreviewOpen] = useState(false)
 
   const symbol = getSymbol(form.currency)
 
+  // 当前选中 Seller
+  const seller = useMemo(
+    () => sellers.find((s) => s.country === selectedCountry) ?? null,
+    [sellers, selectedCountry],
+  )
+
   // 校验：发票可预览的最小条件
   const canPreview = useMemo(() => {
     if (form.project_id == null) return false
-    if (!form.order_id.trim() || !form.bill_id.trim() || !form.bill_hs.trim()) return false
-    if (!form.invoice_date || !form.delivery_date) return false
+    if (!form.order_id.trim()) return false
+    if (!form.invoice_date) return false
     if (!form.buyer.name.trim() || !form.buyer.address_line.trim()) return false
-    if (!seller.company_name.trim()) return false
+    if (!seller?.company_name.trim()) return false
     if (form.line_items.length === 0) return false
     if (form.line_items.some((it) => !it.description.trim())) return false
     return true
@@ -86,8 +90,10 @@ export default function VatInvoiceClient() {
         <div className="space-y-4 lg:col-span-2">
           <SellerCard
             selectedProjectId={form.project_id}
-            seller={seller}
-            onSellerChange={setSeller}
+            sellers={sellers}
+            selectedCountry={selectedCountry}
+            onSellersChange={setSellers}
+            onCountryChange={setSelectedCountry}
             onSelectProject={(id) => setForm({ ...form, project_id: id })}
           />
 
@@ -110,7 +116,7 @@ export default function VatInvoiceClient() {
             </Button>
             {!canPreview && (
               <p className="text-xs text-muted-foreground">
-                请先选择店铺、填写订单、买方和至少一行商品。
+                请先选择店铺、选择国家、填写订单、买方和至少一行商品。
               </p>
             )}
             {canPreview && (
@@ -126,7 +132,7 @@ export default function VatInvoiceClient() {
       <InvoicePreviewDialog
         open={previewOpen}
         onOpenChange={setPreviewOpen}
-        seller={seller}
+        seller={seller ?? emptySellerEntry}
         form={form}
       />
     </div>
