@@ -231,6 +231,7 @@ def _build_report_with_throttle(
     ai_model: str | None = None,
     reference_date: "date | None" = None,
     stage_callback: Any = None,
+    use_cache: bool = True,
 ) -> dict[str, Any]:
     """Build report data, throttling AI summary generation via semaphore.
 
@@ -243,6 +244,12 @@ def _build_report_with_throttle(
     # 补发时使用历史日期作为缓存键，避免与当天调度的缓存混淆
     date_str = reference_date.isoformat() if reference_date else _dispatch_date_str
     key = _cache_key(project_ids, country, date_str)
+
+    if not use_cache:
+        return _build_report_data_with_timeout(
+            project_ids, country, frequency, date_str, ai_model=ai_model,
+            reference_date=reference_date, stage_callback=stage_callback,
+        )
 
     # ── fast path: cache hit (no semaphore needed) ──────────────────────────
     with _cache_lock:
@@ -278,6 +285,7 @@ def _build_multi_country_report(
     ai_model: str | None = None,
     reference_date: "date | None" = None,
     stage_callback: Any = None,
+    use_cache: bool = True,
 ) -> dict[str, Any]:
     """Build report data for multiple countries, each fetched independently.
 
@@ -292,7 +300,7 @@ def _build_multi_country_report(
             data = _build_report_with_throttle(
                 project_ids, country, frequency,
                 ai_model=ai_model, reference_date=reference_date,
-                stage_callback=stage_callback,
+                stage_callback=stage_callback, use_cache=use_cache,
             )
             country_data[country] = data
         except Exception as e:
@@ -477,6 +485,7 @@ def _dispatch_one(
     country: str,
     frequency: str,
     ai_model: str | None = None,
+    use_cache: bool = True,
 ) -> dict[str, Any]:
     """Dispatch a single subscription: build data → send email → log result."""
     result: dict[str, Any] = {
@@ -518,13 +527,13 @@ def _dispatch_one(
         if len(parsed_countries) > 1:
             report_data = _build_multi_country_report(
                 project_ids, parsed_countries, frequency,
-                ai_model=ai_model, stage_callback=_on_stage,
+                ai_model=ai_model, stage_callback=_on_stage, use_cache=use_cache,
             )
         else:
             single_country = parsed_countries[0] if parsed_countries else "US"
             report_data = _build_report_with_throttle(
                 project_ids, single_country, frequency,
-                ai_model=ai_model, stage_callback=_on_stage,
+                ai_model=ai_model, stage_callback=_on_stage, use_cache=use_cache,
             )
         # Pass log_id to report_data so email_sender can update screenshot info
         report_data["log_id"] = log_id
@@ -769,6 +778,30 @@ def dispatch_report_for_subscription(subscription_id: int) -> dict[str, Any]:
     )
 
 
+def _cleanup_old_log_screenshot(db: Session, old_log_id: int) -> None:
+    """补发成功后清理旧 delivery_log 的 R2 截图，释放存储。"""
+    from app.services.r2_service import delete_file_from_r2
+    from app.core.config import get_settings
+
+    old_log = db.get(ScheduledReportDeliveryLog, old_log_id)
+    if not old_log:
+        return
+    settings = get_settings()
+    keys_to_delete = [k for k in (old_log.screenshot_r2_key, old_log.screenshot_r2_thumb_key) if k]
+    if not keys_to_delete:
+        return
+    for key in keys_to_delete:
+        try:
+            delete_file_from_r2(settings, key)
+        except Exception as e:
+            logger.warning("删除旧截图 R2 文件失败 key=%s: %s", key, e)
+    old_log.screenshot_r2_key = None
+    old_log.screenshot_r2_url = None
+    old_log.screenshot_r2_thumb_key = None
+    old_log.screenshot_r2_thumb_url = None
+    db.commit()
+
+
 def _dispatch_one_async(
     subscription_id: int,
     email: str,
@@ -780,6 +813,8 @@ def _dispatch_one_async(
     ledger_key: str,
     expected_date: str,
     expected_frequency: str,
+    use_cache: bool = True,
+    old_log_id: int | None = None,
 ) -> None:
     """后台执行单个订阅的发送（跳过 delivery_log 创建，复用 _dispatch_one 的逻辑）。
 
@@ -807,13 +842,13 @@ def _dispatch_one_async(
         if len(parsed_countries) > 1:
             report_data = _build_multi_country_report(
                 project_ids, parsed_countries, frequency,
-                ai_model=ai_model, reference_date=ref_date, stage_callback=_on_stage,
+                ai_model=ai_model, reference_date=ref_date, stage_callback=_on_stage, use_cache=use_cache,
             )
         else:
             single_country = parsed_countries[0] if parsed_countries else "US"
             report_data = _build_report_with_throttle(
                 project_ids, single_country, frequency,
-                ai_model=ai_model, reference_date=ref_date, stage_callback=_on_stage,
+                ai_model=ai_model, reference_date=ref_date, stage_callback=_on_stage, use_cache=use_cache,
             )
         report_data["log_id"] = log_id
 
@@ -871,6 +906,13 @@ def _dispatch_one_async(
                     db.commit()
             except Exception as le_err:
                 logger.warning("直接更新 ledger entry 状态失败: %s", le_err)
+
+            # 清理旧 delivery_log 的 R2 截图（补发场景，释放存储）
+            if old_log_id:
+                try:
+                    _cleanup_old_log_screenshot(db, old_log_id)
+                except Exception as cleanup_err:
+                    logger.warning("清理旧截图失败 old_log_id=%d: %s", old_log_id, cleanup_err)
 
             # 最后设置 stage='done'（前端轮询的触发点）
             # 此时 status='sent' + 截图 + AI摘要 + ledger entry 都已就绪
