@@ -16,6 +16,7 @@ import {
 import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
 import { SidebarIconRail } from '@/components/dashboard/sidebar-icon-rail'
 import { SidebarPanel } from '@/components/dashboard/sidebar-panel'
+import { SidebarUserPanel } from '@/components/dashboard/sidebar-user-panel'
 import { useSidebarPanel } from '@/components/dashboard/use-sidebar-panel'
 import {
  SIDEBAR_TOP_GROUPS,
@@ -93,20 +94,27 @@ export function SidebarShell({ children: _children }: SidebarShellProps = {}) {
  pinnedGroupId={pinnedGroupId}
  onHoverEnter={panelState.hoverEnter}
  user={displayUser}
- onLogout={onLogout}
  />
  <div
  className={`sidebar-panel-shell flex h-screen w-[240px] shrink-0 flex-col overflow-hidden border-r border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-background))] transition-[transform,width,opacity] duration-300 ease-[cubic-bezier(0.22,1.18,0.36,1)] ${
- activeGroup ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0 pointer-events-none w-0 border-r-0'
+ activeGroupId ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0 pointer-events-none w-0 border-r-0'
  }`}
- style={!activeGroup ? { width:0 } : undefined}
+ style={!activeGroupId ? { width:0 } : undefined}
  onMouseEnter={() => {
- if (!activeGroup) return
+ if (!activeGroupId) return
  // Re-enter hover state for the active group when mouse comes back into panel area
- panelState.hoverEnter(activeGroup.id)
+ panelState.hoverEnter(activeGroupId)
  }}
  >
- {activeGroup ? (
+ {activeGroupId === 'user' ? (
+ <SidebarUserPanel
+ user={displayUser}
+ pinned={pinnedGroupId === 'user'}
+ onClose={panelState.closePanel}
+ onPinToggle={() => panelState.clickToggle('user')}
+ onLogout={onLogout}
+ />
+ ) : activeGroup ? (
  <SidebarPanel
  group={activeGroup}
  pinnedGroupId={pinnedGroupId}
