@@ -31,6 +31,12 @@ class SkuRecordItem(BaseModel):
     sku_factory_info_updated_by: str | None = None
     fnsku_label_r2_key: str | None = None
     fnsku_label_r2_url: str | None = None
+    product_image_r2_key: str | None = None
+    product_image_r2_url: str | None = None
+    product_image_thumbnail_r2_key: str | None = None
+    product_image_thumbnail_r2_url: str | None = None
+    product_image_uploaded_at: datetime | None = None
+    product_image_uploaded_by: str | None = None
 
 
 class SkuRecordsPage(BaseModel):
@@ -192,3 +198,21 @@ class FnskuLabelUploadResponse(BaseModel):
 class BatchFnskuLabelDownloadRequest(BaseModel):
     """批量下载 FNSKU 标签请求"""
     sku_record_ids: list[int] = Field(..., min_length=1, max_length=500, description="SKU 记录 ID 列表")
+
+
+class SkuProductImageUploadResponse(BaseModel):
+    """SKU 产品图上传响应"""
+
+    sku_record_id: int
+    product_image_r2_key: str
+    product_image_r2_url: str
+    product_image_thumbnail_r2_key: str
+    product_image_thumbnail_r2_url: str
+    uploaded_at: str
+
+
+class SkuProductImageDeleteResponse(BaseModel):
+    """SKU 产品图删除响应"""
+
+    sku_record_id: int
+    deleted: bool
