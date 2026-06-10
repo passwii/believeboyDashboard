@@ -131,7 +131,9 @@ product_image_uploaded_by: Mapped[str | None] = mapped_column(String(128), nulla
 
 ### 4.1 新增端点（在 `backend/app/api/v1/endpoints/sku_info.py`）
 
-#### 4.1.1 `POST /api/v1/sku-records/{sku_record_id}/product-image`
+> 路由前缀与现有 FNSKU 标签端点保持一致：`/sku-info/{sku_record_id}/...`（非 `/sku-records/{...}`）
+
+#### 4.1.1 `POST /api/v1/sku-info/{sku_record_id}/product-image`
 
 **用途**：上传 / 替换指定 SKU 的产品图。
 
@@ -151,8 +153,8 @@ product_image_uploaded_by: Mapped[str | None] = mapped_column(String(128), nulla
 9. 返回 `SkuProductImageUploadResponse`
 
 **权限**：
-- 路由级 `Depends(require_api_key)`（默认全部 `/api/v1/*` 已加）
-- 业务级：调用 `_check_sku_record_access(db, sku_record_id, operator_header)`——参考现有 label 端点对 `fnsku_label_*` 的项目权限检查（确保操作人有该项目权限）
+- 路由级 `Depends(protected)`（APIRouter 已在 line 66 `dependencies=[Depends(protected)]` 注册）
+- 业务级：与 `upload_fnsku_label` 一致——只查 SKU 记录存在性，不做后端项目级权限检查（事实模式）
 
 **错误**：
 - `404` - SKU 不存在
@@ -160,7 +162,7 @@ product_image_uploaded_by: Mapped[str | None] = mapped_column(String(128), nulla
 - `400` - 文件类型 / 大小 / 内容不支持
 - `503` - R2 未配置（`settings.r2_enabled` 为 False）
 
-#### 4.1.2 `DELETE /api/v1/sku-records/{sku_record_id}/product-image`
+#### 4.1.2 `DELETE /api/v1/sku-info/{sku_record_id}/product-image`
 
 **用途**：删除指定 SKU 的产品图。
 
@@ -172,7 +174,7 @@ product_image_uploaded_by: Mapped[str | None] = mapped_column(String(128), nulla
 5. 调用 `append_operation_audit_log(action="sku_info.delete_product_image", ...)` 记录审计日志
 6. 返回 `{"deleted": true, "sku_record_id": ...}`
 
-**权限**：同上。
+**权限**：同 4.1.1，与 `delete_fnsku_label` 风格一致。
 
 **错误**：同上。
 
@@ -301,9 +303,11 @@ product_image_uploaded_by?: string | null
 
 ## 7. 权限模型
 
-- 路由 `require_api_key` - 强制
-- 业务权限：复用 `sku_info.py` 现成 `_check_sku_record_access`（或类似）—— 通过 `X-Operator` 头校验当前用户是否对该 `project_name` 有访问权
-- 管理员可上传 / 删除所有 SKU；普通运营只能操作其被授权的项目
+- 路由 `require_api_key` - 强制（APIRouter 级别 `Depends(protected)`）
+- 业务权限：**与现有 FNSKU 标签上传端点保持一致**——后端不显式做项目级权限校验（仅校验 SKU 记录存在），依赖 `X-Operator` 头 + 前端项目级访问控制。
+  - 这是事实模式：现有 `upload_fnsku_label`（sku_info.py:771-863）和 `update_sku_record`（sku_info.py:288-316）都未做后端项目级权限检查
+  - 审计日志 `append_operation_audit_log` 记录 `operator` 用于事后追责
+- 管理员可上传 / 删除所有 SKU；普通运营只能操作其被授权的项目（前端控制显示）
 - 与现有 `label` tab 的 FNSKU 标签上传权限完全对称
 
 ---
