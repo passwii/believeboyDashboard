@@ -1,6 +1,7 @@
 'use client'
 
 import type { DigitalEmployee } from '@/types/digital-employee'
+import { cn } from '@/lib/utils'
 
 interface DigitalEmployeeStatsProps {
   employees: DigitalEmployee[]
@@ -11,24 +12,68 @@ export function DigitalEmployeeStats({ employees }: DigitalEmployeeStatsProps) {
   const running = employees.filter((e) => e.status === 'RUNNING').length
   const idle = employees.filter((e) => e.status === 'IDLE').length
   const failed = employees.filter((e) => e.status === 'FAILED').length
-  const suspended = employees.filter((e) => e.status === 'SUSPENDED').length
 
   return (
-    <div className="flex gap-4">
-      <StatCard label="全部" value={total} />
-      <StatCard label="运行中" value={running} color="text-blue-600" />
-      <StatCard label="空闲" value={idle} color="text-muted-foreground" />
-      <StatCard label="异常" value={failed} color="text-destructive" />
-      <StatCard label="暂停" value={suspended} color="text-amber-600" />
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <StatCard icon="🤖" label="全部" value={total} />
+      <StatCard
+        icon={null}
+        label="运行中"
+        value={running}
+        accent="text-blue-600"
+        highlight={running > 0}
+        pulse={running > 0}
+      />
+      <StatCard icon="✓" label="空闲" value={idle} accent="text-muted-foreground" />
+      <StatCard
+        icon="⚠"
+        label="异常"
+        value={failed}
+        accent={failed > 0 ? 'text-red-600' : 'text-emerald-600'}
+        highlight={failed > 0}
+      />
     </div>
   )
 }
 
-function StatCard({ label, value, color = 'text-foreground' }: { label: string; value: number; color?: string }) {
+function StatCard({
+  icon,
+  label,
+  value,
+  accent = 'text-foreground',
+  highlight = false,
+  pulse = false,
+}: {
+  icon: string | null
+  label: string
+  value: number
+  accent?: string
+  highlight?: boolean
+  pulse?: boolean
+}) {
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-[hsl(var(--sidebar-foreground)/0.06)] bg-[hsl(var(--sidebar-foreground)/0.03)] px-4 py-2">
-      <span className="text-sm text-muted-foreground">{label}</span>
-      <span className={`text-xl font-semibold tabular-nums ${color}`}>{value}</span>
+    <div
+      className={cn(
+        'flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors',
+        highlight
+          ? 'border-primary/20 bg-primary/5'
+          : 'border-border bg-card',
+      )}
+    >
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted/50">
+        {pulse ? (
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-500" />
+          </span>
+        ) : (
+          <span className="text-sm">{icon}</span>
+        )}
+      </div>
+      <div>
+        <p className={cn('text-2xl font-bold tabular-nums leading-none', accent)}>{value}</p>
+        <p className="text-xs text-muted-foreground mt-1">{label}</p>
+      </div>
     </div>
   )
 }
