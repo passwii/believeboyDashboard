@@ -7,10 +7,10 @@ autoReportUpload → Digital Employee 上报。
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
-import secrets
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -35,10 +35,16 @@ _UNSAFE_CHARS = re.compile(r"[^A-Za-z0-9_-]+")
 
 
 def _safe_task_id(*parts: Any) -> str:
-    """生成稳定的 task_id，同一文件多次处理会复用同一 task_id。"""
-    raw = "-".join(str(p) for p in parts if p is not None)
-    safe = _UNSAFE_CHARS.sub("-", raw).strip("-")
-    return f"aru-{safe[:48]}" if safe else f"aru-{secrets.token_hex(8)}"
+    """生成稳定的 task_id，同一文件多次处理会复用同一 task_id。
+
+    使用 SHA-1 hash 保证唯一性，避免中文等非 ASCII 字符被 regex 吞掉。
+    """
+    raw = "|".join(str(p) for p in parts if p is not None)
+    digest = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
+    # report_type 作为可读前缀（限 ASCII，最长 20 字符）
+    prefix = str(parts[0]) if parts else "task"
+    safe_prefix = _UNSAFE_CHARS.sub("-", prefix).strip("-")[:20]
+    return f"aru-{safe_prefix}-{digest}"
 
 
 # ── metadata 辅助 ─────────────────────────────────────────────────────────────
@@ -109,7 +115,7 @@ def emit_start(
     if employee_id is None:
         return None
 
-    task_id = _safe_task_id(report_type, project_name, source_file_name, detected_date_range)
+    task_id = _safe_task_id(report_type, project_name, country, source_file_name, detected_date_range)
     task_name = f"{project_name or '未匹配'}/{report_type}"
     metadata = _build_metadata(
         project_name=project_name,
