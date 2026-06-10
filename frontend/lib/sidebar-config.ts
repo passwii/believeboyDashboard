@@ -108,8 +108,8 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
  id: 'operations',
  label: '运营导航',
  icon: IconMap.LayoutDashboard,
- accent: 'bg-[linear-gradient(180deg,#505050,#686868)] text-[#f5f5f5]',
- activeAccent: 'bg-[linear-gradient(180deg,#6a6a6a,#818181)] text-white',
+ accent: 'bg-[#e5e5e5] text-[#404040] dark:bg-[#2a2a2a] dark:text-[#b0b0b0]',
+ activeAccent: 'bg-[#d4d4d4] text-[#262626] dark:bg-[#383838] dark:text-[#e0e0e0]',
  items: [
  { title: '站点导航', url: '/dashboard/operations/site-navigation', icon: IconMap.LayoutDashboard },
  { title: '店铺导航', url: '/dashboard/operations/store-navigation', icon: IconMap.Store },
@@ -121,8 +121,8 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
  id: 'ai',
  label: 'AI面板',
  icon: IconMap.Bot,
- accent: 'bg-[linear-gradient(180deg,#5a2f8f,#7b43c2)] text-[#efe0ff]',
- activeAccent: 'bg-[linear-gradient(180deg,#7340b4,#9558e0)] text-white',
+ accent: 'bg-[#e5e5e5] text-[#404040] dark:bg-[#2a2a2a] dark:text-[#b0b0b0]',
+ activeAccent: 'bg-[#d4d4d4] text-[#262626] dark:bg-[#383838] dark:text-[#e0e0e0]',
  items: [
  { title: 'AI概览', url: '/dashboard/ai', icon: IconMap.Bot },
  { title: 'AI洞察', url: '/dashboard/ai-insights', icon: IconMap.TrendingUp },
@@ -141,8 +141,8 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
  id: 'reporting',
  label: '运营核算',
  icon: IconMap.Calculator,
- accent: 'bg-[linear-gradient(180deg,#6a5411,#92741a)] text-[#f9e6a6]',
- activeAccent: 'bg-[linear-gradient(180deg,#886b16,#b18c1e)] text-white',
+ accent: 'bg-[#e5e5e5] text-[#404040] dark:bg-[#2a2a2a] dark:text-[#b0b0b0]',
+ activeAccent: 'bg-[#d4d4d4] text-[#262626] dark:bg-[#383838] dark:text-[#e0e0e0]',
  items: [
  { title: '财务月报', url: '/dashboard/data-reporting/monthly-report', icon: IconMap.FileBarChart },
  { title: '产品分析', url: '/dashboard/data-reporting/product-analysis', icon: IconMap.Calculator },
@@ -166,8 +166,8 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
  id: 'analysis',
  label: '数据分析',
  icon: IconMap.ChartColumnBig,
- accent: 'bg-[linear-gradient(180deg,#0f527a,#1675ae)] text-[#b3e3ff]',
- activeAccent: 'bg-[linear-gradient(180deg,#156896,#1b90cf)] text-white',
+ accent: 'bg-[#e5e5e5] text-[#404040] dark:bg-[#2a2a2a] dark:text-[#b0b0b0]',
+ activeAccent: 'bg-[#d4d4d4] text-[#262626] dark:bg-[#383838] dark:text-[#e0e0e0]',
  items: [
  { title: '销售数据', url: '/dashboard/data-analysis/daily-analysis', icon: IconMap.TrendingUp },
  {
@@ -192,8 +192,8 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
  id: 'data-management',
  label: '数据管理',
  icon: IconMap.Database,
- accent: 'bg-[linear-gradient(180deg,#8c3b5e,#bb5682)] text-[#ffe1ee]',
- activeAccent: 'bg-[linear-gradient(180deg,#aa4b72,#d46797)] text-white',
+ accent: 'bg-[#e5e5e5] text-[#404040] dark:bg-[#2a2a2a] dark:text-[#b0b0b0]',
+ activeAccent: 'bg-[#d4d4d4] text-[#262626] dark:bg-[#383838] dark:text-[#e0e0e0]',
  items: [
  { title: '发货管理', url: '/dashboard/data-management/shipment-management', icon: IconMap.Package },
  { title: 'SKU 信息', url: '/dashboard/data-management/sku-info', icon: IconMap.FileBarChart },
@@ -212,8 +212,8 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
  id: 'special',
  label: '特殊功能',
  icon: IconMap.Sparkles,
- accent: 'bg-[linear-gradient(180deg,#1a3a5c,#2a5a8c)] text-[#b3d4ff]',
- activeAccent: 'bg-[linear-gradient(180deg,#1e4a72,#3478b0)] text-white',
+ accent: 'bg-[#e5e5e5] text-[#404040] dark:bg-[#2a2a2a] dark:text-[#b0b0b0]',
+ activeAccent: 'bg-[#d4d4d4] text-[#262626] dark:bg-[#383838] dark:text-[#e0e0e0]',
  items: [
  {
  title: '招商面板',
@@ -248,8 +248,8 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
  id: 'system',
  label: '系统管理',
  icon: IconMap.ShieldUser,
- accent: 'bg-[linear-gradient(180deg,#4d4f8d,#676cc3)] text-[#e2e4ff]',
- activeAccent: 'bg-[linear-gradient(180deg,#6166ae,#7c82dd)] text-white',
+ accent: 'bg-[#e5e5e5] text-[#404040] dark:bg-[#2a2a2a] dark:text-[#b0b0b0]',
+ activeAccent: 'bg-[#d4d4d4] text-[#262626] dark:bg-[#383838] dark:text-[#e0e0e0]',
  groupRoles: ['admin'],
  items: [
  { title: '项目信息', url: '/dashboard/system-management/project-info', icon: IconMap.Store },
