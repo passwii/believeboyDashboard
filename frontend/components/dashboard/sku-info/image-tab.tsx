@@ -74,6 +74,7 @@ export function ImageTabContent({
         }
         notify({
           type: 'success',
+          title: '已删除',
           message: `SKU ${sku.sku} 的产品图已删除`,
         })
         onRefresh()
