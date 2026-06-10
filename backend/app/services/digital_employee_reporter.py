@@ -102,7 +102,20 @@ def start_task(
     task_type: str,
     metadata_json: str | None = None,
 ) -> DigitalEmployeeTask:
-    """为数字员工创建一个运行中任务"""
+    """为数字员工创建一个运行中任务（幂等：task_id 已存在则返回已有记录）"""
+    # 防御性 rollback：清理前序调用可能遗留的 aborted transaction
+    try:
+        db.rollback()
+    except Exception:
+        pass
+
+    # 幂等：task_id 已存在则直接返回（如同时处理同文件不同项目后再次处理）
+    existing = db.execute(
+        select(DigitalEmployeeTask).where(DigitalEmployeeTask.task_id == task_id)
+    ).scalar_one_or_none()
+    if existing:
+        return existing
+
     now = datetime.now(UTC)
     task = DigitalEmployeeTask(
         employee_id=employee_id,
