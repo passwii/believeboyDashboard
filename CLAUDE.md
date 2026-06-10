@@ -242,12 +242,18 @@ B2B SaaS dashboard with a light-mode-first design. Inspired by Linear's informat
 
 ### 规则 1：技术测试（每次必做）
 
-**前端开发**：
+**前端开发**（按顺序执行，先 lint 后 build）：
+
 ```bash
-cd frontend && pnpm build
+cd frontend && pnpm lint    # 静态检查（2-5 秒，未通过不得进入 build）
+cd frontend && pnpm build   # 生产构建（30-90 秒）
 ```
-- 构建失败 → 立即修复
-- 构建成功 → 继续业务测试
+
+- `pnpm lint` 失败 → 立即修复（清空警告、修复错误）
+- `pnpm build` 失败 → 立即修复
+- 两步全部通过 → 继续业务测试
+
+> lint 在每次前端改动后都必跑，不要攒到最后。lint 能抓到 build 抓不到的错误（未使用变量/导入、hook 依赖缺失、未使用 props、不推荐的写法等）。
 
 **后端开发**：
 ```bash
@@ -258,7 +264,7 @@ pytest tests/path/to/test_file.py::test_name
 - 测试失败 → 立即修复
 - 测试成功 → 继续业务测试
 
-> **前端不引入单元测试框架**（无 vitest / jest / RTL）。前端代码靠 `pnpm build` + `pnpm lint` + 业务测试清单验证。新建纯函数模块时不要主动装 vitest；如果确实需要写单测，先问用户。
+> **前端不引入单元测试框架**（无 vitest / jest / RTL）。前端代码靠 `pnpm lint` + `pnpm build` + 业务测试清单三层验证。新建纯函数模块时不要主动装 vitest；如果确实需要写单测，先问用户。
 
 ### 规则 2：业务测试（每次必做）
 
