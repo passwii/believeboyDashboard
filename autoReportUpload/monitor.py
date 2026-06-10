@@ -14,6 +14,9 @@ from db import Session, check_db_health, get_db_session, get_db_session_with_ret
 from processor import ProcessResult, process_file
 
 
+import unicodedata
+import shutil
+
 class _TableResultFormatter(logging.Formatter):
     """Console formatter: renders ProcessResult lines as a colourised table row.
 
@@ -33,18 +36,54 @@ class _TableResultFormatter(logging.Formatter):
     _SEP  = "│"
     _HSEP = "─"
 
-    # Column widths
+    # Column widths (display columns, not char count)
     _COL_STATUS  = 6
     _COL_COUNTRY = 4
     _COL_PROJECT = 10
     _COL_REPORT  = 18
     _COL_DATE    = 10
 
+    @property
+    def _COL_NOTE(self) -> int:
+        """Note column width = terminal width minus fixed columns and separators."""
+        fixed = self._COL_STATUS + self._COL_COUNTRY + self._COL_PROJECT \
+              + self._COL_REPORT + self._COL_DATE
+        # 7 separators: after each of the 6 columns + leading separator on row_sep
+        tw = shutil.get_terminal_size((80, 24)).columns
+        return max(10, tw - fixed - 7)
+
+    @staticmethod
+    def _dw(s: str) -> int:
+        """Display width: CJK/ambiguous chars count as 2, others as 1."""
+        w = 0
+        for ch in s:
+            eaw = unicodedata.east_asian_width(ch)
+            w += 2 if eaw in ("W", "F") else 1
+        return w
+
     def _trunc(self, s: str, w: int) -> str:
-        return s[:w-1] + "…" if len(s) > w else s
+        if self._dw(s) <= w:
+            return s
+        out = []
+        cur = 0
+        for ch in s:
+            cw = 2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1
+            if cur + cw > w - 1:
+                break
+            out.append(ch)
+            cur += cw
+        return "".join(out) + "…"
 
     def _pad(self, s: str, w: int) -> str:
-        return s + " " * max(0, w - len(s))
+        return s + " " * max(0, w - self._dw(s))
+
+    def _row_sep(self) -> str:
+        """Dim horizontal line matching the table column structure."""
+        cross = "┼"
+        cols = [self._COL_STATUS, self._COL_COUNTRY, self._COL_PROJECT,
+                self._COL_REPORT, self._COL_DATE, self._COL_NOTE]
+        s = cross.join(self._HSEP * w for w in cols)
+        return self._DIM + s + self._RESET
 
     def _header(self) -> str:
         r = self._RESET
@@ -58,7 +97,7 @@ class _TableResultFormatter(logging.Formatter):
             + self._pad("──", self._COL_PROJECT).replace(" ", self._HSEP) + self._SEP
             + self._pad("──", self._COL_REPORT).replace(" ", self._HSEP) + self._SEP
             + self._pad("──", self._COL_DATE).replace(" ", self._HSEP) + self._SEP
-            + self._pad("──", 50).replace(" ", self._HSEP)
+            + self._pad("──", self._COL_NOTE).replace(" ", self._HSEP)
             + self._RESET
         )
         return (
@@ -67,7 +106,7 @@ class _TableResultFormatter(logging.Formatter):
             f"{h('项目', self._COL_PROJECT)}{self._SEP}"
             f"{h('报表类型', self._COL_REPORT)}{self._SEP}"
             f"{h('日期', self._COL_DATE)}{self._SEP}"
-            f"{h('备注', 50)}{self._RESET}"
+            f"{h('备注', self._COL_NOTE)}{self._RESET}"
             f"\n{divider}"
         )
 
@@ -96,7 +135,7 @@ class _TableResultFormatter(logging.Formatter):
         project  = self._pad(self._trunc(parts[2] if len(parts) > 2 else "-", self._COL_PROJECT), self._COL_PROJECT)
         report   = self._pad(self._trunc(parts[3] if len(parts) > 3 else "-", self._COL_REPORT),  self._COL_REPORT)
         date_str = self._pad(parts[4] if len(parts) > 4 else "-", self._COL_DATE)
-        note     = self._trunc(" ".join(parts[5:]) if len(parts) > 5 else "", 50)
+        note     = self._trunc(" ".join(parts[5:]) if len(parts) > 5 else "", self._COL_NOTE)
 
         c = colour + self._BOLD
         return (
@@ -106,6 +145,7 @@ class _TableResultFormatter(logging.Formatter):
             f"{colour}{report}{r}{sep}"
             f"{self._CYAN}{date_str}{r}{sep}"
             f"{self._DIM}{note}{r}"
+            f"\n{self._row_sep()}"
         )
 
 
@@ -233,7 +273,6 @@ def run_cycle(logger: RunLogger, dry_run: bool = False) -> dict:
     for project_name in PROJECTS:
         project_dir = WATCH_ROOT / project_name
         if not project_dir.exists():
-            logger.info(f"[{project_name}]  目录不存在，跳过")
             continue
 
         files = _collect_files(project_dir)
@@ -241,8 +280,6 @@ def run_cycle(logger: RunLogger, dry_run: bool = False) -> dict:
             continue
 
         stats["projects"] += 1
-        logger.info(f"\n=== [{project_name}] 发现 {len(files)} 个文件 ===")
-
         db, needs_reconnect = get_db_session_with_retry()
         if db is None:
             # DB 完全不可用，跳过此轮
@@ -403,7 +440,6 @@ def main_loop(dry_run: bool = False, mode: str = "watchdog") -> None:
     if mode == "watchdog":
         logger.info("监控模式: watchdog（文件事件触发）")
         # ── 启动前先做一次全盘扫描 ──────────────────────────────────────────
-        logger.info("\n>>> [启动前] 全盘扫描所有项目目录")
         stats = run_cycle(logger, dry_run=dry_run)
         logger.info(
             f"全盘扫描完成: {stats['files_seen']} 文件, "
