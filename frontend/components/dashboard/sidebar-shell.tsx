@@ -153,11 +153,11 @@ export function SidebarShell({ children: _children }: SidebarShellProps = {}) {
  <PanelLeft className='h-4 w-4' />
  </Button>
  </SheetTrigger>
- <SheetContent side='left' className='w-[300px] p-0'>
- <SheetHeader className='border-b border-border/60 px-4 py-3'>
+ <SheetContent side='left' className='flex w-[300px] flex-col p-0'>
+ <SheetHeader className='shrink-0 border-b border-border/60 px-4 py-3'>
  <SheetTitle>导航菜单</SheetTitle>
  </SheetHeader>
- <div className='flex flex-col gap-3 overflow-y-auto px-3 py-3'>
+ <div className='flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-3 py-3' style={{ WebkitOverflowScrolling: 'touch' }}>
  {visibleGroups.map((group) => (
  <MobileGroupSection
  key={group.id}

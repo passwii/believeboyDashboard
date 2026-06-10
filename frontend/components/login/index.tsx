@@ -24,7 +24,7 @@ const Index = () => {
 
   return (
     <div
-      className={`flex min-h-screen w-full items-center justify-center bg-gradient-to-br ${outerBg} p-4 sm:px-6 md:px-8`}
+      className={`flex min-h-screen w-full items-center justify-center bg-gradient-to-br ${outerBg} sm:p-4 md:px-6 lg:px-8`}
     >
       <SignInCard theme={theme} />
     </div>

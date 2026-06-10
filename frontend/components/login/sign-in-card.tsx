@@ -105,10 +105,10 @@ const SignInCard = ({ theme }: SignInCardProps) => {
   };
 
   return (
-    <div className="flex h-full w-full items-center justify-center px-2 sm:px-0">
+    <div className="flex h-full w-full items-center justify-center sm:px-2 md:px-4 lg:px-0">
       <div
         ref={cardRef}
-        className="login-card flex w-full max-w-[min(90vw,56rem)] overflow-hidden rounded-2xl bg-white shadow-xl dark:bg-[hsl(var(--card))]"
+        className="login-card flex w-full max-w-[min(92vw,56rem)] overflow-hidden rounded-none bg-white shadow-none sm:rounded-2xl sm:shadow-xl dark:bg-[hsl(var(--card))]"
         style={{ perspective: "1000px" }}
       >
         <LeftBrandPanel theme={theme} />
