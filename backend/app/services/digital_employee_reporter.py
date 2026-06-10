@@ -141,6 +141,8 @@ def complete_task(
     if not task:
         return
     task.status = TaskStatus.SUCCEEDED if success else TaskStatus.FAILED
+    task.progress_percent = 100 if success else task.progress_percent
+    task.current_step = "完成" if success else "失败"
     task.ended_at = now
     task.error_message = error_message
 
