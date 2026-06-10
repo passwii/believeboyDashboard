@@ -51,4 +51,8 @@ from app.models import (  # noqa: E402
     AdUploadSearchTermShareRow,
     AdUploadTargetRow,
     AdUploadTimeTrendRow,
+    # Digital Employee models — used by emit_event.py to report task progress
+    DigitalEmployee,
+    DigitalEmployeeTask,
+    DigitalEmployeeLog,
 )

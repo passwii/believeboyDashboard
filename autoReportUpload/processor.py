@@ -36,6 +36,7 @@ from recognition import (
     recognize_file,
     _read_csv_with_encoding_fallback as _recog_csv,
 )
+import emit_event as _emit_event  # noqa: E402
 
 # Payment report parsing — use locale (single source of truth)
 from app.utils.payment_locale import read_payment_report_dataframe
@@ -277,6 +278,10 @@ def process_file(
     import time
     t0 = time.time()
 
+    # Digital Employee task tracking (best-effort).
+    # _task_id is None for paths that fail before recognition.
+    _task_id: str | None = None
+
     # 1. Recognize
     result = recognize_file(db, file_path, original_filename=file_path.name, country="US")
     t1 = time.time()
@@ -287,11 +292,25 @@ def process_file(
     # Chinese report label (ad reports use spec.report_label; A-table uses report_type as-is)
     _report_label = result.spec.report_label if result.spec else result.report_type
 
+    # Emit start to Digital Employee (best-effort; 不阻塞主流程)
+    _task_id = _emit_event.emit_start(
+        db,
+        project_name=project_name,
+        report_type=result.report_type,
+        report_label=_report_label,
+        country="US",
+        source_file_name=file_path.name,
+        row_count=result.row_count_preview,
+        detected_date_range=_emit_event._date_range_for(result),
+    )
+
     if result.project_match is None:
+        _emit_event.emit_complete(db, task_id=_task_id, success=False, error_message="未匹配到项目信息")
         return ProcessResult(skipped=True, reason="未匹配到项目信息")
 
     match_status = result.project_match.get("status")
     if match_status != "matched":
+        _emit_event.emit_complete(db, task_id=_task_id, success=False, error_message=f"项目匹配状态为 {match_status}")
         return ProcessResult(
             skipped=True,
             report_type=result.report_type,
@@ -301,6 +320,7 @@ def process_file(
 
     matched_project = result.project_match.get("project_name", "")
     if matched_project != project_name:
+        _emit_event.emit_complete(db, task_id=_task_id, success=False, error_message=f"项目不一致: {matched_project} != {project_name}")
         return ProcessResult(
             skipped=True,
             report_type=result.report_type,
@@ -309,6 +329,7 @@ def process_file(
         )
 
     if dry_run:
+        _emit_event.emit_complete(db, task_id=_task_id, success=True, error_message="dry-run")
         return ProcessResult(
             success=True,
             report_type=result.report_type,
@@ -336,6 +357,7 @@ def process_file(
             _move_to_processed(file_path, result.report_type)
         except Exception as exc:
             logger.warning("文件移动失败（DB 已提交）: %s — %s", file_path.name, exc)
+        _emit_event.emit_complete(db, task_id=_task_id, success=True, error_message="SHA-256 重复")
         return ProcessResult(
             skipped=True,
             report_type=result.report_type,
@@ -347,6 +369,7 @@ def process_file(
     try:
         outcome = _persist_one_file(db, file_path, project_name, result)
     except Exception as exc:  # noqa: BLE001
+        _emit_event.emit_complete(db, task_id=_task_id, success=False, error_message=str(exc))
         return ProcessResult(
             skipped=False,
             success=False,
@@ -375,12 +398,14 @@ def process_file(
                 _move_to_processed(file_path, result.report_type)
             except Exception as exc:
                 logger.warning("文件移动失败（DB 已提交）: %s — %s", file_path.name, exc)
+            _emit_event.emit_complete(db, task_id=_task_id, success=True, error_message="数据已存在（唯一约束冲突）")
             return ProcessResult(
                 skipped=True,
                 report_type=result.report_type,
                 report_label=_report_label,
                 reason="数据已存在（唯一约束冲突），文件已移走",
             )
+        _emit_event.emit_complete(db, task_id=_task_id, success=False, error_message=error_msg)
         return ProcessResult(
             skipped=False,
             success=False,
@@ -397,6 +422,7 @@ def process_file(
         logger.warning("文件移动失败（DB 已提交）: %s — %s", file_path.name, exc)
 
     total_time = time.time() - t0
+    _emit_event.emit_complete(db, task_id=_task_id, success=True)
     return ProcessResult(
         success=True,
         report_type=result.report_type,
