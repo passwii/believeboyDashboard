@@ -137,6 +137,10 @@ def emit_start(
         return task_id
     except Exception as exc:  # noqa: BLE001
         logger.warning(f"[emit_event] start_task 失败: {exc}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
         return None
 
 
@@ -154,3 +158,7 @@ def emit_complete(
         _reporter_complete_task(db, task_id, success=success, error_message=error_message)
     except Exception as exc:  # noqa: BLE001
         logger.warning(f"[emit_event] complete_task 失败: {exc}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
