@@ -41,7 +41,7 @@ import { ImageTabContent } from '@/components/dashboard/sku-info/image-tab'
 import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 
-type ProductCostItem = {
+export type ProductCostItem = {
   id: number
   project_name: string
   sku: string
@@ -1989,7 +1989,8 @@ export default function SkuInfoPage() {
                   </table>
                 </DataTableCardBody>
               </DataTableCard>
-            ) : activeTab === 'image' ? (
+            )}
+            {activeTab === 'image' && (
               <ImageTabContent
                 projectName={projectFilter}
                 skus={items}
