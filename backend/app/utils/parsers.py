@@ -248,7 +248,9 @@ def parse_payment_rows(
         numeric_cols.append("total")
     for col in numeric_cols:
         if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+            # `.to_numpy()` avoids the pandas 3.0 ChainedAssignmentError FutureWarning
+            # by making the assignment a single-step operation (no intermediate Series).
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).to_numpy()
 
     asin_col = "asin" if "asin" in df.columns else ("ASIN" if "ASIN" in df.columns else None)
     payloads: list[dict[str, Any]] = []
