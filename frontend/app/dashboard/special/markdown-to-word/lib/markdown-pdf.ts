@@ -1,4 +1,4 @@
-import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from 'pdf-lib'
+import { PDFDocument, PDFFont, PDFPage, rgb } from 'pdf-lib'
 import fontkit from '@pdf-lib/fontkit'
 
 import type { BlockNode, InlineToken } from './markdown-ast'
@@ -23,7 +23,6 @@ const COLOR_CODE_BG = rgb(0.96, 0.97, 0.99)
 type RenderContext = {
   page: PDFPage
   font: PDFFont
-  fontMono: PDFFont
   y: number
 }
 
@@ -65,8 +64,8 @@ function drawInline(
   const segments: Segment[] = []
 
   for (const token of tokens) {
-    const isMono = token.font === 'Courier New'
-    const font = isMono ? ctx.fontMono : ctx.font
+    // 所有 inline 都用主字体（Noto Sans SC）以支持中文
+    const font = ctx.font
     const text = token.text
     if (!text) continue
 
@@ -122,13 +121,11 @@ export async function markdownToPdfBytes(markdown: string): Promise<Uint8Array> 
 
   const fontBytes = await fetch('/fonts/NotoSansSC-Regular.otf').then((response) => response.arrayBuffer())
   const font = await pdf.embedFont(fontBytes, { subset: false })
-  const fontMono = await pdf.embedFont(StandardFonts.Courier)
 
   const page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT_REFERENCE])
   const ctx: RenderContext = {
     page,
     font,
-    fontMono,
     y: PAGE_HEIGHT_REFERENCE - MARGIN_TOP,
   }
 
@@ -167,7 +164,8 @@ export async function markdownToPdfBytes(markdown: string): Promise<Uint8Array> 
     } else if (block.type === 'code') {
       const padding = 8
       const codeLines = block.text.split('\n')
-      const maxLineWidth = Math.max(...codeLines.map((line) => ctx.fontMono.widthOfTextAtSize(line, 11)))
+      // 代码块也使用主字体渲染以支持中文（中文代码/注释是常见场景）
+      const maxLineWidth = Math.max(...codeLines.map((line) => ctx.font.widthOfTextAtSize(line, 11)))
       const boxWidth = Math.min(CONTENT_WIDTH, maxLineWidth + padding * 2)
       const boxHeight = codeLines.length * 11 * LINE_HEIGHT_RATIO + padding * 2
 
@@ -187,7 +185,7 @@ export async function markdownToPdfBytes(markdown: string): Promise<Uint8Array> 
           x: MARGIN_X + padding,
           y: lineY,
           size: 11,
-          font: ctx.fontMono,
+          font: ctx.font,
           color: COLOR_TEXT,
         })
         lineY -= 11 * LINE_HEIGHT_RATIO
