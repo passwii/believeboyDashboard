@@ -133,9 +133,19 @@ export function SellerCard({
     fetchProjectContext(selectedProjectId)
       .then(async (ctx) => {
         if (!alive) return
-        // 惰性迁移
-        const migrated = await migrateSellersIfNeeded(ctx)
-        const list = migrated.project_context?.invoice_sellers ?? []
+        let list: InvoiceSellerEntry[] = []
+        try {
+          // 惰性迁移
+          const migrated = await migrateSellersIfNeeded(ctx)
+          const raw = migrated.project_context?.invoice_sellers
+          // 防御性校验：确保是数组且每个元素包含 country 字段
+          if (Array.isArray(raw) && raw.every((s) => s && typeof s.country === "string")) {
+            list = raw as InvoiceSellerEntry[]
+          }
+        } catch {
+          // 迁移失败时回退
+        }
+        if (!alive) return
         onSellersChange(list)
         if (list.length > 0) {
           // 选中第一个（或保持已选中的）
