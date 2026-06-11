@@ -13,7 +13,7 @@ from collections import Counter
 from datetime import date, timedelta
 from decimal import Decimal
 
-from sqlalchemy import func, text
+from sqlalchemy import bindparam, func, text
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -87,7 +87,7 @@ def _bulk_sales_snapshot(
               AND sor.purchase_date_pt >= :prev_start
               AND sor.purchase_date_pt <= :today
             GROUP BY sf.project_id, sor.purchase_date_pt
-        """),
+        """).bindparams(bindparam("pids", expanding=True)),
         {"pids": pids, "country": country, "prev_start": prev_start, "today": today},
     ).fetchall()
 
@@ -105,7 +105,7 @@ def _bulk_sales_snapshot(
               AND sf.report_type = 'business_report'
               AND sf.is_current = true
             GROUP BY sf.project_id
-        """),
+        """).bindparams(bindparam("pids", expanding=True)),
         {"pids": pids, "country": country},
     ).fetchall()
 
@@ -218,7 +218,7 @@ def _bulk_inventory_snapshot(
               AND report_type = 'inventory_report'
               AND is_current = true
             ORDER BY project_id, report_date DESC NULLS LAST, snapshot_at DESC NULLS LAST
-        """),
+        """).bindparams(bindparam("pids", expanding=True)),
         {"pids": pids, "country": country},
     ).fetchall()
 
@@ -243,7 +243,7 @@ def _bulk_inventory_snapshot(
             FROM inventory_snapshot_rows
             WHERE source_file_id IN :sids
             GROUP BY source_file_id
-        """),
+        """).bindparams(bindparam("sids", expanding=True)),
         {"sids": source_ids},
     ).fetchall()
 
@@ -295,7 +295,7 @@ def _bulk_shipment_snapshot(
               AND ss.country = :country
               AND ss.shipment_status = 'in_transit'
             GROUP BY ss.project_id
-        """),
+        """).bindparams(bindparam("pids", expanding=True)),
         {"pids": pids, "country": nc},
     ).fetchall()
 
@@ -347,7 +347,7 @@ def _bulk_return_snapshot(
               AND rr.return_date >= :period_start
               AND rr.return_date <= :today
             GROUP BY sf.project_id, rr.reason
-        """),
+        """).bindparams(bindparam("pids", expanding=True)),
         {"pids": pids, "country": nc, "period_start": period_start, "today": today},
     ).fetchall()
 
@@ -422,7 +422,7 @@ def _bulk_ad_snapshot(
               AND af.period_end_date <= :today
               AND apr.scope_status = 'included_product'
             GROUP BY af.project_id
-        """),
+        """).bindparams(bindparam("pids", expanding=True)),
         {"pids": pids, "country": nc, "period_start": period_start, "today": today},
     ).fetchall()
 
