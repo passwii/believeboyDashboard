@@ -73,7 +73,7 @@ class AIChatConfigResponse(BaseModel):
     default_reasoning_effort: str = Field(default="medium")
     timeout_seconds: int
     max_conversation_turns: int = Field(default=10, ge=1, le=50)
-    web_search_max_results: int = Field(default=5, ge=1, le=10)
+    web_search_max_results: int = Field(default=5, ge=1, le=50)
 
 
 class TokenUsage(BaseModel):
