@@ -8,7 +8,7 @@ from typing import Any
 from sqlalchemy import select, and_, or_
 from sqlalchemy.orm import Session
 
-from app.models import AnalysisSourceFile
+from app.models import AnalysisSourceFile, AdUploadFile
 from app.services.report_type_service import AD_PRODUCT_REPORT
 from app.utils.country import normalize_country as _normalize_country
 from app.utils.constants import PERIODIC_REPORT_TYPES
@@ -30,8 +30,60 @@ def check_product_calculation_data_availability(
         all_dates.add(d)
         d += timedelta(days=1)
 
+    def _ad_daily_dates() -> set[date]:
+        """Get dates covered by daily ad reports from C table (AdUploadFile)."""
+        rows = db.execute(
+            select(AdUploadFile.period_end_date).where(
+                AdUploadFile.project_id == project_id,
+                AdUploadFile.report_type == 'ad_promoted_product_report',
+                AdUploadFile.country == normalized_country,
+                AdUploadFile.is_current.is_(True),
+                AdUploadFile.period_start_date == AdUploadFile.period_end_date,
+                AdUploadFile.period_end_date >= start_date,
+                AdUploadFile.period_end_date <= end_date,
+            )
+        ).scalars().all()
+        return {r for r in rows if r is not None}
+
+    def _ad_period_covered_dates() -> list[dict[str, Any]]:
+        """Get periodic ad coverage info from C table (AdUploadFile)."""
+        rows = db.execute(
+            select(
+                AdUploadFile.period_start_date,
+                AdUploadFile.period_end_date,
+                AdUploadFile.id,
+            ).where(
+                AdUploadFile.project_id == project_id,
+                AdUploadFile.report_type == 'ad_promoted_product_report',
+                AdUploadFile.country == normalized_country,
+                AdUploadFile.is_current.is_(True),
+                AdUploadFile.period_start_date < AdUploadFile.period_end_date,
+                AdUploadFile.period_start_date <= end_date,
+                AdUploadFile.period_end_date >= start_date,
+            )
+        ).all()
+        result = []
+        for row in rows:
+            if row.period_start_date is None or row.period_end_date is None:
+                continue
+            covered_dates = set()
+            cur = max(row.period_start_date, start_date)
+            cur_end = min(row.period_end_date, end_date)
+            while cur <= cur_end:
+                covered_dates.add(cur)
+                cur += timedelta(days=1)
+            result.append({
+                'period_start_date': row.period_start_date.isoformat(),
+                'period_end_date': row.period_end_date.isoformat(),
+                'source_id': int(row.id),
+                'covered_dates': sorted([d.isoformat() for d in covered_dates]),
+            })
+        return result
+
     def _daily_dates(report_type: str) -> set[date]:
         """Get dates covered by daily reports only (for missing check)."""
+        if report_type == AD_PRODUCT_REPORT:
+            return _ad_daily_dates()
         rows = db.execute(
             select(AnalysisSourceFile.report_date).where(
                 AnalysisSourceFile.project_id == project_id,
@@ -46,6 +98,8 @@ def check_product_calculation_data_availability(
 
     def _period_covered_dates(report_type: str) -> list[dict[str, Any]]:
         """Get periodic data coverage info (start, end, source_id)."""
+        if report_type == AD_PRODUCT_REPORT:
+            return _ad_period_covered_dates()
         if report_type not in PERIODIC_REPORT_TYPES:
             return []
         rows = db.execute(

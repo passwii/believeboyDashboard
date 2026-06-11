@@ -9,7 +9,7 @@ from typing import Any
 from sqlalchemy import select, and_, or_
 from sqlalchemy.orm import Session
 
-from app.models import AnalysisSourceFile, AnalysisPT1Calculation, Project
+from app.models import AnalysisSourceFile, AdUploadFile, AnalysisPT1Calculation, Project
 from app.services.product._internal import _is_single_full_week
 from app.services.product.analysis.costs import _build_active_product_costs_df
 from app.services.product.analysis.period_sources import _list_history_weekly_period_sources
@@ -18,7 +18,12 @@ from app.services.product.persistence import (
     persist_product_analysis_pt1_calculation,
 )
 from app.services.product.business import _build_business_df_from_source, _build_business_df_from_sources
-from app.services.product.ad import _build_ad_df_from_source, _build_ad_df_from_sources
+from app.services.product.ad import (
+    _build_ad_df_from_source,
+    _build_ad_df_from_sources,
+    _build_ad_df_from_c_source,
+    _build_ad_df_from_c_sources,
+)
 from app.services.payment import build_df_from_source, build_df_from_sources
 from app.tasks.scripts import product_analysis as product_analysis_script
 from app.services.report_type_service import AD_PRODUCT_REPORT
@@ -138,11 +143,10 @@ def recompute_pt1_for_period(
 
     normalized_country = _normalize_country(country)
 
+    # business / payment 来自 A 表 (AnalysisSourceFile)
     stmt = select(AnalysisSourceFile).where(
         AnalysisSourceFile.project_id == project_id,
-        AnalysisSourceFile.report_type.in_(
-            ('business_report', AD_PRODUCT_REPORT, 'payment_report')
-        ),
+        AnalysisSourceFile.report_type.in_(('business_report', 'payment_report')),
         AnalysisSourceFile.country == normalized_country,
         AnalysisSourceFile.is_current.is_(True),
         AnalysisSourceFile.period_start_date == period_start_date,
@@ -154,7 +158,24 @@ def recompute_pt1_for_period(
     for row in rows:
         source_map[row.report_type] = row
 
+    # ad_product_report 来自 C 表 (AdUploadFile)
+    ad_row = db.execute(
+        select(AdUploadFile)
+        .where(
+            AdUploadFile.project_id == project_id,
+            AdUploadFile.report_type == 'ad_promoted_product_report',
+            AdUploadFile.country == normalized_country,
+            AdUploadFile.is_current.is_(True),
+            AdUploadFile.period_start_date == period_start_date,
+            AdUploadFile.period_end_date == period_end_date,
+        )
+        .order_by(AdUploadFile.version.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+
     missing = {'business_report', AD_PRODUCT_REPORT, 'payment_report'} - set(source_map.keys())
+    if AD_PRODUCT_REPORT in missing and ad_row is not None:
+        missing.discard(AD_PRODUCT_REPORT)
     if missing:
         raise ValueError(
             f'Missing source files for period {period_start_date}-{period_end_date}: '
@@ -173,7 +194,15 @@ def recompute_pt1_for_period(
         year_month=report_year_month,
     )
     df_business = _build_business_df_from_source(db, source_id=int(business_source.id))
-    df_ad = _build_ad_df_from_source(db, source_id=int(ad_source.id))
+    if ad_source is not None:
+        # A 表记录存在 (历史数据)，走原有逻辑
+        df_ad = _build_ad_df_from_source(db, source_id=int(ad_source.id))
+    elif ad_row is not None:
+        # A 表没有，直接从 C 表读
+        df_ad = _build_ad_df_from_c_source(db, c_source_id=int(ad_row.id))
+    else:
+        from pandas import DataFrame
+        df_ad = DataFrame(columns=['SKU', '广告展示量', '广告点击量', '广告花费', '广告销售额', '广告订单量'])
     df_payment = build_df_from_source(db, source_id=int(payment_source.id))
 
     report_date_str = product_analysis_script._format_report_date(
@@ -209,7 +238,7 @@ def recompute_pt1_for_period(
         'report_end_date': period_end_date.isoformat(),
         'row_count': int(pt1_row.row_count or 0),
         'business_report_source_id': int(business_source.id),
-        'ad_report_source_id': int(ad_source.id),
+        'ad_report_source_id': int(ad_source.id) if ad_source is not None else int(ad_row.id),
         'payment_report_source_id': int(payment_source.id),
     }
 
