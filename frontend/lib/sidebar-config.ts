@@ -11,6 +11,7 @@ import {
  DollarSign,
  FileBarChart,
  FileSearch,
+ FileText,
  History,
  LayoutDashboard,
  Layers,
@@ -85,6 +86,7 @@ const IconMap = {
  RotateCcw,
  Layers,
  FileSearch,
+ FileText,
  Search,
  Users,
  Database,
@@ -240,6 +242,7 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
  icon: IconMap.Users,
  },
  { title: '更新日志', url: '/dashboard/changelog', icon: IconMap.History },
+ { title: 'Markdown 转 Word', url: '/dashboard/special/markdown-to-word', icon: IconMap.FileText },
  ],
  },
 

@@ -30,6 +30,7 @@ export const DASHBOARD_PAGE_TITLES: Array<{ match: string; title: string }> = [
  { match: '/operations/site-navigation', title: '跨境平台书签导航' },
  { match: '/operations/store-navigation', title: '店铺导航' },
  { match: '/ai-insights', title: 'AI洞察' },
+ { match: '/special/markdown-to-word', title: 'Markdown 转 Word' },
  { match: '/ai-chat', title: 'AI Chat' },
  { match: '/ai/ad-analysis', title: 'AI 广告分析' },
  { match: '/data-analysis/research-analysis', title: '调研分析' },
