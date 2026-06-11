@@ -11,7 +11,13 @@ from openpyxl.styles import Alignment, Border, Font, NamedStyle, Side
 from openpyxl.utils import get_column_letter
 
 from app.services.payment import read_payment_csv, classify_rows
-from app.services.payment.financial import _round2, _to_decimal, _sum_field, _safe_div_percent_decimal
+from app.services.payment.financial import (
+    _compute_vat_metrics,
+    _round2,
+    _to_decimal,
+    _sum_field,
+    _safe_div_percent_decimal,
+)
 from app.services.report.utils import _safe_project_name
 from app.utils.country import normalize_country
 
@@ -229,6 +235,16 @@ def run(input_path: str, output_dir: str, params: dict) -> dict:
         + chargebacks
     )
 
+    # VAT 适配（DE/UK）：tax-inclusive 口径
+    vat_metrics = _compute_vat_metrics(
+        {"order": order, "refund": refund}, country
+    )
+    income_vat_total = vat_metrics["income_vat_total"]
+    income_sales_with_tax = vat_metrics["income_sales_with_tax"]
+    expense_vat_total = vat_metrics["expense_vat_total"]
+    if income_vat_total != Decimal("0"):
+        income_total = _round2(income_total + income_vat_total)
+
     seller_fulfilled_selling_fees = _sum_field(fbm_order, "selling fees")
     fba_selling_fees = _sum_field(fba_order, "selling fees")
     selling_fee_refunds = _sum_field(refund, "selling fees")
@@ -294,6 +310,9 @@ def run(input_path: str, output_dir: str, params: dict) -> dict:
     pt4_income_adjustment = _round2(fba_inventory_credit + fba_liquidation_proceeds)
     pt4_income_chargeback = _round2(chargebacks + a_to_z_guarantee_claims + safe_t_reimbursement)
     pt4_income_total = _round2(pt4_income_sales + pt4_income_refund + pt4_income_adjustment + pt4_income_chargeback)
+    # DE/UK：PT4 收入合计也要 gross 化
+    if income_vat_total != Decimal("0"):
+        pt4_income_total = _round2(pt4_income_total + income_vat_total)
 
     pt4_expense_selling_fee = _round2(seller_fulfilled_selling_fees + fba_selling_fees + selling_fee_refunds)
     pt4_expense_fba_fee = _round2(fba_transaction_fees_total + fba_transaction_fee_refunds)
@@ -321,7 +340,11 @@ def run(input_path: str, output_dir: str, params: dict) -> dict:
         + pt4_expense_other_fees
     )
 
-    amazon_pay_back = _round2(pt4_income_total + pt4_expense_total)
+    # DE/UK 回款公式：收入 + 支出 - VAT（VAT 为正数）
+    # US：expense_vat_total = 0 → 与原公式完全一致
+    amazon_pay_back = _round2(
+        pt4_income_total + pt4_expense_total - expense_vat_total
+    )
     amz_card = _sum_field(debt, "total")
     advertising_percentage = _safe_div_percent_decimal(cost_of_advertising, income_total)
     report("computing_summary", 42, "合成数据：已完成核心指标计算")
@@ -494,6 +517,8 @@ def run(input_path: str, output_dir: str, params: dict) -> dict:
         "income_chargebacks": chargebacks,
         "income_safe_t_reimbursement": safe_t_reimbursement,
         "income_total": income_total,
+        "income_vat_total": income_vat_total,
+        "income_sales_with_tax": income_sales_with_tax,
         "expense_seller_fulfilled_selling_fees": seller_fulfilled_selling_fees,
         "expense_fba_selling_fees": fba_selling_fees,
         "expense_selling_fee_refunds": selling_fee_refunds,
@@ -531,6 +556,7 @@ def run(input_path: str, output_dir: str, params: dict) -> dict:
         "expense_advertising": pt4_expense_advertising,
         "expense_other_fees": pt4_expense_other_fees,
         "expense_total": pt4_expense_total,
+        "expense_vat_total": expense_vat_total,
         "amazon_pay_back": amazon_pay_back,
         "credit_card_deduction_usd": amz_card,
     }
