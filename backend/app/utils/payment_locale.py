@@ -159,6 +159,7 @@ PAYMENT_DESCRIPTION_ALIASES = {
     'FBA storage fee': [
         'fba storage fee',
         'fba-lagergebuehr',
+        'fba lagergebuehr',
     ],
     'FBA Removal Order: Disposal Fee': [
         'fba removal order: disposal fee',
