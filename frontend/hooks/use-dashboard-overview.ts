@@ -74,6 +74,8 @@ export interface DashboardOverviewResponse {
 }
 
 interface UseDashboardOverviewOptions {
+  /** 外部传入项目 ID 列表，跳过内部 fetchManagedProjectsCached 调用 */
+  projectIds?: number[]
   country?: string
   days?: number
   referenceDate?: string
@@ -95,7 +97,7 @@ type ProjectItem = { id: number; name: string }
 export function useDashboardOverview(
   options: UseDashboardOverviewOptions = {}
 ): UseDashboardOverviewReturn {
-  const { country = 'US', days = 7, referenceDate, enabled = true } = options
+  const { projectIds: externalProjectIds, country = 'US', days = 7, referenceDate, enabled = true } = options
   const { notify } = useNotifications()
   const [contextError, setContextError] = useState<Error | null>(null)
   // Keep last good query string so retry uses the same params
@@ -103,9 +105,15 @@ export function useDashboardOverview(
 
   const loader = useCallback(
     async (signal: AbortSignal): Promise<DashboardOverviewResponse> => {
-      const projects = await fetchManagedProjectsCached<ProjectItem[]>()
-      if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
-      const projectIds = projects.map((p) => p.id).join(',')
+      let ids: number[]
+      if (externalProjectIds && externalProjectIds.length > 0) {
+        ids = externalProjectIds
+      } else {
+        const projects = await fetchManagedProjectsCached<ProjectItem[]>()
+        if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
+        ids = projects.map((p) => p.id)
+      }
+      const projectIds = ids.join(',')
       const params = new URLSearchParams({ country, days: String(days) })
       if (projectIds) params.set('project_ids', projectIds)
       if (referenceDate) params.set('reference_date', referenceDate)
@@ -119,7 +127,7 @@ export function useDashboardOverview(
       }
       return (await res.json()) as DashboardOverviewResponse
     },
-    [country, days, referenceDate]
+    [country, days, referenceDate, externalProjectIds]
   )
 
   const { data, loading, error, retry } = useApiQuery<DashboardOverviewResponse>(loader, {

@@ -48,7 +48,7 @@ export interface UseApiQueryResult<T> {
 }
 
 const DEFAULT_TIMEOUT_MS = 5_000
-const NETWORK_RETRY_DELAY_MS = 250
+const NETWORK_RETRY_DELAY_MS = 100
 
 function isTimeoutError(err: unknown): boolean {
   if (!(err instanceof Error)) return false
