@@ -855,6 +855,39 @@ export default function ShipmentManagementPage() {
     return groups
   }, [fbaBoxItems])
 
+  const fbaBoxTrackingGroups = useMemo(() => {
+    const groups: { shipmentNo: string; trackingNo: string | null; startIndex: number; endIndex: number }[] = []
+    if (fbaBoxItems.length === 0) return groups
+
+    let currentShipmentNo = fbaBoxItems[0].shipment_no
+    let currentTracking: string | null = fbaBoxItems[0].tracking_no
+    let startIndex = 0
+
+    fbaBoxItems.forEach((item, index) => {
+      if (index === 0) return
+      if (item.tracking_no !== currentTracking || item.shipment_no !== currentShipmentNo) {
+        groups.push({
+          shipmentNo: currentShipmentNo,
+          trackingNo: currentTracking,
+          startIndex,
+          endIndex: index - 1,
+        })
+        currentShipmentNo = item.shipment_no
+        currentTracking = item.tracking_no
+        startIndex = index
+      }
+    })
+
+    groups.push({
+      shipmentNo: currentShipmentNo,
+      trackingNo: currentTracking,
+      startIndex,
+      endIndex: fbaBoxItems.length - 1,
+    })
+
+    return groups
+  }, [fbaBoxItems])
+
   const openFbaImageLightbox = useCallback((item: ShipmentFbaBoxDetailItem) => {
     setFbaLightboxItem(item)
   }, [])
@@ -2202,16 +2235,21 @@ export default function ShipmentManagementPage() {
         })
       })
 
-      // ── 合并单元格：货件编号(列 3) 按 shipment_no，仓库 ID(列 4) 按 (shipment_no, warehouse_code) ──
+      // ── 合并单元格：货件编号(列 3) 按 shipment_no，仓库 ID(列 4) 按 (shipment_no, warehouse_code)，追踪 ID(列 5) 按 (shipment_no, tracking_no) ──
       let shipStart = 0
       let whStart = 0
+      let tkStart = 0
       let currentShipNo = fbaBoxItems[0]?.shipment_no ?? ''
       let currentShipWhKey = fbaBoxItems[0]
         ? `${fbaBoxItems[0].shipment_no}|${fbaBoxItems[0].warehouse_code ?? ''}`
         : ''
+      let currentShipTkKey = fbaBoxItems[0]
+        ? `${fbaBoxItems[0].shipment_no}|${fbaBoxItems[0].tracking_no ?? ''}`
+        : ''
 
       fbaBoxItems.forEach((item, index) => {
         const itemShipWhKey = `${item.shipment_no}|${item.warehouse_code ?? ''}`
+        const itemShipTkKey = `${item.shipment_no}|${item.tracking_no ?? ''}`
         const isLast = index === fbaBoxItems.length - 1
 
         if (item.shipment_no !== currentShipNo) {
@@ -2228,6 +2266,8 @@ export default function ShipmentManagementPage() {
           shipStart = index
           whStart = index
           currentShipWhKey = itemShipWhKey
+          tkStart = index
+          currentShipTkKey = itemShipTkKey
         }
 
         if (itemShipWhKey !== currentShipWhKey) {
@@ -2242,6 +2282,18 @@ export default function ShipmentManagementPage() {
           currentShipWhKey = itemShipWhKey
         }
 
+        if (itemShipTkKey !== currentShipTkKey) {
+          if (index - tkStart > 1) {
+            worksheet.mergeCells(
+              tkStart + dataStartRow, 5,
+              index + dataStartRow - 1, 5,
+              'merge'
+            )
+          }
+          tkStart = index
+          currentShipTkKey = itemShipTkKey
+        }
+
         if (isLast) {
           if (index - shipStart >= 1) {
             worksheet.mergeCells(
@@ -2254,6 +2306,13 @@ export default function ShipmentManagementPage() {
             worksheet.mergeCells(
               whStart + dataStartRow, 4,
               index + dataStartRow, 4,
+              'merge'
+            )
+          }
+          if (index - tkStart >= 1) {
+            worksheet.mergeCells(
+              tkStart + dataStartRow, 5,
+              index + dataStartRow, 5,
               'merge'
             )
           }
@@ -3107,6 +3166,7 @@ export default function ShipmentManagementPage() {
                         <TableHeader>
                           <TableRow className="bg-[hsl(var(--surface-subtle))]">
                             <TableHead className={`whitespace-nowrap w-[140px] ${DENSE_HEAD}`}>货件编号</TableHead>
+                            <TableHead className={`whitespace-nowrap w-[120px] ${DENSE_HEAD}`}>追踪 ID</TableHead>
                             <TableHead className={`whitespace-nowrap w-[80px] ${DENSE_HEAD}`}>仓库 ID</TableHead>
                             <TableHead className={`whitespace-nowrap w-[140px] ${DENSE_HEAD}`}>SKU</TableHead>
                             <TableHead className={`whitespace-nowrap w-[80px] ${DENSE_HEAD}`}>产品图片</TableHead>
@@ -3117,7 +3177,6 @@ export default function ShipmentManagementPage() {
                             <TableHead className={`whitespace-nowrap w-[80px] text-right ${DENSE_HEAD}`}>总数量</TableHead>
                             <TableHead className={`whitespace-nowrap w-[80px] text-right ${DENSE_HEAD}`}>总体积(m³)</TableHead>
                             <TableHead className={`whitespace-nowrap w-[80px] text-right ${DENSE_HEAD}`}>总重量(kg)</TableHead>
-                            <TableHead className={`whitespace-nowrap w-[120px] ${DENSE_HEAD}`}>追踪 ID</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -3135,6 +3194,12 @@ export default function ShipmentManagementPage() {
                             const shipmentRowSpan = shipmentGroup ? shipmentGroup.endIndex - shipmentGroup.startIndex + 1 : 1
                             const showShipment = shipmentGroup && shipmentGroup.startIndex === index
 
+                            const trackingGroup = fbaBoxTrackingGroups.find(
+                              (g) => g.shipmentNo === item.shipment_no && index >= g.startIndex && index <= g.endIndex
+                            )
+                            const trackingRowSpan = trackingGroup ? trackingGroup.endIndex - trackingGroup.startIndex + 1 : 1
+                            const showTracking = trackingGroup && trackingGroup.startIndex === index
+
                             const cartonInfo = item.length_cm || item.width_cm || item.height_cm
                               ? `${formatDimensionText(item.length_cm, item.width_cm, item.height_cm)}${item.carton_weight_kg ? ` / ${formatDecimal(item.carton_weight_kg, 3)} kg` : ''}`
                               : '-'
@@ -3143,10 +3208,18 @@ export default function ShipmentManagementPage() {
                               <TableRow key={`fba-box-${item.shipment_no}-${item.sku}-${index}`}>
                                 {showShipment ? (
                                   <TableCell
-                                    className={`w-[140px] font-medium align-top ${DENSE_CELL}`}
+                                    className={`w-[140px] font-semibold text-primary bg-primary/5 align-top ${DENSE_CELL}`}
                                     rowSpan={shipmentRowSpan}
                                   >
                                     {item.shipment_no}
+                                  </TableCell>
+                                ) : null}
+                                {showTracking ? (
+                                  <TableCell
+                                    className={`w-[120px] font-mono text-xs align-top ${DENSE_CELL}`}
+                                    rowSpan={trackingRowSpan}
+                                  >
+                                    {item.tracking_no || '-'}
                                   </TableCell>
                                 ) : null}
                                 {showWarehouse ? (
@@ -3186,7 +3259,6 @@ export default function ShipmentManagementPage() {
                                 <TableCell className={`w-[80px] text-right ${DENSE_CELL}`}>{item.quantity > 0 ? item.quantity : '-'}</TableCell>
                                 <TableCell className={`w-[80px] text-right ${DENSE_CELL}`}>{formatDecimal(item.total_volume_m3, 4)}</TableCell>
                                 <TableCell className={`w-[80px] text-right ${DENSE_CELL}`}>{item.total_weight_kg > 0 ? formatDecimal(item.total_weight_kg) : '0'}</TableCell>
-                                <TableCell className={`w-[120px] font-mono text-xs ${DENSE_CELL}`}>{item.tracking_no || '-'}</TableCell>
                               </TableRow>
                             )
                           })}
