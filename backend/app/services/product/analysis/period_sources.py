@@ -10,6 +10,7 @@ from sqlalchemy import Select, and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models import (
+    AdUploadFile,
     AnalysisSourceFile,
     AnalysisPT1Calculation,
     AnalysisPTSKUDetail,
@@ -30,6 +31,8 @@ from app.services.product.business import (
 from app.services.product.ad import (
     _build_ad_df_from_source,
     _build_ad_df_from_sources,
+    _build_ad_df_from_c_source,
+    _build_ad_df_from_c_sources,
 )
 from app.services.payment import (
     build_df_from_source,
@@ -50,12 +53,15 @@ def _list_recomputable_weekly_period_sources(
     end_date: date | None,
     current_only: bool,
 ) -> list[dict[str, Any]]:
-    """List period-based source groupings suitable for PT1 recomputation."""
+    """List period-based source groupings suitable for PT1 recomputation.
+
+    business_report / payment_report 来自 A 表 (AnalysisSourceFile)。
+    ad_product_report 来自 C 表 (AdUploadFile)，ad_product_report 已迁移到 C 表。
+    """
+    # ── business + payment (A 表) ──
     stmt = select(AnalysisSourceFile).where(
         AnalysisSourceFile.project_id == project_id,
-        AnalysisSourceFile.report_type.in_(
-            ('business_report', AD_PRODUCT_REPORT, 'payment_report')
-        ),
+        AnalysisSourceFile.report_type.in_(('business_report', 'payment_report')),
         AnalysisSourceFile.country == country,
     )
     if current_only:
@@ -80,8 +86,36 @@ def _list_recomputable_weekly_period_sources(
             continue
         key = (row.period_start_date, row.period_end_date)
         period_map = by_period.setdefault(key, {})
-        if row.report_type not in period_map:
-            period_map[row.report_type] = row
+        period_map[row.report_type] = row
+
+    # ── ad (C 表 AdUploadFile) ──
+    ad_stmt = select(AdUploadFile).where(
+        AdUploadFile.project_id == project_id,
+        AdUploadFile.report_type == 'ad_promoted_product_report',
+        AdUploadFile.country == country,
+    )
+    if current_only:
+        ad_stmt = ad_stmt.where(AdUploadFile.is_current.is_(True))
+    if start_date is not None:
+        ad_stmt = ad_stmt.where(AdUploadFile.period_end_date >= start_date)
+    if end_date is not None:
+        ad_stmt = ad_stmt.where(AdUploadFile.period_start_date <= end_date)
+
+    ad_rows = db.execute(
+        ad_stmt.order_by(
+            AdUploadFile.period_start_date.asc(),
+            AdUploadFile.period_end_date.asc(),
+            AdUploadFile.version.desc(),
+        )
+    ).scalars().all()
+
+    for row in ad_rows:
+        if row.period_start_date is None or row.period_end_date is None:
+            continue
+        key = (row.period_start_date, row.period_end_date)
+        period_map = by_period.setdefault(key, {})
+        # ad 用 'ad_product_report' 作为 key (兼容下游 AD_PRODUCT_REPORT 字符串)
+        period_map.setdefault(AD_PRODUCT_REPORT, row)
 
     periods: list[dict[str, Any]] = []
     for (period_start_date, period_end_date), source_map in sorted(by_period.items()):
@@ -223,37 +257,62 @@ def _list_history_weekly_period_sources(
             },
         }
 
-    daily_stmt = select(AnalysisSourceFile).where(
+    daily_business_stmt = select(AnalysisSourceFile).where(
         AnalysisSourceFile.project_id == project_id,
-        AnalysisSourceFile.report_type.in_(('business_report', AD_PRODUCT_REPORT)),
+        AnalysisSourceFile.report_type == 'business_report',
         AnalysisSourceFile.country == normalized_country,
         AnalysisSourceFile.report_date.is_not(None),
     )
     if current_only:
-        daily_stmt = daily_stmt.where(AnalysisSourceFile.is_current.is_(True))
+        daily_business_stmt = daily_business_stmt.where(AnalysisSourceFile.is_current.is_(True))
     if start_date is not None:
-        daily_stmt = daily_stmt.where(AnalysisSourceFile.report_date >= start_date)
+        daily_business_stmt = daily_business_stmt.where(AnalysisSourceFile.report_date >= start_date)
     if end_date is not None:
-        daily_stmt = daily_stmt.where(AnalysisSourceFile.report_date <= end_date)
+        daily_business_stmt = daily_business_stmt.where(AnalysisSourceFile.report_date <= end_date)
 
-    daily_rows = db.execute(
-        daily_stmt.order_by(
-            AnalysisSourceFile.report_type.asc(),
+    daily_business_rows = db.execute(
+        daily_business_stmt.order_by(
             AnalysisSourceFile.report_date.asc(),
             AnalysisSourceFile.version.desc(),
             AnalysisSourceFile.id.desc(),
         )
     ).scalars().all()
 
-    daily_sources: dict[str, dict[date, AnalysisSourceFile]] = {
+    # ad_product_report 日报来自 C 表 (AdUploadFile)
+    daily_ad_stmt = select(AdUploadFile).where(
+        AdUploadFile.project_id == project_id,
+        AdUploadFile.report_type == 'ad_promoted_product_report',
+        AdUploadFile.country == normalized_country,
+        AdUploadFile.is_current.is_(True),
+        AdUploadFile.period_start_date == AdUploadFile.period_end_date,
+    )
+    if start_date is not None:
+        daily_ad_stmt = daily_ad_stmt.where(AdUploadFile.period_end_date >= start_date)
+    if end_date is not None:
+        daily_ad_stmt = daily_ad_stmt.where(AdUploadFile.period_end_date <= end_date)
+
+    daily_ad_rows = db.execute(
+        daily_ad_stmt.order_by(
+            AdUploadFile.period_end_date.asc(),
+            AdUploadFile.version.desc(),
+            AdUploadFile.id.desc(),
+        )
+    ).scalars().all()
+
+    daily_sources: dict[str, dict[date, Any]] = {
         'business_report': {},
         AD_PRODUCT_REPORT: {},
     }
-    for row in daily_rows:
+    for row in daily_business_rows:
         if row.report_date is None:
             continue
-        report_map = daily_sources.setdefault(row.report_type, {})
+        report_map = daily_sources.setdefault('business_report', {})
         report_map.setdefault(row.report_date, row)
+    for row in daily_ad_rows:
+        if row.period_end_date is None:
+            continue
+        report_map = daily_sources.setdefault(AD_PRODUCT_REPORT, {})
+        report_map.setdefault(row.period_end_date, row)
 
     known_dates = sorted({
         *daily_sources['business_report'].keys(),
@@ -292,28 +351,27 @@ def _list_history_weekly_period_sources(
         )
     ).scalars().all()
 
-    # Query periodic ad report sources
-    ad_period_stmt = select(AnalysisSourceFile).where(
-        AnalysisSourceFile.project_id == project_id,
-        AnalysisSourceFile.report_type == AD_PRODUCT_REPORT,
-        AnalysisSourceFile.country == normalized_country,
-        AnalysisSourceFile.report_date.is_(None),
-        AnalysisSourceFile.period_start_date.is_not(None),
-        AnalysisSourceFile.period_end_date.is_not(None),
+    # Query periodic ad report sources from C table (AdUploadFile)
+    ad_period_stmt = select(AdUploadFile).where(
+        AdUploadFile.project_id == project_id,
+        AdUploadFile.report_type == 'ad_promoted_product_report',
+        AdUploadFile.country == normalized_country,
+        AdUploadFile.is_current.is_(True),
+        AdUploadFile.period_start_date < AdUploadFile.period_end_date,
+        AdUploadFile.period_start_date.is_not(None),
+        AdUploadFile.period_end_date.is_not(None),
     )
-    if current_only:
-        ad_period_stmt = ad_period_stmt.where(AnalysisSourceFile.is_current.is_(True))
     if start_date is not None:
-        ad_period_stmt = ad_period_stmt.where(AnalysisSourceFile.period_end_date >= start_date)
+        ad_period_stmt = ad_period_stmt.where(AdUploadFile.period_end_date >= start_date)
     if end_date is not None:
-        ad_period_stmt = ad_period_stmt.where(AnalysisSourceFile.period_start_date <= end_date)
+        ad_period_stmt = ad_period_stmt.where(AdUploadFile.period_start_date <= end_date)
 
     ad_period_rows = db.execute(
         ad_period_stmt.order_by(
-            AnalysisSourceFile.period_start_date.asc(),
-            AnalysisSourceFile.period_end_date.asc(),
-            AnalysisSourceFile.version.desc(),
-            AnalysisSourceFile.id.desc(),
+            AdUploadFile.period_start_date.asc(),
+            AdUploadFile.period_end_date.asc(),
+            AdUploadFile.version.desc(),
+            AdUploadFile.id.desc(),
         )
     ).scalars().all()
 
