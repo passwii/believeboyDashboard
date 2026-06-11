@@ -172,6 +172,14 @@ def compute_metrics(
         + chargebacks
     )
 
+    # ── VAT 适配（DE/UK tax-inclusive 口径）──
+    vat_metrics = _compute_vat_metrics(classified, country)
+    income_vat_total = vat_metrics["income_vat_total"]
+    income_sales_with_tax = vat_metrics["income_sales_with_tax"]
+    expense_vat_total = vat_metrics["expense_vat_total"]
+    if income_vat_total != Decimal("0"):
+        income_total = _round2(income_total + income_vat_total)
+
     seller_fulfilled_selling_fees = _sum_field(fbm_order, "selling fees")
     fba_selling_fees = _sum_field(fba_order, "selling fees")
     selling_fee_refunds = _sum_field(refund, "selling fees")
@@ -246,6 +254,8 @@ def compute_metrics(
         "income_chargebacks": chargebacks,
         "income_safe_t_reimbursement": safe_t_reimbursement,
         "income_total": income_total,
+        "income_vat_total": income_vat_total,
+        "income_sales_with_tax": income_sales_with_tax,
         "expense_seller_fulfilled_selling_fees": seller_fulfilled_selling_fees,
         "expense_fba_selling_fees": fba_selling_fees,
         "expense_selling_fee_refunds": selling_fee_refunds,
@@ -298,6 +308,9 @@ def compute_metrics(
         + pt4_income_adjustment
         + pt4_income_chargeback
     )
+    # DE/UK：PT4 收入合计也要 gross 化
+    if income_vat_total != Decimal("0"):
+        pt4_income_total = _round2(pt4_income_total + income_vat_total)
 
     pt4_expense_selling_fee = _round2(
         seller_fulfilled_selling_fees + fba_selling_fees + selling_fee_refunds
@@ -331,7 +344,11 @@ def compute_metrics(
         + pt4_expense_other_fees
     )
 
-    amazon_pay_back = _round2(pt4_income_total + pt4_expense_total)
+    # DE/UK 回款公式：收入 + 支出 - VAT（VAT 为正数）
+    # US：expense_vat_total = 0 → 与原公式完全一致
+    amazon_pay_back = _round2(
+        pt4_income_total + pt4_expense_total - expense_vat_total
+    )
 
     pt4_payload = {
         "income_sales": pt4_income_sales,
@@ -346,6 +363,7 @@ def compute_metrics(
         "expense_advertising": pt4_expense_advertising,
         "expense_other_fees": pt4_expense_other_fees,
         "expense_total": pt4_expense_total,
+        "expense_vat_total": expense_vat_total,
         "amazon_pay_back": amazon_pay_back,
     }
 
