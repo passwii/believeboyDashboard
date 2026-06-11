@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -27,22 +27,16 @@ export function MonthNavigation({
   className,
   monthLabel = '月份',
 }: MonthNavigationProps) {
-  const [navigating, setNavigating] = useState(false)
-
   const handlePrev = onPrev || (() => {
-    setNavigating(true)
     if (!value) return
     const prev = new Date(value.getFullYear(), value.getMonth() - 1, 1)
     onChange(prev)
-    setTimeout(() => setNavigating(false), 200)
   })
 
   const handleNext = onNext || (() => {
-    setNavigating(true)
     if (!value) return
     const next = new Date(value.getFullYear(), value.getMonth() + 1, 1)
     onChange(next)
-    setTimeout(() => setNavigating(false), 200)
   })
 
   const isCurrentMonth = () => {
@@ -58,7 +52,7 @@ export function MonthNavigation({
         variant="ghost"
         size="icon"
         onClick={handlePrev}
-        disabled={navigating || !value}
+        disabled={!value}
         className="h-9 w-9 shrink-0"
       >
         <ChevronLeft className="h-4 w-4" />
@@ -80,7 +74,7 @@ export function MonthNavigation({
         variant="ghost"
         size="icon"
         onClick={handleNext}
-        disabled={navigating || !value}
+        disabled={!value}
         className="h-9 w-9 shrink-0"
       >
         <ChevronRight className="h-4 w-4" />

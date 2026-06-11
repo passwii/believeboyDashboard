@@ -3208,7 +3208,7 @@ export default function ShipmentManagementPage() {
                               <TableRow key={`fba-box-${item.shipment_no}-${item.sku}-${index}`}>
                                 {showShipment ? (
                                   <TableCell
-                                    className={`w-[140px] font-semibold text-primary bg-primary/5 align-top ${DENSE_CELL}`}
+                                    className={`w-[140px] font-semibold text-primary bg-primary/5 ${DENSE_CELL}`}
                                     rowSpan={shipmentRowSpan}
                                   >
                                     {item.shipment_no}
@@ -3216,7 +3216,7 @@ export default function ShipmentManagementPage() {
                                 ) : null}
                                 {showTracking ? (
                                   <TableCell
-                                    className={`w-[120px] font-mono text-xs align-top ${DENSE_CELL}`}
+                                    className={`w-[120px] font-mono text-xs ${DENSE_CELL}`}
                                     rowSpan={trackingRowSpan}
                                   >
                                     {item.tracking_no || '-'}

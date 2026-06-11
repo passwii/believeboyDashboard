@@ -8,7 +8,7 @@ import { useLoginAnimations } from "./use-login-animations";
 import LeftBrandPanel from "./left-brand-panel";
 import RightFormPanel from "./right-form-panel";
 
-const SIGNIN_LOADING_WATCHDOG_MS = 30000;
+const SIGNIN_LOADING_WATCHDOG_MS = 10000;
 
 interface SignInCardProps {
   theme: "light" | "dark";
@@ -95,7 +95,6 @@ const SignInCard = ({ theme }: SignInCardProps) => {
         }
       }
       router.push(nextPath);
-      router.refresh();
     } catch (err) {
       setSubmitting(false);
       finishNavigationLoading();
