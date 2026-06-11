@@ -43,8 +43,61 @@ def _safe_div_percent_decimal(numerator: Decimal, denominator: Decimal) -> Decim
     )
 
 
+# VAT 国家集合：DE（19%）、UK（20%）。US 报表 product_sales_tax 通常为 0，
+# 自动兼容；新口径行为完全一致（income_vat_total=0 → gross ≡ net）。
+VAT_INCLUSIVE_COUNTRIES: frozenset[str] = frozenset({"DE", "UK"})
+
+
+def _compute_vat_metrics(
+    classified: dict[str, list[dict[str, object]]],
+    country: str,
+) -> dict[str, Decimal]:
+    """Compute VAT (sales tax) metrics for tax-inclusive countries (DE/UK).
+
+    Args:
+        classified: Dict of classified rows from classify_rows().
+        country: Normalized country code (US/DE/UK).
+
+    Returns:
+        Dict with keys:
+        - income_vat_total: sum of product_sales_tax across all Order+Refund rows
+        - income_sales_with_tax: sum of (product_sales + product_sales_tax)
+        - expense_vat_total: mirror of income_vat_total (used by PT4 回款公式)
+    """
+    normalized = (country or "").strip().upper()
+    if normalized not in VAT_INCLUSIVE_COUNTRIES:
+        return {
+            "income_vat_total": Decimal("0"),
+            "income_sales_with_tax": Decimal("0"),
+            "expense_vat_total": Decimal("0"),
+        }
+
+    # 跨所有 Order/Refund 行计算。注意 fba_refund / fbm_refund 的 product_sales 是负数
+    # （退款为负），所以 sales_with_tax 也自然为负（消费者退的钱含税）。
+    all_sales_rows = classified["order"] + classified["refund"]
+    income_vat_total = _round2(
+        sum((_to_decimal(row.get("product sales tax")) for row in all_sales_rows), Decimal("0"))
+    )
+    income_sales_with_tax = _round2(
+        sum(
+            (
+                _to_decimal(row.get("product sales"))
+                + _to_decimal(row.get("product sales tax"))
+                for row in all_sales_rows
+            ),
+            Decimal("0"),
+        )
+    )
+    return {
+        "income_vat_total": income_vat_total,
+        "income_sales_with_tax": income_sales_with_tax,
+        "expense_vat_total": income_vat_total,
+    }
+
+
 def compute_metrics(
     classified: dict[str, list[dict[str, object]]],
+    country: str = "US",
 ) -> dict[str, Any]:
     """Compute full financial metrics from classified payment rows.
 
