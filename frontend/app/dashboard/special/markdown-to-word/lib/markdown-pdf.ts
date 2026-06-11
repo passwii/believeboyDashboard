@@ -4,7 +4,9 @@ import fontkit from '@pdf-lib/fontkit'
 import type { BlockNode, InlineToken } from './markdown-ast'
 import { parseMarkdown } from './markdown-ast'
 
-const PAGE_WIDTH = 595.28
+// A4 横向页面
+const PAGE_WIDTH = 841.89
+const PAGE_HEIGHT_REFERENCE = 595.28
 const MARGIN_X = 56
 const MARGIN_TOP = 56
 const MARGIN_BOTTOM = 56
@@ -122,12 +124,12 @@ export async function markdownToPdfBytes(markdown: string): Promise<Uint8Array> 
   const font = await pdf.embedFont(fontBytes, { subset: false })
   const fontMono = await pdf.embedFont(StandardFonts.Courier)
 
-  const page = pdf.addPage([PAGE_WIDTH, 1000])
+  const page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT_REFERENCE])
   const ctx: RenderContext = {
     page,
     font,
     fontMono,
-    y: 1000 - MARGIN_TOP,
+    y: PAGE_HEIGHT_REFERENCE - MARGIN_TOP,
   }
 
   for (const block of ast) {
@@ -289,7 +291,7 @@ export async function markdownToPdfBytes(markdown: string): Promise<Uint8Array> 
     }
   }
 
-  const totalHeight = 1000 - MARGIN_TOP - ctx.y + MARGIN_BOTTOM
+  const totalHeight = PAGE_HEIGHT_REFERENCE - MARGIN_TOP - ctx.y + MARGIN_BOTTOM
   ctx.page.setSize(PAGE_WIDTH, totalHeight)
   ctx.page.setMediaBox(0, 0, PAGE_WIDTH, totalHeight)
 
