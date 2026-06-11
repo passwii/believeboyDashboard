@@ -138,8 +138,8 @@ export function SellerCard({
           // 惰性迁移
           const migrated = await migrateSellersIfNeeded(ctx)
           const raw = migrated.project_context?.invoice_sellers
-          // 防御性校验：确保是数组且每个元素包含 country 字段
-          if (Array.isArray(raw) && raw.every((s) => s && typeof s.country === "string")) {
+          // 防御性校验：确保是数组且每个元素包含非空 country 字段
+          if (Array.isArray(raw) && raw.every((s) => s && typeof s.country === "string" && s.country.trim())) {
             list = raw as InvoiceSellerEntry[]
           }
         } catch {
@@ -323,7 +323,9 @@ export function SellerCard({
                     <SelectValue placeholder="选择国家" />
                   </SelectTrigger>
                   <SelectContent>
-                    {sellers.map((s) => (
+                    {sellers
+                      .filter((s) => s.country)
+                      .map((s) => (
                       <SelectItem key={s.country} value={s.country}>
                         {s.country} — {s.company_name || "未填写"}
                       </SelectItem>
