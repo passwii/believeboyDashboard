@@ -45,7 +45,7 @@ def _fmt_month_change(val: float) -> tuple[str, str, str]:
         return "#6B7280", "持平", ""
     color = "#16A34A" if val > 0 else "#DC2626"
     icon = "↑" if val > 0 else "↓"
-    return color, f"{icon} {abs(val):.1f}%"
+    return color, f"{icon} {abs(val):.1f}%", icon
 
 
 def _render_month_kpi_card(label: str, current: str, prev: str, change: float, highlight: bool = False) -> str:
