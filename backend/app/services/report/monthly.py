@@ -700,7 +700,7 @@ def rebuild_pt3_pt4_for_report(db: Session, report_id: int) -> bool:
         return False
 
     classified = classify_rows(rows)
-    result = compute_metrics(classified)
+    result = compute_metrics(classified, country=report.country)
 
     pt3 = result["pt3"]
     pt4 = result["pt4"]
