@@ -23,13 +23,13 @@ interface SidebarIconRailProps {
 }
 
 const USER_CHIP_ID = 'user'
-const USER_CHIP_ACCENT = 'bg-[linear-gradient(180deg,#475569,#334155)] text-[#e2e8f0]'
-const USER_CHIP_ACTIVE_ACCENT = 'bg-[linear-gradient(180deg,#64748b,#475569)] text-white'
+const USER_CHIP_ACCENT = 'bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/40 text-blue-600 dark:text-blue-400'
+const USER_CHIP_ACTIVE_ACCENT = 'bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/50 dark:to-indigo-900/50 text-blue-700 dark:text-blue-300'
 
 /**
  * User chip：和 7 个一级 chip 同款（h-11 w-11 rounded-[0.85rem] 圆角方块），
- * 仅填充色用中性 slate 渐变，与"指向某页面"的 nav chip 区分开。
- * 内部嵌入 avatar + 首字 fallback。
+ * 用柔和蓝色渐变与 nav chip 区分，体现"个人身份"。
+ * 内部嵌入 avatar（蓝紫渐变圆形）+ 首字 fallback。
  */
 function UserChip({
   user,
@@ -59,15 +59,15 @@ function UserChip({
       aria-controls='sidebar-user-panel'
       title={`${user.name} · 账户`}
       className={cn(
-        'group/icon flex h-11 w-11 shrink-0 items-center justify-center rounded-[0.85rem] border border-[hsl(var(--sidebar-foreground)/0.08)] shadow-[inset_0_1px_0_hsl(var(--sidebar-foreground)/0.06)] transition-all duration-200 ease-out',
-        'hover:scale-[1.04] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
+        'group/icon flex h-11 w-11 shrink-0 items-center justify-center rounded-[0.85rem] border border-blue-200/60 dark:border-blue-800/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.5)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-200 ease-out',
+        'hover:scale-[1.04] hover:shadow-md hover:border-blue-300/80 dark:hover:border-blue-700/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
         isActive || isPinned ? USER_CHIP_ACTIVE_ACCENT : USER_CHIP_ACCENT,
         isActive && 'ring-2 ring-primary/30',
       )}
     >
       <Avatar className='h-7 w-7'>
         <AvatarImage src={user.avatar} alt={user.name} />
-        <AvatarFallback className='bg-transparent text-[0.95rem] font-medium tracking-tight text-white'>
+        <AvatarFallback className='bg-gradient-to-br from-blue-400 to-indigo-500 dark:from-blue-500 dark:to-indigo-600 text-[0.85rem] font-semibold tracking-tight text-white shadow-sm'>
           {fallback}
         </AvatarFallback>
       </Avatar>
