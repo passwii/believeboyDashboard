@@ -2148,13 +2148,14 @@ export default function ShipmentManagementPage() {
         views: [{ state: 'frozen', ySplit: 3, showGridLines: false }],
       })
 
+      const maxSkuLen = Math.max(8, ...fbaBoxItems.map((item) => item.sku.length))
+      const skuWidth = Math.max(12, maxSkuLen + 4)
+
       const columns = [
-        { header: '项目', key: 'project_name', width: 18 },
-        { header: '国家', key: 'country', width: 10 },
         { header: '货件编号', key: 'shipment_no', width: 20 },
-        { header: '仓库 ID', key: 'warehouse_code', width: 16 },
         { header: '追踪 ID', key: 'tracking_no', width: 18 },
-        { header: 'SKU', key: 'sku', width: 26 },
+        { header: '仓库 ID', key: 'warehouse_code', width: 16 },
+        { header: 'SKU', key: 'sku', width: skuWidth },
         { header: '产品图片', key: 'product_image', width: 16 },
         { header: 'ASIN', key: 'asin', width: 20 },
         { header: 'FNSKU', key: 'fnsku', width: 20 },
@@ -2171,7 +2172,7 @@ export default function ShipmentManagementPage() {
       ] as const
       const lastColumn = columns.length
       const dataStartRow = 4
-      const imageColumnIndex = 7 // 产品图片列
+      const imageColumnIndex = 5 // 产品图片列
 
       worksheet.mergeCells(1, 1, 1, lastColumn)
       const projectText = fbaBoxMeta.projectNames.length === 1 ? fbaBoxMeta.projectNames[0] : `${fbaBoxMeta.projectNames.length} 个项目`
@@ -2202,40 +2203,38 @@ export default function ShipmentManagementPage() {
       fbaBoxItems.forEach((item, index) => {
         const row = worksheet.getRow(index + dataStartRow)
         row.values = [
-          item.project_name,                                    // 1 项目
-          item.country,                                         // 2 国家
-          item.shipment_no,                                     // 3 货件编号
-          item.warehouse_code || '-',                           // 4 仓库 ID
-          item.tracking_no || '-',                              // 5 追踪 ID
-          item.sku,                                             // 6 SKU
-          null,                                                 // 7 产品图片（由 addImage 嵌入）
-          item.asin || '-',                                     // 8 ASIN
-          item.fnsku || '-',                                    // 9 FNSKU
-          item.length_cm > 0 ? formatDecimal(item.length_cm, 2) : '-',   // 10 外箱长
-          item.width_cm > 0 ? formatDecimal(item.width_cm, 2) : '-',     // 11 外箱宽
-          item.height_cm > 0 ? formatDecimal(item.height_cm, 2) : '-',   // 12 外箱高
-          item.carton_weight_kg ? formatDecimal(item.carton_weight_kg, 3) : '-', // 13 外箱重量
-          item.units_per_carton > 0 ? `${item.units_per_carton} / 箱` : '-',   // 14 装箱率
-          item.carton_count > 0 ? item.carton_count : '-',      // 15 总箱数
-          fbaBoxLabelRanges[index] ?? '-',                      // 16 标签号段
-          item.quantity > 0 ? item.quantity : '-',              // 17 总数量
-          item.total_volume_m3,                                 // 18 总体积
-          item.total_weight_kg,                                 // 19 总重量
+          item.shipment_no,                                     // 1 货件编号
+          item.tracking_no || '-',                              // 2 追踪 ID
+          item.warehouse_code || '-',                           // 3 仓库 ID
+          item.sku,                                             // 4 SKU
+          null,                                                 // 5 产品图片（由 addImage 嵌入）
+          item.asin || '-',                                     // 6 ASIN
+          item.fnsku || '-',                                    // 7 FNSKU
+          item.length_cm > 0 ? formatDecimal(item.length_cm, 2) : '-',   // 8 外箱长
+          item.width_cm > 0 ? formatDecimal(item.width_cm, 2) : '-',     // 9 外箱宽
+          item.height_cm > 0 ? formatDecimal(item.height_cm, 2) : '-',   // 10 外箱高
+          item.carton_weight_kg ? formatDecimal(item.carton_weight_kg, 3) : '-', // 11 外箱重量
+          item.units_per_carton > 0 ? `${item.units_per_carton} / 箱` : '-',   // 12 装箱率
+          item.carton_count > 0 ? item.carton_count : '-',      // 13 总箱数
+          fbaBoxLabelRanges[index] ?? '-',                      // 14 标签号段
+          item.quantity > 0 ? item.quantity : '-',              // 15 总数量
+          item.total_volume_m3,                                 // 16 总体积
+          item.total_weight_kg,                                 // 17 总重量
         ]
         row.height = 100
         row.eachCell((cell, colNumber) => {
           cell.font = { name: 'Microsoft YaHei', size: 9, color: { argb: 'FF0F172A' } }
           cell.alignment = {
             vertical: 'middle',
-            horizontal: colNumber >= 14 ? 'right' : colNumber === imageColumnIndex ? 'center' : 'left',
+            horizontal: colNumber >= 12 ? 'right' : colNumber === imageColumnIndex ? 'center' : 'left',
           }
-          if (colNumber === 18) cell.numFmt = '#,##0.0000'
-          if (colNumber === 19) cell.numFmt = '#,##0.000'
+          if (colNumber === 16) cell.numFmt = '#,##0.0000'
+          if (colNumber === 17) cell.numFmt = '#,##0.000'
           applyBorder(cell)
         })
       })
 
-      // ── 合并单元格：货件编号(列 3) 按 shipment_no，仓库 ID(列 4) 按 (shipment_no, warehouse_code)，追踪 ID(列 5) 按 (shipment_no, tracking_no) ──
+      // ── 合并单元格：货件编号(列 1) 按 shipment_no，追踪 ID(列 2) 按 (shipment_no, tracking_no)，仓库 ID(列 3) 按 (shipment_no, warehouse_code) ──
       let shipStart = 0
       let whStart = 0
       let tkStart = 0
@@ -2255,8 +2254,8 @@ export default function ShipmentManagementPage() {
         if (item.shipment_no !== currentShipNo) {
           if (index - shipStart > 1) {
             worksheet.mergeCells(
-              shipStart + dataStartRow, 3,
-              index + dataStartRow - 1, 3,
+              shipStart + dataStartRow, 1,
+              index + dataStartRow - 1, 1,
               'merge'
             )
           } else if (isLast) {
@@ -2270,23 +2269,11 @@ export default function ShipmentManagementPage() {
           currentShipTkKey = itemShipTkKey
         }
 
-        if (itemShipWhKey !== currentShipWhKey) {
-          if (index - whStart > 1) {
-            worksheet.mergeCells(
-              whStart + dataStartRow, 4,
-              index + dataStartRow - 1, 4,
-              'merge'
-            )
-          }
-          whStart = index
-          currentShipWhKey = itemShipWhKey
-        }
-
         if (itemShipTkKey !== currentShipTkKey) {
           if (index - tkStart > 1) {
             worksheet.mergeCells(
-              tkStart + dataStartRow, 5,
-              index + dataStartRow - 1, 5,
+              tkStart + dataStartRow, 2,
+              index + dataStartRow - 1, 2,
               'merge'
             )
           }
@@ -2294,25 +2281,37 @@ export default function ShipmentManagementPage() {
           currentShipTkKey = itemShipTkKey
         }
 
-        if (isLast) {
-          if (index - shipStart >= 1) {
+        if (itemShipWhKey !== currentShipWhKey) {
+          if (index - whStart > 1) {
             worksheet.mergeCells(
-              shipStart + dataStartRow, 3,
-              index + dataStartRow, 3,
+              whStart + dataStartRow, 3,
+              index + dataStartRow - 1, 3,
               'merge'
             )
           }
-          if (index - whStart >= 1) {
+          whStart = index
+          currentShipWhKey = itemShipWhKey
+        }
+
+        if (isLast) {
+          if (index - shipStart >= 1) {
             worksheet.mergeCells(
-              whStart + dataStartRow, 4,
-              index + dataStartRow, 4,
+              shipStart + dataStartRow, 1,
+              index + dataStartRow, 1,
               'merge'
             )
           }
           if (index - tkStart >= 1) {
             worksheet.mergeCells(
-              tkStart + dataStartRow, 5,
-              index + dataStartRow, 5,
+              tkStart + dataStartRow, 2,
+              index + dataStartRow, 2,
+              'merge'
+            )
+          }
+          if (index - whStart >= 1) {
+            worksheet.mergeCells(
+              whStart + dataStartRow, 3,
+              index + dataStartRow, 3,
               'merge'
             )
           }
