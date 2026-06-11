@@ -224,7 +224,6 @@ class MonthlyReportPT3Calculation(Base):
     expense_deductions: Mapped[Decimal] = _money_column()
     expense_amazon_shipping_charge_adjustments: Mapped[Decimal] = _money_column()
     expense_total: Mapped[Decimal] = _money_column()
-    expense_vat_total: Mapped[Decimal] = _money_column()
 
     amazon_pay_back: Mapped[Decimal] = _money_column()
     advertising_percentage: Mapped[Decimal] = mapped_column(Numeric(8, 4), nullable=False, server_default='0')
