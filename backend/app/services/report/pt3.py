@@ -132,6 +132,18 @@ def _build_accounting_rows(pt3: MonthlyReportPT3Calculation) -> list[dict[str, A
             _pt3_float(pt3, "income_safe_t_reimbursement"),
             "",
         ),
+        (
+            "Product sales tax (gross)",
+            "销售税（gross）",
+            _pt3_float(pt3, "income_vat_total"),
+            "所有订单/退款-产品销售税",
+        ),
+        (
+            "Sales tax / VAT (Sales Tax)",
+            "VAT (销售税)",
+            _pt3_float(pt3, "income_vat_total"),
+            "所有订单/退款-产品销售税",
+        ),
         ("Total_Income", "合计销售额", _pt3_float(pt3, "income_total"), ""),
     ]
 
