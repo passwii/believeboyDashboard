@@ -28,8 +28,10 @@ from sqlalchemy import select as sa_select
 
 from app.db.session import SessionLocal
 from app.services.scheduled_report.email_sender_daily import send_scheduled_report_email
+from app.services.scheduled_report.email_sender_monthly import send_monthly_report_email
 from app.services.scheduled_report.email_sender_weekly import send_weekly_report_email
 from app.services.scheduled_report.report_builder_daily import build_report_email_data
+from app.services.scheduled_report.report_builder_monthly import build_monthly_report_data
 from app.services.scheduled_report.report_builder_weekly import build_weekly_report_data
 from app.services.scheduled_report.subscription_service import (
     create_delivery_log,
@@ -159,6 +161,14 @@ def _do_build_report(
     """Build report data (no timeout protection — run inside semaphore)."""
     db = SessionLocal()
     try:
+        if frequency == "monthly":
+            return build_monthly_report_data(
+                db=db,
+                project_ids=project_ids,
+                country=country,
+                reference_date=reference_date,
+                stage_callback=stage_callback,
+            )
         if frequency == "weekly":
             return build_weekly_report_data(
                 db=db,
@@ -194,6 +204,17 @@ def _fallback_report_data(
     """
     db = SessionLocal()
     try:
+        if frequency == "monthly":
+            data = build_monthly_report_data(
+                db=db,
+                project_ids=project_ids,
+                country=country,
+                reference_date=reference_date,
+                ai_timeout=0,
+            )
+            data["ai_summary"] = "AI 摘要生成超时，请登录仪表板查看详情。"
+            return data
+
         if frequency == "weekly":
             data = build_weekly_report_data(
                 db=db,
@@ -319,6 +340,23 @@ def _build_multi_country_report(
                     "date_range": "",
                     "ai_summary": f"暂无 {_country_label(country)} 数据",
                 }
+            elif frequency == "monthly":
+                country_data[country] = {
+                    "current_month": {"qty": 0, "amount": 0.0, "avg_price": 0.0},
+                    "prev_month": {"qty": 0, "amount": 0.0, "avg_price": 0.0},
+                    "yoy_month": {"qty": 0, "amount": 0.0, "avg_price": 0.0},
+                    "mom_changes": {}, "yoy_changes": {},
+                    "attribution": [], "top_skus_comparison": [],
+                    "ads_comparison": {}, "inventory_alerts": [],
+                    "returns_data": {"qty": 0, "rate": 0.0},
+                    "weekly_trend": [], "sku_sales_detail": [],
+                    "alerts": [], "action_items": [],
+                    "country": country,
+                    "report_date": (reference_date or date.today()).isoformat(),
+                    "month_label": "",
+                    "date_range": "",
+                    "ai_summary": f"暂无 {_country_label(country)} 数据",
+                }
             else:
                 country_data[country] = {
                     "sales": {}, "week_sales": {}, "prev_week_sales": {},
@@ -367,6 +405,24 @@ def _build_multi_country_report(
             "alerts": first.get("alerts", []),
             "action_items": first.get("action_items", []),
             "week_number": first.get("week_number", ""),
+        })
+    elif frequency == "monthly":
+        result.update({
+            "current_month": first.get("current_month", {}),
+            "prev_month": first.get("prev_month", {}),
+            "yoy_month": first.get("yoy_month", {}),
+            "mom_changes": first.get("mom_changes", {}),
+            "yoy_changes": first.get("yoy_changes", {}),
+            "attribution": first.get("attribution", []),
+            "top_skus_comparison": first.get("top_skus_comparison", []),
+            "ads_comparison": first.get("ads_comparison", {}),
+            "inventory_alerts": first.get("inventory_alerts", []),
+            "returns_data": first.get("returns_data", {}),
+            "weekly_trend": first.get("weekly_trend", []),
+            "sku_sales_detail": first.get("sku_sales_detail", []),
+            "alerts": first.get("alerts", []),
+            "action_items": first.get("action_items", []),
+            "month_label": first.get("month_label", ""),
         })
     else:
         result.update({
@@ -540,7 +596,9 @@ def _dispatch_one(
 
         # 阶段：渲染 HTML → 截图 → 发送（由 email sender 内部回调推进）
         _report_stage(db, log_id, DeliveryStage.RENDERING_HTML.value, _stage_started=_stage_clock)
-        if frequency == "weekly":
+        if frequency == "monthly":
+            success, resend_id_or_error = send_monthly_report_email(email, report_data, stage_callback=_on_stage)
+        elif frequency == "weekly":
             success, resend_id_or_error = send_weekly_report_email(email, report_data, stage_callback=_on_stage)
         else:
             success, resend_id_or_error = send_scheduled_report_email(email, frequency, report_data, stage_callback=_on_stage)
@@ -830,9 +888,10 @@ def _dispatch_one_async(
             _report_stage(db, log_id, stage_name, _stage_started=_stage_clock)
 
         # 补发时使用历史日期作为数据锚定，而非当天
-        # 日报/月报：数据锚定 = expected_date - 1（与正常调度的 _get_report_anchor_date 逻辑一致）
+        # 月报：数据锚定 = expected_date 本身（_get_report_month 内部会计算上一个自然月）
         # 周报：数据锚定 = expected_date 本身（_get_previous_natural_week 内部会计算上一个自然周）
-        if frequency == "weekly":
+        # 日报：数据锚定 = expected_date - 1（与正常调度的 _get_report_anchor_date 逻辑一致）
+        if frequency in ("weekly", "monthly"):
             ref_date = date.fromisoformat(expected_date)
         else:
             ref_date = date.fromisoformat(expected_date) - timedelta(days=1)
@@ -854,7 +913,9 @@ def _dispatch_one_async(
 
         # 阶段：渲染 HTML → 截图 → 发送（由 email sender 内部回调推进）
         _report_stage(db, log_id, DeliveryStage.RENDERING_HTML.value, _stage_started=_stage_clock)
-        if frequency == "weekly":
+        if frequency == "monthly":
+            success, resend_id_or_error = send_monthly_report_email(email, report_data, stage_callback=_on_stage)
+        elif frequency == "weekly":
             success, resend_id_or_error = send_weekly_report_email(email, report_data, stage_callback=_on_stage)
         else:
             success, resend_id_or_error = send_scheduled_report_email(email, frequency, report_data, stage_callback=_on_stage)
