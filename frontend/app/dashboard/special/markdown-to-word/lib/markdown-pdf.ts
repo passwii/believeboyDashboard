@@ -298,5 +298,6 @@ export async function markdownToPdfBytes(markdown: string): Promise<Uint8Array> 
 
 export async function markdownToPdf(markdown: string): Promise<Blob> {
   const bytes = await markdownToPdfBytes(markdown)
-  return new Blob([bytes], { type: 'application/pdf' })
+  const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
+  return new Blob([buffer as ArrayBuffer], { type: 'application/pdf' })
 }
