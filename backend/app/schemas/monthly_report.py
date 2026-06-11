@@ -89,6 +89,9 @@ class MonthlyFinancialSeriesRow(BaseModel):
     income_total: float
     expense_total: float
     amazon_pay_back: float
+    income_vat_total: float = 0.0
+    income_sales_with_tax: float = 0.0
+    expense_vat_total: float = 0.0
     credit_card_deduction_usd: float = 0.0
     fob_cost_rmb: float = 0.0
     first_leg_cost_rmb: float = 0.0
@@ -101,6 +104,7 @@ class MonthlyFinancialTrendPoint(BaseModel):
     expense_total: float
     amazon_pay_back: float
     net_amount: float
+    vat_total: float = 0.0
     has_source_report: bool
 
 
