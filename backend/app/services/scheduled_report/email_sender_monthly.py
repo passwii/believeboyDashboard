@@ -14,6 +14,8 @@ from app.services.scheduled_report.email_sender import (
     _currency_code, CURRENCY_SYMBOLS, CURRENCY_CODES,
     _render_country_sub_header,
     _scale_html_fonts,
+)
+from app.services.scheduled_report.email_sender_weekly import (
     _render_inventory_alerts_section, _render_action_items_section,
 )
 
