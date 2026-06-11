@@ -28,7 +28,16 @@ const DEFAULT_MARKDOWN = `# Markdown 转 Word
 - 普通段落
 - 无序列表
 - 有序列表
+- 表格
+- 代码块
+- 引用
+- 链接
 - **加粗**、*斜体*、~~删除线~~、\`行内代码\`
+
+| 商品 | 销售额 | 备注 |
+|---|---:|---|
+| A | 100 | **重点**商品 |
+| B | 80 | [查看明细](https://believeboy.com) |
 
 > 下载时会在浏览器本地生成 DOCX 文件，不会上传到服务器。`
 
@@ -205,7 +214,7 @@ export default function MarkdownToWordClient() {
             </div>
           </CardContent>
           <CardFooter className="flex items-center justify-between gap-3 border-t border-border/70 pt-4 text-xs text-muted-foreground">
-            <span>提示：支持标题、列表、表格预览；DOCX 会保留主要段落结构。</span>
+            <span>提示：支持标题、列表、表格、引用、代码块和链接；DOCX 会保留主要段落结构。</span>
             <span>{isEmpty ? '暂无内容' : '可导出'}</span>
           </CardFooter>
         </Card>
@@ -278,7 +287,7 @@ export default function MarkdownToWordClient() {
 
       <div className="rounded-2xl border border-border/70 bg-background/60 p-4 text-sm leading-6 text-muted-foreground dark:border-border/90 dark:bg-[hsl(var(--surface-soft)/0.55)]">
         <span className="font-medium text-foreground">注意：</span>
-        当前版本会保留标题、段落、列表和常见行内样式；复杂表格和图片会在预览中显示，但 DOCX 导出以主要文本结构为准。
+        当前版本会保留标题、段落、列表、表格、引用、代码块、链接和常见行内样式；图片会在预览中显示，但 DOCX 导出暂不嵌入远程图片。
       </div>
     </div>
   )
