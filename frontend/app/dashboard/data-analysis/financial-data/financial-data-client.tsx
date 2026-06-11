@@ -375,6 +375,9 @@ type FinancialExportDetailRow = {
   expenseOtherFees: number
   incomeTotal: number
   expenseTotal: number
+  vatTotal: number
+  incomeSalesWithTax: number
+  expenseVatTotal: number
   amazonPayBack: number
   creditCardDeductionUsd: number
   fobCostRmb: number
@@ -410,6 +413,9 @@ type FinancialExportTotals = {
   expenseOtherFees: number
   incomeTotal: number
   expenseTotal: number
+  vatTotal: number
+  incomeSalesWithTax: number
+  expenseVatTotal: number
   amazonPayBack: number
   creditCardDeductionUsd: number
   fobCostRmb: number
@@ -439,6 +445,9 @@ function buildFinancialExportTotals(rows: FinancialExportDetailRow[]): Financial
       expenseOtherFees: acc.expenseOtherFees + row.expenseOtherFees,
       incomeTotal: acc.incomeTotal + row.incomeTotal,
       expenseTotal: acc.expenseTotal + row.expenseTotal,
+      vatTotal: acc.vatTotal + row.vatTotal,
+      incomeSalesWithTax: acc.incomeSalesWithTax + row.incomeSalesWithTax,
+      expenseVatTotal: acc.expenseVatTotal + row.expenseVatTotal,
       amazonPayBack: acc.amazonPayBack + row.amazonPayBack,
       creditCardDeductionUsd:
         acc.creditCardDeductionUsd + row.creditCardDeductionUsd,
@@ -467,6 +476,9 @@ function buildFinancialExportTotals(rows: FinancialExportDetailRow[]): Financial
       expenseOtherFees: 0,
       incomeTotal: 0,
       expenseTotal: 0,
+      vatTotal: 0,
+      incomeSalesWithTax: 0,
+      expenseVatTotal: 0,
       amazonPayBack: 0,
       creditCardDeductionUsd: 0,
       fobCostRmb: 0,
@@ -560,6 +572,12 @@ const EXPORT_DETAIL_COLUMNS = [
   {
     key: 'expenseTotal',
     title: '支出合计',
+    format: 'currency_usd',
+    group: '结果',
+  },
+  {
+    key: 'vatTotal',
+    title: 'VAT (销售税)',
     format: 'currency_usd',
     group: '结果',
   },
@@ -1354,6 +1372,9 @@ export default function FinancialDataClient({
         expenseOtherFees: row.expense_other_fees,
         incomeTotal: row.income_total,
         expenseTotal: row.expense_total,
+        vatTotal: row.income_vat_total,
+        incomeSalesWithTax: row.income_sales_with_tax,
+        expenseVatTotal: row.expense_vat_total,
         amazonPayBack: row.amazon_pay_back,
         creditCardDeductionUsd: row.credit_card_deduction_usd,
         fobCostRmb: row.fob_cost_rmb,
@@ -1457,7 +1478,7 @@ export default function FinancialDataClient({
       const summarySheet = workbook.addWorksheet('汇总', {
         views: [{ state: 'frozen', ySplit: 4, xSplit: 1, activeCell: 'A5' }],
       })
-      const detailSheet = workbook.addWorksheet('月度财务明细', {
+      const detailSheet = workbook.addWorksheet('月度财务', {
         views: [{ state: 'frozen', ySplit: 5, xSplit: 1, activeCell: 'A6' }],
       })
 
