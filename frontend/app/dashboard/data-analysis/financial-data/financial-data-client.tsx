@@ -89,6 +89,9 @@ type FinancialSeriesRow = {
   income_total: number
   expense_total: number
   amazon_pay_back: number
+  income_vat_total?: number
+  income_sales_with_tax?: number
+  expense_vat_total?: number
   credit_card_deduction_usd: number
   fob_cost_rmb: number
   first_leg_cost_rmb: number
@@ -375,9 +378,9 @@ type FinancialExportDetailRow = {
   expenseOtherFees: number
   incomeTotal: number
   expenseTotal: number
-  vatTotal: number
-  incomeSalesWithTax: number
-  expenseVatTotal: number
+  vatTotal?: number
+  incomeSalesWithTax?: number
+  expenseVatTotal?: number
   amazonPayBack: number
   creditCardDeductionUsd: number
   fobCostRmb: number
@@ -413,9 +416,9 @@ type FinancialExportTotals = {
   expenseOtherFees: number
   incomeTotal: number
   expenseTotal: number
-  vatTotal: number
-  incomeSalesWithTax: number
-  expenseVatTotal: number
+  vatTotal?: number
+  incomeSalesWithTax?: number
+  expenseVatTotal?: number
   amazonPayBack: number
   creditCardDeductionUsd: number
   fobCostRmb: number
@@ -445,9 +448,9 @@ function buildFinancialExportTotals(rows: FinancialExportDetailRow[]): Financial
       expenseOtherFees: acc.expenseOtherFees + row.expenseOtherFees,
       incomeTotal: acc.incomeTotal + row.incomeTotal,
       expenseTotal: acc.expenseTotal + row.expenseTotal,
-      vatTotal: acc.vatTotal + row.vatTotal,
-      incomeSalesWithTax: acc.incomeSalesWithTax + row.incomeSalesWithTax,
-      expenseVatTotal: acc.expenseVatTotal + row.expenseVatTotal,
+      vatTotal: (acc.vatTotal ?? 0) + (row.vatTotal ?? 0),
+      incomeSalesWithTax: (acc.incomeSalesWithTax ?? 0) + (row.incomeSalesWithTax ?? 0),
+      expenseVatTotal: (acc.expenseVatTotal ?? 0) + (row.expenseVatTotal ?? 0),
       amazonPayBack: acc.amazonPayBack + row.amazonPayBack,
       creditCardDeductionUsd:
         acc.creditCardDeductionUsd + row.creditCardDeductionUsd,
