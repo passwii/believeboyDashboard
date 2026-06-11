@@ -7,12 +7,14 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { UploadZone } from '@/components/ui/upload-zone'
-import { Download, Eye, FileCode2, FileText, Loader2, RefreshCcw, Trash2, Upload } from 'lucide-react'
+import { Download, Eye, FileCode2, FileDown, FileText, Loader2, RefreshCcw, Trash2, Upload } from 'lucide-react'
 import { useNotifications } from '@/components/notifications'
 import { cn } from '@/lib/utils'
 
 import {
+  createPdfFilename,
   createWordFilename,
+  downloadMarkdownAsPdf,
   downloadMarkdownAsWord,
   formatMarkdownFileSize,
   readMarkdownFile,
@@ -39,7 +41,7 @@ const DEFAULT_MARKDOWN = `# Markdown 转 Word
 | A | 100 | **重点**商品 |
 | B | 80 | [查看明细](https://believeboy.com) |
 
-> 下载时会在浏览器本地生成 DOCX 文件，不会上传到服务器。`
+> 下载时会在浏览器本地生成 DOCX / PDF 文件，不会上传到服务器。`
 
 export default function MarkdownToWordClient() {
   const { notify } = useNotifications()
@@ -47,6 +49,7 @@ export default function MarkdownToWordClient() {
   const [sourceFileName, setSourceFileName] = useState<string | null>(null)
   const [sourceFileSize, setSourceFileSize] = useState<number | null>(null)
   const [isDownloading, setIsDownloading] = useState(false)
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false)
 
   const isEmpty = useMemo(() => markdown.trim().length === 0, [markdown])
   const lineCount = useMemo(() => (markdown ? markdown.split('\n').length : 0), [markdown])
@@ -98,6 +101,32 @@ export default function MarkdownToWordClient() {
     }
   }, [isEmpty, markdown, notify, sourceFileName])
 
+  const handleDownloadPdf = useCallback(async () => {
+    if (isEmpty) {
+      notify({ type: 'error', title: '无法生成 PDF', message: '请先填写 Markdown 内容' })
+      return
+    }
+
+    setIsDownloadingPdf(true)
+    try {
+      const filename = createPdfFilename(sourceFileName ?? undefined)
+      await downloadMarkdownAsPdf(markdown, filename)
+      notify({
+        type: 'success',
+        title: 'PDF 文件已生成',
+        message: filename,
+      })
+    } catch (error) {
+      notify({
+        type: 'error',
+        title: 'PDF 生成失败',
+        message: error instanceof Error ? error.message : '请稍后重试',
+      })
+    } finally {
+      setIsDownloadingPdf(false)
+    }
+  }, [isEmpty, markdown, notify, sourceFileName])
+
   const handleReset = useCallback(() => {
     setMarkdown(DEFAULT_MARKDOWN)
     setSourceFileName(null)
@@ -123,7 +152,7 @@ export default function MarkdownToWordClient() {
               <div>
                 <h1 className="text-2xl font-semibold tracking-tight text-foreground">Markdown 转 Word</h1>
                 <p className="text-sm leading-6 text-muted-foreground">
-                  上传或粘贴 Markdown，实时预览后一键导出 DOCX。
+                  上传或粘贴 Markdown，实时预览后一键导出 DOCX 或 PDF。
                 </p>
               </div>
             </div>
@@ -136,6 +165,9 @@ export default function MarkdownToWordClient() {
               </Badge>
               <Badge variant="secondary" className="rounded-full px-2.5 py-1">
                 DOCX
+              </Badge>
+              <Badge variant="secondary" className="rounded-full px-2.5 py-1">
+                PDF
               </Badge>
             </div>
           </div>
@@ -214,7 +246,7 @@ export default function MarkdownToWordClient() {
             </div>
           </CardContent>
           <CardFooter className="flex items-center justify-between gap-3 border-t border-border/70 pt-4 text-xs text-muted-foreground">
-            <span>提示：支持标题、列表、表格、引用、代码块和链接；DOCX 会保留主要段落结构。</span>
+            <span>提示：支持标题、列表、表格、引用、代码块和链接；DOCX/PDF 会保留主要段落结构。</span>
             <span>{isEmpty ? '暂无内容' : '可导出'}</span>
           </CardFooter>
         </Card>
@@ -229,25 +261,47 @@ export default function MarkdownToWordClient() {
                 </CardTitle>
                 <CardDescription>右侧预览 Markdown 渲染后的文档结构。</CardDescription>
               </div>
-              <Button
-                type="button"
-                size="lg"
-                disabled={isEmpty || isDownloading}
-                onClick={handleDownload}
-                className="min-w-[9rem]"
-              >
-                {isDownloading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    生成中
-                  </>
-                ) : (
-                  <>
-                    <Download className="mr-2 h-4 w-4" />
-                    下载 Word
-                  </>
-                )}
-              </Button>
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <Button
+                  type="button"
+                  size="lg"
+                  variant="outline"
+                  disabled={isEmpty || isDownloadingPdf}
+                  onClick={handleDownloadPdf}
+                  className="min-w-[8.5rem]"
+                >
+                  {isDownloadingPdf ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      生成中
+                    </>
+                  ) : (
+                    <>
+                      <FileDown className="mr-2 h-4 w-4" />
+                      下载 PDF
+                    </>
+                  )}
+                </Button>
+                <Button
+                  type="button"
+                  size="lg"
+                  disabled={isEmpty || isDownloading}
+                  onClick={handleDownload}
+                  className="min-w-[8.5rem]"
+                >
+                  {isDownloading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      生成中
+                    </>
+                  ) : (
+                    <>
+                      <Download className="mr-2 h-4 w-4" />
+                      下载 Word
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -280,7 +334,7 @@ export default function MarkdownToWordClient() {
               <Upload className="h-3.5 w-3.5" />
               文件仅在浏览器本地处理
             </span>
-            <span>导出格式：DOCX</span>
+            <span>导出格式：DOCX / PDF</span>
           </CardFooter>
         </Card>
       </div>

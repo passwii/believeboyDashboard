@@ -44,3 +44,22 @@ export async function readMarkdownFile(file: File): Promise<string> {
     reader.readAsText(file, 'utf-8')
   })
 }
+
+export async function downloadMarkdownAsPdf(markdown: string, filename: string): Promise<void> {
+  const { markdownToPdf } = await import('./markdown-pdf')
+  const blob = await markdownToPdf(markdown)
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+
+  window.URL.revokeObjectURL(url)
+}
+
+export function createPdfFilename(sourceName?: string): string {
+  return createWordFilename(sourceName).replace(/\.docx$/i, '.pdf')
+}
