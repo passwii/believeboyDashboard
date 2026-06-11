@@ -174,6 +174,7 @@ class ShipmentFbaBoxDetailItem(BaseModel):
     shipment_no: str
     warehouse_code: str | None = None
     sku: str
+    product_name: str | None = None
     asin: str | None = None
     fnsku: str | None = None
     package_length_cm: float | None = None

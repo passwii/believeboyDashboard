@@ -632,6 +632,7 @@ def list_shipment_fba_box_details(
                     "shipment_no": str(row.shipment_no),
                     "warehouse_code": row.warehouse_code,
                     "sku": item.sku,
+                    "product_name": str(product.product_name) if product and product.product_name else None,
                     "asin": str(product.asin) if product and product.asin else None,
                     "fnsku": str(product.fnsku) if product and product.fnsku else None,
                     "package_length_cm": float(product.package_length_cm)
