@@ -2,6 +2,8 @@
 
 拆分自 product_analysis_source_service.py。
 """
+from datetime import date as _date
+from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -17,6 +19,41 @@ from app.services.report_type_service import normalize_report_type
 from app.services.product.persistence import ALL_REPORT_TYPES, ensure_tables
 
 
+def _ad_source_to_item(c_src: AdUploadFile) -> dict[str, Any]:
+    """将 C 表 AdUploadFile 序列化为与 A 表 AnalysisSourceFile 字段兼容的 dict。
+
+    给前端的 AnalysisSourceFileItem response model 用 (返回 dict 然后让
+    Pydantic 按字段名匹配序列化)。
+    """
+    return {
+        'id': int(c_src.id),
+        'project_id': int(c_src.project_id),
+        'report_type': 'ad_product_report',  # 对外仍用 ad_product_report
+        'report_date': c_src.report_date,
+        'period_start_date': c_src.period_start_date,
+        'period_end_date': c_src.period_end_date,
+        'snapshot_at': None,
+        'version': int(c_src.version),
+        'is_current': bool(c_src.is_current),
+        'superseded_at': c_src.superseded_at,
+        'upload_file_id': c_src.upload_file_id,
+        'upload_file_path': c_src.upload_file_path,
+        'original_filename': c_src.original_filename,
+        'stored_filename': c_src.stored_filename,
+        'logical_filename': c_src.logical_filename,
+        'storage_key': '',  # C 表无此字段
+        'file_size_bytes': c_src.file_size_bytes,
+        'file_sha256': c_src.file_sha256,
+        'ingestion_status': c_src.ingestion_status,
+        'ingestion_error': c_src.ingestion_error,
+        'row_count_total': 0,
+        'row_count_included': 0,
+        'created_by': c_src.created_by,
+        'created_at': c_src.created_at,
+        'updated_at': c_src.updated_at,
+    }
+
+
 def list_sources(
     db: Session,
     *,
@@ -25,52 +62,96 @@ def list_sources(
     period_start_date: 'date | None' = None,
     period_end_date: 'date | None' = None,
     current_only: bool = True,
-) -> list[AnalysisSourceFile]:
+) -> list[Any]:
+    """List source files.
+
+    Returns A 表 AnalysisSourceFile 对象 (for business / payment / inventory / sales)
+    或 dict 包装的 C 表 AdUploadFile (for ad_product_report, 兼容前端 schema)。
+
+    ad_product_report 已迁移到 C 表 (AdUploadFile)。
+    """
     from datetime import datetime, timezone as Tz
-    from sqlalchemy import or_ as _or
     from app.utils.parsers import normalize_report_type as _normalize
 
     ensure_tables(db)
-    stmt = select(AnalysisSourceFile).order_by(
-        AnalysisSourceFile.created_at.desc(),
-        AnalysisSourceFile.id.desc(),
-    )
-    if current_only:
-        stmt = stmt.where(AnalysisSourceFile.is_current.is_(True))
-    if project_id is not None:
-        stmt = stmt.where(AnalysisSourceFile.project_id == project_id)
-    if report_type:
-        normalized = _normalize(report_type)
-        if normalized not in ALL_REPORT_TYPES:
-            raise ValueError(f'Unsupported report_type: {report_type}')
-        stmt = stmt.where(AnalysisSourceFile.report_type == normalized)
-    if period_start_date is not None:
-        stmt = stmt.where(
-            (
-                (AnalysisSourceFile.period_end_date.is_not(None))
-                & (AnalysisSourceFile.period_end_date >= period_start_date)
-            )
-            | (
-                (AnalysisSourceFile.snapshot_at.is_not(None))
-                & (AnalysisSourceFile.snapshot_at >= datetime.combine(
-                    period_start_date, datetime.min.time(), tzinfo=Tz.utc,
-                ))
-            )
+    normalized = _normalize(report_type) if report_type else None
+
+    result: list[Any] = []
+
+    # ad_product_report 走 C 表
+    if normalized is None or normalized == 'ad_product_report':
+        normalized_country = None
+        if project_id is not None:
+            # 取 project 对应 country
+            from app.models import Project
+            proj = db.get(Project, project_id)
+            if proj is not None:
+                normalized_country = None  # country 由调用方过滤，C 表直接按 project_id 查
+
+        c_stmt = select(AdUploadFile).where(
+            AdUploadFile.report_type == 'ad_promoted_product_report',
         )
-    if period_end_date is not None:
-        stmt = stmt.where(
-            (
-                (AnalysisSourceFile.period_start_date.is_not(None))
-                & (AnalysisSourceFile.period_start_date <= period_end_date)
+        if project_id is not None:
+            c_stmt = c_stmt.where(AdUploadFile.project_id == project_id)
+        if current_only:
+            c_stmt = c_stmt.where(AdUploadFile.is_current.is_(True))
+        if period_start_date is not None:
+            c_stmt = c_stmt.where(AdUploadFile.period_end_date >= period_start_date)
+        if period_end_date is not None:
+            c_stmt = c_stmt.where(AdUploadFile.period_start_date <= period_end_date)
+
+        c_rows = db.execute(
+            c_stmt.order_by(AdUploadFile.created_at.desc(), AdUploadFile.id.desc())
+        ).scalars().all()
+        for c_row in c_rows:
+            result.append(_ad_source_to_item(c_row))
+
+    # 其他 report_type 走 A 表
+    if normalized is None or normalized != 'ad_product_report':
+        a_stmt = select(AnalysisSourceFile)
+        if normalized is not None:
+            if normalized not in ALL_REPORT_TYPES:
+                raise ValueError(f'Unsupported report_type: {report_type}')
+            a_stmt = a_stmt.where(AnalysisSourceFile.report_type == normalized)
+        if project_id is not None:
+            a_stmt = a_stmt.where(AnalysisSourceFile.project_id == project_id)
+        if current_only:
+            a_stmt = a_stmt.where(AnalysisSourceFile.is_current.is_(True))
+        if period_start_date is not None:
+            a_stmt = a_stmt.where(
+                (
+                    (AnalysisSourceFile.period_end_date.is_not(None))
+                    & (AnalysisSourceFile.period_end_date >= period_start_date)
+                )
+                | (
+                    (AnalysisSourceFile.snapshot_at.is_not(None))
+                    & (AnalysisSourceFile.snapshot_at >= datetime.combine(
+                        period_start_date, datetime.min.time(), tzinfo=Tz.utc,
+                    ))
+                )
             )
-            | (
-                (AnalysisSourceFile.snapshot_at.is_not(None))
-                & (AnalysisSourceFile.snapshot_at <= datetime.combine(
-                    period_end_date, datetime.max.time(), tzinfo=Tz.utc,
-                ))
+        if period_end_date is not None:
+            a_stmt = a_stmt.where(
+                (
+                    (AnalysisSourceFile.period_start_date.is_not(None))
+                    & (AnalysisSourceFile.period_start_date <= period_end_date)
+                )
+                | (
+                    (AnalysisSourceFile.snapshot_at.is_not(None))
+                    & (AnalysisSourceFile.snapshot_at <= datetime.combine(
+                        period_end_date, datetime.max.time(), tzinfo=Tz.utc,
+                    ))
+                )
             )
-        )
-    return list(db.execute(stmt).scalars().all())
+        a_rows = db.execute(
+            a_stmt.order_by(
+                AnalysisSourceFile.created_at.desc(),
+                AnalysisSourceFile.id.desc(),
+            )
+        ).scalars().all()
+        result.extend(a_rows)
+
+    return result
 
 
 def get_source_or_none(db: Session, source_id: int) -> AnalysisSourceFile | None:
