@@ -129,9 +129,11 @@ export default function DashboardPage() {
 
   const referenceDate = useMemo(() => formatYMD(dateRange.to), [dateRange])
 
+  const projectIds = useMemo(() => projects.map((p) => p.id).filter((id): id is number => id !== null), [projects])
+
   const { data: overviewData, loading: overviewLoading, refresh: overviewRefresh } = useDashboardOverview({
-    projectIds: projects.map((p) => p.id).filter((id): id is number => id !== null),
-    enabled: status === 'authenticated' && roleType !== 'factory' && projects.length > 0,
+    projectIds,
+    enabled: status === 'authenticated' && roleType !== 'factory' && projectIds.length > 0,
     days,
     referenceDate,
   })
