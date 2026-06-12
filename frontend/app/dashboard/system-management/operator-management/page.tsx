@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { DirectionalTabTransition, SlidingTabsTrigger, TabsMotionGroup } from '@/components/ui/tab-motion'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
-import { buildBackendHeaders } from '@/lib/backend-auth'
+import { buildBackendClientHeaders } from '@/lib/backend-auth'
 import { cn } from '@/lib/utils'
 import { useNotifications } from '@/components/notifications'
 import { DataCard, DataCardContent, DataCardHeader } from '@/components/ui/data-card'
@@ -332,11 +332,11 @@ export default function OperatorManagementPage() {
     const [projectsResponse, operatorsResponse] = await Promise.all([
       fetch(`${API_BASE}/api/v1/projects/manage`, {
         cache: 'no-store',
-        headers: buildBackendHeaders(session),
+        headers: buildBackendClientHeaders(session),
       }),
       fetch(`${API_BASE}/api/v1/projects/operator-options`, {
         cache: 'no-store',
-        headers: buildBackendHeaders(session),
+        headers: buildBackendClientHeaders(session),
       }),
     ])
 
@@ -358,7 +358,7 @@ export default function OperatorManagementPage() {
     try {
       const response = await fetch(`${API_BASE}/api/v1/system-management/commission-management/role-assignments?report_month=${month}`, {
         cache: 'no-store',
-        headers: buildBackendHeaders(session),
+        headers: buildBackendClientHeaders(session),
       })
       if (!response.ok) {
         throw new Error(parseErrorBody(await response.text(), response.status))
@@ -376,7 +376,7 @@ export default function OperatorManagementPage() {
     try {
       const response = await fetch(`${API_BASE}/api/v1/system-management/operator-management/performance?report_month=${month}`, {
         cache: 'no-store',
-        headers: buildBackendHeaders(session),
+        headers: buildBackendClientHeaders(session),
       })
       if (!response.ok) {
         throw new Error(parseErrorBody(await response.text(), response.status))
@@ -395,11 +395,11 @@ export default function OperatorManagementPage() {
       const [recordsResponse, overrideResponse] = await Promise.all([
         fetch(`${API_BASE}/api/v1/system-management/commission-management/records?report_month=${month}`, {
           cache: 'no-store',
-          headers: buildBackendHeaders(session),
+          headers: buildBackendClientHeaders(session),
         }),
         fetch(`${API_BASE}/api/v1/system-management/commission-management/ratio-overrides?report_month=${month}`, {
           cache: 'no-store',
-          headers: buildBackendHeaders(session),
+          headers: buildBackendClientHeaders(session),
         }),
       ])
       if (!recordsResponse.ok) {
@@ -485,7 +485,7 @@ export default function OperatorManagementPage() {
       const response = await fetch(`${API_BASE}/api/v1/system-management/commission-management/role-assignments/upsert`, {
         method: 'POST',
         headers: {
-          ...buildBackendHeaders(session),
+          ...buildBackendClientHeaders(session),
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -525,7 +525,7 @@ export default function OperatorManagementPage() {
       const response = await fetch(`${API_BASE}/api/v1/system-management/operator-management/performance/upsert`, {
         method: 'POST',
         headers: {
-          ...buildBackendHeaders(session),
+          ...buildBackendClientHeaders(session),
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -585,7 +585,7 @@ export default function OperatorManagementPage() {
       const response = await fetch(`${API_BASE}/api/v1/system-management/commission-management/ratio-overrides/upsert`, {
         method: 'POST',
         headers: {
-          ...buildBackendHeaders(session),
+          ...buildBackendClientHeaders(session),
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({

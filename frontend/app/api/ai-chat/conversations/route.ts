@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 
 import { requireUserSession } from '@/lib/auth/server'
+import { buildBackendAuthHeaders, getBackendApiKeyOrFail } from '@/lib/backend-auth'
 import { normalizeErrorMessage } from '@/lib/error-utils'
-import { backendFetchJson, getBackendApiKey } from '@/lib/server/backend-api'
+import { backendFetchJson } from '@/lib/server/backend-api'
 
 export async function GET() {
   const session = await requireUserSession()
@@ -10,15 +11,13 @@ export async function GET() {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 
-  try {
-    const apiKey = getBackendApiKey()
-    if (!apiKey) {
-      throw new Error('缺少后端 API Key 配置')
-    }
+  const apiKeyOrResponse = getBackendApiKeyOrFail()
+  if (apiKeyOrResponse.error) return apiKeyOrResponse.error
 
+  try {
     const data = await backendFetchJson('/api/v1/ai/conversations', {
       method: 'GET',
-      headers: { 'X-API-Key': apiKey },
+      headers: buildBackendAuthHeaders(session, { apiKey: apiKeyOrResponse.apiKey }),
       cache: 'no-store',
     })
     return NextResponse.json(data)
@@ -33,20 +32,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 
+  const apiKeyOrResponse = getBackendApiKeyOrFail()
+  if (apiKeyOrResponse.error) return apiKeyOrResponse.error
+
   const body = (await request.json()) as { title?: string }
 
   try {
-    const apiKey = getBackendApiKey()
-    if (!apiKey) {
-      throw new Error('缺少后端 API Key 配置')
-    }
-
     const data = await backendFetchJson('/api/v1/ai/conversations', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': apiKey,
-      },
+      headers: buildBackendAuthHeaders(session, {
+        apiKey: apiKeyOrResponse.apiKey,
+        contentType: 'application/json',
+      }),
       body: JSON.stringify({ title: body.title }),
       cache: 'no-store',
     })

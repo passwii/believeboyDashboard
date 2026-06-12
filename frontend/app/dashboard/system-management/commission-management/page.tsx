@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { formatMonthInputValue, parseMonthInputValue } from '@/components/ui/date-picker'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { buildBackendHeaders } from '@/lib/backend-auth'
+import { buildBackendClientHeaders } from '@/lib/backend-auth'
 import { useNotifications } from '@/components/notifications'
 import { DetailTab } from './detail-tab'
 import { MonthlySummaryTab } from './monthly-summary-tab'
@@ -127,7 +127,7 @@ export default function CommissionManagementPage() {
     try {
       const response = await fetch(`${API_BASE}/api/v1/exchange-rates?year_month=${month}`, {
         cache: 'no-store',
-        headers: buildBackendHeaders(session),
+        headers: buildBackendClientHeaders(session),
       })
       if (response.ok) {
         const payload = (await response.json()) as { data?: ExchangeRate[] }
@@ -147,7 +147,7 @@ export default function CommissionManagementPage() {
       }
       const response = await fetch(`${API_BASE}/api/v1/system-management/commission-management/project-months?${params.toString()}`, {
         cache: 'no-store',
-        headers: buildBackendHeaders(session),
+        headers: buildBackendClientHeaders(session),
       })
       if (!response.ok) {
         throw new Error(parseErrorBody(await response.text(), response.status))
@@ -174,7 +174,7 @@ export default function CommissionManagementPage() {
     try {
       const response = await fetch(`${API_BASE}/api/v1/projects/manage`, {
         cache: 'no-store',
-        headers: buildBackendHeaders(session),
+        headers: buildBackendClientHeaders(session),
       })
       if (!response.ok) {
         throw new Error(parseErrorBody(await response.text(), response.status))
@@ -207,11 +207,11 @@ export default function CommissionManagementPage() {
       const [monthlyResp, projectResp] = await Promise.all([
         fetch(`${API_BASE}/api/v1/system-management/commission-management/summary/monthly?${monthlyParams.toString()}`, {
           cache: 'no-store',
-          headers: buildBackendHeaders(session),
+          headers: buildBackendClientHeaders(session),
         }),
         fetch(`${API_BASE}/api/v1/system-management/commission-management/summary/project?${projectParams.toString()}`, {
           cache: 'no-store',
-          headers: buildBackendHeaders(session),
+          headers: buildBackendClientHeaders(session),
         }),
       ])
 
@@ -292,7 +292,7 @@ export default function CommissionManagementPage() {
   const patchProjectMonthPayment = async (row: CommissionProjectMonth, paymentStatus: PaymentStatus, receivedRmb: number) => {
     const response = await fetch(`${API_BASE}/api/v1/system-management/commission-management/project-months/${row.id}/payment`, {
       method: 'PATCH',
-      headers: buildBackendHeaders(session, { contentType: 'application/json' }),
+      headers: buildBackendClientHeaders(session, { contentType: 'application/json' }),
       body: JSON.stringify({
         payment_status: paymentStatus,
         received_rmb: receivedRmb,
@@ -359,7 +359,7 @@ export default function CommissionManagementPage() {
       const url = `${API_BASE}/api/v1/system-management/commission-management/recompute${params.toString() ? '?' + params.toString() : ''}`
       const response = await fetch(url, {
         method: 'POST',
-        headers: buildBackendHeaders(session, { contentType: 'application/json' }),
+        headers: buildBackendClientHeaders(session, { contentType: 'application/json' }),
         body: JSON.stringify({ report_month: month }),
       })
       if (!response.ok) {

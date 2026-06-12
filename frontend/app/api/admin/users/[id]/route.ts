@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 
 import { requireAdminSession } from '@/lib/auth/server'
+import { buildBackendAuthHeaders, getBackendApiKeyOrFail } from '@/lib/backend-auth'
 import { normalizeErrorMessage } from '@/lib/error-utils'
-import { backendFetchJson, getBackendApiKey, getBackendBaseUrl } from '@/lib/server/backend-api'
+import { backendFetchJson, getBackendBaseUrl } from '@/lib/server/backend-api'
 
 type UserItem = {
   id: string
@@ -39,10 +40,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 
-  const apiKey = getBackendApiKey()
-  if (!apiKey) {
-    return NextResponse.json({ message: '缺少后端 API Key 配置' }, { status: 500 })
-  }
+  const apiKeyOrResponse = getBackendApiKeyOrFail()
+  if (apiKeyOrResponse.error) return apiKeyOrResponse.error
 
   const body = (await request.json()) as {
     name?: string
@@ -66,10 +65,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       `/api/v1/system-management/users/${id}`,
       {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': apiKey,
-        },
+        headers: buildBackendAuthHeaders(session, {
+          apiKey: apiKeyOrResponse.apiKey,
+          contentType: 'application/json',
+        }),
         body: JSON.stringify({
           name: body.name,
           full_name: body.fullName,
@@ -96,17 +95,13 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 
-  const apiKey = getBackendApiKey()
-  if (!apiKey) {
-    return NextResponse.json({ message: '缺少后端 API Key 配置' }, { status: 500 })
-  }
+  const apiKeyOrResponse = getBackendApiKeyOrFail()
+  if (apiKeyOrResponse.error) return apiKeyOrResponse.error
 
   const baseUrl = getBackendBaseUrl()
   const response = await fetch(`${baseUrl}/api/v1/system-management/users/${id}`, {
     method: 'DELETE',
-    headers: {
-      'X-API-Key': apiKey,
-    },
+    headers: buildBackendAuthHeaders(session, { apiKey: apiKeyOrResponse.apiKey }),
     cache: 'no-store',
   })
 
