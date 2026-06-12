@@ -645,7 +645,7 @@ def get_financial_accounting_detail(
         report_month=month,
     )
 
-    rows = _build_accounting_rows(pt3)
+    rows = _build_accounting_rows(pt3, country=report.country)
     return {
         "project_id": project.id,
         "project_name": project.project_name,

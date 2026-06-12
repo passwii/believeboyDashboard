@@ -634,7 +634,7 @@ def export_financial_accounting_detail_workbook(
             "Ex源表",
         ]
     )
-    for line in _build_accounting_rows(pt3):
+    for line in _build_accounting_rows(pt3, country=report.country):
         ws.append(
             [
                 line["income_en"],
