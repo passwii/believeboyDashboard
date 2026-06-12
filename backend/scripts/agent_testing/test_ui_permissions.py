@@ -41,7 +41,7 @@ class TestUIPermissions:
         cfg = TEST_ACCOUNTS["factory"]
         login_as(page, cfg["email"], cfg["password"])
 
-        page.goto(f"{FRONTEND_URL}/dashboard/tools/research-analysis", wait_until="networkidle")
+        page.goto(f"{FRONTEND_URL}/dashboard/data-analysis/research-analysis", wait_until="networkidle")
 
         # The page may show a dataset selector; click the first dataset row if present
         first_dataset = page.locator("[data-testid='dataset-row'], .dataset-item, tr:has-text('SKU')").first
