@@ -45,12 +45,6 @@ def _safe_rate(numerator: float, denominator: float) -> float:
     return round(numerator / denominator * 100, 2)
 
 
-# ─── cache key / helpers ─────────────────────────────────────────────────────
-
-def _cache_key(project_id: int, country: str, days: int) -> str:
-    return f"digital_display:{project_id}:{country}:{days}"
-
-
 # ─── sales snapshot ──────────────────────────────────────────────────────────
 
 def _build_sales_snapshot(

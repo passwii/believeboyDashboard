@@ -1,21 +1,13 @@
 """Product analysis cache (weekly analysis cache)."""
 
 import json
-from datetime import UTC, date, datetime
 from typing import Any
 
+from app.services.infra._serialization import json_default
 from app.services.infra.redis import get_redis_client
 
 PRODUCT_ANALYSIS_WEEKLY_KEY_PREFIX = "product_analysis:weekly"
 PRODUCT_ANALYSIS_WEEKLY_TTL = 14400  # 4 hours
-
-
-def _json_serializer(obj: Any) -> str:
-    if isinstance(obj, date):
-        return obj.isoformat()
-    if isinstance(obj, datetime):
-        return obj.isoformat()
-    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
 
 def make_weekly_analysis_cache_key(
@@ -70,7 +62,7 @@ def set_weekly_analysis_cache(
     client.setex(
         key,
         PRODUCT_ANALYSIS_WEEKLY_TTL,
-        json.dumps(rows, ensure_ascii=False, default=_json_serializer),
+        json.dumps(rows, ensure_ascii=False, default=json_default),
     )
 
 

@@ -4,6 +4,9 @@ import hashlib
 import json
 from typing import Any
 
+from app.services.infra._serialization import json_default
+from app.services.infra.data_management import DATA_MANAGEMENT_OVERVIEW_KEY
+from app.services.infra.product_cache import PRODUCT_ANALYSIS_WEEKLY_KEY_PREFIX
 from app.services.infra.redis import get_redis_client
 
 CACHE_KEY_PREFIX = "cache"
@@ -45,7 +48,9 @@ def cache_get(key: str) -> dict | list | None:
 
 def cache_set(key: str, value: Any, ttl: int = CACHE_TTL_LONG) -> None:
     client = get_redis_client()
-    client.setex(key, ttl, json.dumps(value, ensure_ascii=False))
+    # 使用共享 json_default 兜底 date / datetime / Decimal / UUID 等非原生 JSON
+    # 类型,避免请求路径上抛 TypeError 500(P0-2)。
+    client.setex(key, ttl, json.dumps(value, ensure_ascii=False, default=json_default))
 
 
 def cache_delete(key: str) -> None:
@@ -346,9 +351,8 @@ def invalidate_financial_series_cache(project_id: int) -> int:
 
 
 def clear_all_caches() -> int:
-    from app.services.infra.data_management import DATA_MANAGEMENT_OVERVIEW_KEY
-    from app.services.infra.product_cache import PRODUCT_ANALYSIS_WEEKLY_KEY_PREFIX
-
+    # DATA_MANAGEMENT_OVERVIEW_KEY 与 PRODUCT_ANALYSIS_WEEKLY_KEY_PREFIX
+    # 已由 infra/__init__.py 在包加载时导入,这里直接使用即可,无需再 import。
     cache_prefixes = [
         DATA_MANAGEMENT_OVERVIEW_KEY.split(":")[0],
         PRODUCT_ANALYSIS_WEEKLY_KEY_PREFIX.split(":")[0],
