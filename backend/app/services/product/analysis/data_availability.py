@@ -8,10 +8,14 @@ from typing import Any
 from sqlalchemy import select, and_, or_
 from sqlalchemy.orm import Session
 
-from app.models import AnalysisSourceFile, AdUploadFile
+from app.models import AnalysisSourceFile, AdUploadFile, AdUploadPromotedProductRow
 from app.services.report_type_service import AD_PRODUCT_REPORT
 from app.utils.country import normalize_country as _normalize_country
 from app.utils.constants import PERIODIC_REPORT_TYPES
+
+# 手动核算 C 表广告数据时，CLAUDE.md 明确要求按 scope_status='included_product'
+# 过滤（行级粒度）。excluded_store_level / excluded_unmapped 行不能算入。
+AD_INCLUDED_PRODUCT_SCOPE = 'included_product'
 
 
 def check_product_calculation_data_availability(
@@ -31,9 +35,18 @@ def check_product_calculation_data_availability(
         d += timedelta(days=1)
 
     def _ad_daily_dates() -> set[date]:
-        """Get dates covered by daily ad reports from C table (AdUploadFile)."""
+        """Get dates covered by daily ad reports from C table (AdUploadFile).
+
+        仅当存在至少一行 `scope_status='included_product'` 时，该日期才算"被覆盖"，
+        与 CLAUDE.md 对 AdUploadPromotedProductRow 的过滤要求保持一致。
+        """
         rows = db.execute(
-            select(AdUploadFile.period_end_date).where(
+            select(AdUploadFile.period_end_date)
+            .join(
+                AdUploadPromotedProductRow,
+                AdUploadPromotedProductRow.source_file_id == AdUploadFile.id,
+            )
+            .where(
                 AdUploadFile.project_id == project_id,
                 AdUploadFile.report_type == 'ad_promoted_product_report',
                 AdUploadFile.country == normalized_country,
@@ -41,18 +54,27 @@ def check_product_calculation_data_availability(
                 AdUploadFile.period_start_date == AdUploadFile.period_end_date,
                 AdUploadFile.period_end_date >= start_date,
                 AdUploadFile.period_end_date <= end_date,
+                AdUploadPromotedProductRow.scope_status == AD_INCLUDED_PRODUCT_SCOPE,
             )
         ).scalars().all()
         return {r for r in rows if r is not None}
 
     def _ad_period_covered_dates() -> list[dict[str, Any]]:
-        """Get periodic ad coverage info from C table (AdUploadFile)."""
+        """Get periodic ad coverage info from C table (AdUploadFile).
+
+        与 `_ad_daily_dates` 一致，按行级 `scope_status='included_product'` 过滤。
+        """
         rows = db.execute(
             select(
                 AdUploadFile.period_start_date,
                 AdUploadFile.period_end_date,
                 AdUploadFile.id,
-            ).where(
+            )
+            .join(
+                AdUploadPromotedProductRow,
+                AdUploadPromotedProductRow.source_file_id == AdUploadFile.id,
+            )
+            .where(
                 AdUploadFile.project_id == project_id,
                 AdUploadFile.report_type == 'ad_promoted_product_report',
                 AdUploadFile.country == normalized_country,
@@ -60,6 +82,7 @@ def check_product_calculation_data_availability(
                 AdUploadFile.period_start_date < AdUploadFile.period_end_date,
                 AdUploadFile.period_start_date <= end_date,
                 AdUploadFile.period_end_date >= start_date,
+                AdUploadPromotedProductRow.scope_status == AD_INCLUDED_PRODUCT_SCOPE,
             )
         ).all()
         result = []

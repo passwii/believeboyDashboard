@@ -118,12 +118,19 @@ const COUNTRY_OPTIONS: Array<{ value: CountryOption; label: string }> = [
   { value: 'UK', label: '英国站 (UK)' },
 ]
 
-/** Report types used for product analysis calculation */
-const PRODUCT_ANALYSIS_TYPES: ReportType[] = ['business_report', 'ad_product_report', 'payment_report']
+/** Report types used for product analysis calculation.
+ *
+ *  C 表（`ad_upload_files` / `ad_upload_promoted_product_rows`）自 2026-06-01 起承接
+ *  广告数据；老 A 表（`analysis_source_files` `ad_product_report`）已下线并被 CHECK
+ *  约束排除。前端手动核算面板通过 `recognizeFile` 按文件扩展名预判分流，广告报表
+ *  走 `/api/v1/ad-upload/recognize`，后端返回的实际 `report_type` 即此处列出的
+ *  C 表枚举值（`ad_promoted_product_report` 等）。
+ */
+const PRODUCT_ANALYSIS_TYPES: ReportType[] = ['business_report', 'ad_promoted_product_report', 'payment_report']
 
 const PRODUCT_ANALYSIS_CARD_CONFIGS: ReportCardConfig[] = [
   { type: 'business_report', title: '业务报告', subtitle: '流量、销量、会话数据', dateHint: '单日', projectHint: 'ASIN 匹配项目' },
-  { type: 'ad_product_report', title: '广告报告', subtitle: '广告曝光、点击、花费', dateHint: '单日', projectHint: 'SKU 匹配项目' },
+  { type: 'ad_promoted_product_report', title: '广告报告', subtitle: '广告曝光、点击、花费', dateHint: '单日', projectHint: 'SKU 匹配项目' },
   { type: 'payment_report', title: '付款报告', subtitle: '佣金、FBA 费用、退款', dateHint: '周期', projectHint: 'SKU 匹配项目' },
 ]
 
@@ -250,7 +257,7 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
   // ── Card state (per report type) ──
   const [cards, setCards] = useState<Record<string, ReportCardState>>({
     business_report: emptyCardState(),
-    ad_product_report: emptyCardState(),
+    ad_promoted_product_report: emptyCardState(),
     payment_report: emptyCardState(),
   })
 
@@ -317,13 +324,23 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
   }, [])
 
   // ── File recognition via backend ──
+  // 广告报表（.xlsx/.xls）走 ad-upload 链路（C 表），其他（.csv/.txt）走 report-upload
+  // 链路（业务/付款/库存/销售/退货 报表）。后端 `recognize_file` 对 .xlsx 显式返回
+  // None（见 `backend/app/utils/recognition/recognizers/__init__.py:309-311`），必须
+  // 在前端按扩展名预判分流，否则广告报表会被识别为 `report_type: 'unknown'`。
   const recognizeFile = useCallback(async (file: File): Promise<RecognitionResponse | null> => {
     const formData = new FormData()
     formData.append('file', file)
     formData.append('country', country)
 
+    const lowerName = file.name.toLowerCase()
+    const isAdExcel = lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls')
+    const endpoint = isAdExcel
+      ? '/api/v1/ad-upload/recognize'
+      : '/api/v1/report-upload/recognize'
+
     try {
-      const res = await fetch(resolveApiUrl('/api/v1/report-upload/recognize'), {
+      const res = await fetch(resolveApiUrl(endpoint), {
         method: 'POST',
         body: formData,
       })
@@ -474,7 +491,7 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
     setItems([])
     setCards({
       business_report: emptyCardState(),
-      ad_product_report: emptyCardState(),
+      ad_promoted_product_report: emptyCardState(),
       payment_report: emptyCardState(),
     })
   }, [])
@@ -488,6 +505,8 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
   }, [])
 
   // ── Commit a card ──
+  // 广告报表（`ad_promoted_product_report` 及其 9 个 C 表细分类型）走 `/api/v1/ad-upload/commit`
+  // 落 C 表；其他（业务 / 付款）走 `/api/v1/report-upload/commit` 落 A 表。
   const commitCard = useCallback(async (reportType: ReportType) => {
     const card = cards[reportType]
     if (!card?.activeTempFileId) return
@@ -498,17 +517,31 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
     }))
 
     try {
-      const body: Record<string, unknown> = {
-        temp_file_id: card.activeTempFileId,
-        report_type: reportType,
-        project_name: projectName,
-        country,
-        report_start_date: startDate,
-        report_end_date: endDate,
-        use_period_dates: true,
-      }
+      const isAdReport = String(reportType).startsWith('ad_')
+      const body: Record<string, unknown> = isAdReport
+        ? {
+            temp_file_id: card.activeTempFileId,
+            report_type: reportType,
+            project_name: projectName,
+            country,
+            report_start_date: startDate,
+            report_end_date: endDate,
+          }
+        : {
+            temp_file_id: card.activeTempFileId,
+            report_type: reportType,
+            project_name: projectName,
+            country,
+            report_start_date: startDate,
+            report_end_date: endDate,
+            use_period_dates: true,
+          }
 
-      const res = await fetch(resolveApiUrl('/api/v1/report-upload/commit'), {
+      const endpoint = isAdReport
+        ? '/api/v1/ad-upload/commit'
+        : '/api/v1/report-upload/commit'
+
+      const res = await fetch(resolveApiUrl(endpoint), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
