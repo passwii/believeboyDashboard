@@ -61,6 +61,7 @@ import { resolveProjectCommissionUsd } from '@/lib/commission'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
 import { DEFAULT_REPORT_UPLOAD_COUNTRY, type ReportUploadCountry } from '@/components/report-upload/types'
+import { VAT_COUNTRIES } from '@/lib/console-constants'
 import {
   CountrySelect,
   FilterField,
@@ -762,6 +763,12 @@ export default function FinancialDataClient({
   const [projectId, setProjectId] = useState(initialProjectId)
   const [country, setCountry] = useState<ReportUploadCountry>(DEFAULT_REPORT_UPLOAD_COUNTRY)
 
+  // DE/UK 报表启用 VAT 列；US 报表无 VAT 数据
+  const showVatColumn = useMemo(
+    () => VAT_COUNTRIES.has(country as 'DE' | 'UK'),
+    [country],
+  )
+
   // Currency label and symbol based on country
   const currencySymbol = useMemo(() => {
     return CURRENCY_SYMBOLS[country] || '$'
@@ -1295,6 +1302,8 @@ export default function FinancialDataClient({
           expense_other_fees: acc.expense_other_fees + row.expense_other_fees,
           income_total: acc.income_total + row.income_total,
           expense_total: acc.expense_total + row.expense_total,
+          income_vat_total:
+            acc.income_vat_total + (row.income_vat_total ?? 0),
           amazon_pay_back: acc.amazon_pay_back + row.amazon_pay_back,
           credit_card_deduction_usd:
             acc.credit_card_deduction_usd + creditCardUsd,
@@ -1326,6 +1335,7 @@ export default function FinancialDataClient({
         expense_other_fees: 0,
         income_total: 0,
         expense_total: 0,
+        income_vat_total: 0,
         amazon_pay_back: 0,
         credit_card_deduction_usd: 0,
         fob_cost_rmb: 0,
@@ -2501,6 +2511,14 @@ export default function FinancialDataClient({
                   >
                     支出合计
                   </TableHead>
+                  {showVatColumn ? (
+                    <TableHead
+                      rowSpan={2}
+                      className='border-r px-2 py-2 text-center'
+                    >
+                      VAT
+                    </TableHead>
+                  ) : null}
                   <TableHead
                     rowSpan={2}
                     className='border-r px-2 py-2 text-center'
@@ -2762,6 +2780,14 @@ export default function FinancialDataClient({
                       <TableCell className='border-r px-2 py-1.5 text-right font-semibold tabular-nums'>
                         {formatCurrency(row.expense_total, currencySymbol)}
                       </TableCell>
+                      {showVatColumn ? (
+                        <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
+                          {formatCurrency(
+                            row.income_vat_total ?? 0,
+                            currencySymbol,
+                          )}
+                        </TableCell>
+                      ) : null}
                       <TableCell className='border-r px-2 py-1.5 text-right font-semibold tabular-nums'>
                         {formatCurrency(row.amazon_pay_back, currencySymbol)}
                       </TableCell>
@@ -2875,6 +2901,14 @@ export default function FinancialDataClient({
                   <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
                     {formatCurrency(totals.expense_total, currencySymbol)}
                   </TableCell>
+                  {showVatColumn ? (
+                    <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
+                      {formatCurrency(
+                        totals.income_vat_total ?? 0,
+                        currencySymbol,
+                      )}
+                    </TableCell>
+                  ) : null}
                   <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
                     {formatCurrency(totals.amazon_pay_back, currencySymbol)}
                   </TableCell>
