@@ -91,6 +91,7 @@ autoReportUpload/__pycache__/
 /frontend/tests/snapshots/
 /frontend/tests/.auth/
 /frontend/playwright-report/
+/frontend/test-results/
 
 # Playwright MCP
 .playwright-mcp/

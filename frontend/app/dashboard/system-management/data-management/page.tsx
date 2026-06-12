@@ -12,7 +12,7 @@ import { EmptyTableState } from '@/components/ui/empty-state'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useNotifications } from '@/components/notifications'
 import { useConfirm } from '@/hooks/use-confirm'
-import { buildBackendHeaders } from '@/lib/backend-auth'
+import { buildBackendClientHeaders } from '@/lib/backend-auth'
 import { cn } from '@/lib/utils'
 
 type DataLifecycleStatus = 'active' | 'maintenance' | 'read_only' | 'paused'
@@ -136,7 +136,7 @@ export default function SystemDataManagementPage() {
 
     try {
       const response = await fetch(`${API_BASE}/api/v1/system-management/data-management/status`, {
-        headers: buildBackendHeaders(session),
+        headers: buildBackendClientHeaders(session),
         cache: 'no-store',
       })
       if (!response.ok) {
@@ -161,7 +161,7 @@ export default function SystemDataManagementPage() {
 
     try {
       const response = await fetch(`${API_BASE}/api/v1/system-management/data-management/overview`, {
-        headers: buildBackendHeaders(session),
+        headers: buildBackendClientHeaders(session),
         cache: 'no-store',
       })
       if (!response.ok) {
@@ -207,7 +207,7 @@ export default function SystemDataManagementPage() {
     try {
       const response = await fetch(`${API_BASE}/api/v1/system-management/cache/clear-all`, {
         method: 'POST',
-        headers: buildBackendHeaders(session),
+        headers: buildBackendClientHeaders(session),
       })
       if (!response.ok) {
         throw new Error(await parseError(response))

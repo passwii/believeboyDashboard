@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 
 import { requireUserSession } from '@/lib/auth/server'
+import { buildBackendAuthHeaders, getBackendApiKeyOrFail } from '@/lib/backend-auth'
 import { normalizeErrorMessage } from '@/lib/error-utils'
-import { backendFetchJson, getBackendApiKey } from '@/lib/server/backend-api'
+import { backendFetchJson } from '@/lib/server/backend-api'
 
 type ChangePasswordBody = {
   currentPassword?: string
@@ -13,11 +14,6 @@ export async function PATCH(request: Request) {
   const session = await requireUserSession()
   if (!session?.user?.id || !session.user.email) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
-  }
-
-  const apiKey = getBackendApiKey()
-  if (!apiKey) {
-    return NextResponse.json({ message: '缺少后端 API Key 配置' }, { status: 500 })
   }
 
   const body = (await request.json()) as ChangePasswordBody
@@ -34,6 +30,8 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ message: '新密码不能与当前密码一致' }, { status: 400 })
   }
 
+  // Step 1: verify the current password by hitting the login endpoint. The
+  // login endpoint is unauthenticated and only needs `Content-Type`.
   try {
     await backendFetchJson('/api/v1/auth/login', {
       method: 'POST',
@@ -48,13 +46,19 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ message: '当前密码不正确' }, { status: 400 })
   }
 
+  const apiKeyOrResponse = getBackendApiKeyOrFail()
+  if (apiKeyOrResponse.error) return apiKeyOrResponse.error
+
+  // Step 2: persist the new password via the system-management endpoint. This
+  // call goes directly to the backend, so we MUST build the API-key + session
+  // header record via `buildBackendAuthHeaders` (single source of truth).
   try {
     await backendFetchJson(`/api/v1/system-management/users/${session.user.id}`, {
       method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': apiKey,
-      },
+      headers: buildBackendAuthHeaders(session, {
+        apiKey: apiKeyOrResponse.apiKey,
+        contentType: 'application/json',
+      }),
       body: JSON.stringify({ password: newPassword }),
       cache: 'no-store',
     })

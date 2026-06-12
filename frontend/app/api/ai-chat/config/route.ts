@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 
 import { requireUserSession } from '@/lib/auth/server'
+import { buildBackendAuthHeaders, getBackendApiKeyOrFail } from '@/lib/backend-auth'
 import { normalizeErrorMessage } from '@/lib/error-utils'
-import { getBackendApiKey, backendFetchJson } from '@/lib/server/backend-api'
+import { backendFetchJson } from '@/lib/server/backend-api'
 import { getPromptPresetSummaries } from '@/lib/server/ai-chat'
 
 export async function GET() {
@@ -13,12 +14,29 @@ export async function GET() {
 
   const promptPresets = getPromptPresetSummaries()
 
-  try {
-    const apiKey = getBackendApiKey()
-    if (!apiKey) {
-      throw new Error('缺少后端 API Key 配置')
-    }
+  const apiKeyOrResponse = getBackendApiKeyOrFail()
+  if (apiKeyOrResponse.error) {
+    return NextResponse.json(
+      {
+        message: '缺少后端 API Key 配置',
+        providerConfigured: false,
+        webSearchConfigured: false,
+        models: [],
+        defaultModel: '',
+        premiumModels: [],
+        basicModels: [],
+        reasoningModels: [],
+        defaultReasoningEffort: 'medium',
+        timeoutSeconds: 90,
+        maxConversationTurns: 10,
+        webSearchMaxResults: 5,
+        ...promptPresets,
+      },
+      { status: 500 }
+    )
+  }
 
+  try {
     const payload = await backendFetchJson<{
       provider_configured: boolean
       web_search_configured: boolean
@@ -33,7 +51,7 @@ export async function GET() {
       web_search_max_results: number
     }>('/api/v1/ai/config', {
       method: 'GET',
-      headers: { 'X-API-Key': apiKey },
+      headers: buildBackendAuthHeaders(session, { apiKey: apiKeyOrResponse.apiKey }),
       cache: 'no-store',
     })
 

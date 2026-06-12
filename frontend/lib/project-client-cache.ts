@@ -1,6 +1,6 @@
 import type { Session } from 'next-auth'
 
-import { buildBackendHeaders } from '@/lib/backend-auth'
+import { buildBackendClientHeaders } from '@/lib/backend-auth'
 import { clearClientCacheByPrefix, getClientCache, setClientCache } from '@/lib/client-cache'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import { fetchWithTimeout } from '@/lib/fetch-with-timeout'
@@ -48,7 +48,7 @@ async function fetchCachedJson<T>(
   const response = await fetchWithTimeout(url, {
     timeoutMs: 5_000,
     cache: 'no-store',
-    headers: buildBackendHeaders(options?.session),
+    headers: buildBackendClientHeaders(options?.session ?? null),
   })
   if (!response.ok) {
     const message = await parseError(response, options?.fallbackError || `请求失败 (${response.status})`)

@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 
 import { requireAdminSession } from '@/lib/auth/server'
+import { buildBackendAuthHeaders, getBackendApiKeyOrFail } from '@/lib/backend-auth'
 import { normalizeErrorMessage } from '@/lib/error-utils'
-import { backendFetchJson, getBackendApiKey } from '@/lib/server/backend-api'
+import { backendFetchJson } from '@/lib/server/backend-api'
 
 type UserItem = {
   id: string
@@ -38,15 +39,13 @@ export async function GET() {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 
-  const apiKey = getBackendApiKey()
-  if (!apiKey) {
-    return NextResponse.json({ message: '缺少后端 API Key 配置' }, { status: 500 })
-  }
+  const apiKeyOrResponse = getBackendApiKeyOrFail()
+  if (apiKeyOrResponse.error) return apiKeyOrResponse.error
 
   try {
     const data = await backendFetchJson<{ items: UserItem[] }>('/api/v1/system-management/users', {
       method: 'GET',
-      headers: { 'X-API-Key': apiKey },
+      headers: buildBackendAuthHeaders(session, { apiKey: apiKeyOrResponse.apiKey }),
       cache: 'no-store',
     })
     return NextResponse.json({ items: data.items.map(toFrontendUser) })
@@ -61,10 +60,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 
-  const apiKey = getBackendApiKey()
-  if (!apiKey) {
-    return NextResponse.json({ message: '缺少后端 API Key 配置' }, { status: 500 })
-  }
+  const apiKeyOrResponse = getBackendApiKeyOrFail()
+  if (apiKeyOrResponse.error) return apiKeyOrResponse.error
 
   const body = (await request.json()) as {
     name?: string
@@ -79,10 +76,10 @@ export async function POST(request: Request) {
   try {
     const data = await backendFetchJson<{ item: UserItem }>('/api/v1/system-management/users', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': apiKey,
-      },
+      headers: buildBackendAuthHeaders(session, {
+        apiKey: apiKeyOrResponse.apiKey,
+        contentType: 'application/json',
+      }),
       body: JSON.stringify({
         name: body.name,
         email: body.email,
