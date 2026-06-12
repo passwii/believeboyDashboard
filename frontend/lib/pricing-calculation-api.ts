@@ -134,9 +134,6 @@ export type ShopCalculationPayload = {
   profit_after_vat_rate?: number | null
 }
 
-/** @deprecated Use ShopCalculationPayload instead */
-export type StoreAccountingPayload = ShopCalculationPayload
-
 export async function requestSaveShopCalculation(
   payload: ShopCalculationPayload,
 ): Promise<ShopCalculationItem> {
@@ -211,9 +208,6 @@ export async function requestSaveShopCalculation(
   }
   return response.json() as Promise<ShopCalculationItem>
 }
-
-/** @deprecated Use requestSaveShopCalculation instead */
-export const requestSaveStoreAccounting = requestSaveShopCalculation
 
 export function formatCurrency(value: number) {
   return `$${value.toFixed(2)}`
