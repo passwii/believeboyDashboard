@@ -115,3 +115,59 @@ frontend/
 - [完整前端设置指南](../docs/02-快速开始/frontend-setup.md)
 - [项目概述](../docs/01-项目概述/project-overview.md)
 - [API 文档](../docs/04-API 文档/api-endpoints.md)
+
+---
+
+## 📐 DTO 单一来源（BEL-22-3 / BEL-29）
+
+> 后端 Pydantic schema 是契约的**唯一**事实来源；前端 DTO 永远从自动生成的 TypeScript 类型导出，不再手写镜像。
+
+### 流水线
+
+```
+backend (Pydantic schemas)
+    │  cd backend && make openapi-export
+    ▼
+frontend/types/api-generated/openapi.json       ← git 跟踪
+    │  pnpm gen:api-types
+    ▼
+frontend/types/api-generated/api.d.ts          ← git 跟踪
+    │  pnpm build（自动跑 pnpm gen:api-types:check）
+    ▼
+漂移 = 编译/构建失败
+```
+
+### 日常用法
+
+| 场景 | 命令 |
+| --- | --- |
+| 后端改了 schema，本地重新生成 | `cd backend && make openapi-export` 然后 `cd ../frontend && pnpm gen:api-types` |
+| 改完代码没改 schema，校验契约 | `pnpm gen:api-types:check`（`pnpm build` 会自动跑这一条） |
+| 写新业务模块 | **不要**手写 DTO；按 schema 名字从 `@/types/api-generated/api` 取，例如 `import type { components } from '@/types/api-generated/api'`<br/>`type MyDto = components['schemas']['MyDto']` |
+| 复用老模块的 re-export 风格 | `import type { HealthData, InspectionReport } from '@/lib/inspection-api'`（已经是从生成类型导出的） |
+| 模板 / 工具方法检测契约 | `frontend/lib/__contract-tests__/api-generated-contract.ts` — 编译期 `Expect<Equal<…>>`，后端字段加/改/删都会让 `tsc` 失败 |
+
+### 新增 schema 的流程
+
+1. 在 `backend/app/schemas/<resource>.py` 增改 Pydantic 模型；保证每个 `class` 都有清晰的字段名、类型、`Field(...)` 约束。
+2. 后端本地跑 `make openapi-export` 生成最新 `frontend/types/api-generated/openapi.json`，**commit 这个 JSON**。
+3. 前端跑 `pnpm gen:api-types` 重新生成 `api.d.ts`，**commit**。
+4. 前端代码 `import type { components } from '@/types/api-generated/api'`，按 `components['schemas']['<NewDto>']` 引用。
+5. 跑 `pnpm build` 验证（包含 `gen:api-types:check` + `tsc` + `next build`）。
+6. 如果是首批迁移目标（inspection / pricing-calculation / digital-employee / ai-insight-schedules），在 `frontend/lib/__contract-tests__/api-generated-contract.ts` 里加一条 `Expect<Equal<…>>` 把新 schema 钉死。
+
+### 禁止事项
+
+- ❌ 不要再为后端 Pydantic schema 写一份平行 TypeScript 镜像。
+- ❌ 不要把 `frontend/types/api-generated/openapi.json` 加到 `.gitignore` —— 它是契约的快照，CI 拿来 drift 检查。
+- ❌ 不要在 re-export 文件（`lib/inspection-api.ts` 等）里用 `interface` 重新声明 DTO 字段。
+- ❌ 跳过 `pnpm gen:api-types:check` —— 后端改动没同步进来时 build 必须红。
+
+### 故障排查
+
+| 报错 | 解决 |
+| --- | --- |
+| `pnpm gen:api-types:check` 报 `Drift detected` | 跑 `cd backend && make openapi-export`，再 `cd frontend && pnpm gen:api-types`，提交两个文件 |
+| `tsc` 报 `Type 'X \| null' is not assignable to type 'X'` | 字段在 Pydantic 里是 `Optional[...] = None`；前端访问前用 `?? ''` / `?? null` 处理 |
+| `make openapi-export` 报 `database_url Field required` | 临时给环境变量（开发用）：`DATABASE_URL=postgresql+psycopg://user:pass@localhost:5432/db API_KEY=test-key FRONTEND_URL=http://localhost:3000 make openapi-export` |
+| 新加 schema 但 `pnpm build` 没漂移检测 | 检查 `frontend/package.json` 的 `build` 脚本是否含 `gen:api-types:check && ...` |

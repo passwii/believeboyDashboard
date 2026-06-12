@@ -44,7 +44,7 @@ const STATUS_STYLES: Record<string, { badge: string; label: string }> = {
   },
 }
 
-function formatDateTime(dateStr: string | undefined): string {
+function formatDateTime(dateStr: string | null | undefined): string {
   if (!dateStr) return '-'
   const date = new Date(dateStr)
   return date.toLocaleString('zh-CN', {
