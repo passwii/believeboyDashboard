@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { requireUserSession } from '@/lib/auth/server'
+import { buildBackendAuthHeaders } from '@/lib/backend-auth'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import { getBackendApiKey, getBackendBaseUrl } from '@/lib/server/backend-api'
 
@@ -18,18 +19,13 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   }
 
   try {
-    const apiKey = getBackendApiKey()
-    if (!apiKey) {
-      throw new Error('缺少后端 API Key 配置')
-    }
-
     const body = await request.json()
     const upstream = await fetch(`${getBackendBaseUrl()}/api/v1/ai/conversations/${conversationId}`, {
       method: 'PATCH',
-      headers: {
-        'X-API-Key': apiKey,
-        'Content-Type': 'application/json',
-      },
+      headers: buildBackendAuthHeaders(session, {
+        apiKey: getBackendApiKey(),
+        contentType: 'application/json',
+      }),
       body: JSON.stringify(body),
       cache: 'no-store',
     })
@@ -51,14 +47,9 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
   }
 
   try {
-    const apiKey = getBackendApiKey()
-    if (!apiKey) {
-      throw new Error('缺少后端 API Key 配置')
-    }
-
     const upstream = await fetch(`${getBackendBaseUrl()}/api/v1/ai/conversations/${conversationId}`, {
       method: 'DELETE',
-      headers: { 'X-API-Key': apiKey },
+      headers: buildBackendAuthHeaders(session, { apiKey: getBackendApiKey() }),
       cache: 'no-store',
     })
     if (!upstream.ok) {
@@ -79,14 +70,9 @@ export async function POST(_request: Request, { params }: RouteContext) {
   }
 
   try {
-    const apiKey = getBackendApiKey()
-    if (!apiKey) {
-      throw new Error('缺少后端 API Key 配置')
-    }
-
     const upstream = await fetch(`${getBackendBaseUrl()}/api/v1/ai/conversations/${conversationId}/regenerate-title`, {
       method: 'POST',
-      headers: { 'X-API-Key': apiKey },
+      headers: buildBackendAuthHeaders(session, { apiKey: getBackendApiKey() }),
       cache: 'no-store',
     })
     const data = await upstream.json()
