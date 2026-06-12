@@ -17,7 +17,7 @@ AdUploadType = Literal[
     'unknown',
 ]
 AdUploadRecognitionStatus = Literal['recognized', 'unsupported', 'error']
-AdUploadIngestionStatus = Literal['pending', 'saved', 'failed']
+AdUploadIngestionStatus = Literal['pending', 'saved', 'failed', 'skipped']
 
 
 class AdUploadProjectMatchSummary(BaseModel):
@@ -56,6 +56,9 @@ class AdUploadCommitRequest(BaseModel):
     report_date: str | None = None
     report_start_date: str | None = None
     report_end_date: str | None = None
+    # True 时仅做识别校验 + 临时文件复制 + 行级解析，不写入 ad_upload_files /
+    # ad_upload_promoted_product_rows 表；用于产品分析手动核算"识别+计算"场景。
+    dry_run: bool = False
 
 
 class AdUploadCommitResponse(BaseModel):
