@@ -134,6 +134,14 @@ class MonthlyFinancialAccountingLine(BaseModel):
     expense_zh: str
     expense_amount_usd: float
     expense_source: str
+    # Plan C (BEL-43): backend stamps the local-currency ISO code per row.
+    # Historical field names `income_amount_usd` / `expense_amount_usd` are
+    # retained for backward compatibility, but the underlying values are
+    # the country-local currency (USD for US, EUR for DE, GBP for UK)
+    # — see `COUNTRY_TO_CURRENCY` in `app.utils.country`. This field lets
+    # the frontend render the correct currency symbol/label without
+    # keeping its own country->currency switch.
+    currency_code: str | None = None
 
 
 class MonthlyFinancialAccountingDetailResponse(BaseModel):
