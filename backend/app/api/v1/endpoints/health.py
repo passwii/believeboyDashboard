@@ -8,33 +8,10 @@ from sqlalchemy import text
 from app.core.config import get_settings
 from app.core.security import require_api_key
 from app.db.session import SessionLocal
+from app.services.infra.redis import make_redis_probe_client
 
 router = APIRouter()
 settings = get_settings()
-
-# Optional Redis dependency (graceful degradation if unavailable)
-_redis_client = None
-
-
-def get_redis_client():
-    global _redis_client
-    if _redis_client is None:
-        try:
-            import redis
-
-            _redis_client = redis.Redis(
-                host=settings.redis_host,
-                port=settings.redis_port,
-                password=settings.redis_password or None,
-                db=settings.redis_db,
-                socket_connect_timeout=2,
-                socket_timeout=2,
-                decode_responses=True,
-            )
-            _redis_client.ping()
-        except Exception:
-            _redis_client = None
-    return _redis_client
 
 
 class HealthResponse(BaseModel):
@@ -62,18 +39,32 @@ async def health(_=Depends(require_api_key)) -> HealthResponse:
     except Exception as e:
         db_status = f"error: {e}"
 
+    # 共享 infra 内的 Redis 客户端工厂,使用短 timeout 避免 health probe 被长
+    # socket_timeout 拖死;不复用主单例连接池,避免探测流量占用业务连接。
     redis_status = "unavailable"
-    try:
-        r = get_redis_client()
-        if r is not None:
+    if not settings.redis_host:
+        redis_status = "not configured"
+    else:
+        probe = None
+        try:
+            probe = make_redis_probe_client(
+                socket_timeout=2,
+                socket_connect_timeout=2,
+                health_check_interval=0,
+            )
             start = time.perf_counter()
-            r.ping()
+            probe.ping()
             latency_ms = (time.perf_counter() - start) * 1000
             redis_status = f"ok ({latency_ms:.1f}ms)"
-        else:
-            redis_status = "not configured"
-    except Exception as e:
-        redis_status = f"error: {e}"
+        except Exception as e:
+            # 避免外泄 socket 错误细节,只暴露类型
+            redis_status = f"error: {type(e).__name__}"
+        finally:
+            if probe is not None:
+                try:
+                    probe.connection_pool.disconnect()
+                except Exception:
+                    pass
 
     return HealthResponse(
         status="ok" if db_status == "ok" else "degraded",

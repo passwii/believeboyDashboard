@@ -70,6 +70,8 @@ from app.services.infra.redis import (
     delete_user_sessions,
     get_all_presence,
     get_redis_client,
+    is_redis_available,
+    make_redis_probe_client,
     revoke_session,
     set_user_presence,
     validate_session,
@@ -79,6 +81,8 @@ from app.services.infra.redis import (
 __all__ = [
     # redis
     "get_redis_client",
+    "is_redis_available",
+    "make_redis_probe_client",
     "close_redis_client",
     "set_user_presence",
     "get_all_presence",

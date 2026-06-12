@@ -2,6 +2,7 @@
 
 import json
 import logging
+import threading
 from datetime import UTC, datetime
 from typing import Any
 
@@ -11,7 +12,11 @@ from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-_redis_client: redis.Redis | None = None
+# 默认连接池配置(供 get_redis_client 与 health probe 共享)
+REDIS_POOL_MAX_CONNECTIONS = 20
+REDIS_POOL_SOCKET_CONNECT_TIMEOUT = 5
+REDIS_POOL_SOCKET_TIMEOUT = 5
+REDIS_POOL_HEALTH_CHECK_INTERVAL = 30
 
 # Presence
 PRESENCE_KEY_PREFIX = "presence:user:"
@@ -22,10 +27,52 @@ SESSION_KEY_PREFIX = "session:"
 SESSION_TTL_SECONDS = 8 * 3600  # 8 hours
 
 
+# 单例客户端 + 锁,避免多线程并发首次创建时出现多个 ConnectionPool
+_redis_client: redis.Redis | None = None
+_redis_lock = threading.Lock()
+
+
+def _build_connection_pool(
+    *,
+    socket_timeout: int = REDIS_POOL_SOCKET_TIMEOUT,
+    socket_connect_timeout: int = REDIS_POOL_SOCKET_CONNECT_TIMEOUT,
+    health_check_interval: int = REDIS_POOL_HEALTH_CHECK_INTERVAL,
+) -> redis.ConnectionPool:
+    """构造一个连接池。health probe 路径可以传入更短的 timeout 复用同一配置结构。"""
+    settings = get_settings()
+    return redis.ConnectionPool(
+        host=settings.redis_host,
+        port=settings.redis_port,
+        password=settings.redis_password or None,
+        db=settings.redis_db,
+        decode_responses=True,
+        max_connections=REDIS_POOL_MAX_CONNECTIONS,
+        retry_on_timeout=True,
+        socket_connect_timeout=socket_connect_timeout,
+        socket_timeout=socket_timeout,
+        health_check_interval=health_check_interval,
+    )
+
+
+def _disconnect_pool(client: redis.Redis | None) -> None:
+    """显式释放客户端关联的连接池,避免半开 socket 残留。"""
+    if client is None:
+        return
+    pool = getattr(client, "connection_pool", None)
+    if pool is not None:
+        try:
+            pool.disconnect()
+        except Exception:
+            pass
+
+
 def get_redis_client() -> redis.Redis:
     """获取 Redis 客户端。使用连接池，支持自动重连。
 
     如果现有连接已断开，会自动关闭并重建客户端。
+
+    线程安全:首次创建与重连路径都受 ``_redis_lock`` 保护,避免多线程并发
+    冷启动时产生多个 ``ConnectionPool`` 实例。
     """
     global _redis_client
     if _redis_client is not None:
@@ -34,36 +81,91 @@ def get_redis_client() -> redis.Redis:
             return _redis_client
         except (redis.ConnectionError, redis.TimeoutError, OSError):
             logger.warning("Redis connection lost, reconnecting...")
+            with _redis_lock:
+                # 双重检查:其它线程可能已经完成重连
+                if _redis_client is None:
+                    return _redis_client  # type: ignore[return-value]
+                _disconnect_pool(_redis_client)
+                try:
+                    _redis_client.close()
+                except Exception:
+                    pass
+                _redis_client = None
+
+    with _redis_lock:
+        if _redis_client is not None:
+            try:
+                _redis_client.ping()
+                return _redis_client
+            except (redis.ConnectionError, redis.TimeoutError, OSError):
+                _disconnect_pool(_redis_client)
+                try:
+                    _redis_client.close()
+                except Exception:
+                    pass
+                _redis_client = None
+
+        pool = _build_connection_pool()
+        _redis_client = redis.Redis(connection_pool=pool)
+        # 首次连接验证
+        _redis_client.ping()
+        return _redis_client
+
+
+def close_redis_client() -> None:
+    """关闭并释放 Redis 客户端与其连接池。"""
+    global _redis_client
+    with _redis_lock:
+        if _redis_client is not None:
+            _disconnect_pool(_redis_client)
             try:
                 _redis_client.close()
             except Exception:
                 pass
             _redis_client = None
 
-    settings = get_settings()
-    pool = redis.ConnectionPool(
-        host=settings.redis_host,
-        port=settings.redis_port,
-        password=settings.redis_password or None,
-        db=settings.redis_db,
-        decode_responses=True,
-        max_connections=20,
-        retry_on_timeout=True,
-        socket_connect_timeout=5,
-        socket_timeout=5,
-        health_check_interval=30,
+
+def make_redis_probe_client(
+    *,
+    socket_timeout: int = 2,
+    socket_connect_timeout: int = 2,
+    health_check_interval: int = 0,
+) -> redis.Redis:
+    """构造一个用于健康检查/低频运维探测的轻量客户端。
+
+    区别于 ``get_redis_client()`` 返回的全局单例,本工厂:
+    - 总是返回新实例,不占用主连接池
+    - 默认更短的 timeout(2s),避免 health probe 被长 socket_timeout 拖死
+    - ``health_check_interval=0`` 关闭 PING 探活,降低探测自身开销
+    """
+    pool = _build_connection_pool(
+        socket_timeout=socket_timeout,
+        socket_connect_timeout=socket_connect_timeout,
+        health_check_interval=health_check_interval,
     )
-    _redis_client = redis.Redis(connection_pool=pool)
-    # 首次连接验证
-    _redis_client.ping()
-    return _redis_client
+    return redis.Redis(connection_pool=pool)
 
 
-def close_redis_client() -> None:
-    global _redis_client
-    if _redis_client is not None:
-        _redis_client.close()
-        _redis_client = None
+def is_redis_available() -> bool:
+    """判断 Redis 是否"配置且可达"。
+
+    单一来源,用于替代散落在各处的 ``if not settings.redis_host`` /
+    ``try: get_redis_client() except: ...`` 判断。注意:此函数会做一次
+    ``ping()``(网络 RTT),请勿在每请求热路径上无脑调用——只在:
+      - 应用启动健康检查
+      - 一次会话内首次写入前的懒加载
+    等"开销可接受"的场景使用。
+    """
+    settings = get_settings()
+    if not settings.redis_host:
+        return False
+    try:
+        client = get_redis_client()
+        client.ping()
+        return True
+    except Exception as exc:
+        logger.warning("Redis availability check failed: %s", exc)
+        return False
 
 
 # ── Presence ───────────────────────────────────────────────────────────
