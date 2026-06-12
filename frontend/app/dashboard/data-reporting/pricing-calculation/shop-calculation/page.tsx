@@ -25,7 +25,7 @@ import { cn } from '@/lib/utils'
 import { useSmoothRefresh } from '@/hooks/use-smooth-refresh'
 import { ShopCalculationUsSection } from '@/components/dashboard/pricing-calculation/shop-calculation-us-section'
 import { ShopCalculationEuSection } from '@/components/dashboard/pricing-calculation/shop-calculation-eu-section'
-import type { ProjectManageOption, ProductCostItem, StoreAccountingItem } from '@/lib/pricing-calculation-types'
+import type { ProjectManageOption, ProductCostItem, ShopCalculationItem } from '@/lib/pricing-calculation-types'
 import { logClientOperation } from '@/lib/operation-audit'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
 import { useNotifications } from '@/components/notifications'
@@ -58,7 +58,7 @@ export default function ShopCalculationPage() {
 
   // Store data for export (US)
   const [storeSkus, setStoreSkus] = useState<ProductCostItem[]>([])
-  const [snapshotMap, setSnapshotMap] = useState<Map<string, StoreAccountingItem>>(new Map())
+  const [snapshotMap, setSnapshotMap] = useState<Map<string, ShopCalculationItem>>(new Map())
   // Latest storeRows from US section (updated on every calculation)
   const [usStoreRows, setUsStoreRows] = useState<Record<number, { draft: Record<string, string>; result: import('@/lib/pricing-calculation-types').PricingCalculationRunItem | null }>>({})
 
@@ -115,9 +115,9 @@ export default function ShopCalculationPage() {
         }
         setStoreSkus(skus)
 
-        let snapMap = new Map<string, StoreAccountingItem>()
+        let snapMap = new Map<string, ShopCalculationItem>()
         if (snapshotSearch.ok) {
-          const payload = await snapshotSearch.json() as { items?: StoreAccountingItem[] }
+          const payload = await snapshotSearch.json() as { items?: ShopCalculationItem[] }
           for (const s of payload.items ?? []) {
             snapMap.set(s.sku, s)
           }
@@ -281,7 +281,7 @@ export default function ShopCalculationPage() {
         const snapshot = isUS ? usStoreRows[item.id]?.result : euStoreRows[item.id]?.result
         if (!snapshot) return null
 
-        const s = snapshot as StoreAccountingItem & import('@/lib/pricing-calculation-types').PricingCalculationRunItem
+        const s = snapshot as ShopCalculationItem & import('@/lib/pricing-calculation-types').PricingCalculationRunItem
         const chargeableWeight = Math.max(
           item.weight_kg,
           (item.package_length_cm * item.package_width_cm * item.package_height_cm) / 6000,

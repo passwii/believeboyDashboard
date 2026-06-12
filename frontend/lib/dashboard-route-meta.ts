@@ -34,8 +34,6 @@ export const DASHBOARD_PAGE_TITLES: Array<{ match: string; title: string }> = [
  { match: '/ai-chat', title: 'AI Chat' },
  { match: '/ai/ad-analysis', title: 'AI 广告分析' },
  { match: '/data-analysis/research-analysis', title: '调研分析' },
- //保留旧 URL兼容（曾被 pin-settings引用，已修正）
- { match: '/tools/research-analysis', title: '调研分析' },
  { match: '/change-password', title: '修改密码' },
  { match: '/feature-updates', title: '产品更新' },
  { match: '/changelog', title: '更新日志' },
