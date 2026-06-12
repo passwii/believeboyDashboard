@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { requireUserSession } from '@/lib/auth/server'
+import { buildBackendAuthHeaders } from '@/lib/backend-auth'
 import { buildSystemPrompt, validatePromptPresetIds } from '@/lib/server/ai-chat'
 import { getBackendApiKey, getBackendBaseUrl } from '@/lib/server/backend-api'
 
@@ -34,17 +35,12 @@ export async function POST(request: Request, { params }: RouteContext) {
     return NextResponse.json({ message: 'System Prompt 选项无效' }, { status: 400 })
   }
 
-  const apiKey = getBackendApiKey()
-  if (!apiKey) {
-    return NextResponse.json({ message: '缺少后端 API Key 配置' }, { status: 500 })
-  }
-
   const upstream = await fetch(`${getBackendBaseUrl()}/api/v1/ai/conversations/${conversationId}/messages/stream`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-API-Key': apiKey,
-    },
+    headers: buildBackendAuthHeaders(session, {
+      apiKey: getBackendApiKey(),
+      contentType: 'application/json',
+    }),
     body: JSON.stringify({
       content: body.content?.trim() || '',
       model: body.model?.trim() || undefined,

@@ -30,7 +30,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { buildBackendHeaders } from '@/lib/backend-auth'
+import { buildBackendClientHeaders } from '@/lib/backend-auth'
 import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
 import { useNotifications } from '@/components/notifications'
 
@@ -477,7 +477,7 @@ export default function SystemOperationLogsPage() {
         params.set('action', CATEGORY_FILTER_ACTIONS[category])
       }
 
-      const headers = buildBackendHeaders(session)
+      const headers = buildBackendClientHeaders(session)
       const [logsResponse, summaryResponse] = await Promise.all([
         fetch(`${API_BASE}/api/v1/system-management/audit-logs?${params.toString()}`, {
           headers,
@@ -522,7 +522,7 @@ export default function SystemOperationLogsPage() {
       params.set('page_size', String(pageSize))
       params.set('action', 'auth.')
 
-      const headers = buildBackendHeaders(session)
+      const headers = buildBackendClientHeaders(session)
       const [logsResponse, summaryResponse] = await Promise.all([
         fetch(`${API_BASE}/api/v1/system-management/audit-logs?${params.toString()}`, {
           headers,
