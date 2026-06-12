@@ -5,17 +5,19 @@ import { useSession } from 'next-auth/react'
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import ManualCalculationPanel from './components/manual-calculation-panel'
+import MonthlySkuAnalysisPanel from './components/monthly-sku-analysis-panel'
 import ProductCalculationPanel from './components/product-calculation-panel'
 
 export default function ProductAnalysisPage() {
   const { data: session } = useSession()
-  const [activeTab, setActiveTab] = useState<'product-calculation' | 'manual'>('product-calculation')
+  const [activeTab, setActiveTab] = useState<'product-calculation' | 'manual' | 'monthly-sku'>('product-calculation')
 
   return (
     <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="space-y-4">
       <TabsList>
         <TabsTrigger value="product-calculation">产品核算</TabsTrigger>
         <TabsTrigger value="manual">手动核算</TabsTrigger>
+        <TabsTrigger value="monthly-sku">月度 SKU 分析</TabsTrigger>
       </TabsList>
 
       <TabsContent value="product-calculation" className="space-y-0">
@@ -24,6 +26,10 @@ export default function ProductAnalysisPage() {
 
       <TabsContent value="manual" className="space-y-0">
         <ManualCalculationPanel />
+      </TabsContent>
+
+      <TabsContent value="monthly-sku" className="space-y-0">
+        <MonthlySkuAnalysisPanel />
       </TabsContent>
     </Tabs>
   )

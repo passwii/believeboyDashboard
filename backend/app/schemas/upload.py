@@ -65,11 +65,15 @@ class ReportCommitRequest(BaseModel):
     report_end_date: str | None = None
     country: str = 'US'
     use_period_dates: bool = False
+    # True 时仅做识别校验 + 临时文件复制，不写入 analysis_source_files /
+    # analysis_*_rows 表，不写 ReportUploadLog；用于产品分析手动核算/临时核算
+    # "识别+计算"场景。返回 status='skipped' + persisted_source_id=None。
+    dry_run: bool = False
 
 
 class ReportCommitResponse(BaseModel):
     report_type: ReportUploadType
-    status: Literal['saved', 'persisted']
+    status: Literal['saved', 'persisted', 'skipped']
     project_name: str | None = None
     country: str = 'US'
     report_date: str | None = None

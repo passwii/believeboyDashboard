@@ -103,6 +103,22 @@ class ProductCalculationRunRequest(BaseModel):
     current_only: bool = True
 
 
+class ProductCalculationPreviewRequest(BaseModel):
+    """月度 SKU 临时核算请求体。
+
+    三类报告的 temp_file_id 由前端先调 recognize 端点拿到（本地缓存的
+    临时文件），后端用 temp_file_id 在 settings.upload_root / '_ad_upload_tmp'
+    或 '_report_upload_tmp' 下找到物理文件路径直读。
+    """
+    project_id: int
+    country: str = "US"
+    start_date: _date
+    end_date: _date
+    business_temp_file_id: str | None = None
+    payment_temp_file_id: str | None = None
+    ad_temp_file_id: str | None = None
+
+
 class PaymentPeriodOverlapItem(BaseModel):
     period_start_date: _date
     period_end_date: _date
