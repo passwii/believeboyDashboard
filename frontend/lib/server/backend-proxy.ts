@@ -36,17 +36,11 @@ export function buildBackendProxyHeaders(session: Session | null, requestHeaders
   // source of truth for "what headers do we send to the backend". The
   // `requestHeaders` passthrough only needs to lift `Content-Type` and
   // `Accept` (the only request headers the backend is sensitive to).
-  const record = buildBackendAuthHeaders(session, {
+  return buildBackendAuthHeaders(session, {
     apiKey: getBackendApiKey(),
     contentType: requestHeaders?.get('content-type') ?? undefined,
     accept: requestHeaders?.get('accept') ?? undefined,
   })
-
-  const headers = new Headers()
-  for (const [name, value] of Object.entries(record)) {
-    headers.set(name, value)
-  }
-  return headers
 }
 
 export async function getProxyRequestBody(request: Request) {

@@ -48,7 +48,7 @@ async function fetchCachedJson<T>(
   const response = await fetchWithTimeout(url, {
     timeoutMs: 5_000,
     cache: 'no-store',
-    headers: buildBackendClientHeaders(options?.session),
+    headers: buildBackendClientHeaders(options?.session ?? null),
   })
   if (!response.ok) {
     const message = await parseError(response, options?.fallbackError || `请求失败 (${response.status})`)

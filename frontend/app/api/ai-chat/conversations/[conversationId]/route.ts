@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
 
 import { requireUserSession } from '@/lib/auth/server'
-import { buildBackendAuthHeaders } from '@/lib/backend-auth'
+import { buildBackendAuthHeaders, getBackendApiKeyOrFail } from '@/lib/backend-auth'
 import { normalizeErrorMessage } from '@/lib/error-utils'
-import { getBackendApiKey, getBackendBaseUrl } from '@/lib/server/backend-api'
+import { getBackendBaseUrl } from '@/lib/server/backend-api'
 
 type RouteContext = {
   params: Promise<{
@@ -18,12 +18,15 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 
+  const apiKeyOrResponse = getBackendApiKeyOrFail()
+  if (apiKeyOrResponse.error) return apiKeyOrResponse.error
+
   try {
     const body = await request.json()
     const upstream = await fetch(`${getBackendBaseUrl()}/api/v1/ai/conversations/${conversationId}`, {
       method: 'PATCH',
       headers: buildBackendAuthHeaders(session, {
-        apiKey: getBackendApiKey(),
+        apiKey: apiKeyOrResponse.apiKey,
         contentType: 'application/json',
       }),
       body: JSON.stringify(body),
@@ -46,10 +49,13 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 
+  const apiKeyOrResponse = getBackendApiKeyOrFail()
+  if (apiKeyOrResponse.error) return apiKeyOrResponse.error
+
   try {
     const upstream = await fetch(`${getBackendBaseUrl()}/api/v1/ai/conversations/${conversationId}`, {
       method: 'DELETE',
-      headers: buildBackendAuthHeaders(session, { apiKey: getBackendApiKey() }),
+      headers: buildBackendAuthHeaders(session, { apiKey: apiKeyOrResponse.apiKey }),
       cache: 'no-store',
     })
     if (!upstream.ok) {
@@ -69,10 +75,13 @@ export async function POST(_request: Request, { params }: RouteContext) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 
+  const apiKeyOrResponse = getBackendApiKeyOrFail()
+  if (apiKeyOrResponse.error) return apiKeyOrResponse.error
+
   try {
     const upstream = await fetch(`${getBackendBaseUrl()}/api/v1/ai/conversations/${conversationId}/regenerate-title`, {
       method: 'POST',
-      headers: buildBackendAuthHeaders(session, { apiKey: getBackendApiKey() }),
+      headers: buildBackendAuthHeaders(session, { apiKey: apiKeyOrResponse.apiKey }),
       cache: 'no-store',
     })
     const data = await upstream.json()

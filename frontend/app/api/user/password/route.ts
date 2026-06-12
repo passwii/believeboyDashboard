@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
 
 import { requireUserSession } from '@/lib/auth/server'
-import { buildBackendAuthHeaders } from '@/lib/backend-auth'
+import { buildBackendAuthHeaders, getBackendApiKeyOrFail } from '@/lib/backend-auth'
 import { normalizeErrorMessage } from '@/lib/error-utils'
-import { backendFetchJson, getBackendApiKey } from '@/lib/server/backend-api'
+import { backendFetchJson } from '@/lib/server/backend-api'
 
 type ChangePasswordBody = {
   currentPassword?: string
@@ -46,6 +46,9 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ message: '当前密码不正确' }, { status: 400 })
   }
 
+  const apiKeyOrResponse = getBackendApiKeyOrFail()
+  if (apiKeyOrResponse.error) return apiKeyOrResponse.error
+
   // Step 2: persist the new password via the system-management endpoint. This
   // call goes directly to the backend, so we MUST build the API-key + session
   // header record via `buildBackendAuthHeaders` (single source of truth).
@@ -53,7 +56,7 @@ export async function PATCH(request: Request) {
     await backendFetchJson(`/api/v1/system-management/users/${session.user.id}`, {
       method: 'PATCH',
       headers: buildBackendAuthHeaders(session, {
-        apiKey: getBackendApiKey(),
+        apiKey: apiKeyOrResponse.apiKey,
         contentType: 'application/json',
       }),
       body: JSON.stringify({ password: newPassword }),
