@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 
 import { requireUserSession } from '@/lib/auth/server'
+import { tryCachedBackendGet } from '@/lib/server/backend-cache'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import {
   buildBackendProxyHeaders,
@@ -11,6 +12,7 @@ import {
   getProxyRequestBody,
   toProxyResponse,
 } from '@/lib/server/backend-proxy'
+import { getProxyTimeoutMs } from '@/lib/server/backend-proxy-timeout-policy'
 
 async function proxy(request: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
   const { path } = await params
@@ -41,39 +43,34 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
     return NextResponse.json({ message: 'Invalid backend path' }, { status: 400 })
   }
 
-  // Streaming endpoints (SSE / NDJSON) MUST NOT have a 10s timeout — AI
-  // insight generation can take 30-80s. Detect by URL pattern; the response
-  // content-type is checked again in toProxyResponse for safety.
-  // - /ai-insights/{id}/stream (SSE)
-  // - /ai-insights/generate/stream (legacy NDJSON, kept for back-compat)
-  const isStreamEndpoint = /\/ai-insights\/.+\/stream$/.test(backendPath) || /\/ai-insights\/generate\/stream$/.test(backendPath)
+  const search = request.nextUrl.search || ''
+  const requestAccept = request.headers.get('accept')
 
-  // Long-running endpoints that need a longer timeout:
-  // - /scheduled-reports/test-email (60s) — builds report data + AI summary + email
-  const isScheduledReportTestEmail = /\/scheduled-reports\/test-email$/.test(backendPath)
-
-  // Also detect by the request's Accept header (EventSource always sends
-  // text/event-stream; NDJSON consumers send application/x-ndjson).
-  const requestAccept = (request.headers.get('accept') || '').toLowerCase()
-  const isStreamRequest =
-    isStreamEndpoint ||
-    requestAccept.includes('text/event-stream') ||
-    requestAccept.includes('application/x-ndjson')
-
-  // Choose appropriate timeout
-  // Default: 5s short timeout — prevents long skeleton waits. The client-side
-  // useApiQuery hook also enforces 5s and auto-retries once on timeout.
-  // - Stream endpoints: no timeout (let the connection close naturally)
-  // - scheduled-reports/test-email: 60s (AI summary generation)
-  let timeoutMs = 5_000
-  if (isStreamRequest) {
-    timeoutMs = 0 // no timeout for streams
-  } else if (isScheduledReportTestEmail) {
-    timeoutMs = 60_000 // 60s for test email (AI summary generation)
+  // Try the cache path first for allowlisted high-frequency GETs. Returns
+  // a Response on cache hit/miss, or `null` when the path is not cacheable
+  // (or method is not GET/HEAD) — in which case we fall through to the
+  // live fetch below. The cache key is user-scoped (X-User-Id) + query-
+  // scoped, see `lib/server/backend-cache.ts`.
+  try {
+    const cached = await tryCachedBackendGet({
+      backendPath,
+      search,
+      session,
+      requestHeaders: request.headers,
+      method: request.method,
+    })
+    if (cached) return cached
+  } catch (error) {
+    // Cache failures must NEVER break the request — log and fall through.
+    console.warn('[proxy] backend cache failed, falling through to live fetch:', normalizeErrorMessage(error, 'unknown'))
   }
 
+  // Endpoint-tiered timeout: stream → no timeout, AI / report → 30-60s,
+  // detail / list → 5-10s. See `backend-proxy-timeout-policy.ts` for the
+  // tier table and matching rules.
+  const timeoutMs = getProxyTimeoutMs(backendPath, requestAccept)
+
   try {
-    const search = request.nextUrl.search || ''
     const response = await fetch(`${buildBackendUrl(backendPath)}${search}`, {
       method: request.method,
       headers: buildBackendProxyHeaders(session, request.headers),
@@ -81,7 +78,7 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
       cache: 'no-store',
       // Stream endpoints: no timeout (let the connection close naturally when
       // the backend finishes or the client disconnects). Other endpoints:
-      // 10s guard against runaway backend calls.
+      // the per-endpoint timeout from the tier table.
       ...(timeoutMs === 0 ? {} : { signal: AbortSignal.timeout(timeoutMs) }),
     })
     return await toProxyResponse(response)
