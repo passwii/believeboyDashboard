@@ -28,6 +28,7 @@ from app.services.product.analysis.recompute import (
     recompute_weekly_product_analysis_from_history,
     recompute_pt1_for_period,
     run_product_calculation_from_history,
+    preview_product_calculation_from_files,
 )
 
 __all__ = [
@@ -45,4 +46,5 @@ __all__ = [
     'recompute_weekly_product_analysis_from_history',
     'recompute_pt1_for_period',
     'run_product_calculation_from_history',
+    'preview_product_calculation_from_files',
 ]
