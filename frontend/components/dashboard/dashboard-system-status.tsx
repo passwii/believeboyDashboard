@@ -243,41 +243,49 @@ export function DashboardSystemStatus({ data, loading = false }: DashboardSystem
           </StatCell>
         </div>
 
-        {recentEvents.length > 0 && (
-          <div className="space-y-2 border-t border-border/50 pt-3">
-            {recentEvents.map((event) => (
-              <div
-                key={event.id}
-                className="flex items-start gap-2.5 rounded-md border border-border/60 bg-[hsl(var(--surface-subtle))] px-3 py-2.5 dark:bg-[hsl(var(--surface-soft))]"
-              >
+        {/*
+         * 预留事件列表的稳定高度，避免 skeleton→真实内容
+         * 出现 0→N 行突变造成 CLS。固定 min-h 与骨架两条 h-10 行（合计 80px）对齐。
+         * 注意：skeleton 没有 footer 占位，所以这里也不预留 footer 高度——
+         * 否则 0 acknowledged/0 resolved 的常见路径反而会多出 32px 新的 CLS。
+         */}
+        <div className="min-h-[5rem]">
+          {recentEvents.length > 0 && (
+            <div className="space-y-2 border-t border-border/50 pt-3">
+              {recentEvents.map((event) => (
                 <div
-                  className={cn(
-                    'mt-0.5 h-2 w-2 shrink-0 rounded-full',
-                    event.severity === 'critical'
-                      ? 'bg-destructive'
-                      : event.severity === 'warning'
-                        ? 'bg-amber-500'
-                        : 'bg-primary'
-                  )}
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-medium leading-tight text-foreground line-clamp-1">
-                    {event.message}
-                  </p>
-                  <div className="mt-1 flex items-center gap-2">
-                    <span className="text-[10px] text-muted-foreground">
-                      {event.deviation_pct >= 0 ? '+' : ''}{event.deviation_pct.toFixed(1)}%
-                    </span>
-                    <span className="text-[10px] text-muted-foreground">
-                      {formatRelativeTime(event.triggered_at)}
-                    </span>
+                  key={event.id}
+                  className="flex items-start gap-2.5 rounded-md border border-border/60 bg-[hsl(var(--surface-subtle))] px-3 py-2.5 dark:bg-[hsl(var(--surface-soft))]"
+                >
+                  <div
+                    className={cn(
+                      'mt-0.5 h-2 w-2 shrink-0 rounded-full',
+                      event.severity === 'critical'
+                        ? 'bg-destructive'
+                        : event.severity === 'warning'
+                          ? 'bg-amber-500'
+                          : 'bg-primary'
+                    )}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium leading-tight text-foreground line-clamp-1">
+                      {event.message}
+                    </p>
+                    <div className="mt-1 flex items-center gap-2">
+                      <span className="text-[10px] text-muted-foreground">
+                        {event.deviation_pct >= 0 ? '+' : ''}{event.deviation_pct.toFixed(1)}%
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">
+                        {formatRelativeTime(event.triggered_at)}
+                      </span>
+                    </div>
                   </div>
+                  <SeverityBadge severity={event.severity} />
                 </div>
-                <SeverityBadge severity={event.severity} />
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </div>
 
         {stats && (stats.acknowledged_today > 0 || stats.resolved_today > 0) && (
           <div className="flex items-center justify-center gap-4 border-t border-border/50 pt-2">
