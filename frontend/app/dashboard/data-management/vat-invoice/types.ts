@@ -24,9 +24,6 @@ export interface InvoiceSellerEntry {
   city: string
 }
 
-/** @deprecated 旧类型别名，仅供迁移参考。新代码请用 InvoiceSellerEntry */
-export type InvoiceSeller = InvoiceSellerEntry
-
 /** 商品明细行 */
 export interface InvoiceLineItem {
   description: string
@@ -91,7 +88,7 @@ export interface ProjectContext {
   project_name: string
   project_context: {
     invoice_sellers?: InvoiceSellerEntry[]
-    /** @deprecated 旧字段，仅供迁移读取 */
+    /** 旧单数字段，仅供惰性迁移读取（invoice-api.ts migrateSellersIfNeeded） */
     invoice_seller?: InvoiceSellerEntry
   } | null
   sku_context: unknown

@@ -49,7 +49,7 @@ BelieveBoy Dashboard 是一个**垂直领域的跨境电商运营工具**，旨�
 
 | 类别 | 技术选型 | 说明 |
 |------|----------|------|
-| **前端** | Next.js 14 | React 框架，支持 App Router |
+| **前端** | Next.js 16.2.4 | React 框架，支持 App Router |
 | **前端** | TypeScript | 类型安全的 JavaScript 超集 |
 | **前端** | Tailwind CSS | 原子化 CSS 框架 |
 | **前端** | shadcn/ui | 现代化 UI 组件库 |
@@ -57,6 +57,8 @@ BelieveBoy Dashboard 是一个**垂直领域的跨境电商运营工具**，旨�
 | **前端** | NextAuth.js | Next.js 的认证解决方案 |
 | **前端** | Recharts | React 图表库 |
 | **前端** | TanStack Table | 功能强大的数据表格组件 |
+| **前端** | GSAP / framer-motion | 高质量动画库 |
+| **前端** | ESLint 14.2.21 (next config) | 代码风格（`eslint-config-next` 故意锁 14，配合 Next 16 仍可工作） |
 | **后端** | FastAPI | 现代高性能 Python Web 框架 |
 | **后端** | SQLAlchemy | Python SQL 工具包和 ORM |
 | **后端** | Alembic | 数据库迁移工具 |
@@ -72,36 +74,84 @@ believeboyDashboard/
 ├── frontend/                      # Next.js 前端应用
 │   ├── app/                      # App Router 页面
 │   │   ├── dashboard/            # 仪表盘页面
-│   │   │   ├── ai-panel/         # AI 面板
+│   │   │   ├── ai/               # AI 概览 / AI 广告分析
+│   │   │   ├── ai-chat/          # AI Chat 入口
+│   │   │   ├── ai-insights/      # AI 洞察
+│   │   │   ├── business-dev/     # 业务开发（overview / reports / suppliers）
+│   │   │   ├── changelog/        # 更新日志
 │   │   │   ├── change-password/  # 修改密码
-│   │   │   ├── data-analysis/     # 数据分析
-│   │   │   ├── data-management/   # 数据管理
+│   │   │   ├── data-analysis/    # 数据分析
+│   │   │   │   ├── ad-analysis/  #   广告分析
+│   │   │   │   ├── daily-analysis/
+│   │   │   │   ├── financial-data/
+│   │   │   │   ├── inventory-analysis/
+│   │   │   │   ├── inventory-replenishment/
+│   │   │   │   ├── portfolio-overview/
+│   │   │   │   ├── project-goals/
+│   │   │   │   ├── research-analysis/  #   调研分析
+│   │   │   │   ├── return-analysis/
+│   │   │   │   └── weekly-product-analysis/
+│   │   │   ├── data-management/  # 数据管理
 │   │   │   ├── data-reporting/   # 报表核算
+│   │   │   │   ├── monthly-report/
+│   │   │   │   ├── pricing-calculation/  #   含 shop-calculation、new-product
+│   │   │   │   └── product-analysis/
+│   │   │   ├── digital-employees/# 数字员工
+│   │   │   ├── feature-updates/  # 产品更新
 │   │   │   ├── operations/       # 运营导航
+│   │   │   │   ├── site-navigation/
+│   │   │   │   └── store-navigation/
+│   │   │   ├── special/          # 专项工具
+│   │   │   │   └── markdown-to-word/
 │   │   │   └── system-management/ # 系统管理
-│   │   ├── api/                  # API 路由
+│   │   ├── api/                  # API 路由（含 /api/backend 代理）
+│   │   ├── login/                # 登录页
 │   │   ├── layout.tsx            # 根布局
 │   │   └── page.tsx              # 首页
 │   ├── components/               # React 组件
-│   │   ├── dashboard/            # 仪表盘组件
+│   │   ├── auth/                 #   NextAuth 相关
+│   │   ├── chat/                 #   AI Chat 组件
+│   │   ├── dashboard/            #   仪表盘业务组件
+│   │   ├── digital-employee/     #   数字员工组件
+│   │   ├── login/                #   登录组件
+│   │   ├── notifications/        #   通知/Toast 系统
+│   │   ├── report-upload/        #   报表上传组件
+│   │   ├── system/               #   系统管理组件
+│   │   ├── theme-provider.tsx    #   主题
+│   │   ├── theme-toggle.tsx      #   主题切换
+│   │   ├── global-loading-overlay.tsx
+│   │   ├── global-loading-provider.tsx
 │   │   └── ui/                   # shadcn/ui 组件
-│   ├── lib/                      # 工具库
-│   └── package.json             # 前端依赖
+│   ├── hooks/                    # React hooks
+│   ├── lib/                      # 工具库（含 api/ auth/ hooks/ server/）
+│   ├── types/                    # 全局 TS 类型
+│   ├── config/                   # Next.js / Tailwind 等配置
+│   ├── public/                   # 静态资源
+│   ├── tests/                    # Playwright 测试
+│   ├── next.config.js            # Next.js 配置
+│   ├── proxy.ts                  # 根中间件（NextAuth 代理 / build-time NEXTAUTH_SECRET 校验）
+│   ├── vitest.config.ts          # Vitest 单测配置
+│   ├── tailwind.config.ts        # Tailwind 配置
+│   ├── playwright.config.ts      # Playwright 配置
+│   └── package.json
 ├── backend/                      # FastAPI 后端
 │   ├── app/                      # 应用代码
 │   │   ├── api/                  # API 路由
 │   │   │   └── v1/endpoints/     # v1 API 端点
-│   │   ├── core/                 # 核心配置
+│   │   ├── core/                 # 核心配置（security / config / logging）
 │   │   ├── db/                   # 数据库连接
 │   │   ├── models/               # SQLAlchemy 模型
 │   │   ├── schemas/              # Pydantic 数据模型
 │   │   ├── services/             # 业务逻辑服务
 │   │   └── tasks/                # 后台任务
 │   ├── alembic/                  # 数据库迁移
-│   ├── scripts/                  # 数据导入脚本
-│   ├── tests/                    # 测试文件
-│   ├── worker/                   # 任务执行器
+│   ├── scripts/                  # 数据导入 + 运维脚本
+│   ├── tests/                    # pytest 测试
+│   ├── docs/                     # 后端设计/口径手册
 │   └── requirements.txt          # 后端依赖
+├── autoReportUpload/             # 独立服务：自动识别并上传新报表
+├── productEnvAgent/              # VPS 部署辅助脚本
+├── docs/                         # 仓库级文档
 ├── .gitignore                    # Git 忽略配置
 └── README.md                     # 项目文档
 ```
