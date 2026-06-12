@@ -1,0 +1,46 @@
+{
+  "//_comment_purpose": "Lighthouse CI config — see /docs/perf-baseline-2026-06.md for baseline numbers and the threshold formula. Thresholds below are PLACEHOLDERS (Step A scaffolding); real values are filled in after BEL-33..BEL-38 land and Step B runs the baseline measurement.",
+  "//_comment_threshold_formula": "initial_threshold = max(baseline * 1.2, target * 0.9). Target values from BEL-39: lcp<2.5s, tbt<200ms, total-byte-weight<1.2MB. Update asserts after Step B completes; do not relax a threshold that already passes without a written justification in the baseline doc.",
+  "//_comment_targets": {
+    "lcp_ms_target": 2500,
+    "tbt_ms_target": 200,
+    "total_byte_weight_kb_target": 1200,
+    "fcp_ms_target": 1800,
+    "cls_target": 0.1,
+    "tti_ms_target": 3800
+  },
+  "ci": {
+    "collect": {
+      "startServerCommand": "pnpm start",
+      "startServerReadyPattern": "Ready in",
+      "startServerReadyTimeout": 60000,
+      "serverStartupTimeout": 60000,
+      "numberOfRuns": 3,
+      "settings": {
+        "preset": "desktop",
+        "skipAudits": ["uses-http2", "is-on-https"]
+      },
+      "url": [
+        "http://localhost:3000/",
+        "http://localhost:3000/dashboard",
+        "http://localhost:3000/dashboard/data-analysis/ad-analysis/overview",
+        "http://localhost:3000/dashboard/data-reporting/monthly-report"
+      ]
+    },
+    "assert": {
+      "preset": "lighthouse:no-pwa",
+      "assertions": {
+        "categories:performance": ["error", { "minScore": 0.8 }],
+        "largest-contentful-paint": ["error", { "maxNumericValue": 3000 }],
+        "total-blocking-time": ["error", { "maxNumericValue": 300 }],
+        "cumulative-layout-shift": ["warn", { "maxNumericValue": 0.15 }],
+        "first-contentful-paint": ["warn", { "maxNumericValue": 2200 }],
+        "interactive": ["warn", { "maxNumericValue": 4500 }],
+        "total-byte-weight": ["error", { "maxNumericValue": 1500 }]
+      }
+    },
+    "upload": {
+      "target": "temporary-public-storage"
+    }
+  }
+}
