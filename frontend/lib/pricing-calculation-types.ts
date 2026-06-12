@@ -152,9 +152,6 @@ export type ShopCalculationItem = {
   updated_at: string
 }
 
-/** @deprecated Use ShopCalculationItem instead */
-export type StoreAccountingItem = ShopCalculationItem
-
 export type ProductCostItem = {
   id: number
   project_name: string
