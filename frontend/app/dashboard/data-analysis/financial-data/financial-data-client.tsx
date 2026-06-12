@@ -142,6 +142,10 @@ type FinancialAccountingDetailLine = {
   expense_zh: string
   expense_amount_usd: number
   expense_source: string
+  // BEL-43: backend stamps the local currency ISO code (USD/EUR/GBP).
+  // Frontend maps this to the symbol/label so values render in the
+  // correct currency after the user switches country.
+  currency_code?: string | null
 }
 
 type FinancialAccountingDetailResponse = {
@@ -304,7 +308,10 @@ function formatCurrency(value: number, symbol = '$'): string {
   return `${value < 0 ? '-' : ''}${symbol}${text}`
 }
 
-// 货币符号映射（基于实际支持的站点）
+// 货币符号映射（基于实际支持的站点）。
+// 在 BEL-43 之前由前端按 country 维护；现在由后端在月度明细行上
+// 返回 `currency_code`，前端保留此表仅作为月度汇总 Tab 的兜底
+// （汇总 Tab 的 series 走的是不同接口，目前不返回 currency_code）。
 const CURRENCY_SYMBOLS: Record<ReportUploadCountry, string> = {
   US: '$',
   DE: '€',
@@ -811,6 +818,18 @@ export default function FinancialDataClient({
   const [accountingLoading, setAccountingLoading] = useState(false)
   const [accountingExporting, setAccountingExporting] = useState(false)
   const [accountingError, setAccountingError] = useState<string | null>(null)
+
+  // BEL-43: derive the accounting detail Tab header label from the
+  // first row's backend-stamped currency_code when available, otherwise
+  // fall back to the country-based switch. The backend is the single
+  // source of truth for which currency the row is denominated in.
+  const accountingCurrencyLabel = useMemo(() => {
+    const stamped = accountingRows.find((row) => row.currency_code)?.currency_code
+    if (stamped === 'EUR' || stamped === 'GBP' || stamped === 'USD') {
+      return stamped
+    }
+    return currencyLabel
+  }, [accountingRows, currencyLabel])
 
   const latestRequestIdRef = useRef(0)
   const skipInitialSeriesLoadRef = useRef(Boolean(initialData))
@@ -3056,33 +3075,47 @@ export default function FinancialDataClient({
                     <TableRow className='bg-muted/20 hover:bg-muted/20'>
                       <TableHead className='border-r px-2 py-1.5 text-center'>Income</TableHead>
                       <TableHead className='border-r px-2 py-1.5 text-center'>收入</TableHead>
-                      <TableHead className='border-r px-2 py-1.5 text-center'>In金额（{currencyLabel}）</TableHead>
+                      <TableHead className='border-r px-2 py-1.5 text-center'>In金额（{accountingCurrencyLabel}）</TableHead>
                       <TableHead className='border-r px-2 py-1.5 text-center'>In源表</TableHead>
                       <TableHead className='border-r px-2 py-1.5 text-center' />
                       <TableHead className='border-r px-2 py-1.5 text-center'>Expense</TableHead>
                       <TableHead className='border-r px-2 py-1.5 text-center'>支出</TableHead>
-                      <TableHead className='border-r px-2 py-1.5 text-center'>Ex金额（{currencyLabel}）</TableHead>
+                      <TableHead className='border-r px-2 py-1.5 text-center'>Ex金额（{accountingCurrencyLabel}）</TableHead>
                       <TableHead className='px-2 py-1.5 text-center'>Ex源表</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {accountingRows.map((row, index) => (
+                    {accountingRows.map((row, index) => {
+                      // BEL-43: prefer the backend-stamped currency code;
+                      // fall back to the country-based switch for legacy
+                      // responses that predate the field.
+                      const rowCurrencyCode = row.currency_code ?? null
+                      const rowCurrencySymbol =
+                        rowCurrencyCode === 'EUR'
+                          ? '€'
+                          : rowCurrencyCode === 'GBP'
+                            ? '£'
+                            : rowCurrencyCode === 'USD'
+                              ? '$'
+                              : currencySymbol
+                      return (
                       <TableRow key={`${row.income_en}-${row.expense_en}-${index}`}>
                         <TableCell className='border-r px-2 py-1.5'>{row.income_en || '-'}</TableCell>
                         <TableCell className='border-r px-2 py-1.5'>{row.income_zh || '-'}</TableCell>
                         <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                          {formatCurrency(row.income_amount_usd)}
+                          {formatCurrency(row.income_amount_usd, rowCurrencySymbol)}
                         </TableCell>
                         <TableCell className='border-r px-2 py-1.5'>{row.income_source || '-'}</TableCell>
                         <TableCell className='border-r px-2 py-1.5 text-center text-muted-foreground'>|</TableCell>
                         <TableCell className='border-r px-2 py-1.5'>{row.expense_en || '-'}</TableCell>
                         <TableCell className='border-r px-2 py-1.5'>{row.expense_zh || '-'}</TableCell>
                         <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                          {formatCurrency(row.expense_amount_usd)}
+                          {formatCurrency(row.expense_amount_usd, rowCurrencySymbol)}
                         </TableCell>
                         <TableCell className='px-2 py-1.5'>{row.expense_source || '-'}</TableCell>
                       </TableRow>
-                    ))}
+                      )
+                    })}
                   </TableBody>
                 </Table>
               ) : (
