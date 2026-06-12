@@ -154,20 +154,23 @@ function checkFieldWarnings(
   const warnings: ThresholdWarning[] = []
   for (const field of fields) {
     const value = data[field.key]
-    if (typeof value !== 'number' || field.threshold_warning === undefined) continue
+    if (typeof value !== 'number') continue
+    const warningThreshold = field.threshold_warning ?? null
+    const criticalThreshold = field.threshold_critical ?? null
+    if (warningThreshold === null) continue
 
     let triggered = false
-    if (field.threshold_direction === 'above' && value >= field.threshold_warning) triggered = true
-    if (field.threshold_direction === 'below' && value <= field.threshold_warning) triggered = true
+    if (field.threshold_direction === 'above' && value >= warningThreshold) triggered = true
+    if (field.threshold_direction === 'below' && value <= warningThreshold) triggered = true
 
     if (triggered) {
       warnings.push({
         metric: field.label,
         value,
-        threshold: field.threshold_warning,
-        severity: field.threshold_critical !== undefined &&
-          ((field.threshold_direction === 'above' && value >= field.threshold_critical) ||
-           (field.threshold_direction === 'below' && value <= field.threshold_critical))
+        threshold: warningThreshold,
+        severity: criticalThreshold !== null &&
+          ((field.threshold_direction === 'above' && value >= criticalThreshold) ||
+           (field.threshold_direction === 'below' && value <= criticalThreshold))
           ? 'critical' : 'warning',
         message: `${field.label}: ${value}${field.unit || ''}`,
       })

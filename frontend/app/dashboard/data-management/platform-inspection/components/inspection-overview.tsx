@@ -43,7 +43,8 @@ function formatDate(dateStr: string): string {
   return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-function formatDatetime(dateStr: string): string {
+function formatDatetime(dateStr: string | null): string {
+  if (!dateStr) return ''
   const date = new Date(dateStr)
   return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
@@ -143,7 +144,7 @@ function MetricBadge({ label, value, unit = '%', threshold }: MetricBadgeProps) 
   )
 }
 
-function StatusSummaryIndicator({ content }: { content: string | undefined }) {
+function StatusSummaryIndicator({ content }: { content: string | null | undefined }) {
   if (!content) return null
 
   return (
@@ -308,7 +309,10 @@ function ProjectCard({ item, onClick, onPreviewScreenshot }: ProjectCardProps) {
           <ScreenshotCount
             count={screenshotCount}
             onPreview={() => {
-              const firstUrl = item.screenshots?.[0]?.url
+              const first = item.screenshots?.[0]
+              const firstUrl = typeof first === 'object' && first !== null && 'url' in first && typeof (first as { url: unknown }).url === 'string'
+                ? (first as { url: string }).url
+                : undefined
               if (firstUrl) onPreviewScreenshot(firstUrl)
             }}
           />

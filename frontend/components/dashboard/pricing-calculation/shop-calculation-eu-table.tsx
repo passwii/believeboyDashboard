@@ -411,7 +411,7 @@ export function ShopCalculationEuTable({
                   <div className='mx-auto max-w-[88px] rounded-md bg-destructive/10 px-1.5 py-1 text-[11px] leading-4 text-destructive'>
                     {rowState.error}
                   </div>
-                ) : result?.warnings.length ? (
+                ) : result?.warnings?.length ? (
                   <div
                     className='mx-auto max-w-[88px] truncate rounded-md bg-amber-50 px-1.5 py-1 text-[11px] leading-4 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300'
                     title={result.warnings.join('；')}
