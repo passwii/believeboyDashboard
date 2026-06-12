@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
+import dynamic from 'next/dynamic'
 
-import { DashboardSalesChart } from '@/components/dashboard/dashboard-sales-chart'
 import { DashboardPageLoading } from '@/components/dashboard/dashboard-page-loading'
 import { FactoryDashboard } from '@/components/dashboard/factory-dashboard'
 import { DashboardToolbar, type ViewMode } from '@/components/dashboard/dashboard-toolbar'
@@ -13,6 +13,34 @@ import { DashboardSystemStatus } from '@/components/dashboard/dashboard-system-s
 import { useDashboardOverview } from '@/hooks/use-dashboard-overview'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useNotifications } from '@/components/notifications'
+import { Skeleton } from '@/components/ui/skeleton'
+
+// recharts 强依赖 window/document，必须 ssr:false 才能从首屏 bundle 拆出 ~400KB recharts 主体
+const LazyDashboardSalesChart = dynamic(
+  () =>
+    import('@/components/dashboard/dashboard-sales-chart').then(
+      (m) => m.DashboardSalesChart,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className='dashboard-surface p-5'>
+        <div className='flex items-center justify-between pb-4'>
+          <div className='space-y-2'>
+            <Skeleton className='h-5 w-28' />
+            <Skeleton className='h-3 w-36' />
+          </div>
+          <Skeleton className='h-8 w-16' />
+        </div>
+        <div className='flex gap-3 pb-4'>
+          <Skeleton className='h-14 w-40' />
+          <Skeleton className='h-14 w-40' />
+        </div>
+        <Skeleton className='h-[280px] w-full rounded-lg' />
+      </div>
+    ),
+  },
+)
 
 type ProjectOption = { id: number | null; name: string }
 
@@ -354,7 +382,7 @@ export default function DashboardPage() {
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         <DashboardMetricTiles metrics={metrics} loading={anyLoading} />
-        <DashboardSalesChart dailyData={dailyData} dateRange={dateRange} projects={projects} loading={dataLoading} onRefresh={handleRefresh} />
+        <LazyDashboardSalesChart dailyData={dailyData} dateRange={dateRange} projects={projects} loading={dataLoading} onRefresh={handleRefresh} />
       </section>
 
       <DashboardSystemStatus data={overviewData} loading={overviewLoading} />
