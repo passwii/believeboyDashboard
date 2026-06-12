@@ -93,6 +93,9 @@ autoReportUpload/__pycache__/
 /frontend/playwright-report/
 /frontend/test-results/
 
+# Lighthouse CI (BEL-39)
+/frontend/.lighthouseci/
+
 # Playwright MCP
 .playwright-mcp/
 
