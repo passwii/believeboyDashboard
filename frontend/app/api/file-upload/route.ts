@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 
 import { requireUserSession } from '@/lib/auth/server'
+import { buildBackendAuthHeaders, getBackendApiKeyOrFail } from '@/lib/backend-auth'
 import { normalizeErrorMessage } from '@/lib/error-utils'
-import { getBackendApiKey, backendFetchJson } from '@/lib/server/backend-api'
+import { backendFetchJson } from '@/lib/server/backend-api'
 
 export async function POST(request: Request) {
   const session = await requireUserSession()
@@ -10,10 +11,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 
-  const apiKey = getBackendApiKey()
-  if (!apiKey) {
-    return NextResponse.json({ message: '缺少后端 API Key 配置' }, { status: 500 })
-  }
+  const apiKeyOrResponse = getBackendApiKeyOrFail()
+  if (apiKeyOrResponse.error) return apiKeyOrResponse.error
 
   try {
     const formData = new FormData()
@@ -30,9 +29,7 @@ export async function POST(request: Request) {
       truncated_note: string | null
     }>('/api/v1/ai/upload', {
       method: 'POST',
-      headers: {
-        'X-API-Key': apiKey,
-      },
+      headers: buildBackendAuthHeaders(session, { apiKey: apiKeyOrResponse.apiKey }),
       body: formData as unknown as string,
     })
 

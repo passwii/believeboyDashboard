@@ -1,5 +1,6 @@
 import type { Session } from 'next-auth'
 
+import { buildBackendAuthHeaders } from '@/lib/backend-auth'
 import { getBackendApiKey, getBackendBaseUrl } from '@/lib/server/backend-api'
 
 const RESPONSE_HEADER_ALLOWLIST = [
@@ -30,58 +31,16 @@ export function buildBackendUrl(path: string) {
 }
 
 export function buildBackendProxyHeaders(session: Session | null, requestHeaders?: Headers): Headers {
-  const apiKey = getBackendApiKey()
-  if (!apiKey) {
-    throw new Error('缺少后端 API Key 配置')
-  }
-
-  const headers = new Headers()
-  headers.set('X-API-Key', apiKey)
-
-  const contentType = requestHeaders?.get('content-type')
-  if (contentType) {
-    headers.set('Content-Type', contentType)
-  }
-
-  const accept = requestHeaders?.get('accept')
-  if (accept) {
-    headers.set('Accept', accept)
-  }
-
-  const roleType = session?.user?.roleType
-  if (roleType === 'admin') {
-    headers.set('X-Is-Admin', 'true')
-  }
-  if (roleType) {
-    headers.set('X-Role-Type', roleType)
-  }
-
-  const userId = session?.user?.id?.trim()
-  if (userId) {
-    headers.set('X-User-Id', userId)
-  }
-
-  const userName = session?.user?.operatorNameZh?.trim() || session?.user?.name?.trim()
-  if (userName) {
-    headers.set('X-User-Name', encodeURIComponent(userName))
-  }
-
-  const userEmail = session?.user?.email?.trim()
-  if (userEmail) {
-    headers.set('X-User-Email', encodeURIComponent(userEmail))
-  }
-
-  const operatorName = session?.user?.operatorNameZh?.trim()
-  if (operatorName) {
-    headers.set('X-Operator', encodeURIComponent(operatorName))
-  }
-
-  const sessionId = session?.user?.sessionId?.trim()
-  if (sessionId) {
-    headers.set('X-Session-Id', sessionId)
-  }
-
-  return headers
+  // Delegate the actual session + API-key header construction to
+  // `buildBackendAuthHeaders` in `lib/backend-auth.ts` so there is exactly one
+  // source of truth for "what headers do we send to the backend". The
+  // `requestHeaders` passthrough only needs to lift `Content-Type` and
+  // `Accept` (the only request headers the backend is sensitive to).
+  return buildBackendAuthHeaders(session, {
+    apiKey: getBackendApiKey(),
+    contentType: requestHeaders?.get('content-type') ?? undefined,
+    accept: requestHeaders?.get('accept') ?? undefined,
+  })
 }
 
 export async function getProxyRequestBody(request: Request) {

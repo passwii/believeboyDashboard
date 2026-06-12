@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 
 import { requireUserSession } from '@/lib/auth/server'
+import { buildBackendAuthHeaders, getBackendApiKeyOrFail } from '@/lib/backend-auth'
 import { normalizeErrorMessage } from '@/lib/error-utils'
-import { backendFetchJson, getBackendApiKey } from '@/lib/server/backend-api'
+import { backendFetchJson } from '@/lib/server/backend-api'
 import { buildSystemPrompt, validatePromptPresetIds } from '@/lib/server/ai-chat'
 
 type RouteContext = {
@@ -18,15 +19,13 @@ export async function GET(_request: Request, { params }: RouteContext) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 
-  try {
-    const apiKey = getBackendApiKey()
-    if (!apiKey) {
-      throw new Error('缺少后端 API Key 配置')
-    }
+  const apiKeyOrResponse = getBackendApiKeyOrFail()
+  if (apiKeyOrResponse.error) return apiKeyOrResponse.error
 
+  try {
     const data = await backendFetchJson(`/api/v1/ai/conversations/${conversationId}/messages`, {
       method: 'GET',
-      headers: { 'X-API-Key': apiKey },
+      headers: buildBackendAuthHeaders(session, { apiKey: apiKeyOrResponse.apiKey }),
       cache: 'no-store',
     })
     return NextResponse.json(data)
@@ -41,6 +40,9 @@ export async function POST(request: Request, { params }: RouteContext) {
   if (!session) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
+
+  const apiKeyOrResponse = getBackendApiKeyOrFail()
+  if (apiKeyOrResponse.error) return apiKeyOrResponse.error
 
   const body = (await request.json()) as {
     content?: string
@@ -60,17 +62,12 @@ export async function POST(request: Request, { params }: RouteContext) {
   }
 
   try {
-    const apiKey = getBackendApiKey()
-    if (!apiKey) {
-      throw new Error('缺少后端 API Key 配置')
-    }
-
     const data = await backendFetchJson(`/api/v1/ai/conversations/${conversationId}/messages`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': apiKey,
-      },
+      headers: buildBackendAuthHeaders(session, {
+        apiKey: apiKeyOrResponse.apiKey,
+        contentType: 'application/json',
+      }),
       body: JSON.stringify({
         content,
         model: body.model?.trim() || undefined,

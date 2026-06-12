@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 
 import { requireUserSession } from '@/lib/auth/server'
+import { buildBackendAuthHeaders, getBackendApiKeyOrFail } from '@/lib/backend-auth'
 import { buildSystemPrompt, validatePromptPresetIds } from '@/lib/server/ai-chat'
-import { getBackendApiKey, getBackendBaseUrl } from '@/lib/server/backend-api'
+import { getBackendBaseUrl } from '@/lib/server/backend-api'
 
 type RouteContext = {
   params: Promise<{
@@ -16,6 +17,9 @@ export async function POST(request: Request, { params }: RouteContext) {
   if (!session) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
+
+  const apiKeyOrResponse = getBackendApiKeyOrFail()
+  if (apiKeyOrResponse.error) return apiKeyOrResponse.error
 
   const body = (await request.json()) as {
     content?: string
@@ -34,17 +38,12 @@ export async function POST(request: Request, { params }: RouteContext) {
     return NextResponse.json({ message: 'System Prompt 选项无效' }, { status: 400 })
   }
 
-  const apiKey = getBackendApiKey()
-  if (!apiKey) {
-    return NextResponse.json({ message: '缺少后端 API Key 配置' }, { status: 500 })
-  }
-
   const upstream = await fetch(`${getBackendBaseUrl()}/api/v1/ai/conversations/${conversationId}/messages/stream`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-API-Key': apiKey,
-    },
+    headers: buildBackendAuthHeaders(session, {
+      apiKey: apiKeyOrResponse.apiKey,
+      contentType: 'application/json',
+    }),
     body: JSON.stringify({
       content: body.content?.trim() || '',
       model: body.model?.trim() || undefined,

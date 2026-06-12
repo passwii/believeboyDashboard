@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 
 import { requireUserSession } from '@/lib/auth/server'
+import { buildBackendAuthHeaders, getBackendApiKeyOrFail } from '@/lib/backend-auth'
 import { normalizeErrorMessage } from '@/lib/error-utils'
-import { getBackendApiKey, getBackendBaseUrl } from '@/lib/server/backend-api'
+import { getBackendBaseUrl } from '@/lib/server/backend-api'
 
 export async function POST(request: Request) {
   const session = await requireUserSession()
@@ -10,27 +11,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const apiKey = getBackendApiKey()
-  if (!apiKey) {
-    return NextResponse.json({ error: '缺少后端 API Key 配置' }, { status: 500 })
-  }
-
-  // Forward the multipart body directly — same pattern as file-upload route
+  // Forward the multipart body directly — same pattern as file-upload route.
+  // The backend requires `X-API-Key` + session context, so build the header
+  // record through `buildBackendAuthHeaders` (single source of truth shared
+  // with the `/api/backend/...` proxy).
   const url = new URL(`${getBackendBaseUrl()}/api/v1/inspections/screenshots/upload`)
   const { searchParams } = new URL(request.url)
   url.search = searchParams.toString()
 
+  const apiKeyOrResponse = getBackendApiKeyOrFail()
+  if (apiKeyOrResponse.error) return apiKeyOrResponse.error
+
+  const contentType = request.headers.get('content-type')
   try {
-    const contentType = request.headers.get('content-type')
-    const headers: Record<string, string> = {
-      'X-API-Key': apiKey,
-      'X-Operator': encodeURIComponent(session.user?.operatorNameZh || session.user?.name || ''),
-      'X-User-Id': String(session.user?.id || ''),
-      'X-Is-Admin': session.user?.roleType === 'admin' ? 'true' : 'false',
-    }
-    if (contentType) {
-      headers['Content-Type'] = contentType
-    }
+    const headers = buildBackendAuthHeaders(session, {
+      apiKey: apiKeyOrResponse.apiKey,
+      contentType: contentType ?? undefined,
+    })
 
     const response = await fetch(url, {
       method: 'POST',
