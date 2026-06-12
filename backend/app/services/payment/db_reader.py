@@ -5,11 +5,14 @@ for product analysis consumption.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 import pandas as pd
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import AnalysisPaymentRow
+from app.utils.payment_locale import read_payment_report_dataframe
 
 _PAYMENT_COLUMNS = [
     "type",
@@ -79,3 +82,13 @@ def build_df_from_sources(db: Session, *, source_ids: list[int]) -> pd.DataFrame
     if not non_empty:
         return pd.DataFrame(columns=_PAYMENT_COLUMNS)
     return pd.concat(non_empty, ignore_index=True)
+
+
+def build_df_from_file(path: Path, *, country: str = 'US') -> pd.DataFrame:
+    """从付款报告源文件直接构造 DataFrame（dry-run 预览用，不入库）。
+
+    使用 utils.payment_locale.read_payment_report_dataframe 解析 CSV（自动处理
+    header skiprows、locale 数字格式、type/description 标准化），返回的 df
+    已经是标准 _PAYMENT_COLUMNS 形式，可以直接喂给 _build_payment_aggregate。
+    """
+    return read_payment_report_dataframe(path, country=country)

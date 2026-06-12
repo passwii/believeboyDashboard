@@ -561,10 +561,10 @@ def commit_ad_upload(
         and '结束日期' not in source_df.columns
     )
 
-    if not is_periodic_row_date_upload:
+    if not is_periodic_row_date_upload and not payload.dry_run:
         _ensure_single_day_range(start_date=report_start_date, end_date=report_end_date)
 
-    if payload.report_date and not is_periodic_row_date_upload:
+    if payload.report_date and not is_periodic_row_date_upload and not payload.dry_run:
         input_report_date = _parse_yyyy_mm_dd(payload.report_date, 'report_date')
         if input_report_date != report_start_date:
             raise HTTPException(

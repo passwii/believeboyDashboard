@@ -193,6 +193,31 @@ def commit_report_upload(
         file_type=report_type,
     )
 
+    # dry_run=True：临时核算/手动核算场景 — 仅完成识别校验 + 临时文件复制，
+    # 不写入 analysis_source_files / 业务/广告/付款/退货行表，不写 ReportUploadLog。
+    # 原报表仍可继续在 report-upload 页面通过正式 commit 入库。
+    if payload.dry_run:
+        start_d = (payload.report_start_date or "").strip()
+        end_d = (payload.report_end_date or "").strip()
+        return ReportCommitResponse(
+            report_type=report_type,
+            status='skipped',
+            project_name=project_name,
+            country=country,
+            report_date=(payload.report_date or "").strip() or None,
+            report_start_date=start_d or None,
+            report_end_date=end_d or None,
+            file_id=str(file_meta["file_id"]),
+            file_path=str(file_meta["file_path"]),
+            persisted_source_id=None,
+            persisted_table=None,
+            message=(
+                f'已识别为报表（dry_run）：未写入 analysis_source_files。'
+                f'文件已暂存，临时文件 ID={file_meta["file_id"]}。'
+            ),
+            duplicate_warnings=[],
+        )
+
     # SHA-256 duplicate detection (warn only, do not block)
     file_path = Path(file_meta["file_path"])
     file_sha256 = _sha256_file(file_path)

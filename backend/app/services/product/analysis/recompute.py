@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import select, and_, or_
@@ -17,14 +18,20 @@ from app.services.product.persistence import (
     ensure_tables,
     persist_product_analysis_pt1_calculation,
 )
-from app.services.product.business import _build_business_df_from_source, _build_business_df_from_sources
+from app.services.product.business import (
+    _build_business_df_from_source,
+    _build_business_df_from_sources,
+    _build_business_df_from_file,
+)
 from app.services.product.ad import (
     _build_ad_df_from_source,
     _build_ad_df_from_sources,
     _build_ad_df_from_c_source,
     _build_ad_df_from_c_sources,
+    _build_ad_df_from_file,
 )
 from app.services.payment import build_df_from_source, build_df_from_sources
+from app.services.payment.db_reader import build_df_from_file as _build_payment_df_from_file
 from app.tasks.scripts import product_analysis as product_analysis_script
 from app.services.report_type_service import AD_PRODUCT_REPORT
 from app.utils.country import normalize_country as _normalize_country
@@ -405,4 +412,117 @@ def run_product_calculation_from_history(
         'country': normalized_country,
         'total_periods': len(periods),
         'periods': periods,
+    }
+
+
+def preview_product_calculation_from_files(
+    db: Session,
+    *,
+    project_id: int,
+    country: str = 'US',
+    start_date: date,
+    end_date: date,
+    business_file_path: Path | None = None,
+    payment_file_path: Path | None = None,
+    ad_file_path: Path | None = None,
+) -> dict[str, Any]:
+    """月度 SKU 预览：直接从临时文件构造 DataFrame 跑核算，不写 DB。
+
+    与 run_product_calculation_from_history 的区别：
+    - 跳过 _list_history_weekly_period_sources（DB 查询源文件）
+    - 直接用传入的 temp file path 调 _build_*_df_from_file
+    - 永不调用 persist_product_analysis_pt1_calculation（即使日期是单整周）
+
+    返回结构与 run_product_calculation_from_history 完全一致（persisted: false），
+    前端可以直接喂给 exportProductAnalysisToExcel。
+    """
+    project = db.get(Project, project_id)
+    if project is None:
+        raise ValueError('project not found')
+
+    normalized_country = _normalize_country(country)
+
+    # Product cost 仍然从 DB 读（这是项目主数据，临时预览场景下也合理从主数据拿）
+    year_month = end_date.strftime('%Y-%m')
+    try:
+        df_cost = _build_active_product_costs_df(
+            db,
+            project_name=project.project_name,
+            country=normalized_country,
+            year_month=year_month,
+        )
+    except ValueError:
+        # 没有 active product_costs 也能算（仅 0 cost 行），让上层 UI 决定
+        from pandas import DataFrame
+        df_cost = DataFrame(columns=['SKU', 'ASIN', '头程单价', 'FOB单价'])
+
+    # 业务/广告/付款 — 从 temp file 路径直读
+    if business_file_path is not None and Path(business_file_path).exists():
+        df_business = _build_business_df_from_file(Path(business_file_path))
+    else:
+        from pandas import DataFrame
+        df_business = DataFrame(columns=['ASIN', '页面浏览量', '总销量', '总访客', '总销售额'])
+
+    if ad_file_path is not None and Path(ad_file_path).exists():
+        # 需要 known_skus/known_asins 解析 ad 时正确分类 scope
+        from app.services.product.persistence import _load_project_product_mapping
+        try:
+            known_skus, known_asins = _load_project_product_mapping(
+                db, project.project_name, normalized_country,
+            )
+        except Exception:
+            known_skus, known_asins = set(), set()
+        df_ad = _build_ad_df_from_file(
+            Path(ad_file_path),
+            known_skus=known_skus,
+            known_asins=known_asins,
+        )
+    else:
+        from pandas import DataFrame
+        df_ad = DataFrame(columns=[
+            'SKU', '广告展示量', '广告点击量', '广告花费', '广告销售额', '广告订单量',
+        ])
+
+    if payment_file_path is not None and Path(payment_file_path).exists():
+        df_payment = _build_payment_df_from_file(
+            Path(payment_file_path), country=normalized_country,
+        )
+    else:
+        from pandas import DataFrame
+        df_payment = DataFrame(columns=[
+            'type', 'sku', 'quantity', 'product sales', 'shipping credits',
+            'promotional rebates', 'other', 'selling fees', 'fba fees',
+        ])
+
+    report_date_str = product_analysis_script._format_report_date(
+        start_date.isoformat(), end_date.isoformat(),
+    )
+    df_overview = product_analysis_script._build_overview(
+        project.project_name,
+        report_date_str,
+        df_cost,
+        df_business,
+        df_ad,
+        product_analysis_script._build_payment_aggregate(df_payment),
+    )
+    df_overview = product_analysis_script._append_summary_row(df_overview, report_date_str)
+    pt1 = product_analysis_script._build_pt1_payload(df_overview)
+
+    return {
+        'project_id': int(project.id),
+        'project_name': project.project_name,
+        'country': normalized_country,
+        'total_periods': 1,
+        'periods': [{
+            'pt1_id': None,
+            'version': None,
+            'report_start_date': start_date.isoformat(),
+            'report_end_date': end_date.isoformat(),
+            'summary': pt1['summary'],
+            'details': pt1['details'],
+            'is_partial': False,
+            'completeness': None,
+            'persisted': False,
+            'preview': True,
+        }],
     }

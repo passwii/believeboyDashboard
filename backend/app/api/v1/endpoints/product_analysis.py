@@ -17,6 +17,7 @@ from app.schemas.product_analysis_source import (
     ProductAnalysisWeeklyRecomputeResponse,
     ProductCalculationCheckRequest,
     ProductCalculationCheckResponse,
+    ProductCalculationPreviewRequest,
     ProductCalculationRunRequest,
     ProductCalculationRunResponse,
 )
@@ -29,6 +30,7 @@ from app.services.audit_log_service import append_operation_audit_log
 from app.services.product.analysis import (
     check_product_calculation_data_availability,
     list_weekly_product_analysis_from_details,
+    preview_product_calculation_from_files,
     recompute_pt1_for_period,
     recompute_weekly_product_analysis_from_history,
     run_product_calculation_from_history,
@@ -54,6 +56,10 @@ from app.services.infra import (
 )
 from app.utils.country import normalize_country
 from app.utils.math_utils import to_float as _to_float, safe_div as _safe_div
+from app.core.config import Settings, get_settings as _get_settings
+from app.services.ad.upload.recognition import resolve_ad_upload_temp_file_path as _resolve_ad_temp
+from app.services.upload_service import resolve_report_upload_temp_file_path as _resolve_report_temp
+from pathlib import Path as _Path
 
 
 def _normalize_country(value: str | None) -> str:
@@ -717,6 +723,100 @@ def run_product_calculation(
         if detail == "project not found":
             raise HTTPException(status_code=404, detail=detail) from exc
         raise HTTPException(status_code=400, detail=detail) from exc
+    except Exception:
+        db.rollback()
+        raise
+    return result
+
+
+@router.post("/product-analysis/calculation/preview", response_model=ProductCalculationRunResponse)
+def preview_product_calculation(
+    body: ProductCalculationPreviewRequest,
+    request: Request,
+    settings: Settings = Depends(_get_settings),
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
+):
+    """月度 SKU 临时核算（不入库）。
+
+    三类报告的 temp_file_id 必须已通过各自的 recognize 端点识别成功并落盘。
+    端点会直读 temp file 路径构造 DataFrame 跑核算，**永不调用 persist_* 写库**。
+    返回的 periods 全部为 `persisted=False, preview=True`。
+    """
+    project_service.ensure_project_access(
+        db,
+        body.project_id,
+        operator=operator,
+        is_admin=bool(is_admin),
+    )
+    normalized_country = _normalize_country(body.country)
+
+    def _resolve_path(temp_file_id: str | None) -> _Path | None:
+        if not temp_file_id:
+            return None
+        # 业务/付款走 report-upload tmp；广告走 ad-upload tmp
+        if temp_file_id.endswith(('.xlsx', '.xls')):
+            return _resolve_ad_temp(settings, temp_file_id)
+        return _resolve_report_temp(settings, temp_file_id)
+
+    business_path = _resolve_path(body.business_temp_file_id)
+    payment_path = _resolve_path(body.payment_temp_file_id)
+    ad_path = _resolve_path(body.ad_temp_file_id)
+
+    missing = []
+    if business_path is None or not business_path.exists():
+        missing.append('business_temp_file_id')
+    if payment_path is None or not payment_path.exists():
+        missing.append('payment_temp_file_id')
+    if ad_path is None or not ad_path.exists():
+        missing.append('ad_temp_file_id')
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f'临时文件不存在或已失效: {", ".join(missing)}',
+        )
+
+    try:
+        result = preview_product_calculation_from_files(
+            db,
+            project_id=body.project_id,
+            country=normalized_country,
+            start_date=body.start_date,
+            end_date=body.end_date,
+            business_file_path=business_path,
+            payment_file_path=payment_path,
+            ad_file_path=ad_path,
+        )
+        append_operation_audit_log(
+            db,
+            action="product_analysis.calculation.preview",
+            target_type="product_analysis_weekly",
+            target_id=body.project_id,
+            operator=operator,
+            after={
+                "project_id": body.project_id,
+                "country": normalized_country,
+                "start_date": body.start_date.isoformat(),
+                "end_date": body.end_date.isoformat(),
+                "temp_file_ids": {
+                    "business": body.business_temp_file_id,
+                    "payment": body.payment_temp_file_id,
+                    "ad": body.ad_temp_file_id,
+                },
+            },
+            request=request,
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        detail = str(exc)
+        if detail == "project not found":
+            raise HTTPException(status_code=404, detail=detail) from exc
+        raise HTTPException(status_code=400, detail=detail) from exc
+    except FileNotFoundError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception:
         db.rollback()
         raise
