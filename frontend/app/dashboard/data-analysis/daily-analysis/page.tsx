@@ -58,6 +58,7 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import { EmptyTableState } from '@/components/ui/empty-state'
+import { useIsMobile } from '@/hooks/use-mobile'
 import {
   DirectionalTabTransition,
   SlidingTabsTrigger,
@@ -410,17 +411,6 @@ function isBarMetric(metric: ChartMetricKey) {
     metric === 'sales_amount' ||
     metric === 'units_ordered'
   )
-}
-
-/** Subscribe to window resize, return true when viewport < 640px (mobile). */
-function useMobile(breakpoint = 640) {
-  const subscribe = useCallback(() => () => {}, [])
-  const getSnapshot = useCallback(
-    () => typeof window !== 'undefined' && window.innerWidth < breakpoint,
-    [breakpoint],
-  )
-  const getServerSnapshot = useCallback(() => false, [])
-  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
 }
 
 function aggregateMetric(rows: DailyAnalysisRow[], metric: ChartMetricKey) {
@@ -1200,7 +1190,7 @@ function DailyMetricChart({
 export default function DailyAnalysisPage() {
   const { notify } = useNotifications()
   const { data: session } = useSession()
-  const isMobile = useMobile()
+  const isMobile = useIsMobile()
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
   const [projectId, setProjectId] = useState<string>('all')
