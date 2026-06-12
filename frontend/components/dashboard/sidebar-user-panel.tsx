@@ -51,8 +51,12 @@ function getRoleLabel(roleType: string | undefined): string | null {
  * - mouse leave rail+column 150ms 延迟关闭
  * - Pin 按钮锁定，导航后仍开
  * - X 按钮立即关闭
+ *
+ * 性能要点：
+ * - React.memo + 默认浅比较：user / 回调引用稳定时，路由切换不会重渲染本组件。
+ * - 不订阅 usePathname()：本面板内容（用户信息、主题、退出登录）与路由无关。
  */
-export function SidebarUserPanel({
+export const SidebarUserPanel = React.memo(function SidebarUserPanel({
   user,
   pinned,
   onClose,
@@ -178,7 +182,7 @@ export function SidebarUserPanel({
       </div>
     </div>
   )
-}
+})
 
 /**
  * 主题切换：3 按钮并排（浅色 / 深色 / 跟随系统），当前主题高亮。
