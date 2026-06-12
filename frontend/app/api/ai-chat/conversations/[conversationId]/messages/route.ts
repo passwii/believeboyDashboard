@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { requireUserSession } from '@/lib/auth/server'
+import { buildBackendAuthHeaders } from '@/lib/backend-auth'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import { backendFetchJson, getBackendApiKey } from '@/lib/server/backend-api'
 import { buildSystemPrompt, validatePromptPresetIds } from '@/lib/server/ai-chat'
@@ -19,14 +20,9 @@ export async function GET(_request: Request, { params }: RouteContext) {
   }
 
   try {
-    const apiKey = getBackendApiKey()
-    if (!apiKey) {
-      throw new Error('缺少后端 API Key 配置')
-    }
-
     const data = await backendFetchJson(`/api/v1/ai/conversations/${conversationId}/messages`, {
       method: 'GET',
-      headers: { 'X-API-Key': apiKey },
+      headers: buildBackendAuthHeaders(session, { apiKey: getBackendApiKey() }),
       cache: 'no-store',
     })
     return NextResponse.json(data)
@@ -60,17 +56,12 @@ export async function POST(request: Request, { params }: RouteContext) {
   }
 
   try {
-    const apiKey = getBackendApiKey()
-    if (!apiKey) {
-      throw new Error('缺少后端 API Key 配置')
-    }
-
     const data = await backendFetchJson(`/api/v1/ai/conversations/${conversationId}/messages`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': apiKey,
-      },
+      headers: buildBackendAuthHeaders(session, {
+        apiKey: getBackendApiKey(),
+        contentType: 'application/json',
+      }),
       body: JSON.stringify({
         content,
         model: body.model?.trim() || undefined,

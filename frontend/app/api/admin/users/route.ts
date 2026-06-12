@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { requireAdminSession } from '@/lib/auth/server'
+import { buildBackendAuthHeaders } from '@/lib/backend-auth'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import { backendFetchJson, getBackendApiKey } from '@/lib/server/backend-api'
 
@@ -38,15 +39,10 @@ export async function GET() {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 
-  const apiKey = getBackendApiKey()
-  if (!apiKey) {
-    return NextResponse.json({ message: '缺少后端 API Key 配置' }, { status: 500 })
-  }
-
   try {
     const data = await backendFetchJson<{ items: UserItem[] }>('/api/v1/system-management/users', {
       method: 'GET',
-      headers: { 'X-API-Key': apiKey },
+      headers: buildBackendAuthHeaders(session, { apiKey: getBackendApiKey() }),
       cache: 'no-store',
     })
     return NextResponse.json({ items: data.items.map(toFrontendUser) })
@@ -59,11 +55,6 @@ export async function POST(request: Request) {
   const session = await requireAdminSession()
   if (!session) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
-  }
-
-  const apiKey = getBackendApiKey()
-  if (!apiKey) {
-    return NextResponse.json({ message: '缺少后端 API Key 配置' }, { status: 500 })
   }
 
   const body = (await request.json()) as {
@@ -79,10 +70,10 @@ export async function POST(request: Request) {
   try {
     const data = await backendFetchJson<{ item: UserItem }>('/api/v1/system-management/users', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': apiKey,
-      },
+      headers: buildBackendAuthHeaders(session, {
+        apiKey: getBackendApiKey(),
+        contentType: 'application/json',
+      }),
       body: JSON.stringify({
         name: body.name,
         email: body.email,

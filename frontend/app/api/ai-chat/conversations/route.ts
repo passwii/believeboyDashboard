@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { requireUserSession } from '@/lib/auth/server'
+import { buildBackendAuthHeaders } from '@/lib/backend-auth'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import { backendFetchJson, getBackendApiKey } from '@/lib/server/backend-api'
 
@@ -11,14 +12,9 @@ export async function GET() {
   }
 
   try {
-    const apiKey = getBackendApiKey()
-    if (!apiKey) {
-      throw new Error('缺少后端 API Key 配置')
-    }
-
     const data = await backendFetchJson('/api/v1/ai/conversations', {
       method: 'GET',
-      headers: { 'X-API-Key': apiKey },
+      headers: buildBackendAuthHeaders(session, { apiKey: getBackendApiKey() }),
       cache: 'no-store',
     })
     return NextResponse.json(data)
@@ -36,17 +32,12 @@ export async function POST(request: Request) {
   const body = (await request.json()) as { title?: string }
 
   try {
-    const apiKey = getBackendApiKey()
-    if (!apiKey) {
-      throw new Error('缺少后端 API Key 配置')
-    }
-
     const data = await backendFetchJson('/api/v1/ai/conversations', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': apiKey,
-      },
+      headers: buildBackendAuthHeaders(session, {
+        apiKey: getBackendApiKey(),
+        contentType: 'application/json',
+      }),
       body: JSON.stringify({ title: body.title }),
       cache: 'no-store',
     })
