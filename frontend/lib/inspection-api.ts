@@ -1,151 +1,43 @@
+/**
+ * Type re-exports for the inspection API.
+ *
+ * Per BEL-22-3 / BEL-29, the **single source of truth** for these DTOs lives in
+ * `backend/app/schemas/inspection.py`. We re-export the auto-generated
+ * `components["schemas"][...]` aliases here so the rest of the frontend can
+ * keep importing from `@/lib/inspection-api` without churn.
+ *
+ * The shapes are compatible with the previous hand-written interfaces — the
+ * only differences:
+ *   - `null` is now explicit on optional fields (the generated types use
+ *     `T | null` for fields Pydantic declares as `Optional[...] = None`).
+ *   - `InspectionReport.status` is `string` instead of a literal union; the
+ *     backend controls the canonical list of statuses and we'd rather fail
+ *     open than block valid responses.
+ *
+ * If you find yourself needing a shape that is *not* a re-export, you are
+ * adding a new schema — update `backend/app/schemas/inspection.py` and run
+ * `make openapi-export && pnpm gen:api-types`. Do not hand-mirror here.
+ */
+import type { components } from '@/types/api-generated/api'
+
+export type HealthData = components['schemas']['HealthData']
+export type ComplianceData = components['schemas']['ComplianceData']
+export type InspectionTemplateField = components['schemas']['InspectionTemplateField']
+export type InspectionTemplate = components['schemas']['InspectionTemplateResponse']
+export type InspectionPeriod = components['schemas']['InspectionPeriodItem']
+export type InspectionScreenshot = components['schemas']['InspectionScreenshotItem']
+export type InspectionReport = components['schemas']['InspectionReportItem']
+export type InspectionOverviewItem = components['schemas']['InspectionOverviewItem']
+export type InspectionOverview = components['schemas']['InspectionOverviewResponse']
+export type InspectionHistoryScreenshot = components['schemas']['InspectionHistoryScreenshot']
+export type InspectionHistoryItem = components['schemas']['InspectionHistoryItem']
+export type InspectionHistoryResponse = components['schemas']['InspectionHistoryResponse']
+
 const API_BASE = '/api/backend'
 
 function resolveApiUrl(path: string) {
   const base = API_BASE.endsWith('/') ? API_BASE.slice(0, -1) : API_BASE
   return `${base}${path}`
-}
-
-// ============================================================================
-// Types
-// ============================================================================
-
-export interface HealthData {
-  account_health_rating?: string
-  // 客户服务绩效
-  negative_feedback?: number
-  a2z_claims?: number
-  chargeback_claims?: number
-  // 配送绩效
-  late_shipment_rate?: number
-  pre_fulfillment_cancel_rate?: number
-  valid_tracking_rate?: number
-  on_time_delivery_rate?: number
-}
-
-export interface ComplianceData {
-  ip_infringement?: number
-  ip_complaints?: number
-  product_authenticity_complaints?: number
-  product_condition_complaints?: number
-  food_product_safety?: number
-  listing_policy_violations?: number
-  restricted_product_violations?: number
-  review_policy_violations?: number
-  other_policy_violations?: number
-  regulatory_compliance?: number
-}
-
-export interface InspectionTemplateField {
-  key: string
-  label: string
-  label_en: string
-  type: string
-  unit?: string
-  options?: string[]
-  threshold_warning?: number
-  threshold_critical?: number
-  threshold_direction?: string
-}
-
-export interface InspectionTemplate {
-  health_fields: InspectionTemplateField[]
-  service_performance_fields: InspectionTemplateField[]
-  shipping_performance_fields: InspectionTemplateField[]
-  compliance_fields: InspectionTemplateField[]
-}
-
-export interface InspectionPeriod {
-  id: number
-  week_start: string
-  week_end: string
-  deadline: string
-  created_at: string
-}
-
-export interface InspectionScreenshot {
-  id: number
-  r2_key: string
-  filename: string
-  content_type: string
-  file_size: number
-  caption?: string
-  sort_order: number
-  url: string
-  thumbnail_url?: string
-  created_at: string
-}
-
-export interface InspectionReport {
-  id: number
-  period_id: number
-  project_id: number
-  status: 'draft' | 'submitted' | 'overdue'
-  health_data: HealthData | null
-  compliance_data: ComplianceData | null
-  status_summary?: string
-  submitted_by?: string
-  submitted_at?: string
-  screenshots: InspectionScreenshot[]
-  created_at: string
-  updated_at: string
-}
-
-export interface InspectionOverviewItem {
-  project_id: number
-  project_name: string
-  status: 'submitted' | 'draft' | 'overdue' | 'pending'
-  account_health_rating?: string
-  negative_feedback?: number
-  a2z_claims?: number
-  chargeback_claims?: number
-  late_shipment_rate?: number
-  valid_tracking_rate?: number
-  on_time_delivery_rate?: number
-  compliance_total?: number
-  status_summary?: string
-  submitted_by?: string
-  submitted_at?: string
-  screenshots?: {
-    id: number
-    url: string
-    thumbnail_url?: string
-    caption?: string
-  }[]
-}
-
-export interface InspectionOverview {
-  period: InspectionPeriod
-  items: InspectionOverviewItem[]
-  total_projects: number
-  submitted_count: number
-  overdue_count: number
-}
-
-export interface InspectionHistoryScreenshot {
-  id: number
-  url: string
-  thumbnail_url?: string | null
-  caption?: string | null
-}
-
-export interface InspectionHistoryItem {
-  id: number
-  period_id: number
-  week_start: string
-  week_end: string
-  project_id: number
-  project_name: string
-  status: string
-  account_health_rating?: string
-  compliance_total?: number
-  submitted_by?: string
-  submitted_at?: string
-  screenshots?: InspectionHistoryScreenshot[]
-}
-
-export interface InspectionHistoryResponse {
-  items: InspectionHistoryItem[]
-  total: number
 }
 
 // ============================================================================

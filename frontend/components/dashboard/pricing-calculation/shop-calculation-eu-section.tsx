@@ -111,7 +111,10 @@ function snapshotToResult(
     fob_product_cost_rmb: snapshot.fob_product_cost_rmb,
     first_leg_cost_rmb: snapshot.first_leg_cost_rmb,
     sale_price_usd: snapshot.sale_price_usd,
-    commission_rate: snapshot.commission_rate ?? 0.15,
+    // ShopCalculationItem does not echo commission_rate; PricingCalculationRunItem
+    // requires it. Use the standard US default; if the backend later exposes
+    // per-snapshot commission, plumb it through here.
+    commission_rate: 0.15,
     advertising_rate: snapshot.advertising_rate,
     return_loss_rate: snapshot.return_loss_rate,
     storage_months: snapshot.storage_months,
@@ -128,11 +131,29 @@ function snapshotToResult(
     dimensions: snapshot.dimensions,
     weights: snapshot.weights,
     fees: snapshot.fees,
-    profit: snapshot.profit,
-    warnings: snapshot.warnings,
+    // ShopCalculationProfit is a subset of PricingCalculationProfit (no
+    // delivery_fee_usd / full_container_*). Map explicitly so the difference
+    // is visible at the call site.
+    profit: {
+      ddp_cost_rmb: snapshot.profit.ddp_cost_rmb,
+      ddp_cost_usd: snapshot.profit.ddp_cost_usd,
+      payout_usd: snapshot.profit.payout_usd,
+      profit_usd: snapshot.profit.profit_usd,
+      profit_rate: snapshot.profit.profit_rate,
+      vat_usd: snapshot.profit.vat_usd,
+      profit_after_vat_usd: snapshot.profit.profit_after_vat_usd ?? null,
+      profit_after_vat_rate: snapshot.profit.profit_after_vat_rate ?? null,
+      delivery_fee_usd: 0,
+      full_container_quantity: 0,
+      full_container_price_rmb: 0,
+    },
+    warnings: snapshot.warnings ?? [],
     created_by: snapshot.created_by,
     created_at: snapshot.created_at,
     updated_at: snapshot.updated_at,
+    delivery_fee_usd: 0,
+    full_container_quantity: 0,
+    full_container_price_rmb: 0,
   }
 }
 
