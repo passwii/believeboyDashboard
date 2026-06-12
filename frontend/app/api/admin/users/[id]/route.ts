@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
 
 import { requireAdminSession } from '@/lib/auth/server'
-import { buildBackendAuthHeaders } from '@/lib/backend-auth'
+import { buildBackendAuthHeaders, getBackendApiKeyOrFail } from '@/lib/backend-auth'
 import { normalizeErrorMessage } from '@/lib/error-utils'
-import { backendFetchJson, getBackendApiKey, getBackendBaseUrl } from '@/lib/server/backend-api'
+import { backendFetchJson, getBackendBaseUrl } from '@/lib/server/backend-api'
 
 type UserItem = {
   id: string
@@ -40,6 +40,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 
+  const apiKeyOrResponse = getBackendApiKeyOrFail()
+  if (apiKeyOrResponse.error) return apiKeyOrResponse.error
+
   const body = (await request.json()) as {
     name?: string
     fullName?: string
@@ -63,7 +66,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       {
         method: 'PATCH',
         headers: buildBackendAuthHeaders(session, {
-          apiKey: getBackendApiKey(),
+          apiKey: apiKeyOrResponse.apiKey,
           contentType: 'application/json',
         }),
         body: JSON.stringify({
@@ -92,10 +95,13 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
 
+  const apiKeyOrResponse = getBackendApiKeyOrFail()
+  if (apiKeyOrResponse.error) return apiKeyOrResponse.error
+
   const baseUrl = getBackendBaseUrl()
   const response = await fetch(`${baseUrl}/api/v1/system-management/users/${id}`, {
     method: 'DELETE',
-    headers: buildBackendAuthHeaders(session, { apiKey: getBackendApiKey() }),
+    headers: buildBackendAuthHeaders(session, { apiKey: apiKeyOrResponse.apiKey }),
     cache: 'no-store',
   })
 

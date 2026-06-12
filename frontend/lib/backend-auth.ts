@@ -1,5 +1,7 @@
 import type { Session } from 'next-auth'
 
+import { getBackendApiKey } from '@/lib/server/backend-api'
+
 /**
  * Unified header builder for backend API calls.
  *
@@ -24,7 +26,9 @@ import type { Session } from 'next-auth'
  *     side, injects `X-API-Key` plus the full session context
  *     (`X-User-Id` / `X-User-Name` / `X-User-Email` / `X-Operator` /
  *     `X-Is-Admin` / `X-Role-Type` / `X-Session-Id`). Use this in any Route
- *     Handler that calls the backend directly.
+ *     Handler that calls the backend directly. The caller is responsible for
+ *     resolving `apiKey` (typically via `getBackendApiKey()` / the
+ *     `getBackendApiKeyOrFail` early-return helper).
  *   - `buildBackendClientHeaders(session, { contentType? })` — client side,
  *     returns the session-only header subset (no API key, which the browser
  *     must never carry). The proxy re-injects everything anyway; this helper
@@ -40,97 +44,94 @@ import type { Session } from 'next-auth'
  */
 
 type BuildBackendAuthHeadersOptions = {
-  /** When provided, sets `Content-Type` on the returned record. */
+  /** When provided, sets `Content-Type` on the returned headers. */
   contentType?: string
-  /** When provided, sets `Accept` on the returned record. */
+  /** When provided, sets `Accept` on the returned headers. */
   accept?: string
 }
 
 const ROLE_HEADER_VALUE_ADMIN = 'true'
 
-function pickUserId(session: Session | null): string | null {
+function pickTrimmed(session: Session | null, key: keyof NonNullable<Session['user']>): string | null {
   if (!session) return null
-  const userId = session.user?.id?.trim()
-  return userId ? userId : null
+  const raw = session.user?.[key]
+  if (typeof raw !== 'string') return null
+  const trimmed = raw.trim()
+  return trimmed ? trimmed : null
+}
+
+function pickUserId(session: Session | null): string | null {
+  return pickTrimmed(session, 'id')
 }
 
 function pickUserName(session: Session | null): string | null {
   if (!session) return null
-  return session.user?.operatorNameZh?.trim() || session.user?.name?.trim() || null
+  return pickOperatorName(session) ?? pickTrimmed(session, 'name')
 }
 
 function pickUserEmail(session: Session | null): string | null {
-  if (!session) return null
-  const email = session.user?.email?.trim()
-  return email ? email : null
+  return pickTrimmed(session, 'email')
 }
 
 function pickOperatorName(session: Session | null): string | null {
-  if (!session) return null
-  return session.user?.operatorNameZh?.trim() || null
+  return pickTrimmed(session, 'operatorNameZh')
 }
 
 function pickSessionId(session: Session | null): string | null {
-  if (!session) return null
-  return session.user?.sessionId?.trim() || null
+  return pickTrimmed(session, 'sessionId')
 }
 
 function pickRoleType(session: Session | null): string | null {
-  if (!session) return null
-  return session.user?.roleType?.trim() || null
+  return pickTrimmed(session, 'roleType')
 }
 
 function isAdmin(session: Session | null): boolean {
   return pickRoleType(session) === 'admin'
 }
 
-function pickSessionContextHeaders(
+function applySessionContextHeaders(
   session: Session | null,
-  headers: Record<string, string>
-): Record<string, string> {
+  headers: Headers
+): Headers {
   const userId = pickUserId(session)
-  if (userId) headers['X-User-Id'] = userId
+  if (userId) headers.set('X-User-Id', userId)
 
   const userName = pickUserName(session)
-  if (userName) headers['X-User-Name'] = encodeURIComponent(userName)
+  if (userName) headers.set('X-User-Name', encodeURIComponent(userName))
 
   const userEmail = pickUserEmail(session)
-  if (userEmail) headers['X-User-Email'] = encodeURIComponent(userEmail)
+  if (userEmail) headers.set('X-User-Email', encodeURIComponent(userEmail))
 
   const operatorName = pickOperatorName(session)
-  if (operatorName) headers['X-Operator'] = encodeURIComponent(operatorName)
+  if (operatorName) headers.set('X-Operator', encodeURIComponent(operatorName))
 
   const roleType = pickRoleType(session)
-  if (roleType) headers['X-Role-Type'] = roleType
-  if (isAdmin(session)) headers['X-Is-Admin'] = ROLE_HEADER_VALUE_ADMIN
+  if (roleType) headers.set('X-Role-Type', roleType)
+  if (isAdmin(session)) headers.set('X-Is-Admin', ROLE_HEADER_VALUE_ADMIN)
 
   const sessionId = pickSessionId(session)
-  if (sessionId) headers['X-Session-Id'] = sessionId
+  if (sessionId) headers.set('X-Session-Id', sessionId)
 
   return headers
 }
 
 /**
- * Server-side: returns a `Record<string, string>` carrying the API key and the
- * full session context. Use this from any file that calls the backend
- * directly (Route Handler, Server Action). Throws if `apiKey` is empty, since
- * the backend would reject the request anyway.
+ * Server-side: returns a `Headers` carrying the API key and the full session
+ * context. Use this from any file that calls the backend directly (Route
+ * Handler, Server Action). The caller MUST resolve `apiKey` and short-circuit
+ * with a structured JSON response when it is missing — this helper does not
+ * throw so that error response shape stays under caller control.
  */
 export function buildBackendAuthHeaders(
   session: Session | null,
   options: BuildBackendAuthHeadersOptions & { apiKey: string }
-): Record<string, string> {
-  if (!options.apiKey) {
-    throw new Error('缺少后端 API Key 配置')
-  }
+): Headers {
+  const headers = new Headers()
+  headers.set('X-API-Key', options.apiKey)
+  if (options.contentType) headers.set('Content-Type', options.contentType)
+  if (options.accept) headers.set('Accept', options.accept)
 
-  const headers: Record<string, string> = {
-    'X-API-Key': options.apiKey,
-  }
-  if (options.contentType) headers['Content-Type'] = options.contentType
-  if (options.accept) headers['Accept'] = options.accept
-
-  return pickSessionContextHeaders(session, headers)
+  return applySessionContextHeaders(session, headers)
 }
 
 /**
@@ -139,14 +140,14 @@ export function buildBackendAuthHeaders(
  * deliberately omit it. The proxy re-injects the full set server-side.
  */
 export function buildBackendClientHeaders(
-  session: Session | null | undefined,
+  session: Session | null,
   options: BuildBackendAuthHeadersOptions = {}
-): Record<string, string> {
-  const headers: Record<string, string> = {}
-  if (options.contentType) headers['Content-Type'] = options.contentType
-  if (options.accept) headers['Accept'] = options.accept
+): Headers {
+  const headers = new Headers()
+  if (options.contentType) headers.set('Content-Type', options.contentType)
+  if (options.accept) headers.set('Accept', options.accept)
 
-  return pickSessionContextHeaders(session ?? null, headers)
+  return applySessionContextHeaders(session, headers)
 }
 
 /**
@@ -158,8 +159,37 @@ export function buildBackendClientHeaders(
  * continue to work without modification.
  */
 export function buildBackendHeaders(
-  session?: Session | null,
+  session: Session | null = null,
   options: BuildBackendAuthHeadersOptions = {}
-): Record<string, string> {
+): Headers {
   return buildBackendClientHeaders(session, options)
+}
+
+/**
+ * Server-side helper: resolve the backend API key from the environment and
+ * return a structured 500 JSON response when it is missing. Callers SHOULD use
+ * this in place of `getBackendApiKey()` whenever they need to fail fast with
+ * a user-facing message rather than a raw thrown error. Example:
+ *
+ *   const apiKeyOrResponse = getBackendApiKeyOrFail()
+ *   if (apiKeyOrResponse instanceof NextResponse) return apiKeyOrResponse
+ *   const apiKey = apiKeyOrResponse
+ *   headers: buildBackendAuthHeaders(session, { apiKey })
+ */
+export type BackendApiKeyOrResponse =
+  | { apiKey: string; error?: undefined }
+  | { apiKey?: undefined; error: Response }
+
+export function getBackendApiKeyOrFail(
+  missingMessage = '缺少后端 API Key 配置'
+): BackendApiKeyOrResponse {
+  const apiKey = getBackendApiKey()
+  if (!apiKey) {
+    // next/server is a static ESM module; the dynamic require keeps this
+    // helper out of any non-route unit-test bundle while still being
+    // statically analyzable.
+    const { NextResponse } = require('next/server') as typeof import('next/server')
+    return { error: NextResponse.json({ message: missingMessage }, { status: 500 }) }
+  }
+  return { apiKey }
 }
