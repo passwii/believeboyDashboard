@@ -4,17 +4,56 @@ import { useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { BarChart3 } from 'lucide-react'
+import dynamic from 'next/dynamic'
 
 import { PortfolioFilters } from '@/components/dashboard/portfolio/portfolio-filters'
 import { PortfolioKPICards } from '@/components/dashboard/portfolio/portfolio-kpi-cards'
 import { PortfolioComparisonTable } from '@/components/dashboard/portfolio/portfolio-comparison-table'
-import { PortfolioTrendChart } from '@/components/dashboard/portfolio/portfolio-trend-chart'
-import { PortfolioPieChart } from '@/components/dashboard/portfolio/portfolio-pie-chart'
 import { FilterToolbar } from '@/components/dashboard/console/filter-toolbar'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Skeleton } from '@/components/ui/skeleton'
 import { usePortfolioData } from '@/lib/hooks/use-portfolio-data'
 
 type Tab = 'comparison' | 'trend' | 'contribution'
+
+// recharts 强依赖 window/document，必须 ssr:false 才能从 portfolio 页面 bundle 拆出 recharts 主体
+const LazyPortfolioTrendChart = dynamic(
+  () =>
+    import('@/components/dashboard/portfolio/portfolio-trend-chart').then(
+      (m) => m.PortfolioTrendChart,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className='dashboard-surface rounded-xl p-4'>
+        <div className='mb-4 flex items-center justify-between'>
+          <Skeleton className='h-4 w-32' />
+          <Skeleton className='h-8 w-32' />
+        </div>
+        <Skeleton className='h-[320px] w-full rounded-lg' />
+      </div>
+    ),
+  },
+)
+
+const LazyPortfolioPieChart = dynamic(
+  () =>
+    import('@/components/dashboard/portfolio/portfolio-pie-chart').then(
+      (m) => m.PortfolioPieChart,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className='dashboard-surface rounded-xl p-4'>
+        <div className='mb-4 flex items-center justify-between'>
+          <Skeleton className='h-4 w-32' />
+          <Skeleton className='h-8 w-32' />
+        </div>
+        <Skeleton className='h-[320px] w-full rounded-lg' />
+      </div>
+    ),
+  },
+)
 
 export default function PortfolioOverviewClient() {
   const router = useRouter()
@@ -82,10 +121,10 @@ export default function PortfolioOverviewClient() {
               />
             </TabsContent>
             <TabsContent value='trend'>
-              <PortfolioTrendChart projects={data.projects} country={country} />
+              <LazyPortfolioTrendChart projects={data.projects} country={country} />
             </TabsContent>
             <TabsContent value='contribution'>
-              <PortfolioPieChart projects={data.projects} country={country} />
+              <LazyPortfolioPieChart projects={data.projects} country={country} />
             </TabsContent>
           </Tabs>
         </>

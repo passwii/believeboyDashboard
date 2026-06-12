@@ -4,6 +4,7 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { CalendarClock, FileDown, Loader2, RefreshCw, Save, Send, Table2, CalendarDays } from 'lucide-react'
 import { useSession } from 'next-auth/react'
+import dynamic from 'next/dynamic'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -38,8 +39,28 @@ import {
 import { SnapshotSelector } from '@/components/dashboard/inventory-replenishment/snapshot-selector'
 import { CreateSnapshotDialog } from '@/components/dashboard/inventory-replenishment/create-snapshot-dialog'
 import { EditSnapshotDialog } from '@/components/dashboard/inventory-replenishment/edit-snapshot-dialog'
-import { CalendarView } from '@/components/dashboard/inventory-replenishment/calendar-view'
 import type { SnapshotOption } from '@/components/dashboard/inventory-replenishment/snapshot-selector'
+
+// recharts 强依赖 window/document，必须 ssr:false 才能从 inventory 页面 bundle 拆出 recharts 主体
+// 日历视图只在切到「日历」Tab 时才需要，dynamic 化后默认 Tab 切换不会拉 recharts
+const LazyCalendarView = dynamic(
+  () =>
+    import('@/components/dashboard/inventory-replenishment/calendar-view').then(
+      (m) => m.CalendarView,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className='dashboard-surface space-y-3 rounded-xl p-4'>
+        <div className='flex items-center justify-between'>
+          <Skeleton className='h-5 w-32' />
+          <Skeleton className='h-8 w-24' />
+        </div>
+        <Skeleton className='h-[400px] w-full rounded-lg' />
+      </div>
+    ),
+  },
+)
 
 const API_BASE = '/api/backend'
 
@@ -1264,7 +1285,7 @@ export default function InventoryReplenishmentPage() {
         </TabsContent>
 
         <TabsContent value="calendar">
-          <CalendarView projectId={currentProjectId} country={country} />
+          <LazyCalendarView projectId={currentProjectId} country={country} />
         </TabsContent>
       </Tabs>
 
