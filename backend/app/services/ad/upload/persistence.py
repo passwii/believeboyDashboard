@@ -572,6 +572,46 @@ def commit_ad_upload(
                 detail='report_date 必须与识别出的单日报表日期一致',
             )
 
+    # dry_run=True：产品分析手动核算场景 — 仅完成识别校验 + 临时文件复制，
+    # 不写入 ad_upload_files / ad_upload_promoted_product_rows，不写 ReportUploadLog，
+    # 不占用版本号。原报表仍可继续在 ad-upload 页面通过正式 commit 入库。
+    if payload.dry_run:
+        try:
+            file_meta = finalize_ad_upload_temp_file(
+                settings,
+                temp_file_id=payload.temp_file_id,
+                original_filename=payload.original_filename or recognition.original_filename,
+                project_name=project.project_name,
+                report_type=payload.report_type,
+            )
+        except FileNotFoundError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f'临时文件不存在或已失效: {exc}',
+            ) from exc
+
+        return AdUploadCommitResponse(
+            id=0,
+            report_type=payload.report_type,
+            report_label=recognition.report_label,
+            ingestion_status='skipped',
+            project_name=project.project_name,
+            country=recognition.country,
+            report_date=report_start_date.isoformat(),
+            report_start_date=report_start_date.isoformat(),
+            report_end_date=report_end_date.isoformat(),
+            file_id=str(file_meta['file_id']),
+            file_path=str(file_meta['file_path']),
+            version=0,
+            is_current=False,
+            message=(
+                f'已识别为周期/单日广告报表（dry_run）：未写入 ad_upload_files。'
+                f'共解析 {len(source_df.index)} 行（{report_start_date} ~ {report_end_date}）。'
+                if is_periodic_row_date_upload
+                else f'已识别为单日广告报表（dry_run）：未写入 ad_upload_files。共解析 {len(source_df.index)} 行（{report_start_date}）。'
+            ),
+        )
+
     file_meta = finalize_ad_upload_temp_file(
         settings,
         temp_file_id=payload.temp_file_id,
