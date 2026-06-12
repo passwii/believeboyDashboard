@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
 
 import { requireUserSession } from '@/lib/auth/server'
-import { buildBackendAuthHeaders } from '@/lib/backend-auth'
+import { buildBackendAuthHeaders, getBackendApiKeyOrFail } from '@/lib/backend-auth'
 import { normalizeErrorMessage } from '@/lib/error-utils'
-import { getBackendApiKey, getBackendBaseUrl } from '@/lib/server/backend-api'
+import { getBackendBaseUrl } from '@/lib/server/backend-api'
 
 export async function POST(request: Request) {
   const session = await requireUserSession()
@@ -19,10 +19,13 @@ export async function POST(request: Request) {
   const { searchParams } = new URL(request.url)
   url.search = searchParams.toString()
 
+  const apiKeyOrResponse = getBackendApiKeyOrFail()
+  if (apiKeyOrResponse.error) return apiKeyOrResponse.error
+
   const contentType = request.headers.get('content-type')
   try {
     const headers = buildBackendAuthHeaders(session, {
-      apiKey: getBackendApiKey(),
+      apiKey: apiKeyOrResponse.apiKey,
       contentType: contentType ?? undefined,
     })
 

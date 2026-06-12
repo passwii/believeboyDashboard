@@ -1,15 +1,18 @@
 import { NextResponse } from 'next/server'
 
 import { requireUserSession } from '@/lib/auth/server'
-import { buildBackendAuthHeaders } from '@/lib/backend-auth'
+import { buildBackendAuthHeaders, getBackendApiKeyOrFail } from '@/lib/backend-auth'
 import { normalizeErrorMessage } from '@/lib/error-utils'
-import { getBackendApiKey, backendFetchJson } from '@/lib/server/backend-api'
+import { backendFetchJson } from '@/lib/server/backend-api'
 
 export async function POST(request: Request) {
   const session = await requireUserSession()
   if (!session) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
   }
+
+  const apiKeyOrResponse = getBackendApiKeyOrFail()
+  if (apiKeyOrResponse.error) return apiKeyOrResponse.error
 
   try {
     const formData = new FormData()
@@ -26,7 +29,7 @@ export async function POST(request: Request) {
       truncated_note: string | null
     }>('/api/v1/ai/upload', {
       method: 'POST',
-      headers: buildBackendAuthHeaders(session, { apiKey: getBackendApiKey() }),
+      headers: buildBackendAuthHeaders(session, { apiKey: apiKeyOrResponse.apiKey }),
       body: formData as unknown as string,
     })
 
