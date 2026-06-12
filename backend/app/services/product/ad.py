@@ -7,6 +7,10 @@ from sqlalchemy.orm import Session
 
 from app.models import AdUploadFile, AdUploadPromotedProductRow, AnalysisSourceFile
 
+# CLAUDE.md 要求：手动核算读 C 表广告行时只算 scope_status='included_product'，
+# excluded_store_level / excluded_unmapped 行不参与 sum。
+AD_INCLUDED_PRODUCT_SCOPE = 'included_product'
+
 
 def _resolve_c_source_id_from_a_source_id(db: Session, *, a_source_id: int) -> int | None:
     """根据 A 表 AnalysisSourceFile.id 找到 C 表 AdUploadFile.id。
@@ -48,6 +52,7 @@ def _build_ad_df_from_c_source(db: Session, *, c_source_id: int):
     """直接从 C 表 (ad_upload_promoted_product_rows) 读取广告数据。
 
     用于已知是 C 表 ID 的场景 (新迁移到 C 表后的调用方)。
+    仅聚合 `scope_status='included_product'` 的行，与 CLAUDE.md 保持一致。
     """
     from pandas import DataFrame
 
@@ -55,7 +60,10 @@ def _build_ad_df_from_c_source(db: Session, *, c_source_id: int):
 
     rows = db.execute(
         select(AdUploadPromotedProductRow)
-        .where(AdUploadPromotedProductRow.source_file_id == c_source_id)
+        .where(
+            AdUploadPromotedProductRow.source_file_id == c_source_id,
+            AdUploadPromotedProductRow.scope_status == AD_INCLUDED_PRODUCT_SCOPE,
+        )
         .order_by(AdUploadPromotedProductRow.source_row_no.asc())
     ).scalars().all()
     if not rows:

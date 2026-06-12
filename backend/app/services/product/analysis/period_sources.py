@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.models import (
     AdUploadFile,
+    AdUploadPromotedProductRow,
     AnalysisSourceFile,
     AnalysisPT1Calculation,
     AnalysisPTSKUDetail,
@@ -19,6 +20,10 @@ from app.models import (
 )
 from app.services import exchange_rate_service
 from app.services.product._internal import _get_project_by_name, _is_single_full_week
+
+# 手动核算 C 表广告数据时，CLAUDE.md 明确要求按 scope_status='included_product'
+# 过滤（行级粒度）。excluded_store_level / excluded_unmapped 行不能算入。
+AD_INCLUDED_PRODUCT_SCOPE = 'included_product'
 from app.services.product.persistence import (
     ensure_tables,
     persist_product_analysis_pt1_calculation,
@@ -89,10 +94,20 @@ def _list_recomputable_weekly_period_sources(
         period_map[row.report_type] = row
 
     # ── ad (C 表 AdUploadFile) ──
-    ad_stmt = select(AdUploadFile).where(
-        AdUploadFile.project_id == project_id,
-        AdUploadFile.report_type == 'ad_promoted_product_report',
-        AdUploadFile.country == country,
+    # CLAUDE.md 要求：手动核算 C 表广告数据时按 AdUploadPromotedProductRow.scope_status='included_product'
+    # 行级过滤。无 included_product 行的 AdUploadFile 不参与 period 重建。
+    ad_stmt = (
+        select(AdUploadFile)
+        .join(
+            AdUploadPromotedProductRow,
+            AdUploadPromotedProductRow.source_file_id == AdUploadFile.id,
+        )
+        .where(
+            AdUploadFile.project_id == project_id,
+            AdUploadFile.report_type == 'ad_promoted_product_report',
+            AdUploadFile.country == country,
+            AdUploadPromotedProductRow.scope_status == AD_INCLUDED_PRODUCT_SCOPE,
+        )
     )
     if current_only:
         ad_stmt = ad_stmt.where(AdUploadFile.is_current.is_(True))
@@ -279,12 +294,21 @@ def _list_history_weekly_period_sources(
     ).scalars().all()
 
     # ad_product_report 日报来自 C 表 (AdUploadFile)
-    daily_ad_stmt = select(AdUploadFile).where(
-        AdUploadFile.project_id == project_id,
-        AdUploadFile.report_type == 'ad_promoted_product_report',
-        AdUploadFile.country == normalized_country,
-        AdUploadFile.is_current.is_(True),
-        AdUploadFile.period_start_date == AdUploadFile.period_end_date,
+    # CLAUDE.md 要求：行级 scope_status='included_product' 过滤。
+    daily_ad_stmt = (
+        select(AdUploadFile)
+        .join(
+            AdUploadPromotedProductRow,
+            AdUploadPromotedProductRow.source_file_id == AdUploadFile.id,
+        )
+        .where(
+            AdUploadFile.project_id == project_id,
+            AdUploadFile.report_type == 'ad_promoted_product_report',
+            AdUploadFile.country == normalized_country,
+            AdUploadFile.is_current.is_(True),
+            AdUploadFile.period_start_date == AdUploadFile.period_end_date,
+            AdUploadPromotedProductRow.scope_status == AD_INCLUDED_PRODUCT_SCOPE,
+        )
     )
     if start_date is not None:
         daily_ad_stmt = daily_ad_stmt.where(AdUploadFile.period_end_date >= start_date)
@@ -352,14 +376,23 @@ def _list_history_weekly_period_sources(
     ).scalars().all()
 
     # Query periodic ad report sources from C table (AdUploadFile)
-    ad_period_stmt = select(AdUploadFile).where(
-        AdUploadFile.project_id == project_id,
-        AdUploadFile.report_type == 'ad_promoted_product_report',
-        AdUploadFile.country == normalized_country,
-        AdUploadFile.is_current.is_(True),
-        AdUploadFile.period_start_date < AdUploadFile.period_end_date,
-        AdUploadFile.period_start_date.is_not(None),
-        AdUploadFile.period_end_date.is_not(None),
+    # CLAUDE.md 要求：行级 scope_status='included_product' 过滤。
+    ad_period_stmt = (
+        select(AdUploadFile)
+        .join(
+            AdUploadPromotedProductRow,
+            AdUploadPromotedProductRow.source_file_id == AdUploadFile.id,
+        )
+        .where(
+            AdUploadFile.project_id == project_id,
+            AdUploadFile.report_type == 'ad_promoted_product_report',
+            AdUploadFile.country == normalized_country,
+            AdUploadFile.is_current.is_(True),
+            AdUploadFile.period_start_date < AdUploadFile.period_end_date,
+            AdUploadFile.period_start_date.is_not(None),
+            AdUploadFile.period_end_date.is_not(None),
+            AdUploadPromotedProductRow.scope_status == AD_INCLUDED_PRODUCT_SCOPE,
+        )
     )
     if start_date is not None:
         ad_period_stmt = ad_period_stmt.where(AdUploadFile.period_end_date >= start_date)
