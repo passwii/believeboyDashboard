@@ -25,8 +25,14 @@ interface SidebarPanelProps {
  * 内层 240px 弹出面板：
  * - 顶部：组标题 + 关闭按钮 + pin 按钮（锁定当前面板）
  * - 中部：二级菜单项列表
+ *
+ * 性能要点：
+ * - 内部 usePathname() 订阅路由变化：避免依赖父级注入的 pathname 引用，保持 panel
+ *   独立于 rail / shell 的其他 re-render（否则 rail 任何重渲染都会顺带拉上 panel）。
+ * - React.memo + 默认浅比较：仅当 group / pinnedGroupId / 回调变化时才提交。
+ *   shell 端必须传稳定引用（useCallback）才能生效。
  */
-export function SidebarPanel({
+export const SidebarPanel = React.memo(function SidebarPanel({
   group,
   pinnedGroupId,
   onClose,
@@ -134,4 +140,4 @@ export function SidebarPanel({
       </div>
     </div>
   )
-}
+})
