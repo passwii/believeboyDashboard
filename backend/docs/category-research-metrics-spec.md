@@ -7,7 +7,7 @@
 本文件用于统一「调研分析」页面的指标定义、计算口径、分级标准、前端展示算法与月度维护规则，避免后端计算、前端展示、人工解读三者口径不一致。
 
 适用范围：
-- `frontend/app/dashboard/tools/research-analysis/page.tsx`
+- `frontend/app/dashboard/data-analysis/research-analysis/page.tsx`
 - `backend/app/services/category_research_service.py`
 - `backend/app/schemas/category_research.py`
 
