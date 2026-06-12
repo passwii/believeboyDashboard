@@ -85,6 +85,15 @@ def _build_financial_row(
         "income_total": _to_float(pt4.income_total),
         "expense_total": _to_float(pt4.expense_total),
         "amazon_pay_back": _to_float(pt4.amazon_pay_back),
+        "income_vat_total": _to_float(
+            getattr(pt4, "income_vat_total", None) or 0
+        ),
+        "income_sales_with_tax": _to_float(
+            getattr(pt4, "income_sales_with_tax", None) or 0
+        ),
+        "expense_vat_total": _to_float(
+            getattr(pt4, "expense_vat_total", None) or 0
+        ),
         "credit_card_deduction_usd": _to_float(resolved_credit_card),
         "fob_cost_rmb": _to_float(fob_cost_rmb),
         "first_leg_cost_rmb": _to_float(first_leg_cost_rmb),
@@ -209,11 +218,13 @@ def _build_trend_point(row: dict[str, Any]) -> dict[str, Any]:
     income_total = float(row["income_total"])
     expense_total = float(row["expense_total"])
     amazon_pay_back = float(row["amazon_pay_back"])
+    vat_total = float(row.get("vat_total", 0.0) or 0.0)
     return {
         "report_month": row["report_month"],
         "income_total": income_total,
         "expense_total": expense_total,
         "amazon_pay_back": amazon_pay_back,
+        "vat_total": vat_total,
         "net_amount": income_total + expense_total,
         "has_source_report": bool(row["has_source_report"]),
     }
