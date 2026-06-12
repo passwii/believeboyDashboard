@@ -24,6 +24,7 @@ from app.services.report.utils import (
     _first_non_empty,
     normalize_text,
 )
+from app.utils.country import get_currency
 
 
 def _pt3_float(pt3: MonthlyReportPT3Calculation, key: str) -> float:
@@ -31,16 +32,26 @@ def _pt3_float(pt3: MonthlyReportPT3Calculation, key: str) -> float:
     return _to_float(getattr(pt3, key, 0))
 
 
-def _build_accounting_rows(pt3: MonthlyReportPT3Calculation) -> list[dict[str, Any]]:
+def _build_accounting_rows(
+    pt3: MonthlyReportPT3Calculation,
+    *,
+    country: str | None = None,
+) -> list[dict[str, Any]]:
     """Build dual-column income/expense rows from PT3 calculation.
 
     Args:
         pt3: MonthlyReportPT3Calculation model instance
+        country: Country code (US/DE/UK). Used to stamp the local
+            currency ISO code onto each row for the frontend to render
+            the correct symbol/label. When omitted, defaults to USD
+            (the historical behavior).
 
     Returns:
         List of dicts with income_en, income_zh, income_amount_usd, income_source,
-        expense_en, expense_zh, expense_amount_usd, expense_source keys.
+        expense_en, expense_zh, expense_amount_usd, expense_source,
+        currency_code keys.
     """
+    currency_code = get_currency(country) if country else "USD"
     income_lines = [
         (
             "Product sales (non-FBA)",
@@ -276,6 +287,7 @@ def _build_accounting_rows(pt3: MonthlyReportPT3Calculation) -> list[dict[str, A
                 "expense_zh": ex_line[1],
                 "expense_amount_usd": ex_line[2],
                 "expense_source": ex_line[3],
+                "currency_code": currency_code,
             }
         )
     return rows
