@@ -14,6 +14,7 @@ import logging
 from typing import Any
 
 from app.core.config import get_settings
+from app.services.scheduled_report.ai_timeout import get_ai_timeout_sec
 
 logger = logging.getLogger(__name__)
 
@@ -59,9 +60,9 @@ FALLBACK_SYSTEM_PROMPT_MONTHLY = """你是一位跨境电商运营分析师。
 要求：200-300字，分段落，风格专业，只输出分析内容。"""
 
 
-# 临时禁用 monthly AI 总结（2026-06-12）：与 daily 一并屏蔽；
-# TODO: 修复后改回 MONTHLY_AI_TIMEOUT_SEC = 30
-MONTHLY_AI_TIMEOUT_SEC = 0
+# AI summary timeout is read per-call from env via get_ai_timeout_sec().
+# Set AI_SUMMARY_TIMEOUT_SEC=0 (or AI_SUMMARY_TIMEOUT_SEC_MONTHLY=0) to disable
+# AI and force the fallback summary. Default 30s. See ai_timeout.py.
 
 
 def generate_monthly_ai_summary(
@@ -77,12 +78,12 @@ def generate_monthly_ai_summary(
     Args:
         report_data: 包含月报告完整数据的字典
         model: 指定 AI 模型名称，空则使用默认模型
-        timeout: AI 调用最大等待秒数，默认 MONTHLY_AI_TIMEOUT_SEC
+        timeout: AI 调用最大等待秒数，默认 get_ai_timeout_sec("monthly")
 
     Returns:
         AI 生成的月报告分析文本
     """
-    secs = timeout if timeout is not None else MONTHLY_AI_TIMEOUT_SEC
+    secs = timeout if timeout is not None else get_ai_timeout_sec("monthly")
 
     if secs <= 0:
         return _generate_fallback_monthly_summary(report_data)
