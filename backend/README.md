@@ -191,19 +191,8 @@ cd backend
 ./scripts/systemd-install.sh
 ```
 
-## ⚠️ 单进程约束（单 API 进程 / 单 Worker 进程）
+## 多 Worker 就绪说明
 
-> **生产部署禁止把 `uvicorn --workers N` 设为 `N > 1`。** 在多 worker 架构（BEL-55）落地之前，API 必须保持单进程。
+月报任务状态已迁移到 `Job` / `JobRun` 数据库行，`POST /api/v1/monthly-reports` 只创建 `Job` 并交给 Celery reports 队列，`GET /api/v1/monthly-reports/tasks/{task_id}` 从数据库读取 `Job.status`、最新 `JobRun.log_excerpt` 和 `monthly_reports.status`。因此 API 可以按 `uvicorn --workers N` 横向扩容，worker A 接收创建请求、worker B 响应状态查询会看到同一份 DB 事实源。
 
-**原因**：当前任务状态由 **进程内模块级 dict** 维护：
-
-- `app/services/job_service.py` 里的 `enqueue_job` 起的 `daemon=True` 线程
-- `app/services/monthly_report_runtime_service.py` 的 `MonthlyReportTask` 内存表（`_TASKS`）
-- `app/api/v1/endpoints/ai_insight.py` 的 `_insight_queues` 内存表
-- `app/services/insight_schedule_service.py` 的 `_insight_semaphore(3)` 进程内信号量
-
-这些结构在 N 个 uvicorn 进程下各有独立副本，**`POST /jobs` 落到 worker A 起的线程，`GET /jobs/{id}` 落到 worker B 拿到 404**，是横向扩容 API 时的潜伏 P0 bug。
-
-**约束的解除条件**：BEL-55 完成后，任务状态全部落到 `Job` / `JobRun` 数据库行，dispatch 改为 `celery -A app.tasks.celery_app worker`（见 BEL-55-P0 引入的 worker systemd 单元），所有进程/机器看到一致视图。
-
-**Celery worker 进程的并发度**由 systemd 单元的 `--concurrency=4` 控制，**不要**通过 `celery multi` 在同一台机器上启多份 worker（除非先确认 broker 上的任务已经设计为可重入）——见 BEL-55-P0 引入的 `believeboy-worker.service`。
+**建议发布流程**：先在 staging 将 API 扩到 `--workers 4`，再跑 `k6 saturation_50vu` 5 分钟，确认 p99 < 5s 且任务状态不丢、不串。Celery worker 进程的并发度仍由 systemd 单元的 `--concurrency=4` 控制；不要在同一台机器上用 `celery multi` 启多份 worker，除非已确认 broker 任务幂等与数据库锁策略。
