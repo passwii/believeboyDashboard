@@ -68,6 +68,45 @@ class Settings(BaseSettings):
 
     redis_db: int = Field(default=0, ge=0, le=15)
 
+    # Celery (auto-derived from REDIS_* when blank)
+    celery_broker_url: str = Field(default="", max_length=500)
+    celery_result_url: str = Field(default="", max_length=500)
+    celery_worker_concurrency: int = Field(default=4, ge=1, le=32)
+
+    @property
+    def _redis_auth_segment(self) -> str:
+        """Build `:<password>@` segment for redis URL auth (empty when no password)."""
+        if not self.redis_password:
+            return ""
+        # Use urllib-safe password (avoid leaking special chars into the URL)
+        from urllib.parse import quote
+
+        return f":{quote(self.redis_password, safe='')}@"
+
+    @property
+    def _celery_broker_url_resolved(self) -> str:
+        """Return the effective Celery broker URL (explicit or auto-derived from REDIS_*)."""
+        if self.celery_broker_url:
+            return self.celery_broker_url
+        # Stagger broker DB +1 from business cache to avoid key collisions.
+        broker_db = self.redis_db + 1
+        return (
+            f"redis://{self._redis_auth_segment}"
+            f"{self.redis_host}:{self.redis_port}/{broker_db}"
+        )
+
+    @property
+    def _celery_result_url_resolved(self) -> str:
+        """Return the effective Celery result backend URL (explicit or auto-derived)."""
+        if self.celery_result_url:
+            return self.celery_result_url
+        # Result backend sits on broker_db +1 to stay separate from broker traffic.
+        result_db = self.redis_db + 2
+        return (
+            f"redis://{self._redis_auth_segment}"
+            f"{self.redis_host}:{self.redis_port}/{result_db}"
+        )
+
     # Cloudflare R2 Storage
     r2_account_id: str = Field(default="", max_length=100)
     r2_endpoint_url: str = Field(default="", max_length=500)
