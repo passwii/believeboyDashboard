@@ -1,5 +1,5 @@
 [Unit]
-Description=Believeboy background worker placeholder service
+Description=Believeboy Celery background worker
 After=network.target
 
 [Service]
@@ -7,7 +7,7 @@ User=www-data
 Group=www-data
 WorkingDirectory=/opt/believeboy/backend
 EnvironmentFile=/opt/believeboy/backend/.env
-ExecStart=/opt/believeboy/backend/.venv/bin/python -m worker.runner
+ExecStart=/opt/believeboy/backend/.venv/bin/celery -A app.tasks.celery_app worker -l info -Q default,reports,insights --concurrency=4
 Restart=always
 RestartSec=3
 
