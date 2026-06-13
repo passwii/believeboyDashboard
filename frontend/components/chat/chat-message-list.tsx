@@ -81,7 +81,7 @@ export function ChatMessageList({
   })()
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4 sm:space-y-6">
+    <div className="mx-auto max-w-3xl space-y-5 sm:space-y-7">
       {messages.map((msg, index) => (
         <div
           key={msg.id}
@@ -91,30 +91,30 @@ export function ChatMessageList({
           style={{ animationDelay: `${index * 60}ms` }}
         >
           <div
-            className={`flex gap-2 sm:gap-3 ${
+            className={`flex gap-3 sm:gap-4 ${
               msg.role === 'user' ? 'flex-row-reverse' : ''
             }`}
           >
             {/* Avatar */}
-            <div className="flex h-7 w-7 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-full bg-white/[0.08] border border-white/[0.06]">
+            <div className="flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-full bg-white/[0.08] border border-white/[0.06]">
               {msg.role === 'assistant' ? (
-                <Bot className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-400/70" />
+                <Bot className="h-4 w-4 sm:h-[18px] sm:w-[18px] text-blue-400/70" />
               ) : (
-                <User className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-white/50" />
+                <User className="h-4 w-4 sm:h-[18px] sm:w-[18px] text-white/50" />
               )}
             </div>
 
             {/* Message bubble */}
             <div
-              className={`flex flex-col gap-1 max-w-[88%] sm:max-w-[85%] ${
+              className={`flex flex-col gap-1.5 max-w-[88%] sm:max-w-[85%] ${
                 msg.role === 'user' ? 'items-end' : 'items-start'
               }`}
             >
               <div
-                className={`relative px-3 sm:px-4 py-2.5 sm:py-3 ${
+                className={`relative px-4 sm:px-5 py-3 sm:py-3.5 ${
                   msg.role === 'user'
                     ? 'bg-white/[0.08] rounded-2xl rounded-tr-md text-white'
-                    : 'text-[#e0e0e0]'
+                    : 'text-[#e6e6e8]'
                 }`}
               >
                 {msg.role === 'assistant' && msg.thinking ? (
@@ -122,13 +122,13 @@ export function ChatMessageList({
                 ) : null}
 
                 {msg.role === 'user' ? (
-                  <p className="whitespace-pre-wrap break-words text-[14px] sm:text-[15px] leading-6 sm:leading-7">
+                  <p className="whitespace-pre-wrap break-words text-[15px] sm:text-base leading-7 sm:leading-[1.75] text-white">
                     {msg.content}
                   </p>
                 ) : msg.content ? (
                   <AIChatMessageContent
                     content={msg.content}
-                    className="[&_p]:text-[14px] sm:[&_p]:text-[15px] [&_p]:leading-6 sm:[&_p]:leading-7 [&_p]:text-[#e0e0e0] [&_h2]:text-white [&_h3]:text-white [&_li]:text-[#d0d0d0]"
+                    className="text-[15px] sm:text-[16px] leading-7 sm:leading-[1.75] text-[#e6e6e8] [&_p]:text-[15px] sm:[&_p]:text-[16px] [&_p]:leading-7 sm:[&_p]:leading-[1.75] [&_p]:text-[#e6e6e8] [&_strong]:text-white [&_em]:text-[#e6e6e8] [&_h2]:mt-5 [&_h2]:text-[17px] sm:[&_h2]:text-[19px] [&_h2]:font-semibold [&_h2]:text-white [&_h3]:mt-4 [&_h3]:text-[15px] sm:[&_h3]:text-[16px] [&_h3]:font-semibold [&_h3]:text-white [&_li]:text-[#d8d8db] [&_li]:leading-7 sm:[&_li]:leading-[1.75]"
                   />
                 ) : (
                   <TypingIndicator />

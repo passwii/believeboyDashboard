@@ -107,7 +107,7 @@ export function ConversationSidebar({
 
   return (
     <div
-      className="absolute inset-y-0 left-0 z-30 flex flex-col border-r border-white/[0.08]"
+      className="absolute inset-y-0 left-0 z-40 flex flex-col border-r border-white/[0.08] pointer-events-auto"
       style={{
         width: 'var(--sidebar-width, 280px)',
         background: 'linear-gradient(180deg, #141416 0%, #111113 100%)',
@@ -149,13 +149,13 @@ export function ConversationSidebar({
       {/* Search */}
       <div className="px-3 pt-3 pb-2">
         <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-[#5a5a5f]" />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-[#5a5a5f] pointer-events-none" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="搜索对话..."
-            className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] pl-8 pr-3 py-2 text-xs text-white placeholder-[#4a4a4f] outline-none focus:border-white/[0.12] transition-colors"
+            className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] pl-8 pr-3 py-2 text-[13px] text-white placeholder-[#4a4a4f] outline-none focus:border-white/[0.12] transition-colors"
           />
         </div>
       </div>
@@ -195,16 +195,16 @@ export function ConversationSidebar({
             }}
             onMouseEnter={() => setHoveredId(conv.id)}
             onMouseLeave={() => setHoveredId(null)}
-            className={`group flex items-center gap-2.5 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-200 ${
+            className={`group flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-200 ${
               activeId === conv.id
                 ? 'bg-white/[0.08] text-white'
-                : 'text-[#8a8a8f]'
+                : 'text-[#a0a0a5] hover:text-white'
             }`}
           >
-            <MessageSquare className="size-4 shrink-0 opacity-50" />
+            <MessageSquare className="size-4 shrink-0 opacity-60" />
 
             {editingId === conv.id ? (
-              <div className="flex-1 flex items-center gap-1.5">
+              <div className="flex-1 flex items-center gap-1.5 min-w-0">
                 <input
                   ref={editRef}
                   type="text"
@@ -215,7 +215,7 @@ export function ConversationSidebar({
                     if (e.key === 'Escape') setEditingId(null)
                   }}
                   onClick={(e) => e.stopPropagation()}
-                  className="flex-1 min-w-0 rounded-md bg-white/[0.06] border border-white/[0.12] px-2 py-0.5 text-xs text-white outline-none focus:border-[#1488fc] transition-colors"
+                  className="flex-1 min-w-0 rounded-md bg-white/[0.06] border border-white/[0.12] px-2 py-1 text-[13px] text-white outline-none focus:border-[#1488fc] transition-colors"
                 />
                 <button
                   type="button"
@@ -223,7 +223,8 @@ export function ConversationSidebar({
                     e.stopPropagation()
                     commitRename()
                   }}
-                  className="shrink-0 text-[#1488fc] hover:text-[#4da6ff]"
+                  className="shrink-0 p-1 rounded-md text-[#1488fc] hover:text-[#4da6ff] hover:bg-white/[0.08] transition-colors"
+                  aria-label="确认重命名"
                 >
                   <Check className="size-3.5" />
                 </button>
@@ -233,45 +234,48 @@ export function ConversationSidebar({
                     e.stopPropagation()
                     setEditingId(null)
                   }}
-                  className="shrink-0 text-[#5a5a5f] hover:text-white"
+                  className="shrink-0 p-1 rounded-md text-[#5a5a5f] hover:text-white hover:bg-white/[0.08] transition-colors"
+                  aria-label="取消重命名"
                 >
                   <X className="size-3.5" />
                 </button>
               </div>
             ) : (
               <>
-                <span className="flex-1 min-w-0 text-xs font-medium truncate">
+                <span className="flex-1 min-w-0 text-[13px] font-medium truncate">
                   {conv.title}
                 </span>
-                <span className="text-[10px] text-[#4a4a4f] shrink-0">
-                  {conv.messageCount}
-                </span>
-                {hoveredId === conv.id && (
-                  <div className="flex items-center gap-0.5 shrink-0">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        startRename(conv)
-                      }}
-                      className="p-1 rounded-md text-[#5a5a5f] hover:text-white hover:bg-white/[0.08] transition-colors"
-                      aria-label="重命名"
-                    >
-                      <Pencil className="size-3" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleDeleteWithAnimation(conv.id)
-                      }}
-                      className="p-1 rounded-md text-[#5a5a5f] hover:text-red-400 hover:bg-red-400/[0.08] transition-colors"
-                      aria-label="删除"
-                    >
-                      <Trash2 className="size-3" />
-                    </button>
-                  </div>
-                )}
+                {/* Right column reserves a stable 56px slot for the hover
+                    actions so the title never gets pushed around when the
+                    user moves the cursor in / out. */}
+                <div className="shrink-0 w-14 flex items-center justify-end gap-0.5">
+                  {hoveredId === conv.id ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          startRename(conv)
+                        }}
+                        className="p-1 rounded-md text-[#5a5a5f] hover:text-white hover:bg-white/[0.08] transition-colors"
+                        aria-label="重命名"
+                      >
+                        <Pencil className="size-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDeleteWithAnimation(conv.id)
+                        }}
+                        className="p-1 rounded-md text-[#5a5a5f] hover:text-red-400 hover:bg-red-400/[0.08] transition-colors"
+                        aria-label="删除"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    </>
+                  ) : null}
+                </div>
               </>
             )}
           </div>
