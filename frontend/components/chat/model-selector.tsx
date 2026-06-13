@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronDown, ChevronRight, Check, Cpu } from 'lucide-react'
+import { ChevronDown, ChevronRight, Check, Cpu, X } from 'lucide-react'
 import gsap from 'gsap'
 
 import { ensureConfigLoaded, getConfig, subscribe as subscribeConfig } from '@/lib/api/ai-chat-config-store'
@@ -67,6 +67,22 @@ function badgeFor(modelId: string, premiumSet: Set<string>, defaultModel: string
   return null
 }
 
+/** Returns true on the first non-SSR render where the viewport is ≥ 1024px wide. */
+function useIsDesktop(breakpointPx = 1024): boolean {
+  const [isDesktop, setIsDesktop] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia(`(min-width: ${breakpointPx}px)`)
+    setIsDesktop(mq.matches)
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+    // `breakpointPx` is a constant in our only caller; intentionally omitted
+    // to keep the listener stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  return isDesktop
+}
+
 export function ModelSelector({ selectedModel, onModelChange }: {
   selectedModel?: string
   onModelChange?: (modelId: string) => void
@@ -74,8 +90,13 @@ export function ModelSelector({ selectedModel, onModelChange }: {
   const [isOpen, setIsOpen] = useState(false)
   const [configVersion, setConfigVersion] = useState(0)
   const [othersExpanded, setOthersExpanded] = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(false) // desktop-only: "其他模型" right-side drawer
   const [othersContent, setOthersContent] = useState<HTMLDivElement | null>(null)
   const [othersChevron, setOthersChevron] = useState<SVGSVGElement | null>(null)
+  const [drawerPanel, setDrawerPanel] = useState<HTMLDivElement | null>(null)
+  const [drawerBackdrop, setDrawerBackdrop] = useState<HTMLDivElement | null>(null)
+
+  const isDesktop = useIsDesktop(1024)
 
   useEffect(() => {
     ensureConfigLoaded().catch(() => {
@@ -84,6 +105,24 @@ export function ModelSelector({ selectedModel, onModelChange }: {
     })
     return subscribeConfig(() => setConfigVersion((n) => n + 1))
   }, [])
+
+  // Esc closes the main dropdown + the drawer
+  useEffect(() => {
+    if (!isOpen && !drawerOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsOpen(false)
+        setDrawerOpen(false)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [isOpen, drawerOpen])
+
+  // If we transition desktop → mobile while drawer is open, close it.
+  useEffect(() => {
+    if (!isDesktop && drawerOpen) setDrawerOpen(false)
+  }, [isDesktop, drawerOpen])
 
   const cfg = getConfig()
   const modelIds = useMemo(() => cfg?.models ?? [], [cfg?.models])
@@ -128,8 +167,17 @@ export function ModelSelector({ selectedModel, onModelChange }: {
     return othersGroup ? [pinnedGroup, othersGroup] : [pinnedGroup]
   }, [pinnedIds, otherIds, premiumSet, defaultModel])
 
-  // GSAP animation for the "others" collapse/expand. Respects
-  // prefers-reduced-motion.
+  // On mobile, the "others" group uses an inline up/down expand (animated).
+  // On desktop, the chevron opens a right-side drawer instead.
+  const handleToggleOthers = () => {
+    if (isDesktop) {
+      setDrawerOpen((v) => !v)
+    } else {
+      setOthersExpanded((v) => !v)
+    }
+  }
+
+  // GSAP animation for the mobile inline expand/collapse.
   useEffect(() => {
     if (!othersContent) return
     const el = othersContent
@@ -164,15 +212,61 @@ export function ModelSelector({ selectedModel, onModelChange }: {
     }
   }, [othersExpanded, othersContent])
 
-  // Chevron rotation
+  // Chevron rotation (mobile inline; on desktop the chevron is in the dropdown
+  // header, not in the drawer — we still rotate it for visual feedback).
   useEffect(() => {
     if (!othersChevron) return
+    const expanded = isDesktop ? drawerOpen : othersExpanded
     gsap.to(othersChevron, {
-      rotation: othersExpanded ? 0 : -90, // 0 = down (expanded), -90 = right (collapsed)
+      rotation: expanded ? 0 : -90, // 0 = down (expanded), -90 = right (collapsed)
       duration: 0.2,
       ease: 'power2.out',
     })
-  }, [othersExpanded, othersChevron])
+  }, [othersExpanded, drawerOpen, othersChevron, isDesktop])
+
+  // Desktop drawer slide-in / fade
+  useEffect(() => {
+    if (!isDesktop) return
+    const reduced =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+    if (drawerPanel) {
+      if (drawerOpen) {
+        if (reduced) {
+          gsap.set(drawerPanel, { x: 0, opacity: 1 })
+        } else {
+          gsap.fromTo(
+            drawerPanel,
+            { x: 40, opacity: 0 },
+            { x: 0, opacity: 1, duration: 0.28, ease: 'power3.out' }
+          )
+        }
+      } else {
+        // Out animation
+        if (reduced) {
+          gsap.set(drawerPanel, { x: 40, opacity: 0 })
+        } else {
+          gsap.to(drawerPanel, { x: 40, opacity: 0, duration: 0.18, ease: 'power2.in' })
+        }
+      }
+    }
+    if (drawerBackdrop) {
+      if (drawerOpen) {
+        if (reduced) {
+          gsap.set(drawerBackdrop, { opacity: 1 })
+        } else {
+          gsap.fromTo(drawerBackdrop, { opacity: 0 }, { opacity: 1, duration: 0.2 })
+        }
+      } else {
+        if (reduced) {
+          gsap.set(drawerBackdrop, { opacity: 0 })
+        } else {
+          gsap.to(drawerBackdrop, { opacity: 0, duration: 0.18 })
+        }
+      }
+    }
+  }, [drawerOpen, drawerPanel, drawerBackdrop, isDesktop])
 
   if (!cfg || modelIds.length === 0) {
     return (
@@ -197,8 +291,12 @@ export function ModelSelector({ selectedModel, onModelChange }: {
 
   const handleSelect = (modelId: string) => {
     setIsOpen(false)
+    setDrawerOpen(false)
     onModelChange?.(modelId)
   }
+
+  const othersGroup = groups.find((g) => g.id === 'others') ?? null
+  const otherModels = othersGroup?.models ?? []
 
   return (
     <div className="relative">
@@ -225,17 +323,75 @@ export function ModelSelector({ selectedModel, onModelChange }: {
                   group={group}
                   isFirst={gIdx === 0}
                   othersExpanded={othersExpanded}
-                  onToggleOthers={() => setOthersExpanded((v) => !v)}
+                  onToggleOthers={handleToggleOthers}
                   onContentRef={setOthersContent}
                   onChevronRef={setOthersChevron}
                   currentId={current ?? null}
                   onSelect={handleSelect}
                   premiumSet={premiumSet}
                   defaultModel={defaultModel}
+                  isDesktop={isDesktop}
+                  drawerOpen={drawerOpen}
                 />
               ))}
               {/* Re-render the version key so React picks up store changes. */}
               <span className="hidden" data-config-version={configVersion} />
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Desktop "其他模型" right-side drawer — fixed to viewport. */}
+      {isDesktop && othersGroup && (
+        <>
+          <div
+            ref={setDrawerBackdrop}
+            onClick={() => setDrawerOpen(false)}
+            className={`fixed inset-0 z-40 bg-black/30 transition-opacity ${
+              drawerOpen ? 'pointer-events-auto' : 'pointer-events-none'
+            }`}
+            style={{ opacity: 0 }}
+            aria-hidden={!drawerOpen}
+          />
+          <div
+            ref={setDrawerPanel}
+            role="dialog"
+            aria-modal="true"
+            aria-label="其他模型"
+            aria-hidden={!drawerOpen}
+            className={`fixed top-0 right-0 bottom-0 z-50 w-[340px] max-w-[85vw] bg-[#1a1a1e]/95 backdrop-blur-xl border-l border-white/10 shadow-2xl shadow-black/50 flex flex-col ${
+              drawerOpen ? 'pointer-events-auto' : 'pointer-events-none'
+            }`}
+            style={{ transform: 'translateX(40px)', opacity: 0 }}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+              <div>
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-[#5a5a5f]">
+                  {othersGroup.label}
+                </div>
+                <div className="text-xs text-[#8a8a8f] mt-0.5">
+                  {otherModels.length} 个模型
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDrawerOpen(false)}
+                className="p-1.5 rounded-md text-[#8a8a8f] hover:text-white hover:bg-white/5 transition-colors touch-manipulation"
+                aria-label="关闭"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2 overscroll-contain">
+              {otherModels.map((model) => (
+                <DrawerModelRow
+                  key={model.id}
+                  model={model}
+                  isCurrent={current === model.id}
+                  onSelect={handleSelect}
+                  badge={badgeFor(model.id, premiumSet, defaultModel)}
+                />
+              ))}
             </div>
           </div>
         </>
@@ -255,6 +411,8 @@ function ModelGroupSection({
   onSelect,
   premiumSet,
   defaultModel,
+  isDesktop,
+  drawerOpen,
 }: {
   group: ModelGroup
   isFirst: boolean
@@ -266,8 +424,16 @@ function ModelGroupSection({
   onSelect: (id: string) => void
   premiumSet: Set<string>
   defaultModel: string | null
+  isDesktop: boolean
+  drawerOpen: boolean
 }) {
   const isCollapsible = !!group.collapsedByDefault
+
+  // On desktop, "other models" expand into a right-side drawer (no inline
+  // section in the dropdown) — so we don't render the inline content there.
+  // We still render the section header so the user can see the trigger.
+  const renderInline = isCollapsible && !isDesktop
+  const isOpen = isDesktop ? drawerOpen : othersExpanded
 
   return (
     <div className={isFirst ? '' : 'mt-1 border-t border-white/5 pt-1'}>
@@ -275,8 +441,8 @@ function ModelGroupSection({
         <button
           type="button"
           onClick={onToggleOthers}
-          aria-expanded={othersExpanded}
-          aria-controls="model-selector-others"
+          aria-expanded={isOpen}
+          aria-controls={isDesktop ? undefined : 'model-selector-others'}
           className="w-full flex items-center gap-2 px-2.5 py-2 sm:py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#5a5a5f] hover:text-[#8a8a8f] transition-colors touch-manipulation min-h-[36px]"
         >
           <ChevronRight
@@ -295,7 +461,7 @@ function ModelGroupSection({
         </div>
       )}
 
-      {isCollapsible ? (
+      {renderInline ? (
         <div
           id="model-selector-others"
           ref={onContentRef}
@@ -312,7 +478,7 @@ function ModelGroupSection({
             />
           ))}
         </div>
-      ) : (
+      ) : !isCollapsible ? (
         group.models.map((model) => (
           <ModelRow
             key={model.id}
@@ -322,7 +488,7 @@ function ModelGroupSection({
             badge={badgeFor(model.id, premiumSet, defaultModel)}
           />
         ))
-      )}
+      ) : null}
     </div>
   )
 }
@@ -343,6 +509,54 @@ function ModelRow({
       type="button"
       onClick={() => onSelect(model.id)}
       className={`w-full flex items-center gap-3 px-2.5 py-3 sm:py-2 rounded-lg text-left transition-all duration-150 touch-manipulation ${
+        isCurrent ? 'bg-white/10 text-white' : 'text-[#a0a0a5] hover:bg-white/5 hover:text-white'
+      }`}
+    >
+      <div className="flex-shrink-0">{model.icon}</div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium truncate">{model.name}</span>
+          {badge && (
+            <span
+              className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${
+                badge === 'Pro'
+                  ? 'bg-purple-500/20 text-purple-300'
+                  : 'bg-blue-500/20 text-blue-300'
+              }`}
+            >
+              {badge}
+            </span>
+          )}
+        </div>
+        {model.description && (
+          <span className="text-[11px] text-[#6a6a6f] line-clamp-1">{model.description}</span>
+        )}
+      </div>
+      {isCurrent && <Check className="size-4 text-blue-400 flex-shrink-0" />}
+    </button>
+  )
+}
+
+/**
+ * Spacious row layout for the desktop drawer. Wider hit target + more
+ * breathing room for model id + description.
+ */
+function DrawerModelRow({
+  model,
+  isCurrent,
+  onSelect,
+  badge,
+}: {
+  model: Model
+  isCurrent: boolean
+  onSelect: (id: string) => void
+  badge: string | null
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(model.id)}
+      className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left transition-all duration-150 ${
         isCurrent ? 'bg-white/10 text-white' : 'text-[#a0a0a5] hover:bg-white/5 hover:text-white'
       }`}
     >
