@@ -3,7 +3,8 @@ from __future__ import annotations
 from datetime import datetime
 import json
 import logging
-from typing import Any, Iterator
+import threading
+from typing import Any, Iterator, Optional
 
 import httpx
 from fastapi import HTTPException, status
@@ -20,6 +21,10 @@ from app.services.ai.chat import normalize_generated_title, trim_trailing_slash
 # Status codes that are worth retrying with automatic fallback
 RETRYABLE_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
 RETRY_WAIT_SECONDS = 30
+
+
+def _cancelled(cancel_event: Optional[threading.Event]) -> bool:
+    return cancel_event is not None and cancel_event.is_set()
 
 
 def request_chat_completion(
@@ -79,6 +84,7 @@ def _stream_with_retries(
     messages: list[dict[str, Any]],
     temperature: float,
     settings: Settings,
+    cancel_event: Optional[threading.Event] = None,
 ) -> Iterator[dict[str, Any]]:
     import time as _time
 
@@ -94,6 +100,9 @@ def _stream_with_retries(
             is_final_attempt = (
                 is_backup_model and retry_count == AI_CHAT_MAX_RETRIES
             )
+
+            if _cancelled(cancel_event):
+                return
 
             try:
                 endpoint = f"{llm_config.base_url.rstrip('/')}/chat/completions"
@@ -129,6 +138,10 @@ def _stream_with_retries(
 
                         response.raise_for_status()
                         for line in response.iter_lines():
+                            # 中途取消：跳出循环后 `with httpx.Client` 退出，
+                            # 强制关闭 LLM 连接，避免继续扣 token。
+                            if _cancelled(cancel_event):
+                                return
                             if not line:
                                 continue
                             text = (
@@ -230,8 +243,9 @@ def iter_chat_completion_stream(
     messages: list[dict[str, Any]],
     temperature: float,
     settings: Settings,
+    cancel_event: Optional[threading.Event] = None,
 ):
-    yield from _stream_with_retries(llm_config, messages, temperature, settings)
+    yield from _stream_with_retries(llm_config, messages, temperature, settings, cancel_event=cancel_event)
 
 
 def fetch_models_from_provider(
@@ -565,6 +579,7 @@ def stream_assistant_content(
     user_content: str,
     web_search_context: str | None = None,
     settings: Settings | None = None,
+    cancel_event: Optional[threading.Event] = None,
 ):
     payload_messages = build_payload_messages(
         messages, user_content, llm_config.system_prompt
@@ -580,7 +595,7 @@ def stream_assistant_content(
         kwargs["settings"] = settings
 
     for item in iter_chat_completion_stream(
-        llm_config, payload_messages, temperature=0.7, **kwargs
+        llm_config, payload_messages, temperature=0.7, cancel_event=cancel_event, **kwargs
     ):
         if isinstance(item, dict):
             if item.get("type") == "thinking":

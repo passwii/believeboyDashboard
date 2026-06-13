@@ -6,7 +6,7 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -23,6 +23,7 @@ from app.schemas.ai_chat import (
     MessageItem,
 )
 from app.services import ai as ai_chat_service
+from app.services.ai import cancel as cancel_registry
 from app.services.ai.stream_utils import (
     encode_stream_event,
     serialize_message,
@@ -38,6 +39,23 @@ from app.services.ai.stream_utils import (
 )
 
 router = APIRouter(prefix="/ai", tags=["ai"], dependencies=[Depends(protected)])
+
+
+def _get_request_user_id(
+    x_user_id: str | None = Header(default=None, alias="X-User-Id"),
+) -> int | None:
+    """从 X-User-Id header 解析当前请求的 user_id。
+
+    解析失败或缺失 → None（service 层将按"无归属"处理：list 返回空，
+    get_or_404 一律 404）。前端 proxy 在 `/api/backend/[...path]/route.ts`
+    已经基于 NextAuth session 注入该 header。
+    """
+    if x_user_id is None:
+        return None
+    try:
+        return int(x_user_id.strip())
+    except (ValueError, TypeError):
+        return None
 
 
 # ─── 配置 & 会话管理 ─────────────────────────────────────────────────────────
@@ -71,9 +89,12 @@ def get_ai_config(settings: Settings = Depends(get_settings)) -> AIChatConfigRes
 
 
 @router.get("/conversations", response_model=list[ConversationItem])
-def list_conversations(db: Session = Depends(get_db_session)) -> list[ConversationItem]:
+def list_conversations(
+    db: Session = Depends(get_db_session),
+    user_id: int | None = Depends(_get_request_user_id),
+) -> list[ConversationItem]:
     ai_chat_service.ensure_tables(db)
-    rows = ai_chat_service.list_conversations(db)
+    rows = ai_chat_service.list_conversations(db, user_id)
     return [
         ConversationItem(
             id=row.id, title=row.title,
@@ -87,26 +108,41 @@ def list_conversations(db: Session = Depends(get_db_session)) -> list[Conversati
 
 
 @router.post("/conversations", response_model=ConversationItem)
-def create_conversation(payload: ConversationCreate, db: Session = Depends(get_db_session)) -> ConversationItem:
+def create_conversation(
+    payload: ConversationCreate,
+    db: Session = Depends(get_db_session),
+    user_id: int | None = Depends(_get_request_user_id),
+) -> ConversationItem:
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="缺少用户身份")
     ai_chat_service.ensure_tables(db)
-    row = ai_chat_service.create_conversation(db, payload.title)
+    row = ai_chat_service.create_conversation(db, payload.title, user_id)
     db.commit()
     db.refresh(row)
     return ConversationItem(id=row.id, title=row.title, created_at=row.created_at, updated_at=row.updated_at)
 
 
 @router.delete("/conversations/{conversation_id}", status_code=204)
-def delete_conversation(conversation_id: int, db: Session = Depends(get_db_session)) -> None:
+def delete_conversation(
+    conversation_id: int,
+    db: Session = Depends(get_db_session),
+    user_id: int | None = Depends(_get_request_user_id),
+) -> None:
     ai_chat_service.ensure_tables(db)
-    row = ai_chat_service.get_conversation_or_404(db, conversation_id)
+    row = ai_chat_service.get_conversation_or_404(db, conversation_id, user_id)
     ai_chat_service.delete_conversation(db, row)
     db.commit()
 
 
 @router.patch("/conversations/{conversation_id}", response_model=ConversationItem)
-def update_conversation(conversation_id: int, payload: ConversationCreate, db: Session = Depends(get_db_session)) -> ConversationItem:
+def update_conversation(
+    conversation_id: int,
+    payload: ConversationCreate,
+    db: Session = Depends(get_db_session),
+    user_id: int | None = Depends(_get_request_user_id),
+) -> ConversationItem:
     ai_chat_service.ensure_tables(db)
-    row = ai_chat_service.get_conversation_or_404(db, conversation_id)
+    row = ai_chat_service.get_conversation_or_404(db, conversation_id, user_id)
     if payload.title is not None:
         row.title = payload.title.strip() or "新对话"
     row.updated_at = datetime.now(timezone.utc)
@@ -116,10 +152,15 @@ def update_conversation(conversation_id: int, payload: ConversationCreate, db: S
 
 
 @router.post("/conversations/{conversation_id}/regenerate-title", response_model=ConversationTitleRegenerateResponse)
-def regenerate_conversation_title(conversation_id: int, db: Session = Depends(get_db_session), settings: Settings = Depends(get_settings)) -> ConversationTitleRegenerateResponse:
+def regenerate_conversation_title(
+    conversation_id: int,
+    db: Session = Depends(get_db_session),
+    settings: Settings = Depends(get_settings),
+    user_id: int | None = Depends(_get_request_user_id),
+) -> ConversationTitleRegenerateResponse:
     ai_chat_service.ensure_tables(db)
-    conversation = ai_chat_service.get_conversation_or_404(db, conversation_id)
-    messages = ai_chat_service.list_messages(db, conversation_id)
+    conversation = ai_chat_service.get_conversation_or_404(db, conversation_id, user_id)
+    messages = ai_chat_service.list_messages(db, conversation_id, user_id)
     generated_title = ai_chat_service.regenerate_conversation_title(settings, messages)
     regenerated = bool(generated_title)
     if generated_title:
@@ -136,19 +177,26 @@ def regenerate_conversation_title(conversation_id: int, db: Session = Depends(ge
 
 
 @router.get("/conversations/{conversation_id}/messages", response_model=list[MessageItem])
-def list_messages(conversation_id: int, db: Session = Depends(get_db_session)) -> list[MessageItem]:
+def list_messages(
+    conversation_id: int,
+    db: Session = Depends(get_db_session),
+    user_id: int | None = Depends(_get_request_user_id),
+) -> list[MessageItem]:
     ai_chat_service.ensure_tables(db)
-    ai_chat_service.get_conversation_or_404(db, conversation_id)
-    rows = ai_chat_service.list_messages(db, conversation_id)
+    rows = ai_chat_service.list_messages(db, conversation_id, user_id)
     return [serialize_message(row) for row in rows]
 
 
 @router.delete("/conversations/{conversation_id}/messages/{message_id}", status_code=204)
-def delete_message_endpoint(conversation_id: int, message_id: int, db: Session = Depends(get_db_session)) -> None:
+def delete_message_endpoint(
+    conversation_id: int,
+    message_id: int,
+    db: Session = Depends(get_db_session),
+    user_id: int | None = Depends(_get_request_user_id),
+) -> None:
     """硬删单条 AIMessage（与 delete_conversation 对齐：不引入软删字段）。"""
     ai_chat_service.ensure_tables(db)
-    ai_chat_service.get_conversation_or_404(db, conversation_id)
-    message = ai_chat_service.get_message_or_404(db, conversation_id, message_id)
+    message = ai_chat_service.get_message_or_404(db, conversation_id, message_id, user_id)
     ai_chat_service.delete_message(db, message)
     db.commit()
 
@@ -159,6 +207,7 @@ def update_message_endpoint(
     message_id: int,
     payload: AIChatMessageUpdate,
     db: Session = Depends(get_db_session),
+    user_id: int | None = Depends(_get_request_user_id),
 ) -> MessageItem:
     """编辑单条消息的 content。
 
@@ -166,8 +215,7 @@ def update_message_endpoint(
     统一返回 400。
     """
     ai_chat_service.ensure_tables(db)
-    ai_chat_service.get_conversation_or_404(db, conversation_id)
-    message = ai_chat_service.get_message_or_404(db, conversation_id, message_id)
+    message = ai_chat_service.get_message_or_404(db, conversation_id, message_id, user_id)
     if message.role != "user":
         raise HTTPException(status_code=400, detail="只能编辑用户消息")
 
@@ -184,15 +232,21 @@ def update_message_endpoint(
 
 
 @router.post("/conversations/{conversation_id}/messages", response_model=MessageCreateResponse)
-def create_message(conversation_id: int, payload: MessageCreate, db: Session = Depends(get_db_session), settings: Settings = Depends(get_settings)) -> MessageCreateResponse:
+def create_message(
+    conversation_id: int,
+    payload: MessageCreate,
+    db: Session = Depends(get_db_session),
+    settings: Settings = Depends(get_settings),
+    user_id: int | None = Depends(_get_request_user_id),
+) -> MessageCreateResponse:
     ai_chat_service.ensure_tables(db)
-    conversation = ai_chat_service.get_conversation_or_404(db, conversation_id)
+    conversation = ai_chat_service.get_conversation_or_404(db, conversation_id, user_id)
 
     user_content = payload.content.strip()
     if not user_content:
         raise HTTPException(status_code=400, detail="消息内容不能为空")
 
-    history_rows = ai_chat_service.list_messages(db, conversation_id)
+    history_rows = ai_chat_service.list_messages(db, conversation_id, user_id)
     web_search_context = None
     search_source_cards: list[dict[str, Any]] = []
     if payload.enable_web_search:
@@ -243,29 +297,24 @@ def stream_message(
     payload: MessageCreate,
     db: Session = Depends(get_db_session),
     settings: Settings = Depends(get_settings),
+    user_id: int | None = Depends(_get_request_user_id),
 ):
     """SSE 流式对话端点。
 
-    [BEL-66] 修复说明：
-    - 原 PR #24 把 `stream_message` 改为 `async def` + 注入 `Request` + 在循环里
-      `await request.is_disconnected()` 感知客户端 abort（BEL-62 缺口 2）。
-    - 这个改动在 async + FastAPI Depends 的组合下引入回归：DB session
-      （`get_db_session` 是 sync generator dependency）在 `async_exit_stack`
-      退出时同步 `db.close()`，而 `StreamingResponse` 真正迭代 `event_stream()`
-      是在那之后；流期间 session 已 close，下一次 `db.refresh()` / 隐式 lazy
-      refresh 会撞到 `Instance '<AIConversation at 0x...>' is not persistent
-      within this Session`（SQLAlchemy `Session._validate_persistent`）。
-    - 修复：把 handler 改回 sync `def`，移除 abort 感知代码。FastAPI 对 sync
-      handler 用 `run_in_threadpool`，依赖清理发生在 response body 迭代完成
-      之后，session 生命周期正确。
-    - 已知 trade-off：客户端 abort 缺口退回到"前端 fetch abort + 后端 LLM 跑到
-      自然结束"（在 BEL-62 PR 文档里已是已知 TODO，未来后端整体重构时再补
-      server-side cancel）。
+    [BEL-80 follow-up] 取消支持：
+    - 注册 `threading.Event` 到 `cancel_registry`；前端通过
+      `POST /conversations/{id}/stream/cancel` 设事件，后端
+      LLM 循环下一次迭代时检测到后立刻 `return`，
+      `with httpx.Client(...)` 退出关闭连接，节省 token。
+    - 进程级注册：多 worker 部署需要 sticky session 或 Redis
+      广播，本 PR 暂不处理。
+    - 数据库 session 仍走 FastAPI Depends（BEL-66 sync handler
+      模式）：LLM 取消只关 httpx，不动 DB session 生命周期。
     """
     ai_chat_service.ensure_tables(db)
-    conversation = ai_chat_service.get_conversation_or_404(db, conversation_id)
+    conversation = ai_chat_service.get_conversation_or_404(db, conversation_id, user_id)
 
-    history_rows = ai_chat_service.list_messages(db, conversation_id)
+    history_rows = ai_chat_service.list_messages(db, conversation_id, user_id)
     regenerate = payload.regenerate
     user_content = payload.content.strip()
 
@@ -311,6 +360,8 @@ def stream_message(
     if len(context_messages) >= max_turns * 2:
         raise HTTPException(status_code=400, detail=f"对话轮次已达上限 ({max_turns}次)，请新建会话继续对话")
 
+    cancel_event = cancel_registry.register(conversation_id)
+
     def event_stream():
         assistant_parts: list[str] = []
         search_source_cards: list[dict[str, Any]] = []
@@ -320,6 +371,7 @@ def stream_message(
         user_row = None
         assistant_row = None
         title_regenerated = False
+        cancelled = False
 
         try:
             yield encode_stream_event({"type": "start"})
@@ -337,7 +389,10 @@ def stream_message(
             if payload.enable_web_search:
                 payload_messages, tools = ai_chat_service.build_payload_messages_with_tools(context_messages, user_content, llm_config.system_prompt)
                 try:
-                    for event in ai_chat_service.stream_with_tool_calling(llm_config=llm_config, messages=payload_messages, settings=settings, temperature=0.7):
+                    for event in ai_chat_service.stream_with_tool_calling(llm_config=llm_config, messages=payload_messages, settings=settings, temperature=0.7, cancel_event=cancel_event):
+                        if cancel_event.is_set():
+                            cancelled = True
+                            break
                         if event.get("type") == "chunk":
                             delta = event.get("delta", "")
                             if delta:
@@ -361,11 +416,18 @@ def stream_message(
                         elif event.get("type") == "error":
                             raise Exception(event.get("message", "Tool calling failed"))
 
+                    if cancelled:
+                        raise _CancelledError()
+
                     assistant_content = "".join(assistant_parts).strip()
                     if not assistant_content:
                         raise ValueError("LLM returned empty content")
 
+                except _CancelledError:
+                    raise
                 except Exception:
+                    if cancel_event.is_set():
+                        raise _CancelledError()
                     assistant_parts = []
                     search_source_cards = []
                     web_search_payload = ai_chat_service.request_web_search(settings, user_content)
@@ -375,7 +437,10 @@ def stream_message(
                     if search_source_cards:
                         yield build_stream_sources(search_source_cards)
 
-                    for item in ai_chat_service.stream_assistant_content(llm_config=llm_config, messages=context_messages, user_content=user_content, web_search_context=web_search_context, settings=settings):
+                    for item in ai_chat_service.stream_assistant_content(llm_config=llm_config, messages=context_messages, user_content=user_content, web_search_context=web_search_context, settings=settings, cancel_event=cancel_event):
+                        if cancel_event.is_set():
+                            cancelled = True
+                            break
                         if isinstance(item, dict) and item.get("type") == "thinking":
                             thinking_chunk = str(item.get("content", ""))
                             if thinking_chunk:
@@ -386,11 +451,17 @@ def stream_message(
                                 ai_chat_service.update_message_content(db, assistant_row.id, "".join(assistant_parts))
                             yield build_stream_chunk(item)
 
+                    if cancelled:
+                        raise _CancelledError()
+
                     assistant_content = "".join(assistant_parts).strip()
                     if not assistant_content:
                         raise ValueError("LLM returned empty content")
             else:
-                for item in ai_chat_service.stream_assistant_content(llm_config=llm_config, messages=context_messages, user_content=user_content, settings=settings):
+                for item in ai_chat_service.stream_assistant_content(llm_config=llm_config, messages=context_messages, user_content=user_content, settings=settings, cancel_event=cancel_event):
+                    if cancel_event.is_set():
+                        cancelled = True
+                        break
                     if isinstance(item, dict) and item.get("type") == "thinking":
                         thinking_chunk = str(item.get("content", ""))
                         if thinking_chunk:
@@ -400,6 +471,9 @@ def stream_message(
                         if assistant_row:
                             ai_chat_service.update_message_content(db, assistant_row.id, "".join(assistant_parts))
                         yield build_stream_chunk(item)
+
+                if cancelled:
+                    raise _CancelledError()
 
                 assistant_content = "".join(assistant_parts).strip()
                 if not assistant_content:
@@ -458,12 +532,42 @@ def stream_message(
                 duration_ms=duration_ms,
                 title_regenerated=title_regenerated,
             )
+        except _CancelledError:
+            # 用户主动停止：回滚未提交的 DB 写入（user/assistant 空的行），
+            # 不写 done 也不写 error — 前端 useChatStream 已把"已停止"
+            # 作为正常 UX 处理。
+            db.rollback()
         except Exception as exc:
             db.rollback()
             yield build_stream_error(str(exc) or "发送失败")
+        finally:
+            cancel_registry.unregister(conversation_id, cancel_event)
 
     return StreamingResponse(
         event_stream(),
         media_type="application/x-ndjson",
         headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"},
     )
+
+
+class _CancelledError(Exception):
+    """内部 sentinel：用户主动停止时使用，区别于真正的错误。"""
+    pass
+
+
+@router.post("/conversations/{conversation_id}/stream/cancel", status_code=204)
+def cancel_stream(
+    conversation_id: int,
+    db: Session = Depends(get_db_session),
+    user_id: int | None = Depends(_get_request_user_id),
+) -> None:
+    """请求取消正在进行的流式生成。
+
+    - 校验 conv 归属，避免跨用户取消。
+    - 通过 `cancel_registry` 设 event；
+      `event_stream()` 在下一次 LLM 迭代时检测到并终止。
+    - 进程级：只在同一个 worker 进程内有效（multi-worker
+      部署需要 sticky session 或 Redis，本 PR 暂不处理）。
+    """
+    ai_chat_service.get_conversation_or_404(db, conversation_id, user_id)
+    cancel_registry.request_cancel(conversation_id)

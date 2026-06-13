@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+import threading
+from typing import Any, Optional
 
 import httpx
 
@@ -9,6 +10,10 @@ from app.core.config import Settings
 from app.schemas.ai_chat import LLMConfigInput
 
 from app.services.ai.chat import trim_trailing_slash
+
+
+def _cancelled(cancel_event: Optional[threading.Event]) -> bool:
+    return cancel_event is not None and cancel_event.is_set()
 
 
 WEB_SEARCH_TOOL_SCHEMA = {
@@ -136,6 +141,7 @@ def stream_with_tool_calling(
     settings: Settings,
     temperature: float = 0.7,
     max_tool_calls: int = 3,
+    cancel_event: Optional[threading.Event] = None,
 ):
     from app.services.ai.llm import get_first_choice
     from app.services.ai.search import (
@@ -150,6 +156,9 @@ def stream_with_tool_calling(
     tool_call_count = 0
 
     while tool_call_count < max_tool_calls:
+        if _cancelled(cancel_event):
+            return
+
         payload = {
             "model": llm_config.model,
             "messages": all_messages,
@@ -176,6 +185,8 @@ def stream_with_tool_calling(
                 ) as response:
                     response.raise_for_status()
                     for line in response.iter_lines():
+                        if _cancelled(cancel_event):
+                            return
                         if not line:
                             continue
                         text = (
