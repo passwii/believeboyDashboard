@@ -752,9 +752,12 @@ export function AIChatWindow({
       {/* Provider-unconfigured banner — shown only when the backend reports
           `providerConfigured: false` (most often because the .env lacks
           AI_CHAT_PROVIDER_API_KEY). It surfaces above the input so the user
-          understands why nothing happens. */}
+          understands why nothing happens. Width matches the input box (max
+          680px centered) so it never bleeds left into the conversation
+          sidebar's header (where the new-conversation / close buttons
+          live). */}
       {showInput && providerConfigured === false && (
-        <div className="absolute left-1/2 top-4 z-30 -translate-x-1/2 w-[calc(100%-2rem)] max-w-[680px]">
+        <div className="absolute left-1/2 top-4 z-30 -translate-x-1/2 w-full max-w-[680px] px-3 sm:px-4">
           <div className="flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/[0.06] px-3 py-2 text-xs text-amber-200">
             <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
             <div>
@@ -765,9 +768,15 @@ export function AIChatWindow({
         </div>
       )}
 
-      {/* Layer 2: Sidebar */}
+      {/* Layer 2: Sidebar — z-40 + `pointer-events-none` on the outer
+          GSAP-stripped wrapper, and the ConversationSidebar's own
+          z-index keeps it on top of the chat layer (z-30). The input
+          layer below uses z-40 / pointer-events: none on its outer strip,
+          with `pointer-events-auto` only on the centered input box, so
+          the sidebar's footer / new-conversation button stay clickable
+          even when the input strip sits visually below the sidebar. */}
       {showSidebar && (
-        <div ref={sidebarRef}>
+        <div ref={sidebarRef} className="pointer-events-none absolute inset-0 z-40">
           <ConversationSidebar
             conversations={conversations}
             activeId={activeConvId}
@@ -892,10 +901,14 @@ export function AIChatWindow({
         </div>
       )}
 
-      {/* Layer 5: Input */}
+      {/* Layer 5: Input — outer wrapper is `pointer-events-none` so the
+          full-width strip doesn't intercept clicks meant for the
+          conversation sidebar's bottom region (footer / last list items).
+          Only the inner centered 680px input box re-enables
+          `pointer-events-auto`. */}
       {showInput && (
         <div
-          className="absolute left-0 right-0 w-full px-3 sm:px-4"
+          className="absolute left-0 right-0 w-full px-3 sm:px-4 pointer-events-none"
           style={{
             ...(isLanding
               ? { top: '55%', transform: 'translateY(-50%)' }
@@ -908,7 +921,7 @@ export function AIChatWindow({
             zIndex: 40,
           }}
         >
-          <div className="relative w-full max-w-[680px] mx-auto">
+          <div className="relative w-full max-w-[680px] mx-auto pointer-events-auto">
             {/* Stop button */}
             <div
               className="absolute -top-14 left-1/2 -translate-x-1/2"
