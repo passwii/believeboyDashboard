@@ -2,11 +2,15 @@
 """
 远程数据库低并发联通性验证测试（纯数据查询）
 策略：20/30 并发，connect_timeout=30，验证连通性和基本性能
+
+连接优先级：env `PROD_DATABASE_URL` 优先（无则用 backend/.env），
+无值则退出。源码不硬编码生产端 IP——见 [BEL-75]。
 """
 from __future__ import annotations
 
 import concurrent.futures
 import logging
+import os
 import sys
 import threading
 import time
@@ -14,10 +18,31 @@ from datetime import date, timedelta
 
 sys.path.insert(0, "/Users/damon/DamonProjects/believeboyDashboard/backend")
 
+# 显式加载 backend/.env
+from dotenv import load_dotenv
+
+load_dotenv(
+    os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "..",
+        ".env",
+    ),
+    override=False,
+)
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(message)s", datefmt="%H:%M:%S")
 logger = logging.getLogger("remote_low")
 
-REMOTE_URL = "postgresql+psycopg://damon:jrway2012@145.79.143.98:5432/BLF"
+REMOTE_URL = os.environ.get("PROD_DATABASE_URL", "").strip()
+if not REMOTE_URL:
+    print(
+        "错误: 未配置 PROD_DATABASE_URL。\n"
+        "  请在 backend/.env 写入 PROD_DATABASE_URL=postgresql+psycopg://<user>:<pass>@<host>:<port>/<db>\n"
+        "  或在启动前 export PROD_DATABASE_URL=...。\n"
+        "  本脚本不再硬编码任何 IP——见 [BEL-75]。",
+        file=sys.stderr,
+    )
+    sys.exit(1)
 
 
 def _create_engine():
@@ -240,7 +265,12 @@ def run_test(label, count, workers, engine, SessionLocal):
 
 def main():
     logger.info("🚀 远程数据库低并发联通性验证（纯数据查询）")
-    logger.info(f"   目标: {REMOTE_URL.replace('jrway2012', '***')}")
+    # Mask user:password@ in connection string for log safety
+    masked_url = REMOTE_URL
+    if "@" in masked_url:
+        scheme, rest = masked_url.split("://", 1)
+        masked_url = f"{scheme}://***:***@{rest.split('@', 1)[1]}"
+    logger.info(f"   目标: {masked_url}")
     logger.info(f"   策略: connect_timeout=30, pool_size=20, max_overflow=20")
     logger.info("")
 

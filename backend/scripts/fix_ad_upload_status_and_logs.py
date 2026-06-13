@@ -7,6 +7,11 @@
     python scripts/fix_ad_upload_status_and_logs.py [--dry-run]
 
 --dry-run 模式只打印将要执行的变更，不实际写入数据库。
+
+数据库连接优先级：
+    1. --local 时使用 backend/.env 里的 DATABASE_URL（应为本地库）
+    2. 默认/--prod 时使用 backend/.env 里的 PROD_DATABASE_URL（生产库）
+    3. 缺省退出。请勿在源码中硬编码 IP——见 [BEL-75]。
 """
 
 import argparse
@@ -22,24 +27,20 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
-DEFAULT_PROD_URL = "postgresql+psycopg://damon:jrway2012@145.79.143.98:5432/BLF"
-
-if "--local" not in sys.argv and "--prod" not in sys.argv:
-    if DATABASE_URL and "localhost" not in DATABASE_URL:
-        pass
-    else:
-        DATABASE_URL = DEFAULT_PROD_URL
 
 if "--local" in sys.argv:
-    load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
     DATABASE_URL = os.environ.get("DATABASE_URL", "")
     if not DATABASE_URL:
-        print("错误: 本地模式需要 DATABASE_URL 环境变量")
+        print("错误: 本地模式需要 DATABASE_URL 环境变量（或 backend/.env 里有）")
         sys.exit(1)
     print(f"使用本地数据库: {DATABASE_URL.split('@')[-1] if '@' in DATABASE_URL else DATABASE_URL}")
 else:
-    DATABASE_URL = DEFAULT_PROD_URL
-    print(f"使用生产数据库: {DATABASE_URL.split('@')[-1]}")
+    DATABASE_URL = os.environ.get("PROD_DATABASE_URL", "")
+    if not DATABASE_URL:
+        print("错误: 生产模式需要 PROD_DATABASE_URL 环境变量（或 backend/.env 里有）。")
+        print("  本项目不在源码中硬编码生产端 IP——见 [BEL-75]。")
+        sys.exit(1)
+    print(f"使用生产数据库: {DATABASE_URL.split('@')[-1] if '@' in DATABASE_URL else DATABASE_URL}")
 
 if not DATABASE_URL:
     print("错误: 未找到 DATABASE_URL")
