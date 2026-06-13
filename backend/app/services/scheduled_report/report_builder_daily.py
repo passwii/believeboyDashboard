@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.models import AdUploadFile, AdUploadPromotedProductRow, AnalysisReturnRow, AnalysisSalesOrderRow, AnalysisSourceFile, InventorySnapshotRow
 from app.models.sku_info import SkuRecord
 from app.services.dashboard_overview_service import build_dashboard_overview
+from app.services.scheduled_report.ai_timeout import get_ai_timeout_sec
 from app.services.scheduled_report.context_helpers import (
     fetch_and_format_sku_factory_info,
     fetch_multi_project_context,
@@ -462,9 +463,9 @@ def _query_top_return_reasons(
         return []
 
 
-# 临时禁用 daily AI 总结（2026-06-12）：AI 持续 30s 超时，每天日志告警；
-# TODO: 修复后改回 AI_SUMMARY_TIMEOUT_SEC = 30
-AI_SUMMARY_TIMEOUT_SEC = 0
+# AI summary timeout is read per-call from env via get_ai_timeout_sec().
+# Set AI_SUMMARY_TIMEOUT_SEC=0 to disable AI and force the fallback summary.
+# Default 30s. See app/services/scheduled_report/ai_timeout.py.
 
 
 def _generate_summary(
@@ -486,9 +487,9 @@ def _generate_summary(
         frequency: "daily" / "weekly" / "monthly"
         overview: Report data dict passed to the AI prompt
         model: Optional model override
-        timeout: Max seconds to wait for AI. Defaults to AI_SUMMARY_TIMEOUT_SEC.
+        timeout: Max seconds to wait for AI. Defaults to get_ai_timeout_sec(frequency).
     """
-    secs = timeout if timeout is not None else AI_SUMMARY_TIMEOUT_SEC
+    secs = timeout if timeout is not None else get_ai_timeout_sec(frequency)
 
     if secs <= 0:
         return _generate_fallback_summary(frequency, overview)
