@@ -23,6 +23,10 @@ def ensure_tables(db: Session) -> None:
 
 
 def list_conversations(db: Session) -> list[AIConversation]:
+    """返回所有会话（按 updated_at 倒序）。
+
+    KNOWN LIMITATION (BEL-62): 当前不按 user 过滤，详见 AIConversation docstring。
+    """
     stmt = select(AIConversation).order_by(AIConversation.updated_at.desc())
     return list(db.execute(stmt).scalars().all())
 
@@ -45,16 +49,46 @@ def get_conversation_or_404(db: Session, conversation_id: int) -> AIConversation
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found"
         )
+    # KNOWN LIMITATION (BEL-62): 当前不校验 user 归属。
+    # AIConversation 没有 user_id 列；list_conversations 也不按用户过滤。
     return row
 
 
 def list_messages(db: Session, conversation_id: int) -> list[AIMessage]:
+    """返回 conversation 下的所有消息，按 created_at 升序。
+
+    KNOWN LIMITATION: 当前不做用户隔离。AIConversation / AIMessage
+    都没有 user_id 列，所有登录用户共享所有会话。
+    See issue BEL-62 (后端补丁) 决定: 暂不阻塞本子 issue，由后续
+    product-level 决策后单独建 follow-up。
+    """
     stmt = (
         select(AIMessage)
         .where(AIMessage.conversation_id == conversation_id)
         .order_by(AIMessage.created_at.asc())
     )
     return list(db.execute(stmt).scalars().all())
+
+
+def get_message_or_404(
+    db: Session, conversation_id: int, message_id: int
+) -> AIMessage:
+    """根据 conversation_id + message_id 取单条消息。
+
+    - 找不到 message：404
+    - message 存在但不属于指定 conversation：404（避免泄漏其他 conv 的 message 存在性）
+    """
+    row = db.get(AIMessage, message_id)
+    if row is None or row.conversation_id != conversation_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Message not found"
+        )
+    return row
+
+
+def delete_message(db: Session, message: AIMessage) -> None:
+    """硬删单条消息（与 delete_conversation 对齐：不引入软删字段）。"""
+    db.delete(message)
 
 
 def append_message(
