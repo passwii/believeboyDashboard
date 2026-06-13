@@ -13,16 +13,28 @@ logger = logging.getLogger(__name__)
 
 
 def enqueue_job(db: Session, settings: Settings, payload: dict, operator: str | None = None) -> Job:
-    _ = settings
+    """Create a `Job` row and dispatch the work to Celery or the legacy thread.
+
+    BEL-55-P1 dual-write: when `settings.enable_celery_dispatch` is true
+    (the default), the new job is pushed onto the Celery `reports` queue
+    via `app.celery_tasks.run_job.run_job.delay(job_id)`. When false —
+    the rollback knob — the job runs in an in-process daemon thread,
+    matching the pre-Celery behavior of `worker.tasks.run_job`. The
+    legacy path is kept for one PR cycle as a safety net; remove once
+    the Celery path is battle-tested.
+    """
     job = Job(job_type=payload['job_type'], status=JobStatus.pending, payload_json=payload, operator=operator)
     db.add(job)
     db.commit()
     job_id = job.id
 
-    from worker.tasks import run_job
-
-    thread = threading.Thread(target=run_job, args=(job_id,), daemon=True, name=f'job-runner-{job_id}')
-    thread.start()
+    if settings.enable_celery_dispatch:
+        from app.celery_tasks.run_job import run_job as celery_run_job
+        celery_run_job.delay(job_id)
+    else:
+        from worker.tasks import run_job as thread_run_job
+        thread = threading.Thread(target=thread_run_job, args=(job_id,), daemon=True, name=f'job-runner-{job_id}')
+        thread.start()
     return job
 
 
@@ -36,6 +48,18 @@ def get_latest_run(db: Session, job_id: int) -> JobRun | None:
 
 
 def mark_job_running(db: Session, job: Job, operator: str | None = None) -> JobRun:
+    """Mark the job as `running` and create a new `JobRun` row.
+
+    BEL-55-P1 idempotency: if the job is already in the `running` state
+    (e.g. a broker-redelivered Celery message arriving while the original
+    worker is still processing), we return the existing latest `JobRun`
+    rather than creating a duplicate. Without this guard, redelivery
+    would create a second `JobRun` and skew operator-facing metrics.
+    """
+    if job.status == JobStatus.running:
+        existing = get_latest_run(db, job.id)
+        if existing is not None:
+            return existing
     job.status = JobStatus.running
     run_operator = operator if operator is not None else job.operator
     run = JobRun(job_id=job.id, started_at=datetime.now(UTC), operator=run_operator)
@@ -55,9 +79,20 @@ def mark_job_success(db: Session, job: Job, run: JobRun, result_path: str, log_e
 
 
 def mark_job_failed(db: Session, job: Job, run: JobRun, error_message: str) -> None:
+    """Mark the job as `failed` and persist the error message.
+
+    BEL-55-P1 retry semantics: when the Celery task is retrying, each
+    attempt calls `mark_job_failed` and would otherwise overwrite the
+    previous attempt's stack trace. We append the new error below the
+    previous one (separated by a delimiter) so operators can see the
+    full retry history on a single row, not just the latest attempt.
+    """
     job.status = JobStatus.failed
     run.finished_at = datetime.now(UTC)
-    run.error_message = error_message
+    if run.error_message:
+        run.error_message = f"{run.error_message}\n---\n{error_message}"
+    else:
+        run.error_message = error_message
     db.commit()
 
 

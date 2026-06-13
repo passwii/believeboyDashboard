@@ -1,12 +1,12 @@
 """Celery application factory and configuration.
 
 This module owns the Celery app instance used by the worker systemd unit
-(`believeboy-worker.service`). It is intentionally minimal in BEL-55-P0: it
-brings up the broker connection, registers the (currently empty) shared task
-package, and exposes a `ping` task that verifies round-trip end-to-end.
+(`believeboy-worker.service`).
 
-Migration of the in-process `enqueue_job` threading model is tracked under
-BEL-55-P1+ and is explicitly out of scope here.
+BEL-55-P0 brought up the broker + ping smoke-test task. BEL-55-P1 adds
+`app.celery_tasks.run_job` (the lifted `worker.tasks.run_job`) and the
+`reports` queue route. AI-insight tasks (BEL-55-P2) and the in-memory
+monthly-report task table (BEL-55-P3) are explicitly out of scope here.
 """
 
 from __future__ import annotations
@@ -30,7 +30,15 @@ def _build_celery_app() -> Celery:
         "believeboy",
         broker=settings._celery_broker_url_resolved,
         backend=settings._celery_result_url_resolved,
-        include=["app.celery_tasks.ping"],
+        # `ping` is the BEL-55-P0 smoke-test task; `run_job` is the
+        # BEL-55-P1 lift of `worker.tasks.run_job` into Celery. The
+        # worker systemd unit consumes from `default,reports,insights`
+        # (see deploy/systemd/believeboy-worker.service) so both modules
+        # are eagerly imported at worker boot.
+        include=[
+            "app.celery_tasks.ping",
+            "app.celery_tasks.run_job",
+        ],
     )
 
     app.conf.update(
@@ -44,6 +52,13 @@ def _build_celery_app() -> Celery:
         worker_prefetch_multiplier=1,
         # Default routing: every task without an explicit route lands here.
         task_default_queue="default",
+        # BEL-55-P1: long-running report jobs land on the `reports` queue
+        # so they don't compete for prefetch slots with short-lived
+        # default tasks (e.g. the smoke-test ping). The worker systemd
+        # unit already consumes from this queue.
+        task_routes={
+            "app.celery_tasks.run_job.run_job": {"queue": "reports"},
+        },
         # All timestamps in messages/results use project timezone.
         timezone="Asia/Shanghai",
         enable_utc=True,

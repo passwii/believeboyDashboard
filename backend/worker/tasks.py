@@ -1,3 +1,20 @@
+"""Legacy in-process job runner, kept as the dual-write fallback for BEL-55-P1.
+
+The default execution path is now `app.celery_tasks.run_job.run_job`
+(Celery, on the `reports` queue). This module is preserved for the
+`enable_celery_dispatch=False` rollback knob and for the
+`worker/oneoff_runner.py` script, which keeps importing `run_job` so
+operators can re-run a single job synchronously without going through
+the broker.
+
+Behavior is byte-for-byte equivalent to the pre-BEL-55-P1 implementation;
+the helpers have moved to `app.celery_tasks._common` but the body
+below still works without importing them (so a `worker.tasks` import
+during a partial deploy still succeeds).
+"""
+
+from __future__ import annotations
+
 import json
 from pathlib import Path
 
@@ -134,7 +151,8 @@ def _monthly_progress_callback(db, run):
     return callback
 
 
-def run_job(job_id: int) -> None:
+def _run_job_legacy(job_id: int) -> None:
+    """Pre-BEL-55-P1 in-process job body. Kept for the rollback path and oneoff_runner."""
     settings = get_settings()
 
     db = SessionLocal()
@@ -228,3 +246,24 @@ def run_job(job_id: int) -> None:
                 job_service.mark_job_failed(db, job, run, str(error))
     finally:
         db.close()
+
+
+def run_job(job_id: int) -> None:
+    """Thin dispatcher kept for `worker/oneoff_runner.py` and the rollback path.
+
+    Behavior:
+    * `settings.enable_celery_dispatch=True` (default): synchronously
+      apply the Celery task (`run_job.apply(...).get()`) so the caller
+      still gets a "wait until done" semantic. The actual work runs in
+      a worker process via the broker.
+    * `settings.enable_celery_dispatch=False`: fall back to the in-process
+      `_run_job_legacy` body so the pre-Celery behavior is preserved.
+    """
+    from app.core.config import get_settings as _get_settings
+
+    settings = _get_settings()
+    if settings.enable_celery_dispatch:
+        from app.celery_tasks.run_job import run_job as celery_run_job
+        celery_run_job.apply(args=[job_id]).get()
+        return
+    _run_job_legacy(job_id)
