@@ -84,9 +84,10 @@ const SignInCard = ({ theme }: SignInCardProps) => {
         redirect: false,
       });
 
-      if (!result || result.error) {
+      const signInError = typeof result === "string" ? result : result?.error;
+      if (signInError) {
         setSubmitting(false);
-        const errorCode = result?.code?.toLowerCase() ?? "";
+        const errorCode = signInError.toLowerCase();
         if (errorCode === "network_error") {
           setError("无法连接到服务器，请检查后端服务是否启动。");
         } else {
