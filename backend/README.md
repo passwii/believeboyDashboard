@@ -7,10 +7,13 @@ cd backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env
+# .env 已随仓库一起提交（仓库为私有）。本机首次拉分支后若没有 .env，
+# 跑 `git pull` 同步，或从其他 worktree 拷贝 `backend/.env` 即可。
 ```
 
 `backend/.env` 用于后端自己的运行配置，其中 `DATABASE_URL`、`PGHOST`、`PGPORT`、`PGDATABASE`、`PGUSER`、`PGPASSWORD` 都只应保留在后端，不应放到前端的 `.env.local`。`AI_CHAT_PROVIDER_BASE_URL`、`AI_CHAT_PROVIDER_API_KEY`、`AI_CHAT_DEFAULT_MODEL`、`AI_CHAT_MODEL_ALLOWLIST`、`AI_CHAT_TIMEOUT_SECONDS` 也统一放在后端。`DATABASE_URL` 现在是必填项，未配置时后端和 Alembic 会直接报错，不再回退到本地 SQLite。
+
+> **2026-06-13 变更**：`.env` 现已加入 git 跟踪（仓库已私有化），所有 worktree 切分支时 `git pull` 即可同步。`API_KEY` 等敏感变量随仓库走。
 
 ## Run API
 
