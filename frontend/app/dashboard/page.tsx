@@ -380,7 +380,14 @@ export default function DashboardPage() {
         dateLabel={dateLabel}
       />
 
-      <section className="grid gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+      {/*
+        * iPad portrait (768–1023px) intentionally stays single-column:
+        * the 2:3 split would compress tiles to ~200px each. Side-by-side
+        * kicks in at lg (1024px) so iPad Pro landscape + small laptop
+        * get the full dashboard feel. Stacked on phone so the chart
+        * gets the full width.
+        */}
+      <section className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         <DashboardMetricTiles metrics={metrics} loading={anyLoading} />
         <LazyDashboardSalesChart dailyData={dailyData} dateRange={dateRange} projects={projects} loading={dataLoading} onRefresh={handleRefresh} />
       </section>
