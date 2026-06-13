@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -9,11 +9,10 @@ from app.db.session import Base
 class AIConversation(Base):
     """AI Chat 会话表。
 
-    KNOWN LIMITATION (BEL-62, BEL-59 follow-up):
-    当前没有 `user_id` 列，所有登录用户共享所有 AI 会话。
-    这是产品/安全决策点，由 product owner 评估后单独建 follow-up issue。
-    本表 / `AIMessage` 不做 user 隔离校验；service 层 `get_conversation_or_404`
-    和 `list_messages` 也不按用户过滤。
+    归属：`user_id` 来自请求的 `X-User-Id` header（外层 proxy 注入）。
+    service 层 `get_conversation_or_404` 强制校验归属；不匹配返回 404
+    （不暴露存在性，与 `get_message_or_404` 一致）。`user_id` 为 NULL
+    的历史会话不会被任何用户看到，等价于"老数据隐藏"。
     """
 
     __tablename__ = "ai_conversations"
@@ -23,6 +22,7 @@ class AIConversation(Base):
         primary_key=True,
         autoincrement=True,
     )
+    user_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False, default="新对话")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
@@ -48,8 +48,8 @@ class AIConversation(Base):
 class AIMessage(Base):
     """AI Chat 消息表。
 
-    KNOWN LIMITATION (BEL-62): 无 `user_id` 列，消息归属与 AIConversation 一致，
-    共享跨登录用户。详见 AIConversation docstring。
+    归属由所属 `AIConversation.user_id` 派生（不再单独存 user_id），
+    隔离校验在 service 层 `get_conversation_or_404` 集中完成。
     """
 
     __tablename__ = "ai_messages"

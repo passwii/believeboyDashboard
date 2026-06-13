@@ -30,8 +30,9 @@ def db() -> Session:
         session.close()
 
 
-def _seed_conversation(db: Session, title: str = "test-conv") -> AIConversation:
+def _seed_conversation(db: Session, title: str = "test-conv", user_id: int = 1) -> AIConversation:
     conv = AIConversation(
+        user_id=user_id,
         title=title,
         created_at=datetime(2026, 6, 1, tzinfo=timezone.utc),
         updated_at=datetime(2026, 6, 1, tzinfo=timezone.utc),
@@ -65,7 +66,7 @@ def test_get_message_or_404_returns_message(db: Session) -> None:
     conv = _seed_conversation(db)
     msg = _seed_message(db, conv, role="user", content="hello")
 
-    found = chat_service.get_message_or_404(db, conv.id, msg.id)
+    found = chat_service.get_message_or_404(db, conv.id, msg.id, 1)
 
     assert found.id == msg.id
     assert found.content == "hello"
@@ -75,7 +76,7 @@ def test_get_message_or_404_missing_message_raises_404(db: Session) -> None:
     conv = _seed_conversation(db)
 
     with pytest.raises(HTTPException) as excinfo:
-        chat_service.get_message_or_404(db, conv.id, 99999)
+        chat_service.get_message_or_404(db, conv.id, 99999, 1)
     assert excinfo.value.status_code == 404
 
 
@@ -86,7 +87,7 @@ def test_get_message_or_404_wrong_conversation_raises_404(db: Session) -> None:
 
     # 存在但属于 B，请求时却传 A → 404（不泄漏其他 conv 的 message 存在性）
     with pytest.raises(HTTPException) as excinfo:
-        chat_service.get_message_or_404(db, conv_a.id, msg_b.id)
+        chat_service.get_message_or_404(db, conv_a.id, msg_b.id, 1)
     assert excinfo.value.status_code == 404
 
 
@@ -115,7 +116,7 @@ def test_delete_message_keeps_siblings(db: Session) -> None:
     chat_service.delete_message(db, m1)
     db.commit()
 
-    remaining = chat_service.list_messages(db, conv.id)
+    remaining = chat_service.list_messages(db, conv.id, 1)
     assert [r.content for r in remaining] == ["2", "3"]
 
 

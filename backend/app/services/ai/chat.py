@@ -22,18 +22,28 @@ def ensure_tables(db: Session) -> None:
     pass
 
 
-def list_conversations(db: Session) -> list[AIConversation]:
-    """返回所有会话（按 updated_at 倒序）。
+def list_conversations(db: Session, user_id: int | None) -> list[AIConversation]:
+    """返回当前用户的会话（按 updated_at 倒序）。
 
-    KNOWN LIMITATION (BEL-62): 当前不按 user 过滤，详见 AIConversation docstring。
+    user_id 为 None 视为"未登录调用方"，返回空列表；
+    历史 user_id IS NULL 的会话对任何调用方都不可见。
     """
-    stmt = select(AIConversation).order_by(AIConversation.updated_at.desc())
+    if user_id is None:
+        return []
+    stmt = (
+        select(AIConversation)
+        .where(AIConversation.user_id == user_id)
+        .order_by(AIConversation.updated_at.desc())
+    )
     return list(db.execute(stmt).scalars().all())
 
 
-def create_conversation(db: Session, title: str | None) -> AIConversation:
+def create_conversation(
+    db: Session, title: str | None, user_id: int
+) -> AIConversation:
+    """创建归属于 user_id 的会话。user_id 由 endpoint 从 X-User-Id 注入。"""
     normalized_title = (title or "").strip() or "新对话"
-    row = AIConversation(title=normalized_title)
+    row = AIConversation(user_id=user_id, title=normalized_title)
     db.add(row)
     db.flush()
     return row
@@ -43,25 +53,36 @@ def delete_conversation(db: Session, conversation: AIConversation) -> None:
     db.delete(conversation)
 
 
-def get_conversation_or_404(db: Session, conversation_id: int) -> AIConversation:
+def get_conversation_or_404(
+    db: Session, conversation_id: int, user_id: int | None
+) -> AIConversation:
+    """取会话并校验归属。
+
+    - 找不到：404
+    - 找到但 user_id 与请求不匹配：404（不暴露存在性）
+    - 找到且 user_id IS NULL：404（历史脏数据不暴露给任何用户）
+    """
     row = db.get(AIConversation, conversation_id)
     if row is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found"
         )
-    # KNOWN LIMITATION (BEL-62): 当前不校验 user 归属。
-    # AIConversation 没有 user_id 列；list_conversations 也不按用户过滤。
+    if user_id is None or row.user_id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found"
+        )
     return row
 
 
-def list_messages(db: Session, conversation_id: int) -> list[AIMessage]:
+def list_messages(
+    db: Session, conversation_id: int, user_id: int | None
+) -> list[AIMessage]:
     """返回 conversation 下的所有消息，按 created_at 升序。
 
-    KNOWN LIMITATION: 当前不做用户隔离。AIConversation / AIMessage
-    都没有 user_id 列，所有登录用户共享所有会话。
-    See issue BEL-62 (后端补丁) 决定: 暂不阻塞本子 issue，由后续
-    product-level 决策后单独建 follow-up。
+    归属校验：先复用 `get_conversation_or_404` 做 user 隔离；
+    之后返回的消息天然属于该 conv，等价于已隔离。
     """
+    get_conversation_or_404(db, conversation_id, user_id)
     stmt = (
         select(AIMessage)
         .where(AIMessage.conversation_id == conversation_id)
@@ -71,13 +92,15 @@ def list_messages(db: Session, conversation_id: int) -> list[AIMessage]:
 
 
 def get_message_or_404(
-    db: Session, conversation_id: int, message_id: int
+    db: Session, conversation_id: int, message_id: int, user_id: int | None
 ) -> AIMessage:
-    """根据 conversation_id + message_id 取单条消息。
+    """根据 conversation_id + message_id 取单条消息，并校验 conv 归属。
 
     - 找不到 message：404
     - message 存在但不属于指定 conversation：404（避免泄漏其他 conv 的 message 存在性）
+    - conversation 不属于 user_id：404
     """
+    get_conversation_or_404(db, conversation_id, user_id)
     row = db.get(AIMessage, message_id)
     if row is None or row.conversation_id != conversation_id:
         raise HTTPException(
