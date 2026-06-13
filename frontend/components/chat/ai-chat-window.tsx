@@ -111,12 +111,8 @@ export function AIChatWindow({
    */
   const [locallyDeletedIds, setLocallyDeletedIds] = useState<Record<number, Set<number>>>({})
 
-  // ── Stream options — owned by the window so the user can tweak them between
-  // ── sends. Default to "none" (no preset) so the backend just uses its base
-  // ── system prompt.
   const [enableWebSearch, setEnableWebSearch] = useState(false)
-  const [overviewPromptId, setOverviewPromptId] = useState<string>('none')
-  const [detailPromptId, setDetailPromptId] = useState<string>('none')
+  const [reasoningEffort, setReasoningEffort] = useState<string | null>(null)
   const [selectedModel, setSelectedModel] = useState<string | undefined>(undefined)
 
   const rootRef = useRef<HTMLDivElement>(null)
@@ -533,16 +529,18 @@ export function AIChatWindow({
       })
       setIsStreaming(true)
       setStreamError(null)
-      // Forward the user's current preset / model / web-search choices to
-      // the regenerated stream — same as `handleSend` does. Hard-coding
-      // 'none' / false here would silently drop their selection.
+      // Forward the user's current model / reasoning / web-search choices to
+      // the regenerated stream — same as `handleSend` does.
       const cfg = getConfig()
+      const model = selectedModel ?? cfg?.defaultModel
+      const reasoningSupported = model
+        ? (cfg?.reasoningModels ?? []).some((item) => item.toLowerCase() === model.toLowerCase())
+        : false
       const options: ChatStreamOptions = {
-        model: selectedModel ?? cfg?.defaultModel,
+        model,
         regenerate: true,
         targetMessageId: target.serverId,
-        overviewPromptId,
-        detailPromptId,
+        reasoningEffort: reasoningSupported ? reasoningEffort : null,
         enableWebSearch,
       }
       wireStreamCallbacks(newAssistantId)
@@ -562,8 +560,7 @@ export function AIChatWindow({
       sendStream,
       wireStreamCallbacks,
       selectedModel,
-      overviewPromptId,
-      detailPromptId,
+      reasoningEffort,
       enableWebSearch,
     ]
   )
@@ -673,12 +670,15 @@ export function AIChatWindow({
           wireStreamCallbacks(assistantLocalId, userLocalId)
           const cfg = getConfig()
           try {
+            const model = selectedModel ?? cfg?.defaultModel
+            const reasoningSupported = model
+              ? (cfg?.reasoningModels ?? []).some((item) => item.toLowerCase() === model.toLowerCase())
+              : false
             await sendStream(message, {
-              model: cfg?.defaultModel,
-              overviewPromptId: streamOptions.overviewPromptId ?? 'none',
-              detailPromptId: streamOptions.detailPromptId ?? 'none',
               enableWebSearch: streamOptions.enableWebSearch ?? false,
               ...streamOptions,
+              model,
+              reasoningEffort: reasoningSupported ? (streamOptions.reasoningEffort ?? reasoningEffort) : null,
             })
           } catch (err) {
             if (!(err instanceof DOMException && err.name === 'AbortError')) {
@@ -710,12 +710,15 @@ export function AIChatWindow({
       wireStreamCallbacks(assistantLocalId, userLocalId)
       const cfg = getConfig()
       try {
+        const model = selectedModel ?? cfg?.defaultModel
+        const reasoningSupported = model
+          ? (cfg?.reasoningModels ?? []).some((item) => item.toLowerCase() === model.toLowerCase())
+          : false
         await sendStream(message, {
-          model: cfg?.defaultModel,
-          overviewPromptId: streamOptions.overviewPromptId ?? 'none',
-          detailPromptId: streamOptions.detailPromptId ?? 'none',
           enableWebSearch: streamOptions.enableWebSearch ?? false,
           ...streamOptions,
+          model,
+          reasoningEffort: reasoningSupported ? (streamOptions.reasoningEffort ?? reasoningEffort) : null,
         })
       } catch (err) {
         if (!(err instanceof DOMException && err.name === 'AbortError')) {
@@ -723,7 +726,7 @@ export function AIChatWindow({
         }
       }
     },
-    [showInput, onSend, phase, activeServerId, sendStream, wireStreamCallbacks],
+    [showInput, onSend, phase, activeServerId, sendStream, wireStreamCallbacks, reasoningEffort, selectedModel],
   )
 
   // ── Typewriter segments ──────────────────────────────────────────
@@ -949,8 +952,6 @@ export function AIChatWindow({
               placeholder={isLanding ? placeholder : '继续对话...'}
               onSend={(msg, opts) => handleSend(msg, {
                 ...opts,
-                overviewPromptId,
-                detailPromptId,
                 enableWebSearch,
                 model: selectedModel,
               })}
@@ -958,10 +959,8 @@ export function AIChatWindow({
               disabled={isStreaming || activeServerId == null}
               enableWebSearch={enableWebSearch}
               onToggleWebSearch={setEnableWebSearch}
-              overviewPromptId={overviewPromptId}
-              onOverviewPromptIdChange={setOverviewPromptId}
-              detailPromptId={detailPromptId}
-              onDetailPromptIdChange={setDetailPromptId}
+              reasoningEffort={reasoningEffort}
+              onReasoningEffortChange={setReasoningEffort}
               selectedModel={selectedModel}
               onModelChange={setSelectedModel}
             />
