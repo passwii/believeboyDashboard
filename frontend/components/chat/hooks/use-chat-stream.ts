@@ -145,7 +145,8 @@ export function useChatStream(
               model: options.model,
               reasoningEffort: options.reasoningEffort ?? null,
               regenerate: options.regenerate ?? false,
-              targetMessageId: options.targetMessageId,
+              // Route handler reads snake_case; this is the contract.
+              target_message_id: options.targetMessageId,
               overviewPromptId: options.overviewPromptId ?? null,
               detailPromptId: options.detailPromptId ?? null,
               enableWebSearch: options.enableWebSearch ?? false,

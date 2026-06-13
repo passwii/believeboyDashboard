@@ -40,6 +40,13 @@ export type StreamDonePayload = {
   assistantMessage: ServerChatMessage
   conversationTitle: string | null
   tokenUsage: StreamUsage | null
+  /**
+   * Conversation-level cumulative token usage (prompt / completion / total).
+   * The backend emits this in the `done` event; we surface it for sidebar
+   * totals and other future UI. Optional so the consumer can ignore it
+   * without an extra type guard.
+   */
+  conversationTokenUsage?: StreamUsage | null
   durationMs: number | null
   titleRegenerated: boolean
 }
@@ -67,6 +74,7 @@ type RawEvent = {
   assistant_message?: ServerChatMessage
   conversation_title?: string | null
   token_usage?: StreamUsage | null
+  conversation_token_usage?: StreamUsage | null
   duration_ms?: number | null
   title_regenerated?: boolean
 }
@@ -251,6 +259,7 @@ function dispatchEvent(
         assistantMessage,
         conversationTitle: event.conversation_title ?? null,
         tokenUsage: normalizeUsage(event.token_usage),
+        conversationTokenUsage: normalizeUsage(event.conversation_token_usage),
         durationMs: typeof event.duration_ms === 'number' ? event.duration_ms : null,
         titleRegenerated: Boolean(event.title_regenerated),
       }

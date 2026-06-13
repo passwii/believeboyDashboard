@@ -54,22 +54,25 @@ function toClientConversation(server: ServerConversation): Conversation {
 
 /** Map a backend message to a UI `ChatMessage`. */
 function toClientMessage(server: ServerChatMessage): ChatMessage {
+  const isAssistant = server.role === 'assistant'
+  const hasUsage =
+    isAssistant &&
+    (server.total_tokens > 0 || server.prompt_tokens > 0 || server.completion_tokens > 0)
   return {
     id: `server-${server.id}`,
     serverId: server.id,
-    role: server.role === 'assistant' ? 'assistant' : 'user',
+    role: isAssistant ? 'assistant' : 'user',
     content: server.content,
     streaming: false,
     searchSources: server.search_sources,
-    tokenUsage:
-      server.total_tokens || server.prompt_tokens || server.completion_tokens
-        ? {
-            prompt: server.prompt_tokens,
-            completion: server.completion_tokens,
-            total: server.total_tokens,
-          }
-        : undefined,
-    durationMs: server.duration_ms ?? undefined,
+    tokenUsage: hasUsage
+      ? {
+          prompt: server.prompt_tokens,
+          completion: server.completion_tokens,
+          total: server.total_tokens,
+        }
+      : undefined,
+    durationMs: isAssistant ? server.duration_ms ?? undefined : undefined,
     createdAt: server.created_at,
   }
 }
@@ -99,6 +102,14 @@ export function AIChatWindow({
   /** Bumped to force re-fetching the conversation list (after create/delete/rename). */
   const [refreshKey, setRefreshKey] = useState(0)
   const refreshConversations = useCallback(() => setRefreshKey((k) => k + 1), [])
+  /**
+   * Server-persisted message ids the user has deleted client-side.
+   * Backend has no message-level DELETE endpoint yet (see TODO below); we
+   * remember deletes locally so a refresh / conversation switch doesn't
+   * resurrect messages the user has already dismissed.
+   * Keyed by conversation serverId so different conversations stay isolated.
+   */
+  const [locallyDeletedIds, setLocallyDeletedIds] = useState<Record<number, Set<number>>>({})
 
   // ── Stream options — owned by the window so the user can tweak them between
   // ── sends. Default to "none" (no preset) so the backend just uses its base
@@ -168,10 +179,17 @@ export function AIChatWindow({
     }
     let cancelled = false
     setLoadingMessages(true)
+    const hiddenForConv = locallyDeletedIds[activeServerId] ?? new Set<number>()
     getMessages(activeServerId)
       .then((rows) => {
         if (cancelled) return
-        setMessages(rows.map(toClientMessage))
+        const mapped = rows.map(toClientMessage)
+        // Filter out messages the user deleted in a previous session —
+        // backend still has them, but we treat the local delete as sticky.
+        const visible = hiddenForConv.size > 0
+          ? mapped.filter((m) => m.serverId == null || !hiddenForConv.has(m.serverId))
+          : mapped
+        setMessages(visible)
       })
       .catch((err) => {
         if (cancelled) return
@@ -184,7 +202,7 @@ export function AIChatWindow({
     return () => {
       cancelled = true
     }
-  }, [activeServerId])
+  }, [activeServerId, locallyDeletedIds])
 
   // ── Chat stream hook (only mounted when we have a real server-side
   // ── conversation; the placeholder "new conversation" state creates one
@@ -263,12 +281,12 @@ export function AIChatWindow({
   // ── active assistant message. The assistant message is identified by a
   // ── temporary local id; once the `done` event arrives we replace it
   // ── with the persisted server id so message actions can reference it.
-  const assistantLocalIdRef = useRef<string | null>(null)
-
+  //
+  // For regenerate flows there is no corresponding optimistic user message,
+  // so `userLocalId` is optional. When omitted, the `onDone` handler skips
+  // the user-message reconciliation step.
   const wireStreamCallbacks = useCallback(
-    (assistantLocalId: string, userLocalId: string) => {
-      assistantLocalIdRef.current = assistantLocalId
-
+    (assistantLocalId: string, userLocalId?: string) => {
       streamCallbacksRef.current = {
         onStart: () => {
           // No-op — UI already shows the typing indicator.
@@ -334,7 +352,7 @@ export function AIChatWindow({
           // chunk arrived after `done`).
           setMessages((prev) => {
             const aiIdx = prev.findIndex((m) => m.id === assistantLocalId)
-            const userIdx = prev.findIndex((m) => m.id === userLocalId)
+            const userIdx = userLocalId ? prev.findIndex((m) => m.id === userLocalId) : -1
             const persisted = toClientMessage(payload.assistantMessage)
             const persistedUser = toClientMessage(payload.userMessage)
             const next = prev.slice()
@@ -515,16 +533,19 @@ export function AIChatWindow({
       })
       setIsStreaming(true)
       setStreamError(null)
+      // Forward the user's current preset / model / web-search choices to
+      // the regenerated stream — same as `handleSend` does. Hard-coding
+      // 'none' / false here would silently drop their selection.
       const cfg = getConfig()
       const options: ChatStreamOptions = {
-        model: cfg?.defaultModel,
+        model: selectedModel ?? cfg?.defaultModel,
         regenerate: true,
         targetMessageId: target.serverId,
-        overviewPromptId: 'none',
-        detailPromptId: 'none',
-        enableWebSearch: false,
+        overviewPromptId,
+        detailPromptId,
+        enableWebSearch,
       }
-      wireStreamCallbacks(newAssistantId, '')
+      wireStreamCallbacks(newAssistantId)
       try {
         await sendStream('', options)
       } catch (err) {
@@ -534,7 +555,17 @@ export function AIChatWindow({
         }
       }
     },
-    [activeServerId, isStreaming, messages, sendStream, wireStreamCallbacks]
+    [
+      activeServerId,
+      isStreaming,
+      messages,
+      sendStream,
+      wireStreamCallbacks,
+      selectedModel,
+      overviewPromptId,
+      detailPromptId,
+      enableWebSearch,
+    ]
   )
 
   // Edit / Delete on individual messages are TODO — the backend has no
@@ -545,19 +576,38 @@ export function AIChatWindow({
   }, [])
 
   const handleDeleteMessage = useCallback((messageId: string) => {
+    // Drop the message (and the following assistant message if paired) from
+    // the local list, then record the deleted server-side ids in
+    // `locallyDeletedIds` so a refresh / conversation re-load doesn't bring
+    // them back. The conversation-level cache key keeps the list scoped —
+    // we never want a delete in conversation A to hide a message in B that
+    // happens to share an id (won't happen today, but defensive).
     setMessages((prev) => {
       const idx = prev.findIndex((m) => m.id === messageId)
       if (idx === -1) return prev
-      const next = prev[idx + 1]
+      const deleted = prev.slice(idx, idx + 2)
+      const idsToHide: number[] = []
+      for (const m of deleted) {
+        if (m.serverId != null) idsToHide.push(m.serverId)
+      }
+      if (idsToHide.length > 0 && activeServerId != null) {
+        setLocallyDeletedIds((prevDeleted) => {
+          const existing = prevDeleted[activeServerId] ?? new Set<number>()
+          const next = new Set(existing)
+          for (const id of idsToHide) next.add(id)
+          return { ...prevDeleted, [activeServerId]: next }
+        })
+      }
       // If the deleted message is followed by an assistant message, drop
-      // the pair (mirrors the pre-refactor behavior).
-      if (next && next.role === 'assistant') {
+      // the pair (mirrors the pre-refactor behavior). Otherwise just
+      // remove the single message.
+      if (deleted[1] && deleted[1].role === 'assistant') {
         return [...prev.slice(0, idx), ...prev.slice(idx + 2)]
       }
       // TODO: server-side delete once the backend adds the endpoint.
       return prev.filter((m) => m.id !== messageId)
     })
-  }, [])
+  }, [activeServerId])
 
   // ── Send ──────────────────────────────────────────────────────────
   const handleSend = useCallback(
