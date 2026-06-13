@@ -37,7 +37,14 @@ class JobRun(Base):
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     operator: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    log_excerpt: Mapped[str | None] = mapped_column(Text, nullable=True)
+    log_excerpt: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment=(
+            'JSON progress payload emitted by run_job: '
+            '{"stage": "...", "progress": 0-100, "message": "...", "task_id": "..."}'
+        ),
+    )
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     result_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
 
