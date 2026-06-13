@@ -454,10 +454,11 @@ def _generate_multi_country_summary(
     Falls back to per-country bullet points if AI call fails or times out.
     Uses the same thread-based timeout as _generate_summary.
     """
+    from app.services.scheduled_report.ai_timeout import get_ai_timeout_sec
     from app.services.scheduled_report.email_sender import _fmt_currency, _country_label
-    from app.services.scheduled_report.report_builder_daily import AI_SUMMARY_TIMEOUT_SEC, _generate_fallback_summary
+    from app.services.scheduled_report.report_builder_daily import _generate_fallback_summary
 
-    secs = timeout if timeout is not None else AI_SUMMARY_TIMEOUT_SEC
+    secs = timeout if timeout is not None else get_ai_timeout_sec(frequency)
 
     if secs <= 0:
         return _fallback_multi_country_summary(country_data)
