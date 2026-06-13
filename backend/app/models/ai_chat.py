@@ -7,6 +7,15 @@ from app.db.session import Base
 
 
 class AIConversation(Base):
+    """AI Chat 会话表。
+
+    KNOWN LIMITATION (BEL-62, BEL-59 follow-up):
+    当前没有 `user_id` 列，所有登录用户共享所有 AI 会话。
+    这是产品/安全决策点，由 product owner 评估后单独建 follow-up issue。
+    本表 / `AIMessage` 不做 user 隔离校验；service 层 `get_conversation_or_404`
+    和 `list_messages` 也不按用户过滤。
+    """
+
     __tablename__ = "ai_conversations"
 
     id: Mapped[int] = mapped_column(
@@ -37,6 +46,12 @@ class AIConversation(Base):
 
 
 class AIMessage(Base):
+    """AI Chat 消息表。
+
+    KNOWN LIMITATION (BEL-62): 无 `user_id` 列，消息归属与 AIConversation 一致，
+    共享跨登录用户。详见 AIConversation docstring。
+    """
+
     __tablename__ = "ai_messages"
 
     id: Mapped[int] = mapped_column(

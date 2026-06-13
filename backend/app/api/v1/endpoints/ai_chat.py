@@ -2,10 +2,12 @@
 AI Chat Endpoints — 瘦化的 endpoint 层。
 SSE 流式事件编码逻辑已迁移至 app.services.ai.stream_utils。
 """
+import json
+import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -13,6 +15,7 @@ from app.api.deps import get_db_session, protected
 from app.core.config import Settings, get_settings
 from app.schemas.ai_chat import (
     AIChatConfigResponse,
+    AIChatMessageUpdate,
     ConversationCreate,
     ConversationItem,
     ConversationTitleRegenerateResponse,
@@ -34,6 +37,8 @@ from app.services.ai.stream_utils import (
     build_stream_tool_searching,
     build_stream_usage,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ai", tags=["ai"], dependencies=[Depends(protected)])
 
@@ -141,6 +146,46 @@ def list_messages(conversation_id: int, db: Session = Depends(get_db_session)) -
     return [serialize_message(row) for row in rows]
 
 
+@router.delete("/conversations/{conversation_id}/messages/{message_id}", status_code=204)
+def delete_message_endpoint(conversation_id: int, message_id: int, db: Session = Depends(get_db_session)) -> None:
+    """硬删单条 AIMessage（与 delete_conversation 对齐：不引入软删字段）。"""
+    ai_chat_service.ensure_tables(db)
+    ai_chat_service.get_conversation_or_404(db, conversation_id)
+    message = ai_chat_service.get_message_or_404(db, conversation_id, message_id)
+    ai_chat_service.delete_message(db, message)
+    db.commit()
+
+
+@router.patch("/conversations/{conversation_id}/messages/{message_id}", response_model=MessageItem)
+def update_message_endpoint(
+    conversation_id: int,
+    message_id: int,
+    payload: AIChatMessageUpdate,
+    db: Session = Depends(get_db_session),
+) -> MessageItem:
+    """编辑单条消息的 content。
+
+    当前仅支持 user 消息；编辑 assistant 消息会破坏 regenerate 链，
+    统一返回 400。
+    """
+    ai_chat_service.ensure_tables(db)
+    ai_chat_service.get_conversation_or_404(db, conversation_id)
+    message = ai_chat_service.get_message_or_404(db, conversation_id, message_id)
+    if message.role != "user":
+        raise HTTPException(status_code=400, detail="只能编辑用户消息")
+
+    new_content = payload.content.strip()
+    if not new_content:
+        raise HTTPException(status_code=400, detail="消息内容不能为空")
+
+    message.content = new_content
+    conversation = message.conversation
+    conversation.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(message)
+    return serialize_message(message)
+
+
 @router.post("/conversations/{conversation_id}/messages", response_model=MessageCreateResponse)
 def create_message(conversation_id: int, payload: MessageCreate, db: Session = Depends(get_db_session), settings: Settings = Depends(get_settings)) -> MessageCreateResponse:
     ai_chat_service.ensure_tables(db)
@@ -195,8 +240,29 @@ def create_message(conversation_id: int, payload: MessageCreate, db: Session = D
 # ─── SSE 流式对话 ────────────────────────────────────────────────────────────
 
 
+class _ClientDisconnected(Exception):
+    """内部信号：客户端在流式生成过程中断开。"""
+
+
 @router.post("/conversations/{conversation_id}/messages/stream")
-def stream_message(conversation_id: int, payload: MessageCreate, db: Session = Depends(get_db_session), settings: Settings = Depends(get_settings)):
+async def stream_message(
+    request: Request,
+    conversation_id: int,
+    payload: MessageCreate,
+    db: Session = Depends(get_db_session),
+    settings: Settings = Depends(get_settings),
+):
+    """SSE 流式对话端点。
+
+    感知客户端 abort（BEL-62 缺口 2）：
+    - 在 LLM 输出循环里每收到一条 chunk 调一次 `await request.is_disconnected()`；
+    - 一旦客户端断开，立刻停止 LLM 调用（不浪费 token），
+      抛出 `_ClientDisconnected` 内部信号；
+    - 已生成的部分 assistant content 会保存到 DB（`is_complete=False`，
+      不计 token / 不重算 conversation 总数 / 不重生成标题）；
+    - 不再 yield 任何事件（客户端已断连，yield 也没用）；
+    - 后端日志写一条 `INFO AI chat stream aborted by client conv=<id> msg=<id> chars=<n>`。
+    """
     ai_chat_service.ensure_tables(db)
     conversation = ai_chat_service.get_conversation_or_404(db, conversation_id)
 
@@ -246,7 +312,7 @@ def stream_message(conversation_id: int, payload: MessageCreate, db: Session = D
     if len(context_messages) >= max_turns * 2:
         raise HTTPException(status_code=400, detail=f"对话轮次已达上限 ({max_turns}次)，请新建会话继续对话")
 
-    def event_stream():
+    async def event_stream():
         assistant_parts: list[str] = []
         search_source_cards: list[dict[str, Any]] = []
         start_time = datetime.now(timezone.utc)
@@ -255,6 +321,11 @@ def stream_message(conversation_id: int, payload: MessageCreate, db: Session = D
         user_row = None
         assistant_row = None
         title_regenerated = False
+
+        async def _check_disconnect() -> None:
+            """在 LLM 输出循环里检查客户端是否已断连。"""
+            if await request.is_disconnected():
+                raise _ClientDisconnected()
 
         try:
             yield encode_stream_event({"type": "start"})
@@ -280,19 +351,25 @@ def stream_message(conversation_id: int, payload: MessageCreate, db: Session = D
                                 if assistant_row:
                                     ai_chat_service.update_message_content(db, assistant_row.id, "".join(assistant_parts))
                                 yield build_stream_chunk(delta)
+                                await _check_disconnect()
                         elif event.get("type") == "tool_calls":
                             tool_call_count += 1
                             yield build_stream_tool_calls(event.get("tool_calls", []))
+                            await _check_disconnect()
                         elif event.get("type") == "tool_searching":
                             yield build_stream_tool_searching()
+                            await _check_disconnect()
                         elif event.get("type") == "tool_done":
                             yield build_stream_tool_done()
+                            await _check_disconnect()
                         elif event.get("type") == "sources":
                             search_source_cards = event.get("sources") or []
                             yield build_stream_sources(search_source_cards)
+                            await _check_disconnect()
                         elif event.get("type") == "usage":
                             collected_usage = event.get("usage", {})
                             yield build_stream_usage(collected_usage)
+                            await _check_disconnect()
                         elif event.get("type") == "error":
                             raise Exception(event.get("message", "Tool calling failed"))
 
@@ -300,7 +377,7 @@ def stream_message(conversation_id: int, payload: MessageCreate, db: Session = D
                     if not assistant_content:
                         raise ValueError("LLM returned empty content")
 
-                except Exception as tool_error:
+                except Exception:
                     assistant_parts = []
                     search_source_cards = []
                     web_search_payload = ai_chat_service.request_web_search(settings, user_content)
@@ -309,17 +386,20 @@ def stream_message(conversation_id: int, payload: MessageCreate, db: Session = D
 
                     if search_source_cards:
                         yield build_stream_sources(search_source_cards)
+                        await _check_disconnect()
 
                     for item in ai_chat_service.stream_assistant_content(llm_config=llm_config, messages=context_messages, user_content=user_content, web_search_context=web_search_context, settings=settings):
                         if isinstance(item, dict) and item.get("type") == "thinking":
                             thinking_chunk = str(item.get("content", ""))
                             if thinking_chunk:
                                 yield build_stream_thinking_chunk(thinking_chunk)
+                                await _check_disconnect()
                         elif isinstance(item, str) and item:
                             assistant_parts.append(item)
                             if assistant_row:
                                 ai_chat_service.update_message_content(db, assistant_row.id, "".join(assistant_parts))
                             yield build_stream_chunk(item)
+                            await _check_disconnect()
 
                     assistant_content = "".join(assistant_parts).strip()
                     if not assistant_content:
@@ -330,11 +410,13 @@ def stream_message(conversation_id: int, payload: MessageCreate, db: Session = D
                         thinking_chunk = str(item.get("content", ""))
                         if thinking_chunk:
                             yield build_stream_thinking_chunk(thinking_chunk)
+                            await _check_disconnect()
                     elif isinstance(item, str) and item:
                         assistant_parts.append(item)
                         if assistant_row:
                             ai_chat_service.update_message_content(db, assistant_row.id, "".join(assistant_parts))
                         yield build_stream_chunk(item)
+                        await _check_disconnect()
 
                 assistant_content = "".join(assistant_parts).strip()
                 if not assistant_content:
@@ -393,6 +475,23 @@ def stream_message(conversation_id: int, payload: MessageCreate, db: Session = D
                 duration_ms=duration_ms,
                 title_regenerated=title_regenerated,
             )
+        except _ClientDisconnected:
+            partial = "".join(assistant_parts).strip()
+            try:
+                if assistant_row:
+                    ai_chat_service.update_message_content(db, assistant_row.id, partial)
+                if conversation is not None:
+                    conversation.updated_at = datetime.now(timezone.utc)
+                db.commit()
+            except Exception:
+                db.rollback()
+            logger.info(
+                "AI chat stream aborted by client conv=%s msg=%s chars=%s",
+                conversation_id,
+                assistant_row.id if assistant_row else None,
+                len(partial),
+            )
+            # 不再 yield 任何事件：客户端已断连，yield 也没用。
         except Exception as exc:
             db.rollback()
             yield build_stream_error(str(exc) or "发送失败")
