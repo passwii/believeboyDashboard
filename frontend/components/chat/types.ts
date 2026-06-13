@@ -11,6 +11,14 @@ export interface Model {
   badge?: string
 }
 
+export interface ModelGroup {
+  id: string
+  label: string
+  models: Model[]
+  /** Only used for the collapsible "others" group: default collapsed state. */
+  collapsedByDefault?: boolean
+}
+
 export interface TextSegment {
   text: string
   highlight?: boolean
