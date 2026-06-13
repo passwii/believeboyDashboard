@@ -92,7 +92,11 @@ interface UseDashboardOverviewReturn {
 type ProjectItem = { id: number; name: string }
 
 /**
- * KPI 总览数据 hook —— 5s 短超时 + 超时自动重试 1 次。
+ * KPI 总览数据 hook —— 5s 短超时。
+ *
+ * 不自动重试：dashboard 已经有 10s GlobalLoadingProvider 兜底，再叠 5s+100ms+5s
+ * = 10s+ 反而被 watchdog 强制清空、对 LCP/TTI 都不利。让用户手动点刷新（暴露 retry()）
+ * 或浏览器 keepalive 后台触发更可控。
  */
 export function useDashboardOverview(
   options: UseDashboardOverviewOptions = {}
@@ -133,7 +137,7 @@ export function useDashboardOverview(
   const { data, loading, error, retry } = useApiQuery<DashboardOverviewResponse>(loader, {
     enabled,
     timeoutMs: 5_000,
-    autoRetry: true,
+    autoRetry: false,
   })
 
   // Surface terminal errors via the project's notification system.
@@ -141,7 +145,7 @@ export function useDashboardOverview(
     if (!error) return
     setContextError(new Error(error.message))
     if (error.kind === 'timeout') {
-      notify({ type: 'warning', title: '加载较慢', message: 'KPI 总览数据加载超时，已自动重试，请稍候' })
+      notify({ type: 'warning', title: '加载较慢', message: 'KPI 总览数据加载超时，请点击刷新重试' })
     } else if (error.kind === 'network') {
       notify({ type: 'error', title: '网络异常', message: 'KPI 总览数据网络异常，请稍后重试' })
     } else {
