@@ -1,16 +1,49 @@
 """Configuration for the auto-report-upload service."""
 
 import os
+import sys
 from pathlib import Path
 
-# Ensure DATABASE_URL is available as env var — backend Pydantic Settings
-# reads from os.environ, not from Python module-level variables.
-# autoReportUpload used to load .env via dotenv which did this implicitly.
-_DB_URL = os.environ.get(
-    "DATABASE_URL",
-    "postgresql+psycopg://damon:jrway2012@192.168.100.113:5432/BLF",
-)
-os.environ.setdefault("DATABASE_URL", _DB_URL)
+
+def _require_database_url() -> str:
+    """Resolve DATABASE_URL strictly from the environment.
+
+    No IP fallback on purpose — see [BEL-75]. Production endpoints move over
+    time and the source of truth must be the runtime environment, not this
+    file. Operators should export DATABASE_URL (or place it in
+    ``autoReportUpload/.env``) before starting the service.
+
+    ``autoReportUpload/.env`` is auto-loaded if ``python-dotenv`` is
+    available; otherwise the variable must come from the shell.
+    """
+    url = os.environ.get("DATABASE_URL", "").strip()
+    if not url:
+        try:
+            from dotenv import load_dotenv
+
+            env_path = Path(__file__).parent / ".env"
+            if env_path.exists():
+                load_dotenv(env_path, override=False)
+                url = os.environ.get("DATABASE_URL", "").strip()
+        except ImportError:
+            pass
+    if not url:
+        print(
+            "错误: 未配置 DATABASE_URL。\n"
+            "  请在 autoReportUpload/.env 写入 DATABASE_URL=postgresql+psycopg://<user>:<pass>@<host>:<port>/<db>\n"
+            "  或在启动前 export DATABASE_URL=...。\n"
+            "  此项目不再在源码中硬编码任何生产端 IP。",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    return url
+
+
+# Ensure DATABASE_URL is visible to backend Pydantic Settings (which only
+# reads os.environ, not Python module-level variables) once the URL has
+# been resolved above.
+DATABASE_URL = _require_database_url()
+os.environ["DATABASE_URL"] = DATABASE_URL
 
 # ─── Watch root ───────────────────────────────────────────────────────────────
 # 本地磁盘根目录 — 子文件夹以各项目命名
@@ -60,4 +93,7 @@ IGNORED_DIRS = {"sync.ffs_db"}
 SUPPORTED_EXTENSIONS = {".txt", ".csv", ".xlsx"}
 
 # ─── Database ─────────────────────────────────────────────────────────────────
-DATABASE_URL = _DB_URL
+# DATABASE_URL is resolved at module load time from the environment only
+# (see _require_database_url() above). Callers should import it like:
+#     from config import DATABASE_URL
+# It is intentionally NOT a hardcoded fallback — see [BEL-75].
