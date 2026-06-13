@@ -20,7 +20,7 @@ export const PINNED_MODELS: Model[] = [
     id: 'MiniMax-M2.7-highspeed',
     name: 'MiniMax M2.7 Highspeed',
     shortName: 'M2H',
-    description: '快速 & 智能',
+    description: '极速智能',
     icon: React.createElement(Zap, { className: 'size-4 text-blue-400' }),
   },
   {
@@ -42,14 +42,14 @@ export const PINNED_MODELS: Model[] = [
     id: 'Deepseek-V4-Flash',
     name: 'DeepSeek V4 Flash',
     shortName: 'D4',
-    description: 'DeepSeek',
+    description: '通用快速',
     icon: React.createElement(Sparkles, { className: 'size-4 text-green-400' }),
   },
   {
     id: 'Nex-N2-Pro',
     name: 'Nex N2 Pro',
     shortName: 'N2',
-    description: 'OpenRouter',
+    description: '性价比 Agent 任务',
     icon: React.createElement(Brain, { className: 'size-4 text-cyan-400' }),
   },
 ]
