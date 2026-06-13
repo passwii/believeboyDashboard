@@ -132,6 +132,8 @@ def create_monthly_report(
                 else {}
             ),
         },
+        db=db,
+        operator=operator,
     )
     append_operation_audit_log(
         db,
