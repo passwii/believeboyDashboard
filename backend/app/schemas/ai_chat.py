@@ -57,6 +57,16 @@ class MessageCreate(BaseModel):
     attached_file_name: str | None = Field(default=None, max_length=500)
 
 
+class AIChatMessageUpdate(BaseModel):
+    """PATCH /ai/conversations/{cid}/messages/{mid} 请求体。
+
+    当前仅支持编辑 user 消息的 content。assistant 消息不接受编辑
+    （会破坏 regenerate 链），由 endpoint 层校验。
+    """
+
+    content: str = Field(min_length=1, max_length=8000)
+
+
 class MessageCreateResponse(BaseModel):
     user_message: MessageItem
     assistant_message: MessageItem
