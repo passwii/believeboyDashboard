@@ -2,7 +2,7 @@
 
 ## Skill 名称: `deploy-vps`
 
-此 Skill 用于在本地 git push 之后，自动化部署 BelieveBoy Dashboard 到生产 VPS（145.79.143.98）。
+此 Skill 用于在本地 git push 之后，自动化部署 BelieveBoy Dashboard 到生产 VPS（`192.168.100.113`，`damon` 用户）。
 
 ## 使用方式
 
@@ -32,7 +32,7 @@ python deploy_vps.py --auto       # 非交互式
 
 Skill 在 VPS 上执行以下步骤：
 
-1. **切换到项目目录** → `cd /root/believeboyDashboard/`
+1. **切换到项目目录** → `cd /home/damon/believeboyDashboard/`
 2. **拉取最新代码** → `git pull`（从 origin/main 获取）
 3. **切换到后端目录** → `cd backend/`
 4. **激活虚拟环境** → `source .venv/bin/activate`
@@ -45,11 +45,11 @@ Skill 在 VPS 上执行以下步骤：
 ## 配置信息
 
 ### VPS 详情
-- **主机**: `145.79.143.98`
-- **用户**: `root`
-- **项目路径**: `/root/believeboyDashboard/`
-- **后端路径**: `/root/believeboyDashboard/backend/`
-- **虚拟环境**: `/root/believeboyDashboard/backend/.venv/`
+- **主机**: `192.168.100.113`（LAN，与本机同网段；走 SSH key 认证，本机 `~/.ssh/` 已存密钥）
+- **用户**: `damon`
+- **项目路径**: `/home/damon/believeboyDashboard/`
+- **后端路径**: `/home/damon/believeboyDashboard/backend/`
+- **虚拟环境**: `/home/damon/believeboyDashboard/backend/.venv/`
 - **服务名称**: `believeboy-api`
 - **API 端口**: `8000`（通过 systemd）
 
@@ -73,17 +73,27 @@ journalctl -u believeboy-api -f   # 实时日志
 ```bash
 # ~/.git-templates/hooks/post-commit
 #!/bin/bash
-cd /Users/damon/DamonProjects/believeboyDashboard/productEnvAgent
+# 用 git rev-parse 解析 repo 根目录，避免硬编码 /Users/damon/DamonProjects/...
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root/productEnvAgent"
 python deploy_vps.py --auto
 ```
 
 ### 方式 3: Git Post-Push Hook（更安全）
-使用 post-push hook 只在推送到远程后部署:
+使用 post-push hook 只在推送到远程后部署。仓库自带 `productEnvAgent/post-push.sh`，已支持 `git rev-parse --show-toplevel` 解析路径，可直接安装：
+```bash
+# 一次性安装到本仓库（推荐）
+cp productEnvAgent/post-push.sh .git/hooks/post-push
+chmod +x .git/hooks/post-push
+```
+
+或者作为 git 模板，全局生效（用 `git rev-parse` 自动定位 repo）：
 ```bash
 # ~/.git-templates/hooks/post-push
 #!/bin/bash
+repo_root="$(git rev-parse --show-toplevel)"
 if [[ "$1" == *"origin/main"* ]]; then
-    cd /Users/damon/DamonProjects/believeboyDashboard/productEnvAgent
+    cd "$repo_root/productEnvAgent"
     python deploy_vps.py --auto
 fi
 ```
@@ -121,7 +131,7 @@ fi
 
 | 检查项 | 命令 | 成功标识 |
 |-------|------|---------|
-| SSH 连接 | `ssh root@145.79.143.98 echo ok` | `ok` |
+| SSH 连接 | `ssh damon@192.168.100.113 echo ok` | `ok` |
 | Git pull | `git pull` | 无冲突，快速前进 |
 | 数据库迁移 | `alembic upgrade head` | INFO: Context impl PostgresqlImpl |
 | 服务停止 | `systemctl stop believeboy-api` | `Deactivated successfully` |
@@ -180,7 +190,7 @@ fi
 → 本地分支领先远程，先执行 `git pull --rebase`
 
 ### systemctl 权限问题
-→ 确保以 root 身份运行 `sudo -i`
+→ 确保 `damon` 用户有 NOPASSWD sudo 权限（见 `/etc/sudoers.d/damon-systemctl`）。非交互 SSH 下 polkit 会拒绝 start/stop，需走 `sudo` 传统鉴权
 
 ### 服务启动失败
 → 查看日志: `journalctl -u believeboy-api -n 50`
@@ -191,19 +201,19 @@ fi
 ### 回滚部署
 ```bash
 # SSH 到 VPS
-ssh root@145.79.143.98
-cd /root/believeboyDashboard/
+ssh damon@192.168.100.113
+cd /home/damon/believeboyDashboard/
 git log --oneline  # 找到之前的提交
 git revert <commit>  # 或 git reset --hard <commit>
 source backend/.venv/bin/activate
 alembic downgrade -1  # 回滚上一个迁移
-systemctl restart believeboy-api
+sudo systemctl restart believeboy-api
 ```
 
 ### 部署前数据库备份
 ```bash
-ssh root@145.79.143.98
-pg_dump -U believeboy -d believeboy > /backups/believeboy-$(date +%F).sql
+ssh damon@192.168.100.113
+pg_dump -U damon -d BLF > /backups/believeboy-$(date +%F).sql
 ```
 
 ## 与 Claude Code 集成
