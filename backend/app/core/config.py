@@ -72,6 +72,11 @@ class Settings(BaseSettings):
     celery_broker_url: str = Field(default="", max_length=500)
     celery_result_url: str = Field(default="", max_length=500)
     celery_worker_concurrency: int = Field(default=4, ge=1, le=32)
+    # BEL-55-P1 dual-write switch. When true, `job_service.enqueue_job`
+    # dispatches via Celery; when false, it falls back to the in-process
+    # daemon thread. Flip to false to roll back the Celery migration
+    # without redeploying code.
+    enable_celery_dispatch: bool = Field(default=True)
 
     @property
     def _redis_auth_segment(self) -> str:
