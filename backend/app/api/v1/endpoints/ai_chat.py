@@ -3,11 +3,10 @@ AI Chat Endpoints — 瘦化的 endpoint 层。
 SSE 流式事件编码逻辑已迁移至 app.services.ai.stream_utils。
 """
 import json
-import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -37,8 +36,6 @@ from app.services.ai.stream_utils import (
     build_stream_tool_searching,
     build_stream_usage,
 )
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ai", tags=["ai"], dependencies=[Depends(protected)])
 
@@ -240,13 +237,8 @@ def create_message(conversation_id: int, payload: MessageCreate, db: Session = D
 # ─── SSE 流式对话 ────────────────────────────────────────────────────────────
 
 
-class _ClientDisconnected(Exception):
-    """内部信号：客户端在流式生成过程中断开。"""
-
-
 @router.post("/conversations/{conversation_id}/messages/stream")
-async def stream_message(
-    request: Request,
+def stream_message(
     conversation_id: int,
     payload: MessageCreate,
     db: Session = Depends(get_db_session),
@@ -254,14 +246,21 @@ async def stream_message(
 ):
     """SSE 流式对话端点。
 
-    感知客户端 abort（BEL-62 缺口 2）：
-    - 在 LLM 输出循环里每收到一条 chunk 调一次 `await request.is_disconnected()`；
-    - 一旦客户端断开，立刻停止 LLM 调用（不浪费 token），
-      抛出 `_ClientDisconnected` 内部信号；
-    - 已生成的部分 assistant content 会保存到 DB（`is_complete=False`，
-      不计 token / 不重算 conversation 总数 / 不重生成标题）；
-    - 不再 yield 任何事件（客户端已断连，yield 也没用）；
-    - 后端日志写一条 `INFO AI chat stream aborted by client conv=<id> msg=<id> chars=<n>`。
+    [BEL-66] 修复说明：
+    - 原 PR #24 把 `stream_message` 改为 `async def` + 注入 `Request` + 在循环里
+      `await request.is_disconnected()` 感知客户端 abort（BEL-62 缺口 2）。
+    - 这个改动在 async + FastAPI Depends 的组合下引入回归：DB session
+      （`get_db_session` 是 sync generator dependency）在 `async_exit_stack`
+      退出时同步 `db.close()`，而 `StreamingResponse` 真正迭代 `event_stream()`
+      是在那之后；流期间 session 已 close，下一次 `db.refresh()` / 隐式 lazy
+      refresh 会撞到 `Instance '<AIConversation at 0x...>' is not persistent
+      within this Session`（SQLAlchemy `Session._validate_persistent`）。
+    - 修复：把 handler 改回 sync `def`，移除 abort 感知代码。FastAPI 对 sync
+      handler 用 `run_in_threadpool`，依赖清理发生在 response body 迭代完成
+      之后，session 生命周期正确。
+    - 已知 trade-off：客户端 abort 缺口退回到"前端 fetch abort + 后端 LLM 跑到
+      自然结束"（在 BEL-62 PR 文档里已是已知 TODO，未来后端整体重构时再补
+      server-side cancel）。
     """
     ai_chat_service.ensure_tables(db)
     conversation = ai_chat_service.get_conversation_or_404(db, conversation_id)
@@ -312,7 +311,7 @@ async def stream_message(
     if len(context_messages) >= max_turns * 2:
         raise HTTPException(status_code=400, detail=f"对话轮次已达上限 ({max_turns}次)，请新建会话继续对话")
 
-    async def event_stream():
+    def event_stream():
         assistant_parts: list[str] = []
         search_source_cards: list[dict[str, Any]] = []
         start_time = datetime.now(timezone.utc)
@@ -321,11 +320,6 @@ async def stream_message(
         user_row = None
         assistant_row = None
         title_regenerated = False
-
-        async def _check_disconnect() -> None:
-            """在 LLM 输出循环里检查客户端是否已断连。"""
-            if await request.is_disconnected():
-                raise _ClientDisconnected()
 
         try:
             yield encode_stream_event({"type": "start"})
@@ -351,25 +345,19 @@ async def stream_message(
                                 if assistant_row:
                                     ai_chat_service.update_message_content(db, assistant_row.id, "".join(assistant_parts))
                                 yield build_stream_chunk(delta)
-                                await _check_disconnect()
                         elif event.get("type") == "tool_calls":
                             tool_call_count += 1
                             yield build_stream_tool_calls(event.get("tool_calls", []))
-                            await _check_disconnect()
                         elif event.get("type") == "tool_searching":
                             yield build_stream_tool_searching()
-                            await _check_disconnect()
                         elif event.get("type") == "tool_done":
                             yield build_stream_tool_done()
-                            await _check_disconnect()
                         elif event.get("type") == "sources":
                             search_source_cards = event.get("sources") or []
                             yield build_stream_sources(search_source_cards)
-                            await _check_disconnect()
                         elif event.get("type") == "usage":
                             collected_usage = event.get("usage", {})
                             yield build_stream_usage(collected_usage)
-                            await _check_disconnect()
                         elif event.get("type") == "error":
                             raise Exception(event.get("message", "Tool calling failed"))
 
@@ -386,20 +374,17 @@ async def stream_message(
 
                     if search_source_cards:
                         yield build_stream_sources(search_source_cards)
-                        await _check_disconnect()
 
                     for item in ai_chat_service.stream_assistant_content(llm_config=llm_config, messages=context_messages, user_content=user_content, web_search_context=web_search_context, settings=settings):
                         if isinstance(item, dict) and item.get("type") == "thinking":
                             thinking_chunk = str(item.get("content", ""))
                             if thinking_chunk:
                                 yield build_stream_thinking_chunk(thinking_chunk)
-                                await _check_disconnect()
                         elif isinstance(item, str) and item:
                             assistant_parts.append(item)
                             if assistant_row:
                                 ai_chat_service.update_message_content(db, assistant_row.id, "".join(assistant_parts))
                             yield build_stream_chunk(item)
-                            await _check_disconnect()
 
                     assistant_content = "".join(assistant_parts).strip()
                     if not assistant_content:
@@ -410,13 +395,11 @@ async def stream_message(
                         thinking_chunk = str(item.get("content", ""))
                         if thinking_chunk:
                             yield build_stream_thinking_chunk(thinking_chunk)
-                            await _check_disconnect()
                     elif isinstance(item, str) and item:
                         assistant_parts.append(item)
                         if assistant_row:
                             ai_chat_service.update_message_content(db, assistant_row.id, "".join(assistant_parts))
                         yield build_stream_chunk(item)
-                        await _check_disconnect()
 
                 assistant_content = "".join(assistant_parts).strip()
                 if not assistant_content:
@@ -475,23 +458,6 @@ async def stream_message(
                 duration_ms=duration_ms,
                 title_regenerated=title_regenerated,
             )
-        except _ClientDisconnected:
-            partial = "".join(assistant_parts).strip()
-            try:
-                if assistant_row:
-                    ai_chat_service.update_message_content(db, assistant_row.id, partial)
-                if conversation is not None:
-                    conversation.updated_at = datetime.now(timezone.utc)
-                db.commit()
-            except Exception:
-                db.rollback()
-            logger.info(
-                "AI chat stream aborted by client conv=%s msg=%s chars=%s",
-                conversation_id,
-                assistant_row.id if assistant_row else None,
-                len(partial),
-            )
-            # 不再 yield 任何事件：客户端已断连，yield 也没用。
         except Exception as exc:
             db.rollback()
             yield build_stream_error(str(exc) or "发送失败")
