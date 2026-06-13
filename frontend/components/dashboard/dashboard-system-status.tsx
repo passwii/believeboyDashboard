@@ -132,7 +132,7 @@ export function DashboardSystemStatus({ data, loading = false }: DashboardSystem
       <DataCard>
         <DataCardHeader title="系统状态" />
         <DataCardContent>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-3">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="space-y-2">
                 <Skeleton className="h-3 w-14" />
@@ -168,7 +168,13 @@ export function DashboardSystemStatus({ data, loading = false }: DashboardSystem
         }
       />
       <DataCardContent className="space-y-4">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {/*
+         * md: (>=768px) -> 4 columns. Below md, 2x2. The 4-col layout
+         * was originally sm: (>=640px) which squeezed 4 cells into a
+         * narrow band on large phones; pushing it to md: gives iPad
+         * portrait the same comfortable 4-col row it always had.
+         */}
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-3">
           <StatCell
             icon={<Truck className="h-3.5 w-3.5" />}
             label="发货"
