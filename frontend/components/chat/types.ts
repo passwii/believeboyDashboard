@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react'
 
+import type { SearchSource } from '@/lib/api/ai-chat'
+
 export interface Model {
   id: string
   name: string
@@ -17,18 +19,39 @@ export interface TextSegment {
 
 export type Phase = 'landing' | 'transitioning' | 'chat'
 
+export type ChatMessageRole = 'user' | 'assistant'
+
+export type TokenUsage = {
+  prompt: number
+  completion: number
+  total: number
+}
+
 export interface ChatMessage {
+  /** Stable client-side React key (always set, even for optimistic placeholders). */
   id: string
-  role: 'user' | 'assistant'
+  /** Backend primary key — present once the message has been persisted. */
+  serverId?: number
+  role: ChatMessageRole
   content: string
   streaming?: boolean
   error?: boolean
+  /** Web-search source cards attached to this assistant message. */
+  searchSources?: SearchSource[]
+  /** Accumulated "thinking" deltas (collapsible in the UI). */
+  thinking?: string
+  tokenUsage?: TokenUsage
+  durationMs?: number
+  createdAt?: string
 }
 
 export interface Conversation {
+  /** Stable client-side id (e.g. `local-<n>` for empty placeholders, or `<serverId>` once persisted). */
   id: string
+  serverId?: number
   title: string
   createdAt: number
+  updatedAt?: number
   messageCount: number
 }
 
