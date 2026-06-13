@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import gsap from 'gsap'
 import { useGSAP } from '@gsap/react'
 import {
@@ -10,27 +10,62 @@ import {
   Image,
   FileCode,
   SendHorizontal,
+  Globe,
+  ChevronDown,
+  Check,
+  Sparkles,
 } from 'lucide-react'
 import { ModelSelector } from './model-selector'
+import { ensureConfigLoaded, getConfig, subscribe as subscribeConfig } from '@/lib/api/ai-chat-config-store'
 
 export function ChatInput({
   onSend,
   placeholder = '你想构建什么？',
   compact = false,
   disabled = false,
+  enableWebSearch = false,
+  onToggleWebSearch,
+  overviewPromptId = 'none',
+  onOverviewPromptIdChange,
+  detailPromptId = 'none',
+  onDetailPromptIdChange,
+  selectedModel,
+  onModelChange,
 }: {
-  onSend?: (message: string) => void
+  onSend?: (message: string, options?: {
+    overviewPromptId?: string | null
+    detailPromptId?: string | null
+    enableWebSearch?: boolean
+    model?: string
+  }) => void
   placeholder?: string
   compact?: boolean
   disabled?: boolean
+  enableWebSearch?: boolean
+  onToggleWebSearch?: (value: boolean) => void
+  overviewPromptId?: string
+  onOverviewPromptIdChange?: (value: string) => void
+  detailPromptId?: string
+  onDetailPromptIdChange?: (value: string) => void
+  selectedModel?: string
+  onModelChange?: (modelId: string) => void
 }) {
   const [message, setMessage] = useState('')
   const [showAttachMenu, setShowAttachMenu] = useState(false)
   const [focused, setFocused] = useState(false)
+  const [configVersion, setConfigVersion] = useState(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const outerGlowRef = useRef<HTMLDivElement>(null)
   const sendBtnRef = useRef<HTMLButtonElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    ensureConfigLoaded().catch(() => {
+      // The AIChatWindow surfaces a top-level "Provider 未配置" banner; the
+      // input still works for the user to type into.
+    })
+    return subscribeConfig(() => setConfigVersion((n) => n + 1))
+  }, [])
 
   // Auto-resize textarea
   useEffect(() => {
@@ -44,7 +79,7 @@ export function ChatInput({
     }
   }, [message, compact])
 
-const handleSubmit = () => {
+  const handleSubmit = () => {
     if (message.trim() && !disabled) {
       // Send button press animation
       if (sendBtnRef.current) {
@@ -54,7 +89,12 @@ const handleSubmit = () => {
           { scale: 1, duration: 0.4, ease: 'back.out(3)' }
         )
       }
-      onSend?.(message)
+      onSend?.(message, {
+        overviewPromptId,
+        detailPromptId,
+        enableWebSearch,
+        model: selectedModel,
+      })
       setMessage('')
     }
   }
@@ -65,6 +105,12 @@ const handleSubmit = () => {
       handleSubmit()
     }
   }
+
+  const cfg = getConfig()
+  // Re-render when configVersion changes (covered by the data attr below).
+  void configVersion
+  const overviewOptions = cfg?.overviewOptions ?? []
+  const detailOptions = cfg?.detailOptions ?? []
 
   return (
     <div ref={rootRef} className="relative w-full max-w-[680px] mx-auto">
@@ -124,12 +170,12 @@ const handleSubmit = () => {
           </div>
 
           <div
-            className={`flex items-center justify-between px-3 sm:px-3 pt-1 ${
+            className={`flex items-center justify-between flex-wrap gap-2 px-3 sm:px-3 pt-1 ${
               compact ? 'pb-2' : 'pb-3'
             }`}
           >
             {/* Left actions */}
-            <div className="flex items-center gap-1 sm:gap-2">
+            <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
               <div className="relative">
                 <button
                   type="button"
@@ -188,26 +234,54 @@ const handleSubmit = () => {
                   </>
                 )}
               </div>
-              <ModelSelector />
+              <ModelSelector selectedModel={selectedModel} onModelChange={onModelChange} />
+
+              {/* Web search toggle */}
+              <button
+                type="button"
+                onClick={() => onToggleWebSearch?.(!enableWebSearch)}
+                disabled={disabled || !cfg?.webSearchConfigured}
+                className={`flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-full text-[11px] sm:text-xs font-medium transition-all duration-200 active:scale-95 touch-manipulation min-h-[36px] sm:min-h-[auto] ${
+                  enableWebSearch
+                    ? 'bg-blue-500/20 text-blue-300'
+                    : 'text-[#8a8a8f] hover:text-white hover:bg-white/5'
+                } ${disabled || !cfg?.webSearchConfigured ? 'opacity-50 cursor-not-allowed' : ''}`}
+                aria-label={enableWebSearch ? '已开启联网搜索' : '联网搜索'}
+                title={cfg?.webSearchConfigured ? '联网搜索' : '后端未配置联网搜索'}
+              >
+                <Globe className="size-3.5" />
+                <span className="hidden sm:inline">联网</span>
+              </button>
+
+              {/* Prompt preset — overview */}
+              {overviewOptions.length > 0 && (
+                <PresetDropdown
+                  label="总结"
+                  icon={<Sparkles className="size-3.5" />}
+                  value={overviewPromptId}
+                  options={[{ id: 'none', label: '默认', description: '不附加总结指令' }, ...overviewOptions]}
+                  onChange={onOverviewPromptIdChange}
+                  disabled={disabled}
+                />
+              )}
+
+              {/* Prompt preset — detail */}
+              {detailOptions.length > 0 && (
+                <PresetDropdown
+                  label="展开"
+                  icon={<Lightbulb className="size-3.5" />}
+                  value={detailPromptId}
+                  options={[{ id: 'none', label: '默认', description: '不附加展开指令' }, ...detailOptions]}
+                  onChange={onDetailPromptIdChange}
+                  disabled={disabled}
+                />
+              )}
             </div>
 
             <div className="flex-1" />
 
             {/* Right actions */}
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                disabled={disabled}
-                className={`flex items-center justify-center size-9 sm:size-10 rounded-full transition-all duration-300 touch-manipulation ${
-                  focused
-                    ? 'text-blue-400/80 hover:text-blue-300 hover:bg-blue-500/10'
-                    : 'text-[#6a6a6f] hover:text-white hover:bg-white/5'
-                } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-                aria-label="规划模式"
-              >
-                <Lightbulb className="size-4 sm:size-5" />
-              </button>
-
               <button
                 ref={sendBtnRef}
                 type="button"
@@ -227,6 +301,80 @@ const handleSubmit = () => {
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+function PresetDropdown({
+  label,
+  icon,
+  value,
+  options,
+  onChange,
+  disabled,
+}: {
+  label: string
+  icon: React.ReactNode
+  value: string
+  options: { id: string; label: string; description?: string }[]
+  onChange?: (value: string) => void
+  disabled?: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const current = options.find((o) => o.id === value) ?? options[0]
+  const isActive = value && value !== 'none'
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        disabled={disabled}
+        className={`flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-full text-[11px] sm:text-xs font-medium transition-all duration-200 active:scale-95 touch-manipulation min-h-[36px] sm:min-h-[auto] ${
+          isActive
+            ? 'bg-blue-500/20 text-blue-300'
+            : 'text-[#8a8a8f] hover:text-white hover:bg-white/5'
+        } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+        aria-label={label}
+      >
+        {icon}
+        <span className="hidden sm:inline">{current?.label ?? label}</span>
+        <span className="sm:hidden">{label}</span>
+        <ChevronDown className={`size-3.5 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute bottom-full left-0 mb-2 z-50 min-w-[200px] sm:min-w-[240px] bg-[#1a1a1e]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl shadow-black/50 overflow-hidden bb-anim-scale-in">
+            <div className="p-1.5">
+              <div className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#5a5a5f]">
+                {label} 模板
+              </div>
+              {options.map((opt) => (
+                <button
+                  type="button"
+                  key={opt.id}
+                  onClick={() => {
+                    onChange?.(opt.id)
+                    setOpen(false)
+                  }}
+                  className={`w-full flex items-start gap-3 px-2.5 py-2 rounded-lg text-left transition-all duration-150 touch-manipulation ${
+                    value === opt.id ? 'bg-white/10 text-white' : 'text-[#a0a0a5] hover:bg-white/5 hover:text-white'
+                  }`}
+                >
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-medium">{opt.label}</span>
+                    {opt.description && (
+                      <p className="mt-0.5 text-[11px] text-[#6a6a6f] line-clamp-2">{opt.description}</p>
+                    )}
+                  </div>
+                  {value === opt.id && <Check className="size-4 text-blue-400 flex-shrink-0 mt-0.5" />}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

@@ -1,12 +1,11 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import gsap from 'gsap'
 import { useGSAP } from '@gsap/react'
-import { PanelLeft, Square } from 'lucide-react'
+import { AlertTriangle, PanelLeft, Square } from 'lucide-react'
 
 import { animationStyles } from './constants/animation-styles'
-import { useSimulatedStream } from './hooks/use-simulated-stream'
 import { TypewriterText } from './typewriter-text'
 import { ChatInput } from './chat-input'
 import { RayBackground } from './ray-background'
@@ -14,6 +13,22 @@ import { AnnouncementBadge } from './announcement-badge'
 import { FloatingParticles } from './floating-particles'
 import { ChatMessageList } from './chat-message-list'
 import { ConversationSidebar } from './conversation-sidebar'
+import { useChatStream, type UseChatStreamCallbacks, type ChatStreamOptions } from './hooks/use-chat-stream'
+
+import {
+  ensureConfigLoaded,
+  getConfig,
+} from '@/lib/api/ai-chat-config-store'
+import {
+  createConversation,
+  deleteConversation,
+  getMessages,
+  listConversations,
+  renameConversation,
+  type ServerChatMessage,
+  type ServerConversation,
+} from '@/lib/api/ai-chat'
+import { Skeleton } from '@/components/ui/skeleton'
 
 import type {
   TextSegment,
@@ -22,6 +37,42 @@ import type {
   AIChatWindowProps,
   Conversation,
 } from './types'
+
+// ── Mappers ───────────────────────────────────────────────────────────────
+
+/** Map a backend conversation to a UI `Conversation` (id uses server id). */
+function toClientConversation(server: ServerConversation): Conversation {
+  return {
+    id: `server-${server.id}`,
+    serverId: server.id,
+    title: server.title || '新对话',
+    createdAt: new Date(server.created_at).getTime(),
+    updatedAt: new Date(server.updated_at).getTime(),
+    messageCount: 0,
+  }
+}
+
+/** Map a backend message to a UI `ChatMessage`. */
+function toClientMessage(server: ServerChatMessage): ChatMessage {
+  return {
+    id: `server-${server.id}`,
+    serverId: server.id,
+    role: server.role === 'assistant' ? 'assistant' : 'user',
+    content: server.content,
+    streaming: false,
+    searchSources: server.search_sources,
+    tokenUsage:
+      server.total_tokens || server.prompt_tokens || server.completion_tokens
+        ? {
+            prompt: server.prompt_tokens,
+            completion: server.completion_tokens,
+            total: server.total_tokens,
+          }
+        : undefined,
+    durationMs: server.duration_ms ?? undefined,
+    createdAt: server.created_at,
+  }
+}
 
 export function AIChatWindow({
   title = '今天你想',
@@ -38,26 +89,117 @@ export function AIChatWindow({
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
   const [showSidebar, setShowSidebar] = useState(false)
-  const [conversations, setConversations] = useState<Conversation[]>([
-    {
-      id: 'conv-1',
-      title: '新对话',
-      createdAt: Date.now(),
-      messageCount: 0,
-    },
-  ])
-  const [activeConvId, setActiveConvId] = useState<string | null>('conv-1')
+  const [conversations, setConversations] = useState<Conversation[]>([])
+  const [activeConvId, setActiveConvId] = useState<string | null>(null)
+  const [activeServerId, setActiveServerId] = useState<number | null>(null)
+  const [loadingConversations, setLoadingConversations] = useState(false)
+  const [loadingMessages, setLoadingMessages] = useState(false)
+  const [providerConfigured, setProviderConfigured] = useState<boolean | null>(null)
+  const [streamError, setStreamError] = useState<string | null>(null)
+  /** Bumped to force re-fetching the conversation list (after create/delete/rename). */
+  const [refreshKey, setRefreshKey] = useState(0)
+  const refreshConversations = useCallback(() => setRefreshKey((k) => k + 1), [])
+
+  // ── Stream options — owned by the window so the user can tweak them between
+  // ── sends. Default to "none" (no preset) so the backend just uses its base
+  // ── system prompt.
+  const [enableWebSearch, setEnableWebSearch] = useState(false)
+  const [overviewPromptId, setOverviewPromptId] = useState<string>('none')
+  const [detailPromptId, setDetailPromptId] = useState<string>('none')
+  const [selectedModel, setSelectedModel] = useState<string | undefined>(undefined)
 
   const rootRef = useRef<HTMLDivElement>(null)
   const sidebarRef = useRef<HTMLDivElement>(null)
   const stopBtnRef = useRef<HTMLButtonElement>(null)
   const chatScrollRef = useRef<HTMLDivElement>(null)
-  const streamStoppedRef = useRef(false)
   const stopBtnShownRef = useRef(false)
 
-  const isLanding = phase === 'landing'
-  const isChat = phase === 'chat'
-  const hasMessages = messages.length > 0
+  // ── Config: load once on mount so the top-level "AI Provider 未配置" hint
+  // ── can render as soon as the user lands on the page. Components like
+  // ── <ModelSelector /> reach into the same store.
+  useEffect(() => {
+    ensureConfigLoaded()
+      .then((cfg) => setProviderConfigured(cfg.providerConfigured))
+      .catch(() => setProviderConfigured(false))
+  }, [])
+
+  // ── Load conversations whenever refreshKey changes. We don't use the
+  // ── `useApiQuery` hook because (a) it caps at 5s timeout which is too
+  // ── short for an initial conversation list, and (b) we want fine-grained
+  // ── control over the empty-state UX (the chat window stays usable even
+  // ── before the list arrives).
+  useEffect(() => {
+    let cancelled = false
+    setLoadingConversations(true)
+    listConversations()
+      .then((rows) => {
+        if (cancelled) return
+        const list = rows.map(toClientConversation)
+        setConversations(list)
+        // Auto-select the most recently updated conversation on first load.
+        setActiveConvId((current) => {
+          if (current) return current
+          if (list.length > 0) {
+            const first = [...list].sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))[0]
+            setActiveServerId(first.serverId ?? null)
+            return first.id
+          }
+          return null
+        })
+      })
+      .catch((err) => {
+        if (cancelled) return
+        console.error('[ai-chat] listConversations failed', err)
+        setConversations([])
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingConversations(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [refreshKey])
+
+  // ── Load messages whenever the active conversation changes.
+  useEffect(() => {
+    if (activeServerId == null) {
+      setMessages([])
+      return
+    }
+    let cancelled = false
+    setLoadingMessages(true)
+    getMessages(activeServerId)
+      .then((rows) => {
+        if (cancelled) return
+        setMessages(rows.map(toClientMessage))
+      })
+      .catch((err) => {
+        if (cancelled) return
+        console.error('[ai-chat] getMessages failed', err)
+        setMessages([])
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingMessages(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [activeServerId])
+
+  // ── Chat stream hook (only mounted when we have a real server-side
+  // ── conversation; the placeholder "new conversation" state creates one
+  // ── first via `createConversation`).
+  const streamCallbacksRef = useRef<UseChatStreamCallbacks>({})
+  const { send: sendStream, stop: stopStream, error: streamHookError } = useChatStream(
+    activeServerId ?? 0,
+    streamCallbacksRef,
+  )
+
+  // Surface stream-hook errors as a transient banner. The hook's `error`
+  // state is cleared on the next `send`, so this naturally re-syncs.
+  useEffect(() => {
+    if (streamHookError) setStreamError(streamHookError)
+  }, [streamHookError])
 
   // ── GSAP: Sidebar entrance ──────────────────────────────────────
   useGSAP(
@@ -113,36 +255,139 @@ export function AIChatWindow({
     }
   }, [messages])
 
-  // ── Stream callbacks ─────────────────────────────────────────────
-  const handleStreamChunk = useCallback((delta: string) => {
-    if (streamStoppedRef.current) return
-    setMessages((prev) => {
-      const last = prev[prev.length - 1]
-      if (!last || last.role !== 'assistant') return prev
-      return [
-        ...prev.slice(0, -1),
-        { ...last, content: last.content + delta, streaming: true },
-      ]
-    })
-  }, [])
+  const isLanding = phase === 'landing'
+  const isChat = phase === 'chat'
+  const hasMessages = messages.length > 0
 
-  const handleStreamDone = useCallback(() => {
-    setMessages((prev) => {
-      const last = prev[prev.length - 1]
-      if (!last || last.role !== 'assistant') return prev
-      return [...prev.slice(0, -1), { ...last, streaming: false }]
-    })
-    setIsStreaming(false)
-    streamStoppedRef.current = false
-  }, [])
+  // ── Stream callback bridge: route events into the React state for the
+  // ── active assistant message. The assistant message is identified by a
+  // ── temporary local id; once the `done` event arrives we replace it
+  // ── with the persisted server id so message actions can reference it.
+  const assistantLocalIdRef = useRef<string | null>(null)
 
-  const { start: startStream, stop: stopStream } = useSimulatedStream(
-    handleStreamChunk,
-    handleStreamDone
+  const wireStreamCallbacks = useCallback(
+    (assistantLocalId: string, userLocalId: string) => {
+      assistantLocalIdRef.current = assistantLocalId
+
+      streamCallbacksRef.current = {
+        onStart: () => {
+          // No-op — UI already shows the typing indicator.
+        },
+        onChunk: (delta) => {
+          setMessages((prev) => {
+            const idx = prev.findIndex((m) => m.id === assistantLocalId)
+            if (idx === -1) return prev
+            const target = prev[idx]
+            return [
+              ...prev.slice(0, idx),
+              { ...target, content: target.content + delta, streaming: true, error: false },
+              ...prev.slice(idx + 1),
+            ]
+          })
+        },
+        onThinking: (delta) => {
+          setMessages((prev) => {
+            const idx = prev.findIndex((m) => m.id === assistantLocalId)
+            if (idx === -1) return prev
+            const target = prev[idx]
+            return [
+              ...prev.slice(0, idx),
+              { ...target, thinking: (target.thinking ?? '') + delta },
+              ...prev.slice(idx + 1),
+            ]
+          })
+        },
+        onSources: (sources) => {
+          setMessages((prev) => {
+            const idx = prev.findIndex((m) => m.id === assistantLocalId)
+            if (idx === -1) return prev
+            const target = prev[idx]
+            return [
+              ...prev.slice(0, idx),
+              { ...target, searchSources: sources },
+              ...prev.slice(idx + 1),
+            ]
+          })
+        },
+        onUsage: (usage) => {
+          setMessages((prev) => {
+            const idx = prev.findIndex((m) => m.id === assistantLocalId)
+            if (idx === -1) return prev
+            const target = prev[idx]
+            return [
+              ...prev.slice(0, idx),
+              {
+                ...target,
+                tokenUsage: {
+                  prompt: usage.prompt_tokens,
+                  completion: usage.completion_tokens,
+                  total: usage.total_tokens,
+                },
+              },
+              ...prev.slice(idx + 1),
+            ]
+          })
+        },
+        onDone: (payload) => {
+          // Replace the optimistic placeholder with the persisted message —
+          // same role, real server id, real content (in case any trailing
+          // chunk arrived after `done`).
+          setMessages((prev) => {
+            const aiIdx = prev.findIndex((m) => m.id === assistantLocalId)
+            const userIdx = prev.findIndex((m) => m.id === userLocalId)
+            const persisted = toClientMessage(payload.assistantMessage)
+            const persistedUser = toClientMessage(payload.userMessage)
+            const next = prev.slice()
+            if (userIdx !== -1) {
+              next[userIdx] = { ...persistedUser, content: prev[userIdx].content || persistedUser.content }
+            }
+            if (aiIdx !== -1) {
+              next[aiIdx] = {
+                ...persisted,
+                content: prev[aiIdx].content || persisted.content,
+                streaming: false,
+              }
+            }
+            return next
+          })
+          setIsStreaming(false)
+          // Bump the conversation list so the title / updatedAt reflect the
+          // newly-committed turn (and any regenerated title).
+          refreshConversations()
+        },
+        onUserMessageId: () => {
+          // The user message's local id stays — we already display its
+          // content. We only refresh the conversation list on the assistant
+          // id below.
+        },
+        onAssistantId: () => {
+          // The reconciliation happens in `onDone`; nothing to do here.
+        },
+        onTitleUpdate: (newTitle) => {
+          setConversations((prev) =>
+            prev.map((c) => (c.serverId === activeServerId ? { ...c, title: newTitle } : c))
+          )
+        },
+        onError: () => {
+          setMessages((prev) => {
+            const idx = prev.findIndex((m) => m.id === assistantLocalId)
+            if (idx === -1) return prev
+            const target = prev[idx]
+            return [
+              ...prev.slice(0, idx),
+              { ...target, streaming: false, error: true },
+              ...prev.slice(idx + 1),
+            ]
+          })
+          setIsStreaming(false)
+        },
+      }
+    },
+    [activeServerId, refreshConversations],
   )
 
+  // ── Stop generation ────────────────────────────────────────────────
   const handleStopGeneration = useCallback(() => {
-    streamStoppedRef.current = true
     stopStream()
     setMessages((prev) => {
       const last = prev[prev.length - 1]
@@ -153,159 +398,293 @@ export function AIChatWindow({
   }, [stopStream])
 
   // ── Conversation management ───────────────────────────────────────
-  const handleCreateConversation = useCallback(() => {
-    const newConv: Conversation = {
-      id: `conv-${Date.now()}`,
-      title: '新对话',
-      createdAt: Date.now(),
-      messageCount: 0,
+  const handleCreateConversation = useCallback(async () => {
+    try {
+      const created = await createConversation()
+      const mapped = toClientConversation(created)
+      setConversations((prev) => [mapped, ...prev])
+      setActiveConvId(mapped.id)
+      setActiveServerId(mapped.serverId ?? null)
+      setMessages([])
+      setPhase('chat')
+      setShowSidebar(false)
+    } catch (err) {
+      console.error('[ai-chat] createConversation failed', err)
     }
-    setConversations((prev) => [newConv, ...prev])
-    setActiveConvId(newConv.id)
-    setMessages([])
-    setPhase('chat')
-    setShowSidebar(false)
   }, [])
 
   const handleSelectConversation = useCallback((id: string) => {
-    setActiveConvId(id)
+    const conv = conversations.find((c) => c.id === id)
+    if (!conv) return
+    setActiveConvId(conv.id)
+    setActiveServerId(conv.serverId ?? null)
     setMessages([])
     setPhase('chat')
     setShowSidebar(false)
-  }, [])
+  }, [conversations])
 
-  const handleRenameConversation = useCallback((id: string, title: string) => {
-    setConversations((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, title } : c))
-    )
-  }, [])
+  const handleRenameConversation = useCallback(
+    async (id: string, title: string) => {
+      const conv = conversations.find((c) => c.id === id)
+      if (!conv?.serverId) return
+      // Optimistic update — the rename is fire-and-forget from the UI's POV.
+      setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, title } : c)))
+      try {
+        const updated = await renameConversation(conv.serverId, title)
+        setConversations((prev) =>
+          prev.map((c) => (c.id === id ? { ...c, title: updated.title || title } : c))
+        )
+      } catch (err) {
+        console.error('[ai-chat] renameConversation failed', err)
+        // Roll back on failure.
+        setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, title: conv.title } : c)))
+      }
+    },
+    [conversations]
+  )
 
   const handleDeleteConversation = useCallback(
-    (id: string) => {
+    async (id: string) => {
+      const conv = conversations.find((c) => c.id === id)
+      if (!conv?.serverId) {
+        // Pure-local conversation — just drop it from the list.
+        setConversations((prev) => {
+          const filtered = prev.filter((c) => c.id !== id)
+          if (filtered.length === 0) {
+            return []
+          }
+          if (activeConvId === id) {
+            const next = filtered[0]
+            setActiveConvId(next.id)
+            setActiveServerId(next.serverId ?? null)
+          }
+          return filtered
+        })
+        return
+      }
+      try {
+        await deleteConversation(conv.serverId)
+      } catch (err) {
+        console.error('[ai-chat] deleteConversation failed', err)
+        return
+      }
       setConversations((prev) => {
         const filtered = prev.filter((c) => c.id !== id)
-        if (filtered.length === 0) {
-          const newConv: Conversation = {
-            id: `conv-${Date.now()}`,
-            title: '新对话',
-            createdAt: Date.now(),
-            messageCount: 0,
-          }
-          setActiveConvId(newConv.id)
-          return [newConv]
-        }
         if (activeConvId === id) {
-          setActiveConvId(filtered[0].id)
+          if (filtered.length === 0) {
+            setActiveConvId(null)
+            setActiveServerId(null)
+            setMessages([])
+          } else {
+            const next = filtered[0]
+            setActiveConvId(next.id)
+            setActiveServerId(next.serverId ?? null)
+            setMessages([])
+          }
         }
         return filtered
       })
     },
-    [activeConvId]
+    [conversations, activeConvId]
   )
 
   // ── Message operations ─────────────────────────────────────────────
+  // Regenerate: re-stream the assistant message by pointing at its
+  // `serverId`. The user content is irrelevant — backend reads from history.
   const handleRegenerateMessage = useCallback(
-    (messageId: string) => {
+    async (messageId: string) => {
+      if (activeServerId == null || isStreaming) return
+      const target = messages.find((m) => m.id === messageId)
+      if (!target?.serverId) return
+      const newAssistantId = `assistant-${Date.now()}`
+      // Replace the assistant message with a fresh placeholder
       setMessages((prev) => {
         const idx = prev.findIndex((m) => m.id === messageId)
         if (idx === -1) return prev
-        const newMessages = prev.slice(0, idx)
-        const newAssistantMsg: ChatMessage = {
-          id: `assistant-${Date.now()}`,
+        const placeholder: ChatMessage = {
+          id: newAssistantId,
           role: 'assistant',
           content: '',
           streaming: true,
         }
-        setIsStreaming(true)
-        streamStoppedRef.current = false
-        startStream()
-        return [...newMessages, newAssistantMsg]
+        return [
+          ...prev.slice(0, idx),
+          placeholder,
+          ...prev.slice(idx + 1),
+        ]
       })
+      setIsStreaming(true)
+      setStreamError(null)
+      const cfg = getConfig()
+      const options: ChatStreamOptions = {
+        model: cfg?.defaultModel,
+        regenerate: true,
+        targetMessageId: target.serverId,
+        overviewPromptId: 'none',
+        detailPromptId: 'none',
+        enableWebSearch: false,
+      }
+      wireStreamCallbacks(newAssistantId, '')
+      try {
+        await sendStream('', options)
+      } catch (err) {
+        // The hook already pushed the error to onError; nothing more to do.
+        if (!(err instanceof DOMException && err.name === 'AbortError')) {
+          console.error('[ai-chat] regenerate failed', err)
+        }
+      }
     },
-    [startStream]
+    [activeServerId, isStreaming, messages, sendStream, wireStreamCallbacks]
   )
 
-  const handleEditMessage = useCallback((messageId: string) => {
-    // TODO: full edit mode
+  // Edit / Delete on individual messages are TODO — the backend has no
+  // message-level endpoint yet. We perform a local-only remove so the UI
+  // stays consistent in the meantime.
+  const handleEditMessage = useCallback((_messageId: string) => {
+    // TODO: wire to a real PATCH /messages/{id} once the backend ships it.
   }, [])
 
   const handleDeleteMessage = useCallback((messageId: string) => {
     setMessages((prev) => {
       const idx = prev.findIndex((m) => m.id === messageId)
       if (idx === -1) return prev
-      const nextMsg = prev[idx + 1]
-      if (nextMsg && nextMsg.role === 'assistant') {
+      const next = prev[idx + 1]
+      // If the deleted message is followed by an assistant message, drop
+      // the pair (mirrors the pre-refactor behavior).
+      if (next && next.role === 'assistant') {
         return [...prev.slice(0, idx), ...prev.slice(idx + 2)]
       }
+      // TODO: server-side delete once the backend adds the endpoint.
       return prev.filter((m) => m.id !== messageId)
     })
   }, [])
 
   // ── Send ──────────────────────────────────────────────────────────
   const handleSend = useCallback(
-    (message: string) => {
+    async (message: string, streamOptions: ChatStreamOptions = {}) => {
       if (!showInput) return
-
       onSend?.(message)
+      setStreamError(null)
 
-      const userMsg: ChatMessage = {
-        id: `user-${Date.now()}`,
-        role: 'user',
-        content: message,
+      const userLocalId = `user-${Date.now()}`
+      const assistantLocalId = `assistant-${Date.now()}`
+      const userMsg: ChatMessage = { id: userLocalId, role: 'user', content: message }
+      const assistantMsg: ChatMessage = {
+        id: assistantLocalId,
+        role: 'assistant',
+        content: '',
+        streaming: true,
       }
 
-      setConversations((prev) =>
-        prev.map((c) =>
-          c.id === activeConvId
-            ? {
-                ...c,
-                messageCount: c.messageCount + 2,
-                title:
-                  c.messageCount === 0 ? message.slice(0, 30) : c.title,
-              }
-            : c
-        )
-      )
+      const enterChat = () => {
+        setMessages([userMsg, assistantMsg])
+        setIsStreaming(true)
+      }
 
+      const ensureServerConversation = async (): Promise<number | null> => {
+        if (activeServerId != null) return activeServerId
+        try {
+          const created = await createConversation()
+          const mapped = toClientConversation(created)
+          setConversations((prev) => [mapped, ...prev])
+          setActiveConvId(mapped.id)
+          setActiveServerId(mapped.serverId ?? null)
+          return mapped.serverId ?? null
+        } catch (err) {
+          console.error('[ai-chat] auto-create conversation failed', err)
+          return null
+        }
+      }
+
+      // Landing → chat transition
       if (phase === 'landing') {
         setPhase('transitioning')
         setArcsUp(true)
-
-        setTimeout(() => {
+        // Wait for the transition animation before flipping to `chat`
+        // and kicking off the request. We can't `await` GSAP from here
+        // cleanly, so use a fixed 800ms (matches the previous build).
+        setTimeout(async () => {
           setPhase('chat')
-          const assistantMsg: ChatMessage = {
-            id: `assistant-${Date.now()}`,
-            role: 'assistant',
-            content: '',
-            streaming: true,
+          const serverId = await ensureServerConversation()
+          if (serverId == null) {
+            setIsStreaming(false)
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantLocalId ? { ...m, streaming: false, error: true } : m
+              )
+            )
+            return
           }
-          setMessages([userMsg, assistantMsg])
-          setIsStreaming(true)
-          streamStoppedRef.current = false
-          startStream()
+          // Re-mount the stream hook with the new server id by triggering a
+          // state update — useChatStream is recreated by the parent
+          // component. Easiest path: bump activeServerId, then call
+          // sendStream in a microtask.
+          enterChat()
+          wireStreamCallbacks(assistantLocalId, userLocalId)
+          const cfg = getConfig()
+          try {
+            await sendStream(message, {
+              model: cfg?.defaultModel,
+              overviewPromptId: streamOptions.overviewPromptId ?? 'none',
+              detailPromptId: streamOptions.detailPromptId ?? 'none',
+              enableWebSearch: streamOptions.enableWebSearch ?? false,
+              ...streamOptions,
+            })
+          } catch (err) {
+            if (!(err instanceof DOMException && err.name === 'AbortError')) {
+              console.error('[ai-chat] send failed', err)
+            }
+          }
         }, 800)
-      } else {
-        const assistantMsg: ChatMessage = {
-          id: `assistant-${Date.now()}`,
-          role: 'assistant',
-          content: '',
-          streaming: true,
+        return
+      }
+
+      // Mid-chat: if there is no server-side conversation yet (e.g. user
+      // clicked a brand-new sidebar entry that hasn't been created on the
+      // backend), create one before sending.
+      let serverId = activeServerId
+      if (serverId == null) {
+        const created = await ensureServerConversation()
+        if (created == null) {
+          setMessages((prev) => [
+            ...prev,
+            { ...userMsg },
+            { ...assistantMsg, streaming: false, error: true },
+          ])
+          setIsStreaming(false)
+          return
         }
-        setMessages((prev) => [...prev, userMsg, assistantMsg])
-        setIsStreaming(true)
-        streamStoppedRef.current = false
-        startStream()
+        serverId = created
+      }
+      enterChat()
+      wireStreamCallbacks(assistantLocalId, userLocalId)
+      const cfg = getConfig()
+      try {
+        await sendStream(message, {
+          model: cfg?.defaultModel,
+          overviewPromptId: streamOptions.overviewPromptId ?? 'none',
+          detailPromptId: streamOptions.detailPromptId ?? 'none',
+          enableWebSearch: streamOptions.enableWebSearch ?? false,
+          ...streamOptions,
+        })
+      } catch (err) {
+        if (!(err instanceof DOMException && err.name === 'AbortError')) {
+          console.error('[ai-chat] send failed', err)
+        }
       }
     },
-    [phase, onSend, startStream, showInput, activeConvId]
+    [showInput, onSend, phase, activeServerId, sendStream, wireStreamCallbacks],
   )
 
   // ── Typewriter segments ──────────────────────────────────────────
-  const typewriterSegments: TextSegment[] = [
-    { text: `${title} `, speed: 80 },
-    { text: titleHighlight, highlight: true, speed: 100 },
-    { text: ' 什么？', speed: 80 },
-  ]
+  const typewriterSegments: TextSegment[] = useMemo(
+    () => [
+      { text: `${title} `, speed: 80 },
+      { text: titleHighlight, highlight: true, speed: 100 },
+      { text: ' 什么？', speed: 80 },
+    ],
+    [title, titleHighlight]
+  )
 
   return (
     <div
@@ -319,6 +698,22 @@ export function AIChatWindow({
         <RayBackground arcsUp={arcsUp} />
         <FloatingParticles />
       </div>
+
+      {/* Provider-unconfigured banner — shown only when the backend reports
+          `providerConfigured: false` (most often because the .env lacks
+          AI_CHAT_PROVIDER_API_KEY). It surfaces above the input so the user
+          understands why nothing happens. */}
+      {showInput && providerConfigured === false && (
+        <div className="absolute left-1/2 top-4 z-30 -translate-x-1/2 w-[calc(100%-2rem)] max-w-[680px]">
+          <div className="flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/[0.06] px-3 py-2 text-xs text-amber-200">
+            <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+            <div>
+              <p className="font-medium">后端 AI Provider 未配置</p>
+              <p className="mt-0.5 text-amber-200/70">请在 <code className="rounded bg-amber-500/10 px-1">backend/.env</code> 配置 <code className="rounded bg-amber-500/10 px-1">AI_CHAT_PROVIDER_API_KEY</code> 后重启后端服务。</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Layer 2: Sidebar */}
       {showSidebar && (
@@ -369,7 +764,7 @@ export function AIChatWindow({
       </div>
 
       {/* Layer 4: Chat messages */}
-      {hasMessages && (
+      {(hasMessages || loadingMessages) && (
         <div
           ref={chatScrollRef}
           className={`absolute inset-0 overflow-y-auto overscroll-contain ${
@@ -393,12 +788,56 @@ export function AIChatWindow({
               </button>
             </div>
 
-            <ChatMessageList
-              messages={messages}
-              onRegenerate={handleRegenerateMessage}
-              onEdit={handleEditMessage}
-              onDelete={handleDeleteMessage}
-            />
+            {loadingMessages ? (
+              <div className="mx-auto max-w-3xl space-y-4">
+                <div className="flex gap-3">
+                  <Skeleton className="h-8 w-8 rounded-full" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-4 w-3/4" />
+                    <Skeleton className="h-4 w-2/3" />
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <Skeleton className="h-8 w-8 rounded-full" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-4 w-1/2" />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <ChatMessageList
+                messages={messages}
+                onRegenerate={handleRegenerateMessage}
+                onEdit={handleEditMessage}
+                onDelete={handleDeleteMessage}
+                streamError={streamError}
+                onRetry={
+                  messages.length >= 2 && isStreaming === false
+                    ? () => {
+                        // Retry the most recent assistant message by
+                        // re-running regenerate on it. If the assistant
+                        // has no serverId yet (e.g. network died before
+                        // the first `done`), fall back to regenerating the
+                        // last user message instead.
+                        const last = messages[messages.length - 1]
+                        if (!last) return
+                        if (last.serverId) {
+                          handleRegenerateMessage(last.id)
+                          return
+                        }
+                        const userMsg = [...messages].reverse().find((m) => m.role === 'user')
+                        if (userMsg) handleRegenerateMessage(userMsg.id)
+                      }
+                    : undefined
+                }
+              />
+            )}
+
+            {loadingConversations && conversations.length === 0 && !loadingMessages && (
+              <div className="mx-auto max-w-3xl mt-2">
+                <p className="text-xs text-[#5a5a5f]">正在加载历史会话…</p>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -445,9 +884,23 @@ export function AIChatWindow({
 
             <ChatInput
               placeholder={isLanding ? placeholder : '继续对话...'}
-              onSend={handleSend}
+              onSend={(msg, opts) => handleSend(msg, {
+                ...opts,
+                overviewPromptId,
+                detailPromptId,
+                enableWebSearch,
+                model: selectedModel,
+              })}
               compact={!isLanding}
-              disabled={isStreaming}
+              disabled={isStreaming || activeServerId == null}
+              enableWebSearch={enableWebSearch}
+              onToggleWebSearch={setEnableWebSearch}
+              overviewPromptId={overviewPromptId}
+              onOverviewPromptIdChange={setOverviewPromptId}
+              detailPromptId={detailPromptId}
+              onDetailPromptIdChange={setDetailPromptId}
+              selectedModel={selectedModel}
+              onModelChange={setSelectedModel}
             />
           </div>
         </div>
