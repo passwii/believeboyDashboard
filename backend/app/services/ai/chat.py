@@ -120,7 +120,13 @@ def append_message(
     role: str,
     content: str,
     search_sources: list[dict[str, Any]] | None = None,
+    search_time_range: str | None = None,
 ) -> AIMessage:
+    """追加一条消息。
+
+    [BEL-81.B] `search_time_range` 透传至 `AIMessage.search_time_range`，
+    供历史回放时按时间范围渲染 chip。允许 `None`（老消息 / 无搜索场景）。
+    """
     row = AIMessage(
         conversation_id=conversation_id,
         role=role,
@@ -128,6 +134,7 @@ def append_message(
         search_sources=json.dumps(search_sources, ensure_ascii=False)
         if search_sources
         else None,
+        search_time_range=search_time_range,
     )
     db.add(row)
     return row

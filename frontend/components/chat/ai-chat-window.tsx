@@ -65,6 +65,8 @@ function toClientMessage(server: ServerChatMessage): ChatMessage {
     content: server.content,
     streaming: false,
     searchSources: server.search_sources,
+    // [BEL-81.B] 历史回放用：让 chip 在刷新后仍可见
+    searchTimeRange: server.search_time_range ?? null,
     tokenUsage: hasUsage
       ? {
           prompt: server.prompt_tokens,
@@ -311,14 +313,38 @@ export function AIChatWindow({
             ]
           })
         },
-        onSources: (sources) => {
+        onSources: (sources, meta) => {
           setMessages((prev) => {
             const idx = prev.findIndex((m) => m.id === assistantLocalId)
             if (idx === -1) return prev
             const target = prev[idx]
             return [
               ...prev.slice(0, idx),
-              { ...target, searchSources: sources },
+              {
+                ...target,
+                searchSources: sources,
+                // [BEL-81.B] 把后端透传的 time_range / query 落到消息上
+                searchTimeRange: meta?.timeRange ?? target.searchTimeRange ?? null,
+                searchQuery: meta?.query ?? target.searchQuery ?? null,
+                searchSearching: false,
+              },
+              ...prev.slice(idx + 1),
+            ]
+          })
+        },
+        // [BEL-81.B] tool_searching 时显示骨架卡占位
+        onToolState: (state) => {
+          if (!state.searching) return
+          setMessages((prev) => {
+            const idx = prev.findIndex((m) => m.id === assistantLocalId)
+            if (idx === -1) return prev
+            const target = prev[idx]
+            if (target.searchSearching && target.searchSources && target.searchSources.length > 0) {
+              return prev
+            }
+            return [
+              ...prev.slice(0, idx),
+              { ...target, searchSearching: true },
               ...prev.slice(idx + 1),
             ]
           })
