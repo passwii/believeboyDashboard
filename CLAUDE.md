@@ -75,6 +75,14 @@ mcp__codegraph__codegraph_impact symbol="process_report"
 5. **后端登录入口实践**：同一个 `codegraph_search("login")` 找到 `backend/app/api/v1/endpoints/auth.py:82` 的 `login`，`codegraph_node` 显示它会先做 IP/邮箱限流，再查 `public.user_accounts`、校验密码、写审计日志并创建 Redis session。
 6. **重构前必跑影响面**：对 `frontend/lib/backend-auth.ts:125` 的 `buildBackendAuthHeaders` 跑 `callers/callees/impact`，确认它被 admin users、AI chat、file upload、password、proxy/cache 等 19 个直接调用方使用，修改前需要覆盖这些路径。
 
+### 团队确认机制（BEL-93 后续执行）
+
+- **PR 模板强制勾选**：所有涉及代码定位、重构、bug 修复的 PR 都勾选 “已优先使用 CodeGraph 定位代码”。
+- **Reviewer 检查点**：如果 PR 描述或评论中出现 “用 grep/glob 扫了一遍”， reviewer 应要求补充 CodeGraph 调用记录；公共函数修改必须补充 `callers/callees/impact` 结果。
+- **Agent 启动提示**：Explore / coding agent 的任务 prompt 默认加一句：定位代码时先用 CodeGraph，只有在 CodeGraph 无结果时才 fallback 到 Read/Grep/Glob。
+- **抽样审计**：每周随机抽查 3-5 个 PR，确认 PR 描述、评论或 commit message 中有 CodeGraph 使用痕迹；连续 2 周达标即可认为团队习惯已建立。
+- **无法靠 CI 证明积极性**：MCP 工具调用发生在仓库外，CI 不能直接证明“积极使用”。可确认的是流程证据：PR 模板、review gate、抽样审计和 agent prompt 是否持续存在。
+
 ---
 
 ## Project Overview
