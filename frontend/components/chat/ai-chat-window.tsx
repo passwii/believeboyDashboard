@@ -180,16 +180,6 @@ export function AIChatWindow({
     setShowSidebar(phase === 'chat')
   }, [phase])
 
-  // ── If listConversations auto-selected a history entry on first load,
-  // ── jump straight to chat mode (sidebar opens via the phase sync above).
-  // ── This way users with existing history land in the chat page, not the
-  // ── landing hero.
-  useEffect(() => {
-    if (phase === 'landing' && activeServerId != null) {
-      setPhase('chat')
-    }
-  }, [activeServerId, phase])
-
   // ── Load messages whenever the active conversation changes.
   useEffect(() => {
     if (activeServerId == null) {
