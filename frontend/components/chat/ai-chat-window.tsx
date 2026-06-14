@@ -167,6 +167,29 @@ export function AIChatWindow({
     }
   }, [refreshKey])
 
+  // ── Sync showSidebar with phase: 首屏默认折叠，聊天页默认展开。
+  // ── Users can still toggle manually; the next phase transition re-syncs.
+  // ── We use a ref to skip the very first run so the initial phase value
+  // ── (landing) sets showSidebar=false without flashing.
+  const phaseSyncRanRef = useRef(false)
+  useEffect(() => {
+    if (!phaseSyncRanRef.current) {
+      phaseSyncRanRef.current = true
+      return
+    }
+    setShowSidebar(phase === 'chat')
+  }, [phase])
+
+  // ── If listConversations auto-selected a history entry on first load,
+  // ── jump straight to chat mode (sidebar opens via the phase sync above).
+  // ── This way users with existing history land in the chat page, not the
+  // ── landing hero.
+  useEffect(() => {
+    if (phase === 'landing' && activeServerId != null) {
+      setPhase('chat')
+    }
+  }, [activeServerId, phase])
+
   // ── Load messages whenever the active conversation changes.
   useEffect(() => {
     if (activeServerId == null) {
@@ -743,6 +766,7 @@ export function AIChatWindow({
     <div
       ref={rootRef}
       className="relative h-full w-full overflow-hidden bg-[#0f0f0f] safe-area-inset-top safe-area-inset-bottom"
+      style={{ ['--sidebar-width' as string]: '280px' }}
     >
       <style dangerouslySetInnerHTML={{ __html: animationStyles }} />
 
@@ -751,6 +775,22 @@ export function AIChatWindow({
         <RayBackground arcsUp={arcsUp} />
         <FloatingParticles />
       </div>
+
+      {/* Sidebar toggle — always visible on landing + chat. Sits at the root
+          (not inside the chat messages layer) so 首屏 can open 对话历史.
+          z-30 keeps it under the sidebar (z-40) and the input strip (z-40),
+          but above the landing hero / chat messages (z-0). Hidden when the
+          caller passes showInput={false} (e.g. the /dashboard/ai entry page). */}
+      {showInput && !showSidebar && (
+        <button
+          type="button"
+          onClick={() => setShowSidebar(true)}
+          className="absolute top-4 left-4 z-30 flex items-center justify-center size-9 rounded-xl bg-white/[0.06] border border-white/[0.08] text-[#8a8a8f] hover:text-white hover:bg-white/[0.1] transition-all duration-200 active:scale-95"
+          aria-label="打开对话历史"
+        >
+          <PanelLeft className="size-4" />
+        </button>
+      )}
 
       {/* Provider-unconfigured banner — shown only when the backend reports
           `providerConfigured: false` (most often because the .env lacks
@@ -833,23 +873,13 @@ export function AIChatWindow({
             isChat ? 'bb-chat-enter' : 'opacity-0'
           }`}
           style={{
+            paddingLeft: showSidebar ? 'var(--sidebar-width, 280px)' : '0px',
             paddingTop: 'env(safe-area-inset-top, 16px)',
             paddingBottom: 'calc(120px + env(safe-area-inset-bottom, 16px))',
+            transition: 'padding-left 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
           }}
         >
           <div className="px-3 sm:px-4 pt-6 pb-4">
-            {/* Sidebar toggle */}
-            <div className="fixed top-4 left-4 z-20">
-              <button
-                type="button"
-                onClick={() => setShowSidebar(!showSidebar)}
-                className="flex items-center justify-center size-9 rounded-xl bg-white/[0.06] border border-white/[0.08] text-[#8a8a8f] hover:text-white hover:bg-white/[0.1] transition-all duration-200 active:scale-95"
-                aria-label={showSidebar ? '关闭侧边栏' : '打开侧边栏'}
-              >
-                <PanelLeft className="size-4" />
-              </button>
-            </div>
-
             {loadingMessages ? (
               <div className="mx-auto max-w-3xl space-y-4">
                 <div className="flex gap-3">
@@ -913,6 +943,7 @@ export function AIChatWindow({
         <div
           className="absolute left-0 right-0 w-full px-3 sm:px-4 pointer-events-none"
           style={{
+            paddingLeft: showSidebar ? 'var(--sidebar-width, 280px)' : '0px',
             ...(isLanding
               ? { top: '55%', transform: 'translateY(-50%)' }
               : {
@@ -920,7 +951,7 @@ export function AIChatWindow({
                   paddingBottom: 'env(safe-area-inset-bottom, 16px)',
                 }),
             transition:
-              'top 0.7s cubic-bezier(0.22, 1, 0.36, 1), bottom 0.7s cubic-bezier(0.22, 1, 0.36, 1)',
+              'padding-left 0.35s cubic-bezier(0.16, 1, 0.3, 1), top 0.7s cubic-bezier(0.22, 1, 0.36, 1), bottom 0.7s cubic-bezier(0.22, 1, 0.36, 1)',
             zIndex: 40,
           }}
         >
