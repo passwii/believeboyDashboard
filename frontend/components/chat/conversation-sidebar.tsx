@@ -115,10 +115,20 @@ export function ConversationSidebar({
       }}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-white/[0.06]">
-        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5a5a5f]">
-          对话历史
-        </span>
+      <div className="flex items-center justify-between gap-3 px-4 pt-4 pb-3 border-b border-white/[0.06]">
+        <div className="min-w-0 flex-1 pr-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5a5a5f]">
+              对话历史
+            </span>
+            <span className="shrink-0 rounded-full bg-white/[0.04] px-2 py-0.5 text-[10px] font-medium text-[#5a5a5f]">
+              自动保存
+            </span>
+          </div>
+          <p className="mt-1 truncate text-[10px] leading-4 text-[#505056]">
+            全部会话会自动保存
+          </p>
+        </div>
         <div className="flex items-center gap-1.5">
           <button
             type="button"
