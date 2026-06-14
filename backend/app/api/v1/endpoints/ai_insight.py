@@ -37,6 +37,7 @@ from app.schemas.insight_schedule import (
     InsightScheduleRunNowResponse,
     InsightScheduleDeleteResponse,
 )
+from app.celery_tasks.insights.generate import generate_insight as celery_generate_insight
 from app.services import project_service
 from app.services.ai_insight_aggregator import aggregate_project_data
 from app.services.ai_insight_generator import (
@@ -71,8 +72,9 @@ _EMPLOYEE_ID: int | None = None  # int(os.environ.get("AI_INSIGHT_EMPLOYEE_ID", 
 router = APIRouter(prefix="/ai-insights", tags=["ai-insights"], dependencies=[Depends(protected)])
 
 
-# Global registry: insight_id -> queue.Queue for streaming content
-# Background thread enqueues chunks; SSE consumer dequeues them.
+# DEPRECATED: legacy in-process SSE queue kept only for the transition window.
+# New generation is dispatched to Celery; callers should read AIInsight/Celery
+# task state for authoritative progress.
 _insight_queues: dict[int, queue.Queue] = {}
 _insight_queues_lock = threading.Lock()
 
@@ -409,7 +411,6 @@ def _run_insight_generation(
 def generate_insight(
     payload: InsightGenerateRequest,
     db: Session = Depends(get_db_session),
-    settings: Settings = Depends(get_settings),
     x_operator: str | None = Depends(get_request_operator),
     is_admin: bool = Depends(get_request_is_admin),
 ):
@@ -438,23 +439,7 @@ def generate_insight(
     db.commit()
     db.refresh(insight)
 
-    # Spawn background thread to do the actual work
-    bg_payload = {
-        "project_id": payload.project_id,
-        "project_name": project.project_name,
-        "country": payload.country,
-        "start_date": payload.date_range_start.isoformat(),
-        "end_date": payload.date_range_end.isoformat(),
-        "model": payload.model,
-        "insight_type": payload.insight_type,
-    }
-    thread = threading.Thread(
-        target=_run_insight_generation,
-        args=(insight.id, settings, bg_payload, x_operator),
-        daemon=True,
-        name=f"ai-insight-{insight.id}",
-    )
-    thread.start()
+    celery_generate_insight.delay(None, insight_id=insight.id)
 
     return InsightStatusResponse(
         status="pending",
@@ -522,9 +507,45 @@ def stream_insight(
                     break
 
         if q is None:
+            # Celery-backed generation does not register an in-process queue.
+            # Poll the authoritative DB row and stream terminal state when ready.
+            last_status = start_status
+            for _ in range(1800):  # up to 1 hour
+                time.sleep(2)
+                db.refresh(insight)
+                current_status = insight.status
+                if current_status in (InsightStatus.completed, InsightStatus.failed):
+                    if current_status == InsightStatus.completed:
+                        yield _encode_sse_event({
+                            "type": "done",
+                            "status": current_status.value,
+                            "insight_id": insight_id_val,
+                            "title": insight.title or "",
+                            "content": normalize_insight_markdown(insight.content or ""),
+                            "error_message": None,
+                        })
+                    else:
+                        yield _encode_sse_event({
+                            "type": "error",
+                            "error": insight.error_message or "洞察生成失败",
+                            "insight_id": insight_id_val,
+                            "status": current_status.value,
+                            "error_message": insight.error_message,
+                        })
+                    return
+                if current_status != last_status:
+                    last_status = current_status
+                    yield _encode_sse_event({
+                        "type": "status",
+                        "status": current_status.value,
+                        "sub_status": insight.sub_status,
+                        "insight_id": insight_id_val,
+                    })
+                yield _encode_sse_event({"type": "ping"})
+
             yield _encode_sse_event({
                 "type": "error",
-                "error": "无法连接到生成任务",
+                "error": "洞察生成超时，请稍后查看结果",
                 "insight_id": insight_id_val,
             })
             return
@@ -818,8 +839,6 @@ def list_schedules(
 
     # 过滤：无项目访问权限的 schedule
     if not is_admin:
-        from app.services import project_service
-
         accessible_ids = project_service.list_accessible_project_ids(
             db, operator=operator, is_admin=is_admin
         )
@@ -991,7 +1010,6 @@ def update_insight(
 def retry_insight(
     insight_id: int,
     db: Session = Depends(get_db_session),
-    settings: Settings = Depends(get_settings),
     x_operator: str | None = Depends(get_request_operator),
     is_admin: bool = Depends(get_request_is_admin),
 ):
@@ -1020,22 +1038,7 @@ def retry_insight(
     row.title = "生成中..."
     db.commit()
 
-    bg_payload = {
-        "project_id": row.project_id,
-        "project_name": row.project_name,
-        "country": row.country,
-        "start_date": row.date_range_start.isoformat(),
-        "end_date": row.date_range_end.isoformat(),
-        "model": None,  # model is not persisted; use default
-        "insight_type": row.insight_type.value if isinstance(row.insight_type, InsightType) else str(row.insight_type or "custom"),
-    }
-    thread = threading.Thread(
-        target=_run_insight_generation,
-        args=(row.id, settings, bg_payload, x_operator),
-        daemon=True,
-        name=f"ai-insight-retry-{row.id}",
-    )
-    thread.start()
+    celery_generate_insight.delay(None, insight_id=row.id)
 
     return InsightRetryResponse(status="pending", insight_id=row.id)
 

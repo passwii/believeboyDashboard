@@ -11,27 +11,21 @@ Insight Schedule Service — 定时任务 CRUD + 调度触发逻辑
 from __future__ import annotations
 
 import logging
-import threading
-from datetime import date, datetime, timedelta
-from calendar import monthrange
-from typing import TYPE_CHECKING, Optional
+from datetime import date, timedelta
+from typing import TYPE_CHECKING
 
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
 from app.models import InsightSchedule, Project, AIInsight, InsightStatus, InsightType
+from app.celery_tasks.insights.generate import generate_insight
+from app.services.insight_concurrency import acquire_remote_semaphore
 
 if TYPE_CHECKING:
     from app.core.config import Settings
 
 logger = logging.getLogger(__name__)
-
-# -------------------------------------------------------------------------------------------------
-# 并发控制
-# -------------------------------------------------------------------------------------------------
-
 MAX_CONCURRENT_INSIGHTS = 3
-_insight_semaphore = threading.Semaphore(MAX_CONCURRENT_INSIGHTS)
 
 
 def _get_scheduler():
@@ -433,135 +427,23 @@ def run_schedule_now(
 # -------------------------------------------------------------------------------------------------
 
 def run_scheduled_insight(schedule_id: int) -> None:
-    """
-    APScheduler Job 回调：执行定时洞察生成。
-    触发后台线程执行完整的生成流程。
-    """
+    """APScheduler Job 回调：只把 schedule_id 投递到 Celery。"""
     logger.info(f"[Schedule-{schedule_id}] Triggered insight generation")
 
-    # 获取槽位
-    acquired = _insight_semaphore.acquire(blocking=False)
-    if not acquired:
-        logger.warning(
-            f"[Schedule-{schedule_id}] Could not acquire slot "
-            f"(max {MAX_CONCURRENT_INSIGHTS} concurrent), skipping this run"
-        )
-        return
-
-    # 在新线程中执行生成
-    thread = threading.Thread(
-        target=_run_insight_generation_wrapper,
-        args=(schedule_id,),
-        daemon=True,
-        name=f"scheduled-insight-{schedule_id}",
-    )
-    thread.start()
-
-
-def _run_insight_generation_wrapper(schedule_id: int) -> None:
-    """
-    后台线程：执行洞察生成的核心逻辑。
-    复用 _run_insight_generation 函数，但添加 schedule 相关的错误处理和统计更新。
-    """
-    from app.core.config import get_settings
-    from app.db.session import SessionLocal
-
-    db = SessionLocal()
-    try:
-        schedule = db.get(InsightSchedule, schedule_id)
-        if not schedule or not schedule.is_active:
+    with acquire_remote_semaphore("insights", timeout=300) as acquired:
+        if not acquired:
             logger.warning(
-                f"[Schedule-{schedule_id}] Schedule not found or inactive, skipping"
+                f"[Schedule-{schedule_id}] Could not acquire distributed slot "
+                f"(max {MAX_CONCURRENT_INSIGHTS} concurrent), skipping this run"
             )
             return
 
-        project = db.get(Project, schedule.project_id)
-        if not project:
-            logger.error(
-                f"[Schedule-{schedule_id}] Project {schedule.project_id} not found"
-            )
-            return
-
-        # 计算日期范围
-        start_date, end_date = calculate_date_range(schedule.date_range_strategy)
-
-        # 创建 AIInsight 记录
-        insight = AIInsight(
-            project_id=schedule.project_id,
-            project_name=project.project_name,
-            country=schedule.country,
-            title="定时生成中...",
-            content="",
-            insight_type=InsightType(schedule.insight_type),
-            date_range_start=start_date,
-            date_range_end=end_date,
-            status=InsightStatus.pending,
-            created_by=f"scheduler:{schedule.id}",
-        )
-        db.add(insight)
-        db.commit()
-        db.refresh(insight)
-
-        insight_id = insight.id
-
-        # 更新 schedule 统计
-        schedule.last_run_at = datetime.now()
-        schedule.last_insight_id = insight_id
-        schedule.run_count += 1
-        schedule.last_error = None  # 清空上次错误
-        db.commit()
-
-    finally:
-        db.close()
-
-    # 调用现有的生成函数（需要新的 session）
-    settings = get_settings()
-
-    # 构建 payload
-    db = SessionLocal()
     try:
-        insight = db.get(AIInsight, insight_id)
-        if not insight:
-            logger.error(
-                f"[Schedule-{schedule_id}] Insight {insight_id} not found"
-            )
-            return
-
-        payload = {
-            "project_id": insight.project_id,
-            "project_name": insight.project_name,
-            "country": insight.country,
-            "start_date": insight.date_range_start.isoformat(),
-            "end_date": insight.date_range_end.isoformat(),
-            "model": schedule.model,
-        }
-    finally:
-        db.close()
-
-    # 调用现有的生成函数
-    try:
-        from app.api.v1.endpoints.ai_insight import _run_insight_generation
-
-        _run_insight_generation(
-            insight_id=insight_id,
-            settings=settings,
-            payload=payload,
-            operator=f"scheduler:{schedule_id}",
-        )
-        logger.info(
-            f"[Schedule-{schedule_id}] Insight {insight_id} generated successfully"
-        )
-
+        generate_insight.delay(schedule_id)
+        logger.info(f"[Schedule-{schedule_id}] Enqueued insight generation")
     except Exception as e:
-        logger.error(
-            f"[Schedule-{schedule_id}] Insight {insight_id} generation failed: {e}"
-        )
-        # 更新失败状态到 schedule
+        logger.error(f"[Schedule-{schedule_id}] Failed to enqueue insight generation: {e}")
         _update_schedule_failure(schedule_id, str(e))
-
-    finally:
-        # 释放并发槽位
-        _insight_semaphore.release()
 
 
 def _update_schedule_failure(schedule_id: int, error_message: str) -> None:
@@ -580,74 +462,18 @@ def _update_schedule_failure(schedule_id: int, error_message: str) -> None:
 
 
 def _trigger_insight_generation(schedule_id: int, insight_id: int) -> None:
-    """
-    触发洞察生成（供 run_now 使用）。
-    启动后台线程执行生成。
-    """
-    thread = threading.Thread(
-        target=_run_insight_generation_for_runnow,
-        args=(schedule_id, insight_id),
-        daemon=True,
-        name=f"insight-{insight_id}",
-    )
-    thread.start()
-
-
-def _run_insight_generation_for_runnow(schedule_id: int, insight_id: int) -> None:
-    """
-    后台线程：立即执行模式的洞察生成。
-    与 run_scheduled_insight 类似，但不更新 schedule 统计。
-    """
-    from app.core.config import get_settings
-    from app.db.session import SessionLocal
-
-    # 获取并发槽位（与定时执行保持一致的并发控制）
-    acquired = _insight_semaphore.acquire(blocking=False)
-    if not acquired:
-        logger.warning(
-            f"[RunNow-{schedule_id}] Could not acquire slot "
-            f"(max {MAX_CONCURRENT_INSIGHTS} concurrent), skipping this run"
-        )
-        return
-
-    db = SessionLocal()
-    try:
-        schedule = db.get(InsightSchedule, schedule_id)
-        insight = db.get(AIInsight, insight_id)
-
-        if not insight:
-            logger.error(f"[RunNow-{schedule_id}] Insight {insight_id} not found")
+    """触发洞察生成（供 run_now 使用）。"""
+    with acquire_remote_semaphore("insights", timeout=300) as acquired:
+        if not acquired:
+            logger.warning(
+                f"[RunNow-{schedule_id}] Could not acquire distributed slot "
+                f"(max {MAX_CONCURRENT_INSIGHTS} concurrent), skipping this run"
+            )
             return
 
-        payload = {
-            "project_id": insight.project_id,
-            "project_name": insight.project_name,
-            "country": insight.country,
-            "start_date": insight.date_range_start.isoformat(),
-            "end_date": insight.date_range_end.isoformat(),
-            "model": schedule.model if schedule else None,
-        }
-    finally:
-        db.close()
-
-    settings = get_settings()
-
     try:
-        from app.api.v1.endpoints.ai_insight import _run_insight_generation
-
-        _run_insight_generation(
-            insight_id=insight_id,
-            settings=settings,
-            payload=payload,
-            operator=f"scheduler:runnow:{schedule_id}",
-        )
-        logger.info(f"[RunNow-{schedule_id}] Insight {insight_id} generated successfully")
-
+        generate_insight.delay(schedule_id, insight_id=insight_id)
+        logger.info(f"[RunNow-{schedule_id}] Enqueued insight {insight_id}")
     except Exception as e:
-        logger.error(f"[RunNow-{schedule_id}] Insight {insight_id} generation failed: {e}")
-        # 更新失败状态到 schedule
-        if schedule:
-            _update_schedule_failure(schedule_id, str(e))
-
-    finally:
-        _insight_semaphore.release()
+        logger.error(f"[RunNow-{schedule_id}] Failed to enqueue insight generation: {e}")
+        _update_schedule_failure(schedule_id, str(e))

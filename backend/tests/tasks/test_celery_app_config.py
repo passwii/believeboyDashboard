@@ -107,3 +107,5 @@ def test_celery_app_required_config(monkeypatch: pytest.MonkeyPatch) -> None:
     assert conf.result_backend == "redis://redis.local:6379/2"
     assert conf.worker_concurrency == 4
     assert "app.celery_tasks.ping" in fresh.conf.include
+    assert "app.celery_tasks.insights.generate" in fresh.conf.include
+    assert fresh.conf.task_routes["generate_insight"]["queue"] == "insights"
