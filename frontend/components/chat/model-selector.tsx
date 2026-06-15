@@ -90,11 +90,10 @@ export function ModelSelector({ selectedModel, onModelChange }: {
   const [isOpen, setIsOpen] = useState(false)
   const [configVersion, setConfigVersion] = useState(0)
   const [othersExpanded, setOthersExpanded] = useState(false)
-  const [drawerOpen, setDrawerOpen] = useState(false) // desktop-only: "其他模型" right-side drawer
+  const [drawerOpen, setDrawerOpen] = useState(false) // desktop-only: "其他模型" right-side panel
   const [othersContent, setOthersContent] = useState<HTMLDivElement | null>(null)
   const [othersChevron, setOthersChevron] = useState<SVGSVGElement | null>(null)
   const [drawerPanel, setDrawerPanel] = useState<HTMLDivElement | null>(null)
-  const [drawerBackdrop, setDrawerBackdrop] = useState<HTMLDivElement | null>(null)
 
   const isDesktop = useIsDesktop(1024)
 
@@ -224,7 +223,8 @@ export function ModelSelector({ selectedModel, onModelChange }: {
     })
   }, [othersExpanded, drawerOpen, othersChevron, isDesktop])
 
-  // Desktop drawer slide-in / fade
+  // Desktop side-panel fade in / out (no x translation: the panel is
+  // absolutely positioned next to the trigger, not a viewport-edge drawer).
   useEffect(() => {
     if (!isDesktop) return
     const reduced =
@@ -234,39 +234,19 @@ export function ModelSelector({ selectedModel, onModelChange }: {
     if (drawerPanel) {
       if (drawerOpen) {
         if (reduced) {
-          gsap.set(drawerPanel, { x: 0, opacity: 1 })
+          gsap.set(drawerPanel, { opacity: 1 })
         } else {
-          gsap.fromTo(
-            drawerPanel,
-            { x: 40, opacity: 0 },
-            { x: 0, opacity: 1, duration: 0.28, ease: 'power3.out' }
-          )
-        }
-      } else {
-        // Out animation
-        if (reduced) {
-          gsap.set(drawerPanel, { x: 40, opacity: 0 })
-        } else {
-          gsap.to(drawerPanel, { x: 40, opacity: 0, duration: 0.18, ease: 'power2.in' })
-        }
-      }
-    }
-    if (drawerBackdrop) {
-      if (drawerOpen) {
-        if (reduced) {
-          gsap.set(drawerBackdrop, { opacity: 1 })
-        } else {
-          gsap.fromTo(drawerBackdrop, { opacity: 0 }, { opacity: 1, duration: 0.2 })
+          gsap.fromTo(drawerPanel, { opacity: 0 }, { opacity: 1, duration: 0.2, ease: 'power2.out' })
         }
       } else {
         if (reduced) {
-          gsap.set(drawerBackdrop, { opacity: 0 })
+          gsap.set(drawerPanel, { opacity: 0 })
         } else {
-          gsap.to(drawerBackdrop, { opacity: 0, duration: 0.18 })
+          gsap.to(drawerPanel, { opacity: 0, duration: 0.18, ease: 'power2.in' })
         }
       }
     }
-  }, [drawerOpen, drawerPanel, drawerBackdrop, isDesktop])
+  }, [drawerOpen, drawerPanel, isDesktop])
 
   if (!cfg || modelIds.length === 0) {
     return (
@@ -313,86 +293,88 @@ export function ModelSelector({ selectedModel, onModelChange }: {
 
       {isOpen && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-          <div className="absolute bottom-full left-0 mb-2 z-50 min-w-[260px] sm:min-w-[280px] max-h-[60vh] overflow-y-auto bg-[#1a1a1e]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl shadow-black/50 overscroll-contain bb-anim-scale-in">
-            <div className="p-1.5">
-              <div className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#5a5a5f]">选择模型</div>
-              {groups.map((group, gIdx) => (
-                <ModelGroupSection
-                  key={group.id}
-                  group={group}
-                  isFirst={gIdx === 0}
-                  othersExpanded={othersExpanded}
-                  onToggleOthers={handleToggleOthers}
-                  onContentRef={setOthersContent}
-                  onChevronRef={setOthersChevron}
-                  currentId={current ?? null}
-                  onSelect={handleSelect}
-                  premiumSet={premiumSet}
-                  defaultModel={defaultModel}
-                  isDesktop={isDesktop}
-                  drawerOpen={drawerOpen}
-                />
-              ))}
-              {/* Re-render the version key so React picks up store changes. */}
-              <span className="hidden" data-config-version={configVersion} />
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* Desktop "其他模型" right-side drawer — fixed to viewport. */}
-      {isDesktop && othersGroup && (
-        <>
           <div
-            ref={setDrawerBackdrop}
-            onClick={() => setDrawerOpen(false)}
-            className={`fixed inset-0 z-40 bg-black/30 transition-opacity ${
-              drawerOpen ? 'pointer-events-auto' : 'pointer-events-none'
-            }`}
-            style={{ opacity: 0 }}
-            aria-hidden={!drawerOpen}
+            className="fixed inset-0 z-40"
+            onClick={() => {
+              setIsOpen(false)
+              setDrawerOpen(false)
+            }}
           />
-          <div
-            ref={setDrawerPanel}
-            role="dialog"
-            aria-modal="true"
-            aria-label="其他模型"
-            aria-hidden={!drawerOpen}
-            className={`fixed top-0 right-0 bottom-0 z-50 w-[340px] max-w-[85vw] bg-[#1a1a1e]/95 backdrop-blur-xl border-l border-white/10 shadow-2xl shadow-black/50 flex flex-col ${
-              drawerOpen ? 'pointer-events-auto' : 'pointer-events-none'
-            }`}
-            style={{ transform: 'translateX(40px)', opacity: 0 }}
-          >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-              <div>
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-[#5a5a5f]">
-                  {othersGroup.label}
+          {/* Wrapper that holds the main dropdown + the optional "其他模型"
+              side panel side-by-side. Both panels anchor to the same bottom
+              edge so the right panel visually stacks next to (not below)
+              the dropdown. */}
+          <div className="absolute bottom-full left-0 mb-2 z-50 flex items-start gap-2 bb-anim-scale-in">
+            <div className="min-w-[260px] sm:min-w-[280px] max-h-[60vh] overflow-y-auto bg-[#1a1a1e]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl shadow-black/50 overscroll-contain">
+              <div className="p-1.5">
+                <div className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#5a5a5f]">选择模型</div>
+                {groups.map((group, gIdx) => (
+                  <ModelGroupSection
+                    key={group.id}
+                    group={group}
+                    isFirst={gIdx === 0}
+                    othersExpanded={othersExpanded}
+                    onToggleOthers={handleToggleOthers}
+                    onContentRef={setOthersContent}
+                    onChevronRef={setOthersChevron}
+                    currentId={current ?? null}
+                    onSelect={handleSelect}
+                    premiumSet={premiumSet}
+                    defaultModel={defaultModel}
+                    isDesktop={isDesktop}
+                    drawerOpen={drawerOpen}
+                  />
+                ))}
+                {/* Re-render the version key so React picks up store changes. */}
+                <span className="hidden" data-config-version={configVersion} />
+              </div>
+            </div>
+
+            {/* Desktop "其他模型" right-side panel — sits to the right of the
+                main dropdown. Only rendered when the user has explicitly
+                toggled it (drawerOpen) so the main dropdown still has a
+                clear affordance on its own. Scrollable for long model lists. */}
+            {isDesktop && othersGroup && drawerOpen && (
+              <div
+                ref={setDrawerPanel}
+                role="dialog"
+                aria-modal="false"
+                aria-label="其他模型"
+                data-side-panel="model-others"
+                className="w-[300px] max-w-[85vw] max-h-[60vh] bg-[#1a1a1e]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl shadow-black/50 flex flex-col pointer-events-auto"
+                style={{ opacity: 0 }}
+              >
+                <div className="flex items-center justify-between px-3 py-2.5 border-b border-white/10">
+                  <div>
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-[#5a5a5f]">
+                      {othersGroup.label}
+                    </div>
+                    <div className="text-xs text-[#8a8a8f] mt-0.5">
+                      {otherModels.length} 个模型
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setDrawerOpen(false)}
+                    className="p-1.5 rounded-md text-[#8a8a8f] hover:text-white hover:bg-white/5 transition-colors touch-manipulation"
+                    aria-label="关闭"
+                  >
+                    <X className="size-4" />
+                  </button>
                 </div>
-                <div className="text-xs text-[#8a8a8f] mt-0.5">
-                  {otherModels.length} 个模型
+                <div className="flex-1 overflow-y-auto p-2 overscroll-contain">
+                  {otherModels.map((model) => (
+                    <DrawerModelRow
+                      key={model.id}
+                      model={model}
+                      isCurrent={current === model.id}
+                      onSelect={handleSelect}
+                      badge={badgeFor(model.id, premiumSet, defaultModel)}
+                    />
+                  ))}
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setDrawerOpen(false)}
-                className="p-1.5 rounded-md text-[#8a8a8f] hover:text-white hover:bg-white/5 transition-colors touch-manipulation"
-                aria-label="关闭"
-              >
-                <X className="size-4" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-2 overscroll-contain">
-              {otherModels.map((model) => (
-                <DrawerModelRow
-                  key={model.id}
-                  model={model}
-                  isCurrent={current === model.id}
-                  onSelect={handleSelect}
-                  badge={badgeFor(model.id, premiumSet, defaultModel)}
-                />
-              ))}
-            </div>
+            )}
           </div>
         </>
       )}
