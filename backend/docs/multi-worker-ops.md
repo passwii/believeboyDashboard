@@ -53,7 +53,7 @@ sudo journalctl -u believeboy-worker -p err -n 100 --no-pager
 
 ### 1.2 修改并发数
 
-`/opt/believeboy/backend/.env`：
+`/home/damon/believeboyDashboard/backend/.env`：
 
 ```bash
 # CPU 几核就写几；VPS 升配后只需要改这里 + restart worker
@@ -71,15 +71,15 @@ CELERY_WORKER_CONCURRENCY=8
 
 ### 2.1 访问入口
 
-- **生产**：通过 nginx 反代访问 `https://<domain>/flower`（nginx 段由
-  运维维护，配置示例见 2.3 节）。
-- **直连本机（仅限 VPS 内部）**：`http://127.0.0.1:5555/flower`
+- **生产**：通过 cloudflared tunnel 访问 `https://flower.believeboy.com`
+  （tunnel 指向 `127.0.0.1:5555`，由运维维护，配置示例见 2.3 节）。
+- **直连本机（仅限 VPS 内部）**：`http://127.0.0.1:5555/`
 - **本地 dev**：`./run_worker.sh single` 起一个 worker，再
   `celery -A app.tasks.celery_app flower --basic_auth=dev:dev` 临时起
-  flower，然后用 `http://127.0.0.1:5555` + `dev / dev` 登录。
+  flower，然后用 `http://127.0.0.1:5555/` + `dev / dev` 登录。
 
 用户名固定为 `flower_admin`（在 systemd 单元里 hardcode 了），密码在
-`/opt/believeboy/backend/.env` 的 `FLOWER_PASSWORD=` 读取。**不要把这
+`/home/damon/believeboyDashboard/backend/.env` 的 `FLOWER_PASSWORD=` 读取。**不要把这
 个密码贴到 issue / Slack**，需要给同事开权限时让运维直接 ssh 到
 VPS 上加新的 `basic_auth=` 段（更稳的方案是接公司 SSO，但当前
 issue 不在范围内）。
@@ -94,24 +94,21 @@ issue 不在范围内）。
 | **Tasks** | 单任务详情 | `Received → Started → Succeeded` 时序、args、result、traceback |
 | **Monitor** | 实时时间轴 | 与 Prometheus / Alertmanager 集成时用（本项目暂未接） |
 
-### 2.3 nginx 反代（生产建议）
+### 2.3 cloudflared tunnel（生产）
 
-`/etc/nginx/sites-enabled/believeboy.conf` 追加：
+flower 监听 `0.0.0.0:5555`，对外通过 cloudflared tunnel 出
+`https://flower.believeboy.com`。tunnel 不在本仓里维护，由运维在
+cloudflare 控制台配；本地 `~/.cloudflared/config.yml` 至少要有一段：
 
-```nginx
-location /flower {
-    proxy_pass http://127.0.0.1:5555;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    # flower 的 basic auth 已在后端校验；这里不要再加 auth_basic 块
-    # 否则会要求两次 basic auth，用户体验混乱。
-}
+```yaml
+ingress:
+  - hostname: flower.believeboy.com
+    service: http://127.0.0.1:5555
+  - service: http_status:404
 ```
 
-`sudo nginx -t && sudo systemctl reload nginx` 后访问
-`https://<domain>/flower` 即可。
+> flower 的 basic auth 已在后端校验；tunnel 端不要再加 `auth_basic` 块
+> 否则会要求两次 basic auth，用户体验混乱。
 
 ## 3. 队列堆积 SOP
 
@@ -191,7 +188,7 @@ location /flower {
 
 ```bash
 # 在 VPS 上进项目 venv
-cd /opt/believeboy/backend
+cd /home/damon/believeboyDashboard/backend
 source .venv/bin/activate
 
 # 列出 broker 中所有失败任务的 id（走 result backend）
@@ -299,7 +296,7 @@ connecting to ...`。
 并发槽位：
 
 ```bash
-cd /opt/believeboy/backend
+cd /home/damon/believeboyDashboard/backend
 # 关掉 systemd 单元（不要同时跑）
 sudo systemctl stop believeboy-worker
 # 拉起 3 个 worker 进程
