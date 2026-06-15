@@ -204,10 +204,13 @@ export function AIChatWindow({
   // ── conversation; the placeholder "new conversation" state creates one
   // ── first via `createConversation`).
   const streamCallbacksRef = useRef<UseChatStreamCallbacks>({})
-  const { send: sendStream, stop: stopStream, error: streamHookError } = useChatStream(
-    activeServerId ?? 0,
-    streamCallbacksRef,
-  )
+  const {
+    send: sendStream,
+    stop: stopStream,
+    error: streamHookError,
+    toolState,
+    pendingSources,
+  } = useChatStream(activeServerId ?? 0, streamCallbacksRef)
 
   // Surface stream-hook errors as a transient banner. The hook's `error`
   // state is cleared on the next `send`, so this naturally re-syncs.
@@ -873,6 +876,9 @@ export function AIChatWindow({
                 onEdit={handleEditMessage}
                 onDelete={handleDeleteMessage}
                 streamError={streamError}
+                pendingSearchState={
+                  toolState ? { searching: toolState.searching, sources: pendingSources } : null
+                }
                 onRetry={
                   messages.length >= 2 && isStreaming === false
                     ? () => {
