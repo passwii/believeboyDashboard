@@ -318,11 +318,15 @@ def _build_project_match_legacy(
 
     col = ProductCost.sku if match_by == "sku" else ProductCost.asin
     normalized_lower = [v.lower() for v in normalized_values]
+    # 不再过滤 is_active —— 库存报表中包含大量已下架/停售的 SKU
+    # （如 DB-SQ-C8、WT-DRL-4PCS、ZF-SDB-C4 等），这些 SKU 仍属于该项目，
+    # 若在识别阶段被过滤掉，会导致项目匹配退回为文件夹名 fallback，
+    # 进而造成 validation 阶段命中率不足而失败。
+    # 参见 BEL-104 修复说明。
     rows = (
         db.execute(
             select(ProductCost.project_name)
             .where(func.lower(col).in_(normalized_lower))
-            .where(ProductCost.is_active.is_(True))
             .where(ProductCost.country == country)
             .distinct()
         )
