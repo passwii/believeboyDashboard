@@ -318,11 +318,15 @@ def _build_project_match_legacy(
 
     col = ProductCost.sku if match_by == "sku" else ProductCost.asin
     normalized_lower = [v.lower() for v in normalized_values]
+    # A-table reports (business/payment/sales/inventory/return) may include
+    # SKU/ASIN that have been delisted but still belong to a project — match
+    # against both active and inactive records.  This mirrors the HTTP entry's
+    # behavior in backend/app/services/data/upload/project_match.py after the
+    # BEL-104 fix.
     rows = (
         db.execute(
             select(ProductCost.project_name)
             .where(func.lower(col).in_(normalized_lower))
-            .where(ProductCost.is_active.is_(True))
             .where(ProductCost.country == country)
             .distinct()
         )

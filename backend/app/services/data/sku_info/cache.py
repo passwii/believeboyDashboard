@@ -50,7 +50,27 @@ def match_projects_by_identifiers(
     identifiers: list[str],
     match_by: str,
     country: str = "US",
+    include_inactive: bool = False,
 ) -> dict[str, list[str]]:
+    """Match a set of SKU/ASIN identifiers to project names.
+
+    Args:
+        db: Database session.
+        identifiers: SKU or ASIN values to look up.
+        match_by: ``"sku"`` or ``"asin"``.
+        country: Country filter (defaults to ``"US"``).
+        include_inactive: When ``True`` (default for A-table report matching),
+            inactive SKU/ASIN records and inactive projects are still considered.
+            When ``False`` (default for B-table ad report matching), only active
+            SKU/ASIN records under active projects are returned.
+
+            Background: A-table reports (business/payment/sales/inventory/return)
+            may legitimately include SKU/ASIN that have been delisted but still
+            belong to a project. AutoReportUpload's ``_build_project_match_legacy``
+            and the HTTP entry ``data.upload.project_match._build_project_match``
+            both pass ``include_inactive=True`` to keep project matching
+            consistent across both code paths.
+    """
     from app.models.sku_info import SkuRecord
 
     normalized_values = sorted(
@@ -67,15 +87,6 @@ def match_projects_by_identifiers(
     else:
         raise ValueError(f"Unsupported match_by: {match_by}")
 
-    stmt = (
-        select(Project.project_name, column)
-        .join(SkuRecord, SkuRecord.project_id == Project.id)
-        .where(Project.project_name.in_(
-            select(Project.project_name).where(Project.is_active.is_(True))
-        ))
-        .where(SkuRecord.country == normalized_country)
-        .where(SkuRecord.is_active.is_(True))
-    )
     from sqlalchemy import func
 
     stmt = (
@@ -83,8 +94,14 @@ def match_projects_by_identifiers(
         .join(SkuRecord, SkuRecord.project_id == Project.id)
         .where(func.upper(column).in_(normalized_values))
         .where(SkuRecord.country == normalized_country)
-        .where(SkuRecord.is_active.is_(True))
     )
+    if not include_inactive:
+        stmt = stmt.where(SkuRecord.is_active.is_(True))
+        stmt = stmt.where(
+            Project.project_name.in_(
+                select(Project.project_name).where(Project.is_active.is_(True))
+            )
+        )
 
     matched: dict[str, set[str]] = {value: set() for value in normalized_values}
     for project_name, identifier in db.execute(stmt).all():
