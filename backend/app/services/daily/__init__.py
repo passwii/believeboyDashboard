@@ -20,6 +20,7 @@ from app.services.daily.analysis import (
     _load_business_metrics,
     _load_latest_available_dates,
     build_daily_analysis,
+    build_daily_analysis_all_countries,
     build_daily_analysis_all_projects,
 )
 from app.services.daily.sales import _load_sales_metrics
@@ -30,6 +31,7 @@ __all__ = [
     # Public API
     "build_daily_analysis",
     "build_daily_analysis_all_projects",
+    "build_daily_analysis_all_countries",
     # Internal (for testing / compat)
     "_MetricBucket",
     "_aggregate_buckets",
