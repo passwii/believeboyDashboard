@@ -205,7 +205,7 @@ export function ConversationSidebar({
             }}
             onMouseEnter={() => setHoveredId(conv.id)}
             onMouseLeave={() => setHoveredId(null)}
-            className={`group flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-200 ${
+            className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-200 ${
               activeId === conv.id
                 ? 'bg-white/[0.08] text-white'
                 : 'text-[#a0a0a5] hover:text-white'
@@ -252,40 +252,35 @@ export function ConversationSidebar({
               </div>
             ) : (
               <>
-                <span className="flex-1 min-w-0 text-[13px] font-medium truncate">
+                <span className="flex-1 min-w-0 text-[13px] font-medium truncate pr-1">
                   {conv.title}
                 </span>
-                {/* Right column reserves a stable 56px slot for the hover
-                    actions so the title never gets pushed around when the
-                    user moves the cursor in / out. */}
-                <div className="shrink-0 w-14 flex items-center justify-end gap-0.5">
-                  {hoveredId === conv.id ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          startRename(conv)
-                        }}
-                        className="p-1 rounded-md text-[#5a5a5f] hover:text-white hover:bg-white/[0.08] transition-colors"
-                        aria-label="重命名"
-                      >
-                        <Pencil className="size-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleDeleteWithAnimation(conv.id)
-                        }}
-                        className="p-1 rounded-md text-[#5a5a5f] hover:text-red-400 hover:bg-red-400/[0.08] transition-colors"
-                        aria-label="删除"
-                      >
-                        <Trash2 className="size-3.5" />
-                      </button>
-                    </>
-                  ) : null}
-                </div>
+                {hoveredId === conv.id && (
+                  <div className="pointer-events-none absolute inset-y-1 right-1 flex items-center gap-0.5 rounded-md bg-gradient-to-l from-[#141416] via-[#141416] to-transparent pl-6 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        startRename(conv)
+                      }}
+                      className="pointer-events-auto p-1 rounded-md text-[#5a5a5f] hover:text-white hover:bg-white/[0.08] transition-colors"
+                      aria-label="重命名"
+                    >
+                      <Pencil className="size-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDeleteWithAnimation(conv.id)
+                      }}
+                      className="pointer-events-auto p-1 rounded-md text-[#5a5a5f] hover:text-red-400 hover:bg-red-400/[0.08] transition-colors"
+                      aria-label="删除"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </div>
+                )}
               </>
             )}
           </div>

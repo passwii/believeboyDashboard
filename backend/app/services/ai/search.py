@@ -34,38 +34,79 @@ def build_web_search_query(query: str) -> str:
 
 
 def detect_time_range_from_query(query: str) -> str:
-    query_lower = query.lower()
+    query_lower = ''.join(query.lower().split())
 
     if any(
         kw in query_lower
-        for kw in ["\u6628\u5929", "\u6628\u65e5", "\u5c06\u8fd1", "1\u5929", "1\u65e5", "\u6700\u8fd11\u5929", "\u6700\u8fd11\u65e5"]
+        for kw in [
+            "今天",
+            "今日",
+            "昨天",
+            "昨日",
+            "将近",
+            "1天",
+            "1日",
+            "最近1天",
+            "最近1日",
+            "近1天",
+            "近1日",
+        ]
     ):
         return "day"
 
     if any(
         kw in query_lower
         for kw in [
-            "\u672c\u5468", "\u8fd9\u5468", "\u672c\u5468\u5185", "\u672c\u661f\u671f",
-            "\u6700\u8fd1\u4e00\u5468", "\u6700\u8fd17\u5929", "\u6700\u8fd17\u65e5",
-            "\u4e0a\u5468", "\u4e0a\u661f\u671f",
+            "今年",
+            "年内",
+            "今年内",
+            "最近一年",
+            "最近365天",
+            "去年",
+            "上年",
+            "近一年",
+            "近365天",
         ]
     ):
-        return "week"
+        return "year"
 
     if any(
         kw in query_lower
         for kw in [
-            "\u672c\u6708", "\u8fd9\u4e2a\u6708", "\u672c\u6708\u5185", "\u6700\u8fd1\u4e00\u4e2a\u6708",
-            "\u6700\u8fd130\u5929", "\u6700\u8fd130\u65e5", "\u4e0a\u4e2a\u6708", "\u4e0a\u6708",
+            "本月",
+            "这个月",
+            "本月内",
+            "最近一个月",
+            "最近30天",
+            "最近30日",
+            "上个月",
+            "上月",
+            "近一个月",
+            "近30天",
+            "近30日",
+            "最近",
         ]
     ):
         return "month"
 
     if any(
         kw in query_lower
-        for kw in ["\u672c\u5e74", "\u4eca\u5e74", "\u5e74\u5185", "\u6700\u8fd1\u4e00\u5e74", "\u6700\u8fd1365\u5929", "\u53bb\u5e74", "\u4e0a\u5e74"]
+        for kw in [
+            "本周",
+            "这周",
+            "本周内",
+            "本星期",
+            "最近一周",
+            "最近7天",
+            "最近7日",
+            "上周",
+            "上星期",
+            "近一周",
+            "近7天",
+            "近7日",
+        ]
     ):
-        return "year"
+        return "week"
 
     return "month"
 

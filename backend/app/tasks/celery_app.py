@@ -5,8 +5,8 @@ This module owns the Celery app instance used by the worker systemd unit
 
 BEL-55-P0 brought up the broker + ping smoke-test task. BEL-55-P1 adds
 `app.celery_tasks.run_job` (the lifted `worker.tasks.run_job`) and the
-`reports` queue route. AI-insight tasks (BEL-55-P2) and the in-memory
-monthly-report task table (BEL-55-P3) are explicitly out of scope here.
+`reports` queue route. BEL-55-P2 adds `app.celery_tasks.insights.generate`
+and the `insights` queue route.
 """
 
 from __future__ import annotations
@@ -38,6 +38,7 @@ def _build_celery_app() -> Celery:
         include=[
             "app.celery_tasks.ping",
             "app.celery_tasks.run_job",
+            "app.celery_tasks.insights.generate",
         ],
     )
 
@@ -58,14 +59,29 @@ def _build_celery_app() -> Celery:
         # unit already consumes from this queue.
         task_routes={
             "app.celery_tasks.run_job.run_job": {"queue": "reports"},
+            "generate_insight": {"queue": "insights"},
         },
         # All timestamps in messages/results use project timezone.
         timezone="Asia/Shanghai",
         enable_utc=True,
         # Concurrency is set per worker (`-c` flag in systemd unit); keep
         # the setting here as a documented fallback for `celery -A ... beat`
-        # style invocations.
+        # style invocations. The systemd unit also passes `--concurrency`
+        # explicitly so a VPS resize only needs an env-var bump, not a
+        # code change.
         worker_concurrency=settings.celery_worker_concurrency,
+        # BEL-55-P4: route worker logs through the root logger and let them
+        # flow to stdout. The systemd unit's `StandardOutput=journal`
+        # (inherited from the unit defaults) ships the stream to journald
+        # for central collection — see backend/docs/multi-worker-ops.md.
+        # `worker_hijack_root_logger` rewires Celery's own loggers onto
+        # the root so a `logging.basicConfig` from a task module can't
+        # silently swallow records.
+        worker_hijack_root_logger=True,
+        # CELERYD_TASK_LOG_FORMAT keeps a single task prefix on each log
+        # line so journald grep can pivot on `[<task_id>] [<task_name>]`
+        # without re-joining multi-line records.
+        worker_task_log_format="[%(processName)s] [%(levelname)s] %(task_name)s[%(task_id)s]: %(message)s",
     )
 
     return app

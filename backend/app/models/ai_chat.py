@@ -68,6 +68,9 @@ class AIMessage(Base):
     role: Mapped[str] = mapped_column(String(32), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     search_sources: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # [BEL-81.B] 联网搜索的时间范围标签：day|week|month|year|all 之一。
+    # 用于历史消息回放时在搜索卡片上方渲染时间范围 chip。
+    search_time_range: Mapped[str | None] = mapped_column(String(16), nullable=True)
     is_complete: Mapped[bool] = mapped_column(default=False)
     prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
     completion_tokens: Mapped[int] = mapped_column(Integer, default=0)

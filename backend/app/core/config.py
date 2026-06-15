@@ -65,6 +65,7 @@ class Settings(BaseSettings):
 
     # Scheduled report dispatch
     report_ai_concurrency: int = Field(default=2, ge=1, le=10, description="Max concurrent AI summary API calls during report dispatch")
+    max_concurrent_insights: int = Field(default=3, ge=1, le=10, description="Max concurrent AI insight generation tasks")
 
     redis_db: int = Field(default=0, ge=0, le=15)
 
