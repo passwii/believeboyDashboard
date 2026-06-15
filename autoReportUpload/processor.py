@@ -1222,7 +1222,17 @@ def _parse_and_insert_rows(
 
     if report_type == "payment_report":
         df = read_payment_report_dataframe(path, country=country or "US")
-        rows, total, included = _parse_payment_rows(df, source_id, known_skus, known_asins)
+        # A-table payment reports may include SKU that have been delisted but
+        # still belong to the project — reload known_skus/known_asins with
+        # include_inactive=True so that classify_scope marks these rows as
+        # ``included_product`` instead of ``excluded_unmapped``.  Mirrors the
+        # BEL-104 inventory_report fix below.
+        payment_known_skus, payment_known_asins = _load_project_product_mapping(
+            db, project_name, country, include_inactive=True,
+        )
+        rows, total, included = _parse_payment_rows(
+            df, source_id, payment_known_skus, payment_known_asins,
+        )
         if rows:
             db.execute(insert(AnalysisPaymentRow), rows)
         return total, included
