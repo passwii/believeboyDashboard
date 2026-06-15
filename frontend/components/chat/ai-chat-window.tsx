@@ -793,8 +793,18 @@ export function AIChatWindow({
     >
       <style dangerouslySetInnerHTML={{ __html: animationStyles }} />
 
-      {/* Layer 1: Background */}
-      <div className="absolute inset-0">
+      {/* Layer 1: Background — same paddingLeft shift as the chat / input
+          layers so the gradient rays, glows and floating particles
+          "follow" the foreground when the sidebar opens. Without this
+          the background looks pinned while everything else slides
+          right, breaking the unified "camera pan" feel. */}
+      <div
+        className="absolute inset-0"
+        style={{
+          paddingLeft: showSidebar ? 'var(--sidebar-width, 280px)' : '0px',
+          transition: 'padding-left 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
+        }}
+      >
         <RayBackground arcsUp={arcsUp} />
         <FloatingParticles />
       </div>
