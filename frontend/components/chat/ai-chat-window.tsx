@@ -287,6 +287,13 @@ export function AIChatWindow({
   const isLanding = phase === 'landing'
   const isChat = phase === 'chat'
   const hasMessages = messages.length > 0
+  // Derived from message data — true if any assistant message in this
+  // conversation was produced via web search. Drives the sticky
+  // "本对话已开启联网" status bar in <ChatMessageList />.
+  const usedWebSearch = useMemo(
+    () => messages.some((m) => m.role === 'assistant' && (m.searchSources?.length ?? 0) > 0),
+    [messages]
+  )
 
   // ── Stream callback bridge: route events into the React state for the
   // ── active assistant message. The assistant message is identified by a
@@ -919,6 +926,7 @@ export function AIChatWindow({
                 onEdit={handleEditMessage}
                 onDelete={handleDeleteMessage}
                 streamError={streamError}
+                usedWebSearch={usedWebSearch}
                 onRetry={
                   messages.length >= 2 && isStreaming === false
                     ? () => {

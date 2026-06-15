@@ -106,12 +106,13 @@ export function AIChatSearchSources({
     })
   }, [])
 
-  // B2: 'all' 与缺省都视为"不显示 chip"
-  const showTimeChip = !!timeRange && timeRange !== 'all'
-  const hasRealSources = sources.length > 0
-  // 没有 sources 也没有 searching 状态时，整体不渲染（保持原行为）
-  if (!hasRealSources && !searching) {
-    return null
+  if (!sources.length) {
+    return (
+      <div className={cn('mt-3 flex items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[11px] text-muted-foreground/70', className)}>
+        <Globe className="h-3 w-3 shrink-0" />
+        <span>搜索完成，未找到匹配结果</span>
+      </div>
+    )
   }
 
   return (
@@ -152,68 +153,58 @@ export function AIChatSearchSources({
         style={{ scrollSnapType: 'x mandatory' }}
       >
         <div className="inline-flex min-w-max gap-3 pr-1">
-          {/* [BEL-81.B] tool_searching 阶段渲染 1–2 张骨架卡占位，避免布局抖动 */}
-          {searching && !hasRealSources && (
-            <>
-              <SearchSourceSkeleton index={0} />
-              <SearchSourceSkeleton index={1} />
-            </>
-          )}
-
-          {hasRealSources &&
-            sources.map((source, index) => {
-              const faviconUrl = getFaviconUrlDirect(source.url, source.favicon)
-              return (
+          {sources.map((source, index) => {
+            const faviconUrl = getFaviconUrlDirect(source.url, source.favicon)
+            const cardKey = `${source.url || source.title || 'source'}-${index}`
+            return (
+              <div
+                key={cardKey}
+                className="group relative w-[240px] shrink-0 rounded-2xl border border-surface-outline/60 bg-gradient-to-br from-surface-panel via-surface-subtle/90 to-surface-subtle/70 p-3 shadow-[0_10px_24px_rgba(15,23,42,0.08)] dark:shadow-[0_10px_24px_rgba(0,0,0,0.3)] transition-[border-color,background-color,box-shadow] duration-200 hover:border-primary/25 hover:bg-slate-50/90 dark:hover:bg-[hsl(var(--surface-subtle)/0.8)] dark:hover:shadow-[0_14px_30px_rgba(0,0,0,0.35)]"
+              >
                 <a
-                  key={`${source.url || source.title || 'source'}-${index}`}
                   href={source.url || '#'}
                   target="_blank"
                   rel="noreferrer"
-                  // B1 深色化 + B3 入场动画 + snap
-                  style={{
-                    animationDelay: `${index * 40}ms`,
-                    scrollSnapAlign: 'start',
-                  }}
-                  className="group relative block w-[240px] shrink-0 rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-3 transition-[border-color,background-color,box-shadow] duration-200 hover:border-blue-400/30 hover:bg-white/[0.06] hover:shadow-[0_8px_22px_rgba(0,0,0,0.35)] animate-fade-in-up"
+                  className="flex items-start gap-2.5"
                 >
-                  <div className="flex items-start gap-2.5">
-                    {faviconUrl ? (
-                      <Image
-                        src={faviconUrl}
-                        alt=""
-                        width={18}
-                        height={18}
-                        className="mt-0.5 h-[18px] w-[18px] shrink-0 rounded-md"
-                        unoptimized
-                        onError={(e) => {
-                          const currentSrc = e.currentTarget.src
-                          if (currentSrc.includes('google.com/s2/favicons')) {
-                            e.currentTarget.style.display = 'none'
-                          } else {
-                            e.currentTarget.src = getFaviconUrl(source.url, source.favicon) || ''
-                          }
-                        }}
-                      />
-                    ) : (
-                      <Globe className="mt-0.5 h-[18px] w-[18px] shrink-0 text-muted-foreground/60" />
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <p className="line-clamp-2 text-[13px] font-semibold leading-5 text-foreground/95">
-                        {source.title || '未命名'}
-                      </p>
-                      <p className="mt-1 truncate text-[11px] leading-4 text-muted-foreground/70">
-                        {source.domain || '未知来源'}
-                      </p>
-                    </div>
+                  {faviconUrl ? (
+                    <Image
+                      src={faviconUrl}
+                      alt=""
+                      width={18}
+                      height={18}
+                      className="mt-0.5 h-[18px] w-[18px] shrink-0 rounded-md"
+                      unoptimized
+                      onError={(e) => {
+                        const currentSrc = e.currentTarget.src
+                        if (currentSrc.includes('google.com/s2/favicons')) {
+                          e.currentTarget.style.display = 'none'
+                        } else {
+                          e.currentTarget.src = getFaviconUrl(source.url, source.favicon) || ''
+                        }
+                      }}
+                    />
+                  ) : (
+                    <Globe className="mt-0.5 h-[18px] w-[18px] shrink-0 text-muted-foreground/60" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="line-clamp-2 text-[13px] font-semibold leading-5 text-foreground/95">{source.title || '未命名'}</p>
+                    <p className="mt-1 truncate text-[11px] leading-4 text-muted-foreground/70">{source.domain || '未知来源'}</p>
                   </div>
-                  {source.snippet && (
-                    <p className="mt-2 line-clamp-4 break-words text-[11px] leading-5 text-muted-foreground/80">
+                </a>
+                {source.snippet && (
+                  <details className="mt-2 rounded-lg border border-white/[0.06] bg-white/[0.02] text-[11px]">
+                    <summary className="flex cursor-pointer items-center gap-1.5 px-2.5 py-1 text-muted-foreground/80 hover:text-foreground/90 select-none list-none [&::-webkit-details-marker]:hidden">
+                      <span>展开摘要</span>
+                    </summary>
+                    <p className="mt-1 px-2.5 pb-2 break-words leading-5 text-muted-foreground/80">
                       {source.snippet}
                     </p>
-                  )}
-                </a>
-              )
-            })}
+                  </details>
+                )}
+              </div>
+            )
+          })}
         </div>
       </div>
     </div>
