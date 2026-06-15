@@ -1,9 +1,6 @@
 import json
-import os
-import queue
-import threading
-import time
 import logging
+import time
 from datetime import datetime, timezone
 from typing import Any
 
@@ -15,7 +12,6 @@ from sqlalchemy.orm import Session
 logger = logging.getLogger(__name__)
 
 from app.api.deps import get_db_session, get_request_is_admin, get_request_operator, protected
-from app.core.config import Settings, get_settings
 from app.models import AIInsight, InsightStatus, InsightType, Project
 from app.schemas.ai_insight import (
     InsightChunkResponse,
@@ -39,20 +35,8 @@ from app.schemas.insight_schedule import (
 )
 from app.celery_tasks.insights.generate import generate_insight as celery_generate_insight
 from app.services import project_service
-from app.services.ai_insight_aggregator import aggregate_project_data
 from app.services.ai_insight_generator import (
-    generate_insight_stream,
-    generate_insight_title,
     normalize_insight_markdown,
-)
-from app.services.ai_insight_utils import (
-    format_project_context_for_prompt,
-    format_sku_context_for_prompt,
-)
-from app.services.digital_employee_reporter import (
-    ai_insight_start,
-    ai_insight_progress,
-    ai_insight_complete,
 )
 from app.services.insight_schedule_service import (
     get_schedules,
@@ -64,19 +48,6 @@ from app.services.insight_schedule_service import (
     ensure_schedule_access,
     calculate_date_range,
 )
-
-# 数字员工 ID（AI洞察报告员工 = id=4，通过环境变量可配置）
-# TODO: 生产环境 employee_id FK 问题临时 bypass，直接设为 None 跳过所有数字员工上报
-_EMPLOYEE_ID: int | None = None  # int(os.environ.get("AI_INSIGHT_EMPLOYEE_ID", "4"))
-
-router = APIRouter(prefix="/ai-insights", tags=["ai-insights"], dependencies=[Depends(protected)])
-
-
-# DEPRECATED: legacy in-process SSE queue kept only for the transition window.
-# New generation is dispatched to Celery; callers should read AIInsight/Celery
-# task state for authoritative progress.
-_insight_queues: dict[int, queue.Queue] = {}
-_insight_queues_lock = threading.Lock()
 
 
 def _serialize_insight(row: AIInsight) -> InsightItem:
@@ -130,281 +101,7 @@ def _encode_sse_event(payload: dict) -> bytes:
     return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n".encode("utf-8")
 
 
-def _encode_ndjson_event(payload: dict) -> bytes:
-    return (json.dumps(payload, ensure_ascii=False) + "\n").encode("utf-8")
-
-
-def _enqueue_if_exists(insight_id: int, event: dict) -> None:
-    """Send an event to the SSE queue for this insight, if it exists."""
-    with _insight_queues_lock:
-        q = _insight_queues.get(insight_id)
-    if q is not None:
-        try:
-            q.put_nowait(event)
-            logger.debug("SSE enqueue insight_id=%s event_type=%s sub_status=%s chunk_len=%s",
-                         insight_id, event.get("type"), event.get("sub_status"),
-                         len(event.get("delta", "")) if event.get("type") == "chunk" else "N/A")
-        except queue.Full:
-            logger.warning("SSE queue full for insight_id=%s, dropping event_type=%s",
-                           insight_id, event.get("type"))
-
-
-def _run_insight_generation(
-    insight_id: int,
-    settings: Settings,
-    payload: dict[str, Any],
-    operator: str | None,
-) -> None:
-    """Background thread: generates the insight and streams progress via SSE queue."""
-    from app.db.session import SessionLocal
-
-    gen_db = SessionLocal()
-    q: queue.Queue | None = None
-
-    # 注册数字员工任务
-    task_id = f"ai-insight-{insight_id}"
-    try:
-        if _EMPLOYEE_ID is not None:
-            ai_insight_start(gen_db, _EMPLOYEE_ID, insight_id, payload.get("project_name", ""))
-    except Exception:
-        pass  # 不阻塞核心流程
-
-    def _report_progress(step: str, progress: int) -> None:
-        try:
-            if _EMPLOYEE_ID is not None:
-                ai_insight_progress(gen_db, _EMPLOYEE_ID, task_id, step, progress)
-        except Exception:
-            pass
-
-    def progress_callback(step: str, detail_data: dict[str, Any] | None = None) -> None:
-        """Called by the aggregator as each sub-step starts. Only enqueues SSE events (no DB access)."""
-        event: dict[str, Any] = {"type": "status", "status": "generating", "sub_status": step}
-        if detail_data:
-            event["detail"] = detail_data
-        _enqueue_if_exists(insight_id, event)
-
-    try:
-        # Register the queue for SSE consumers
-        with _insight_queues_lock:
-            q = queue.Queue(maxsize=200)
-            _insight_queues[insight_id] = q
-
-        # Send pending event so frontend knows job is queued
-        _enqueue_if_exists(insight_id, {"type": "status", "status": "pending", "sub_status": "queued", "insight_id": insight_id})
-        time.sleep(0.5)
-
-        # Mark as generating
-        gen_db.query(AIInsight).filter(AIInsight.id == insight_id).update({
-            AIInsight.status: InsightStatus.generating,
-        })
-        gen_db.commit()
-        _enqueue_if_exists(insight_id, {"type": "status", "status": "generating", "sub_status": None})
-        time.sleep(0.5)
-
-        # Stage 1: Data aggregation (now reports granular sub-status via callback)
-        gen_db.query(AIInsight).filter(AIInsight.id == insight_id).update({
-            AIInsight.sub_status: "data_aggregating",
-        })
-        gen_db.commit()
-        _enqueue_if_exists(insight_id, {"type": "status", "status": "generating", "sub_status": "data_aggregating"})
-        time.sleep(0.5)
-        _report_progress("data_aggregating", 10)
-
-        from datetime import date as date_type
-        start_date = date_type.fromisoformat(payload["start_date"])
-        end_date = date_type.fromisoformat(payload["end_date"])
-
-        aggregated = aggregate_project_data(
-            gen_db,
-            project_id=payload["project_id"],
-            country=payload["country"],
-            start_date=start_date,
-            end_date=end_date,
-            progress_cb=progress_callback,
-        )
-
-        if aggregated is None:
-            raise RuntimeError("无法获取项目数据")
-        _report_progress("data_aggregating", 40)
-
-        data_dict = aggregated.to_dict()
-
-        # Stage 2: AI content generation
-        gen_db.query(AIInsight).filter(AIInsight.id == insight_id).update({
-            AIInsight.sub_status: "ai_generating",
-        })
-        gen_db.commit()
-        _enqueue_if_exists(insight_id, {"type": "status", "status": "generating", "sub_status": "ai_generating"})
-        time.sleep(0.5)
-        _report_progress("ai_generating", 50)
-
-        content_chunks: list[str] = []
-        chunk_count = 0
-        strategy_metadata_str: str | None = None
-
-        if payload.get("insight_type") == "ad_analysis":
-            # ── Agent Pipeline (动态策略) ──────────────────────────────────────
-            from app.services.ad_agent.pipeline import run_ad_agent_pipeline_multi_pass_stream
-
-            project_context_text = format_project_context_for_prompt(
-                data_dict.get("project_context") or {}
-            )
-            sku_context_text = format_sku_context_for_prompt(
-                data_dict.get("sku_context") or {}
-            )
-
-            for event in run_ad_agent_pipeline_multi_pass_stream(
-                aggregated_data=data_dict,
-                settings=settings,
-                project_id=payload["project_id"],
-                project_name=payload["project_name"],
-                country=payload["country"],
-                date_range_start=payload["start_date"],
-                date_range_end=payload["end_date"],
-                project_context_text=project_context_text,
-                sku_context_text=sku_context_text,
-                model=payload.get("model"),
-                db=gen_db,
-                insight_id=insight_id,
-            ):
-                etype = event.get("type")
-                if etype == "chunk":
-                    delta = event.get("delta", "")
-                    if delta:
-                        content_chunks.append(delta)
-                        chunk_count += 1
-                        _enqueue_if_exists(insight_id, {"type": "chunk", "delta": delta})
-                        if chunk_count % 5 == 0:
-                            _report_progress("ai_generating", 50 + min(40, chunk_count // 2))
-                elif etype == "profile":
-                    _enqueue_if_exists(insight_id, {
-                        "type": "status", "status": "generating",
-                        "sub_status": "agent_profiling",
-                    })
-                    _enqueue_if_exists(insight_id, {
-                        "type": "agent_stage", "stage": "profile",
-                        "data": event.get("data"),
-                    })
-                elif etype == "strategy":
-                    _enqueue_if_exists(insight_id, {
-                        "type": "status", "status": "generating",
-                        "sub_status": "agent_planning",
-                    })
-                    _enqueue_if_exists(insight_id, {
-                        "type": "agent_stage", "stage": "strategy",
-                        "data": event.get("data"),
-                    })
-                elif etype == "declaration":
-                    _enqueue_if_exists(insight_id, {
-                        "type": "agent_stage", "stage": "declaration",
-                        "text": event.get("text", ""),
-                    })
-                elif etype == "pass_mode":
-                    mode_label = "多轮分析" if event.get("mode") == "multi_pass" else "单轮分析"
-                    _enqueue_if_exists(insight_id, {
-                        "type": "agent_stage", "stage": "pass_mode",
-                        "text": mode_label,
-                    })
-                elif etype == "pass":
-                    _enqueue_if_exists(insight_id, {
-                        "type": "agent_stage", "stage": f"pass_{event.get('pass', 0)}",
-                        "data": {"name": event.get("name", ""), "status": event.get("status", "")},
-                    })
-                elif etype == "hotspots":
-                    _enqueue_if_exists(insight_id, {
-                        "type": "agent_stage", "stage": "hotspots",
-                        "data": event.get("data"),
-                    })
-                elif etype == "done":
-                    # 使用 Pipeline 的最终内容（已经过 normalize）
-                    pipeline_content = event.get("content", "")
-                    if pipeline_content:
-                        content_chunks = [pipeline_content]
-                    strategy_metadata_str = json.dumps({
-                        "strategy_declaration": event.get("strategy_declaration", ""),
-                        "evolution_metadata": event.get("evolution_metadata", {}),
-                    }, ensure_ascii=False)
-        else:
-            # ── 静态 Prompt（原有逻辑）────────────────────────────────────────
-            for chunk in generate_insight_stream(
-                settings,
-                data_dict,
-                model=payload.get("model"),
-                insight_type=payload.get("insight_type", "custom"),
-            ):
-                if chunk:
-                    content_chunks.append(chunk)
-                    chunk_count += 1
-                    _enqueue_if_exists(insight_id, {"type": "chunk", "delta": chunk})
-                    if chunk_count % 5 == 0:
-                        _report_progress("ai_generating", 50 + min(40, chunk_count // 2))
-
-        final_content = normalize_insight_markdown("".join(content_chunks))
-        _report_progress("ai_generating", 90)
-
-        # Stage 3: Title generation
-        gen_db.query(AIInsight).filter(AIInsight.id == insight_id).update({
-            AIInsight.sub_status: "title_generating",
-        })
-        gen_db.commit()
-        _enqueue_if_exists(insight_id, {"type": "status", "status": "generating", "sub_status": "title_generating"})
-        time.sleep(0.5)
-
-        title = generate_insight_title(
-            settings,
-            final_content,
-            payload["project_name"],
-            payload["start_date"],
-            payload["end_date"],
-        )
-
-        # Persist content + title to DB BEFORE sending the SSE "done" event so the
-        # record is always durable before the client receives it
-        gen_db.query(AIInsight).filter(AIInsight.id == insight_id).update({
-            AIInsight.title: title,
-            AIInsight.content: final_content,
-            AIInsight.strategy_metadata: strategy_metadata_str,
-            AIInsight.status: InsightStatus.completed,
-            AIInsight.sub_status: None,
-            AIInsight.updated_at: datetime.now(timezone.utc),
-        })
-        gen_db.commit()
-
-        _enqueue_if_exists(insight_id, {
-            "type": "done",
-            "status": "completed",
-            "insight_id": insight_id,
-            "title": title,
-            "content": final_content,
-            "error_message": None,
-        })
-        try:
-            if _EMPLOYEE_ID is not None:
-                ai_insight_complete(gen_db, _EMPLOYEE_ID, task_id, success=True)
-        except Exception:
-            pass
-
-    except Exception as exc:
-        try:
-            gen_db.query(AIInsight).filter(AIInsight.id == insight_id).update({
-                AIInsight.status: InsightStatus.failed,
-                AIInsight.sub_status: None,
-                AIInsight.error_message: str(exc),
-            })
-            gen_db.commit()
-        except Exception:
-            pass
-        _enqueue_if_exists(insight_id, {"type": "error", "error": str(exc), "insight_id": insight_id, "status": "failed", "error_message": str(exc)})
-        try:
-            if _EMPLOYEE_ID is not None:
-                ai_insight_complete(gen_db, _EMPLOYEE_ID, task_id, success=False, error=str(exc))
-        except Exception:
-            pass
-
-    finally:
-        with _insight_queues_lock:
-            _insight_queues.pop(insight_id, None)
-        gen_db.close()
+router = APIRouter(prefix="/ai-insights", tags=["ai-insights"], dependencies=[Depends(protected)])
 
 
 @router.post("/generate", response_model=InsightStatusResponse)
@@ -468,7 +165,6 @@ def stream_insight(
 
     insight_id_val = insight.id
     start_status = insight.status
-    start_created_at = insight.created_at.isoformat() if insight.created_at else ""
 
     def event_generator():
         # If already completed/failed, send current state immediately and close
@@ -484,92 +180,46 @@ def stream_insight(
             })
             return
 
-        # If pending, send queued state immediately and wait for the background thread
-        if start_status == InsightStatus.pending:
-            yield _encode_sse_event({
-                "type": "status",
-                "status": "pending",
-                "sub_status": "queued",
-                "insight_id": insight_id_val,
-            })
-
-        # Get or create queue for this insight
-        with _insight_queues_lock:
-            q = _insight_queues.get(insight_id_val)
-
-        if q is None:
-            # Status is pending but queue not registered yet — wait for it briefly
-            for _ in range(20):  # ~2 seconds
-                time.sleep(0.1)
-                with _insight_queues_lock:
-                    q = _insight_queues.get(insight_id_val)
-                if q is not None:
-                    break
-
-        if q is None:
-            # Celery-backed generation does not register an in-process queue.
-            # Poll the authoritative DB row and stream terminal state when ready.
-            last_status = start_status
-            for _ in range(1800):  # up to 1 hour
-                time.sleep(2)
-                db.refresh(insight)
-                current_status = insight.status
-                if current_status in (InsightStatus.completed, InsightStatus.failed):
-                    if current_status == InsightStatus.completed:
-                        yield _encode_sse_event({
-                            "type": "done",
-                            "status": current_status.value,
-                            "insight_id": insight_id_val,
-                            "title": insight.title or "",
-                            "content": normalize_insight_markdown(insight.content or ""),
-                            "error_message": None,
-                        })
-                    else:
-                        yield _encode_sse_event({
-                            "type": "error",
-                            "error": insight.error_message or "洞察生成失败",
-                            "insight_id": insight_id_val,
-                            "status": current_status.value,
-                            "error_message": insight.error_message,
-                        })
-                    return
-                if current_status != last_status:
-                    last_status = current_status
+        # Celery-backed generation: poll the authoritative DB row and stream terminal state when ready.
+        last_status = start_status
+        for _ in range(1800):  # up to 1 hour
+            time.sleep(2)
+            db.refresh(insight)
+            current_status = insight.status
+            if current_status in (InsightStatus.completed, InsightStatus.failed):
+                if current_status == InsightStatus.completed:
                     yield _encode_sse_event({
-                        "type": "status",
+                        "type": "done",
                         "status": current_status.value,
-                        "sub_status": insight.sub_status,
                         "insight_id": insight_id_val,
+                        "title": insight.title or "",
+                        "content": normalize_insight_markdown(insight.content or ""),
+                        "error_message": None,
                     })
-                yield _encode_sse_event({"type": "ping"})
+                else:
+                    yield _encode_sse_event({
+                        "type": "error",
+                        "error": insight.error_message or "洞察生成失败",
+                        "insight_id": insight_id_val,
+                        "status": current_status.value,
+                        "error_message": insight.error_message,
+                    })
+                return
+            if current_status != last_status:
+                last_status = current_status
+                yield _encode_sse_event({
+                    "type": "status",
+                    "status": current_status.value,
+                    "sub_status": insight.sub_status,
+                    "insight_id": insight_id_val,
+                })
+            yield _encode_sse_event({"type": "ping"})
 
-            yield _encode_sse_event({
-                "type": "error",
-                "error": "洞察生成超时，请稍后查看结果",
-                "insight_id": insight_id_val,
-            })
-            return
-
-        last_event: dict | None = None
-        while True:
-            try:
-                event = q.get(timeout=60)
-                last_event = event
-                event_type = event.get("type", "?")
-                event_sub = event.get("sub_status", "")
-                chunk_len = len(event.get("delta", "")) if event_type == "chunk" else 0
-                logger.debug(
-                    "SSE yield insight_id=%s type=%s sub=%s chunk_len=%s",
-                    insight_id_val, event_type, event_sub, chunk_len,
-                )
-                yield _encode_sse_event(event)
-
-                if event.get("type") in ("done", "error"):
-                    break
-            except queue.Empty:
-                # Send keepalive
-                yield _encode_sse_event({"type": "ping"})
-                continue
+        yield _encode_sse_event({
+            "type": "error",
+            "error": "洞察生成超时，请稍后查看结果",
+            "insight_id": insight_id_val,
+        })
 
     return StreamingResponse(
         event_generator(),
@@ -578,133 +228,6 @@ def stream_insight(
             "Cache-Control": "no-cache, no-transform",
             "X-Accel-Buffering": "no",
             "Connection": "keep-alive",
-        },
-    )
-
-
-# Legacy streaming endpoint kept for backwards compatibility during transition
-@router.post("/generate/stream")
-def generate_insight_stream_endpoint(
-    payload: InsightGenerateRequest,
-    db: Session = Depends(get_db_session),
-    settings: Settings = Depends(get_settings),
-    operator: str | None = Depends(get_request_operator),
-    is_admin: bool = Depends(get_request_is_admin),
-):
-    """
-    Legacy endpoint: generates insight in the request thread with streaming response.
-    Prefer POST /generate + GET /{id}/stream for background execution.
-    """
-    project_service.ensure_project_access(db, payload.project_id, operator=operator, is_admin=is_admin)
-    project = _get_project_or_404(db, payload.project_id)
-    project_name = project.project_name
-    start_date_str = payload.date_range_start.isoformat()
-    end_date_str = payload.date_range_end.isoformat()
-
-    insight = AIInsight(
-        project_id=payload.project_id,
-        project_name=project_name,
-        country=payload.country,
-        title="生成中...",
-        content="",
-        insight_type=InsightType(payload.insight_type)
-        if payload.insight_type in [e.value for e in InsightType]
-        else InsightType.custom,
-        date_range_start=payload.date_range_start,
-        date_range_end=payload.date_range_end,
-        status=InsightStatus.generating,
-        created_by=operator or "unknown",
-    )
-    db.add(insight)
-    db.commit()
-    db.refresh(insight)
-
-    insight_id = insight.id
-
-    def event_stream():
-        from app.db.session import SessionLocal
-        gen_db = SessionLocal()
-        try:
-            yield _encode_ndjson_event({"type": "status", "status": "generating", "sub_status": "data_aggregating", "insight_id": insight_id})
-
-            aggregated = aggregate_project_data(
-                gen_db,
-                project_id=payload.project_id,
-                country=payload.country,
-                start_date=payload.date_range_start,
-                end_date=payload.date_range_end,
-            )
-
-            if aggregated is None:
-                raise RuntimeError("无法获取项目数据")
-
-            data_dict = aggregated.to_dict()
-
-            yield _encode_ndjson_event({"type": "status", "status": "generating", "sub_status": "ai_generating", "insight_id": insight_id})
-
-            content_chunks: list[str] = []
-            for chunk in generate_insight_stream(
-                settings,
-                data_dict,
-                model=payload.model,
-                insight_type=payload.insight_type,
-            ):
-                if chunk:
-                    content_chunks.append(chunk)
-                    yield _encode_ndjson_event({"type": "chunk", "delta": chunk})
-
-            final_content = "".join(content_chunks)
-
-            yield _encode_ndjson_event({"type": "status", "status": "generating", "sub_status": "title_generating", "insight_id": insight_id})
-
-            title = generate_insight_title(
-                settings,
-                final_content,
-                project_name,
-                start_date_str,
-                end_date_str,
-            )
-
-            gen_db.query(AIInsight).filter(AIInsight.id == insight_id).update({
-                AIInsight.title: title,
-                AIInsight.content: final_content,
-                AIInsight.status: InsightStatus.completed,
-                AIInsight.sub_status: None,
-                AIInsight.updated_at: datetime.now(timezone.utc),
-            })
-            gen_db.commit()
-
-            yield _encode_ndjson_event({
-                "type": "done",
-                "insight_id": insight_id,
-                "title": title,
-                "content": final_content,
-            })
-
-        except Exception as exc:
-            try:
-                gen_db.query(AIInsight).filter(AIInsight.id == insight_id).update({
-                    AIInsight.status: InsightStatus.failed,
-                    AIInsight.sub_status: None,
-                    AIInsight.error_message: str(exc),
-                })
-                gen_db.commit()
-            except Exception:
-                pass
-            yield _encode_ndjson_event({
-                "type": "error",
-                "error": str(exc),
-                "insight_id": insight_id,
-            })
-        finally:
-            gen_db.close()
-
-    return StreamingResponse(
-        event_stream(),
-        media_type="application/x-ndjson",
-        headers={
-            "Cache-Control": "no-cache, no-transform",
-            "X-Accel-Buffering": "no",
         },
     )
 

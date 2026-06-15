@@ -35,7 +35,7 @@ BelieveBoy Dashboard 的前端页面对后端请求缺乏客户端侧超时控�
 ### 不在范围
 
 - 后端响应耗时优化（数据库查询、AI 推理、报表生成）—— 那是另一个 backlog。
-- 流式接口（`/ai-insights/*/stream`、`/ai-insights/generate/stream`）—— 必须豁免，否则 AI 会卡死。
+- 流式接口（`/ai-insights/{id}/stream`）—— 必须豁免，否则 AI 会卡死。
 - `scheduled-reports/test-email` —— AI summary 生成可能 30-80s，保留 60s。
 - Server Component / RSC 的 `fetch` —— 只治理 client 组件。
 

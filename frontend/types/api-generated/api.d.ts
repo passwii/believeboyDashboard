@@ -283,27 +283,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/ai-insights/generate/stream": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Generate Insight Stream Endpoint
-         * @description Legacy endpoint: generates insight in the request thread with streaming response.
-         *     Prefer POST /generate + GET /{id}/stream for background execution.
-         */
-        post: operations["generate_insight_stream_endpoint_api_v1_ai_insights_generate_stream_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/ai-insights/latest": {
         parameters: {
             query?: never;
@@ -13804,44 +13783,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InsightStatusResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    generate_insight_stream_endpoint_api_v1_ai_insights_generate_stream_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-API-Key"?: string | null;
-                "X-Operator"?: string | null;
-                "X-User-Name"?: string | null;
-                "X-Is-Admin"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["InsightGenerateRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
