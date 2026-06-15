@@ -771,7 +771,7 @@ export function AIChatWindow({
   // ── Typewriter segments ──────────────────────────────────────────
   const typewriterSegments: TextSegment[] = useMemo(
     () => [
-      { text: `${title} `, speed: 80 },
+      { text: title, speed: 80 },
       { text: titleHighlight, highlight: true, speed: 100 },
       { text: ' 什么？', speed: 80 },
     ],
