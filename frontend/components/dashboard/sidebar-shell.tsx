@@ -133,10 +133,10 @@ export function SidebarShell({ children: _children }: SidebarShellProps = {}) {
       * panel 改为 absolute 浮在 rail 右侧 0.5rem 处（不挤占主内容区宽度）。
       * 主内容区始终拿到完整可用宽度，仅在 panel 打开时被覆盖。
       */}
-     <div
-       className='relative hidden md:flex'
-       onMouseLeave={() => { hoverLeave() }}
-     >
+      <div
+        className='relative hidden md:flex z-[80]'
+        onMouseLeave={() => { hoverLeave() }}
+      >
        <SidebarIconRail
          groups={visibleGroups}
          activeGroupId={activeGroupId}

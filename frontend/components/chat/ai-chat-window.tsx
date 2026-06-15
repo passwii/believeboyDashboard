@@ -65,6 +65,8 @@ function toClientMessage(server: ServerChatMessage): ChatMessage {
     content: server.content,
     streaming: false,
     searchSources: server.search_sources,
+    // [BEL-81.B] 历史回放用：让 chip 在刷新后仍可见
+    searchTimeRange: server.search_time_range ?? null,
     tokenUsage: hasUsage
       ? {
           prompt: server.prompt_tokens,
@@ -166,6 +168,19 @@ export function AIChatWindow({
       cancelled = true
     }
   }, [refreshKey])
+
+  // ── Sync showSidebar with phase: 首屏默认折叠，聊天页默认展开。
+  // ── Users can still toggle manually; the next phase transition re-syncs.
+  // ── We use a ref to skip the very first run so the initial phase value
+  // ── (landing) sets showSidebar=false without flashing.
+  const phaseSyncRanRef = useRef(false)
+  useEffect(() => {
+    if (!phaseSyncRanRef.current) {
+      phaseSyncRanRef.current = true
+      return
+    }
+    setShowSidebar(phase === 'chat')
+  }, [phase])
 
   // ── Load messages whenever the active conversation changes.
   useEffect(() => {
@@ -275,6 +290,13 @@ export function AIChatWindow({
   const isLanding = phase === 'landing'
   const isChat = phase === 'chat'
   const hasMessages = messages.length > 0
+  // Derived from message data — true if any assistant message in this
+  // conversation was produced via web search. Drives the sticky
+  // "本对话已开启联网" status bar in <ChatMessageList />.
+  const usedWebSearch = useMemo(
+    () => messages.some((m) => m.role === 'assistant' && (m.searchSources?.length ?? 0) > 0),
+    [messages]
+  )
 
   // ── Stream callback bridge: route events into the React state for the
   // ── active assistant message. The assistant message is identified by a
@@ -314,14 +336,38 @@ export function AIChatWindow({
             ]
           })
         },
-        onSources: (sources) => {
+        onSources: (sources, meta) => {
           setMessages((prev) => {
             const idx = prev.findIndex((m) => m.id === assistantLocalId)
             if (idx === -1) return prev
             const target = prev[idx]
             return [
               ...prev.slice(0, idx),
-              { ...target, searchSources: sources },
+              {
+                ...target,
+                searchSources: sources,
+                // [BEL-81.B] 把后端透传的 time_range / query 落到消息上
+                searchTimeRange: meta?.timeRange ?? target.searchTimeRange ?? null,
+                searchQuery: meta?.query ?? target.searchQuery ?? null,
+                searchSearching: false,
+              },
+              ...prev.slice(idx + 1),
+            ]
+          })
+        },
+        // [BEL-81.B] tool_searching 时显示骨架卡占位
+        onToolState: (state) => {
+          if (!state.searching) return
+          setMessages((prev) => {
+            const idx = prev.findIndex((m) => m.id === assistantLocalId)
+            if (idx === -1) return prev
+            const target = prev[idx]
+            if (target.searchSearching && target.searchSources && target.searchSources.length > 0) {
+              return prev
+            }
+            return [
+              ...prev.slice(0, idx),
+              { ...target, searchSearching: true },
               ...prev.slice(idx + 1),
             ]
           })
@@ -735,7 +781,7 @@ export function AIChatWindow({
   // ── Typewriter segments ──────────────────────────────────────────
   const typewriterSegments: TextSegment[] = useMemo(
     () => [
-      { text: `${title} `, speed: 80 },
+      { text: title, speed: 80 },
       { text: titleHighlight, highlight: true, speed: 100 },
       { text: ' 什么？', speed: 80 },
     ],
@@ -746,14 +792,41 @@ export function AIChatWindow({
     <div
       ref={rootRef}
       className="relative h-full w-full overflow-hidden bg-[#0f0f0f] safe-area-inset-top safe-area-inset-bottom"
+      style={{ ['--sidebar-width' as string]: '280px' }}
     >
       <style dangerouslySetInnerHTML={{ __html: animationStyles }} />
 
-      {/* Layer 1: Background */}
-      <div className="absolute inset-0">
+      {/* Layer 1: Background — same paddingLeft shift as the chat / input
+          layers so the gradient rays, glows and floating particles
+          "follow" the foreground when the sidebar opens. Without this
+          the background looks pinned while everything else slides
+          right, breaking the unified "camera pan" feel. */}
+      <div
+        className="absolute inset-0"
+        style={{
+          paddingLeft: showSidebar ? 'var(--sidebar-width, 280px)' : '0px',
+          transition: 'padding-left 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
+        }}
+      >
         <RayBackground arcsUp={arcsUp} />
         <FloatingParticles />
       </div>
+
+      {/* Sidebar toggle — always visible on landing + chat. Sits at the root
+          (not inside the chat messages layer) so 首屏 can open 对话历史.
+          z-30 keeps it under the sidebar (z-40) and the input strip (z-40),
+          but above the landing hero / chat messages (z-0). Hidden when the
+          caller passes showInput={false} (e.g. the /dashboard/ai entry page). */}
+      {showInput && !showSidebar && (
+        <button
+          type="button"
+          onClick={() => setShowSidebar(true)}
+          className="absolute top-4 left-4 z-30 flex items-center justify-center size-9 rounded-xl bg-white/[0.06] border border-white/[0.08] text-[#8a8a8f] hover:text-white hover:bg-white/[0.1] transition-all duration-200 active:scale-95"
+          aria-label="打开对话历史"
+        >
+          <PanelLeft className="size-4" />
+        </button>
+      )}
 
       {/* Provider-unconfigured banner — shown only when the backend reports
           `providerConfigured: false` (most often because the .env lacks
@@ -836,23 +909,13 @@ export function AIChatWindow({
             isChat ? 'bb-chat-enter' : 'opacity-0'
           }`}
           style={{
+            paddingLeft: showSidebar ? 'var(--sidebar-width, 280px)' : '0px',
             paddingTop: 'env(safe-area-inset-top, 16px)',
             paddingBottom: 'calc(120px + env(safe-area-inset-bottom, 16px))',
+            transition: 'padding-left 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
           }}
         >
           <div className="px-3 sm:px-4 pt-6 pb-4">
-            {/* Sidebar toggle */}
-            <div className="fixed top-4 left-4 z-20">
-              <button
-                type="button"
-                onClick={() => setShowSidebar(!showSidebar)}
-                className="flex items-center justify-center size-9 rounded-xl bg-white/[0.06] border border-white/[0.08] text-[#8a8a8f] hover:text-white hover:bg-white/[0.1] transition-all duration-200 active:scale-95"
-                aria-label={showSidebar ? '关闭侧边栏' : '打开侧边栏'}
-              >
-                <PanelLeft className="size-4" />
-              </button>
-            </div>
-
             {loadingMessages ? (
               <div className="mx-auto max-w-3xl space-y-4">
                 <div className="flex gap-3">
@@ -879,6 +942,7 @@ export function AIChatWindow({
                 pendingSearchState={
                   toolState ? { searching: toolState.searching, sources: pendingSources } : null
                 }
+                usedWebSearch={usedWebSearch}
                 onRetry={
                   messages.length >= 2 && isStreaming === false
                     ? () => {
@@ -919,6 +983,7 @@ export function AIChatWindow({
         <div
           className="absolute left-0 right-0 w-full px-3 sm:px-4 pointer-events-none"
           style={{
+            paddingLeft: showSidebar ? 'var(--sidebar-width, 280px)' : '0px',
             ...(isLanding
               ? { top: '55%', transform: 'translateY(-50%)' }
               : {
@@ -926,7 +991,7 @@ export function AIChatWindow({
                   paddingBottom: 'env(safe-area-inset-bottom, 16px)',
                 }),
             transition:
-              'top 0.7s cubic-bezier(0.22, 1, 0.36, 1), bottom 0.7s cubic-bezier(0.22, 1, 0.36, 1)',
+              'padding-left 0.35s cubic-bezier(0.16, 1, 0.3, 1), top 0.7s cubic-bezier(0.22, 1, 0.36, 1), bottom 0.7s cubic-bezier(0.22, 1, 0.36, 1)',
             zIndex: 40,
           }}
         >

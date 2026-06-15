@@ -1222,14 +1222,27 @@ def _parse_and_insert_rows(
 
     if report_type == "payment_report":
         df = read_payment_report_dataframe(path, country=country or "US")
-        rows, total, included = _parse_payment_rows(df, source_id, known_skus, known_asins)
+        # A-table payment reports may include SKU that have been delisted but
+        # still belong to the project — reload known_skus/known_asins with
+        # include_inactive=True so that classify_scope marks these rows as
+        # ``included_product`` instead of ``excluded_unmapped``.  Mirrors the
+        # BEL-104 inventory_report fix below.
+        payment_known_skus, payment_known_asins = _load_project_product_mapping(
+            db, project_name, country, include_inactive=True,
+        )
+        rows, total, included = _parse_payment_rows(
+            df, source_id, payment_known_skus, payment_known_asins,
+        )
         if rows:
             db.execute(insert(AnalysisPaymentRow), rows)
         return total, included
 
     if report_type == "inventory_report":
         rows, total, included = _parse_inventory_rows(path, source_id)
-        _validate_inventory(rows, project_name=project_name, country=country, known_skus=known_skus, known_asins=known_asins)
+        all_skus, all_asins = _load_project_product_mapping(
+            db, project_name, country, include_inactive=True,
+        )
+        _validate_inventory(rows, project_name=project_name, country=country, known_skus=all_skus, known_asins=all_asins)
         if rows:
             db.execute(insert(InventorySnapshotRow), rows)
         return total, included
@@ -1293,16 +1306,16 @@ def _get_project_by_name(db: Session, project_name: str) -> Project:
 
 
 def _load_project_product_mapping(
-    db: Session, project_name: str, country: str
+    db: Session, project_name: str, country: str, *, include_inactive: bool = False
 ) -> tuple[set[str], set[str]]:
-    rows = db.execute(
-        select(ProductCost.sku, ProductCost.asin).where(
-            ProductCost.project_id == Project.id,
-            Project.project_name == project_name,
-            ProductCost.is_active.is_(True),
-            ProductCost.country == country,
-        )
-    ).all()
+    stmt = select(ProductCost.sku, ProductCost.asin).where(
+        ProductCost.project_id == Project.id,
+        Project.project_name == project_name,
+        ProductCost.country == country,
+    )
+    if not include_inactive:
+        stmt = stmt.where(ProductCost.is_active.is_(True))
+    rows = db.execute(stmt).all()
     # Use normalize_sku (uppercase + strip spaces) to match backend validation logic
     skus = {_normalize_sku(s) for s, _ in rows if _normalize_sku(s)}
     asins = {_normalize_asin(a) for _, a in rows if _normalize_asin(a)}

@@ -277,7 +277,12 @@ def stream_with_tool_calling(
                         search_result, settings.ai_chat_web_search_max_results
                     )
                     if search_source_cards:
-                        yield {"type": "sources", "sources": search_source_cards}
+                        yield {
+                            "type": "sources",
+                            "sources": search_source_cards,
+                            "time_range": tool_args.get("time_range", "month"),
+                            "query": tool_args.get("query", ""),
+                        }
                     search_context = format_web_search_context(
                         search_result, tool_args.get("query", "")
                     )

@@ -75,3 +75,21 @@ class DailyAnalysisAllProjectsResponse(BaseModel):
     detail_rows: list[DailyAnalysisDetailRow]
     available_dates: dict[str, Any]
     project_breakdown: dict[int, dict[str, object]]
+
+
+class DailyAnalysisAllCountriesResponse(BaseModel):
+    """跨所有支持国家站点的聚合响应。
+
+    金额字段（``sales_amount`` / ``ad_spend`` / ``ordered_sales_amount``）已按
+    ``exchange_rates`` 表的当月 CNY 中转折算为 USD 统一展示；非金额字段
+    （订单 / 曝光 / 点击 / 库存 / 销量 / 访问 / 在途等）保持原值。
+    响应顶层 ``currency`` 字段固定为 ``"USD"``，便于前端识别并切换符号。
+    """
+
+    console: DailyAnalysisConsoleResponse
+    summary_rows: list[DailyAnalysisSummaryRow]
+    detail_rows: list[DailyAnalysisDetailRow]
+    available_dates: dict[str, Any]
+    country_breakdown: dict[str, dict[str, object]]
+    currency: str = "USD"
+    currency_note: str | None = None

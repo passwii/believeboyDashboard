@@ -77,6 +77,22 @@
         "title": "AIChatConfigResponse",
         "type": "object"
       },
+      "AIChatMessageUpdate": {
+        "description": "PATCH /ai/conversations/{cid}/messages/{mid} 请求体。\n\n当前仅支持编辑 user 消息的 content。assistant 消息不接受编辑\n（会破坏 regenerate 链），由 endpoint 层校验。",
+        "properties": {
+          "content": {
+            "maxLength": 8000,
+            "minLength": 1,
+            "title": "Content",
+            "type": "string"
+          }
+        },
+        "required": [
+          "content"
+        ],
+        "title": "AIChatMessageUpdate",
+        "type": "object"
+      },
       "AIFileUploadResponse": {
         "properties": {
           "content": {
@@ -802,6 +818,11 @@
             "title": "Country",
             "type": "string"
           },
+          "dry_run": {
+            "default": false,
+            "title": "Dry Run",
+            "type": "boolean"
+          },
           "original_filename": {
             "anyOf": [
               {
@@ -908,7 +929,8 @@
             "enum": [
               "pending",
               "saved",
-              "failed"
+              "failed",
+              "skipped"
             ],
             "title": "Ingestion Status",
             "type": "string"
@@ -1197,7 +1219,8 @@
             "enum": [
               "pending",
               "saved",
-              "failed"
+              "failed",
+              "skipped"
             ],
             "title": "Ingestion Status",
             "type": "string"
@@ -12818,6 +12841,17 @@
             "title": "Search Sources",
             "type": "array"
           },
+          "search_time_range": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search Time Range"
+          },
           "total_tokens": {
             "default": 0,
             "title": "Total Tokens",
@@ -12906,6 +12940,17 @@
       },
       "MonthlyFinancialAccountingLine": {
         "properties": {
+          "currency_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency Code"
+          },
           "expense_amount_usd": {
             "title": "Expense Amount Usd",
             "type": "number"
@@ -16529,6 +16574,70 @@
         "title": "ProductCalculationCheckResponse",
         "type": "object"
       },
+      "ProductCalculationPreviewRequest": {
+        "description": "月度 SKU 临时核算请求体。\n\n三类报告的 temp_file_id 由前端先调 recognize 端点拿到（本地缓存的\n临时文件），后端用 temp_file_id 在 settings.upload_root / '_ad_upload_tmp'\n或 '_report_upload_tmp' 下找到物理文件路径直读。",
+        "properties": {
+          "ad_temp_file_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ad Temp File Id"
+          },
+          "business_temp_file_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Business Temp File Id"
+          },
+          "country": {
+            "default": "US",
+            "title": "Country",
+            "type": "string"
+          },
+          "end_date": {
+            "format": "date",
+            "title": "End Date",
+            "type": "string"
+          },
+          "payment_temp_file_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Temp File Id"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "integer"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "start_date",
+          "end_date"
+        ],
+        "title": "ProductCalculationPreviewRequest",
+        "type": "object"
+      },
       "ProductCalculationRunRequest": {
         "properties": {
           "country": {
@@ -17936,6 +18045,11 @@
             "title": "Country",
             "type": "string"
           },
+          "dry_run": {
+            "default": false,
+            "title": "Dry Run",
+            "type": "boolean"
+          },
           "original_filename": {
             "anyOf": [
               {
@@ -18134,7 +18248,8 @@
           "status": {
             "enum": [
               "saved",
-              "persisted"
+              "persisted",
+              "skipped"
             ],
             "title": "Status",
             "type": "string"
@@ -28682,6 +28797,22 @@
               ],
               "title": "X-Api-Key"
             }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Id"
+            }
           }
         ],
         "responses": {
@@ -28732,6 +28863,22 @@
                 }
               ],
               "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Id"
             }
           }
         ],
@@ -28801,6 +28948,22 @@
               ],
               "title": "X-Api-Key"
             }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Id"
+            }
           }
         ],
         "responses": {
@@ -28849,6 +29012,22 @@
                 }
               ],
               "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Id"
             }
           }
         ],
@@ -28918,6 +29097,22 @@
               ],
               "title": "X-Api-Key"
             }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Id"
+            }
           }
         ],
         "responses": {
@@ -28978,6 +29173,22 @@
               ],
               "title": "X-Api-Key"
             }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Id"
+            }
           }
         ],
         "requestBody": {
@@ -29020,6 +29231,7 @@
     },
     "/api/v1/ai/conversations/{conversation_id}/messages/stream": {
       "post": {
+        "description": "SSE 流式对话端点。\n\n[BEL-80 follow-up] 取消支持：\n- 注册 `threading.Event` 到 `cancel_registry`；前端通过\n  `POST /conversations/{id}/stream/cancel` 设事件，后端\n  LLM 循环下一次迭代时检测到后立刻 `return`，\n  `with httpx.Client(...)` 退出关闭连接，节省 token。\n- 进程级注册：多 worker 部署需要 sticky session 或 Redis\n  广播，本 PR 暂不处理。\n- 数据库 session 仍走 FastAPI Depends（BEL-66 sync handler\n  模式）：LLM 取消只关 httpx，不动 DB session 生命周期。",
         "operationId": "stream_message_api_v1_ai_conversations__conversation_id__messages_stream_post",
         "parameters": [
           {
@@ -29045,6 +29257,22 @@
                 }
               ],
               "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Id"
             }
           }
         ],
@@ -29084,6 +29312,175 @@
         ]
       }
     },
+    "/api/v1/ai/conversations/{conversation_id}/messages/{message_id}": {
+      "delete": {
+        "description": "硬删单条 AIMessage（与 delete_conversation 对齐：不引入软删字段）。",
+        "operationId": "delete_message_endpoint_api_v1_ai_conversations__conversation_id__messages__message_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversation_id",
+            "required": true,
+            "schema": {
+              "title": "Conversation Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "message_id",
+            "required": true,
+            "schema": {
+              "title": "Message Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Message Endpoint",
+        "tags": [
+          "ai"
+        ]
+      },
+      "patch": {
+        "description": "编辑单条消息的 content。\n\n当前仅支持 user 消息；编辑 assistant 消息会破坏 regenerate 链，\n统一返回 400。",
+        "operationId": "update_message_endpoint_api_v1_ai_conversations__conversation_id__messages__message_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversation_id",
+            "required": true,
+            "schema": {
+              "title": "Conversation Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "message_id",
+            "required": true,
+            "schema": {
+              "title": "Message Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AIChatMessageUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageItem"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Message Endpoint",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
     "/api/v1/ai/conversations/{conversation_id}/regenerate-title": {
       "post": {
         "operationId": "regenerate_conversation_title_api_v1_ai_conversations__conversation_id__regenerate_title_post",
@@ -29112,6 +29509,22 @@
               ],
               "title": "X-Api-Key"
             }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Id"
+            }
           }
         ],
         "responses": {
@@ -29137,6 +29550,74 @@
           }
         },
         "summary": "Regenerate Conversation Title",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/ai/conversations/{conversation_id}/stream/cancel": {
+      "post": {
+        "description": "请求取消正在进行的流式生成。\n\n- 校验 conv 归属，避免跨用户取消。\n- 通过 `cancel_registry` 设 event；\n  `event_stream()` 在下一次 LLM 迭代时检测到并终止。\n- 进程级：只在同一个 worker 进程内有效（multi-worker\n  部署需要 sticky session 或 Redis，本 PR 暂不处理）。",
+        "operationId": "cancel_stream_api_v1_ai_conversations__conversation_id__stream_cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversation_id",
+            "required": true,
+            "schema": {
+              "title": "Conversation Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Stream",
         "tags": [
           "ai"
         ]
@@ -40215,6 +40696,105 @@
           }
         },
         "summary": "Check Product Calculation Data"
+      }
+    },
+    "/api/v1/product-analysis/calculation/preview": {
+      "post": {
+        "description": "月度 SKU 临时核算（不入库）。\n\n三类报告的 temp_file_id 必须已通过各自的 recognize 端点识别成功并落盘。\n端点会直读 temp file 路径构造 DataFrame 跑核算，**永不调用 persist_* 写库**。\n返回的 periods 全部为 `persisted=False, preview=True`。",
+        "operationId": "preview_product_calculation_api_v1_product_analysis_calculation_preview_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Is-Admin",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "X-Is-Admin",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Operator",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Operator"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductCalculationPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductCalculationRunResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Product Calculation"
       }
     },
     "/api/v1/product-analysis/calculation/run": {
