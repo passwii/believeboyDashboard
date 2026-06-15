@@ -66,8 +66,22 @@ def _build_celery_app() -> Celery:
         enable_utc=True,
         # Concurrency is set per worker (`-c` flag in systemd unit); keep
         # the setting here as a documented fallback for `celery -A ... beat`
-        # style invocations.
+        # style invocations. The systemd unit also passes `--concurrency`
+        # explicitly so a VPS resize only needs an env-var bump, not a
+        # code change.
         worker_concurrency=settings.celery_worker_concurrency,
+        # BEL-55-P4: route worker logs through the root logger and let them
+        # flow to stdout. The systemd unit's `StandardOutput=journal`
+        # (inherited from the unit defaults) ships the stream to journald
+        # for central collection — see backend/docs/multi-worker-ops.md.
+        # `worker_hijack_root_logger` rewires Celery's own loggers onto
+        # the root so a `logging.basicConfig` from a task module can't
+        # silently swallow records.
+        worker_hijack_root_logger=True,
+        # CELERYD_TASK_LOG_FORMAT keeps a single task prefix on each log
+        # line so journald grep can pivot on `[<task_id>] [<task_name>]`
+        # without re-joining multi-line records.
+        worker_task_log_format="[%(processName)s] [%(levelname)s] %(task_name)s[%(task_id)s]: %(message)s",
     )
 
     return app
