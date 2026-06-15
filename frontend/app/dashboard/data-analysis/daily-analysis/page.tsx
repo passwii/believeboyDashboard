@@ -89,7 +89,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
-type CountryOption = 'US' | 'DE' | 'UK'
+type CountryOption = 'US' | 'DE' | 'UK' | 'ALL'
 type ViewTab = 'summary' | 'details'
 const VIEW_TAB_ORDER: ViewTab[] = ['summary', 'details']
 
@@ -180,6 +180,24 @@ type DailyAnalysisAllProjectsResponse = {
   >
 }
 
+type DailyAnalysisAllCountriesResponse = {
+  console: DailyAnalysisConsole
+  summary_rows: DailyAnalysisRow[]
+  detail_rows: DailyAnalysisDetailRow[]
+  available_dates: Record<string, string[]>
+  country_breakdown: Record<
+    string,
+    {
+      summary_rows: DailyAnalysisRow[]
+      detail_rows: DailyAnalysisDetailRow[]
+      currency: string
+      source_currency: string
+    }
+  >
+  currency: string
+  currency_note: string | null
+}
+
 type DetailDisplayRow = {
   row: DailyAnalysisDetailRow
   rowKey: string
@@ -206,10 +224,13 @@ type ChartMetricKey = keyof Pick<
 
 const API_BASE = '/api/backend'
 const COUNTRY_OPTIONS: Array<{ value: CountryOption; label: string }> = [
+  { value: 'ALL', label: '全部站点' },
   { value: 'US', label: '美国站 (US)' },
   { value: 'DE', label: '德国站 (DE)' },
   { value: 'UK', label: '英国站 (UK)' },
 ]
+
+const REAL_COUNTRY_OPTIONS: CountryOption[] = ['US', 'DE', 'UK']
 
 const CHART_METRICS: Array<{ key: ChartMetricKey; label: string }> = [
   { key: 'order_qty', label: '订单' },
@@ -263,6 +284,20 @@ const COUNTRY_CURRENCY_SYMBOL: Record<string, string> = {
   US: '$',
   DE: '€',
   UK: '£',
+}
+
+function formatMetricCardValue(metric: ChartMetricKey, value: number) {
+  if (metric === 'sales_amount' || metric === 'ad_spend') {
+    if (Math.abs(value) >= 1000) return `$${(value / 1000).toFixed(2)}k`
+    return `$${formatMoney(value)}`
+  }
+  if (metric === 'cpc') {
+    return `$${formatMoney(value)}`
+  }
+  if (metric === 'conversion_rate') {
+    return `${(value * 100).toFixed(2)}%`
+  }
+  return value.toLocaleString('zh-CN')
 }
 
 /** Returns today's calendar date as a Date in local time, calculated in the country's timezone. */
@@ -360,20 +395,6 @@ function getNextMonthRange(range?: DateRange): DateRange | undefined {
 function formatMetricValue(metric: ChartMetricKey, value: number) {
   if (metric === 'sales_amount' || metric === 'cpc' || metric === 'ad_spend') {
     return formatMoney(value)
-  }
-  if (metric === 'conversion_rate') {
-    return `${(value * 100).toFixed(2)}%`
-  }
-  return value.toLocaleString('zh-CN')
-}
-
-function formatMetricCardValue(metric: ChartMetricKey, value: number) {
-  if (metric === 'sales_amount' || metric === 'ad_spend') {
-    if (Math.abs(value) >= 1000) return `$${(value / 1000).toFixed(2)}k`
-    return `$${formatMoney(value)}`
-  }
-  if (metric === 'cpc') {
-    return `$${formatMoney(value)}`
   }
   if (metric === 'conversion_rate') {
     return `${(value * 100).toFixed(2)}%`
@@ -798,22 +819,28 @@ function SearchableSkuField({
   options,
   loading,
   onChange,
+  disabled = false,
 }: {
   value: string
   options: ProjectSkuOption[]
   loading: boolean
   onChange: (value: string) => void
+  disabled?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const selectedSku = options.find((option) => option.sku === value)
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(next) => (disabled ? setOpen(false) : setOpen(next))}>
         <Button
           type='button'
           variant='outline'
-          className='h-9 w-[200px] justify-between px-3 font-normal shadow-sm'
-          onClick={() => setOpen(true)}
+          disabled={disabled}
+          className={cn(
+            'h-9 w-[200px] justify-between px-3 font-normal shadow-sm',
+            disabled && 'opacity-50 cursor-not-allowed',
+          )}
+          onClick={() => !disabled && setOpen(true)}
         >
         <span
           className={cn(
@@ -1193,7 +1220,9 @@ export default function DailyAnalysisPage() {
   const isMobile = useIsMobile()
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
-  const [projectId, setProjectId] = useState<string>('all')
+  // 默认不预设 "all"：项目加载完成后由下方 effect 自动选中第一个真实项目，
+  // 以满足"控制台默认选择第一个项目"的需求。
+  const [projectId, setProjectId] = useState<string>('')
   const [country, setCountry] = useState<CountryOption>('US')
   const defaultRange = useMemo(() => lastSevenDaysRange(country), [country])
   const [dateRange, setDateRange] = useState<DateRange | undefined>(
@@ -1283,6 +1312,19 @@ export default function DailyAnalysisPage() {
       latestLoadRequestRef.current = requestId
       try {
         if (isAllProjects) {
+          if (country === 'ALL') {
+            // 全部项目 + 全部国家 当前后端未支持聚合矩阵，回退到逐项目跨国家循环不在前端承担。
+            // 此处给出明确提示，避免静默错误。
+            notify({
+              type: 'error',
+              title: '暂不支持「全部项目 × 全部站点」',
+              message: '请先选定具体项目，再选择"全部站点"以查看跨国家汇总。',
+            })
+            setData(null)
+            setComparisonSummaryRows(EMPTY_SUMMARY_ROWS)
+            setComparisonDetailRows(EMPTY_DETAIL_ROWS)
+            return
+          }
           if (projects.length === 0) return
           const ids = projects.map((p) => String(p.id)).join(',')
           const search = new URLSearchParams({
@@ -1350,6 +1392,70 @@ export default function DailyAnalysisPage() {
               latest_inventory_date: null,
               latest_business_date: null,
             },
+            summary_rows: payload.summary_rows,
+            detail_rows: payload.detail_rows,
+            available_dates: payload.available_dates,
+          })
+          setComparisonSummaryRows(
+            comparePayload?.summary_rows ?? EMPTY_SUMMARY_ROWS,
+          )
+          setComparisonDetailRows(
+            comparePayload?.detail_rows ?? EMPTY_DETAIL_ROWS,
+          )
+        } else if (country === 'ALL') {
+          // 跨国家站点聚合：仅支持单项目 + 国家=ALL；后端对 US/DE/UK 分别加载并求和。
+          if (!projectId) {
+            notify({ type: 'error', title: '请先选择项目' })
+            return
+          }
+          const search = new URLSearchParams({
+            project_id: projectId,
+            start_date: startDate,
+            end_date: endDate,
+            ...(skipRedis && { no_cache: 'true' }),
+          })
+          const compareSearch = previousRange
+            ? new URLSearchParams({
+                project_id: projectId,
+                start_date: formatYMD(previousRange.from!),
+                end_date: formatYMD(previousRange.to!),
+              })
+            : null
+
+          const [response, compareResponse] = await Promise.all([
+            fetch(
+              `${API_BASE}/api/v1/daily-analysis/all-countries?${search.toString()}`,
+              {
+                headers: authHeaders(),
+                cache: 'no-store',
+              },
+            ),
+            compareSearch
+              ? fetch(
+                  `${API_BASE}/api/v1/daily-analysis/all-countries?${compareSearch.toString()}`,
+                  {
+                    headers: authHeaders(),
+                    cache: 'no-store',
+                  },
+                )
+              : Promise.resolve(null),
+          ])
+          if (!response.ok) {
+            const payload = await response.json().catch(() => null)
+            throw new Error(payload?.detail || '跨国家销售数据加载失败')
+          }
+          if (compareResponse && !compareResponse.ok) {
+            const payload = await compareResponse.json().catch(() => null)
+            throw new Error(payload?.detail || '跨国家销售数据对比加载失败')
+          }
+
+          const payload = (await response.json()) as DailyAnalysisAllCountriesResponse
+          const comparePayload = compareResponse
+            ? ((await compareResponse.json()) as DailyAnalysisAllCountriesResponse)
+            : null
+          if (requestId !== latestLoadRequestRef.current) return
+          setData({
+            console: payload.console,
             summary_rows: payload.summary_rows,
             detail_rows: payload.detail_rows,
             available_dates: payload.available_dates,
@@ -1528,6 +1634,13 @@ export default function DailyAnalysisPage() {
 
   useEffect(() => {
     if (!projectId) return
+    // 全部站点跨国家聚合时，SKU 按国家过滤无意义，跳过加载。
+    if (country === 'ALL') {
+      setSkuOptions([])
+      setSelectedSku('')
+      selectedSkuRef.current = ''
+      return
+    }
     void loadProjectSkus(projectId, country)
   }, [projectId, country, loadProjectSkus])
 
@@ -1538,7 +1651,7 @@ export default function DailyAnalysisPage() {
 
   // Fetch current month goal progress
   useEffect(() => {
-    if (!projectId || isAllProjects) {
+    if (!projectId || isAllProjects || country === 'ALL') {
       setGoalProgress(null)
       return
     }
@@ -1797,7 +1910,7 @@ export default function DailyAnalysisPage() {
               </SelectContent>
             </Select>
             <CountrySelect value={country} onChange={(value) => setCountry(value as CountryOption)} triggerClassName="h-9 w-[120px]" />
-            <SearchableSkuField value={selectedSku} options={skuOptions} loading={skuLoading} onChange={(value) => { selectedSkuRef.current = value; setSelectedSku(value); setActiveTab('summary'); void loadData() }} />
+            <SearchableSkuField value={selectedSku} options={skuOptions} loading={skuLoading} disabled={country === 'ALL'} onChange={(value) => { selectedSkuRef.current = value; setSelectedSku(value); setActiveTab('summary'); void loadData() }} />
             <DateRangePicker value={dateRange} onChange={setDateRange} className='h-9 w-[220px]' timezone={COUNTRY_TIMEZONE_MAP[country]} onApply={() => void loadData()} />
             <RefreshButton onClick={() => void loadData(undefined, true)} loading={loading || projectsLoading} label="刷新数据" size="default" variant="outline" className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]" />
           </div>
@@ -1819,7 +1932,7 @@ export default function DailyAnalysisPage() {
             </div>
             <div className='mt-2'>
               <div className='grid grid-cols-2 gap-2'>
-                <SearchableSkuField value={selectedSku} options={skuOptions} loading={skuLoading} onChange={(value) => { selectedSkuRef.current = value; setSelectedSku(value); setActiveTab('summary'); void loadData() }} />
+                <SearchableSkuField value={selectedSku} options={skuOptions} loading={skuLoading} disabled={country === 'ALL'} onChange={(value) => { selectedSkuRef.current = value; setSelectedSku(value); setActiveTab('summary'); void loadData() }} />
                 <DateRangePicker value={dateRange} onChange={setDateRange} className='h-9 w-full' timezone={COUNTRY_TIMEZONE_MAP[country]} onApply={() => void loadData()} />
               </div>
             </div>
@@ -1849,6 +1962,17 @@ export default function DailyAnalysisPage() {
 
       <DataCard>
         <DataCardContent className='space-y-4'>
+          {country === 'ALL' && (
+            <div className='flex flex-wrap items-center gap-2'>
+              <Badge
+                variant='outline'
+                className='border-emerald-500/40 bg-emerald-50 px-3 py-1 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-950/40 dark:text-emerald-200'
+              >
+                全部站点聚合：金额字段已按当月 CNY 中转折算为 USD（汇率取自
+                exchange_rates 表），跨币种可比；非金额字段（订单 / 曝光 / 点击 / 库存等）保持原值。
+              </Badge>
+            </div>
+          )}
           {comparisonDataRows.length > 0 && (
             <div className='flex flex-wrap items-center gap-2'>
               <Badge
