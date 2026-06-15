@@ -164,6 +164,11 @@ const config: Config = {
   			'60%': { transform: 'translateX(calc(var(--switch-to) + 3px))' },
   			'80%': { transform: 'translateX(calc(var(--switch-to) - 0.5px))' },
   			'100%': { transform: 'translateX(var(--switch-to))' }
+  		},
+  		/* [BEL-81.B] 搜索结果卡片入场动画 */
+  		'fade-in-up': {
+  			'0%': { opacity: '0', transform: 'translateY(8px) scale(0.985)' },
+  			'100%': { opacity: '1', transform: 'translateY(0) scale(1)' }
   		}
   		},
   		animation: {
@@ -179,7 +184,8 @@ const config: Config = {
   			'sheet-in-from-left': 'sheet-in-from-left 400ms ease-out',
   			'sheet-in-from-top': 'sheet-in-from-top 400ms ease-out',
   			'sheet-in-from-bottom': 'sheet-in-from-bottom 400ms ease-out',
-  			'switch-snap': 'switch-snap 280ms ease-out'
+  			'switch-snap': 'switch-snap 280ms ease-out',
+  			'fade-in-up': 'fade-in-up 360ms cubic-bezier(0.16, 1, 0.3, 1) both',
   		},
   		colors: {
   			background: 'hsl(var(--background))',
