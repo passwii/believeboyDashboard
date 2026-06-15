@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-import type { SearchSource } from '@/lib/api/ai-chat'
+import type { SearchSource, SearchTimeRange } from '@/lib/api/ai-chat'
 
 export interface Model {
   id: string
@@ -46,6 +46,12 @@ export interface ChatMessage {
   error?: boolean
   /** Web-search source cards attached to this assistant message. */
   searchSources?: SearchSource[]
+  /** [BEL-81.B] 联网搜索时间范围标签，用于历史回放时显示 chip。 */
+  searchTimeRange?: SearchTimeRange | null
+  /** 联网搜索真实搜索词（可选）。 */
+  searchQuery?: string | null
+  /** [BEL-81.B] 父组件传：tool_searching 阶段是否仍在等待结果。 */
+  searchSearching?: boolean
   /** Accumulated "thinking" deltas (collapsible in the UI). */
   thinking?: string
   tokenUsage?: TokenUsage

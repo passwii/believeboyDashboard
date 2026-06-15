@@ -22,6 +22,15 @@ export type SearchSource = {
   favicon?: string | null
 }
 
+/**
+ * [BEL-81.B] 联网搜索时间范围标签。后端 `detect_time_range_from_query`
+ * 与 `tool.time_range` 透传，存到 `ai_messages.search_time_range`。
+ *
+ * 'all' 由前端用 `!== 'all'` 判定为"不显示 chip"，与后端 None 等价。
+ * 其他取值对应 UI 上的「今日 / 近 7 天 / 近 30 天 / 近 1 年」 chip。
+ */
+export type SearchTimeRange = 'day' | 'week' | 'month' | 'year' | 'all'
+
 export type ChatMessageRole = 'user' | 'assistant'
 
 export type ServerChatMessage = {
@@ -30,6 +39,8 @@ export type ServerChatMessage = {
   role: ChatMessageRole
   content: string
   search_sources: SearchSource[]
+  /** [BEL-81.B] 历史消息回放时携带的时间范围 chip 标签。 */
+  search_time_range?: SearchTimeRange | null
   is_complete: boolean
   prompt_tokens: number
   completion_tokens: number

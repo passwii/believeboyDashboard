@@ -106,9 +106,10 @@ export function useChatStream(
         onStart: cb('onStart') as () => void,
         onChunk: cb('onChunk') as (delta: string) => void,
         onThinking: cb('onThinking') as (delta: string) => void,
-        onSources: (sources) => {
+        onSources: (sources, meta) => {
           setPendingSources(sources)
-          cb('onSources')(sources)
+          // [BEL-81.B] 把 time_range / query 一并透传给父组件
+          cb('onSources')(sources, meta)
         },
         onUsage: (usage) => {
           setPendingUsage(usage)
