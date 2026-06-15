@@ -106,7 +106,10 @@ export function AIChatSearchSources({
     })
   }, [])
 
-  if (!sources.length) {
+  // B2: 'all' 与缺省都视为"不显示 chip"
+  const showTimeChip = !!timeRange && timeRange !== 'all'
+  const hasRealSources = sources.length > 0
+  if (!hasRealSources) {
     return (
       <div className={cn('mt-3 flex items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[11px] text-muted-foreground/70', className)}>
         <Globe className="h-3 w-3 shrink-0" />
