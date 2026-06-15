@@ -540,9 +540,17 @@ def _persist_one_source_file(
     if report_type == 'business_report':
         payloads, total, included = _parse_business_rows(path, source.id)
     elif report_type == 'payment_report':
+        # A-table payment reports may include SKU that have been delisted but
+        # still belong to the project — reload known_skus/known_asins with
+        # include_inactive=True so that classify_scope marks these rows as
+        # ``included_product`` instead of ``excluded_unmapped``.  Mirrors the
+        # BEL-104 inventory_report fix.
+        payment_known_skus, payment_known_asins = _load_project_product_mapping(
+            db, project.project_name, normalized_country, include_inactive=True,
+        )
         payloads, total, included = _parse_payment_rows(
             _read_payment_report_locale(path), source.id,
-            known_skus, known_asins,
+            payment_known_skus, payment_known_asins,
         )
     elif report_type == AD_PRODUCT_REPORT:
         payloads, total, included = _parse_ad_rows(path, source.id, known_skus, known_asins)
