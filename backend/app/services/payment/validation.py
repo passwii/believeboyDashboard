@@ -104,11 +104,15 @@ def validate_project_match(
 
     try:
         sku_lower = [s.lower() for s in unique_skus]
+        # A-table payment reports may include SKU that have been delisted but
+        # still belong to the selected project.  Match against both active and
+        # inactive records so a payment file containing only inactive SKU isn't
+        # rejected with "未匹配到任何产品" when it really does belong to the
+        # selected project.  Mirrors the BEL-104 inventory_report fix.
         matched_projects = (
             db.execute(
                 select(func.distinct(SkuRecord.project_name))
                 .where(func.lower(SkuRecord.sku).in_(sku_lower))
-                .where(SkuRecord.is_active.is_(True))
                 .where(SkuRecord.country == normalized_country)
             )
             .scalars()
