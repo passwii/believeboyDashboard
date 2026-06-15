@@ -7,6 +7,7 @@ import { AIChatSearchSources } from '@/components/ai-chat-search-sources'
 import { TypingIndicator } from './typing-indicator'
 import { MessageActions } from './message-actions'
 import type { ChatMessage } from './types'
+import type { SearchSource } from '@/lib/api/ai-chat'
 
 interface ChatMessageListProps {
   messages: ChatMessage[]
@@ -17,6 +18,11 @@ interface ChatMessageListProps {
    *  next to the most recent assistant message with a retry CTA. */
   streamError?: string | null
   onRetry?: () => void
+  /** In-flight web-search status for the latest assistant turn. When the
+   *  message has no content yet and the backend reports a tool call is
+   *  searching, we render a dedicated "正在搜索…" badge instead of the
+   *  generic typing dots so the user knows the wait is meaningful. */
+  pendingSearchState?: { searching: boolean; sources: SearchSource[] } | null
   /** True when any message in this conversation used web search
    *  (searchSources.length > 0). Drives the sticky "已在线" status bar. */
   usedWebSearch?: boolean
@@ -73,6 +79,7 @@ export function ChatMessageList({
   onDelete,
   streamError,
   onRetry,
+  pendingSearchState,
   usedWebSearch = false,
 }: ChatMessageListProps) {
   // Find the last assistant message so we can attach the top-level stream
@@ -148,6 +155,17 @@ export function ChatMessageList({
                     content={msg.content}
                     className="text-[15px] sm:text-[16px] leading-7 sm:leading-[1.75] text-[#e6e6e8] [&_p]:text-[15px] sm:[&_p]:text-[16px] [&_p]:leading-7 sm:[&_p]:leading-[1.75] [&_p]:text-[#e6e6e8] [&_strong]:text-white [&_em]:text-[#e6e6e8] [&_h2]:mt-5 [&_h2]:text-[17px] sm:[&_h2]:text-[19px] [&_h2]:font-semibold [&_h2]:text-white [&_h3]:mt-4 [&_h3]:text-[15px] sm:[&_h3]:text-[16px] [&_h3]:font-semibold [&_h3]:text-white [&_li]:text-[#d8d8db] [&_li]:leading-7 sm:[&_li]:leading-[1.75]"
                   />
+                ) : msg.streaming && pendingSearchState?.searching ? (
+                  // Web-search tool is in flight: surface a dedicated badge
+                  // so the wait reads as "fetching the web" rather than a
+                  // generic typing pulse. Once the first token arrives the
+                  // `msg.content` branch above takes over and this naturally
+                  // disappears — no manual teardown needed.
+                  <div className="flex items-center gap-2 text-xs text-blue-300/80">
+                    <span className="size-1.5 rounded-full bg-blue-400 animate-pulse shadow-[0_0_6px_rgba(96,165,250,0.6)]" />
+                    <Globe className="size-3" />
+                    <span>正在搜索…</span>
+                  </div>
                 ) : (
                   <TypingIndicator />
                 )}
