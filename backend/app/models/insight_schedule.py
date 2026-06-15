@@ -24,7 +24,7 @@ class InsightSchedule(Base):
     定时生成 AI Insight 的调度配置。
     
     每条记录定义了一个定时任务：何时执行、针对哪个项目、生成什么类型的洞察。
-    APScheduler 根据 cron_expression 触发任务，调用 _run_insight_generation() 执行生成。
+    APScheduler 根据 cron_expression 触发任务，调用 Celery 任务执行生成。
     """
 
     __tablename__ = "insight_schedules"
