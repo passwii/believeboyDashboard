@@ -7,10 +7,15 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, get_request_operator, protected
 from app.schemas.daily_analysis import (
+    DailyAnalysisAllCountriesResponse,
     DailyAnalysisAllProjectsResponse,
     DailyAnalysisResponse,
 )
-from app.services.daily import build_daily_analysis, build_daily_analysis_all_projects
+from app.services.daily import (
+    build_daily_analysis,
+    build_daily_analysis_all_countries,
+    build_daily_analysis_all_projects,
+)
 from app.services import project_service
 
 router = APIRouter(dependencies=[Depends(protected)])
@@ -85,4 +90,32 @@ def get_daily_analysis_all(
         start_date=start_date,
         end_date=end_date,
         sku=sku,
+    )
+
+
+@router.get("/daily-analysis/all-countries", response_model=DailyAnalysisAllCountriesResponse)
+def get_daily_analysis_all_countries(
+    project_id: int,
+    start_date: Annotated[str, Query(min_length=10, max_length=10)],
+    end_date: Annotated[str, Query(min_length=10, max_length=10)],
+    db: Session = Depends(get_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
+):
+    """跨国家站点聚合单项目数据。
+
+    当前对 US / DE / UK 三个国家分别加载数据并按 (date, sku) 求和；
+    响应里 ``country_breakdown`` 字段给出按国家分桶的明细。
+    """
+    project_service.ensure_project_access(
+        db,
+        project_id,
+        operator=operator,
+        is_admin=bool(is_admin),
+    )
+    return build_daily_analysis_all_countries(
+        db,
+        project_id=project_id,
+        start_date=start_date,
+        end_date=end_date,
     )
