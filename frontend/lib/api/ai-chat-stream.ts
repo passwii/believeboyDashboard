@@ -21,7 +21,7 @@
  * chain rewrites the type.
  */
 
-import type { ServerChatMessage, SearchSource } from './ai-chat'
+import type { ServerChatMessage, SearchSource, SearchTimeRange } from './ai-chat'
 
 export type StreamUsage = {
   prompt_tokens: number
@@ -55,7 +55,7 @@ export type StreamCallbacks = {
   onStart?: () => void
   onChunk?: (delta: string) => void
   onThinking?: (delta: string) => void
-  onSources?: (sources: SearchSource[]) => void
+  onSources?: (sources: SearchSource[], meta?: { timeRange?: SearchTimeRange; query?: string }) => void
   onUsage?: (usage: StreamUsage) => void
   onToolState?: (state: StreamToolState) => void
   onDone?: (payload: StreamDonePayload) => void
@@ -66,6 +66,10 @@ type RawEvent = {
   type?: string
   delta?: string
   sources?: SearchSource[]
+  /** [BEL-81.B] 联网搜索时间范围标签，可选 */
+  time_range?: SearchTimeRange
+  /** [BEL-81.B] 实际搜索词，可选 */
+  query?: string
   usage?: StreamUsage
   tool_calls?: unknown[]
   message?: string
@@ -222,11 +226,16 @@ function dispatchEvent(
         callbacks.onThinking?.(event.delta)
       }
       return null
-    case 'sources':
+    case 'sources': {
       if (Array.isArray(event.sources)) {
-        callbacks.onSources?.(event.sources as SearchSource[])
+        // [BEL-81.B] 把后端透传的 time_range / query 一并回调
+        const meta: { timeRange?: SearchTimeRange; query?: string } = {}
+        if (event.time_range) meta.timeRange = event.time_range
+        if (event.query) meta.query = event.query
+        callbacks.onSources?.(event.sources as SearchSource[], meta)
       }
       return null
+    }
     case 'usage': {
       const usage = normalizeUsage(event.usage)
       if (usage) callbacks.onUsage?.(usage)

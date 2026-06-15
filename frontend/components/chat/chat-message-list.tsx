@@ -142,11 +142,19 @@ export function ChatMessageList({
                 )}
               </div>
 
-              {/* Search sources — only on assistant messages that have them. */}
+              {/* Search sources — render whenever the message has sources OR
+                  is still waiting for them. The `searching` flag drives the
+                  skeleton cards (B3), `searchTimeRange` powers the time-range
+                  chip (B2). */}
               {msg.role === 'assistant' &&
-                msg.searchSources &&
-                msg.searchSources.length > 0 && (
-                  <AIChatSearchSources sources={msg.searchSources} />
+                (msg.searchSearching ||
+                  (msg.searchSources && msg.searchSources.length > 0)) && (
+                  <AIChatSearchSources
+                    sources={msg.searchSources ?? []}
+                    timeRange={msg.searchTimeRange ?? null}
+                    query={msg.searchQuery ?? null}
+                    searching={!!msg.searchSearching && !(msg.searchSources && msg.searchSources.length > 0)}
+                  />
                 )}
 
               {/* Token / duration footer — only on completed assistant messages. */}
