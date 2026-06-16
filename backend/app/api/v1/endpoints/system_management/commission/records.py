@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, get_request_operator, protected
+from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, protected
 from app.models.commission_record import CommissionRecord
 
 from app.schemas.system_management.commission.records import (
@@ -68,7 +68,7 @@ def upsert_commission_records_endpoint(
     payload: UpsertCommissionRecordsRequest,
     request: Request,
     country: str = "US",
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> CommissionRecordsResponse:
     try:
@@ -101,7 +101,7 @@ def list_commission_records(
     country: str = "US",
     person_name: str | None = None,
     include_inactive: bool = False,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> CommissionRecordsResponse:
     try:
@@ -131,7 +131,7 @@ def update_commission_payment_status_endpoint(
     record_id: int,
     payload: UpdateCommissionPaymentStatusRequest,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> UpdateCommissionPaymentStatusResponse:
     from app.services.infra import invalidate_data_management_overview_cache
@@ -164,7 +164,7 @@ def list_commission_project_months(
     report_month: str,
     request: Request,
     country: str | None = None,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> CommissionProjectMonthsResponse:
     from app.models.commission_project_month import CommissionProjectMonth
@@ -217,7 +217,7 @@ def update_commission_project_payment_endpoint(
     project_month_id: int,
     payload: UpdateCommissionProjectPaymentRequest,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> UpdateCommissionProjectPaymentResponse:
     from app.models.commission_project_month import CommissionProjectMonth

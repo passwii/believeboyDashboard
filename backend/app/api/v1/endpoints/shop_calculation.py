@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, get_request_operator, protected
+from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, protected
 from app.schemas.shop_calculation import (
     ShopCalculationCreateRequest,
     ShopCalculationItem,
@@ -22,7 +22,7 @@ def list_shop_calculation(
     country: str | None = Query(default=None, description="按国家筛选（如 US, DE, UK）"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=200, ge=1, le=500),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
 ) -> ShopCalculationListResponse:
     """获取店铺测算列表"""
     rows, total = shop_calculation_service.list_by_project(
@@ -44,7 +44,7 @@ def list_shop_calculation(
 def create_or_update_shop_calculation(
     payload: ShopCalculationCreateRequest,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> ShopCalculationItem:
     """创建或更新店铺测算（upsert）"""
@@ -72,7 +72,7 @@ def create_or_update_shop_calculation(
 @router.delete('/shop-calculation/{item_id}', status_code=status.HTTP_204_NO_CONTENT)
 def delete_shop_calculation(
     item_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
 ) -> Response:
     """删除店铺测算"""
     row = db.get(ShopCalculation, item_id)

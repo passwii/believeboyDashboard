@@ -5,7 +5,7 @@ from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, get_request_operator, protected
+from app.api.deps import get_read_db_session, get_request_operator, protected
 from app.schemas.return_analysis import ReturnAnalysisResponse
 from app.services import project_service
 from app.services.analysis.return_analysis import build_return_analysis
@@ -20,7 +20,7 @@ def get_return_analysis(
     end_date: Annotated[str, Query(min_length=10, max_length=10)],
     country: str = "US",
     sku: Optional[str] = None,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ):

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Upload
 from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, get_request_operator, get_request_role_type, protected
+from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, get_request_role_type, protected
 from app.core.config import Settings, get_settings
 from app.schemas.category_research import (
     CategoryResearchManualDimensionUpsertRequest,
@@ -60,7 +60,7 @@ def import_category_research_dataset_endpoint(
     marketplace: str = Form(default='US'),
     category_keyword_en: str = Form(...),
     category_name_zh: str = Form(...),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     settings: Settings = Depends(get_settings),
     operator: str | None = Depends(get_request_operator),
 ) -> CategoryResearchImportResponse:
@@ -93,7 +93,7 @@ def list_category_research_datasets(
     category_keyword_en: str | None = Query(default=None),
     current_only: bool = Query(default=True),
     include_history: bool = Query(default=False),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     role_type: str | None = Depends(get_request_role_type),
 ) -> list[CategoryResearchDatasetItem]:
@@ -114,7 +114,7 @@ def get_category_research_dataset(
     dataset_id: int,
     price_band_standard: str | None = Query(default='default'),
     price_band_breaks: str | None = Query(default=None),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     role_type: str | None = Depends(get_request_role_type),
 ) -> CategoryResearchOverviewResponse:
@@ -153,7 +153,7 @@ def get_category_research_dataset(
 @router.post('/category-research/datasets/{dataset_id:int}/recompute', response_model=CategoryResearchRecomputeResponse)
 def recompute_category_research_dataset(
     dataset_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     role_type: str | None = Depends(get_request_role_type),
 ) -> CategoryResearchRecomputeResponse:
@@ -179,7 +179,7 @@ def recompute_category_research_datasets(
     marketplace: str | None = Query(default=None),
     category_keyword_en: str | None = Query(default=None),
     include_history: bool = Query(default=True),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     role_type: str | None = Depends(get_request_role_type),
 ) -> CategoryResearchBatchRecomputeResponse:
     if role_type == 'factory':
@@ -211,7 +211,7 @@ def list_category_research_products(
     price_band: str | None = Query(default=None),
     price_band_standard: str | None = Query(default='default'),
     price_band_breaks: str | None = Query(default=None),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     role_type: str | None = Depends(get_request_role_type),
 ) -> CategoryResearchProductsResponse:
@@ -250,7 +250,7 @@ def list_category_research_products(
 def upsert_category_research_manual_dimensions(
     dataset_id: int,
     payload: CategoryResearchManualDimensionUpsertRequest,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     role_type: str | None = Depends(get_request_role_type),
 ) -> CategoryResearchManualDimensionUpsertResponse:
@@ -277,7 +277,7 @@ def upsert_category_research_manual_dimensions(
 def get_category_research_asin_trend(
     dataset_id: int,
     asin: str = Query(..., min_length=1),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     role_type: str | None = Depends(get_request_role_type),
 ) -> CategoryResearchTrendResponse:
@@ -302,7 +302,7 @@ def get_category_research_asin_trend(
 def get_category_research_market_trend(
     dataset_id: int,
     months: int = Query(default=24, ge=1, le=60),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     role_type: str | None = Depends(get_request_role_type),
 ) -> CategoryResearchMarketTrendResponse:
@@ -329,7 +329,7 @@ def get_category_research_market_trend(
 @router.get('/category-research/datasets/{dataset_id:int}/exports', response_model=CategoryResearchExportListResponse)
 def list_category_research_exports(
     dataset_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     settings: Settings = Depends(get_settings),
     operator: str | None = Depends(get_request_operator),
     role_type: str | None = Depends(get_request_role_type),
@@ -359,7 +359,7 @@ def download_category_research_export(
     export_key: str,
     price_band_standard: str | None = Query(default='default'),
     price_band_breaks: str | None = Query(default=None),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     settings: Settings = Depends(get_settings),
     operator: str | None = Depends(get_request_operator),
     role_type: str | None = Depends(get_request_role_type),

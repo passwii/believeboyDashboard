@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from sqlalchemy import exists, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, get_request_operator, protected
+from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, protected
 from app.models import AnalysisPT1Calculation, AnalysisPTSKUDetail, SkuRecord
 from app.schemas.product_analysis_source import (
     AnalysisSourceFileItem,
@@ -241,7 +241,7 @@ def list_product_analysis_sources(
     period_end_date: date | None = Query(default=None),
     current_only: bool = Query(default=True),
     include_history: bool = Query(default=False),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
 ) -> list[AnalysisSourceFileItem]:
     effective_current_only = False if include_history else current_only
     rows = list_sources(
@@ -264,7 +264,7 @@ def get_product_analysis_source_rows(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=200, ge=1, le=1000),
     include_excluded: bool = Query(default=False),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
 ) -> AnalysisSourceRowsResponse:
     try:
         source, rows, has_next = get_source_rows(
@@ -297,7 +297,7 @@ def get_current_inventory_snapshot_endpoint(
     country: Annotated[str, Query()] = "US",
     start_date: date | None = Query(default=None),
     end_date: date | None = Query(default=None),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
 ) -> CurrentInventorySnapshotResponse:
     payload = get_current_inventory_snapshot(
         db,
@@ -320,7 +320,7 @@ def list_product_analysis_pt1(
     start_date: date | None = Query(default=None),
     end_date: date | None = Query(default=None),
     current_only: bool = Query(default=True),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
 ):
     stmt = db.query(AnalysisPT1Calculation).order_by(
         AnalysisPT1Calculation.report_start_date.desc(),
@@ -363,7 +363,7 @@ def list_product_analysis_pt1_details(
     country: Annotated[str, Query()] = "US",
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=500, ge=1, le=1000),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
 ):
     pt1 = db.get(AnalysisPT1Calculation, pt1_id)
     if pt1 is None:
@@ -454,7 +454,7 @@ def list_product_analysis_weekly(
     start_date: date | None = Query(default=None),
     end_date: date | None = Query(default=None),
     current_only: bool = Query(default=True),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ):
@@ -601,7 +601,7 @@ def recompute_product_analysis_weekly(
     start_date: date | None = Query(default=None),
     end_date: date | None = Query(default=None),
     current_only: bool = Query(default=True),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ):
@@ -654,7 +654,7 @@ def recompute_product_analysis_weekly(
 @router.post("/product-analysis/calculation/check", response_model=ProductCalculationCheckResponse)
 def check_product_calculation_data(
     body: ProductCalculationCheckRequest,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ):
@@ -679,7 +679,7 @@ def check_product_calculation_data(
 def run_product_calculation(
     body: ProductCalculationRunRequest,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ):
@@ -734,7 +734,7 @@ def preview_product_calculation(
     body: ProductCalculationPreviewRequest,
     request: Request,
     settings: Settings = Depends(_get_settings),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ):
@@ -830,7 +830,7 @@ def trigger_pt1_recompute(
     country: str = Query(default="US"),
     period_start_date: date = Query(...),
     period_end_date: date = Query(...),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ):
@@ -889,7 +889,7 @@ def trigger_pt1_recompute(
 def upload_product_analysis_sources(
     request: Request,
     body: UploadProductAnalysisSourcesRequest,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ):

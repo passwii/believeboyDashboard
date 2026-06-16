@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, get_request_operator, protected
+from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, protected
 from app.schemas.store_sku_pricing_snapshot import (
     StoreSkuPricingSnapshotCreateRequest,
     StoreSkuPricingSnapshotItem,
@@ -22,7 +22,7 @@ def list_store_sku_pricing_snapshots(
     country: str | None = Query(default=None, description="按国家筛选（如 US, DE, UK）"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=200, ge=1, le=500),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
 ) -> StoreSkuPricingSnapshotListResponse:
     """获取店铺 SKU 核算快照列表"""
     rows, total = store_sku_pricing_snapshot_service.list_snapshots(
@@ -46,7 +46,7 @@ def get_store_sku_pricing_snapshot(
     project_id: int,
     sku: str,
     calculation_type: str = Query(..., pattern='^(profit_calc|profit_reverse)$'),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
 ) -> StoreSkuPricingSnapshotItem:
     """获取单个店铺 SKU 核算快照"""
     snapshot = store_sku_pricing_snapshot_service.get_snapshot(db, project_id, sku, calculation_type)
@@ -59,7 +59,7 @@ def get_store_sku_pricing_snapshot(
 def create_or_update_store_sku_pricing_snapshot(
     payload: StoreSkuPricingSnapshotCreateRequest,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> StoreSkuPricingSnapshotItem:
     """创建或更新店铺 SKU 核算快照（upsert）"""
@@ -86,7 +86,7 @@ def create_or_update_store_sku_pricing_snapshot(
 @router.delete('/store-sku-pricing-snapshots/{snapshot_id}', status_code=status.HTTP_204_NO_CONTENT)
 def delete_store_sku_pricing_snapshot(
     snapshot_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
 ) -> Response:
     """删除店铺 SKU 核算快照"""
     deleted = store_sku_pricing_snapshot_service.delete_snapshot(db, snapshot_id)
