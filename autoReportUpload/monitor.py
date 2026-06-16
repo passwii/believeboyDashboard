@@ -212,10 +212,10 @@ class RunLogger:
         # 国家
         country = result.country or "-"
 
-        # 报表类型中文（优先用 report_label；A 表 report_type 映射为中文）
+        # 报表类型中文（先查 A 表 report_type 映射；B 表 ad 报告 result.report_label 自带中文）
         report_type_cn = (
-            result.report_label
-            or _A_TABLE_REPORT_TYPE_LABELS.get(result.report_type)
+            _A_TABLE_REPORT_TYPE_LABELS.get(result.report_type or "")
+            or result.report_label
             or result.report_type
             or "未知报表"
         )
