@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, get_request_operator, protected
+from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, protected
 from app.models.project_role_assignment import ProjectRoleAssignment
 
 from app.schemas.system_management.commission.role_assignments import (
@@ -39,7 +39,7 @@ def list_project_role_assignments(
     request: Request,
     report_month: str | None = None,
     project_id: int | None = None,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> ProjectRoleAssignmentsResponse:
     stmt = select(ProjectRoleAssignment)
@@ -67,7 +67,7 @@ def list_project_role_assignments(
 def upsert_project_role_assignments_endpoint(
     payload: UpsertProjectRoleAssignmentsRequest,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> ProjectRoleAssignmentsResponse:
     # 验证输入

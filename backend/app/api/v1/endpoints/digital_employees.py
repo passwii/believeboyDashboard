@@ -4,7 +4,7 @@ from datetime import datetime, UTC
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, protected
+from app.api.deps import get_primary_db_session, get_read_db_session, protected
 from app.models.digital_employee import (
     DigitalEmployee,
     DigitalEmployeeLog,
@@ -53,7 +53,7 @@ router = APIRouter(prefix="/digital-employees", tags=["digital-employees"])
 def list_employees_endpoint(
     status: str | None = None,
     employee_type: str | None = None,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     _=Depends(protected),
 ):
     items, total = _list_employees(db, status=status, employee_type=employee_type)
@@ -61,13 +61,13 @@ def list_employees_endpoint(
 
 
 @router.get("/{employee_id}", response_model=DigitalEmployeeResponse)
-def get_employee_endpoint(employee_id: int, db: Session = Depends(get_db_session), _=Depends(protected)):
+def get_employee_endpoint(employee_id: int, db: Session = Depends(get_read_db_session), _=Depends(protected)):
     employee = _get_employee(db, employee_id)
     return DigitalEmployeeResponse.model_validate(employee)
 
 
 @router.post("", response_model=DigitalEmployeeResponse)
-def create_employee_endpoint(data: DigitalEmployeeCreate, db: Session = Depends(get_db_session), _=Depends(protected)):
+def create_employee_endpoint(data: DigitalEmployeeCreate, db: Session = Depends(get_primary_db_session), _=Depends(protected)):
     employee = _create_employee(
         db,
         name=data.name,
@@ -82,7 +82,7 @@ def create_employee_endpoint(data: DigitalEmployeeCreate, db: Session = Depends(
 def update_status(
     employee_id: int,
     data: StatusUpdateRequest,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     _=Depends(protected),
 ):
     employee = _update_employee_status(db, employee_id, status=data.status.value)
@@ -90,7 +90,7 @@ def update_status(
 
 
 @router.delete("/{employee_id}")
-def delete_employee_endpoint(employee_id: int, db: Session = Depends(get_db_session), _=Depends(protected)):
+def delete_employee_endpoint(employee_id: int, db: Session = Depends(get_primary_db_session), _=Depends(protected)):
     _delete_employee(db, employee_id)
     return {"ok": True}
 
@@ -102,7 +102,7 @@ def list_tasks_endpoint(
     employee_id: int,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     _=Depends(protected),
 ):
     items, total = _list_tasks(db, employee_id=employee_id, page=page, page_size=page_size)
@@ -113,7 +113,7 @@ def list_tasks_endpoint(
 def get_task_endpoint(
     employee_id: int,
     task_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     _=Depends(protected),
 ):
     task = _get_task(db, employee_id, task_id)
@@ -128,7 +128,7 @@ def list_logs_endpoint(
     task_id: int,
     cursor: str | None = None,
     limit: int = Query(100, ge=1, le=500),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     _=Depends(protected),
 ):
     items, has_more, next_cursor = _list_logs(db, employee_id=employee_id, task_id=task_id, cursor=cursor, limit=limit)
@@ -143,7 +143,7 @@ def list_logs_endpoint(
 def list_recent_logs_endpoint(
     employee_id: int,
     limit: int = Query(20, ge=1, le=100),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     _=Depends(protected),
 ):
     items = _list_employee_logs(db, employee_id=employee_id, limit=limit)
@@ -153,7 +153,7 @@ def list_recent_logs_endpoint(
 # ── Internal APIs ─────────────────────────────────────────────────────────────
 
 @router.post("/register", response_model=RegisterResponse)
-def register_employee_endpoint(data: RegisterRequest, db: Session = Depends(get_db_session)):
+def register_employee_endpoint(data: RegisterRequest, db: Session = Depends(get_primary_db_session)):
     employee_id, api_secret = _register_employee(
         db,
         name=data.name,
@@ -169,7 +169,7 @@ def heartbeat_endpoint(
     employee_id: int,
     api_secret: str | None = None,
     data: HeartbeatRequest = None,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
 ):
     now = _heartbeat(
         db,

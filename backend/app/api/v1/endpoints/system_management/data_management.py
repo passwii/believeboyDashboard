@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, get_request_operator, protected
+from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, protected
 from app.core.config import get_settings
 
 from app.schemas.system_management.data_management import (
@@ -58,7 +58,7 @@ def _resolve_database_source(database_url: str) -> tuple[str, str | None]:
 @router.get("/status", response_model=DataManagementStatusResponse)
 def get_data_management_status(
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> DataManagementStatusResponse:
     from app.services.system_management import _load_data_state
@@ -92,7 +92,7 @@ def get_data_management_status(
 @router.get("/overview", response_model=DataManagementOverviewResponse)
 def get_data_management_overview(
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> DataManagementOverviewResponse:
     from app.services.system_management import (
@@ -178,7 +178,7 @@ def get_data_management_overview(
 def update_data_status(
     payload: UpdateDataStatusRequest,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> UpdateDataStatusResponse:
     from app.services.system_management import _load_data_state, set_data_status
@@ -219,7 +219,7 @@ cache_router = APIRouter(prefix="/cache", tags=["缓存管理"])
 @cache_router.post("/clear-all", response_model=ClearCacheResponse)
 def clear_all_cache(
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> ClearCacheResponse:
     from app.services.audit_log_service import append_operation_audit_log

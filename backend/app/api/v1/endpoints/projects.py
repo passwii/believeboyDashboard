@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, get_request_operator, protected
+from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, protected
 from app.models import Project
 from app.schemas.project import ProjectContextResponse, ProjectContextUpdate, ProjectCreate, ProjectItem, ProjectOption, ProjectUpdate, ParseContextRequest, ParseContextResponse
 from app.services.audit_log_service import append_operation_audit_log, append_operation_view_log
@@ -31,7 +31,7 @@ def _serialize_project_item(row) -> dict[str, object | None]:
 @router.get('/projects')
 def list_projects(
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> list[ProjectOption]:
     payload = project_service.list_project_options(db)
@@ -50,7 +50,7 @@ def list_projects(
 @router.get('/projects/operator-options')
 def list_project_operator_options(
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> list[str]:
     payload = project_service.list_project_operator_options(db)
@@ -70,7 +70,7 @@ def list_project_operator_options(
 def list_projects_manage(
     request: Request,
     show_inactive: bool = Query(default=False),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> list[ProjectItem]:
@@ -114,7 +114,7 @@ def list_projects_manage(
 def create_project(
     payload: ProjectCreate,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> ProjectItem:
@@ -154,7 +154,7 @@ def update_project(
     project_id: int,
     payload: ProjectUpdate,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> ProjectItem:
@@ -194,7 +194,7 @@ def move_project(
     project_id: int,
     direction: str,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> ProjectItem:
@@ -221,7 +221,7 @@ def move_project(
 def get_project_context_endpoint(
     project_id: int,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> ProjectContextResponse:
@@ -252,7 +252,7 @@ def update_project_context_endpoint(
     project_id: int,
     payload: ProjectContextUpdate,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> ProjectContextResponse:
@@ -297,7 +297,7 @@ def parse_project_context_endpoint(
     project_id: int,
     payload: ParseContextRequest,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
 ) -> ParseContextResponse:
     """
     使用 AI 将自然语言描述解析为项目背景配置 JSON。

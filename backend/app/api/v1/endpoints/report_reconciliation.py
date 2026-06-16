@@ -6,7 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 
-from app.api.deps import get_db_session, get_request_operator, protected
+from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, protected
 from app.core.config import get_settings
 from app.schemas.reconciliation import (
     AutoReconcileRequest,
@@ -53,7 +53,7 @@ def list_available_reports(
     project_id: int | None = Query(default=None, gt=0),
     country: str | None = Query(default=None),
     month: str | None = Query(default=None),
-    db=Depends(get_db_session),
+    db=Depends(get_read_db_session),
 ) -> AvailableReportsResponse:
     """List reports available for automatic reconciliation."""
     reports = get_available_reports(
@@ -71,7 +71,7 @@ def list_available_reports(
 @router.post("/report-reconciliation/auto-reconcile", response_model=ReconcileResultResponse)
 def perform_auto_reconcile(
     data: AutoReconcileRequest,
-    db=Depends(get_db_session),
+    db=Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> ReconcileResultResponse:
     """Perform automatic reconciliation using database PT3 data and uploaded PDF."""
@@ -111,7 +111,7 @@ def list_reconciliation_history(
     project_id: int | None = Query(default=None, gt=0),
     month: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
-    db=Depends(get_db_session),
+    db=Depends(get_read_db_session),
 ) -> ReconciliationHistoryResponse:
     """Get reconciliation history."""
     records = get_reconciliation_history(
@@ -132,6 +132,7 @@ def reconcile_reports(
     pdf_file: UploadFile = File(...),
     tolerance: float = 0.01,
     report_id: int | None = Query(default=None, ge=1),
+    db: Session = Depends(get_primary_db_session),
 ) -> dict:
     """Manual reconciliation: compare uploaded Excel and PDF files."""
     settings = get_settings()
@@ -161,39 +162,36 @@ def reconcile_reports(
             tolerance=tolerance,
         )
 
-        # If report_id provided, save to ReconciliationRecord for persistence
+        # If report_id provided, save to ReconciliationRecord for persistence.
+        # BEL-55-P5 / BEL-73: the `db` is a primary session (POST handler
+        # switched to get_primary_db_session) and is closed by FastAPI on
+        # handler exit — we don't create a second session or close it here.
         if report_id:
-            db_gen = get_db_session()
-            db = next(db_gen)
-            try:
-                # Check if already has a record
-                existing = db.query(ReconciliationRecord).filter(
-                    ReconciliationRecord.report_id == report_id,
-                    ReconciliationRecord.mode == "manual"
-                ).first()
+            existing = db.query(ReconciliationRecord).filter(
+                ReconciliationRecord.report_id == report_id,
+                ReconciliationRecord.mode == "manual"
+            ).first()
 
-                match_rate = Decimal(str(result["match_rate"]))
-                if existing:
-                    existing.match_rate = match_rate
-                    existing.matched_items = result["matched_items"]
-                    existing.mismatched_items = result["mismatched_items"]
-                    existing.missing_items = result["missing_items"]
-                    existing.detail_json = {"items": result["items"], "summary": result.get("summary", {})}
-                else:
-                    record = ReconciliationRecord(
-                        report_id=report_id,
-                        operator="manual",
-                        mode="manual",
-                        match_rate=match_rate,
-                        matched_items=result["matched_items"],
-                        mismatched_items=result["mismatched_items"],
-                        missing_items=result["missing_items"],
-                        detail_json={"items": result["items"], "summary": result.get("summary", {})},
-                    )
-                    db.add(record)
-                db.commit()
-            finally:
-                db.close()
+            match_rate = Decimal(str(result["match_rate"]))
+            if existing:
+                existing.match_rate = match_rate
+                existing.matched_items = result["matched_items"]
+                existing.mismatched_items = result["mismatched_items"]
+                existing.missing_items = result["missing_items"]
+                existing.detail_json = {"items": result["items"], "summary": result.get("summary", {})}
+            else:
+                record = ReconciliationRecord(
+                    report_id=report_id,
+                    operator="manual",
+                    mode="manual",
+                    match_rate=match_rate,
+                    matched_items=result["matched_items"],
+                    mismatched_items=result["mismatched_items"],
+                    missing_items=result["missing_items"],
+                    detail_json={"items": result["items"], "summary": result.get("summary", {})},
+                )
+                db.add(record)
+            db.commit()
 
         return result
 
@@ -212,7 +210,7 @@ def reconcile_reports(
 def upload_summary_pdf(
     report_id: int,
     pdf_file: UploadFile = File(...),
-    db=Depends(get_db_session),
+    db=Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ):
     """
@@ -276,7 +274,7 @@ def upload_summary_pdf(
 @router.get("/report-reconciliation/reports/{report_id}/export-pt3")
 def export_pt3_data(
     report_id: int,
-    db=Depends(get_db_session),
+    db=Depends(get_read_db_session),
 ):
     """Export PT3 calculation data as Excel for offline comparison."""
     report = db.query(MonthlyReport).filter(MonthlyReport.id == report_id).first()
@@ -342,7 +340,7 @@ def export_pt3_data(
 @router.get("/report-reconciliation/reports/{report_id}/download-pdf")
 def download_reconciliation_pdf(
     report_id: int,
-    db=Depends(get_db_session),
+    db=Depends(get_read_db_session),
 ):
     """Download the summary PDF for a reconciliation report via R2 proxy."""
     report = db.query(MonthlyReport).filter(MonthlyReport.id == report_id).first()

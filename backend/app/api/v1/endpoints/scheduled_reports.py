@@ -7,7 +7,7 @@ from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, get_request_operator, protected
+from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, protected
 from app.schemas.scheduled_report import (
     DeliveryLogItem,
     DeliveryLogListResponse,
@@ -48,7 +48,7 @@ def _get_user_id(x_user_id: str | None = Header(default=None, alias="X-User-Id")
 @router.get("/scheduled-reports/subscriptions", response_model=SubscriptionListResponse)
 def list_subscriptions(
     frequency: str | None = None,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
     x_user_id: str | None = Header(default=None, alias="X-User-Id"),
@@ -64,7 +64,7 @@ def list_subscriptions(
 @router.post("/scheduled-reports/subscriptions", response_model=SubscriptionItem, status_code=status.HTTP_201_CREATED)
 def create_subscription_endpoint(
     data: SubscriptionCreate,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
     x_user_id: str | None = Header(default=None, alias="X-User-Id"),
@@ -78,7 +78,7 @@ def create_subscription_endpoint(
 def update_subscription_endpoint(
     subscription_id: int,
     data: SubscriptionUpdate,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
     x_user_id: str | None = Header(default=None, alias="X-User-Id"),
@@ -93,7 +93,7 @@ def update_subscription_endpoint(
 @router.delete("/scheduled-reports/subscriptions/{subscription_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_subscription_endpoint(
     subscription_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
     x_user_id: str | None = Header(default=None, alias="X-User-Id"),
@@ -108,7 +108,7 @@ def list_delivery_logs(
     status_filter: str | None = None,
     limit: int = 50,
     offset: int = 0,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
     x_user_id: str | None = Header(default=None, alias="X-User-Id"),
@@ -124,7 +124,7 @@ def list_delivery_logs(
 @router.post("/scheduled-reports/test-email", response_model=TestEmailResponse)
 def test_email(
     data: TestEmailRequest,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ):
@@ -189,7 +189,7 @@ def get_scheduled_report_ledger(
     email: str | None = None,
     limit: int = 100,
     offset: int = 0,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ):
@@ -222,7 +222,7 @@ def get_scheduled_report_ledger(
 def resend_scheduled_report_ledger_entry(
     ledger_key: str,
     force: bool = False,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ):

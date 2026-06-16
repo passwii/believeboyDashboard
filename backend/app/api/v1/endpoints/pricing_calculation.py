@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response,
 from sqlalchemy.orm import Session
 
 from app.api.deps import (
-    get_db_session,
+    get_primary_db_session,
+    get_read_db_session,
     get_request_is_admin,
     get_request_operator,
     protected,
@@ -46,7 +47,7 @@ def list_pricing_runs_endpoint(
         default=True, description="是否排除店铺核算记录（只返回新品核算）"
     ),
     country: str | None = Query(default=None, description="按国家筛选（如 US, DE, UK）"),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Depends(get_request_is_admin),
 ) -> PricingCalculationRunListResponse:
@@ -76,7 +77,7 @@ def list_pricing_runs_endpoint(
 def calculate_pricing_quote(
     payload: PricingCalculationCreateRequest,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> PricingCalculationRunItem:
     try:
@@ -106,7 +107,7 @@ def calculate_pricing_quote(
 def calculate_pricing_reverse_quote(
     payload: PricingCalculationReverseRequest,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> PricingCalculationRunItem:
     try:
@@ -136,7 +137,7 @@ def calculate_pricing_reverse_quote(
 def calculate_pricing_reverse_cost(
     payload: PricingCalculationCostReverseRequest,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> PricingCalculationRunItem:
     try:
@@ -164,7 +165,7 @@ def calculate_pricing_reverse_cost(
 def calculate_pricing_fbm_quote(
     payload: PricingCalculationFbmRequest,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> PricingCalculationRunItem:
     try:
@@ -192,7 +193,7 @@ def calculate_pricing_fbm_quote(
 def calculate_pricing_eu_quote(
     payload: PricingCalculationEURequest,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> PricingCalculationRunItem:
     """欧洲（德国/英国）店铺 SKU 核算，使用手动费用和 VAT 计算"""
@@ -223,7 +224,7 @@ def calculate_pricing_eu_quote(
 def delete_pricing_run_endpoint(
     run_id: int,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Depends(get_request_is_admin),
 ) -> Response:
@@ -262,7 +263,7 @@ def delete_pricing_run_endpoint(
 def recalculate_pricing_run(
     run_id: int,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Depends(get_request_is_admin),
 ) -> PricingCalculationRunItem:

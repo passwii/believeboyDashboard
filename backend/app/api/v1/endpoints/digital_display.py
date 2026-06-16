@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Depends, Query
 
-from app.api.deps import get_db_session
+from app.api.deps import get_read_db_session
 from app.core.security import require_api_key
 from app.schemas.digital_display import DigitalDisplayResponse
 from app.services import digital_display_service
@@ -15,7 +15,7 @@ async def get_digital_display(
     project_id: int,
     country: str = Query(default="US"),
     days: int = Query(default=7, ge=3, le=30),
-    db=Depends(get_db_session),
+    db=Depends(get_read_db_session),
     _=Depends(require_api_key),
 ) -> DigitalDisplayResponse:
     """
