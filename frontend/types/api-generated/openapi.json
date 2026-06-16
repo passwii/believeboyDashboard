@@ -9769,6 +9769,17 @@
             "title": "Status",
             "type": "string"
           },
+          "status_summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Summary"
+          },
           "submitted_at": {
             "anyOf": [
               {

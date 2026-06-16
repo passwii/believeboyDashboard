@@ -406,6 +406,7 @@ export default function InspectionHistory({ periodId }: InspectionHistoryProps) 
                   <TableHead>状态</TableHead>
                   <TableHead>AHR</TableHead>
                   <TableHead>合规问题</TableHead>
+                  <TableHead>状态说明</TableHead>
                   <TableHead>截图</TableHead>
                   <TableHead>提交人</TableHead>
                   <TableHead>提交时间</TableHead>
@@ -434,6 +435,15 @@ export default function InspectionHistory({ periodId }: InspectionHistoryProps) 
                         {item.compliance_total !== undefined && item.compliance_total !== null
                           ? item.compliance_total
                           : '-'}
+                      </TableCell>
+                      <TableCell className="max-w-[280px]">
+                        {item.status_summary ? (
+                          <span className="line-clamp-2 text-sm text-foreground/90" title={item.status_summary}>
+                            {item.status_summary}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         {item.screenshots && item.screenshots.length > 0 ? (
