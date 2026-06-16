@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight, Check, Cpu, X } from 'lucide-react'
 import gsap from 'gsap'
 
@@ -118,6 +118,21 @@ export function ModelSelector({ selectedModel, onModelChange }: {
     return () => window.removeEventListener('keydown', onKey)
   }, [isOpen, drawerOpen])
 
+  // Close the dropdown when the pointer moves outside its root. This replaces
+  // the old fullscreen backdrop so the desktop "other models" panel can sit
+  // directly beside the dropdown without covering the viewport.
+  useEffect(() => {
+    if (!isOpen) return
+    const onClick = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) {
+        setIsOpen(false)
+        setDrawerOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onClick)
+    return () => document.removeEventListener('mousedown', onClick)
+  }, [isOpen])
+
   // If we transition desktop → mobile while drawer is open, close it.
   useEffect(() => {
     if (!isDesktop && drawerOpen) setDrawerOpen(false)
@@ -167,7 +182,7 @@ export function ModelSelector({ selectedModel, onModelChange }: {
   }, [pinnedIds, otherIds, premiumSet, defaultModel])
 
   // On mobile, the "others" group uses an inline up/down expand (animated).
-  // On desktop, the chevron opens a right-side drawer instead.
+  // On desktop, the chevron opens a right-side panel inside the dropdown.
   const handleToggleOthers = () => {
     if (isDesktop) {
       setDrawerOpen((v) => !v)
@@ -226,7 +241,7 @@ export function ModelSelector({ selectedModel, onModelChange }: {
   // Desktop side-panel fade in / out (no x translation: the panel is
   // absolutely positioned next to the trigger, not a viewport-edge drawer).
   useEffect(() => {
-    if (!isDesktop) return
+    if (!isDesktop || !drawerPanel) return
     const reduced =
       typeof window !== 'undefined' &&
       window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -279,10 +294,17 @@ export function ModelSelector({ selectedModel, onModelChange }: {
   const otherModels = othersGroup?.models ?? []
 
   return (
-    <div className="relative">
+    <div ref={rootRef} className="relative">
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          if (isOpen) {
+            setIsOpen(false)
+            setDrawerOpen(false)
+          } else {
+            setIsOpen(true)
+          }
+        }}
         className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-medium transition-all duration-200 text-[#8a8a8f] hover:text-white hover:bg-white/5 active:scale-95 touch-manipulation min-h-[36px] sm:min-h-[auto]"
       >
         {currentModelMeta?.icon ?? <Cpu className="size-4 text-slate-400" />}
@@ -373,11 +395,31 @@ export function ModelSelector({ selectedModel, onModelChange }: {
                     />
                   ))}
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setDrawerOpen(false)}
+                  className="p-1.5 rounded-md text-[#8a8a8f] hover:text-white hover:bg-white/5 transition-colors touch-manipulation"
+                  aria-label="关闭"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-2 overscroll-contain">
+                {otherModels.map((model) => (
+                  <DrawerModelRow
+                    key={model.id}
+                    model={model}
+                    isCurrent={current === model.id}
+                    onSelect={handleSelect}
+                    badge={badgeFor(model.id, premiumSet, defaultModel)}
+                  />
+                ))}
               </div>
             )}
           </div>
         </>
       )}
+
     </div>
   )
 }
@@ -411,9 +453,10 @@ function ModelGroupSection({
 }) {
   const isCollapsible = !!group.collapsedByDefault
 
-  // On desktop, "other models" expand into a right-side drawer (no inline
-  // section in the dropdown) — so we don't render the inline content there.
-  // We still render the section header so the user can see the trigger.
+  // On desktop, "other models" expand into a right-side panel inside the
+  // dropdown (no inline section there) — so we don't render the inline content
+  // in that mode. We still render the section header so the user can see the
+  // trigger.
   const renderInline = isCollapsible && !isDesktop
   const isOpen = isDesktop ? drawerOpen : othersExpanded
 
@@ -423,6 +466,7 @@ function ModelGroupSection({
         <button
           type="button"
           onClick={onToggleOthers}
+          data-testid="model-selector-others-toggle"
           aria-expanded={isOpen}
           aria-controls={isDesktop ? undefined : 'model-selector-others'}
           className="w-full flex items-center gap-2 px-2.5 py-2 sm:py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#5a5a5f] hover:text-[#8a8a8f] transition-colors touch-manipulation min-h-[36px]"

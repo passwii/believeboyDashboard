@@ -1,8 +1,20 @@
+import { buildLoginCallbackUrl } from '@/lib/login-callback-url'
+
 const API_BASE = '/api/backend'
 
 function resolveApiUrl(path: string) {
   const base = API_BASE.endsWith('/') ? API_BASE.slice(0, -1) : API_BASE
   return `${base}${path}`
+}
+
+export async function redirectToLoginWithCallback(currentPath?: string) {
+  if (typeof window === 'undefined') return
+
+  const loginCallbackUrl = buildLoginCallbackUrl(
+    currentPath ?? `${window.location.pathname}${window.location.search}`
+  )
+  const { signOut } = await import('next-auth/react')
+  await signOut({ callbackUrl: loginCallbackUrl })
 }
 
 // Backend sends lowercase enum values (e.g. "idle"), frontend uses uppercase (e.g. "IDLE")
@@ -30,7 +42,7 @@ export async function fetchDigitalEmployees(signal?: AbortSignal): Promise<{
     ...(signal ? { signal } : {}),
   })
   if (res.status === 401) {
-    window.location.href = '/login'
+    void redirectToLoginWithCallback()
     return { items: [], total: 0 }
   }
   if (!res.ok) throw new Error('Failed to fetch digital employees')
@@ -43,7 +55,7 @@ export async function fetchDigitalEmployees(signal?: AbortSignal): Promise<{
 export async function fetchDigitalEmployee(id: number) {
   const res = await fetch(resolveApiUrl(`/api/v1/digital-employees/${id}`), { cache: 'no-store' })
   if (res.status === 401) {
-    window.location.href = '/login'
+    void redirectToLoginWithCallback()
     throw new Error('Unauthorized')
   }
   if (!res.ok) throw new Error('Failed to fetch digital employee')
@@ -53,7 +65,7 @@ export async function fetchDigitalEmployee(id: number) {
 export async function fetchEmployeeTasks(id: number) {
   const res = await fetch(resolveApiUrl(`/api/v1/digital-employees/${id}/tasks`), { cache: 'no-store' })
   if (res.status === 401) {
-    window.location.href = '/login'
+    void redirectToLoginWithCallback()
     throw new Error('Unauthorized')
   }
   if (!res.ok) throw new Error('Failed to fetch tasks')
@@ -66,7 +78,7 @@ export async function fetchEmployeeTasks(id: number) {
 export async function fetchEmployeeLogs(employeeId: number, taskId: number) {
   const res = await fetch(resolveApiUrl(`/api/v1/digital-employees/${employeeId}/tasks/${taskId}/logs`), { cache: 'no-store' })
   if (res.status === 401) {
-    window.location.href = '/login'
+    void redirectToLoginWithCallback()
     throw new Error('Unauthorized')
   }
   if (!res.ok) throw new Error('Failed to fetch logs')
@@ -78,7 +90,7 @@ export async function fetchEmployeeRecentLogs(employeeId: number, limit = 20) {
     cache: 'no-store',
   })
   if (res.status === 401) {
-    window.location.href = '/login'
+    void redirectToLoginWithCallback()
     throw new Error('Unauthorized')
   }
   if (!res.ok) throw new Error('Failed to fetch recent logs')
