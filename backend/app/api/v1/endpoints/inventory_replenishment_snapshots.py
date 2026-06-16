@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Header, Query, Request
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, get_request_operator, protected
+from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, protected
 from app.services import project_service
 from app.services.inventory.replenishment_snapshot import (
     create_replenishment_snapshot,
@@ -80,7 +80,7 @@ def create_snapshot(
     project_id: int = Query(gt=0),
     country: str = Query(default="US"),
     payload: CreateSnapshotRequest | None = None,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> InventoryReplenishmentSnapshotDetail:
@@ -177,7 +177,7 @@ def list_snapshots_endpoint(
     country: str = Query(default="US"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
 ) -> list[InventoryReplenishmentSnapshotListItem]:
     """获取快照列表"""
     snapshots, total, has_next = list_snapshots(
@@ -193,7 +193,7 @@ def list_snapshots_endpoint(
 @router.get("/{snapshot_id}", response_model=InventoryReplenishmentSnapshotDetail)
 def get_snapshot_endpoint(
     snapshot_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
 ) -> InventoryReplenishmentSnapshotDetail:
     """获取快照详情（包含完整数据）"""
     snapshot = get_snapshot_detail(db, snapshot_id)
@@ -259,7 +259,7 @@ def get_snapshot_items_endpoint(
     in_transit_only: bool = Query(default=False),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
 ) -> InventoryReplenishmentListResponse:
     """获取快照的明细数据（兼容原列表接口格式）"""
     snapshot = get_snapshot_detail(db, snapshot_id)
@@ -355,7 +355,7 @@ def update_snapshot_endpoint(
     request: Request,
     snapshot_id: int,
     payload: UpdateSnapshotRequest,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> InventoryReplenishmentSnapshotListItem:
@@ -399,7 +399,7 @@ def update_snapshot_endpoint(
 def delete_snapshot_endpoint(
     request: Request,
     snapshot_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> dict:

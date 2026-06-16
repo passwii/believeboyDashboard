@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, get_request_operator, protected
+from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, protected
 from app.models.operator_performance_record import OperatorPerformanceRecord
 
 from app.schemas.system_management.operator_performance import (
@@ -40,7 +40,7 @@ def list_operator_performance(
     report_month: str,
     request: Request,
     project_id: int | None = None,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> OperatorPerformanceResponse:
     month = _parse_report_month(report_month)
@@ -62,7 +62,7 @@ def list_operator_performance(
 def upsert_operator_performance_endpoint(
     payload: UpsertOperatorPerformanceRequest,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> OperatorPerformanceResponse:
     # 验证输入

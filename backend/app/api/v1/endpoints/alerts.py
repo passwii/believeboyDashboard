@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, get_request_operator, protected
+from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, protected
 from app.models import AlertRule, AlertEvent, AlertPreference
 from app.schemas.alert import (
     AlertEventItem,
@@ -53,7 +53,7 @@ def list_rules(
     project_id: int | None = Query(default=None),
     metric: str | None = Query(default=None),
     is_active: bool | None = Query(default=None),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> list[AlertRuleItem]:
@@ -72,7 +72,7 @@ def list_rules(
 @router.post("/rules", response_model=AlertRuleItem, status_code=201)
 def create_rule(
     payload: AlertRuleCreate,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> AlertRule:
@@ -93,7 +93,7 @@ def create_rule(
 def update_rule(
     rule_id: int,
     payload: AlertRuleUpdate,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> AlertRule:
@@ -114,7 +114,7 @@ def update_rule(
 @router.delete("/rules/{rule_id}", status_code=204)
 def delete_rule(
     rule_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> Response:
@@ -138,7 +138,7 @@ def list_events(
     status: str | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> AlertEventListResponse:
@@ -160,7 +160,7 @@ def list_events(
 @router.post("/events/{event_id}/acknowledge", response_model=AlertEventItem)
 def acknowledge_event(
     event_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> AlertEvent:
@@ -180,7 +180,7 @@ def acknowledge_event(
 @router.post("/events/{event_id}/resolve", response_model=AlertEventItem)
 def resolve_event(
     event_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> AlertEvent:
@@ -200,7 +200,7 @@ def resolve_event(
 @router.get("/stats", response_model=AlertStatsResponse)
 def get_stats(
     project_id: int | None = Query(default=None),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
 ) -> AlertStatsResponse:
     from datetime import date, timedelta
     today = date.today()
@@ -245,7 +245,7 @@ def _get_user_id_from_header(x_user_id: str | None = Header(default=None, alias=
 
 @router.get("/preferences", response_model=AlertPreferenceItem)
 def get_preferences(
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
     x_user_id: str | None = Header(default=None, alias="X-User-Id"),
@@ -273,7 +273,7 @@ def get_preferences(
 @router.patch("/preferences", response_model=AlertPreferenceItem)
 def update_preferences(
     payload: AlertPreferenceUpdate,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
     x_user_id: str | None = Header(default=None, alias="X-User-Id"),
@@ -307,7 +307,7 @@ def update_preferences(
 
 @router.post("/detect", response_model=TriggerDetectionResponse)
 def trigger_detection(
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> TriggerDetectionResponse:

@@ -6,7 +6,7 @@ from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, get_request_operator, protected
+from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, protected
 from app.schemas.project_goal import (
     ProjectGoalCreate,
     ProjectGoalItem,
@@ -28,7 +28,7 @@ def list_project_goals(
     year: int = Query(default=None, ge=2020, le=2100),
     goal_type: Optional[str] = None,
     metric_type: Optional[str] = Query(default='sales_amount'),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ):
@@ -53,7 +53,7 @@ def get_project_goal_progress(
     country: str = 'US',
     year: int = Query(default=None, ge=2020, le=2100),
     metric_type: str = Query(default='sales_amount'),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ):
@@ -74,7 +74,7 @@ def get_project_goal_progress(
 @router.get('/project-goals/{goal_id}', response_model=ProjectGoalItem)
 def get_project_goal(
     goal_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ):
@@ -89,7 +89,7 @@ def get_project_goal(
 @router.post('/project-goals', response_model=ProjectGoalItem, status_code=201)
 def create_project_goal(
     data: ProjectGoalCreate,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ):
@@ -104,7 +104,7 @@ def create_project_goal(
 def update_project_goal(
     goal_id: int,
     data: ProjectGoalUpdate,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ):
@@ -119,7 +119,7 @@ def update_project_goal(
 @router.delete('/project-goals/{goal_id}', status_code=204)
 def delete_project_goal(
     goal_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ):

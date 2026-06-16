@@ -19,7 +19,7 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, get_request_is_admin, get_request_operator, protected
+from app.api.deps import get_primary_db_session, get_read_db_session, get_request_is_admin, get_request_operator, protected
 from app.models.sku_info import SkuRecord
 from app.models.project import Project
 from app.schemas.sku_info import (
@@ -137,7 +137,7 @@ def _list_sku_records_endpoint(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=10000, ge=1, le=100000),
     include_total: bool = Query(default=False),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Depends(get_request_is_admin),
 ) -> SkuRecordsPage:
@@ -224,7 +224,7 @@ def _list_sku_records_endpoint(
 def create_or_update_sku_record(
     payload: SkuRecordCreate,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> SkuRecordUpsertResponse:
     row, action = upsert_sku_record(
@@ -258,7 +258,7 @@ def bulk_create_or_update_sku_records(
     payload: SkuRecordBulkCreate,
     request: Request,
     import_mode: str = Query(default="create"),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> SkuRecordImportResponse:
     rows, inserted, updated, skipped = import_sku_records(
@@ -300,7 +300,7 @@ def update_sku_record(
     sku_record_id: int,
     payload: SkuRecordUpdate,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> SkuRecordItem:
     before_row = (
@@ -336,7 +336,7 @@ def update_sku_record(
 def delete_sku_record_endpoint(
     sku_record_id: int,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> Response:
     before_row = (
@@ -373,7 +373,7 @@ def move_sku_record(
     sku_record_id: int,
     payload: SkuRecordSortMove,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> SkuRecordItem:
     before_row = (
@@ -409,7 +409,7 @@ def import_sku_records_from_csv(
     request: Request,
     import_mode: str = Query(default="create"),
     file: UploadFile = File(...),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> SkuRecordImportResponse:
     if not file.filename:
@@ -470,7 +470,7 @@ def export_product_costs_csv(
     country: str | None = Query(default=None),
     is_active: bool | None = Query(default=None),
     export_type: str = Query(default="update"),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Depends(get_request_is_admin),
 ) -> Response:
@@ -595,7 +595,7 @@ def export_product_costs_csv(
 )
 def import_default_blf_basic_info(
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> SkuRecordBulkUpsertResponse:
     items, source_file = read_sku_record_csv_file()
@@ -631,7 +631,7 @@ def import_default_blf_basic_info(
 def recalculate_first_leg_costs_endpoint(
     payload: SkuRecordFirstLegRecalculateRequest,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> SkuRecordFirstLegRecalculateResponse:
     updated = recalculate_first_leg_costs(
@@ -673,7 +673,7 @@ def sync_first_leg_cost_from_shipment(
     project_id: int | None = Query(default=None),
     sku: str | None = Query(default=None),
     country: str | None = Query(default=None),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> dict:
     """
@@ -705,7 +705,7 @@ def sync_first_leg_cost_from_shipment(
 def parse_factory_info_endpoint(
     payload: ParseFactoryInfoRequest,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
 ) -> ParseFactoryInfoResponse:
     """
     使用 AI 将自然语言描述解析为产品属性 JSON。
@@ -732,7 +732,7 @@ def parse_factory_info_endpoint(
 def batch_update_factory_info_endpoint(
     payload: BatchUpdateFactoryInfoRequest,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> BatchUpdateFactoryInfoResponse:
     """
@@ -784,7 +784,7 @@ def upload_fnsku_label(
     sku_record_id: int,
     file: UploadFile = File(...),
     request: Request = None,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> FnskuLabelUploadResponse:
     """上传单个 SKU 的 FNSKU 标签 PDF。如已有旧标签则替换。上传时自动验证 PDF 中的 FNSKU。"""
@@ -879,7 +879,7 @@ def upload_product_image(
     sku_record_id: int,
     file: UploadFile = File(...),
     request: Request = None,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> SkuProductImageUploadResponse:
     """上传或替换指定 SKU 的产品图（自动生成 1920x1920 主图 + 320x320 缩略图）。"""
@@ -1003,7 +1003,7 @@ def upload_product_image(
 def delete_product_image(
     sku_record_id: int,
     request: Request = None,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> SkuProductImageDeleteResponse:
     """删除指定 SKU 的产品图（清空 R2 对象 + DB 字段）。"""
@@ -1056,7 +1056,7 @@ def delete_product_image(
 @router.get("/sku-info/{sku_record_id}/fnsku-label/download")
 def download_fnsku_label(
     sku_record_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
 ) -> Response:
     """下载单个 SKU 的 FNSKU 标签 PDF。"""
     import io
@@ -1092,7 +1092,7 @@ def download_fnsku_label(
 def batch_download_fnsku_labels(
     payload: BatchFnskuLabelDownloadRequest,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> Response:
     """批量下载 FNSKU 标签，返回 ZIP 文件。"""
@@ -1175,7 +1175,7 @@ def batch_download_fnsku_labels(
 @router.post("/sku-info/fnsku-labels/by-skus")
 def get_fnsku_labels_by_skus(
     payload: GetFnskuLabelsBySkusRequest,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
 ) -> FnskuLabelsResponse:
     """通过项目名称和 SKU 列表获取 FNSKU 标签信息（包含 R2 key）。"""
     rows = db.execute(

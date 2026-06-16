@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, R
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, get_request_operator, protected
+from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, protected
 from app.core.config import Settings, get_settings
 from app.models.job import JobStatus
 from app.schemas.monthly_report import (
@@ -54,7 +54,7 @@ def create_monthly_report(
     request: Request,
     response: Response,
     settings: Settings = Depends(get_settings),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> MonthlyReportResponse:
     started_at = perf_counter()
@@ -202,7 +202,7 @@ def get_monthly_report_task(task_id: int) -> MonthlyReportTaskStatusResponse:
 def download_monthly_report_task_result(
     task_id: int,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
 ):
     task = monthly_report_runtime_service.get_task(task_id)
@@ -236,7 +236,7 @@ def list_monthly_reports(
     country: str | None = Query(default=None),
     month: str | None = Query(default=None),
     include_history: bool = Query(default=False),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
 ) -> list[MonthlyReportListItem]:
     report_month = parse_report_month(month) if month else None
     normalized_country: str | None = None
@@ -264,7 +264,7 @@ def get_monthly_financial_series(
     start_month: str | None = Query(default=None),
     end_month: str | None = Query(default=None),
     fill_missing: bool = Query(default=True),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> MonthlyFinancialSeriesResponse:
@@ -305,7 +305,7 @@ def recalculate_monthly_financial_series(
     start_month: str | None = Query(default=None),
     end_month: str | None = Query(default=None),
     fill_missing: bool = Query(default=True),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> MonthlyFinancialSeriesResponse:
@@ -341,7 +341,7 @@ def get_monthly_financial_accounting_detail(
     project_id: int = Query(gt=0),
     country: str = Query(default='US'),
     report_month: str = Query(min_length=7, max_length=7),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> MonthlyFinancialAccountingDetailResponse:
@@ -370,7 +370,7 @@ def export_monthly_financial_accounting_detail(
     project_id: int = Query(gt=0),
     country: str = Query(default='US'),
     report_month: str = Query(min_length=7, max_length=7),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ):
@@ -409,7 +409,7 @@ def export_monthly_financial_accounting_detail(
 )
 def get_monthly_report_detail(
     report_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
 ) -> MonthlyReportDetailResponse:
     report, pt3, pt4 = get_report_detail(
         db,
@@ -426,7 +426,7 @@ def get_monthly_report_detail(
 def download_monthly_report_export(
     report_id: int,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
 ):
     report = get_report_or_404(db, report_id)
