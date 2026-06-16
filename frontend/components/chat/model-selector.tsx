@@ -326,8 +326,10 @@ export function ModelSelector({ selectedModel, onModelChange }: {
           {/* Wrapper that holds the main dropdown + the optional "其他模型"
               side panel side-by-side. Both panels anchor to the same bottom
               edge so the right panel visually stacks next to (not below)
-              the dropdown. */}
-          <div className="absolute bottom-full left-0 mb-2 z-50 flex items-start gap-2 bb-anim-scale-in">
+              the dropdown. `items-end` keeps the main dropdown glued to the
+              trigger top so opening the side panel doesn't shift it up or
+              down — only the side panel grows upward as needed. */}
+          <div className="absolute bottom-full left-0 mb-2 z-50 flex items-end gap-2 bb-anim-scale-in">
             <div className="min-w-[260px] sm:min-w-[280px] max-h-[60vh] overflow-y-auto bg-[#1a1a1e]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl shadow-black/50 overscroll-contain">
               <div className="p-1.5">
                 <div className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#5a5a5f]">选择模型</div>
