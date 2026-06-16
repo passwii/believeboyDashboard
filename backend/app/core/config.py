@@ -18,6 +18,15 @@ class Settings(BaseSettings):
     app_port: int = 8000
 
     database_url: str = Field(min_length=1)
+    # BEL-55-P5 / BEL-73: optional read-replica URL. When empty, all
+    # sessions use `database_url` (backward compatible). When set, the
+    # `get_read_db()` dependency opens sessions against this engine and
+    # routes SELECTs to it; INSERT/UPDATE/DELETE still go to primary.
+    database_read_url: str = Field(default="", max_length=1000)
+    db_read_pool_size: int = Field(default=20, ge=1, le=200)
+    db_read_max_overflow: int = Field(default=20, ge=0, le=200)
+    replica_failure_threshold: int = Field(default=5, ge=1, le=100)
+    replica_cooldown_seconds: int = Field(default=30, ge=1, le=600)
     api_key: str = Field(default="change-me", min_length=8)
     ai_chat_provider_base_url: str = Field(default="", max_length=500)
     ai_chat_provider_api_key: str = Field(default="", max_length=500)
@@ -126,6 +135,15 @@ class Settings(BaseSettings):
     def r2_enabled(self) -> bool:
         """Check if R2 is properly configured."""
         return bool(self.r2_endpoint_url and self.r2_access_key_id and self.r2_secret_access_key and self.r2_bucket_name)
+
+    @property
+    def replica_enabled(self) -> bool:
+        """True when a read-replica URL is configured (BEL-55-P5 / BEL-73).
+
+        Used by health endpoint, startup probe, and tests to decide
+        whether the read-routing path is live.
+        """
+        return bool(self.database_read_url)
 
 
 @lru_cache
