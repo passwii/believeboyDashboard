@@ -2,7 +2,7 @@
 """
 Schedule Report 高并发压力测试（100 / 1000 并发）
 包含两个测试维度：
-1. 聚合数据测试 — 模拟 build_dashboard_overview 中的 5 个复杂聚合查询
+1. 聚合数据测试 — 模拟报表本地聚合查询中的 5 个复杂查询
 2. 管线测试 — 模拟 _dispatch_one 完整生命周期（含 AI Semaphore 等待）
 """
 

@@ -1174,7 +1174,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/dashboard/overview": {
+    "/api/v1/daily-analysis/all-countries": {
         parameters: {
             query?: never;
             header?: never;
@@ -1182,14 +1182,13 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get Dashboard Overview
-         * @description Dashboard KPI 总览聚合接口。
+         * Get Daily Analysis All Countries
+         * @description 跨国家站点聚合单项目数据。
          *
-         *     - 返回当前用户可访问的所有项目的汇总 KPI 数据（销售、库存、发货、退货、广告）
-         *     - 支持按项目 ID 筛选（逗号分隔），支持按国家筛选
-         *     - 数据来自 digital_display_service 的各子模块
+         *     当前对 US / DE / UK 三个国家分别加载数据并按 (date, sku) 求和；
+         *     响应里 ``country_breakdown`` 字段给出按国家分桶的明细。
          */
-        get: operations["get_dashboard_overview_api_v1_dashboard_overview_get"];
+        get: operations["get_daily_analysis_all_countries_api_v1_daily_analysis_all_countries_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6676,6 +6675,39 @@ export interface components {
             /** Sku */
             sku: string;
         };
+        /**
+         * DailyAnalysisAllCountriesResponse
+         * @description 跨所有支持国家站点的聚合响应。
+         *
+         *     金额字段（``sales_amount`` / ``ad_spend`` / ``ordered_sales_amount``）已按
+         *     ``exchange_rates`` 表的当月 CNY 中转折算为 USD 统一展示；非金额字段
+         *     （订单 / 曝光 / 点击 / 库存 / 销量 / 访问 / 在途等）保持原值。
+         *     响应顶层 ``currency`` 字段固定为 ``"USD"``，便于前端识别并切换符号。
+         */
+        DailyAnalysisAllCountriesResponse: {
+            /** Available Dates */
+            available_dates: {
+                [key: string]: unknown;
+            };
+            console: components["schemas"]["DailyAnalysisConsoleResponse"];
+            /** Country Breakdown */
+            country_breakdown: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
+            /**
+             * Currency
+             * @default USD
+             */
+            currency: string;
+            /** Currency Note */
+            currency_note?: string | null;
+            /** Detail Rows */
+            detail_rows: components["schemas"]["DailyAnalysisDetailRow"][];
+            /** Summary Rows */
+            summary_rows: components["schemas"]["DailyAnalysisSummaryRow"][];
+        };
         /** DailyAnalysisAllProjectsResponse */
         DailyAnalysisAllProjectsResponse: {
             /** Available Dates */
@@ -6844,236 +6876,6 @@ export interface components {
              * @default 0
              */
             units_ordered: number;
-        };
-        /** DashboardOverviewAds */
-        DashboardOverviewAds: {
-            /**
-             * Period Acos
-             * @default 0
-             */
-            period_acos: number;
-            /**
-             * Period Clicks
-             * @default 0
-             */
-            period_clicks: number;
-            /**
-             * Period Ctr
-             * @default 0
-             */
-            period_ctr: number;
-            /**
-             * Period Impressions
-             * @default 0
-             */
-            period_impressions: number;
-            /**
-             * Period Orders
-             * @default 0
-             */
-            period_orders: number;
-            /**
-             * Period Roas
-             * @default 0
-             */
-            period_roas: number;
-            /**
-             * Period Sales
-             * @default 0
-             */
-            period_sales: number;
-            /**
-             * Period Spend
-             * @default 0
-             */
-            period_spend: number;
-        };
-        /** DashboardOverviewInventory */
-        DashboardOverviewInventory: {
-            /**
-             * Available Qty
-             * @default 0
-             */
-            available_qty: number;
-            /**
-             * Out Of Stock Count
-             * @default 0
-             */
-            out_of_stock_count: number;
-            /**
-             * Sku Count
-             * @default 0
-             */
-            sku_count: number;
-        };
-        /** DashboardOverviewResponse */
-        DashboardOverviewResponse: {
-            /**
-             * @default {
-             *       "period_acos": 0,
-             *       "period_clicks": 0,
-             *       "period_ctr": 0,
-             *       "period_impressions": 0,
-             *       "period_orders": 0,
-             *       "period_roas": 0,
-             *       "period_sales": 0,
-             *       "period_spend": 0
-             *     }
-             */
-            ads: components["schemas"]["DashboardOverviewAds"];
-            /** Country */
-            country: string;
-            /** Days */
-            days: number;
-            /**
-             * @default {
-             *       "available_qty": 0,
-             *       "out_of_stock_count": 0,
-             *       "sku_count": 0
-             *     }
-             */
-            inventory: components["schemas"]["DashboardOverviewInventory"];
-            /**
-             * Project Ids
-             * @default []
-             */
-            project_ids: number[];
-            /**
-             * Project Names
-             * @default []
-             */
-            project_names: string[];
-            /**
-             * @default {
-             *       "return_rate": 0,
-             *       "total_quantity": 0,
-             *       "total_returns": 0
-             *     }
-             */
-            returns: components["schemas"]["DashboardOverviewReturns"];
-            /**
-             * @default {
-             *       "change_type_order_qty": "neutral",
-             *       "change_type_sales": "neutral",
-             *       "order_qty_change_pct": 0,
-             *       "prev_order_qty": 0,
-             *       "prev_sales_amount": 0,
-             *       "sales_change_pct": 0,
-             *       "today_order_qty": 0,
-             *       "today_sales_amount": 0
-             *     }
-             */
-            sales: components["schemas"]["DashboardOverviewSalesSnapshot"];
-            /**
-             * Sales Trend
-             * @default []
-             */
-            sales_trend: components["schemas"]["DashboardOverviewTrendItem"][];
-            /** Server Time */
-            server_time: string;
-            /**
-             * @default {
-             *       "in_transit_count": 0,
-             *       "in_transit_qty": 0
-             *     }
-             */
-            shipments: components["schemas"]["DashboardOverviewShipments"];
-            /**
-             * Sku Sales Detail
-             * @default []
-             */
-            sku_sales_detail: components["schemas"]["SkuSalesDetailItem"][];
-        };
-        /** DashboardOverviewReturns */
-        DashboardOverviewReturns: {
-            /**
-             * Return Rate
-             * @default 0
-             */
-            return_rate: number;
-            /** Top Reason */
-            top_reason?: string | null;
-            /**
-             * Total Quantity
-             * @default 0
-             */
-            total_quantity: number;
-            /**
-             * Total Returns
-             * @default 0
-             */
-            total_returns: number;
-        };
-        /** DashboardOverviewSalesSnapshot */
-        DashboardOverviewSalesSnapshot: {
-            /**
-             * Change Type Order Qty
-             * @default neutral
-             */
-            change_type_order_qty: string;
-            /**
-             * Change Type Sales
-             * @default neutral
-             */
-            change_type_sales: string;
-            /**
-             * Order Qty Change Pct
-             * @default 0
-             */
-            order_qty_change_pct: number;
-            /**
-             * Prev Order Qty
-             * @default 0
-             */
-            prev_order_qty: number;
-            /**
-             * Prev Sales Amount
-             * @default 0
-             */
-            prev_sales_amount: number;
-            /**
-             * Sales Change Pct
-             * @default 0
-             */
-            sales_change_pct: number;
-            /**
-             * Today Order Qty
-             * @default 0
-             */
-            today_order_qty: number;
-            /**
-             * Today Sales Amount
-             * @default 0
-             */
-            today_sales_amount: number;
-        };
-        /** DashboardOverviewShipments */
-        DashboardOverviewShipments: {
-            /**
-             * In Transit Count
-             * @default 0
-             */
-            in_transit_count: number;
-            /**
-             * In Transit Qty
-             * @default 0
-             */
-            in_transit_qty: number;
-        };
-        /** DashboardOverviewTrendItem */
-        DashboardOverviewTrendItem: {
-            /** Date */
-            date: string;
-            /**
-             * Order Qty
-             * @default 0
-             */
-            order_qty: number;
-            /**
-             * Sales Amount
-             * @default 0
-             */
-            sales_amount: number;
         };
         /**
          * DataLifecycleStatus
@@ -12179,23 +11981,6 @@ export interface components {
             /** Total */
             total?: number | null;
         };
-        /** SkuSalesDetailItem */
-        SkuSalesDetailItem: {
-            /** Product Name */
-            product_name?: string | null;
-            /**
-             * Quantity
-             * @default 0
-             */
-            quantity: number;
-            /**
-             * Sales Amount
-             * @default 0
-             */
-            sales_amount: number;
-            /** Sku */
-            sku: string;
-        };
         /** SourcePersistOutcomeSchema */
         SourcePersistOutcomeSchema: {
             /** Error Message */
@@ -15899,21 +15684,18 @@ export interface operations {
             };
         };
     };
-    get_dashboard_overview_api_v1_dashboard_overview_get: {
+    get_daily_analysis_all_countries_api_v1_daily_analysis_all_countries_get: {
         parameters: {
-            query?: {
-                country?: string;
-                days?: number;
-                /** @description comma-separated project IDs */
-                project_ids?: string | null;
-                /** @description reference date (YYYY-MM-DD), defaults to server today */
-                reference_date?: string | null;
+            query: {
+                project_id: number;
+                start_date: string;
+                end_date: string;
             };
             header?: {
+                "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
-                "X-Is-Admin"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -15926,7 +15708,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DashboardOverviewResponse"];
+                    "application/json": components["schemas"]["DailyAnalysisAllCountriesResponse"];
                 };
             };
             /** @description Validation Error */
